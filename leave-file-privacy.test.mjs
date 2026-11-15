@@ -6,25 +6,32 @@
  * A leave file names every colleague against their dates of leave (al-leave-file.js), and the
  * answers file beside it names the personal exceptions in matching them. The repository is public,
  * and the GitHub Pages mirror serves every committed file at HTTP 200 with no ignore list, so the
- * only rule BOTH origins obey is that the file is never committed. Three locks, each tested here:
+ * only rule BOTH origins obey is that the file is never committed. Four locks, each tested here:
  *
  *   1. `scripts/make-leave-file.mjs` refuses to WRITE inside the repository (`isOutsideRepo`) — also
  *      through a symlinked folder or file, by any path with `..` in it, for a name that merely begins
- *      with two dots, and inside ANY other checkout or worktree. So no test assumes the folder above
- *      this checkout is outside: from a worktree inside the main checkout, it is not;
- *   2. `.gitignore` excludes `*.leave.json` and `*.local.json`, wherever the file lands, so one
- *      copied in by hand is not picked up by `git add -A`;
- *   3. and if one is committed anyway, this fails: no tracked file may BE a leave file. A real one
+ *      with two dots, inside ANY other checkout or worktree, and over a file with another name (a hard
+ *      link, whose other names could be inside one). So no test assumes the folder above this
+ *      checkout is outside: from a worktree inside the main checkout, it is not;
+ *   2. `.gitignore` excludes a leave file and an answers file, wherever it lands and in every name a
+ *      phone gives a copy (`x.Leave.json`, `x.leave (1).json`, `x.leave.json.txt` — each was
+ *      trackable under the old lower-case rule), so one copied in by hand is not picked up by
+ *      `git add -A` — and the rules that wide still ignore no tracked file;
+ *   3. `githooks/pre-commit` refuses a commit that holds a leave file BY ANY NAME, reading what each
+ *      staged file is. The block is taken out of the hook and run here against staged files, so this
+ *      tests the hook's own code, not a copy of it;
+ *   4. and if one is committed anyway, this fails: no tracked file may BE a leave file. A real one
  *      always carries a full 64-character seal, so the needle is the format marker AND a full seal —
  *      which a plan's example (`"digest": "sha256:…"`) never has. The needles are built from the
- *      module's own constant, so this file does not match itself.
+ *      module's own constant, so this file does not match itself. It runs in CI, after a push: lock 3
+ *      is the one that acts before the repository, which is public, has the file.
  *
  * Needs nothing installed. When `git` is not on the path, the git-side checks say so and are skipped
  * rather than passing silently.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, realpathSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, linkSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -40,19 +47,61 @@ function git(args) {
 }
 const inCheckout = git(['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
 
+/** The leave-file rules, each case-blind and wide enough for a copy's renaming (.gitignore says why). */
+const LEAVE_RULES = ['*.[lL][eE][aA][vV][eE]*.[jJ][sS][oO][nN]*', '*.[lL][oO][cC][aA][lL]*.[jJ][sS][oO][nN]*',
+    '[aA][nN][sS][wW][eE][rR][sS]*.[jJ][sS][oO][nN]*'];
+
 test('.gitignore excludes leave files and answers files, as whole lines', () => {
     const lines = readFileSync(join(ROOT, '.gitignore'), 'utf8').split('\n').map(l => l.trim());
-    for (const rule of ['*.leave.json', '*.local.json']) {
+    for (const rule of LEAVE_RULES) {
         assert.ok(lines.includes(rule), `the \`${rule}\` rule is gone from .gitignore — it is what keeps a leave file out of the\n`
             + 'public repository (and so off the Pages mirror) if one is ever copied into the tree. Put it back.');
     }
 });
 
-test('and git agrees, at the root and deep in a served folder', { skip: !inCheckout && 'git is not available here' }, () => {
-    for (const path of ['leave-2026.leave.json', 'docs/leave-2026-as-of-2026-11-06.leave.json', 'scripts/answers.local.json']) {
-        // `check-ignore` exits 0 for an ignored path and 1 for one git would track.
-        assert.notEqual(git(['check-ignore', '-q', path]), null, `git would track ${path}`);
+test('and git agrees — in every name a copy is given, either case, at the root and deep in a served folder', { skip: !inCheckout && 'git is not available here' }, () => {
+    // Every one of the renamed copies was trackable under the old `*.leave.json` (measured, 15 Nov 2026),
+    // and `answers.json` is the name the script's usage line once suggested.
+    for (const path of ['leave-2026.leave.json', 'docs/leave-2026-as-of-2026-11-06.leave.json', 'scripts/answers.local.json',
+        'x.Leave.json', 'a.LEAVE.JSON', 'a.leave (1).json', 'a.leave 2.json', 'name.leave(1).json', 'a.leave.json.txt',
+        'docs/x.leave (3).json', 'answers.json', 'Answers.JSON', 'answers.local (1).json', 'A.LOCAL.JSON', 'answers.local.json.txt']) {
+        // `check-ignore` exits 0 for an ignored path and 1 for one git would track. `--no-index` asks
+        // about the RULES alone, so a copy somebody has already tracked is still judged.
+        assert.notEqual(git(['check-ignore', '-q', '--no-index', '--', path]), null, `git would track ${path}`);
     }
+});
+
+test('rules that wide still ignore no TRACKED file', { skip: !inCheckout && 'git is not available here' }, () => {
+    // A rule that caught a tracked file would hide that file's next change from `git add -A`.
+    const tmp = outsideFolder();
+    try {
+        const rules = join(tmp, 'rules');
+        writeFileSync(rules, LEAVE_RULES.join('\n') + '\n');
+        const caught = git(['ls-files', '-z', '-c', '-i', `--exclude-from=${rules}`]);
+        assert.notEqual(caught, null, 'git ls-files could not run');
+        assert.deepEqual((caught ?? '').split('\0').filter(Boolean), [], 'tracked files the leave-file rules would ignore');
+        // …and the listing is live: in a repository of the test's own, the same rules DO list a
+        // tracked leave file — so the empty answer above is about this tree, not a listing that is broken.
+        const repo = join(tmp, 'repo');
+        mkdirSync(repo);
+        assert.notEqual(gitIn(repo, ['init', '-q']), null, 'git init failed in the test’s own folder');
+        writeFileSync(join(repo, 'x.Leave (1).json'), '{}');
+        writeFileSync(join(repo, 'package.json'), '{}');
+        assert.notEqual(gitIn(repo, ['add', '-A']), null);
+        assert.deepEqual((gitIn(repo, ['ls-files', '-z', '-c', '-i', `--exclude-from=${rules}`]) ?? '').split('\0').filter(Boolean), ['x.Leave (1).json']);
+    } finally {
+        rmSync(tmp, { recursive: true, force: true });
+    }
+});
+
+test('every file the script’s usage line names is one .gitignore excludes', { skip: !inCheckout && 'git is not available here' }, () => {
+    // The usage line is what a session copies: the answers file it suggested (`answers.json`) was trackable.
+    const usage = readFileSync(join(ROOT, 'scripts', 'make-leave-file.mjs'), 'utf8').split('\n').slice(0, 14).join('\n');
+    // `--out <outside-the-repo>/leave-2026-as-of-<date>.leave.json]` → `leave-2026-as-of-date.leave.json`
+    const named = [...usage.matchAll(/--(previous|answers|out|csv) (\S+)/g)]
+        .map(m => (m[2].replace(/[\])]+$/, '').split('/').pop() ?? '').replace(/<([^<>]*)>/g, '$1'));
+    assert.deepEqual(named, ['last.leave.json', 'answers.local.json', 'leave-2026-as-of-date.leave.json', 'days.csv']);
+    for (const name of named) assert.notEqual(git(['check-ignore', '-q', '--no-index', '--', name]), null, `git would track ${name}`);
 });
 
 test('no TRACKED file is a real leave file', { skip: !inCheckout && 'git is not available here' }, () => {
@@ -85,6 +134,81 @@ test('the needles still find a real leave file — guard the guard', () => {
     // …and not a plan's example, whose seal is elided.
     const example = `{ "format": "${LEAVE_FILE_FORMAT}", "digest": "sha256:…" }`;
     assert.ok(!(marker.test(example) && seal.test(example)));
+});
+
+/**
+ * The hook's leave-file block, taken out of githooks/pre-commit as it stands: the node code the hook
+ * runs, so a test of it is a test of the hook and never of a copy that could drift from it.
+ * @returns {string}
+ */
+function hookLeaveStep() {
+    const src = readFileSync(join(ROOT, 'githooks', 'pre-commit'), 'utf8');
+    const at = src.indexOf('# ── A LEAVE FILE NEVER ENTERS A COMMIT');
+    assert.ok(at >= 0, 'githooks/pre-commit no longer has its leave-file step');
+    const opener = "node - << 'NODEEOF'\n";
+    const open = src.indexOf(opener, at);
+    assert.ok(open > at, 'the leave-file step no longer runs a node block');
+    const body = src.slice(open + opener.length);
+    const end = body.indexOf('\nNODEEOF\n');
+    assert.ok(end > 0, 'the leave-file step’s node block is not closed');
+    return body.slice(0, end + 1);
+}
+
+test('the commit hook refuses a staged leave file BY WHAT IT IS — renamed, with a byte-order mark, or pasted into another file', { skip: !inCheckout && 'git is not available here' }, () => {
+    const tmp = outsideFolder();
+    try {
+        const repo = join(tmp, 'repo');
+        mkdirSync(repo);
+        assert.notEqual(gitIn(repo, ['init', '-q']), null, 'git init failed in the test’s own folder');
+        // The hook reads the format out of al-leave-file.js AS STAGED, so the scratch commit carries it.
+        writeFileSync(join(repo, 'al-leave-file.js'), readFileSync(join(ROOT, 'al-leave-file.js')));
+        const step = join(tmp, 'leave-step.cjs');
+        writeFileSync(step, hookLeaveStep());
+        const leave = JSON.stringify({ format: LEAVE_FILE_FORMAT, version: 1, digest: `sha256:${'c'.repeat(64)}` }, null, 1);
+        // Unsealed — a draft, or one cut down by hand — so only READING it as JSON can find it: the
+        // marker-and-seal needle cannot, and each route must be seen to work without the other.
+        const draft = JSON.stringify({ format: LEAVE_FILE_FORMAT, version: 1, people: [] });
+        const BOM = String.fromCharCode(0xFEFF);
+        const fence = '`'.repeat(3);
+        /** @type {Record<string, string>} */
+        const files = {
+            'notes.txt': leave,                                                  // a leave file, renamed
+            'copy.leave (1).json': BOM + leave,                                 // a re-download, with a BOM
+            'docs/pasted.md': `# Notes\n\n${fence}json\n${leave}\n${fence}\n`,  // one pasted into another file
+            'draft.txt': draft,                                                  // found only as JSON
+            'draft (1).json': BOM + draft,                                       // …with a BOM, which JSON.parse refuses
+            // Not leave files: a plan's example (its seal elided), another format, code.
+            'plan.md': `# Plan\n\n${fence}json\n{ "format": "${LEAVE_FILE_FORMAT}", "digest": "sha256:…" }\n${fence}\n`,
+            'other.json': JSON.stringify({ format: 'myb-backup', digest: `sha256:${'c'.repeat(64)}` }),
+            'code.js': 'export const x = 1;\n',
+        };
+        for (const [p, text] of Object.entries(files)) {
+            mkdirSync(dirname(join(repo, p)), { recursive: true });
+            writeFileSync(join(repo, p), text);
+        }
+        assert.notEqual(gitIn(repo, ['add', '-A']), null, 'git add failed in the test’s own folder');
+        /** The step as the hook runs it: the staged list in STAGED_FILES, no GIT_* from a hook around us. @param {string[]} paths */
+        const run = paths => spawnSync(process.execPath, [step], { cwd: repo, encoding: 'utf8',
+            env: { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))), STAGED_FILES: paths.map(p => `${p}\n`).join('') } });
+        const all = run(['al-leave-file.js', ...Object.keys(files)]);
+        assert.equal(all.status, 1, all.stderr);
+        assert.deepEqual([...all.stderr.matchAll(/leave-file: (.+?) is a leave file/g)].map(m => m[1]),
+            ['notes.txt', 'copy.leave (1).json', 'docs/pasted.md', 'draft.txt', 'draft (1).json']);
+        // With only the honest files staged, the commit goes through.
+        const clean = run(['al-leave-file.js', 'plan.md', 'other.json', 'code.js']);
+        assert.equal(clean.status, 0, clean.stderr);
+        // A file it cannot read as staged is a refusal, never a pass…
+        const unread = run(['code.js', 'never-staged.json']);
+        assert.equal(unread.status, 1);
+        assert.match(unread.stderr, /never-staged\.json could not be read as staged/);
+        // …and so is a commit in which it cannot read the format at all.
+        assert.notEqual(gitIn(repo, ['rm', '-q', '--cached', 'al-leave-file.js']), null);
+        const noFormat = run(['code.js']);
+        assert.equal(noFormat.status, 1);
+        assert.match(noFormat.stderr, /LEAVE_FILE_FORMAT could not be read/);
+    } finally {
+        rmSync(tmp, { recursive: true, force: true });
+    }
 });
 
 /**
@@ -127,6 +251,12 @@ test('the script will not write inside the repository — by any route', () => {
         symlinkSync(join(ROOT, 'package.json'), join(tmp, 'plain', 'existing.leave.json'));
         assert.equal(isOutsideRepo(join(tmp, 'plain', 'dangling.leave.json')), false, 'a dangling symlinked file');
         assert.equal(isOutsideRepo(join(tmp, 'plain', 'existing.leave.json')), false, 'a symlinked file');
+        // A file with another name — a hard link — is refused wherever it stands: writing it writes the
+        // file every name shares, and one of them could be inside a checkout; nothing can say where.
+        writeFileSync(join(tmp, 'plain', 'shared.txt'), 'a file with a name of its own');
+        linkSync(join(tmp, 'plain', 'shared.txt'), join(tmp, 'plain', 'linked.leave.json'));
+        assert.equal(isOutsideRepo(join(tmp, 'plain', 'linked.leave.json')), false, 'a hard-linked file');
+        assert.equal(isOutsideRepo(join(tmp, 'plain', 'fresh.leave.json')), true, 'a new file beside it');
         // `..` after a symlinked folder is the folder above where the LINK LEADS, which `resolve()`
         // does not know: `into-docs/..` reads as the temporary folder and is the repository root.
         symlinkSync(join(ROOT, 'docs'), join(tmp, 'into-docs'));

@@ -272,15 +272,16 @@
         </div>
     </div>
 
-    <!-- ==================== ANNUAL LEAVE SHEET (check only) ==================== -->
-    <!-- Phase 1 of the annual leave uploader (docs/AL_UPLOADER_PLAN.md): a leave file a session made
-         from the clerks' workbook, set beside the app's own records. It saves NOTHING; the card's
-         module is operations-al-sheet.js and its sentences al-leave-words.js. -->
+    <!-- ==================== ANNUAL LEAVE SHEET ==================== -->
+    <!-- Phases 1 and 2b of the annual leave uploader (docs/AL_UPLOADER_PLAN.md): a leave file a session
+         made from the clerks' workbook, set beside the app's own records, and a Save that adds the leave
+         the app is missing for the people the admin confirms. The card's module is
+         operations-al-sheet.js, the Save's operations-al-save.js and their sentences al-leave-words.js. -->
     <div class="card" id="alSheetCard">
         <div class="card-header card-header-toggle" id="alSheetToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🏖️</span> Annual leave sheet</h2>
-                <span class="hint">Check the clerks’ leave sheet against the app, person by person — nothing is saved</span>
+                <span class="hint">Check the clerks’ leave sheet against the app, and add the leave it is missing</span>
             </div>
             <div class="card-header-actions">
                 <button type="button" class="btn-card-tips" data-card="annual-leave-sheet" aria-label="Tips for Annual leave sheet">?</button>
@@ -289,7 +290,7 @@
         </div>
         <div class="card-collapsible-body" id="alSheetBody">
             <div class="card-body">
-                <p class="auth-desc">The app can’t read the clerks’ workbook itself. Upload it in a Claude session and ask for a <strong>leave file</strong>, then choose that file here to see, person by person, where the sheet and the app disagree, and why. <strong>This is a check only: nothing is saved.</strong></p>
+                <p class="auth-desc">The app can’t read the clerks’ workbook itself. Upload it in a Claude session and ask for a <strong>leave file</strong>, then choose that file here to see, person by person, where the sheet and the app disagree, and why. <strong>Nothing is saved until you confirm a person and press Save</strong>, and the Save only ever adds leave the app is missing.</p>
                 <div class="huddle-row">
                     <label for="alSheetFileInput" class="huddle-file-label">Choose leave file</label>
                     <input type="file" id="alSheetFileInput" accept=".json,application/json,text/plain,application/octet-stream" class="visually-hidden-file" aria-label="Choose leave file — the one made from the clerks’ workbook">

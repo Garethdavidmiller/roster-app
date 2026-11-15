@@ -509,11 +509,12 @@ classification in `AUTH_PLAN.md` §2. What still holds:
   class that went wrong, a NAME next to a FIGURE. It is not a classification guard: a new personal
   field in a doc that never names anybody passes it, and so does a name beside something neither
   vocabulary lists.
-- **The leave uploader's file is kept out by its own three locks** (Nov 2026): it names every
-  colleague against their dates of leave, so `scripts/make-leave-file.mjs` will not write inside the
-  repository, `.gitignore` excludes `*.leave.json` and `*.local.json`, and `leave-file-privacy.test.mjs`
-  fails on a tracked file that IS a leave file — recognised by its format marker and a full seal. That
-  recognises the file, not what it says: the same days copied into a doc without the seal pass it,
+- **The leave uploader's file is kept out by its own four locks** (Nov 2026): it names every
+  colleague against their dates of leave, so `scripts/make-leave-file.mjs` will not write inside any
+  checkout, `.gitignore` excludes a leave or answers file in every name a copy is given, the commit
+  hook refuses a staged leave file by content (where the hook is installed), and
+  `leave-file-privacy.test.mjs` fails in CI on a tracked file that IS a leave file — recognised by its
+  format marker and a full seal. That recognises the file, not what it says: the same days copied into a doc without the seal pass it,
   and pass `payroll-anonymity.test.mjs` too, whose leave words are counts and a reason for absence,
   never a date.
 
@@ -1012,31 +1013,49 @@ evidence in one step. Restoring it automatically is impossible anyway: the shift
 preserved, only its type. If a cancelled-leave-on-swapped-day case ever recurs without the
 re-record, that is the signal to store more than the type.
 
-### The Annual leave sheet card checks; it does not correct (Phase 1, owner, 14 Nov 2026)
-Operations → Annual leave sheet compares the clerks' workbook with the app and **writes nothing**.
-Every difference it finds is put right by hand, a day at a time, in Admin. Whether the app should
-ever write from the sheet is decided after this phase has been used (AL_UPLOADER_PLAN.md §10; the
-trigger and blockers are ROADMAP.md → "Annual leave uploader — Phase 2, the Save"). What that leaves
+### The Annual leave sheet card adds missing leave, and nothing else (Phases 1 and 2b, owner, 14 Nov 2026)
+Operations → Annual leave sheet compares the clerks' workbook with the app and, for each person the
+admin confirms, **adds the leave the app is missing** — a working day with nothing recorded, or a rest
+day answered "swapped". Every other difference is put right by hand, a day at a time, in Admin
+(AL_UPLOADER_PLAN.md; OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet"). What that leaves
 open:
 
-- **It cannot tell "cancelled since" from "never recorded".** Leave cancelled in the app after the
-  clerks' last save still shows as "not in the app", which is correct but reads like a gap. Telling
-  the two apart needs the upload log, planned before any Save and backend-first (plan §4.6).
+- **The FIRST Save of a year cannot tell "cancelled since" from "never recorded".** Once a copy has
+  been saved here, its upload log tells them apart: a day it brought into line that the app has lost
+  since is shown as removed, and never written back. Before any log of that year exists, leave
+  cancelled in the app after the clerks' last save reads as "not in the app", and a confirmed person
+  would have it added back. What stands in the way is the person-by-person confirmation with every
+  day on screen, and the 14-day limit on a copy's age.
+- **A Save the app could not read back, or whose record could not be written, is recorded only by the
+  next check of the same file, in the same visit.** Close the page first and that Save has no log: it cannot be undone from the card (its
+  days are deleted in Admin instead), and its days are not protected against coming back until the
+  next Save's log, which names every day in line, is written.
+- **The Undo is for the newest Save of the year, once.** An earlier Save is undone by hand in Admin.
+- **One spelling is one answer, in every grade block.** The session's script keys a row's name by its
+  spelling, so two people spelt alike in two blocks (a trainee the app does not hold, and a member it
+  does) share one answer. It never files one's days under the other: named as the member, the other's
+  row stops the file; answered "not in the app", the member shows on the card as in the app but not on
+  the sheet, and the question comes back with every copy.
 - **It knows only what the workbook says.** Column E's undated days (a joiner's reduction, a lump in
   words, a value its comment does not explain) are reported as figures and cannot be placed on
-  dates. A column-E value with no comment has lost its dates for good (AL_WORKBOOK.md §8 defect 5).
+  dates, so the Save never writes them. A column-E value with no comment has lost its dates for good
+  (AL_WORKBOOK.md §8 defect 5).
 - **The carry-over is matched by count, not by day.** The sheet says how many days it carries
   forward, never which, so the card pairs that many of the app's moved-back January days with it,
   earliest first. A carry the app has not moved, or more moved days than the sheet carries, still
   shows as a difference.
-- **An old copy is warned about, not refused.** Past 14 days the card asks for a fresh copy and
-  still compares, because a check cannot do harm.
-- **An update waits while an answer is on screen,** for as long as it stays there: forty people's
-  differences are a long read, and a reload would take them away unsaid. Clearing the check lets it
-  in. A notification tap is not held.
+- **An old copy is compared, not saved.** Past 14 days, or with no save date, the card still
+  compares, because a check cannot do harm, and refuses the Save. So is a sheet for a year before
+  last: every Save deletes the records of those years, so its own record would go the moment it was
+  written, and with it the Undo and the protection against leave cancelled since.
+- **An update waits while an answer is on screen,** for as long as it stays there, and while answers
+  wait unsaved for the next check: forty people's differences are a long read, and a reload would take
+  them away unsaid. Clearing the check lets it in. A notification tap waits only while a confirmation
+  or a "Swapped — counts" answer is unsaved, or a Save or an Undo runs.
 - **The seal catches a hand edit, not a forgery.** The file's digest is worked out by public code, so
-  anyone who can run the script could seal an altered file. It needs the admin's own sign-in to
-  use, and writes nothing, so this costs nothing today. It matters only if a later phase writes.
+  anyone who can run the script could seal an altered file and propose leave that was never booked.
+  Using it needs the admin's own sign-in, and what stands in the way is the admin's own look at each
+  person before confirming them.
 
 ### A device that missed the ended-month release in November may open on November once in December
 The Calendar keeps the month on screen between visits, but since the whole-app fix (November 2026) it

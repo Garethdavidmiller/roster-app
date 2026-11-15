@@ -28,7 +28,7 @@ import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initDocumentUploadCards } from './operations-doc-uploads.js';
 import { initDocLinksCard, docLinksRequestInFlight } from './operations-doc-links.js';
-import { initAlSheetCard, alSheetBusy } from './operations-al-sheet.js';
+import { initAlSheetCard, alSheetBusy, alSheetUnsaved } from './operations-al-sheet.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
@@ -36,7 +36,7 @@ import { resetQuestion, resetFailure, resetOutcome } from './operations-reset.js
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, leaveAfterAsking } from './page-session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -78,15 +78,15 @@ export function init() {
     // memory only, so a reload could lose it. The reader was told to reload; that is theirs to do.
     // And a Document links check or run still waiting for its answer holds it too (v25.92): a run can
     // take minutes, and its report is the only record of what it did (operations-doc-links.js).
-    // And an Annual leave sheet check, running or on screen (14 Nov 2026), holds an UPDATE — not a tap:
+    // And an Annual leave sheet check, running or on screen, holds an UPDATE; a tap only its unsaved answers:
     const _opsBusy = () =>
         !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
         || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
         || !!document.querySelector('[data-uploading]')
         || writesInFlight() > 0
         || docLinksRequestInFlight();
-    // a tap is the reader's own choice, and the check saves nothing to lose (operations-al-sheet.js).
-    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => _opsBusy() || alSheetBusy()), isBusy: _opsBusy });
+    // a tap is the reader's own choice, and a check with nothing answered has nothing to lose (operations-al-sheet.js).
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => _opsBusy() || alSheetBusy()), isBusy: () => _opsBusy() || alSheetUnsaved() });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
@@ -171,7 +171,7 @@ export function init() {
         isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
         canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
         onLogoClick: () => openAboutLightbox?.(),
-        onSignOut:   () => signOutAndLeave({ to: './' }),
+        onSignOut:   () => signOutAndLeave({ to: './' }), beforeSignOut: askBeforeSignOut(alSheetUnsaved),
     });
 
     initHuddleUpload({ currentIsAdmin: true, currentUser });
@@ -777,7 +777,7 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
+        wireHeaderLogo(() => leaveAfterAsking(alSheetUnsaved, () => { window.location.href = './'; }));   // asks first, as the drawer does
     })();
 
     // ============================================

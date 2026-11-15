@@ -61,6 +61,12 @@
  *  17. a browser restart — a new browser from the old one's disk (local storage and IndexedDB, not
  *                         session storage): the staff PIN is gone even after a reload inside the
  *                         session, and a member's sign-in survives (8; CALENDAR_DATA.md 12).
+ *  18. the leave sheet's Save — the admin checks a leave file on Operations, answers a rest day,
+ *                         confirms a person and saves: each day lands at its fixed id as Admin writes
+ *                         it, the upload log passes the `alUploads` rules (written last, in a
+ *                         transaction that reads first, `savedAt` the server's clock), and the Undo
+ *                         takes both days back and marks the log once — every write through the real
+ *                         rules, where the stub would accept a field the rules refuse.
  *
  * What journey 7 does NOT reach is the back/forward cache, a browser restoring the page exactly as
  * it was left. Playwright launches Chrome with that cache turned off, and WebKit reloaded here too
@@ -80,6 +86,8 @@ import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data
 import { manualOverrideId } from '../override-id.js';
 import { nameToEmail } from '../auth-identity.js';
 import { signedOutLine } from '../claim-retry.js';
+import { alSheetFixture } from './al-sheet-fixture.js';
+import { checkedWords, questionWords, confirmWords, undoConfirmWords, undoneWords, SAVE_WORDS } from '../al-leave-words.js';
 
 const roster = JSON.parse(readFileSync(new URL('../functions/roster-members.json', import.meta.url), 'utf8'));
 const withARole = new Set(Object.values(roster.roles).flat());
@@ -953,4 +961,53 @@ test('a browser restart: the staff PIN dies with the browser, and a member\'s si
     expect(await sdkHolds(restarted.page), 'their own sign-in survived it').toBe(nameToEmail(MEMBER));
     expectNothingLeftForGoogle(restarted.page);
     await restarted.context.close();
+});
+
+test('the leave sheet: a Save adds a confirmed person\'s missing leave through the real rules, records itself, and its Undo takes it back', async ({ page }) => {
+    // The leave file names two members taken from the roster by rule (al-sheet-fixture.js); the app
+    // already holds three of its days, seeded past the rules as a manager made them earlier.
+    const fx = await alSheetFixture();
+    for (const r of fx.records) {
+        await seedDocument(`overrides/${manualOverrideId(r.memberName, r.date)}`, { memberName: r.memberName, date: r.date,
+            type: r.type, value: r.value, note: '', source: 'manual', changedBy: MANAGER });
+    }
+    await page.goto('/operations.html');
+    await signInFirstTime(page, ADMIN);
+    await page.locator('#alSheetChevron').click();
+    await page.locator('#alSheetFileInput').setInputFiles({ name: 'leave-file.json', mimeType: 'application/json', buffer: Buffer.from(fx.text) });
+    await page.locator('#alSheetCheckBtn').click();
+    const feedback = page.locator('#alSheetFeedback');
+    await expect(feedback).toHaveText(checkedWords(2));
+    const a = page.locator('#alSheetResult .al-sheet-person').filter({ has: page.locator('.al-sheet-name', { hasText: fx.A.name }) });
+    await a.locator('.al-sheet-person-head').click();
+    await a.getByRole('radiogroup', { name: questionWords(fx.dates.restDay) }).getByRole('radio', { name: SAVE_WORDS.swapped }).check();
+    await a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }).check();
+    await page.locator('#alSheetSaveBtn').click();
+    await expect(feedback, 'saved, and the log the rules accepted').toContainText(SAVE_WORDS.recorded);
+
+    // What the rules let through, read with the emulator's own eye rather than the page's.
+    for (const [date, replacedType] of /** @type {Array<[string, string|undefined]>} */ ([[fx.dates.missing, undefined], [fx.dates.restDay, 'shift']])) {
+        const saved = await overridesFor(fx.A.name, date);
+        expect(saved, `one record on ${date}`).toHaveLength(1);
+        expect(saved[0]._id, 'at the day\'s fixed id, as Admin\'s leave card files it').toBe(manualOverrideId(fx.A.name, date));
+        expect(saved[0]).toMatchObject({ type: 'annual_leave', value: 'AL', source: 'manual', changedBy: ADMIN, note: '' });
+        expect(saved[0].replacedType, 'the swap answer, where one was given').toBe(replacedType);
+    }
+    const added = [fx.dates.missing, fx.dates.restDay].map(d => `${fx.A.name}|${d}`).sort();
+    const logs = await readCollection('alUploads');
+    expect(logs, 'one log').toHaveLength(1);
+    expect(logs[0]).toMatchObject({ year: fx.year, fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256, savedBy: ADMIN, added });
+    expect(Date.parse(logs[0].savedAt), 'stamped by the server').toBeGreaterThan(0);
+
+    await page.locator('.al-sheet-undo').click();
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText(undoConfirmWords(2));
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();
+    await expect(feedback).toContainText(undoneWords({ removed: added, kept: [], gone: [] })[0]);
+    expect(await overridesFor(fx.A.name, fx.dates.missing), 'taken back').toHaveLength(0);
+    expect(await overridesFor(fx.A.name, fx.dates.restDay), 'taken back').toHaveLength(0);
+    expect(await overridesFor(fx.A.name, fx.dates.match), 'what the Save did not write is left alone').toHaveLength(1);
+    const marked = (await readCollection('alUploads'))[0];
+    expect(marked, 'the log records its undo, once').toMatchObject({ undoneBy: ADMIN, undone: added, added });
+    expect(Date.parse(marked.undoneAt)).toBeGreaterThan(0);
+    expectNothingLeftForGoogle(page);
 });
