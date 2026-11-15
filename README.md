@@ -115,7 +115,12 @@ behind them.
   `npm run test:visual:refresh` redraws the failed ones from this machine's render, which is for
   looking, not committing. Keep
   `-- --update-snapshots=all` for a deliberate sweep of drift inside the tolerance, then run
-  `git status e2e/visual-baselines/` and revert anything you cannot explain.
+  `git status e2e/visual-baselines/` and revert anything you cannot explain. **The tolerance can
+  hide a changed line of words**: the Operations screenshot kept the leave card's old hint for a
+  release, 1,119 pixels from the page against an allowance of 1,152 (0.1% at 1280×900). Words are
+  the browser tests' to check, so when a hint or a label changes, redraw its screenshots from CI's
+  render on purpose: CI writes a render only for a screenshot that fails or is missing, so take the
+  stale baseline out, push, and commit what the next run draws.
 - **`npm run test:visual:webkit`** — the same idea under Safari's engine, as a deliberately small set
   (config `playwright.visual-webkit.mjs`, baselines under `e2e/visual-baselines/webkit/` — a
   different engine's pixels, which will never equal their Chromium twins). Every Chromium baseline is
