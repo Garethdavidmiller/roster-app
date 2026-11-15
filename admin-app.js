@@ -1717,7 +1717,7 @@ export function init() {
             onSignOut:   () => signOutAndLeave(),
         });
         // Calendar pill: name the week's date in the link, so index.html opens on the month the user was
-        // editing — a `?date=` opens once, a future month included. Until v26.17 it also wrote the
+        // editing — a `?date=` opens once, a future month included. Until v26.19 it also wrote the
         // Calendar's stored month, a second writer. (Replaces the removed v10.63 header back button.)
         // Wired HERE — inside wireNavPanel, guarded per element — not at module scope: the
         // B1 teardown path resetNavPanel()s and re-injects a FRESH pill, and a module-scope listener on

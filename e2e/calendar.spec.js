@@ -825,8 +825,9 @@ test('calendar: coming back into view re-reads a month once it is ten minutes ol
     await expect.poll(reads, { message: 'a stale month is re-read on return' }).toBeGreaterThan(settled);
 });
 
-// "It always reopens on June 2026" (owner, 15 Nov 2026): a month browsed to was kept until the member
-// came back to today's month, however long that took. It is kept for half an hour now (calendar-state.js,
+// "It always reopens on June 2026" (owner, 15 Nov 2026), the month the app was installed: a stored month
+// was kept until the member came back to today's month, however long that took, and every launch drew
+// it and stored it again. A month browsed to is kept for half an hour now (calendar-state.js,
 // BROWSED_MONTH_KEPT_MS), through both ways a phone opens the app again: a RELOAD (the phone closed it
 // behind another app) and simply being SHOWN again (it was still in memory). Each gap starts with the page
 // put away, as a phone's does: a page left on screen is still being looked at, and its redraws keep the
@@ -872,6 +873,23 @@ test('calendar: a month browsed to is kept for half an hour — reloaded or brou
     await page.clock.fastForward('31:00');
     await visibility('visible');
     await expect(heading, 'shown again after half an hour away, still on June').toHaveText('November 2026');
+});
+
+// …AND THE OWNER'S OWN PHONE, as it holds the month today: a June stored in June 2026, when every render
+// stored the month on screen, and with no time beside it, because no release before v26.19 wrote one.
+// Before this release that June opened on every launch and was stored again; now it opens on today's
+// month, whose draw clears the old keys.
+test('calendar: a month an older release stored, with no time beside it, opens on today\'s month', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 10, 15, 12, 0, 0) });
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_roster_month', '5');   // June, 0-indexed
+        localStorage.setItem('myb_roster_year', '2026');
+    });
+    await page.goto('/');
+    await expect(page.locator('.month-year'), 'the June stored at install opened again').toHaveText('November 2026');
+    await expect.poll(() => page.evaluate(() => ['myb_roster_month', 'myb_roster_year', 'myb_roster_month_at']
+        .map((k) => localStorage.getItem(k))), { message: 'today\'s month stores nothing' }).toEqual([null, null, null]);
 });
 
 // …AND WHEN THAT RE-READ FAILS, THE PAGE SAYS SO (10 Nov 2026, external review F1). A month read in the

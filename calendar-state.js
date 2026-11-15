@@ -13,20 +13,22 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 
 // The month on screen, kept for a moment (below). Only this module reads or writes them, so they are
 // not in storage-keys.js: Admin's Calendar pill used to write the first two as well, and now names
-// its date in the link instead (v26.17). 0-indexed month, full year, and when they were stored (ms).
+// its date in the link instead (v26.19). 0-indexed month, full year, and when they were stored (ms).
 const VIEWED_MONTH = 'myb_roster_month';
 const VIEWED_YEAR  = 'myb_roster_year';
 const VIEWED_AT    = 'myb_roster_month_at';
 
 /**
- * How long a month the member BROWSED to is kept once they stop looking at it (owner, 15 Nov 2026).
+ * How long a stored month is kept once the member stops looking at it (owner, 15 Nov 2026).
  *
- * It used to be kept until they came back to today's month, however long that took, so the app
- * "always reopens on June 2026" — every launch, for months, on a page somebody once looked at. Today's
- * month is what opening the roster is for; the kept month is only for coming straight back: Android
- * or iOS reloading the app behind another one, or a quick trip to another page and back through the
- * drawer. Half an hour covers those, and anything longer opens on today. A link that names a date
- * (`?date=`) still opens that month whenever it is followed.
+ * It used to be kept until they came back to today's month, however long that took, and every draw
+ * of it stored it again, so it never ran out. "It always reopens on June 2026" was the month the owner
+ * installed the app: until 10 Nov 2026 every render stored the month on screen, today's included, so
+ * June was stored in June and every launch after it opened there. Today's month is what opening the
+ * roster is for; a kept month is only for coming straight back: Android or iOS reloading the app
+ * behind another one, or a quick trip to another page and back through the drawer. Half an hour covers
+ * those, and anything longer opens on today. A link that names a date (`?date=`) still opens that
+ * month whenever it is followed.
  */
 export const BROWSED_MONTH_KEPT_MS = 30 * 60 * 1000;
 
@@ -53,7 +55,7 @@ let _year  = new Date().getFullYear();
         if (y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) { _month = m; _year = y; return; }
     }
     // A month stored more than BROWSED_MONTH_KEPT_MS ago opens on today, and so does one stored with
-    // no time at all — every month stored before v26.17, which is how a June stayed for months. A
+    // no time at all — every month stored before v26.19, which is how an install month stayed. A
     // time AHEAD of the clock (the clock put back since) is not trusted either: today is the safe answer.
     const age = Date.now() - parseInt(lsGet(VIEWED_AT) ?? '', 10);
     if (!(age >= 0 && age <= BROWSED_MONTH_KEPT_MS)) return;
@@ -178,7 +180,7 @@ export function watchLocalDate(onChange, env = {}) {
  * member reading "this month" meant.
  *
  * A browsed month is stored WITH THE TIME, which the restore holds to BROWSED_MONTH_KEPT_MS. And only
- * a page somebody can see stores anything (v26.17): a copy in the background — a second tab, or the
+ * a page somebody can see stores anything (v26.19): a copy in the background — a second tab, or the
  * app behind another one — still redraws when the date turns or a read lands, and would otherwise
  * keep its month, and its time, fresh for the next launch to open on.
  */

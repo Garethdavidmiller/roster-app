@@ -113,8 +113,9 @@ describe('restoreViewedMonth', () => {
             'a month the member was last looking at was thrown away');
     });
 
-    // KEPT FOR HALF AN HOUR (owner, 15 Nov 2026): "It always reopens on June 2026." A past month was
-    // restored on every launch, for months, until the member happened to come back to today's month.
+    // KEPT FOR HALF AN HOUR (owner, 15 Nov 2026): "It always reopens on June 2026", the month the app was
+    // installed — stored then, when every render stored the month on screen. A past month was restored
+    // on every launch and stored again each time it was drawn, until the member came back to today's.
     test('a month stored more than half an hour ago opens on today — the June that stayed for months', async () => {
         assert.deepEqual(await restoreWith(5, 2026, 'stale', TODAY, 3 * 60 * 60 * 1000), { month: 6, year: 2026 },
             'a month somebody looked at hours ago was restored over today');
@@ -127,7 +128,7 @@ describe('restoreViewedMonth', () => {
         assert.deepEqual(await restoreWith(5, 2026, 'edge-out', TODAY, BROWSED_MONTH_KEPT_MS + 1), { month: 6, year: 2026 });
     });
 
-    test('a month stored with NO time — every one stored before v26.17 — opens on today', async () => {
+    test('a month stored with NO time — every one stored before v26.19 — opens on today', async () => {
         assert.deepEqual(await restoreWith(5, 2026, 'no-time', TODAY, null), { month: 6, year: 2026 },
             'an untimed month was restored: the June on the owner\'s phone would have stayed');
     });
@@ -236,7 +237,7 @@ describe('persistViewedMonth', () => {
         assert.equal(store.get('myb_roster_month_at'), undefined);
     }));
 
-    // v26.17: what the member is LOOKING at, or nothing. A copy in the background — a second tab, or the
+    // v26.19: what the member is LOOKING at, or nothing. A copy in the background — a second tab, or the
     // app behind another one — still redraws when the date turns or a read lands, and kept its month,
     // and its time, fresh for the next launch.
     test('a page out of sight stores nothing — not a month, and not a clear either', () => at(MID_JULY_2026, () => {
@@ -473,7 +474,7 @@ describe('watchLocalDate', () => {
         assert.equal(calls, 1, 'the date turned, so Today has to be redrawn');
     });
 
-    // v26.17 (owner, 15 Nov 2026): "It always reopens on June 2026." An app left in memory is not
+    // v26.19 (owner, 15 Nov 2026): "It always reopens on June 2026." An app left in memory is not
     // reloaded when it is opened again — it is just shown — so the restore's half-hour rule only held
     // when the phone had happened to close it. Back after longer than that: today's month.
     test('back after more than half an hour, a browsed month returns to today\'s — and repaints on the same day', () => {
