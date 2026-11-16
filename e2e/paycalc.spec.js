@@ -950,7 +950,10 @@ for (const { who, name, extra } of [
     { who: 'a joiner who started after 2025/26', name: HPP_JOINER, extra: {} },
     // Already estimated from Year to Date pay: the notice would ask for what is done.
     { who: 'a member who already has a figure of their own', name: HPP_MEMBER,
-      extra: { myb_pc_gmiller_hpp_mode_2025_26: JSON.stringify({ mode: 'ytd', exact: '' }), myb_pc_gmiller_hpp_est_2025_26: '444.12' } },
+      // From the year's LAST payslip (p49, 13 Mar 2026): a rough figure from any earlier one covers only
+      // part of the year, so it does not count as theirs and the notice still asks (review, 16 Nov 2026).
+      extra: { myb_pc_gmiller_hpp_mode_2025_26: JSON.stringify({ mode: 'ytd', exact: '' }), myb_pc_gmiller_hpp_est_2025_26: '444.12',
+               myb_pc_gmiller_ytd_src_2025_26: '49' } },
 ]) {
     test(`paycalc: the premium notice is not for ${who}, and is not answered for them (v26.22)`, async ({ page }) => {
         const errors = collectFatalErrors(page);
