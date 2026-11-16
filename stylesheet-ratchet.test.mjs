@@ -49,6 +49,9 @@ const LARGE_THRESHOLD = 900;
 const CAPS = {
     // 3950 → 3600 (8 Nov 2026, at 3,502): changelog comments cut to their reasons, dead and duplicated
     // rules out.
+    // Held at 3600 on 16 Nov 2026, at 3,599 of 3,600: six comments that had become a changelog were cut to
+    // their reasons (3,591). The nine lines are kept as room for the next fix rather than taken as a cut,
+    // because a sheet at its cap fails on a one-line comment — next time something LEAVES, bring this down.
     'index.css':      3600,   // the Calendar: grid, day panel, Team Week View, lock cards, notices
     // 3950 → 3850 (Nov 2026, at 3,781): comments that had become a changelog went back to the reason they
     // left, stale claims were corrected, and the drawer pills' nine colour pairs and the sheet's four ✕

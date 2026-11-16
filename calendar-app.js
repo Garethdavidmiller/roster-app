@@ -589,9 +589,11 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
 // (The pay-period strip under the controls was removed at v24.31 — owner decision; payday stays on
 // the grid's 💷/✂️ markers and the day panel's Pay estimate.)
 // Before the first grant there is no workspace to repaint; the scheduler refuses that itself (rule 4).
-watchLocalDate(() => {
+// Team View's week follows the same rule as the month (`weekAfterDateChange`), moved BEFORE the repaint.
+watchLocalDate((change) => {
+    teamView.followDate(change);
     if (hasOverrideAccess()) redraw.repaint('date-turned');
-});
+}, { offToday: () => teamView.isOffThisWeek() });
 
 document.getElementById('adminBtn')?.addEventListener('click', () => {
     const today = new Date();

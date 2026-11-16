@@ -70,6 +70,25 @@ export function weekStartForMonth(displayed, today) {
 }
 
 /**
+ * WHICH WEEK the team grid shows once the date has turned, or the page is back after a long absence
+ * (16 Nov 2026) — the month grid's rule (`watchLocalDate`, calendar-state.js) applied to a week.
+ *
+ * A grid on the week that held the old today was showing "now", so it moves to the week holding the
+ * new one: a phone resumed on Sunday morning showed last week, with no today in it, until somebody
+ * pressed a button, and a reload opened on this week — two answers for one question. A week the reader
+ * browsed to stays — unless they were away for longer than BROWSED_MONTH_KEPT_MS, when it returns to
+ * this week as the month does. Inside one week the date turning moves nothing: the Sunday is the same.
+ *
+ * Pure, and handed the dates rather than reading the clock, so the boundary is testable.
+ * @param {Date} shown  the Sunday the grid is on
+ * @param {{ was: Date, now: Date, away: boolean }} change  what `watchLocalDate` saw
+ * @returns {Date} the Sunday to show
+ */
+export function weekAfterDateChange(shown, { was, now, away }) {
+    return away || shown.getTime() === getSunday(was).getTime() ? getSunday(now) : shown;
+}
+
+/**
  * Initialises the Team Week View.
  *
  * @param {object} deps
@@ -99,7 +118,8 @@ export function weekStartForMonth(displayed, today) {
  *   this month" although it had been read (10 Nov 2026). Omitted, `refreshFromCache`.
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
- * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void, isGridShown: () => boolean }}
+ * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void,
+ *   followDate: (change: { was: Date, now: Date, away: boolean }) => void, isOffThisWeek: () => boolean, isGridShown: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
                                 getSelectedMemberIndex, isFirstRun, renderCalendar, getDisplayedMonth,
@@ -124,6 +144,9 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      *  The initial value here is only what stands before any open; `restoreTeamView` (a PWA
      *  relaunched straight into the grid) keeps it, because that reader has not navigated anywhere. */
     let currentTeamWeekStart = getSunday(new Date());
+
+    /** The date watcher moved the week (`followDate`) and nothing has drawn it yet. */
+    let _weekMoved = false;
 
     /** Grade tab shown in team view: the grade of the member the Calendar is showing, decided each
      *  time the view OPENS until the reader picks a tab — that choice then stays. It was decided once,
@@ -611,7 +634,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
     function refreshFromCache() {
         if (!teamViewMode) return;
         const _activeId = focusedControlId();
-        renderTeamView(currentTeamGrade, { skipFetch: true });
+        // A week the date moved the grid to may need a month nobody has read yet: render it WITH the
+        // fetch, once (deduped by month, so a held month costs nothing), rather than wait for a press.
+        renderTeamView(currentTeamGrade, { skipFetch: !_weekMoved });
+        _weekMoved = false;
         if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
     }
 
@@ -760,6 +786,17 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         if (id) /** @type {HTMLElement|null} */ (document.getElementById(id) ?? document.getElementById('tvNextWeek'))?.focus();
     }
 
+    /** The date turned, or the page is back after a long absence: move the week as the month moves
+     *  (`weekAfterDateChange`). The repaint that follows is the coordinator's, through the scheduler.
+     *  @param {{ was: Date, now: Date, away: boolean }} change */
+    function followDate(change) {
+        if (!teamViewMode) return;   // an open decides its own week (`weekStartForMonth`)
+        const next = weekAfterDateChange(currentTeamWeekStart, change);
+        if (next.getTime() === currentTeamWeekStart.getTime()) return;
+        currentTeamWeekStart = next;
+        _weekMoved = true;
+    }
+
     // ── PUBLIC API ────────────────────────────────────────────────────────────
 
     return {
@@ -769,6 +806,9 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         jumpToCurrentWeek,
         refreshFromCache,
         refetchShownWeek,
+        followDate,
+        /** Is the grid on screen on a week other than this one? Asked by the date watcher. */
+        isOffThisWeek: () => teamViewMode && currentTeamWeekStart.getTime() !== getSunday(new Date()).getTime(),
         /** @returns {boolean} did the last team render draw SHIFT DATA, rather than the withheld
          *  "checking"/"couldn't check" panel? False before the first render. */
         isGridShown: () => teamViewMode && _lastRenderDisplay !== 'loading' && _lastRenderDisplay !== 'unavailable',

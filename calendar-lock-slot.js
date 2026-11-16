@@ -6,8 +6,10 @@
  *   staff-PIN card, a member's own sign-in card, the boot skeleton, or the member's stored roster
  *   painted by calendar-app.js), the mount/unmount of it, and
  *   the skeleton's delay timer.
- * Does NOT own: any DECISION about which card to show (calendar-access.js), the cards' contents or
- *   wiring (calendar-lock-cards.js / login-overlay.js), or the workspace it stands in for.
+ *   It also owns the other half of that exchange: hiding and showing the workspace the card stands
+ *   in for (`setWorkspaceHidden` — moved here from calendar-access.js, 16 Nov 2026).
+ * Does NOT own: any DECISION about which card to show, or when the workspace is shown
+ *   (calendar-access.js), or the cards' contents or wiring (calendar-lock-cards.js / login-overlay.js).
  * Edit here for: how a card is put on the page and taken off it — never for what a card says.
  *
  * ── WHY A SLOT, AND NOT FOUR CARDS THAT EACH FIND THE CONTAINER ─────────────────────────────────
@@ -115,4 +117,32 @@ export function showBootSkeleton() {
     // read by nobody — the rule login-overlay.js states and the PIN card's message channel follows.
     const status = card?.querySelector('[role="status"]');
     if (status) status.textContent = 'Loading the roster…';
+}
+
+// ── The workspace the card stands in for ─────────────────────────────────────────────────────────
+
+/** The Calendar workspace: everything that implies usable roster data. The header and the nav
+ *  drawer are deliberately NOT in this list — the guides are reachable without Calendar access, and
+ *  locking the whole app to read the Railcard guide would be absurd. The Huddle and the documents
+ *  used to be reachable too; since v23.17 their reads sit behind `calendar-doc-access.js`, which
+ *  opens with the full grant (`grant`, calendar-access.js) — so the drawer still SHOWS them, and a
+ *  tap while locked is answered with what to do rather than with the document. */
+const WORKSPACE_IDS = ['calendarControls', 'installPrompt', 'notifPrompt', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
+
+/** Hide the workspace (a card is up) or show it (access granted). Called only by the access gate
+ *  and the cards it wires. @param {boolean} hidden */
+export function setWorkspaceHidden(hidden) {
+    for (const id of WORKSPACE_IDS) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        // The `hidden` ATTRIBUTE, not a CSS class or opacity: it removes the element from the
+        // accessibility tree as well as the page, so a screen reader cannot read out a Calendar the
+        // eye cannot see. But only where the stylesheet lets it: a `display` of the element's own
+        // outranks the attribute, so each element here needs a `[hidden]` rule beside that `display`
+        // (cal-docs-11 found the two prompt strips without one). And it is load-bearing: before the
+        // first grant these nodes are empty, but a re-lock (`handleAccessLost`) does not reload, so
+        // after one they hold the roster the grant drew.
+        if (hidden) el.setAttribute('hidden', '');
+        else el.removeAttribute('hidden');
+    }
 }

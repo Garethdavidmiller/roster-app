@@ -219,7 +219,9 @@ The Calendar's display month and year, and the arithmetic that moves them. No DO
   yesterday. A display on the month the old date fell in is moved to the new date's month first, so
   a page open over a month end shows the new month. Shown again after more than
   `BROWSED_MONTH_KEPT_MS` out of sight, a browsed month goes back to today's too — an app kept in
-  memory is shown, not reloaded. Tested by `calendar-state.test.mjs`.
+  memory is shown, not reloaded. `onChange` is handed `{ was, now, away }` (Team View moves its week
+  from it), and `env.offToday` tells it Team View is off this week, so a long absence repaints there
+  too. Tested by `calendar-state.test.mjs`.
 - At load, `restoreViewedMonth` honours a `?date=` link once (then strips it), else the stored month
   if it was stored in the last `BROWSED_MONTH_KEPT_MS` and is not in the future.
 
@@ -374,6 +376,8 @@ The one place on the Calendar page where a card stands in for the grid — at mo
   card is up.
 - `armSkeleton(ms)` / `showBootSkeleton()` — a data-free calendar shape while a slow decision runs. It
   never replaces the member's stored roster (`calendarSnapshot`).
+- `setWorkspaceHidden(hidden)` — hides or shows the workspace a card stands in for, by the `hidden`
+  attribute (moved from `calendar-access.js`, 16 Nov 2026); the gate decides when.
 
 ### `calendar-snapshot.js`
 The member's own roster, kept on the device so the Calendar shows it, labelled, while the sign-in
@@ -386,6 +390,10 @@ it keeps are in its header. Tested by `calendar-snapshot.test.mjs`.
   deletes the copy: another member, no name, an unreadable or old-shape copy, or nothing left within
   `MAX_AGE_MS` and the `MONTHS_BEFORE`/`MONTHS_AFTER` window.
 - `clearSnapshot()` · `inWindow(key, now)` · `SNAPSHOT_VERSION`.
+- `readLeaveBalance(memberName, year, now?)` / `saveLeaveBalance(memberName, year, stats, now?)` — the
+  Annual Leave panel's saved balance, the copy's `leave` field (16 Nov 2026): the member's own only, a
+  year either side of today's (`LEAVE_YEARS_AROUND`), aged like the months, deleted with the copy.
+  `sweepRetiredLeaveKeys()` deletes the old per-member `myb_al_stats_*` keys on each Calendar load.
 - **Never a source of truth:** never written into `rosterOverridesCache`, never `noteKnowledge`. Deleted
   by `clearSession()`, a PIN or failed grant, and access loss.
 
@@ -744,7 +752,8 @@ notice HTML stays in `index.html`; which notices are wired and live: the new-not
 - Each notice is its own IIFE: an early `return` in a plain block would leave the function and silence
   every later notice. The order comes from `FOLLOWS` flags read at wiring time, so two notices never open on one load; `FOLLOWS_PAY`, `FOLLOWS_INSTALL` and `FOLLOWS_NEWLINK` wait only where that earlier notice is this member's or this device's to get, and a `FINAL_WEEK` date ends a notice's waits (the timetable notice from 6 Dec, wired before the install notice so it asks first). A notice
   with a `STARTS` date is left unflagged before it, and an end is a DATE (`isNoticeExpired(day, 1)`), not a
-  count from posting.
+  count from posting. A follower asks `followedDone(key)`, never the flag alone: past the followed
+  notice's end (`FOLLOWED_ENDS`, kept after that notice is retired) it stops waiting.
 - No live notice declares `'signed-out'`, so the positive direction of the audience gate rests on a
   static contract in `calendar-notices.test.mjs` until one does (the header says more).
 
@@ -835,8 +844,8 @@ open directly instead (`nav-panel.js`).
 ### `calendar-team-view.js`
 Team Week View — the grade-wide week grid toggled from the Calendar header.
 - `initTeamView({...deps})` → `{ toggleTeamView, isTeamViewMode, restoreTeamView, jumpToCurrentWeek,
-  refreshFromCache, refetchShownWeek, isGridShown }`. The coordinator injects the override cache, the
-  shared `ensureOverridesCached` and the shared repaint a month read lands with (`onMonthRead`), member
+  refreshFromCache, refetchShownWeek, followDate, isOffThisWeek, isGridShown }`. The coordinator
+  injects the override cache, the shared `ensureOverridesCached` and the shared repaint a month read lands with (`onMonthRead`), member
   and render callbacks, and the history hooks.
 - **Its overrides come from the SHARED month fetch**, never a fetcher of its own: a second authoritative
   reconciler racing the first evicts what it loaded (`CALENDAR_DATA.md` 6; `ensureTeamWeekCached` says
@@ -848,6 +857,11 @@ Team Week View — the grade-wide week grid toggled from the Calendar header.
 - Cells resolve through `resolveDayShift` (`christmas-leave.js`), the Calendar's own ladder.
 - `weekStartForMonth(displayed, today)` — the week it opens on: today's on the current month, otherwise
   the week holding the 1st. Tested by `team-week-start.test.mjs`; the wiring (`getDisplayedMonth`) by
+  `e2e/calendar.spec.js`.
+- `weekAfterDateChange(shown, { was, now, away })` — the week after the date turns: the old today's
+  week moves to the new today's, a browsed week stays, and after a long absence it is this week —
+  the month's rule (`watchLocalDate`). `followDate` applies it before the date watcher's repaint, and
+  the next repaint reads any month the new week needs. Tested by `team-week-start.test.mjs` and
   `e2e/calendar.spec.js`.
 
 ### `admin-app.js`
@@ -921,6 +935,8 @@ the frame that fades one in, and the drawer panels' 60 ms focus, ask whether it 
 - `createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose, afterClose })` →
   `{ open, close }`. `close()` returns a Promise that resolves, with `afterClose`, once the close has
   LANDED — the fade done and its Back echo arrived. To act on a close, await it rather than a timer.
+  A close a re-open OVERTOOK (during the fade, or before the echo) still resolves, but runs no
+  `afterClose`: the overlay is open again.
 - `dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler })` — the close routine, exported for
   the rare overlay built without `createLightbox`.
 - `closeOnBackdropTap(overlay, close)` — the backdrop rule `createLightbox` and the drawer's two lightboxes

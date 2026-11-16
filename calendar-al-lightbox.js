@@ -28,7 +28,7 @@ import { formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
 import { countedAlDates, entitlementFor, entitlementNote } from './al-entitlement.js';
 import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
-import { lsGet, lsSet } from './ls.js';
+import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './calendar-snapshot.js';
 
 /**
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
@@ -87,11 +87,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   // offline fallback), so every open previously sat on '…' for a full network round-trip.
   // Rendering the previous successful result instantly — then refreshing it from the (now
   // member-narrowed) server query — is the app's stale-while-revalidate/last-good pattern.
-  // LABELLED AS A SAVED COPY until that refresh lands (10 Nov 2026, CALENDAR_DATA.md 18): it has no
-  // age limit, and leave recorded since it was saved is not in it. Module-local key: not in
-  // storage-keys.js (that file is only for keys shared across files).
-  /** @param {string} name @param {string|number} year */
-  const _alMemoKey = (name, year) => `myb_al_stats_${name}|${year}`;
+  // LABELLED AS A SAVED COPY until that refresh lands (10 Nov 2026, CALENDAR_DATA.md 18): leave
+  // recorded since it was saved is not in it. ONLY THE READER'S OWN, AND IT GOES WITH THEM (16 Nov
+  // 2026): it is kept in the member's own stored roster (calendar-snapshot.js), so it is written only
+  // for the member signed in, on their own panel, and is deleted at every sign-out, PIN unlock and
+  // lost grant — a shared phone used to keep every balance anybody had opened on it, for good.
+  sweepRetiredLeaveKeys();
 
   const statsEl  = document.querySelector('.al-lb-stats');
   const remLblEl = document.getElementById('alLbLblRemaining');
@@ -177,12 +178,15 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     // "View recorded leave" opens Admin's list ON THIS YEAR. Admin's list is the signed-in member's
     // own, so — like the day panel's "Leave dates" — it is offered only when the panel is showing
     // that member (`personalActionsAllowed`); on a colleague's calendar it would change subject.
+    const ownPanel = personalActionsAllowed({
+      accessType: getAccessType(), sessionName: getSession()?.name, shownMember: member?.name,
+    });
     if (viewLink) {
       viewLink.href = `admin.html?alYear=${yearStr}#alBookedBox`;
-      viewLink.hidden = !personalActionsAllowed({
-        accessType: getAccessType(), sessionName: getSession()?.name, shownMember: member?.name,
-      });
+      viewLink.hidden = !ownPanel;
     }
+    // A saved balance is the READER'S OWN or none: signed in by name, on their own panel.
+    const keepsBalance = ownPanel && getAccessType() === 'named';
     noteLine(null);
 
     if (!member) { paintPlaceholder('—'); if (firstRun) noteLine('Choose your name first to see your leave.'); return; }
@@ -191,7 +195,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     // saved copy it is; else the '…' placeholders as before. A malformed memo falls through to placeholders.
     /** @type {any} */
     let memo = null;
-    try { memo = JSON.parse(lsGet(_alMemoKey(/** @type {any} */ (member).name, yearStr)) || 'null'); } catch { /* placeholder path */ }
+    if (keepsBalance) memo = readLeaveBalance(/** @type {any} */ (member).name, year);
     const memoShown = !!(memo && Number.isFinite(memo.taken) && Number.isFinite(memo.booked) && Number.isFinite(memo.entitlement));
     if (memoShown) {
       renderALStats(memo);
@@ -277,7 +281,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       renderALStats(fresh);
       noteLine(null);   // confirmed: no longer a saved copy
       // Persist the last-known-good memo so the NEXT open paints instantly (best-effort).
-      lsSet(_alMemoKey(/** @type {any} */ (member).name, yearStr), JSON.stringify(fresh));
+      if (keepsBalance) saveLeaveBalance(/** @type {any} */ (member).name, year, fresh);
     } catch (e) {
       if (myGen !== _alLoadGen) return;   // a newer load superseded this one — don't clobber its result
       // Memo already on screen → keep the last-good figures, no partial or blank clobber, but SAY

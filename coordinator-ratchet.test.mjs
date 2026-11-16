@@ -530,7 +530,12 @@ const CAPS = {
     // 750 → 746 in Nov 2026 (sign-in audit, track C), at 750 of 750: WHETHER the PIN card was asked for
     // first — read once, removed whatever the decision — left for calendar-lock-cards.js (`takePinFirst`),
     // which owns which card follows which, 750 lines down to 745. The one above is the next fix's.
-    'calendar-access.js':      746,
+    // 746 → 730 on 16 Nov 2026, at 746 of 746: the workspace switch (`setWorkspaceHidden` and the ids it
+    // hides) left for calendar-lock-slot.js, which owns the slot a card takes in the workspace's place —
+    // the two halves of "a card OR the Calendar" now sit together. 746 lines down to 720. The ceiling
+    // comes down with the code, less ten lines kept as room for a fix, because a file at its cap fails on
+    // a one-line comment (this file's header) and the gate's next fix should not have to extract first.
+    'calendar-access.js':      730,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;

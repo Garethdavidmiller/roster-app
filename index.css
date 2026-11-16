@@ -102,8 +102,7 @@
             transition: transform var(--dur-fast) var(--ease-standard);
             /* Subtle ring — matches the sub-page header logos (shared.css .app-icon, v16.73). */
             box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
-            /* Held, it opened iOS's image menu over the page — the sub-pages' logo was cured of that in
-               v25.49 (shared.css .app-icon has why) and this one was not. */
+            /* Held, it opens iOS's image menu over the page (shared.css .app-icon has why). */
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
@@ -1450,8 +1449,7 @@
             position: relative;
             padding: 5px 14px;
             border: 2px solid var(--border-light);
-            /* A TAB IS A BUTTON (owner, 10 Nov 2026; css-tokens.md → Corners): the 12px every other tab in
-               the app wears. It was a pill, which at this height reads as a tag, not a control. */
+            /* A TAB IS A BUTTON (owner, 10 Nov 2026; css-tokens.md → Corners): a pill reads as a tag. */
             border-radius: var(--radius-button);
             font-size: var(--type-label);
             font-weight: 600;
@@ -1470,8 +1468,7 @@
             position: absolute;
             inset: -8px 0;
         }
-        /* The chosen grade wears the page's colour (v25.16 — it was navy, so one screen showed two
-           colours for "chosen"); the one chosen thing in the Team view. */
+        /* The chosen grade wears the page's colour, as every chosen control does (css-tokens.md). */
         .grade-tab.active {
             background: var(--page-accent);
             color: var(--page-accent-ink);
@@ -2218,11 +2215,9 @@
 
         /* ============================================
            iOS SPLASH SCREEN
-           Shown immediately on launch to prevent white flash, and REMOVED a
-           frame after the calendar or the lock card has rendered — at once, by
-           calendar-app.js. It was written to fade, but shared.css's `.hidden`
-           (display: none !important) hid it instantly, so the fade never ran;
-           the owner kept the instant cut and the fade went (8 Nov 2026).
+           Shown at launch to prevent a white flash, and removed at once — no fade
+           (owner, 8 Nov 2026) — a frame after the calendar or the lock card has
+           rendered, by calendar-app.js.
            ============================================ */
         #splash {
             position: fixed;
@@ -2736,9 +2731,8 @@
         .al-lb-stat + .al-lb-stat {
             border-left: 1px solid rgba(255,255,255,0.12);
         }
-        /* ONE COLOURED FIGURE (v24.46 polish). All four were teal, so the answer — what is left — had
-           no more weight than the three inputs to it, and its amber/red warning competed with three
-           teal neighbours. Now the inputs are white and only Remaining carries the balance colour. */
+        /* ONE COLOURED FIGURE: the inputs are white and only Remaining — the answer — carries the
+           balance colour, so its amber/red warning competes with nothing. */
         .al-lb-val {
             font-size: 36px;
             font-weight: 800;
@@ -3242,11 +3236,9 @@
             display: none;
         }
 
-        /* ---- The member's own stored copy, drawn while the month loads (v24.59) -----------------
-           calendar-snapshot.js. A grid drawn from the copy carries this line under the header; it is
-           the label that keeps the copy from being read as the live roster, so it is the chip's
-           shape (the same "working" grammar) and takes the chip's place rather than sitting beside
-           it — one message at a time, as above. */
+        /* ---- The member's own stored copy, drawn while the month loads (calendar-snapshot.js) -----
+           Its label keeps the copy from being read as the live roster: the chip's shape (the same
+           "working" grammar), in the chip's place — one message at a time, as above. */
         .calendar-snapshot-note {
             display: block;
             width: fit-content;

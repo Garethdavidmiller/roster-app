@@ -119,6 +119,37 @@ const OCTOBER_LAST_DAY = '31 Oct 2026';
 let _after = Promise.resolve();
 
 /**
+ * WHEN EACH NOTICE THAT ANOTHER FOLLOWS STOPS BEING OFFERED, by its done key — the arguments its own
+ * IIFE passes `isNoticeExpired` (16 Nov 2026). A follower used to wait for the followed notice's done
+ * flag ALONE, and only that notice's own code sets the flag, as it reaches its expiry branch. The
+ * monthly cleanup deletes a notice's markup and code 180 days after posting, so from then a device
+ * that had never answered it would never get the flag — and every notice behind it would wait for
+ * ever. Here the end outlives the code: an entry stays as long as anything follows its notice, and
+ * calendar-notices.test.mjs holds each one to the expiry the live notice declares.
+ * @type {Record<string, [day: string, days: number]>}
+ */
+const FOLLOWED_ENDS = {
+    myb_notice_timetable_2026_done:   [OCTOBER_LAST_DAY, 1],
+    myb_notice_ytd_figures_2026_done: [OCTOBER_LAST_DAY, 1],
+    myb_notice_install_app_2026_done: ['22 Oct 2026', 90],
+    myb_notice_newlink_2026_done:     ['5 Dec 2026', 1],
+};
+
+/**
+ * Has the notice behind this done key been dealt with on this device — answered here, or past its
+ * own last day, when nothing will offer it again whether or not its code is still here? Read at
+ * WIRING time, as a follower's flags always are, so a follower never comes on the load another one
+ * is answered. A key with no end recorded waits for its flag alone.
+ * @param {string} doneKey
+ * @returns {boolean}
+ */
+function followedDone(doneKey) {
+    if (lsGet(doneKey)) return true;
+    const end = FOLLOWED_ENDS[doneKey];
+    return !!end && isNoticeExpired(end[0], end[1]);
+}
+
+/**
  * Would the Pay Calculator price THIS member, or show them its refusal card? `gradeForRole` is the
  * Pay page's own test, imported from roster-data.js so the two cannot disagree. Read at OPEN time by
  * the notices that ask it: a member signing in at the front door on this very load has no session
@@ -234,7 +265,7 @@ export function initCalendarNotices({ after } = {}) {
         if (!overlay) return;
         if (lsGet(DONE_KEY)) return;
         if (isNoticeExpired(OCTOBER_LAST_DAY, 1)) { lsSet(DONE_KEY, '1'); return; }
-        if (!lsGet(FOLLOWS)) return;
+        if (!followedDone(FOLLOWS)) return;
 
         const markDone = () => lsSet(DONE_KEY, '1');
 
@@ -309,8 +340,8 @@ export function initCalendarNotices({ after } = {}) {
         if (isNoticeExpired(CHANGE_EVE, 1)) { lsSet(DONE_KEY, '1'); return; }
         if (Date.now() < STARTS.getTime()) return;
         const finalWeek         = Date.now() >= FINAL_WEEK.getTime();
-        const installNoticeDone = !!lsGet(FOLLOWS_INSTALL);
-        const newlinkNoticeDone = !!lsGet(FOLLOWS_NEWLINK);
+        const installNoticeDone = followedDone(FOLLOWS_INSTALL);
+        const newlinkNoticeDone = followedDone(FOLLOWS_NEWLINK);
 
         const markDone = () => lsSet(DONE_KEY, '1');
 
@@ -396,8 +427,10 @@ export function initCalendarNotices({ after } = {}) {
         if (!overlay) return;
         if (lsGet(DONE_KEY)) return;
         if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
-        if (!lsGet(FOLLOWS)) return;
-        const payNoticeDone = !!lsGet(FOLLOWS_PAY);
+        // Past the end of 31 October both notices it follows are over, so it waits for neither — their
+        // own code may since have been removed, and with it the only thing that would set their flags.
+        if (!followedDone(FOLLOWS)) return;
+        const payNoticeDone = followedDone(FOLLOWS_PAY);
 
         /** Answered, whichever way: done, and the strip is not to ask again either. */
         const answered = () => { lsSet(DONE_KEY, '1'); retireInstallStrip(); };
@@ -481,7 +514,7 @@ export function initCalendarNotices({ after } = {}) {
         if (lsGet(DONE_KEY)) return;
         if (isNoticeExpired(LAST_DAY, 1)) { lsSet(DONE_KEY, '1'); return; }
         if (Date.now() < STARTS.getTime()) return;
-        const installNoticeDone = !!lsGet(FOLLOWS_INSTALL);
+        const installNoticeDone = followedDone(FOLLOWS_INSTALL);
 
         const markDone = () => lsSet(DONE_KEY, '1');
 

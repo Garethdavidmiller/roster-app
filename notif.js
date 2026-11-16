@@ -9,7 +9,7 @@
  * Public API:
  *   notifSupported()        → boolean — push usable on this device/browser
  *   getNotifState()         → Promise<state> — reads state AND runs VAPID-rotation/persist side effects
- *   peekNotifState()        → Promise<state> — reads state only, no side effects (for frequent UI reads)
+ *   peekNotifState()        → Promise<state> — this browser's view only, no side effects (for frequent UI reads)
  *   enableNotifications()   → Promise<state> — requests permission if needed, subscribes
  *   disableNotifications()  → Promise<state> — unsubscribes, removes server record
  *   notifOffByChoice()      → boolean — the member switched them off on this device (not a lapse)
@@ -218,12 +218,19 @@ export async function getNotifState() {
 }
 
 /**
- * Read-only notification state — same return values as getNotifState() but with
- * NO side effects: it never writes to Firestore, never re-subscribes, and never
- * runs the VAPID-rotation migration. Use this for UI that re-reads state often
- * (e.g. the nav-panel bell repaints on every drawer open) so opening the menu
- * doesn't trigger a Firestore write each time. The migration still runs from
- * calendar-app.js on page load via getNotifState().
+ * Read-only notification state, from THIS BROWSER alone — the same five values as getNotifState(),
+ * with no side effect: no Firestore read or write, no unsubscribe, no re-subscribe, no VAPID-rotation
+ * migration. For UI that re-reads often: the drawer bell (every drawer open) and the Settings card.
+ *
+ * It does NOT always agree with getNotifState(), and says 'on' in two cases that one would not:
+ *   · a subscription made under an OLD VAPID key — getNotifState() re-subscribes it, this reports it on;
+ *   · a subscription with no server record behind it (the record was released at a sign-out, or its
+ *     re-save failed) — getNotifState() saves it again (at once when the account or the endpoint
+ *     changed, else within a day), this never looks.
+ * A keyless subscription is the one structural fault it does check ('off-lapsed', as getNotifState
+ * says), and it leaves the rollback to getNotifState(). That runs only on a Calendar load with a named
+ * grant (calendar-notif-prompt.js), so until the member next opens the Calendar signed in, these
+ * surfaces show the browser's view and nothing more.
  * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
  */
 export async function peekNotifState() {

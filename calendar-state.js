@@ -1,11 +1,17 @@
 // @ts-check
 /**
- * calendar-state.js — Display month/year state for index.html.
+ * calendar-state.js — which month the Calendar (index.html) is showing, and when that moves by itself.
  *
- * Owns the two variables (currentDisplayMonth, currentDisplayYear) that every
- * calendar section reads, plus the localStorage-restore logic and the pure
- * state-change function. Centralising here lets calendar-swipe.js and any
- * future module read current position without receiving them as parameters.
+ * Owns: the month on screen (`_month`, 0-indexed, and `_year`, read and written only through
+ *   `getDisplayMonth`/`getDisplayYear`/`setDisplayMonth`/`setDisplayYear`, so calendar-swipe.js and
+ *   the rest read the position without being handed it); the month arithmetic (`addMonths`,
+ *   `changeDisplay`); the month a load opens on — a `?date=` link first, else a month stored by
+ *   `persistViewedMonth` under VIEWED_MONTH / VIEWED_YEAR / VIEWED_AT and still inside
+ *   BROWSED_MONTH_KEPT_MS (half an hour), else today's; and `watchLocalDate`, which moves the month
+ *   when the date turns or the page is back after more than that half hour, then asks for a repaint.
+ * Does NOT own: drawing anything (calendar-app.js through calendar-redraw.js), Team View's week
+ *   (calendar-team-view.js, which follows the same rule from what `watchLocalDate` hands it), or the
+ *   page's other stored state (storage-keys.js).
  */
 
 import { CONFIG } from './roster-data.js';
@@ -31,6 +37,10 @@ const VIEWED_AT    = 'myb_roster_month_at';
  * month whenever it is followed.
  */
 export const BROWSED_MONTH_KEPT_MS = 30 * 60 * 1000;
+
+/** What `watchLocalDate` hands its listener: the date it last saw, the date now, and whether the page
+ *  is back after longer than BROWSED_MONTH_KEPT_MS out of sight.
+ *  @typedef {{ was: Date, now: Date, away: boolean }} DateChange */
 
 /** @type {number} */
 let _month = new Date().getMonth();
@@ -123,13 +133,20 @@ export function addMonths(month, year, delta) {
  * close it. Back after longer than that, the display returns to today's month and repaints, whether
  * or not the date has turned.
  *
- * @param {() => void} onChange
- * @param {{ doc?: Document, now?: () => Date, setTimer?: typeof setTimeout, clearTimer?: typeof clearTimeout }} [env] test seams
+ * The same rule holds for TEAM VIEW's week, which this module does not own (16 Nov 2026): Team View
+ * answers it itself from what `onChange` is handed (`weekAfterDateChange`, calendar-team-view.js),
+ * and `offToday` tells this watcher when that week is not this week, so a long absence repaints a
+ * Team View on a browsed week although the month behind it is today's.
+ *
+ * @param {(change: DateChange) => void} onChange
+ * @param {{ doc?: Document, now?: () => Date, setTimer?: typeof setTimeout, clearTimer?: typeof clearTimeout, offToday?: () => boolean }} [env]
+ *   test seams, and `offToday`: another surface on screen shows a period that is not today's
  * @returns {() => void} stop watching
  */
 export function watchLocalDate(onChange, env = {}) {
     const doc = env.doc ?? document;
     const now = env.now ?? (() => new Date());
+    const offToday = env.offToday ?? (() => false);
     const setTimer = env.setTimer ?? setTimeout;
     const clearTimer = env.clearTimer ?? clearTimeout;
     const dayOf = (/** @type {Date} */ d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -143,12 +160,13 @@ export function watchLocalDate(onChange, env = {}) {
     const check = (away = false) => {
         const date = now();
         const today = dayOf(date);
-        const onToday = _month === date.getMonth() && _year === date.getFullYear();
+        const onToday = _month === date.getMonth() && _year === date.getFullYear() && !offToday();
         if (today === last && (onToday || !away)) return;
-        if (away || (_month === lastDate.getMonth() && _year === lastDate.getFullYear())) { _month = date.getMonth(); _year = date.getFullYear(); }
+        const was = lastDate;
+        if (away || (_month === was.getMonth() && _year === was.getFullYear())) { _month = date.getMonth(); _year = date.getFullYear(); }
         last = today;
         lastDate = date;
-        try { onChange(); } catch (e) { console.error('[Calendar] date-change repaint failed', e); }
+        try { onChange({ was, now: date, away }); } catch (e) { console.error('[Calendar] date-change repaint failed', e); }
     };
     // Re-armed from every check: a timer in a backgrounded tab is throttled or frozen, so the resume
     // path re-aims it at the real coming midnight. One second past it, so the date has turned.

@@ -32,11 +32,25 @@
  *   IT IS BOUNDED. Only months near today are kept (MONTHS_BEFORE / MONTHS_AFTER), so it cannot grow
  *     into a history of somebody's leave.
  *
+ * ── THE LEAVE BALANCE RIDES IN THE SAME COPY (16 Nov 2026) ──────────────────────────────────────
+ *
+ * The Annual Leave panel paints the last balance it confirmed while it checks again
+ * (calendar-al-lightbox.js). That memo used to be a key of its own per member and year,
+ * `myb_al_stats_<name>|<year>`, and nothing ever deleted one: a shared phone kept every balance
+ * anybody had opened on it, a colleague's included, past every sign-out. It is now the copy's
+ * `leave` field, so it keeps every rule above BY CONSTRUCTION rather than by a second set of hooks:
+ * written only for the member signed in, on their own calendar; one member, so a different member's
+ * write replaces it; deleted wherever the copy is — `clearSession()`, a PIN unlock or grant, a lost
+ * grant; aged by MAX_AGE_MS; and bounded to LEAVE_YEARS_AROUND years either side of today's. A copy
+ * holding only a balance (no month in its window) is still a copy, and is kept. The old keys are
+ * swept on every Calendar load (`sweepRetiredLeaveKeys`) — keep that sweep until every device has
+ * opened the Calendar once since.
+ *
  * Everything here is synchronous and storage-only on purpose: the paint it feeds has to happen
  * before the first await of the access decision, or it is not instant.
  */
 
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 
 /** Bumped when the stored shape changes; an older copy is discarded, never migrated. */
@@ -50,10 +64,18 @@ export const MONTHS_AFTER  = 3;
  *  while the member keeps opening the app. */
 const RESTAMP_AFTER_MS = 86_400_000;
 
+/** The leave years kept either side of today's: the panel steps a year at a time, and the year
+ *  either side of now is as far as a member planning leave usually looks. */
+export const LEAVE_YEARS_AROUND = 1;
+/** The retired per-member, per-year balance keys (until 16 Nov 2026). Swept, never read. */
+const RETIRED_LEAVE_PREFIX = 'myb_al_stats_';
+
 /**
  * @typedef {{ type: string, value: string, source?: string, changedBy?: string, replacedType?: string, leaveYear?: number }} SnapshotRecord
  * @typedef {{ savedAt: number, days: Record<string, SnapshotRecord> }} SnapshotMonth
- * @typedef {{ v: number, member: string, months: Record<string, SnapshotMonth> }} Snapshot
+ * @typedef {{ taken: number, booked: number, entitlement: number, breakdown?: string|null, carry?: string|null, christmas?: string|null }} LeaveStats
+ * @typedef {{ savedAt: number, stats: LeaveStats }} SnapshotLeave
+ * @typedef {{ v: number, member: string, months: Record<string, SnapshotMonth>, leave?: Record<string, SnapshotLeave> }} Snapshot
  */
 
 /** `YYYY-MM` for a year and 0-indexed month — the same key `calendar-overrides.js` uses. */
@@ -99,8 +121,31 @@ function load() {
     } catch { return null; }
 }
 
-/** Delete the stored copy. Every route that ends a member's hold on this device calls this. */
+/** Delete the stored copy — the months and the leave balance with them. Every route that ends a
+ *  member's hold on this device calls this. */
 export function clearSnapshot() { lsDel(CALENDAR_SNAPSHOT); }
+
+/** Is a stored month, or balance, stamped at `savedAt` still young enough to show at `now`? A stamp
+ *  in the future is refused: a clock set back cannot stretch MAX_AGE_MS. */
+const fresh = (/** @type {any} */ savedAt, /** @type {number} */ now) =>
+    typeof savedAt === 'number' && now - savedAt <= MAX_AGE_MS && now >= savedAt - 60_000;
+
+/** Whether a leave year lies within LEAVE_YEARS_AROUND of `now`'s year. */
+const leaveYearKept = (/** @type {string|number} */ year, /** @type {number} */ now) =>
+    Math.abs(Number(year) - new Date(now).getFullYear()) <= LEAVE_YEARS_AROUND;
+
+/** The balances still fresh and in bounds, or {} — never throws on a malformed field.
+ *  @param {Snapshot|null} s @param {number} now @returns {Record<string, SnapshotLeave>} */
+function keptLeave(s, now) {
+    /** @type {Record<string, SnapshotLeave>} */
+    const out = {};
+    const leave = s?.leave;
+    if (!leave || typeof leave !== 'object') return out;
+    for (const [year, l] of Object.entries(leave)) {
+        if (l && fresh(l.savedAt, now) && leaveYearKept(year, now) && l.stats && typeof l.stats === 'object') out[year] = l;
+    }
+    return out;
+}
 
 /**
  * The stored copy for THIS member, with aged and out-of-window months dropped — or null, in which
@@ -115,11 +160,42 @@ export function readSnapshot(memberName, now = Date.now()) {
     /** @type {Record<string, SnapshotMonth>} */
     const months = {};
     for (const [key, m] of Object.entries(s.months)) {
-        if (m && typeof m.savedAt === 'number' && now - m.savedAt <= MAX_AGE_MS && now >= m.savedAt - 60_000
-            && inWindow(key, now) && m.days && typeof m.days === 'object') months[key] = m;
+        if (m && fresh(m.savedAt, now) && inWindow(key, now) && m.days && typeof m.days === 'object') months[key] = m;
     }
-    if (!Object.keys(months).length) { clearSnapshot(); return null; }
-    return { v: s.v, member: s.member, months };
+    const leave = keptLeave(s, now);
+    if (!Object.keys(months).length && !Object.keys(leave).length) { clearSnapshot(); return null; }
+    return { v: s.v, member: s.member, months, leave };
+}
+
+/**
+ * The member's last confirmed leave balance for `year`, or null — only ever their OWN: the panel asks
+ * for the member signed in, and a copy belonging to anybody else is deleted on the way (`readSnapshot`).
+ * @param {string} memberName @param {number} year @param {number} [now]
+ * @returns {LeaveStats|null}
+ */
+export function readLeaveBalance(memberName, year, now = Date.now()) {
+    return readSnapshot(memberName, now)?.leave?.[String(year)]?.stats ?? null;
+}
+
+/**
+ * Keep the balance a read has just confirmed for the member signed in, on their own calendar. A copy
+ * held for a different member is REPLACED, months and all — one member, as for the months. A year
+ * outside LEAVE_YEARS_AROUND is not kept, and every balance already held is re-bounded on the way.
+ * @param {string} memberName @param {number} year @param {LeaveStats} stats @param {number} [now]
+ */
+export function saveLeaveBalance(memberName, year, stats, now = Date.now()) {
+    if (!memberName || !leaveYearKept(year, now)) return;
+    const prior = load();
+    const mine = prior && prior.member === memberName ? prior : null;
+    /** @type {Snapshot} */
+    const next = { v: SNAPSHOT_VERSION, member: memberName, months: mine ? mine.months : {}, leave: keptLeave(mine, now) };
+    /** @type {Record<string, SnapshotLeave>} */ (next.leave)[String(year)] = { savedAt: now, stats };
+    lsSet(CALENDAR_SNAPSHOT, JSON.stringify(next));
+}
+
+/** Delete the retired `myb_al_stats_<name>|<year>` balances (above) — run once per Calendar load. */
+export function sweepRetiredLeaveKeys() {
+    for (const k of lsKeys()) if (k.startsWith(RETIRED_LEAVE_PREFIX)) lsDel(k);
 }
 
 /**
@@ -150,6 +226,8 @@ export function saveSnapshotMonths(memberName, months, now = Date.now()) {
     const next = { v: SNAPSHOT_VERSION, member: memberName, months: {} };
     if (prior && prior.member === memberName) {
         for (const [key, m] of Object.entries(prior.months)) if (inWindow(key, now)) next.months[key] = m;
+        // The member's leave balance rides along untouched (the header) — this write is about months.
+        if (prior.leave) next.leave = prior.leave;
     }
     let changed = !prior || prior.member !== memberName;
     for (const [key, records] of Object.entries(months)) {
@@ -163,8 +241,8 @@ export function saveSnapshotMonths(memberName, months, now = Date.now()) {
         next.months[key] = { savedAt: now, days };
         changed = true;
     }
-    // Nothing left in the window: no copy at all, rather than an empty one.
-    if (!Object.keys(next.months).length) { if (prior) clearSnapshot(); return; }
+    // Nothing left in the window, and no balance either: no copy at all, rather than an empty one.
+    if (!Object.keys(next.months).length && !Object.keys(next.leave ?? {}).length) { if (prior) clearSnapshot(); return; }
     if (prior && Object.keys(prior.months).length !== Object.keys(next.months).length) changed = true;
     if (changed) lsSet(CALENDAR_SNAPSHOT, JSON.stringify(next));
 }
