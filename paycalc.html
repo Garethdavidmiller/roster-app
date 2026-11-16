@@ -1224,6 +1224,33 @@
   </div>
 </div>
 
+<!-- Holiday Pay Premium notice (hpp_2526, 16 Nov 2026 – 8 Jan 2027, v26.22) — second in line, the load
+     after the Year to Date notice above; for a member with a 2025/26 payslip and no figure of their own
+     for that year's premium (paycalc-lightboxes.js). Its link opens the LAST 2025/26 payslip with the
+     Year to Date card open: that payslip's Year to Date box holds the whole year.
+     TWO paragraphs and a button that keeps to one line, like the notices beside it (polish, 16 Nov 2026):
+     three paragraphs passed a notice's height cap (80% of the screen) on a 360px Android phone and on an
+     iPhone SE, where the card scrolled and "Not now" sat under its fade. Measured at 503px on both
+     engines now, under the SE's 533px cap. A date, and an emoji and its card's name, never break (&nbsp;). -->
+<div id="noticeHppLightbox" class="lb-overlay" role="dialog" aria-label="Estimate your January Holiday Pay Premium" aria-modal="true">
+  <div id="noticeHppContent" class="lb-content notice-lb-content">
+    <button id="noticeHppClose" class="lb-close" type="button" aria-label="Close">✕</button>
+    <div class="notice-head">
+      <div class="notice-badge notice-badge--pay">💷 Pay</div>
+      <div class="lightbox-app-name">Estimate your January Holiday Pay Premium</div>
+      <div class="notice-date">Posted 16 Nov 2026</div>
+    </div>
+    <div class="notice-main">
+      <p class="notice-body">Every January, Chiltern pay a <strong>Holiday Pay Premium</strong> to make up for annual leave being paid at your basic rate. This January&rsquo;s is for the <strong>2025/26</strong> tax year.</p>
+      <p class="notice-body">The Pay Calculator wasn&rsquo;t here then, but your <strong>13&nbsp;Mar&nbsp;2026</strong> payslip gives a rough figure: copy its Year to Date <strong>Taxable Pay</strong> into <strong>📊&nbsp;Year to Date Figures</strong>, then in <strong>🏖️&nbsp;Holiday Pay Premium</strong> choose <strong>Rough estimate from your Year to Date pay</strong>.</p>
+    </div>
+    <div class="notice-actions">
+      <a href="./paycalc.html?payday=2026-03-13#payslipCard" id="noticeHppGo" class="notice-cta">Open your 13&nbsp;Mar payslip &rarr;</a>
+      <button id="noticeHppLater" class="notice-later" type="button">Not now</button>
+    </div>
+  </div>
+</div>
+
 <!-- Shared-device data ownership prompt (one-time; v14.25). ✕ = decide later. -->
 <div id="dataOwnerLightbox" class="lb-overlay" role="dialog" aria-label="Is this your pay data?" aria-modal="true">
   <div id="dataOwnerContent" class="lb-content notice-lb-content">

@@ -1478,11 +1478,11 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('backPayCard')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    // ── LIGHTBOXES — About, Help, the Year to Date notice, the data-ownership prompt, the developer's
+    // ── LIGHTBOXES — About, Help, the two Pay notices, the data-ownership prompt, the developer's
     // payslip import, and the decimal converter card: paycalc-lightboxes.js, whose header lists them
     // (the Welcome lightbox was retired at v19.36). Returns the About open handle so the nav-panel
     // drawer logo can open the same panel.
-    const { openAboutLightbox, showYtdNotice } = initPaycalcLightboxes();
+    const { openAboutLightbox, showPayNotice } = initPaycalcLightboxes();
 
     // (The service worker is registered at the top of init(), before the sign-in gate. Never a second
     // lifecycle here: two controllerchange listeners and two update() timers fired the reload twice.)
@@ -1505,12 +1505,13 @@ export function init() {
         // terminal identity — and on this one `soft` page a member can arrive locally signed in with a
         // FAILED Firebase session, where the overlay's `named`-only gate stops a block they could
         // never satisfy.
-        // The Year to Date notice queues BEHIND it, on the promise `initPasswordForce` returns for
-        // exactly that ("the next overlay that has to queue behind this one"), or it opens in front of
-        // a set-password block the member cannot dismiss. No branch on the result: if the overlay is
-        // up, `openNoticeIfClear` defers the notice to the next load. `.catch` because a failed
-        // password overlay must never cost the member their notice — it fails open by design.
-        initPasswordForce(name, {}).catch(() => {}).finally(() => showYtdNotice());
+        // The page's notices — the Year to Date one, then the Holiday Pay Premium one — queue BEHIND
+        // it, on the promise `initPasswordForce` returns for exactly that ("the next overlay that has
+        // to queue behind this one"), or one opens in front of a set-password block the member cannot
+        // dismiss. No branch on the result: if the overlay is up, `openNoticeIfClear` defers the
+        // notice to the next load. `.catch` because a failed password overlay must never cost the
+        // member their notice — it fails open by design.
+        initPasswordForce(name, {}).catch(() => {}).finally(() => showPayNotice());
       };
       // SOFT enforcement (AUTH_ARCHITECTURE.md Phase 7): the calculator keeps its data on the device
       // and writes no isolated data, so a degraded or anonymous session must NEVER block it — being

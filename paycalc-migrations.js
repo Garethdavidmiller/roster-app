@@ -225,6 +225,13 @@ export function ytdTaxKey(ty)     { return `${pcPrefix()}ytd_tax_${ty.label.repl
 // Same reasoning as the links welcome notice at v19.51.
 export const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_2_shown';
 
+/** localStorage key: the Holiday Pay Premium notice's seen-flag (`hpp_2526`, v26.22 — set by every
+ *  way of answering it, and silently once it has ended; never because it is not THIS member's, since
+ *  the flag is the device's). Device-level — not namespaced, like the Year to Date notice's, and so
+ *  declared in `_ACTIVE_DEVICE_KEYS` below: an undeclared `myb_pc_` key reads as somebody's
+ *  unnamespaced pay data and fires the ownership prompt. */
+export const NOTICE_HPP_KEY = 'myb_pc_hpp_notice_2526_shown';
+
 // ── DEVICE-LOCAL PAYSLIP ACTUALS (v14.69) ─────────────────────────────────────
 // A member's own real payslip figures, keyed by ISO payday, used by the Pay
 // Calculator's actual-vs-estimate comparison. Stored ONLY in the member's own
@@ -266,6 +273,7 @@ const _ACTIVE_DEVICE_KEYS = [
     'myb_pc_cea_migrated',
     'myb_pc_pension_v882_migrated',
     'myb_pc_ytd_notice_2_shown',
+    'myb_pc_hpp_notice_2526_shown',   // the Holiday Pay Premium notice, 16 Nov 2026 – 8 Jan 2027 (v26.22)
     'myb_pc_ns_migrated',
 ];
 

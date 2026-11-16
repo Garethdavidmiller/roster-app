@@ -22,6 +22,8 @@ import { RATE_125, RATE_150, RATE_300, awardRatesFor, getRateForPeriod as _rateF
 const _ls = new Map();
 let _hasBankHolidayVal = false;
 let _hasBoxingDayVal   = false;
+/** The joining factor: one figure for every payslip, or a function of the payslip where a test needs the year's
+ *  first and last told apart (premiumStillToEstimate). @type {number | ((p: any) => number)} */
 let _proRate           = 1;
 let _grade             = 'cea';
 /** The payslip on screen (`currentPeriodNum`). */
@@ -61,7 +63,7 @@ mock.module('./paycalc-settings.js', {
         // CONTROLLABLE (test audit, 7 Nov 2026). It was a constant 1, so multiplying any premium in
         // _varPayForPeriod by the joiner's factor was invisible — and invariant 7 (HPP is never
         // pro-rated for a joiner) had nothing behind it. The module still imports it for other work.
-        getProRateFactor:  () => _proRate,
+        getProRateFactor:  (/** @type {any} */ p) => (typeof _proRate === 'function' ? _proRate(p) : _proRate),
         getPensionDefault: () => 147.36,
         isPensionOptedOut: () => false,
     },
@@ -156,7 +158,7 @@ globalThis.document = /** @type {any} */ ({
 
 const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
         priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState, saveHppState,
-        savedPeriodPension } = await import('./paycalc-hpp.js');
+        savedPeriodPension, premiumStillToEstimate } = await import('./paycalc-hpp.js');
 const { periodKey, hppEstKey, hppActualKey, hppModeKey } = await import('./paycalc-migrations.js');
 const { getPeriods, CONFIG: PERIOD_CONFIG } = _realPeriods;
 
@@ -822,5 +824,166 @@ describe('knownYtdLumps — the award lump only once its payslip is covered', ()
         assertPounds(knownYtdLumps({ ...base, awardCarrier: { num: 55 }, awardNonPremium: 476.18 }), 476.18, 'covered');
         assertPounds(knownYtdLumps({ ...base, awardCarrier: { num: 56 }, awardNonPremium: 476.18 }), 0, 'not yet covered');
         assertPounds(knownYtdLumps({ ...base, awardCarrier: { num: 55 }, awardNonPremium: -3 }), 0, 'never negative');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE JANUARY NOTICE (hpp_2526, owner 16 Nov 2026 — v26.22)
+// ─────────────────────────────────────────────────────────────────────────────
+// The Pay page's second notice sends a member to estimate the 2025/26 premium from their Year to Date
+// pay. Three things here, each against the REAL payslip grid this file loads: who it is for
+// (`premiumStillToEstimate`), what the card says about the one lump the 2025/26 figure cannot take
+// out, and that the notice's own dates and link are the grid's. Its wiring is paycalc-notice-order.test.mjs;
+// the browser half is e2e/paycalc.spec.js ("premium notice").
+
+const { readFileSync } = await import('node:fs');
+const { hppTaxYearForPayslip, periodsInTaxYear } = await import('./paycalc-hpp-schedule.js');   // hppPayslipForTaxYear: above
+const { fdLong: _fdLong } = await import('./paycalc-format.js');
+
+describe('premiumStillToEstimate — the reader the January notice is for (v26.22)', () => {
+    beforeEach(reset);
+
+    test('nothing stored: open — the member the notice exists for', () => {
+        assert.equal(premiumStillToEstimate(TY25), 'open');
+    });
+
+    test('no payslip in the year — every pay period closed before they started — is none', () => {
+        _proRate = 0;
+        assert.equal(premiumStillToEstimate(TY25), 'none');
+    });
+
+    test('a joiner part-way through the year IS a reader: their last payslip of it is what counts', () => {
+        // Started for the 13 Feb 2026 payslip: the year's first ten payslips predate them, its last
+        // three do not. Asking the FIRST payslip would turn away somebody a premium is due to.
+        const last = /** @type {any} */ (periodsInTaxYear(TY25, getPeriods()).at(-1));
+        _proRate = (/** @type {any} */ p) => (p.num >= 48 ? 1 : 0);
+        assert.equal(premiumStillToEstimate(TY25), 'open');
+        // …and one who started after the year's last pay period closed is not.
+        _proRate = (/** @type {any} */ p) => (p.num > last.num ? 1 : 0);
+        assert.equal(premiumStillToEstimate(TY25), 'none');
+    });
+
+    test('a figure from Year to Date pay, or typed in, is done', () => {
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'ytd', exact: '' }));
+        _ls.set(hppEstKey(TY25), '445.10');
+        assert.equal(premiumStillToEstimate(TY25), 'done');
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'exact', exact: '320' }));
+        _ls.set(hppEstKey(TY25), '320.00');
+        assert.equal(premiumStillToEstimate(TY25), 'done');
+    });
+
+    test('the source chosen but no figure yet is still open', () => {
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'ytd', exact: '' }));
+        assert.equal(premiumStillToEstimate(TY25), 'open', 'nothing stored');
+        _ls.set(hppEstKey(TY25), '0.00');
+        assert.equal(premiumStillToEstimate(TY25), 'open', 'a £0 estimate is no figure');
+    });
+
+    test('an hours estimate — part of a year typed in — is still open: the route may well be better', () => {
+        _ls.set(hppEstKey(TY25), '120.00');                   // no saved choice: the hours ran
+        assert.equal(premiumStillToEstimate(TY25), 'open');
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'hours', exact: '' }));
+        assert.equal(premiumStillToEstimate(TY25), 'open');
+    });
+
+    test('a confirmed figure, £0 included, is done', () => {
+        _ls.set(hppActualKey(TY25), '0.00');
+        assert.equal(premiumStillToEstimate(TY25), 'done');
+    });
+
+    test('an unreadable saved choice is not taken for theirs', () => {
+        _ls.set(hppModeKey(TY25), '{"mode":"ytd"');
+        _ls.set(hppEstKey(TY25), '445.10');
+        assert.equal(premiumStillToEstimate(TY25), 'open');
+    });
+
+    test('it asks about the year it is handed, never another', () => {
+        _ls.set(hppModeKey(TY26), JSON.stringify({ mode: 'ytd', exact: '' }));
+        _ls.set(hppEstKey(TY26), '500.00');
+        assert.equal(premiumStillToEstimate(TY26), 'done');
+        assert.equal(premiumStillToEstimate(TY25), 'open', '2026/27\'s figure says nothing about 2025/26');
+    });
+});
+
+describe('the rough 2025/26 premium names last January\'s premium, which no record holds (v26.22)', () => {
+    beforeEach(reset);
+    const SAYS = 'This may be a little high: your Year to Date pay includes any Holiday Pay Premium on your '
+        + '16 Jan 2026 payslip, and the calculator has no record of that to take out.';
+
+    test('covered by the figure, it is counted in, never guessed out — and said', (t) => {
+        // A member with no premium pay at all but £600 of last year's premium on the 16 Jan 2026 payslip,
+        // as a Taxable Pay figure holds it. Nothing on record says £600, so 7.69% of it stays in.
+        const P = 600;
+        let taxable = lump(TY25).total + P;
+        for (const p of getPeriods()) if (p.num >= 48 + TY25.first && p.num <= 49) taxable += plainPay(TY25, p);
+        runYtd(t, 49, '49', taxable);
+        assert.equal(_els.hppAmount.textContent, `£${(P * HPP_FRACTION).toFixed(2)}`, 'nothing taken out for it');
+        assert.ok(_els.hppBasis.textContent.includes(SAYS), _els.hppBasis.textContent);
+    });
+
+    test('a figure copied before that payslip says nothing of it', (t) => {
+        runYtd(t, 49, '46', 40000);                           // 19 Dec 2025: January is not in it yet
+        assert.doesNotMatch(_els.hppBasis.textContent, /little high/);
+    });
+
+    test('a member who started after that payslip says nothing of it', (t) => {
+        _proRate = (/** @type {any} */ p) => (p.num >= 48 ? 1 : 0);   // from the 13 Feb 2026 payslip
+        // A figure well above the expected pay, so the card reaches the estimate it would name the
+        // premium in. At £12,000 it refused ("below") first, and this passed whatever the rule said:
+        // mutation testing found it (v26.22) — the 16 Jan 2026 payslip was never theirs to name.
+        runYtd(t, 49, '49', 200000);
+        assert.match(_els.hppBasis.textContent, /^Rough estimate:/, 'premise: the estimate is drawn, not refused');
+        assert.doesNotMatch(_els.hppBasis.textContent, /little high/);
+    });
+
+    test('2026/27\'s January premium IS on record: it comes out, and nothing is said', (t) => {
+        runYtd(t, 61, '60', 45000);                           // covering the 15 Jan 2027 payslip
+        assert.doesNotMatch(_els.hppBasis.textContent, /little high/);
+    });
+});
+
+describe('the January notice\'s dates and link are the payslip grid\'s own (v26.22)', () => {
+    const LIGHTBOXES = readFileSync(new URL('./paycalc-lightboxes.js', import.meta.url), 'utf8');
+    const HTML = readFileSync(new URL('./paycalc.html', import.meta.url), 'utf8');
+    const NOTICE = HTML.slice(HTML.indexOf('<div id="noticeHppLightbox"'), HTML.indexOf('<!-- Shared-device data ownership prompt'));
+    const IIFE = LIGHTBOXES.slice(LIGHTBOXES.indexOf('const showHppNotice = (function () {'));
+    const literal = (/** @type {string} */ name) => IIFE.match(new RegExp(`const ${name}\\s*=\\s*'([^']+)'`))?.[1];
+    const last = /** @type {any} */ (periodsInTaxYear(TY25, getPeriods()).at(-1));
+    const carrier = /** @type {any} */ (hppPayslipForTaxYear(TY25, getPeriods()));
+
+    test('the year it names is the one the January 2027 payslip pays', () => {
+        assert.equal(literal('TAX_YEAR'), TY25.label);
+        assert.equal(hppTaxYearForPayslip(carrier, getPeriods(), PERIOD_CONFIG.TAX_YEARS), TY25);
+        assert.equal(carrier.payday.getFullYear(), 2027);
+    });
+
+    test('its link and words name the LAST payslip of 2025/26 — whose Year to Date box holds the whole year', () => {
+        const iso = `${last.payday.getFullYear()}-${String(last.payday.getMonth() + 1).padStart(2, '0')}-${String(last.payday.getDate()).padStart(2, '0')}`;
+        assert.equal(iso, '2026-03-13', 'premise: the grid\'s last 2025/26 payday');
+        assert.ok(NOTICE.includes(`href="./paycalc.html?payday=${iso}#payslipCard"`), 'the link opens that payslip, at the Year to Date card');
+        // Words, not spacing: the dates are held together with &nbsp; (and \u00a0 in App Notices) so a
+        // phone never breaks "13 Mar 2026" across a line, and that must not hide which payslip is named.
+        const words = (/** @type {string} */ s) => s.replace(/&nbsp;|\u00a0|\\u00a0/g, ' ');
+        const day = _fdLong(last.payday);
+        assert.ok(words(NOTICE).includes(`your <strong>${day}</strong> payslip`), `the body names it: ${day}`);
+        // The button names its day and month and keeps to one line on a 360px phone; the year is in the
+        // sentence above it, and inside the notice's window (16 Nov – 8 Jan) "13 Mar" has only one past.
+        const button = words(NOTICE.match(/id="noticeHppGo"[^>]*>([^<]+)<\/a>/)?.[1] ?? '');
+        assert.equal(button, `Open your ${day.replace(/ \d{4}$/, '')} payslip &rarr;`, 'and so does the button');
+        assert.ok(words(IIFE).includes(`Your ${day} payslip gives a rough figure`), 'and App Notices');
+    });
+
+    test('it ends the day before that January payslip can be in hand', (t) => {
+        const dayBefore = new Date(carrier.cutoff);
+        dayBefore.setDate(dayBefore.getDate() - 1);
+        assert.equal(literal('LAST_DAY'), _fdLong(dayBefore), 'LAST_DAY is the eve of the January payslip\'s cut-off');
+        // Asked of the app's own rule (`payslipMayBeInHand`, from the cut-off — noon, the grid's anchor
+        // hour): not in hand at any moment of the notice's last day, so it never runs beside the box that
+        // takes the real figure; in hand from the cut-off on the 9th.
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2027, 0, 8, 23, 59, 59) });
+        assert.equal(_realPeriods.payslipMayBeInHand(carrier), false, 'the last moment of its last day');
+        t.mock.timers.setTime(carrier.cutoff.getTime());
+        assert.equal(_realPeriods.payslipMayBeInHand(carrier), true, 'the cut-off, on the 9th');
+        assert.equal(carrier.cutoff.getDate(), 9);
     });
 });

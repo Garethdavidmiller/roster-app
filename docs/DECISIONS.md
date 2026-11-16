@@ -985,6 +985,39 @@ member the New link page lets in and for one it turns away, across loads; the ev
 week; the final week's first load; and the start and end dates. `e2e/calendar.spec.js` runs the order
 across real reloads, and the final week on a touch screen.
 
+## The Pay page's second notice: estimate last year's Holiday Pay Premium before January (owner, 16 Nov 2026)
+
+**Decided (owner, 16 Nov 2026):** a one-time Pay Calculator notice (`hpp_2526`) asks members to estimate
+the Holiday Pay Premium the January 2027 payslip will carry — the premium for 2025/26, a year the
+calculator holds no hours for because it did not exist yet — from the Year to Date Taxable Pay on their
+last 2025/26 payslip. It is the SECOND Pay notice, after the Year to Date notice (`ytd_2627`), and runs
+from 16 November 2026 to 8 January 2027.
+
+**What it does, and why each part.**
+- **One load after the Year to Date notice, never the same one.** It reads that notice's flag as it is
+  wired (the Calendar's FOLLOWS rule), and the page opens both through one opener in that order. The Year
+  to Date notice ends by ~26 November, so this is never held behind it for long.
+- **Only for the member it is for** (`premiumStillToEstimate`): a 2025/26 payslip — asked of the year's
+  LAST pay period, so a member who joined part-way through is included — and no figure of their own for
+  that premium yet. A joiner whose first payslip came in 2026/27, or a member who has already estimated
+  it or typed it in, never sees it — and it is not flagged for them: the flag belongs to the device, so a
+  colleague who signs in on the same phone afterwards still gets it. An hours estimate from part of
+  the year does not count as done: the route the notice teaches may well be the better figure.
+- **Its link opens the payslip, not just the page:** `?payday=2026-03-13#payslipCard`, the existing deep
+  links, land on the 13 Mar 2026 payslip with the Year to Date card open. The second step — choosing
+  "Rough estimate from your Year to Date pay" in the Holiday Pay Premium card — is the member's, named in
+  the notice in the card's own words. Choosing the source for them was considered and left out: a notice
+  writing a member's pay settings is a new kind of coupling, and the card already shows the rough figure
+  beside that option once the Taxable Pay is in.
+- **It ends on 8 January 2027**, the day before the January payslip's cut-off. From then that payslip can
+  be in hand, and the box under "Last year (2025/26)" takes the real figure.
+
+**And the card now says what the 2025/26 figure cannot take out.** The 16 Jan 2026 payslip carried the
+2024/25 premium, which sits inside the 2025/26 Taxable Pay, and no tax year on record holds that figure.
+So it stays in — 7.69% of it lands in the estimate — and the card says the figure "may be a little
+high", the rule the back-pay lump already follows (owner, 10 Nov 2026): named, never guessed. A box for
+last January's premium would take it out exactly; that is a separate decision, not made here.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

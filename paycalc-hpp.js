@@ -2,8 +2,9 @@
 /**
  * paycalc-hpp.js — Holiday Pay Premium estimator and shared period helpers.
  *
- * Owns: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp, and what a confirmed
- *   prior-year premium is stored as (priorHppToStore, commitPriorHppActual).
+ * Owns: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp, what a confirmed
+ *   prior-year premium is stored as (priorHppToStore, commitPriorHppActual), and whether a year's
+ *   premium is still the member's to estimate (premiumStillToEstimate — the January notice's reader).
  * Does NOT own: period arithmetic (paycalc-periods.js), settings (paycalc-settings.js),
  *   calculation engine (paycalc-app.js), back-pay (paycalc-backpay.js).
  * Edit here for: HPP maths, prior-year HPP section, variable-pay formula.
@@ -193,8 +194,10 @@ export function knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHp
  * Year to Date figure covers (up to its source payslip, or today if unknown). Subtracted from the
  * YTD Taxable Pay to leave the premium pay that accrues HPP. Reads live grade/rate/pension via the
  * settings + calc helpers, so it tracks the mid-year rate/London steps. @param {any} ty
- * @returns {{ nonPremium: number, count: number, unpricedAward: any }} `unpricedAward` — the payslip
- *   carrying a back-pay lump that is inside the figure but cannot be split from the record, else null.
+ * @returns {{ nonPremium: number, count: number, unpricedAward: any, unrecordedPremium: any }}
+ *   `unpricedAward` — the payslip carrying a back-pay lump that is inside the figure but cannot be
+ *   split from the record, else null. `unrecordedPremium` — the January payslip carrying a Holiday
+ *   Pay Premium that no tax year on record claims, inside the figure and on no record, else null.
  */
 function _expectedNonPremiumYtd(ty) {
   const srcNum      = parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0;
@@ -245,7 +248,12 @@ function _expectedNonPremiumYtd(ty) {
   // A lump inside the figure that the record cannot split is NAMED on the card, never guessed.
   const unpricedAward = (_award && _award.nonPremium == null
     && covered.some(/** @param {any} p */ p => p.num === _award.carrier.num)) ? _award.carrier : null;
-  return { nonPremium, count: covered.length, unpricedAward };
+  // So is a PREMIUM inside the figure that no tax year on record claims (v26.22): the first year's
+  // January payslip carries the year before's, which TAX_YEARS does not hold (16 Jan 2026, 2024/25's),
+  // so it cannot come out. The Pay page's January notice sends every member to this year's figure.
+  const _jan = covered.find(/** @param {any} p */ p => p.payday.getMonth() === 0);
+  const unrecordedPremium = (_jan && !_paid && getProRateFactor(_jan) > 0) ? _jan : null;
+  return { nonPremium, count: covered.length, unpricedAward, unrecordedPremium };
 }
 
 /**
@@ -276,13 +284,13 @@ function _awardLumpInYear(ty, grade) {
  *  the caller branches on taxable/count for the specific message). Shared by _renderHppManual
  *  and the per-radio figures (_updateModeAmounts) so the two can never disagree. @param {any} ty
  *  @returns {{ taxable: number, nonPremium: number, count: number, extra: number, hpp: number,
- *              below: boolean, unpricedAward: any }} */
+ *              below: boolean, unpricedAward: any, unrecordedPremium: any }} */
 function _ytdRoughHpp(ty) {
   const ytdPayEl = /** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay'));
   const taxable  = Math.max(0, parseSmartFloat(ytdPayEl?.value ?? '') || 0);
-  const { nonPremium, count, unpricedAward } = _expectedNonPremiumYtd(ty);
+  const { nonPremium, count, unpricedAward, unrecordedPremium } = _expectedNonPremiumYtd(ty);
   return {
-    taxable, nonPremium, count, unpricedAward,
+    taxable, nonPremium, count, unpricedAward, unrecordedPremium,
     extra: Math.max(0, taxable - nonPremium),
     // "Lower than the expected basic" is a refusal, so it needs to BE lower: a figure that matches
     // the expected non-premium pay to the penny is a member with no premium pay — £0.00, not a
@@ -415,8 +423,14 @@ function _renderHppManual(ty, mode) {
       const lumpNote = c
         ? ` <span class="hpp-partial-hint">This may include back pay: the pay-rise lump on your ${fdLong(c.payday)} payslip is part of your Year to Date pay, and the rates needed to take it out aren't on record, so this figure may be too high.</span>`
         : '';
+      // Last year's premium inside the figure, when no record says how much it was (v26.22) — the
+      // same rule: said, never guessed out.
+      const u = y.unrecordedPremium;
+      const premiumNote = u
+        ? ` <span class="hpp-partial-hint">This may be a little high: your Year to Date pay includes any Holiday Pay Premium on your ${fdLong(u.payday)} payslip, and the calculator has no record of that to take out.</span>`
+        : '';
       basisEl.innerHTML = !y.below
-        ? `Rough estimate: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${lumpNote}`
+        ? `Rough estimate: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${lumpNote}${premiumNote}`
         : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — fill in your hours on each payslip in the calculator instead, or enter the figure yourself.`;
     }
     return;
@@ -677,6 +691,25 @@ export function commitPriorHppActual(ty, raw) {
   const v = priorHppToStore(raw);
   if (v != null) lsSet(key, v); else lsDel(key);
   updatePriorHpp(ty);
+}
+
+/**
+ * Is a tax year's premium still this member's to estimate? The reader of the Pay page's January notice
+ * (`hpp_2526`, paycalc-lightboxes.js), asked as it is wired; 'none' or 'done' retires it unseen.
+ *  - 'none' — no payslip in the year: its last pay period closed before they started.
+ *  - 'done' — a figure the member made: confirmed off the January payslip, or stored from their Year
+ *    to Date pay or typed in.
+ *  - 'open' — anything else; an hours estimate from part of the year is no reason to stay quiet.
+ * @param {any} ty  a CONFIG.TAX_YEARS entry @returns {'none'|'done'|'open'}
+ */
+export function premiumStillToEstimate(ty) {
+  const own  = periodsInTaxYear(ty, getPeriods());
+  const last = own[own.length - 1];
+  if (!last || getProRateFactor(last) === 0) return 'none';
+  if (resolveHppForPeriod(lsGet(hppActualKey(ty)), null).hasActual) return 'done';
+  const s = readHppState(ty);
+  const theirs = !s.damaged && (s.mode === 'ytd' || s.mode === 'exact');
+  return theirs && resolveHppForPeriod(null, lsGet(hppEstKey(ty))).amount > 0 ? 'done' : 'open';
 }
 
 /**

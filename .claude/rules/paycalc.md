@@ -119,6 +119,9 @@ runs.
   payslip is covered — the back-pay lump's basic and London arrears, priced from the record by
   `awardLumpNonPremium`; the lump's premium share stays in. A year whose old rate is not on record
   (CES 2025/26) is not guessed: the card says the figure may include back pay (owner, 10 Nov 2026).
+  Nor is a PREMIUM inside the figure that no tax year on record claims (v26.22): the first year on
+  record's January payslip carries the year before's — 16 Jan 2026, 2024/25's, a year `TAX_YEARS`
+  does not hold — so it stays in and the card says the figure "may be a little high".
   **`_expectedNonPremiumYtd` pro-rates ALL non-premium components by `getProRateFactor(p)`** —
   London and pension as well as basic — mirroring `calculate()` (London ×`_proRateFactor`, pension
   ×`getProRateFactor`) and the real payslip; at full value, every pre-start period of a mid-year joiner
@@ -126,6 +129,14 @@ runs.
   in `e2e/paycalc.spec.js`. Deliberately labelled **rough** (hours mode is more accurate). Editing the
   Year to Date card re-runs `calculate()` → `calcHPP`, so HPP follows it. `hppFromYtdTaxable` is pure
   and unit-tested.
+- **The 2025/26 premium, paid in January 2027, has no hours here** — the calculator did not exist
+  that year. The Pay page's second notice (`hpp_2526`, 16 Nov 2026 – 8 Jan 2027, owner 16 Nov 2026)
+  sends a member with a 2025/26 payslip (`premiumStillToEstimate`) to the 'ytd' route: the Taxable Pay
+  on the LAST 2025/26 payslip (13 Mar 2026), whose Year to Date box holds the whole year, then the
+  rough-estimate option on that payslip. The figure then reaches "Last year (2025/26)" and the January
+  take-home add through `hppEstKey`, like any other. It ends the day before that January payslip can
+  be in hand, when the box under "Last year" takes the real figure. The notice, the order and the
+  tests: the new-notice skill's table.
 - **Each amount-source radio shows its CURRENT £** (`.hpp-mode-amt` spans, written by
   `_updateModeAmounts` on every `calcHPP` run), so the choice is informed. The hours estimate is
   computed in EVERY mode by the side-effect-free `_hoursEstimate` (no persistence — only the active

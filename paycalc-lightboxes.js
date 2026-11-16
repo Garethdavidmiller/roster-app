@@ -2,7 +2,8 @@
 /**
  * paycalc-lightboxes.js — Lightbox and overlay initialisation for paycalc.html.
  *
- * Owns: About panel, Help tooltip lightbox, YTD notice, Decimal hours converter card, the
+ * Owns: About panel, Help tooltip lightbox, the page's two one-time notices (Year to Date, then the
+ *   Holiday Pay Premium notice — one opener, `showPayNotice`), Decimal hours converter card, the
  *   data-ownership prompt and the developer-only payslip actuals import.
  *   (The Welcome first-visit lightbox was RETIRED at v19.36 and is not here.)
  * Does NOT own: pay calculation (paycalc-app.js), period arithmetic (paycalc-periods.js),
@@ -17,19 +18,22 @@ import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
 import { decimalHoursText } from './paycalc-inputs.js';
-import { NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
+import { NOTICE_YTD_KEY, NOTICE_HPP_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
          readPayslipActuals, writePayslipActuals, clearPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
+import { premiumStillToEstimate } from './paycalc-hpp.js';
+import { TAX_YEARS } from './paycalc-calc.js';
 
 import { setStatus } from './status-text.js';
 /**
  * Initialise all paycalc lightboxes and the decimal hours converter.
  *
  * Returns the openAboutLightbox handle so the coordinator can pass it to initNavPanel, and
- * `showYtdNotice` — the YTD notice's opener, DEFERRED rather than fired here. Everything else this
- * page can put on screen by itself must have had its turn first; see the note on that function.
+ * `showPayNotice` — the opener of this page's one-time notices, DEFERRED rather than fired here.
+ * Everything else this page can put on screen by itself must have had its turn first; see the note
+ * on the Year to Date notice.
  *
- * @returns {{ openAboutLightbox: (() => void)|null, showYtdNotice: () => void }}
+ * @returns {{ openAboutLightbox: (() => void)|null, showPayNotice: () => void }}
  */
 export function initPaycalcLightboxes() {
   // One-time notices must not stack — overlay.js manages a single active overlay
@@ -144,6 +148,73 @@ export function initPaycalcLightboxes() {
     return () => openNoticeIfClear(notice);
   })();
 
+  // ── HOLIDAY PAY PREMIUM NOTICE (hpp_2526, owner 16 Nov 2026) ─────────────────────────────────────
+  // SECOND IN THE PAY SEQUENCE, after the Year to Date notice above. The January 2027 payslip carries
+  // the 2025/26 Holiday Pay Premium, a year this calculator holds no hours for — it did not exist yet —
+  // so the card has nothing to work the premium out from, and "Last year (2025/26)" reads £–. The rough
+  // estimate from Year to Date pay can still give a figure, and this notice sends the member to the
+  // payslip that figure is printed on: the LAST of 2025/26, whose Year to Date box holds the whole year.
+  //
+  //  · It waits for the Year to Date notice, reading that one's flag as it is WIRED, so it never comes
+  //    on the load the other is answered (the Calendar's FOLLOWS rule). That notice ends by ~26 Nov.
+  //  · It is for a member with a 2025/26 payslip and no figure of their own for its premium yet
+  //    (`premiumStillToEstimate`). A 'none' or a 'done' keeps it shut WITHOUT flagging it: the flag
+  //    is the DEVICE's, so flagging it for one member would take it from the next one signed in here.
+  //  · It never opens over a card a link opened (any `#…` — the Calendar's Year to Date link, this
+  //    notice's own, the backup card's), nor on the load the ownership prompt goes up.
+  //  · It runs from its posting day to Friday 8 January 2027: the January payslip can be in hand from
+  //    its cut-off on the 9th (`payslipMayBeInHand`), and from then the box under "Last year" takes
+  //    the real figure. The start is checked too, so a clock set before it cannot raise it.
+  //  · A one-off: every answer sets the flag — the ✕, the backdrop, Escape, "Not now" and the link.
+  // paycalc-notice-order.test.mjs pins the dates, the order and the link to the payslip grid.
+  const showHppNotice = (function () {
+    const NOTICE_DATE = '16 Nov 2026';
+    const STARTS      = new Date(2026, 10, 16);   // local midnight, its posting day
+    const LAST_DAY    = '8 Jan 2027';             // the day before the January 2027 payslip's cut-off
+    const TAX_YEAR    = '2025/26';
+    const noop = () => {};
+    if (Date.now() < STARTS.getTime()) return noop;
+    if (isNoticeExpired(LAST_DAY, 1) && !lsGet(NOTICE_HPP_KEY)) { lsSet(NOTICE_HPP_KEY, '1'); return noop; }
+    if (lsGet(NOTICE_HPP_KEY)) return noop;
+    if (!lsGet(NOTICE_YTD_KEY)) return noop;   // second in line: the Year to Date notice is still to come
+    if (window.location.hash) return noop;     // a link opened a card — never cover it
+    if (_ownerPending) return noop;            // the data-ownership prompt goes first, this load
+    const ty = TAX_YEARS.find(t => t.label === TAX_YEAR);
+    if (!ty || premiumStillToEstimate(ty) !== 'open') return noop;   // not theirs, or done: unflagged
+
+    const lb = document.getElementById('noticeHppLightbox');
+    if (!lb) return noop;
+
+    const markDone = () => lsSet(NOTICE_HPP_KEY, '1');
+    const notice = createLightbox({
+      overlay:  lb,
+      content:  /** @type {Element|undefined} */ (document.getElementById('noticeHppContent') ?? undefined),
+      closeBtn: /** @type {Element|undefined} */ (document.getElementById('noticeHppClose') ?? undefined),
+      // Archived as it OPENS: its link leaves the page, and a close that never runs would leave App
+      // Notices without the one entry that says how to come back to this.
+      onOpen: () => {
+        archiveNotice({
+          id:      'hpp_2526',
+          title:   'Estimate your January Holiday Pay Premium',
+          section: 'Pay',
+          date:    NOTICE_DATE,
+          body:    'This January’s Holiday Pay Premium is for 2025/26, a year the Pay Calculator has no hours for. '
+                 + 'Your 13\u00a0Mar\u00a02026 payslip gives a rough figure: copy its Year to Date Taxable Pay into '
+                 + '📊\u00a0Year to Date Figures, then choose the rough estimate in 🏖️\u00a0Holiday Pay Premium.',   // no name or date breaks
+        });
+      },
+      onClose: markDone,
+    });
+    document.getElementById('noticeHppGo')?.addEventListener('click', markDone);
+    document.getElementById('noticeHppLater')?.addEventListener('click', () => notice.close());
+    return () => openNoticeIfClear(notice);
+  })();
+
+  // ONE opener for the page's notices, in their order. At most one is due on any load: the premium
+  // notice reads the Year to Date notice's flag as it is wired, so it is never due on a load that
+  // one opens — and were both somehow due, `openNoticeIfClear` would leave the second unflagged.
+  const showPayNotice = () => { showYtdNotice(); showHppNotice(); };
+
   // ── DECIMAL HOURS CONVERTER ─────────────────────────────────────────────────
   (function () {
     const toggle = document.getElementById('decimalConverterToggle');
@@ -253,5 +324,5 @@ export function initPaycalcLightboxes() {
     });
   })();
 
-  return { openAboutLightbox, showYtdNotice };
+  return { openAboutLightbox, showPayNotice };
 }

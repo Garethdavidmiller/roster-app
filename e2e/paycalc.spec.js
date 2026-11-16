@@ -841,6 +841,213 @@ test('paycalc: the re-posted YTD notice appears on a clean device', async ({ pag
 });
 
 
+// ── The Holiday Pay Premium notice (hpp_2526, owner 16 Nov 2026 — v26.22) ─────────────────────────
+// Second in the Pay page's sequence: the load AFTER the Year to Date notice, never the same one. It is
+// for a member with a 2025/26 payslip and no figure of their own for that year's premium yet, and its
+// link opens the last 2025/26 payslip with the Year to Date card open, where the one figure the rough
+// estimate needs is typed. Its wiring is pinned in paycalc-notice-order.test.mjs and its reader and
+// dates in paycalc-hpp.test.mjs; these are the halves only a browser proves — the order across real
+// loads, the landing, the route ending in a figure under "Last year (2025/26)", and the refusals.
+// Clock pinned inside both notices' lives: the Year to Date notice runs to ~26 Nov.
+const HPP_NOTICE_DAY = new Date('2026-11-20T09:00:00Z');
+/** The established seed: a CEA with no start date, so employed the whole of 2025/26. */
+const HPP_MEMBER = 'G. Miller';
+/** Started 5 May 2026, so employed for none of 2025/26 (the joiner the tests above use). */
+const HPP_JOINER = 'J. Davies';
+
+/**
+ * A member signed in on `day` with neither Pay notice answered. Not `seedSession`, which marks both
+ * done on every load — `extra` keys are set on every load instead, and nothing else is.
+ * @param {import('@playwright/test').Page} page @param {Date} day
+ * @param {string} [name] @param {Record<string, string>} [extra]
+ */
+async function payMemberWithNoNoticeAnswered(page, day, name = HPP_MEMBER, extra = {}) {
+    await page.clock.setFixedTime(day);
+    await page.addInitScript(({ n, kv }) => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({ name: n, ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000 }));
+        localStorage.setItem('myb_pc_ns_migrated', '1');   // no ownership prompt
+        for (const [k, v] of Object.entries(kv)) localStorage.setItem(k, v);
+    }, { n: name, kv: extra });
+}
+const HPP_FLAG = 'myb_pc_hpp_notice_2526_shown';
+const hppFlag = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(k => localStorage.getItem(k), HPP_FLAG);
+
+test('paycalc: the Holiday Pay Premium notice comes the load after the Year to Date notice, never the same one (v26.22)', async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectFatalErrors(page);
+    await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#noticeYtdLightbox.visible')).toBeVisible();
+    await page.locator('#noticeYtdClose').click();
+    await expect(page.locator('#noticeYtdLightbox.visible')).toHaveCount(0);
+    await page.waitForTimeout(2000);
+    await expect(page.locator('.lb-overlay.visible'), 'nothing follows the Year to Date notice on its own load').toHaveCount(0);
+    expect(await hppFlag(page), 'and the premium notice is still owed').toBeNull();
+
+    await page.reload();
+    await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+    await expect(page.locator('.lb-overlay.visible'), 'exactly one overlay open').toHaveCount(1);
+    // What it teaches: the premium, the year, the payslip, the figure on it, and where that goes.
+    const notice = page.locator('#noticeHppContent');
+    for (const words of ['Holiday Pay Premium', '2025/26', '13 Mar 2026', 'Taxable Pay', 'Rough estimate from your Year to Date pay']) {
+        await expect(notice).toContainText(words);
+    }
+    // "Not now" answers it for good, and App Notices keeps it — archived as it opened.
+    await page.locator('#noticeHppLater').click();
+    await expect(page.locator('#noticeHppLightbox.visible')).toHaveCount(0);
+    expect(await hppFlag(page)).toBe('1');
+    const archived = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map((/** @type {any} */ n) => n.id));
+    expect(archived).toContain('hpp_2526');
+    await page.reload();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.waitForTimeout(2000);
+    await expect(page.locator('.lb-overlay.visible'), 'answered: nothing more').toHaveCount(0);
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: the premium notice\'s link opens the last 2025/26 payslip, and its route gives last year\'s premium a figure (v26.22)', async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectFatalErrors(page);
+    await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, HPP_MEMBER, { myb_pc_ytd_notice_2_shown: '1' });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+    await page.locator('#noticeHppGo').click();
+    await page.waitForURL(/\/paycalc\.html\?payday=2026-03-13#payslipCard$/);
+
+    // The payslip whose Year to Date box holds the whole of 2025/26, its card open, nothing over it.
+    await expect(page.locator('#periodSelect')).toHaveValue('49');
+    await expect(page.locator('#payslipCardBody')).toHaveClass(/open/);
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.waitForTimeout(1500);
+    await expect(page.locator('.lb-overlay.visible')).toHaveCount(0);
+    expect(await hppFlag(page), 'its link answered it').toBe('1');
+
+    // The two steps it names: the Taxable Pay into the Year to Date card, then the rough estimate.
+    await page.fill('#ytdPay', '45000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    await expect(page.locator('#hppCardBody')).toHaveCSS('visibility', 'visible');
+    await page.locator('#hppModeYtd').check();
+    const amount = page.locator('#hppAmount');
+    await expect(amount).toHaveText(/^£\d/);
+    const figure = /** @type {string} */ (await amount.textContent());
+    // And it says what it cannot take out: last January's premium is inside that Taxable Pay too.
+    await expect(page.locator('#hppBasis')).toContainText('Holiday Pay Premium on your 16 Jan 2026 payslip');
+
+    // Back on this year's payslip, "Last year (2025/26)" carries that figure to January, and names it.
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#hppCardToggle .card-toggle-arrow').click();
+    await expect(page.locator('#priorHppTitle')).toHaveText('Last year (2025/26)');
+    await expect(page.locator('#priorHppAmt')).toHaveText(figure);
+    await expect(page.locator('#priorHppBasis')).toContainText('Rough estimate from your 2025/26 Year to Date pay · due January 2027');
+    await expect(page.locator('#noticeHppLightbox.visible'), 'answered by its link, it stays away').toHaveCount(0);
+    expect(errors).toHaveLength(0);
+});
+
+for (const { who, name, extra } of [
+    // Their first pay period came after 2025/26 ended, so no 2025/26 premium is due them.
+    { who: 'a joiner who started after 2025/26', name: HPP_JOINER, extra: {} },
+    // Already estimated from Year to Date pay: the notice would ask for what is done.
+    { who: 'a member who already has a figure of their own', name: HPP_MEMBER,
+      extra: { myb_pc_gmiller_hpp_mode_2025_26: JSON.stringify({ mode: 'ytd', exact: '' }), myb_pc_gmiller_hpp_est_2025_26: '444.12' } },
+]) {
+    test(`paycalc: the premium notice is not for ${who}, and is not answered for them (v26.22)`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, name, { myb_pc_ytd_notice_2_shown: '1', ...extra });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        await page.waitForTimeout(2000);
+        await expect(page.locator('.lb-overlay.visible')).toHaveCount(0);
+        // The flag is the DEVICE's: set for this member's answer, it would take the notice from the
+        // next member signed in on this phone (the test below).
+        expect(await hppFlag(page), 'kept shut, never flagged').toBeNull();
+        expect(errors).toHaveLength(0);
+    });
+}
+
+test('paycalc: on a shared phone, the premium notice a joiner cannot use still reaches the next member signed in (v26.22)', async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectFatalErrors(page);
+    await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, HPP_JOINER, { myb_pc_ytd_notice_2_shown: '1' });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.waitForTimeout(2000);
+    await expect(page.locator('.lb-overlay.visible'), 'not for the joiner').toHaveCount(0);
+    // The next member signs in on the same phone. Registered after the first script, this one runs
+    // after it on every load: the session is theirs, and the rest of the device is as the joiner left it.
+    await page.addInitScript(n => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({ name: n, ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000 }));
+    }, HPP_MEMBER);
+    await page.reload();
+    await expect(page.locator('#noticeHppLightbox.visible'), 'still owed to the member it is for').toBeVisible();
+    await expect(page.locator('.lb-overlay.visible'), 'and alone').toHaveCount(1);
+    expect(errors).toHaveLength(0);
+});
+
+for (const { when, day, ytdAnswered, opens, flag } of [
+    { when: 'the evening before it was posted', day: new Date('2026-11-15T21:00:00Z'), ytdAnswered: true,  opens: false, flag: null },
+    // The Year to Date notice ended in November and flags itself unseen, so it holds nothing back.
+    { when: 'its last day, 8 January',          day: new Date('2027-01-08T20:00:00Z'), ytdAnswered: false, opens: true,  flag: null },
+    { when: 'the morning after its last day',   day: new Date('2027-01-09T09:00:00Z'), ytdAnswered: false, opens: false, flag: '1' },
+]) {
+    test(`paycalc: the premium notice on ${when} (v26.22)`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await payMemberWithNoNoticeAnswered(page, day, HPP_MEMBER, ytdAnswered ? { myb_pc_ytd_notice_2_shown: '1' } : {});
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        if (opens) {
+            await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+            await expect(page.locator('.lb-overlay.visible'), 'and alone').toHaveCount(1);
+        } else {
+            await page.waitForTimeout(2000);
+            await expect(page.locator('.lb-overlay.visible')).toHaveCount(0);
+            expect(await hppFlag(page)).toBe(flag);
+        }
+        expect(errors).toHaveLength(0);
+    });
+}
+
+test('paycalc: the premium notice never opens over a card a link opened, and is not lost by it (v26.22)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, HPP_MEMBER, { myb_pc_ytd_notice_2_shown: '1' });
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.waitForTimeout(2000);
+    await expect(page.locator('.lb-overlay.visible')).toHaveCount(0);
+    expect(await hppFlag(page), 'held back, not answered').toBeNull();
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#noticeHppLightbox.visible'), 'it comes on the next plain visit').toBeVisible();
+    expect(errors).toHaveLength(0);
+});
+
+// FITS THE SMALLEST PHONES (polish, owner 16 Nov 2026). A notice card stops at 80% of the screen
+// (`.notice-lb-content`, shared.css) and scrolls inside itself past that. As first written — three
+// paragraphs and a 31-character button — this one did, on a 360x740 Android phone and on an iPhone SE
+// (375x667, a 533px cap), and "Not now" sat under the card's fade; the button also broke onto a second
+// line at 360, leaving its arrow alone. Two paragraphs and a short label fit both at 503px, like the
+// notices beside it. Measured on the layout, not the picture: a card part-way through its opening
+// animation is scaled, which a screenshot shows and scrollHeight does not.
+for (const [w, h] of [[360, 740], [375, 667]]) {
+    test(`paycalc: the premium notice fits a ${w}x${h} phone without scrolling, its button on one line (v26.22)`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: h });
+        await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, HPP_MEMBER, { myb_pc_ytd_notice_2_shown: '1' });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+        const fit = await page.evaluate(() => {
+            const card = /** @type {HTMLElement} */ (document.getElementById('noticeHppContent'));
+            const go = /** @type {HTMLElement} */ (document.getElementById('noticeHppGo'));
+            const range = document.createRange();
+            range.selectNodeContents(go);
+            const lines = new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+            return { need: card.scrollHeight, has: card.clientHeight, lines };
+        });
+        expect(fit.need, `the card needs ${fit.need}px and has ${fit.has}px: it would scroll, and "Not now" with it`)
+            .toBeLessThanOrEqual(fit.has + 1);
+        expect(fit.lines, 'the button keeps to one line').toBe(1);
+    });
+}
+
 // A mid-year joiner (startDate this tax year) must NOT be told to fill in payslips from before
 // they were employed. The HPP + back-pay period loops skip periods entirely before startDate
 // (getProRateFactor(p) === 0), fixing the "Not entered yet: 10 Apr…" + inflated "N of 13" denom
