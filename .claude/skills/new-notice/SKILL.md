@@ -374,6 +374,25 @@ the reader taps "Not now"; and a notice whose link opens another notice's target
 `install-app-2026` chooses its "how" as it opens, and on the Pages mirror sends staff to
 myb-roster.web.app rather than installing there.
 
+### A notice must fit the smallest phone without scrolling — measure it before it ships
+
+**`hpp_2526` (16 Nov 2026), as first written,** had three paragraphs and a 31-character button. A
+notice card stops at 80% of the screen (`.notice-lb-content`, `max-height: 80dvh`) and scrolls inside
+itself past that, and this one did on a 360x740 Android phone and on an iPhone SE (375x667, a 533px
+cap): "Not now" sat under the card's fade, and at 360 the button broke onto two lines with its arrow
+alone on the second. Nothing failed — every test passed and the card looked fine at 390. It was found
+by measuring, and cut to **two paragraphs (the news, then the route) and a button of about 25
+characters**, which is the rhythm of the notices beside it: 503px on both engines, at every width.
+Three habits from it:
+- **Measure the card at 360x740 and 375x667, both engines, before shipping** — `scrollHeight` against
+  `clientHeight`, never a screenshot alone: a card caught mid-animation is scaled, and a picture of it
+  lies about the fit. `e2e/paycalc.spec.js` → "fits a … phone without scrolling" is the pattern.
+- **Keep a button label to about 25 characters**, so it stays on one line at 360; the full date can
+  live in the sentence above it.
+- **`&nbsp;` holds a date together, and an emoji with its card's name** (`13&nbsp;Mar&nbsp;2026`,
+  `🏖️&nbsp;Holiday Pay Premium`; `\u00a0` in the App Notices entry), or a phone breaks "13" from
+  "Mar 2026" and strands the emoji at a line's end.
+
 ## Monthly cleanup — run on the 1st of each month
 
 **At the start of any session on the 1st of each month**, check the "Current notices" table above for notices whose posted date is more than 180 days ago. Those notices are completely inert — remove them.

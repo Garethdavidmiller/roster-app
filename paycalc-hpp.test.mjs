@@ -928,7 +928,11 @@ describe('the rough 2025/26 premium names last January\'s premium, which no reco
 
     test('a member who started after that payslip says nothing of it', (t) => {
         _proRate = (/** @type {any} */ p) => (p.num >= 48 ? 1 : 0);   // from the 13 Feb 2026 payslip
-        runYtd(t, 49, '49', 12000);
+        // A figure well above the expected pay, so the card reaches the estimate it would name the
+        // premium in. At £12,000 it refused ("below") first, and this passed whatever the rule said:
+        // mutation testing found it (v26.22) — the 16 Jan 2026 payslip was never theirs to name.
+        runYtd(t, 49, '49', 200000);
+        assert.match(_els.hppBasis.textContent, /^Rough estimate:/, 'premise: the estimate is drawn, not refused');
         assert.doesNotMatch(_els.hppBasis.textContent, /little high/);
     });
 
@@ -957,10 +961,16 @@ describe('the January notice\'s dates and link are the payslip grid\'s own (v26.
         const iso = `${last.payday.getFullYear()}-${String(last.payday.getMonth() + 1).padStart(2, '0')}-${String(last.payday.getDate()).padStart(2, '0')}`;
         assert.equal(iso, '2026-03-13', 'premise: the grid\'s last 2025/26 payday');
         assert.ok(NOTICE.includes(`href="./paycalc.html?payday=${iso}#payslipCard"`), 'the link opens that payslip, at the Year to Date card');
+        // Words, not spacing: the dates are held together with &nbsp; (and \u00a0 in App Notices) so a
+        // phone never breaks "13 Mar 2026" across a line, and that must not hide which payslip is named.
+        const words = (/** @type {string} */ s) => s.replace(/&nbsp;|\u00a0|\\u00a0/g, ' ');
         const day = _fdLong(last.payday);
-        assert.ok(NOTICE.includes(`paid <strong>${day}</strong>`), `the body names it: ${day}`);
-        assert.ok(NOTICE.includes(`Open your ${day} payslip &rarr;`), 'and so does the button');
-        assert.ok(IIFE.includes(`open your ${day} payslip in the Pay Calculator`), 'and App Notices');
+        assert.ok(words(NOTICE).includes(`your <strong>${day}</strong> payslip`), `the body names it: ${day}`);
+        // The button names its day and month and keeps to one line on a 360px phone; the year is in the
+        // sentence above it, and inside the notice's window (16 Nov – 8 Jan) "13 Mar" has only one past.
+        const button = words(NOTICE.match(/id="noticeHppGo"[^>]*>([^<]+)<\/a>/)?.[1] ?? '');
+        assert.equal(button, `Open your ${day.replace(/ \d{4}$/, '')} payslip &rarr;`, 'and so does the button');
+        assert.ok(words(IIFE).includes(`Your ${day} payslip gives a rough figure`), 'and App Notices');
     });
 
     test('it ends the day before that January payslip can be in hand', (t) => {

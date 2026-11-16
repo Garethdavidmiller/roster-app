@@ -198,10 +198,9 @@ export function initPaycalcLightboxes() {
           title:   'Estimate your January Holiday Pay Premium',
           section: 'Pay',
           date:    NOTICE_DATE,
-          body:    'This January’s Holiday Pay Premium is for 2025/26, which the Pay Calculator has no hours for. '
-                 + 'For a rough figure, open your 13 Mar 2026 payslip in the Pay Calculator, copy the Taxable Pay from '
-                 + 'its Year to Date box into 📊 Year to Date Figures, then choose “Rough estimate from your Year '
-                 + 'to Date pay” in 🏖️ Holiday Pay Premium.',
+          body:    'This January’s Holiday Pay Premium is for 2025/26, a year the Pay Calculator has no hours for. '
+                 + 'Your 13\u00a0Mar\u00a02026 payslip gives a rough figure: copy its Year to Date Taxable Pay into '
+                 + '📊\u00a0Year to Date Figures, then choose the rough estimate in 🏖️\u00a0Holiday Pay Premium.',   // no name or date breaks
         });
       },
       onClose: markDone,

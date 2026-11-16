@@ -175,14 +175,16 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         // are the labels the page wears — a radio renamed, or a card retitled, strands them.
         const radio = HTML.match(/id="hppModeYtd" value="ytd"> <span class="hpp-mode-text">([^<]+)<\/span>/)?.[1];
         assert.ok(radio, 'premise: the rough-estimate radio is on the page');
-        assert.ok(HPP_MARKUP.includes(`<strong>${radio}</strong>`), `the notice must quote the radio exactly: "${radio}"`);
+        // Read as WORDS: &nbsp; keeps a date, and an emoji with its card's name, on one line on a phone.
+        const WORDS = HPP_MARKUP.replace(/&nbsp;/g, ' ');
+        assert.ok(WORDS.includes(`<strong>${radio}</strong>`), `the notice must quote the radio exactly: "${radio}"`);
         const ytdCard = HTML.match(/<h2><span aria-hidden="true">📊<\/span> ([^<]+)<\/h2>/)?.[1];
         const hppCard = HTML.match(/<h2><span aria-hidden="true">🏖️<\/span> ([^<(]+?)\s*(?:\(HPP\))?<\/h2>/)?.[1];
         assert.equal(ytdCard, 'Year to Date Figures');
         assert.equal(hppCard, 'Holiday Pay Premium');
-        assert.ok(HPP_MARKUP.includes(`<strong>📊 ${ytdCard}</strong>`), 'the Year to Date card, by its header');
-        assert.ok(HPP_MARKUP.includes(`<strong>🏖️ ${hppCard}</strong>`), 'the premium card, by its header');
-        assert.ok(HPP_MARKUP.includes('<strong>Taxable Pay</strong>'), 'the payslip line, by its exact name (paycalc.md)');
+        assert.ok(WORDS.includes(`<strong>📊 ${ytdCard}</strong>`), 'the Year to Date card, by its header');
+        assert.ok(WORDS.includes(`<strong>🏖️ ${hppCard}</strong>`), 'the premium card, by its header');
+        assert.ok(WORDS.includes('<strong>Taxable Pay</strong>'), 'the payslip line, by its exact name (paycalc.md)');
         // One title, three places: the dialog's name, its heading and its App Notices entry.
         const title = HPP_MARKUP.match(/<div class="lightbox-app-name">([^<]+)<\/div>/)?.[1];
         assert.ok(title);

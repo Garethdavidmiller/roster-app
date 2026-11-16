@@ -1021,6 +1021,33 @@ test('paycalc: the premium notice never opens over a card a link opened, and is 
     expect(errors).toHaveLength(0);
 });
 
+// FITS THE SMALLEST PHONES (polish, owner 16 Nov 2026). A notice card stops at 80% of the screen
+// (`.notice-lb-content`, shared.css) and scrolls inside itself past that. As first written — three
+// paragraphs and a 31-character button — this one did, on a 360x740 Android phone and on an iPhone SE
+// (375x667, a 533px cap), and "Not now" sat under the card's fade; the button also broke onto a second
+// line at 360, leaving its arrow alone. Two paragraphs and a short label fit both at 503px, like the
+// notices beside it. Measured on the layout, not the picture: a card part-way through its opening
+// animation is scaled, which a screenshot shows and scrollHeight does not.
+for (const [w, h] of [[360, 740], [375, 667]]) {
+    test(`paycalc: the premium notice fits a ${w}x${h} phone without scrolling, its button on one line (v26.22)`, async ({ page }) => {
+        await page.setViewportSize({ width: w, height: h });
+        await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, HPP_MEMBER, { myb_pc_ytd_notice_2_shown: '1' });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+        const fit = await page.evaluate(() => {
+            const card = /** @type {HTMLElement} */ (document.getElementById('noticeHppContent'));
+            const go = /** @type {HTMLElement} */ (document.getElementById('noticeHppGo'));
+            const range = document.createRange();
+            range.selectNodeContents(go);
+            const lines = new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+            return { need: card.scrollHeight, has: card.clientHeight, lines };
+        });
+        expect(fit.need, `the card needs ${fit.need}px and has ${fit.has}px: it would scroll, and "Not now" with it`)
+            .toBeLessThanOrEqual(fit.has + 1);
+        expect(fit.lines, 'the button keeps to one line').toBe(1);
+    });
+}
+
 // A mid-year joiner (startDate this tax year) must NOT be told to fill in payslips from before
 // they were employed. The HPP + back-pay period loops skip periods entirely before startDate
 // (getProRateFactor(p) === 0), fixing the "Not entered yet: 10 Apr…" + inflated "N of 13" denom
