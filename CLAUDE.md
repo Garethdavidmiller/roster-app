@@ -454,7 +454,7 @@ area needs:
   so editing one member's hours there edits everyone on that line.**
 
 **AL entitlement** — read the whole allowance through `entitlementFor` in `al-entitlement.js`, never
-`getALEntitlement` (`roster-data.js`) directly: it adds a worked Boxing Day's day in lieu (due
+`getALEntitlement` (`al-contract.js`) directly: it adds a worked Boxing Day's day in lieu (due
 at work) to the NEXT year's allowance, and `christmas-leave.test.mjs` fails on any other caller.
 `proRatedAL[year]` takes priority for every role **except Dispatcher**, where it scales the BASE only
 and the lieu days are still added on top (owner decision): the 22 is an allowance a part-year
