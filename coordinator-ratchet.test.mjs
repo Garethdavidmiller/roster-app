@@ -443,13 +443,19 @@ const CAPS = {
     // second visit) whose every judgement is in trains-render.js or trains-stations.js. Measured
     // 410 with the mirror gone — ten lines over, which is the headroom the v24.84 raise left
     // having been spent by two releases of wiring. Measured + 50, rounded to the next 50.
-    'trains-app.js':            450,
+    // 450 → 400 in the Nov 2026 tidy-up, a SPLIT at 450 of 450: the card painters — each card read from
+    // the timetables and written to the page, with the caches and setHTML's no-repeat write — left for
+    // trains-cards.js; the state, the access gate and the wiring stayed. 326 measured, plus 50, to the next 50.
+    'trains-app.js':            400,
     // NEW at v24.92: crossed LARGE_THRESHOLD (929) when the headlines gained their lead, detail and
     // chip and the grid its two line bands (`stationBands`). Pure and tested throughout, so the size
     // is the domain's, not a coordinator's — but the seam is plain if it grows again: the headline
     // builder (`headlineChanges` and `foldSameTrains`, ~230 lines) is a module of its own waiting to
     // be cut, the same shape as trains-change.js. Measured + 50, rounded to the next 50.
-    'trains-stations.js':      1000,
+    // 1000 → 850 in the Nov 2026 tidy-up: that seam was cut. The headline builder (`headlineChanges`,
+    // `foldSameTrains` and the chip's words) left for trains-headlines.js, pure and tested beside the
+    // rest; 767 measured, plus 50, to the next 50. Kept in the table, so crossing 900 again is a decision.
+    'trains-stations.js':       850,
     // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
     // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
     // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a
@@ -615,7 +621,11 @@ const CAPS = {
     // 1000 → 950 at v25.89: the Huddle retention — the 3-month prune and what it may delete — left for
     // functions/huddle-retention.js (861 measured, so back under LARGE_THRESHOLD). Brought down with the
     // code, as the rule above asks; kept rather than dropped, so crossing 900 again is still a decision.
-    'functions/documents.js':             950,
+    // 950 → 600 in the Nov 2026 tidy-up, a SPLIT: ingestHuddle — the Power Automate upload, its auth,
+    // validation, Storage write, metadata transaction and announce decision — left whole for
+    // functions/huddle-ingest.js, built here so index.js's exports are unchanged; and the comments that
+    // had become a changelog were cut to their reasons. 550 measured, plus 50, to the next 50.
+    'functions/documents.js':             600,
 
 };
 

@@ -100,7 +100,7 @@ describe('the upload cap — one limit, three languages', () => {
         // true, in the one place they can read it at all.
         const mb = rulesCaps[0] / (1024 * 1024);
         assert.ok(Number.isInteger(mb), `the cap is no longer a whole number of MB (${mb}) — reword the copy check`);
-        for (const [src, where] of [[CLIENT, 'doc-upload.js'], [read('functions/documents.js'), 'functions/documents.js']]) {
+        for (const [src, where] of [[CLIENT, 'doc-upload.js'], [read('functions/huddle-ingest.js'), 'functions/huddle-ingest.js']]) {
             const stated = [...String(src).matchAll(/(\d+)\s?MB/g)].map(m => Number(m[1]));
             assert.ok(stated.length, `${where} states no MB figure — has the message stopped naming the limit?`);
             const wrong = stated.filter(n => n !== mb);
@@ -129,8 +129,8 @@ describe('the Huddle HTML cap — one number on both conversion paths', () => {
     });
 
     test('and both KEEP a document of exactly the cap (the server discards only `> MAX`)', () => {
-        assert.match(read('functions/documents.js'), /htmlContent\.length\s*>\s*MAX_HUDDLE_HTML_CHARS/,
-            'functions/documents.js no longer discards on `> MAX_HUDDLE_HTML_CHARS`');
+        assert.match(read('functions/huddle-ingest.js'), /htmlContent\.length\s*>\s*MAX_HUDDLE_HTML_CHARS/,
+            'functions/huddle-ingest.js no longer discards on `> MAX_HUDDLE_HTML_CHARS`');
         assert.match(HUDDLE, /\.length\s*<=\s*MAX_HUDDLE_HTML_CHARS/,
             'huddle.js must keep `length <= MAX_HUDDLE_HTML_CHARS` — the server\'s boundary, not `<`');
     });

@@ -4,7 +4,7 @@
  *
  * Owns: Notifications card (all staff), daily Huddle manual upload (admin only),
  *   Huddle viewer card collapse/expand toggle.
- * Does NOT own: Huddle ingest Cloud Function (functions/documents.js), Firestore huddles
+ * Does NOT own: Huddle ingest Cloud Function (functions/huddle-ingest.js), Firestore huddles
  *   collection writes (uploadHuddle, via firebase-client.js), the VAPID key and re-subscription
  *   (notif.js), roster data (roster-data.js).
  * Edit here for: notification subscribe/unsubscribe UI, Huddle file upload form, Huddle card toggle.

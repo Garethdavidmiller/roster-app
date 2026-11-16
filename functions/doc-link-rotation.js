@@ -61,7 +61,7 @@
  * way left. Two others are guarded: a browser's record write re-sent after its acknowledgement was
  * lost, which put the upload's first link back over the one a run had given it (refused by the rules
  * since 13 Nov 2026, and the upload reads that refusal as its own commit — documents-client.js), and
- * ingestHuddle's record transaction run again after a lost commit answer (./documents.js). Members
+ * ingestHuddle's record transaction run again after a lost commit answer (./huddle-ingest.js). Members
  * still open the document, because the 15-minute link is signed from the
  * PATH — only the fallback is broken, the link a member is handed when that cannot be had. Such a
  * record is counted in `recordsDeadLink`, and only on a file a run will rotate, because a run is what

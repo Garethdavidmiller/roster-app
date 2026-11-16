@@ -15,9 +15,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     parseStops, stopsKnown, callsOf, lineOf, callingAt, knowableWithoutStops, decemberKnown, summarise,
-    stationView, verdictFor, minutesWords, hourWords, hourNote, rateWords, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
+    stationView, verdictFor, minutesWords, hourWords, hourNote, rateWords, busiestStations, matchStations, stoppingGrid, orderStations, pairColumns,
     aRealDay, boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
+import { headlineChanges } from './trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks,
     leadWords, changesTitle, renderFurtherChanges, SIGN_IN_ABOUT } from './trains-render.js';
 import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
@@ -861,10 +862,11 @@ describe('the eight improvements (v24.94): Last trains, the remembered station, 
     // that the journey planner the line linked is still offered, by the overview's ? panel.
     test('no caveat line beneath the tabs, and the planner it linked is still one tap away (v25.13)', () => {
         const page = readFileSync(new URL('./trains.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
-        const app = readFileSync(new URL('./trains-app.js', import.meta.url), 'utf8');
+        // The coordinator and the module that paints its cards — either could write the line again.
+        const app = ['./trains-app.js', './trains-cards.js'].map(f => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
         assert.doesNotMatch(page, /id="trCaveat"|tr-caveat-line/, 'the line is back in trains.html');
         assert.doesNotMatch(page, /can still change/i, 'the page says the timetable can still change');
-        assert.doesNotMatch(app, /trCaveat/, 'trains-app.js writes a caveat line again');
+        assert.doesNotMatch(app, /trCaveat/, 'trains-app.js or trains-cards.js writes a caveat line again');
         // The panels' own strings, as the lightbox renders them (JSON would escape the link's quotes).
         const html = (/** @type {any} */ panel) => panel.sections.flatMap((/** @type {any} */ s) => s.items.map((/** @type {any} */ i) => i.html)).join(' ');
         const all = Object.values(CARD_TIPS).map(html).join(' ');

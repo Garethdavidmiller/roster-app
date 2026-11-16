@@ -210,7 +210,7 @@ export function versionedDocPath(collectionName, date, uploadId, fileType) {
  * The upload Content-Type for a detected fileType. Set EXPLICITLY on every upload — Android
  * sometimes reports a .docx (a ZIP archive) as application/zip or application/octet-stream,
  * which trips the Storage content-type rule. (The same map exists server-side in
- * functions/documents.js's ingestHuddle — CommonJS, so it cannot import this module; the
+ * functions/huddle-ingest.js's ingestHuddle — CommonJS, so it cannot import this module; the
  * normaliseSurname boundary, same trade.)
  * @param {'pdf'|'docx'} fileType
  * @returns {string}

@@ -39,6 +39,8 @@ const storagePath = require.resolve('firebase-admin/storage', { paths: [fnDir] }
 const pushPath    = require.resolve('./functions/push.js');
 const authPath    = require.resolve('firebase-admin/auth', { paths: [fnDir] });
 const docsPath    = require.resolve('./functions/documents.js');
+// ingestHuddle's own module, which documents.js builds: reloaded with it for the same reason as the pay reminder.
+const ingestPath  = require.resolve('./functions/huddle-ingest.js');
 // The pay reminder's audience and send. Reloaded with documents.js on every build: a cached copy would
 // keep the push transport and the Auth fake of whichever build loaded it FIRST, and record its sends there.
 const payPath     = require.resolve('./functions/pay-reminder.js');
@@ -309,6 +311,7 @@ function build({ seed = {}, objects = [], keys = {}, maxFileBytes = 20 * 1024 * 
         },
     });
     delete require.cache[payPath];
+    delete require.cache[ingestPath];
     delete require.cache[docsPath];
     const { buildDocumentEndpoints } = require('./functions/documents.js');
     /** @type {{year: number, month: number, day: number}} */
@@ -1001,6 +1004,7 @@ function buildDeviceWorld({ lookup } = {}) {
     });
     delete require.cache[pushPath];   // the REAL transport, loaded against the fakes above
     delete require.cache[payPath];
+    delete require.cache[ingestPath];
     delete require.cache[docsPath];
     const { buildDocumentEndpoints } = require('./functions/documents.js');
     const eps = buildDocumentEndpoints({
