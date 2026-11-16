@@ -874,7 +874,8 @@ body.auth-ready .container { display: grid; }
 
 /* Group labels: with every card collapsed, the page was near-identical bars with no hierarchy. The
    SAME recipe as Settings' `.settings-section-label` — one element, an uppercase signpost on the
-   navy canvas, its colour through the on-navy token. */
+   navy canvas, its colour through the on-navy token — and the same ELEMENT, an h2, so a screen
+   reader's list of headings names the groups here as it does on Settings. */
 .ops-group-label {
     font-size: var(--type-micro);
     font-weight: 800;

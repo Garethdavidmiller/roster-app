@@ -82,3 +82,21 @@
        10px print line, as 8px does on the 12px screen line. */
     .guide-disc-list li::before { top: 6px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
+   guide-shell.css → "THE GUIDES' THREE TEXT SIZES"; the shared prose is in guide-doc.css. A pay type
+   was named at 11.5px, described at 10.5px and given its payslip line at 10px. Now: the name at the
+   body size, the description at the label size, the payslip line at the small size — and the rate's
+   badge (`.pay-rate`) keeps the Pay page's own size. The grouped list under "Entering your hours" is
+   reading text. Screen only — the print block keeps its sizes.
+   And ONE COLUMN of pay types on screen: two to a row left each card about 120px of text, on a phone
+   and in the desktop's half-page column alike, so at these sizes a description ran to nine lines and
+   a payslip line broke mid-name. The FIP guide's "What you get" pair went to one column on a phone for
+   the same reason. Paper keeps two, which its A4 width has room for. */
+@media screen {
+    .pay-grid { grid-template-columns: minmax(0, 1fr); }
+    .pay-name { font-size: var(--type-body); }
+    .pay-desc { font-size: var(--type-label); }
+    .pay-slip, .pay-slip code { font-size: var(--type-small); }
+    .guide-disc-list li { font-size: var(--type-body); color: var(--text); }
+}

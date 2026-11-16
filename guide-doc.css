@@ -282,3 +282,19 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 1
         print-color-adjust: exact;
     }
 }
+
+/* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
+   guide-shell.css → "THE GUIDES' THREE TEXT SIZES". The Staff and Pay Calculator guides read at
+   12.5px in grey, with 12px boxes and 11.5px tables — the smallest of the five guides, and under the
+   app's own 14px. Reading text takes the app's body size and the text colour; boxes, tables and code
+   take its label size; the footer its small size. SCREEN ONLY: the print block above composes the
+   paper at its own sizes, and the Staff Guide's sheet has a few pixels to spare. */
+@media screen {
+    p, .steps li { font-size: var(--type-body); color: var(--text); }
+    .info, table, code { font-size: var(--type-label); }
+    .guide-footer { font-size: var(--type-small); }
+    /* The first line sits --guide-top under the chips, as on every guide: the page's own top and the
+       first heading's 4px came to 16px on a phone and 22px on a desktop. */
+    .page:first-of-type { padding-top: var(--guide-top); }
+    .page:first-of-type .cols > div > h2:first-child { margin-top: 0; }
+}

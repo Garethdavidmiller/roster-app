@@ -580,6 +580,25 @@ test.describe('trains', () => {
         expect(g.off, `every tab is on --radius-button (${g.button})`).toEqual([]);
     });
 
+    // And every show-more button (v26.24): the dashed reveal — "Show N more", "Show the N that stay the same" — was on
+    // --radius-sm, 8px under the page's 12px tabs and buttons. The two that ACT rather than reveal, "Change station"
+    // and the grid's "Show every station", are Overtime's small outlined pill by design, and are left out.
+    test('every show-more button on the page wears the button corner too', async ({ page }) => {
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trHeadsMore')).toBeVisible();
+        const g = await page.evaluate(() => {
+            const probe = document.body.appendChild(document.createElement('div'));
+            probe.style.borderTopLeftRadius = 'var(--radius-button)';
+            const button = getComputedStyle(probe).borderTopLeftRadius;
+            probe.remove();
+            const more = [...document.querySelectorAll('.tr-more')].filter(t => !t.matches('.tr-change-station, .tr-grid-focus .tr-more'));
+            return { button, count: more.length, off: more.map(t => `${t.id}: ${getComputedStyle(t).borderTopLeftRadius}`).filter(r => !r.endsWith(` ${button}`)) };
+        });
+        expect(g.count, 'premise: the page has its show-more buttons').toBeGreaterThanOrEqual(1);
+        expect(g.off, `every show-more button is on --radius-button (${g.button})`).toEqual([]);
+    });
+
     // A hover tint gated on WIDTH alone stays on a touch tablet's tapped row — the browser keeps :hover
     // on whatever was last touched. Every other hover in these sheets waits for a mouse; the grid's row
     // tint did not. Read from the stylesheet the page actually parsed, so a new rule is held to it too.

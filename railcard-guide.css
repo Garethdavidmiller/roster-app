@@ -554,3 +554,23 @@ div.check {
     .split-half, .photo-note { border: 0.5pt solid #999; break-inside: avoid; }
     .rc-correction, .rc-transition, .rc-unsourced { background: transparent; border-left: 2pt solid #333; }
 }
+
+/* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
+   guide-shell.css → "THE GUIDES' THREE TEXT SIZES". This guide's working text ran from 10.5px to
+   12.5px — a card's rows at 12px, its Marylebone note at 11.5px, the conditions under a value at 11px
+   — where the Rangers guide, read minutes later at the same gate, set the same parts at 12.5–13px.
+   Rows, notes, keys, the photo table and the panels take the label size; the lines under a value,
+   the cost and the foot the small size; the quick check's introduction is reading text, and its
+   heading the body size, both still scaled by `--qc-scale`. Labels, tags, pills and card names keep
+   their own. Screen only — the print blocks keep the composed sheet. */
+@media screen {
+    .key, .key--ticket, .weekend-note, .rc-row, .rc-cutoff, .rc-chiltern, .rc-layer, .gotcha,
+    .check-item, .photo-table, .digital p, .myb-way, .myb-rule, .myb-foot, .split-half p { font-size: var(--type-label); }
+    .rc-cost, .rc-sub, .myb-way-sub, .foot { font-size: var(--type-small); }
+    .qc-intro { font-size: calc(var(--type-body) * var(--qc-scale, 1)); color: var(--text); }
+    .qc-head  { font-size: calc(var(--type-body) * var(--qc-scale, 1)); }
+    .qc-note  { font-size: calc(var(--type-label) * var(--qc-scale, 1)); }
+    /* The first line sits --guide-top under the chips, as on every guide (it was 14px here). */
+    .content { padding-top: var(--guide-top); }
+    .content > h2.section:first-child { margin-top: 0; }
+}
