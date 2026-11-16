@@ -2252,7 +2252,8 @@ test('admin: an AL day on a REST day is not listed and does not count', async ({
 // The owner asked for it to be RECORDED in the leave records, not merely shown. Nothing is stored
 // for it — it comes from the roster — so the row carries no count and no delete, and it sits in date
 // order among the real bookings. G. Miller is due at work on both days in 2026 and has worked Boxing
-// Day, so only Christmas Day is leave, and his allowance is one higher.
+// Day, so only Christmas Day is leave. The day in lieu that earns is in 2027's allowance, not 2026's
+// (owner, 15 Nov 2026), so the 2026 banner is the contract figure; the test after this one reads 2027.
 test('admin: Christmas leave is listed with the recorded leave, not counted, with nothing to delete', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
     await seedSession(page, 'G. Miller');
@@ -2288,18 +2289,19 @@ test('admin: Christmas leave is listed with the recorded leave, not counted, wit
     // The real booking still counts one day — the Christmas row added nothing to it.
     await expect(rows.nth(0).locator('.al-period-count')).toHaveText('1 day');
 
-    await expect(page.locator('#alBannerEntitlement')).toHaveText('33');
+    await expect(page.locator('#alBannerEntitlement')).toHaveText('32');
     await expect(page.locator('#alBannerTaken')).toHaveText('0');
     await expect(page.locator('#alBannerBooked')).toHaveText('1');
-    await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
+    await expect(page.locator('#alBannerBreakdown'), 'the day in lieu is 2027\'s, so 2026 has nothing to explain').toBeHidden();
 });
 
-// The note under ENTITLEMENT is a 45-character sentence from Boxing Day 2026, and it was `nowrap`: the
+// The note under ENTITLEMENT is a 50-character sentence about Boxing Day 2026, and it was `nowrap`: the
 // fourth figure grew as wide as the sentence and the four ran out of the banner, where the card's
-// `overflow: hidden` cut them ("…for working B") — so the TEXT test above stayed green on a note
-// nobody could finish reading. Geometry, at a phone's widths and in the desktop side column.
+// `overflow: hidden` cut them ("…for working B") — so a TEXT test stayed green on a note nobody could
+// finish reading. Geometry, at a phone's widths and in the desktop side column. In January 2027,
+// because that year's allowance is the one holding the day (owner, 15 Nov 2026).
 test('admin: the AL banner keeps its figures and the Boxing Day note inside the banner', async ({ page }) => {
-    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await page.clock.setFixedTime(new Date('2027-01-05T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
@@ -2311,7 +2313,9 @@ test('admin: the AL banner keeps its figures and the Boxing Day note inside the 
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#alToggleHeader').click();
-    await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
+    await expect(page.locator('#alBannerLblEntitlement')).toHaveText('2027 entitlement');
+    await expect(page.locator('#alBannerEntitlement')).toHaveText('33');
+    await expect(page.locator('#alBannerBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day 2026');
     for (const width of [360, 375, 1024]) {
         await page.setViewportSize({ width, height: 900 });
         const m = await page.locator('#alBanner').evaluate(banner => {

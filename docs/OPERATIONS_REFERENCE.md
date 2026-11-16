@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v26.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -956,9 +956,9 @@ differs by exactly the moved days (AL_WORKBOOK.md §9).
 
 Operations → **Annual leave sheet** (admin only) answers one question: where do the clerks'
 annual-leave workbook and the app disagree, person by person, and why? Then, for the people you
-confirm, it **adds the leave the app is missing** (Step 3). **That is all it ever writes**: a day
-that differs any other way is changed in Admin, with Change a Shift. Plan of record:
-`docs/AL_UPLOADER_PLAN.md`.
+confirm, it **adds the leave the app is missing**, and counts leave the app already holds on a rest
+day you answer *Swapped — counts* (Step 3). **That is all it ever writes**: a day that differs any
+other way is changed in Admin, with Change a Shift. Plan of record: `docs/AL_UPLOADER_PLAN.md`.
 
 **Step 1, in a Claude session.** Upload the workbook and ask for a **leave file**. The session runs
 `scripts/make-leave-file.mjs`, which reads the workbook by the `AL_WORKBOOK.md` method:
@@ -1009,7 +1009,7 @@ being wrong: the workbook is a quota grid and the app a leave record, and both c
 | only in the app | the app holds leave on a date the sheet does not have; the row says which year's allowance it costs | with the clerks |
 | after the sheet ends | the app takes leave from this year's allowance on a date after the sheet's last one — a January day moved back | nothing, usually: the sheet will carry the day forward instead (AL_WORKBOOK.md §9) |
 | undated over quota | the sheet deducts days over quota with no date, so they cannot be matched to a day | the dates, with the clerks, if the app is to hold them |
-| allowance differs | the sheet's allowance and the app's disagree; the row gives each side's parts (the sheet's carried-forward and joiner figures, the app's own note) | `proRatedAL` and the joiner rows (AL_WORKBOOK.md §5 and §9) |
+| allowance differs | the sheet's allowance and the app's disagree; the row gives each side's parts (the sheet's carried-forward and joiner figures, the app's own note) | `proRatedAL` and the joiner rows (AL_WORKBOOK.md §5 and §9); from the 2027 sheet, also a day in lieu for the Boxing Day before, which the app adds and its note names (AL_WORKBOOK.md §10, question 13) |
 | figures differ | the two figures differ and nothing on the sheet says why — a safety net that should never show | report it: it means the card has met a case it does not know |
 
 A day that agrees, a Sunday the clerks have tagged, and a **carried** day are listed in a fold of
@@ -1048,9 +1048,9 @@ next January that the app takes from next year's allowance: it is next year's sh
 
 - **A rest day is asked about in Admin's own words**: "Was it a swapped working day?" — *Swapped —
   counts* or *Rest day — free*. Nothing is chosen for you, and a rest day left unanswered is not saved.
-- **Confirm the person.** The box says what it adds ("Add 2 days of leave for …"), and beside it are
-  that person's figures **after** the Save and whatever would still differ. There is no "accept all":
-  each person is confirmed on their own row.
+- **Confirm the person.** The box says what it does ("Add 2 days of leave for …", or "…, and count 1
+  booked rest day as swapped for …"), and beside it are that person's figures **after** the Save and
+  whatever would still differ. There is no "accept all": each person is confirmed on their own row.
 - **Press Save.** Each day is written as Admin's leave card writes it, at the same fixed place, and
   checked again as it is written: a day somebody has changed since the check is **refused, by name**,
   nothing of that person is written, and your answers stay on screen. That includes a day you booked
@@ -1076,7 +1076,11 @@ of the sheet, who saved it, and which days it added. A Save that landed nothing 
 last Save keeps its Undo. When the record cannot be written, or the records cannot be read after the
 Save, the receipt says so, and the **next check of the same file** records it. The card names the
 newest Save of the year with an **Undo** beside it, which takes back only the days that Save added and
-nobody has changed since; any others are kept, and named. It can be undone once — and an Undo that
+nobody has changed since; any others are kept, and named. Each record a Save writes carries its mark,
+which any later save of that day, by anybody, removes (v26.15); a Save made with v26.13 or v26.14 is
+judged by date instead (KNOWN_LIMITATIONS.md → "The leave sheet's Undo and a change made during its
+Save"). A swap it counted on leave the app already held is never taken back: that day stays counted.
+It can be undone once — and an Undo that
 **stops part way** is finished by pressing Undo again: what it already took back stays taken back. An
 Undo that could not read the app's records (offline, say) took nothing back and says so, and its review
 and its Undo button stay on screen for the next press.

@@ -919,6 +919,40 @@ has no time, so the first launch with this release opens on today, whatever was 
 **What would reopen it:** the owner finding half an hour too short or too long in use. It is one
 constant.
 
+## The Boxing Day day in lieu goes into the next year's allowance (owner, 15 Nov 2026)
+
+**Decided (owner, 15 Nov 2026):** the day of annual leave in lieu for working a Boxing Day the member
+was due to work goes into the NEXT year's allowance, to take at any time that year. A Boxing Day
+worked in 2026 is a day in the 2027 allowance. The roster clerk said the day is valid for one year,
+every year. Since 5 Nov 2026 (v25.37) the app had added it to the Boxing Day's own year, where it
+could be taken only in the last days of December, or in January through the carry-back. Asked how
+to read "valid for one year", the owner chose the next year's allowance.
+
+**Where the rule lives.** One function says which allowance a worked Boxing Day goes into:
+`allowanceForBoxingDay` (`christmas-leave.js`). The allowance counts the day through
+`boxingDayLieuDays`, which is now asked about the allowance year. The Calendar's day panel and
+Admin's week grid name the year that function returns. The Calendar's leave panel now reads from
+the previous 26 December, so the day is in its figures. Admin's save checks the next year's
+allowance as well, so leave over a worked Boxing Day still raises the bar when it leaves the
+member over in that year. The line under an allowance names the Boxing Day ("Includes 1 day in
+lieu for working Boxing Day 2026"), because the 2027 figure is about December 2026.
+
+**What it costs:** nothing yet. The first Boxing Day these rules apply to is 26 December 2026, so
+nobody has worked one. A record already made for that day moves from the 2026 figures to 2027's.
+
+**Left where it was, for the owner.** A Dispatcher whose Boxing Day is itself a bank holiday (next
+in 2028) earns the day through their bank-holiday rule, in that year, as for every other bank
+holiday they work. Whether the clerk's year applies to that day too is the owner's question; until
+it is answered, the code keeps the day where it was.
+
+**What holds it:** `christmas-leave.test.mjs` asks the rule from both ends, and for every member
+due at work on a Boxing Day from 2026 to 2029 it checks that the year the panel names is the year
+whose allowance rises. The entry points are tested too: the Calendar's leave panel (2026 at the
+contract figure, 2027 one higher, with the note), Admin's banner, the week grid's row, the
+renderer's day flag, and Admin's two save checks, where leave over the worked Boxing Day takes 2027
+over. `al-entitlement.test.mjs` pins the leave panel's read range, which the browser tests' stub
+cannot see.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

@@ -12,8 +12,12 @@
  *      annual leave and has it listed in their leave records, and it costs them nothing.
  *   2. Never on a Sunday. Sundays are uncontracted, so nobody is due at work on one.
  *   3. Somebody due at work on Boxing Day who WORKS it earns one day of annual leave in lieu, added to
- *      that year's allowance — counted once for a Dispatcher, whose bank-holiday rule may already have
- *      counted the day. Working Boxing Day from a rest day is overtime, and earns none.
+ *      the NEXT year's allowance — counted once for a Dispatcher, whose bank-holiday rule may already
+ *      have counted the day. Working Boxing Day from a rest day is overtime, and earns none.
+ *
+ * Rule 3's year changed on 15 Nov 2026. It was the Boxing Day's own year until the roster clerk said
+ * the day in lieu is valid for a year, every year; the owner chose the next year's allowance, so a
+ * Boxing Day worked in 2026 is a day to take at any time in 2027 (`allowanceForBoxingDay`).
  *
  * ── DERIVED, NEVER STORED ────────────────────────────────────────────────────────────────────────
  *
@@ -93,13 +97,64 @@ export function isUncountedChristmasLeave(shift, dateStr, christmasLeave) {
 }
 
 /**
- * The annual leave earned in lieu by working Boxing Day — 1 or 0 for the member's `year` (rule 3).
+ * The allowance a day in lieu for working Boxing Day `year` is added to (rule 3): the NEXT year's
+ * (owner, 15 Nov 2026). This is where that is decided. The allowance counts the day through
+ * `boxingDayLieuDays`, and the surfaces that word a worked Boxing Day (the Calendar's day panel,
+ * Admin's week grid) name the year this returns, so no two can disagree about where the day went.
+ *
+ * Why the next year, not the Boxing Day's own: the roster clerk says the day is valid for a year,
+ * every year. Added to the year it was earned in, it could be taken only in the last days of
+ * December, or in January through the carry-back (leave-year.js).
+ *
+ * THE EXCEPTION IS A DISPATCHER WHOSE BOXING DAY IS A BANK HOLIDAY. Their bank-holiday rule counts
+ * the day (`countDispatcherBankHolidaysWorked`, roster-data.js) in the year the holiday falls, as it
+ * counts every other one, and this rule adds nothing (`boxingDayLieuDays`), so the day is in that
+ * year. Boxing Day is next a bank holiday in 2028. In 2026 it is a Saturday, and the holiday moves to
+ * Monday 28 December.
+ * @param {any} member  teamMembers entry
+ * @param {number|string} year  the Boxing Day's year
+ * @returns {number}  the allowance year
+ */
+export function allowanceForBoxingDay(member, year) {
+    const y = Number(year);
+    return member?.role === 'Dispatcher' && isBankHoliday(new Date(y, 11, 26)) ? y : y + 1;
+}
+
+/**
+ * The year of the Boxing Day whose day in lieu is in `year`'s allowance: the year before
+ * (`allowanceForBoxingDay`). The Calendar's leave panel reads from that Boxing Day, and the line
+ * under an allowance names it, because the 2027 allowance's day was earned in December 2026.
+ * @param {number|string} year  the allowance year
+ * @returns {number}  the Boxing Day's year
+ */
+export function boxingDayForAllowance(year) {
+    return Number(year) - 1;
+}
+
+/**
+ * The years whose allowance a record dated `dateStr` can change: its own year, where a Dispatcher's
+ * worked bank holiday earns its day, and, for a Boxing Day, the year its day in lieu goes into
+ * (`allowanceForBoxingDay`). Admin's save checks each of them for a member it would leave over
+ * their allowance (admin-al-projection.js).
+ * @param {any} member  teamMembers entry
+ * @param {string} dateStr  ISO `YYYY-MM-DD`
+ * @returns {number[]}  ascending
+ */
+export function allowanceYearsOf(member, dateStr) {
+    const y = Number(String(dateStr).slice(0, 4));
+    if (!String(dateStr).endsWith('-12-26')) return [y];
+    const lieu = allowanceForBoxingDay(member, y);
+    return lieu === y ? [y] : [y, lieu];
+}
+
+/**
+ * The day in lieu for working Boxing Day that `year`'s ALLOWANCE holds — 1 or 0 (rule 3). `year` is
+ * the allowance, so the Boxing Day asked about is the one before it (`boxingDayForAllowance`): the
+ * 2027 allowance holds the day earned on 26 December 2026.
  *
  * Earned when the member was due at work on Boxing Day by their pattern (`isChristmasLeaveDay`) and
  * the day's WINNING override is a worked shift — resolved with `shouldReplaceOverride`, as the
  * Dispatcher bank-holiday count resolves it, so a stale document can neither earn nor lose the day.
- * It counts towards the Boxing Day's own year (owner, 5 Nov 2026), as a Dispatcher's bank-holiday
- * days do; the January carry-back (leave-year.js) is how it can be taken in early January.
  *
  * COUNTED ONCE FOR A DISPATCHER (owner, 5 Nov 2026). A Dispatcher already earns a day for every bank
  * holiday they work. In a year whose Boxing Day IS a bank holiday that rule has counted the day, so
@@ -107,24 +162,25 @@ export function isUncountedChristmasLeave(shift, dateStr, christmasLeave) {
  * moves to Monday 28 December — this is the only rule that sees it. The Dispatcher rule itself is
  * unchanged, so nobody loses a day they earned before.
  * @param {any} member  teamMembers entry
- * @param {number|string} year
+ * @param {number|string} year  the ALLOWANCE year, not the Boxing Day's
  * @param {Array<any>} [overrides] the member's overrides (any others are ignored)
  * @returns {number}
  */
 export function boxingDayLieuDays(member, year, overrides = []) {
     const y = Number(year);
-    if (!member || !Number.isFinite(y) || y < CHRISTMAS_LEAVE_FROM_YEAR) return 0;
-    const boxingDay = new Date(y, 11, 26);
-    if (!isChristmasLeaveDay(member, boxingDay)) return 0;
+    if (!member || !Number.isFinite(y)) return 0;
+    const from = boxingDayForAllowance(y);
+    // A Dispatcher's bank-holiday Boxing Day is counted by that rule, in its own year.
+    if (allowanceForBoxingDay(member, from) !== y) return 0;
+    const boxingDay = new Date(from, 11, 26);
+    if (!isChristmasLeaveDay(member, boxingDay)) return 0;   // also every Boxing Day before 2026
     const dateStr = formatISO(boxingDay);
     /** @type {any} */
     let winner = null;
     for (const o of overrides || []) {
         if (o && o.memberName === member.name && o.date === dateStr && shouldReplaceOverride(winner, o)) winner = o;
     }
-    if (!winner || !isWorkedShift(winner.value)) return 0;
-    if (member.role === 'Dispatcher' && isBankHoliday(boxingDay)) return 0;
-    return 1;
+    return winner && isWorkedShift(winner.value) ? 1 : 0;
 }
 
 /**

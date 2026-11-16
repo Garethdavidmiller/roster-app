@@ -160,8 +160,9 @@ test('the allowance is explained from each side’s own parts, never a cause gue
     // The sheet's carried-forward days and joiner's reduction; the app's own note (entitlementNote).
     const differs = person({ allowanceDiffers: true, sheet: { ...person().sheet, carriedForward: 2, joinerReduction: 1 } });
     assert.deepEqual(personNotes(differs, 2026), ['The sheet allows 33 (32, plus 2 carried forward, less 1 for starting part way through the year), and the app 32.']);
-    assert.deepEqual(personNotes(person({ allowanceDiffers: true, app: { ...person().app, entitlement: 33, note: 'Includes 1 day in lieu for working Boxing Day' } }), 2026),
-        ['The sheet allows 32, and the app 33 (includes 1 day in lieu for working Boxing Day).']);
+    // The 2027 allowance holds the day earned on Boxing Day 2026 (15 Nov 2026), and its note names that Boxing Day.
+    assert.deepEqual(personNotes(person({ allowanceDiffers: true, app: { ...person().app, entitlement: 33, note: 'Includes 1 day in lieu for working Boxing Day 2026' } }), 2027),
+        ['The sheet allows 32, and the app 33 (includes 1 day in lieu for working Boxing Day 2026).']);
     // A Dispatcher whose sheet carries days forward is LOWER in the app: the first cut said the app
     // "adds a day in lieu for each bank holiday worked", which could not be the cause (review, 14 Nov 2026).
     const disp = personNotes(person({ allowanceDiffers: true, sheet: { ...person().sheet, allowance: 27, carriedForward: 3 },

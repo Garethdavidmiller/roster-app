@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.19';
+export const APP_VERSION = '26.20';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -220,8 +220,8 @@ export function dispatcherBaseAL(member, year) { return member?.proRatedAL?.[yea
  * for every bank holiday on which they worked (after overrides). All other roles
  * return a fixed number regardless of year or overrides.
  *
- * NOT THE WHOLE ALLOWANCE FROM 2026 — read it through `entitlementFor` (al-entitlement.js), which adds
- * the day in lieu earned by working a Boxing Day the member was due to work (christmas-leave.js).
+ * NOT THE WHOLE ALLOWANCE — read it through `entitlementFor` (al-entitlement.js), which from 2027 adds
+ * the day in lieu earned by working the Boxing Day before, when due at work (christmas-leave.js).
  * `christmas-leave.test.mjs` fails if any other module calls this directly.
  *
  * @param {any}    member    - teamMembers entry

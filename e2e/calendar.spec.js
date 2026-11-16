@@ -2933,9 +2933,10 @@ test('day detail: a January leave day moved to last year\'s allowance says so, a
 //
 // The rules are unit-tested in christmas-leave.test.mjs and the grid's wiring in
 // calendar-renderer.test.mjs. This is the half only a browser sees: the panel SAYS it, and the leave
-// panel lists the day and counts the earned one. G. Miller's pattern has him on a late turn on both
-// days in 2026; the fixture records his Boxing Day as worked, and nothing else.
-test('christmas: a day due at work is leave never counted, and a worked Boxing Day adds a day', async ({ page }) => {
+// panel lists the day and counts the earned one — in 2027, the NEXT year's allowance (owner, 15 Nov
+// 2026: the roster clerk says the day is valid for a year). G. Miller's pattern has him on a late turn
+// on both days in 2026; the fixture records his Boxing Day as worked, and nothing else.
+test('christmas: a day due at work is leave never counted, and a worked Boxing Day adds a day to the next year', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => {
@@ -2959,21 +2960,28 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(cell('Saturday 26 December 2026')).toHaveAttribute('data-detail-shift-value', 'RDW');
     await cell('Saturday 26 December 2026').click();
     await expect(line).toBeVisible();
-    await expect(line).toHaveText('Worked Boxing Day when due at work: one day of annual leave in lieu is added to the 2026 allowance.');
+    await expect(line).toHaveText('Worked Boxing Day when due at work: one day of annual leave in lieu is added to the 2027 allowance.');
     await page.locator('#dayDetailClose').click();
     // An ordinary day says nothing about Christmas — absent means HIDDEN, not an empty line.
     await cell('Thursday 24 December 2026').click();
     await expect(line).toBeHidden();
     await page.locator('#dayDetailClose').click();
 
-    // The leave panel lists Christmas Day as leave not counted, and the allowance is one higher —
-    // with its reason beside it, or 33 would read as a mistake beside a colleague's 32.
+    // The leave panel lists Christmas Day as leave not counted. 2026's allowance is the contract
+    // figure; 2027's is one higher, with its reason beside it naming the Boxing Day, or 33 would read
+    // as a mistake beside a colleague's 32.
     await page.locator('#alBtn').click();
     await expect(page.locator('#alLbYear')).toHaveText('2026');
     await expect(page.locator('#alLbChristmas')).toHaveText('Christmas Day: annual leave, not counted');
     await expect(page.locator('#alLbTaken')).toHaveText('0');
+    await expect(page.locator('#alLbEntitlement')).toHaveText('32');
+    await expect(page.locator('#alLbBreakdown')).toBeHidden();
+    await page.locator('#alLbNextYear').click();
+    await expect(page.locator('#alLbYear')).toHaveText('2027');
     await expect(page.locator('#alLbEntitlement')).toHaveText('33');
-    await expect(page.locator('#alLbBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day');
+    await expect(page.locator('#alLbRemaining')).toHaveText('33');
+    await expect(page.locator('#alLbBreakdown')).toBeVisible();
+    await expect(page.locator('#alLbBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day 2026');
     await page.locator('#alLightboxClose').click();
 
     // Team Week View says the same about the same days — it asks the same resolver. Two weeks on

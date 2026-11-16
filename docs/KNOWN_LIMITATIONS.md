@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v26.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -555,8 +555,8 @@ and not secrets; protection relies on Firebase Auth rate-limiting + Firestore ru
 staff-wide replacement is Track C in SECURITY_RELEASE_PLAN.md.
 
 **The fix is available and one action away, not automatic.** Every account can set its own secret in
-Settings → Password, and sign-in falls back to the surname only while an account is still on the
-default — which subsumes the targeted fix. The master admin account has its own password
+Settings → Password, and the surname default signs in only while an account is still on it — which
+subsumes the targeted fix. The master admin account has its own password
 (owner-reported, 25 Jul 2026), so that exposure is closed in practice. What stays open is the
 **management accounts**, which can write any member's AL, absence and shifts on behalf; a staff
 account can write only its own overrides, so its blast radius is one person's roster. Closing it
@@ -1020,10 +1020,11 @@ evidence in one step. Restoring it automatically is impossible anyway: the shift
 preserved, only its type. If a cancelled-leave-on-swapped-day case ever recurs without the
 re-record, that is the signal to store more than the type.
 
-### The Annual leave sheet card adds missing leave, and nothing else (Phases 1 and 2b, owner, 14 Nov 2026)
+### The Annual leave sheet card adds missing leave, counts swapped rest days, and nothing else (Phases 1 and 2b, owner, 14 Nov 2026)
 Operations → Annual leave sheet compares the clerks' workbook with the app and, for each person the
 admin confirms, **adds the leave the app is missing** — a working day with nothing recorded, or a rest
-day answered "swapped". Every other difference is put right by hand, a day at a time, in Admin
+day answered "swapped" — and counts leave the app already holds on a rest day answered "swapped".
+Every other difference is put right by hand, a day at a time, in Admin
 (AL_UPLOADER_PLAN.md; OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet"). What that leaves
 open:
 
@@ -1038,6 +1039,7 @@ open:
   days are deleted in Admin instead), and its days are not protected against coming back until the
   next Save's log, which names every day in line, is written.
 - **The Undo is for the newest Save of the year, once.** An earlier Save is undone by hand in Admin.
+  It takes back only days the Save added: a rest day it counted as swapped stays counted.
 - **One spelling is one answer, in every grade block.** The session's script keys a row's name by its
   spelling, so two people spelt alike in two blocks (a trainee the app does not hold, and a member it
   does) share one answer. It never files one's days under the other: named as the member, the other's
@@ -1091,8 +1093,9 @@ The ‹ › arrows above the iPhone keyboard move focus to the previous or next 
 and fire no key event, so a Tab trap never sees them. Since 7 Nov 2026 every `createLightbox` dialog
 pulls such focus back (`_guardFocus`, `overlay.js`); the nav drawer, its two lightboxes and the Huddle
 viewer keep their own Tab traps and have no guard, so the arrows can leave the drawer's *Search the
-guides* box for a field behind it. Not built yet: `nav-panel.js` was at its line cap when this was
-found, and has room now. The device check is in `IPHONE_RELEASE_CHECKLIST.md` → B.
+guides* box for a field behind it. Not built yet: `nav-panel.js` is at its line cap again since
+v26.14 (`coordinator-ratchet.test.mjs`), so something has to move out of it first. The device check
+is in `IPHONE_RELEASE_CHECKLIST.md` → B.
 
 ### On an iPhone, reloading a guide opened at a heading goes back to that heading
 A guide opened at a `#heading` (a drawer search result, a card link) lands below the sticky header, and

@@ -26,7 +26,7 @@ import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
 import { countedAlDates, entitlementFor, entitlementNote } from './al-entitlement.js';
-import { christmasLeaveDates, christmasLeaveLine } from './christmas-leave.js';
+import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
 import { lsGet, lsSet } from './ls.js';
 
@@ -216,10 +216,13 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         // declared in firestore.indexes.json and deployed by deploy-rules.yml.
         // …TO THE END OF NEXT JANUARY (v25.18): a day there may come out of THIS year's allowance
         // (leave-year.js), and a panel that never read it would show this year a day too generous.
+        // …AND FROM LAST YEAR'S BOXING DAY (15 Nov 2026): working it when due at work adds a day to
+        // THIS year's allowance (christmas-leave.js), so a read that began on 1 January would show
+        // that member a day short all year.
         getDocs(query(
           collection(db, COLLECTIONS.overrides),
           where('memberName', '==', /** @type {any} */ (member).name),
-          where('date', '>=', `${yearStr}-01-01`),
+          where('date', '>=', `${boxingDayForAllowance(year)}-12-26`),
           where('date', '<=', `${year + 1}-01-31`)
         )),
         new Promise((_, reject) => { _alTimer = setTimeout(() => reject(new Error('AL load timeout')), 15_000); }),
@@ -246,10 +249,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         if (date <= todayStr) taken++; else booked++;
       }
       // ACROSS NEW YEAR, BOTH WAYS. In: days dated next January that count towards this year. Out:
-      // this January's days counted towards LAST year — the read starts on 1 January, so the only
-      // dates it holds that last year can claim are exactly those.
+      // this January's days counted towards LAST year. The read now starts on last year's Boxing Day,
+      // so leave in the last days of December is last year's own and is left out: only this year's
+      // dates are carried out.
       const carriedIn  = [...counted].filter(d => d.startsWith(`${year + 1}-`)).length;
-      const carriedOut = countedAlDates({ overrides: memberOverrides, member, year: year - 1 }).size;
+      const carriedOut = [...countedAlDates({ overrides: memberOverrides, member, year: year - 1 })]
+        .filter(d => d.startsWith(`${yearStr}-`)).length;
       const carry = carryLine({ year, carriedIn, carriedOut });
       const entitlement = entitlementFor(member, year, memberOverrides);
       // NO ENTITLEMENT ON RECORD → the em-dash state this panel already uses for "no member"

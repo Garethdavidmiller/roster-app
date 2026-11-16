@@ -363,18 +363,25 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day â
 
 describe('a save that moves the Boxing Day day in lieu is costed against the allowance AFTER it (6 Nov 2026 review)', () => {
     // A plain CEA due at work on Boxing Day 2026: working it earns a day in lieu (christmas-leave.js),
-    // so 32 days of contract leave become 33. The week grid costed every save against the allowance
-    // BEFORE it, so unticking the worked Boxing Day and booking a day in the same save showed no bar
-    // and left the member one over, and recording the work with a day of leave raised a false one.
+    // so 32 days of contract leave become 33 â€” in 2027, the NEXT year's allowance (owner, 15 Nov
+    // 2026), which is why the leave below is 2027's. The week grid costed every save against the
+    // allowance BEFORE it, so unticking the worked Boxing Day and booking a day in the same save
+    // showed no bar and left the member one over, and recording the work with a day of leave raised a
+    // false one.
     const BOXING = '2026-12-26';
     const cea = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
         && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, new Date(2026, 11, 26))));
-    /** @type {string[]} */ const workdays = [];
-    for (let d = new Date(2026, 2, 2); workdays.length < 34; d.setDate(d.getDate() + 1)) {
-        const shift = getBaseShift(cea, d);
-        if (d.getDay() !== 0 && isWorkedShift(shift) && shift !== 'SPARE') workdays.push(formatISO(d));
-    }
-    const leave = (/** @type {number} */ n) => workdays.slice(0, n)
+    /** Working days the member's pattern has in `year`, from March. @param {number} year */
+    const workdaysIn = year => {
+        /** @type {string[]} */ const out = [];
+        for (let d = new Date(year, 2, 2); out.length < 34; d.setDate(d.getDate() + 1)) {
+            const shift = getBaseShift(cea, d);
+            if (d.getDay() !== 0 && isWorkedShift(shift) && shift !== 'SPARE') out.push(formatISO(d));
+        }
+        return out;
+    };
+    const workdays = workdaysIn(2027);
+    const leave = (/** @type {number} */ n, days = workdays) => days.slice(0, n)
         .map((date, i) => ({ id: 'w' + i, memberName: cea.name, type: 'annual_leave', date, value: 'AL' }));
     const worked = { id: 'bx', memberName: cea.name, type: 'rdw', date: BOXING, value: '06:00-14:00' };
     const plan = (/** @type {any[]} */ overrides, /** @type {any[]} */ toSave, /** @type {string[]} */ toDelete = []) =>
@@ -399,6 +406,14 @@ describe('a save that moves the Boxing Day day in lieu is costed against the all
         const p = plan([...leave(33), worked], [], ['bx']);
         assert.ok(p.overage, '33 days recorded against an allowance that drops back to 32');
         assert.equal(p.overage.over, 1);
+        assert.match(p.overage.detail, /allowed in 2027/, 'the year it falls in is 2027, though the record is dated 2026');
+    });
+
+    test('2026 is not the year it moves: a member at 32 of 32 in 2026 is over by booking a 2026 day, worked Boxing Day or not', () => {
+        const in2026 = workdaysIn(2026);
+        const p = plan([...leave(32, in2026), worked], [book(in2026[32])]);
+        assert.ok(p.overage, 'the day in lieu is 2027\'s');
+        assert.match(p.overage.detail, /33 days used of 32 allowed in 2026/);
     });
 
     test('a save that spends nothing and moves no allowance never raises the bar, over or not', () => {

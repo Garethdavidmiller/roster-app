@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -186,6 +186,16 @@ opens since v24.98 (`perf-stats.js` says why); the last share, about one Calenda
 (September 2026), was an undercount (`LATENCY.md` → THE CARD WAS TRIMMED). **The first reading:**
 in the first half of November 2026, while 99 versions reached `main`, 10% of the 163 returns to a
 page after a release took over a second to be usable (`LATENCY.md` → THE NOVEMBER READ).
+
+### Two owner questions from November 2026 (OWNER DECISIONS, recorded in DECISIONS.md)
+**Status:** Blocked on an owner decision · **Owner:** Gareth · **Review:** before December 2028 for the first; none set for the second
+
+- **A Dispatcher's day in lieu for a Boxing Day that is also a bank holiday** (next on 26 December
+  2028). Every other worked Boxing Day's day in lieu now goes into the next year's allowance (owner,
+  15 Nov 2026). Does this one? Until answered, the Dispatcher bank-holiday rule keeps it in that
+  year. DECISIONS.md → "The Boxing Day day in lieu goes into the next year's allowance".
+- **When the Railcard guide's boxes may drop their history lines.** DECISIONS.md → "Pay's
+  first-visit Settings, and the Railcard's corrections".
 
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated
@@ -456,11 +466,12 @@ premium is built from them); back pay (what "backdated to 1 April" means on the 
 ### Annual leave uploader — Phase 3, corrections
 **Status:** Conditional — Phases 0–2 built (v26.11 and v26.13): the card checks, and adds the leave the app is missing for each person the admin confirms, with undo, a receipt and a log · **Owner:** Gareth · **Trigger:** the owner has used the Save and decides (`AL_UPLOADER_PLAN.md` §10) · **Plan:** `docs/AL_UPLOADER_PLAN.md`
 
-Operations → Annual leave sheet adds what the sheet has and the app lacks, and nothing else; every other
-difference is put right by hand in Admin (OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet
-against the app"). It never removes leave (plan §10, decision 3). Phase 3 — ticked conflicts, Sunday
-corrections, and the roster review naming workbook leave (plan §4.11) — would follow it. Stopping after
-Phase 2 is a real option: after the first catch-up most copies change a handful of days (plan §8).
+Operations → Annual leave sheet adds what the sheet has and the app lacks, and counts leave already
+booked on a rest day the admin answers "swapped"; nothing else. Every other difference is put right
+by hand in Admin (OPERATIONS_REFERENCE.md → "Checking the clerks' leave sheet against the app"). It
+never removes leave (plan §10, decision 3). Phase 3 — ticked conflicts, Sunday corrections, and the
+roster review naming workbook leave (plan §4.11) — would follow it. Stopping after Phase 2 is a real
+option: after the first catch-up most copies change a handful of days (plan §8).
 
 ---
 
@@ -608,7 +619,7 @@ reached** — a 2026 implementation preference must not become a 2028 architectu
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
 ### Split the three largest page controllers — each when it is next changed
-**Status:** Conditional · **Trigger:** the next change to that page · **Owner:** the developer · **Review:** at that change, not before
+**Status:** Conditional · **Trigger:** the next change to that page's rules (a wiring-only edit, like v26.16's to `paycalc-app.js` or v26.19's to `admin-app.js`, is not one) · **Owner:** the developer · **Review:** at that change, not before
 
 **Why:** an external review (10 Nov 2026) named `links-app.js`, `admin-app.js` and `paycalc-app.js`
 (2,657, 1,729 and 1,597 lines when it measured them) as the files where one edit is hardest to

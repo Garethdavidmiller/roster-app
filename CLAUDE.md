@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: November 2026 — v26.10 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Documentation milestone | `26.10` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Documentation milestone | `26.20` — the 0.10 checkpoint these docs are written against, and **deliberately NOT the current version**, which only `APP_VERSION` in `roster-data.js` states. The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is held to the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit`, so a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; the **primary install + notification target**). A GitHub Pages mirror is served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path** (the bare origin is a separate empty repo that 404s). **Most staff still open the app there** (owner, Sep 2026 — the changeover to the canonical URL is deliberate and gradual, not a rump to be discounted). The mirror serves **no redirects and no HTTP headers**, so a change relying on something only Firebase Hosting can do — a rename protected by a `redirects` entry, a policy carried by a header — reaches the smaller half of the staff: weigh it against the mirror, not the canonical URL. That is why every page carries a `<meta>` CSP. `STAFF_SITE_URL` in `functions/index.js` is the bare canonical origin; it only sets the notification payload's path/hash, and each device's service worker re-bases that onto its own scope, so github.io installs keep working. See the API key note below. |
 | Cloud Function URLs | Base `https://europe-west2-myb-roster.cloudfunctions.net/` + the endpoint name: |
@@ -222,9 +222,9 @@ regression somewhere the author was not looking.
 | Change this | And you have changed | Verify with |
 |---|---|---|
 | `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Admin · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
-| the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects (a frozen 85% scale, a date under the close button) were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
+| the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
-| `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on the Calendar, Team Week, the legend, Overtime's roster and Admin's week grid, the leave records, and the allowance (`entitlementFor`) | `christmas-leave.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
+| `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on the Calendar, Team Week, the legend, Overtime's roster and Admin's week grid, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
 | `session.js` · `silent-sign-in.js` · `login-overlay.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (the overlay on every sign-in page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
 | `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, what it reports when its outcome is unknown, and when any page may reload for an update | `claim-retry.test.mjs` · `sw-register.test.mjs` · `e2e/admin.spec.js` · `e2e/operations.spec.js` |
 | a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` — for `overrides` it writes the REAL `buildOverrideWrite` output; for every other collection check the writer's keys against the rule's `hasOnly()` BY HAND (`firestore-contract-parity.test.mjs` checks ids and allowlists, not field sets) |
@@ -454,8 +454,8 @@ area needs:
   so editing one member's hours there edits everyone on that line.**
 
 **AL entitlement** — read the whole allowance through `entitlementFor` in `al-entitlement.js`, never
-`getALEntitlement` (`roster-data.js`) directly: it adds the day in lieu for working a Boxing Day the
-member was due to work, from 2026, and `christmas-leave.test.mjs` fails on any other caller.
+`getALEntitlement` (`roster-data.js`) directly: it adds a worked Boxing Day's day in lieu (due
+at work) to the NEXT year's allowance, and `christmas-leave.test.mjs` fails on any other caller.
 `proRatedAL[year]` takes priority for every role **except Dispatcher**, where it scales the BASE only
 and the lieu days are still added on top (owner decision): the 22 is an allowance a part-year
 deserves part of, a lieu day is owed because a specific day was worked.
@@ -634,7 +634,7 @@ working notes are `.claude/rules/sessions.md`, which loads with the session and 
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 
-**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave, allowance or days remaining. It is a TRIGGER, not a checklist — it sends you to `docs/AL_WORKBOOK.md` §0 and requires the learnings to be written back in the same session. **Read §0 before answering from the spreadsheet** — answering first has gone wrong twice, on the same person, in sessions that had the document: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. To check the sheet against the app, a session makes a sealed leave file (`scripts/make-leave-file.mjs`) for Operations → Annual leave sheet, which adds only missing leave, person by person (OPERATIONS_REFERENCE.md). **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
+**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave, allowance or days remaining. It is a TRIGGER, not a checklist — it sends you to `docs/AL_WORKBOOK.md` §0 and requires the learnings to be written back in the same session. **Read §0 before answering from the spreadsheet** — answering first has gone wrong twice, on the same person, in sessions that had the document: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. To check the sheet against the app, a session makes a sealed leave file (`scripts/make-leave-file.mjs`) for Operations → Annual leave sheet, which adds missing leave, person by person (OPERATIONS_REFERENCE.md). **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
 
 **Removing a staff member:** invoke `/leaver` — the ordered checklist, including the step everybody gets wrong (**upload their final roster PDF FIRST**: `hidden` also drops them from the AI-parsing name list, and a later upload then reports their row as `missingMembers`, which reads exactly like a genuine absence) and the verification step that closes it (the Staff Login Accounts audit — every other failure in the sequence is silent). The reasoning, and what it deliberately does not do (Overtime weeks are frozen; their data stays): OPERATIONS_REFERENCE.md → "Removing a staff member".
 

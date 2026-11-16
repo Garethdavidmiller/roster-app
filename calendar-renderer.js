@@ -18,7 +18,7 @@ import {
     SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
 } from './roster-data.js';
 import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
-import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave } from './christmas-leave.js';
+import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave, allowanceForBoxingDay } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache, monthKey } from './calendar-overrides.js';
@@ -679,13 +679,13 @@ export function buildCalendarContainer(month, year, opts = {}) {
         const fromYear = shift === 'AL' ? carriedFrom(override, dateStr) : null;
         if (fromYear) dayCell.dataset.detailLeaveYear = String(fromYear);
         // Which Christmas day this leave is, for the panel's one-line explanation; and, on a Boxing
-        // Day the member was due to work and DID work, the year a day in lieu is added to
-        // (christmas-leave.js → boxingDayLieuDays, which the allowance reads).
+        // Day the member was due to work and DID work, the year a day in lieu is added to — the
+        // NEXT year's (christmas-leave.js → allowanceForBoxingDay, the rule the allowance reads).
         if (christmasLeave) dayCell.dataset.detailChristmas = String(currentDate.getDate());
         // A leave RECORD on a Christmas day — not the pattern's leave, and not counted either.
         else if (christmasNotCounted) dayCell.dataset.detailChristmasRecorded = String(currentDate.getDate());
         else if (christmasDue && currentDate.getDate() === 26 && isWorkedDay) {
-            dayCell.dataset.detailBoxingLieu = String(currentDate.getFullYear());
+            dayCell.dataset.detailBoxingLieu = String(allowanceForBoxingDay(member, currentDate.getFullYear()));
         }
         if (extras)       dayCell.dataset.detailExtras = extras;
         // JSON rather than a re-parse of the sentence above: the panel needs the icons, and

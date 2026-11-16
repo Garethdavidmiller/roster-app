@@ -418,6 +418,19 @@ describe('the entitlement count is asked for with the overrides in hand', () => 
         assert.match(src, /countedAlDates\(\{ overrides: memberOverrides, member, year \}\)/);
         assert.doesNotMatch(src, /date\.startsWith\(yearStr\)/, 'a day counts towards leaveYearOf, never its date prefix');
     });
+
+    // …AND FROM LAST YEAR'S BOXING DAY (15 Nov 2026): a day in lieu for working it is in THIS year's
+    // allowance (christmas-leave.js), so a read that began on 1 January would show a member who
+    // worked it a day short all year. Pinned for the same reason as the end: the stub ignores ranges.
+    test('calendar-al-lightbox.js reads from the Boxing Day this year\'s allowance draws on, and carries out only this January', () => {
+        const src = readFileSync(new URL('./calendar-al-lightbox.js', import.meta.url), 'utf8');
+        assert.match(src, /where\('date', '>=', `\$\{boxingDayForAllowance\(year\)\}-12-26`\)/,
+            'the read must start on the Boxing Day before this year, or its day in lieu is never counted');
+        // That read now holds the last days of December, which are last year's own leave: only this
+        // year's dates can be carried out of it.
+        assert.match(src, /countedAlDates\(\{ overrides: memberOverrides, member, year: year - 1 \}\)\]\s*\.filter\(d => d\.startsWith\(`\$\{yearStr\}-`\)\)/,
+            'carried out = this January\'s days counted towards last year, and nothing dated last December');
+    });
 });
 
 
@@ -508,7 +521,7 @@ describe('a role with no entitlement on record', () => {
 // The Admin AL banner recovered the lieu count as `entitlement - 22`, which is right only while the
 // base IS 22. For a mid-year joiner the base is their pro-rated figure, so the subtraction went
 // negative: `22 base + -8 BH lieu`, on the card a manager reads to decide whether somebody can take
-// a day off. Wrong since B. Toth joined in June, and nothing failed — a caption is not a calculation
+// a day off. Wrong for a Dispatcher who joined in June, and nothing failed — a caption is not a calculation
 // and no test looked at it.
 describe('a Dispatcher entitlement splits into the two things it is made of', () => {
     const disp = (extra = {}) => ({ name: 'D', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1, ...extra });
@@ -525,21 +538,31 @@ describe('a Dispatcher entitlement splits into the two things it is made of', ()
         // This is the contract that keeps one formula. The split derives the base and infers the
         // lieu; if the allowance ever changes how its parts combine, this fails rather than the
         // caption quietly disagreeing with the number printed beside it. Asked with and without a
-        // worked Boxing Day (v25.37), whose day in lieu is a third part and never "BH lieu".
+        // worked Boxing Day (v25.37), whose day in lieu is a third part and never "BH lieu". Both
+        // Boxing Days a year can see are worked: the one before it, whose day is in this year's
+        // allowance (15 Nov 2026), and its own. Week 2 of the Dispatcher link is due at work on
+        // Boxing Day 2026; week 1 is not, and until 15 Nov 2026 this test only ever asked week 1,
+        // so the third part was never once anything but 0 here.
+        let sawBoxingDay = 0;
         for (const m of [
             disp(),
+            disp({ currentWeek: 2 }),
             disp({ startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } }),
             disp({ startDate: new Date(2026, 0, 2), proRatedAL: { 2026: 21 } }),
         ]) {
             for (const year of [2026, 2027, 2028]) {
-                for (const overrides of [[], [{ memberName: m.name, date: `${year}-12-26`, type: 'rdw', value: '06:00-14:00' }]]) {
+                const workedBoth = [`${year - 1}-12-26`, `${year}-12-26`]
+                    .map(date => ({ memberName: m.name, date, type: 'rdw', value: '06:00-14:00' }));
+                for (const overrides of [[], workedBoth]) {
                     const split = dispatcherBreakdown({ member: m, year, overrides });
                     assert.equal(split.base + split.lieu + split.boxingDay, entitlementFor(m, year, overrides),
                         `${m.name} ${year}: the caption must add up to the figure beside it`);
                     assert.ok(split.lieu >= 0 && split.boxingDay >= 0);
+                    sawBoxingDay += split.boxingDay;
                 }
             }
         }
+        assert.ok(sawBoxingDay > 0, 'premise: at least one case has a Boxing Day in lieu, or the third part is untested');
     });
 
     test('a year with no pro-rata is the plain 22 base', () => {

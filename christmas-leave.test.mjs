@@ -25,6 +25,7 @@ import { teamMembers, getBaseShift, getPatternShift, getALEntitlement, isWorkedS
 import { resolveEffectiveShift } from './override-utils.js';
 import {
     CHRISTMAS_LEAVE_FROM_YEAR, isChristmasLeaveDay, isChristmasClosureDate, boxingDayLieuDays,
+    allowanceForBoxingDay, boxingDayForAllowance, allowanceYearsOf,
     resolveDayShift, christmasLeaveDates, christmasLeaveByYear, christmasLeaveLine, isUncountedChristmasLeave,
 } from './christmas-leave.js';
 import {
@@ -176,51 +177,64 @@ describe('a day counted that should not be — Christmas leave never costs anyth
 describe('the day in lieu — earned by working a Boxing Day you were due to work', () => {
     const worked = () => [ov(CEA, '2026-12-26', 'rdw', '06:00-14:00')];
 
-    test('due at work and worked: one day, added to that year\'s allowance', () => {
-        assert.equal(boxingDayLieuDays(CEA, 2026, worked()), 1);
-        assert.equal(entitlementFor(CEA, 2026, worked()), getALEntitlement(CEA, 2026, []) + 1);
+    // THE NEXT YEAR'S ALLOWANCE (owner, 15 Nov 2026): the roster clerk says the day is valid for a
+    // year, every year. Until then it was the Boxing Day's own year (owner, 5 Nov 2026), which left a
+    // day earned on 26 December five days to be taken in.
+    test('due at work and worked: one day, added to the NEXT year\'s allowance', () => {
+        assert.equal(boxingDayLieuDays(CEA, 2027, worked()), 1);
+        assert.equal(entitlementFor(CEA, 2027, worked()), getALEntitlement(CEA, 2027, []) + 1);
+    });
+
+    test('and not to the Boxing Day\'s own year any more', () => {
+        assert.equal(boxingDayLieuDays(CEA, 2026, worked()), 0);
+        assert.equal(entitlementFor(CEA, 2026, worked()), getALEntitlement(CEA, 2026, []));
     });
 
     test('a plain shift or an Other day is worked too — the type does not matter, the work does', () => {
-        assert.equal(boxingDayLieuDays(CEA, 2026, [ov(CEA, '2026-12-26', 'shift', '06:20-14:20')]), 1);
-        assert.equal(boxingDayLieuDays(CEA, 2026, [ov(CEA, '2026-12-26', 'other', 'TRG')]), 1);
+        assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2026-12-26', 'shift', '06:20-14:20')]), 1);
+        assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2026-12-26', 'other', 'TRG')]), 1);
     });
 
     test('not worked, or leave, absence or rest recorded instead: no day', () => {
-        assert.equal(boxingDayLieuDays(CEA, 2026, []), 0);
+        assert.equal(boxingDayLieuDays(CEA, 2027, []), 0);
         for (const [type, value] of [['annual_leave', 'AL'], ['sick', 'SICK'], ['correction', 'RD'], ['spare_shift', 'SPARE']]) {
-            assert.equal(boxingDayLieuDays(CEA, 2026, [ov(CEA, '2026-12-26', type, value)]), 0, type);
+            assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2026-12-26', type, value)]), 0, type);
         }
     });
 
     test('working Boxing Day from a REST day is overtime, and earns none', () => {
-        assert.equal(boxingDayLieuDays(RESTER, 2026, [ov(RESTER, '2026-12-26', 'rdw', '06:00-14:00')]), 0);
+        assert.equal(boxingDayLieuDays(RESTER, 2027, [ov(RESTER, '2026-12-26', 'rdw', '06:00-14:00')]), 0);
     });
 
     test('Christmas Day earns nothing, worked or not (owner, 5 Nov 2026)', () => {
-        assert.equal(boxingDayLieuDays(CEA, 2026, [ov(CEA, '2026-12-25', 'rdw', '06:00-14:00')]), 0);
+        assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2026-12-25', 'rdw', '06:00-14:00')]), 0);
     });
 
     test('the WINNING document decides: a newer correction undoes the work, a stale one cannot', () => {
         const work = ov(CEA, '2026-12-26', 'rdw', '06:00-14:00');
         const rest = ov(CEA, '2026-12-26', 'correction', 'RD');          // newer
-        assert.equal(boxingDayLieuDays(CEA, 2026, [work, rest]), 0);
-        assert.equal(boxingDayLieuDays(CEA, 2026, [rest, work]), 0, 'array order must not matter');
+        assert.equal(boxingDayLieuDays(CEA, 2027, [work, rest]), 0);
+        assert.equal(boxingDayLieuDays(CEA, 2027, [rest, work]), 0, 'array order must not matter');
         const later = ov(CEA, '2026-12-26', 'rdw', '07:00-15:00');       // newer still
-        assert.equal(boxingDayLieuDays(CEA, 2026, [later, rest, work]), 1);
+        assert.equal(boxingDayLieuDays(CEA, 2027, [later, rest, work]), 1);
     });
 
     test('another member\'s document is ignored', () => {
-        assert.equal(boxingDayLieuDays(CEA, 2026, [ov(RESTER, '2026-12-26', 'rdw', '06:00-14:00')]), 0);
+        assert.equal(boxingDayLieuDays(CEA, 2027, [ov(RESTER, '2026-12-26', 'rdw', '06:00-14:00')]), 0);
     });
 
     test('never before 2026, and never on a Sunday Boxing Day', () => {
-        assert.equal(boxingDayLieuDays(CEA, 2025, [ov(CEA, '2025-12-26', 'rdw', '06:00-14:00')]), 0);
-        assert.equal(boxingDayLieuDays(CEA, 2027, [ov(CEA, '2027-12-26', 'rdw', '06:00-14:00')]), 0);
+        // 2026's allowance would hold Boxing Day 2025, before the rules; 2028's holds 2027's, a Sunday.
+        assert.equal(boxingDayLieuDays(CEA, 2026, [ov(CEA, '2025-12-26', 'rdw', '06:00-14:00')]), 0);
+        assert.equal(boxingDayLieuDays(CEA, 2028, [ov(CEA, '2027-12-26', 'rdw', '06:00-14:00')]), 0);
     });
 
-    test('it counts towards the Boxing Day\'s OWN year, not the next one (owner, 5 Nov 2026)', () => {
-        assert.equal(entitlementFor(CEA, 2027, worked()), getALEntitlement(CEA, 2027, []));
+    test('a later Boxing Day reaches a later allowance: 2028 worked is in 2029', () => {
+        const due28 = ACTIVE.find(m => m.role === 'CEA' && !m.startDate && !m.proRatedAL && patternDue(m, BOXING_2028));
+        assert.ok(due28, 'needs a CEA due at work on Boxing Day 2028');
+        const w = [ov(due28, '2028-12-26', 'rdw', '06:00-14:00')];
+        assert.equal(entitlementFor(due28, 2029, w), getALEntitlement(due28, 2029, []) + 1);
+        assert.equal(entitlementFor(due28, 2028, w), getALEntitlement(due28, 2028, []));
     });
 
     test('no entitlement on record stays null — a day is never added to nothing', () => {
@@ -231,45 +245,87 @@ describe('the day in lieu — earned by working a Boxing Day you were due to wor
 });
 
 describe('a Dispatcher is counted ONCE (owner, 5 Nov 2026)', () => {
-    test('2026: Boxing Day is no bank holiday, so this is the only rule that sees it', () => {
+    test('2026: Boxing Day is no bank holiday, so this is the only rule that sees it — in 2027', () => {
         const worked = [ov(DISP_2026, '2026-12-26', 'rdw', '06:00-14:00')];
         assert.equal(getALEntitlement(DISP_2026, 2026, worked), getALEntitlement(DISP_2026, 2026, []),
             'the bank-holiday rule must not see a Saturday Boxing Day — else this test is not about 2026');
-        assert.equal(entitlementFor(DISP_2026, 2026, worked), getALEntitlement(DISP_2026, 2026, []) + 1);
+        assert.equal(entitlementFor(DISP_2026, 2026, worked), getALEntitlement(DISP_2026, 2026, []));
+        assert.equal(entitlementFor(DISP_2026, 2027, worked), getALEntitlement(DISP_2026, 2027, []) + 1);
     });
 
-    test('2028: Boxing Day IS a bank holiday, the bank-holiday rule counts it, and this adds nothing', () => {
+    test('2028: Boxing Day IS a bank holiday, the bank-holiday rule counts it in 2028, and this adds nothing', () => {
+        // Left where it was on 15 Nov 2026: their bank-holiday days are that year's, as every other
+        // one is. Whether the clerk's year applies to this day too is the owner's question.
         const worked = [ov(DISP_2028, '2028-12-26', 'rdw', '06:00-14:00')];
         const before = getALEntitlement(DISP_2028, 2028, []);
         assert.equal(getALEntitlement(DISP_2028, 2028, worked), before + 1, 'the bank-holiday rule counts it once');
-        assert.equal(boxingDayLieuDays(DISP_2028, 2028, worked), 0);
+        assert.equal(boxingDayLieuDays(DISP_2028, 2029, worked), 0);
         assert.equal(entitlementFor(DISP_2028, 2028, worked), before + 1, 'and never twice');
+        assert.equal(entitlementFor(DISP_2028, 2029, worked), entitlementFor(DISP_2028, 2029, []), 'nor again the next year');
     });
 
     test('the breakdown names a Boxing Day in lieu on its own, never as a bank-holiday day', () => {
         const worked = [ov(DISP_2026, '2026-12-26', 'rdw', '06:00-14:00')];
-        const split = dispatcherBreakdown({ member: DISP_2026, year: 2026, overrides: worked });
+        const split = dispatcherBreakdown({ member: DISP_2026, year: 2027, overrides: worked });
         assert.ok(split);
         assert.equal(split.boxingDay, 1);
-        assert.equal(split.base + split.lieu + split.boxingDay, entitlementFor(DISP_2026, 2026, worked));
-        assert.equal(entitlementNote({ member: DISP_2026, year: 2026, overrides: worked }),
-            `22 base + ${split.lieu} BH lieu + 1 Boxing Day in lieu`);
+        assert.equal(split.base + split.lieu + split.boxingDay, entitlementFor(DISP_2026, 2027, worked));
+        assert.equal(entitlementNote({ member: DISP_2026, year: 2027, overrides: worked }),
+            `22 base + ${split.lieu} BH lieu + 1 in lieu for Boxing Day 2026`);
+        assert.equal(dispatcherBreakdown({ member: DISP_2026, year: 2026, overrides: worked })?.boxingDay, 0);
+    });
+});
+
+describe('which allowance a Boxing Day goes into — one rule, asked from either end (15 Nov 2026)', () => {
+    test('a Boxing Day adds to the next year; an allowance draws on the year before', () => {
+        assert.equal(allowanceForBoxingDay(CEA, 2026), 2027);
+        assert.equal(allowanceForBoxingDay(CEA, '2028'), 2029);
+        assert.equal(allowanceForBoxingDay(DISP_2026, 2026), 2027, 'Boxing Day 2026 is no bank holiday');
+        assert.equal(allowanceForBoxingDay(DISP_2028, 2028), 2028, 'a bank-holiday Boxing Day is the Dispatcher rule\'s');
+        assert.equal(boxingDayForAllowance(2027), 2026);
+        assert.equal(boxingDayForAllowance('2030'), 2029);
+    });
+
+    test('the years a record can move: its own, and the next one for a Boxing Day', () => {
+        assert.deepEqual(allowanceYearsOf(CEA, '2026-12-26'), [2026, 2027]);
+        assert.deepEqual(allowanceYearsOf(CEA, '2026-12-25'), [2026]);
+        assert.deepEqual(allowanceYearsOf(CEA, '2027-01-04'), [2027]);
+        assert.deepEqual(allowanceYearsOf(DISP_2028, '2028-12-26'), [2028]);
+    });
+
+    test('the year the day panel and Admin\'s row name is the year whose allowance holds the day — everybody, 2026 to 2029', () => {
+        // The words and the figures come from two functions; this is the test that they agree. For
+        // each member due at work on a Boxing Day, working it must raise exactly one allowance, and it
+        // must be the one `allowanceForBoxingDay` names.
+        let checked = 0;
+        for (const m of ACTIVE) for (const y of [2026, 2027, 2028, 2029]) {
+            const date = new Date(y, 11, 26);
+            if (!isChristmasLeaveDay(m, date)) continue;
+            const worked = [ov(m, formatISO(date), 'rdw', '06:00-14:00')];
+            const raised = [y, y + 1].filter(yr => (entitlementFor(m, yr, worked) ?? 0) > (entitlementFor(m, yr, []) ?? 0));
+            assert.deepEqual(raised, [allowanceForBoxingDay(m, y)], `${m.name}, Boxing Day ${y}`);
+            checked++;
+        }
+        assert.ok(checked > 50, `premise: enough people due at work on the Boxing Days checked (${checked})`);
     });
 });
 
 describe('the one door — every allowance is read through entitlementFor', () => {
-    test('alPosition, the banner\'s figures, include the earned day', () => {
+    test('alPosition, the banner\'s figures, include the earned day — in the next year', () => {
         const worked = [ov(CEA, '2026-12-26', 'rdw', '06:00-14:00')];
-        const pos = alPosition({ overrides: worked, member: CEA, year: 2026, todayStr: '2026-12-31' });
-        assert.equal(pos.entitlement, getALEntitlement(CEA, 2026, []) + 1);
+        const pos = alPosition({ overrides: worked, member: CEA, year: 2027, todayStr: '2027-01-04' });
+        assert.equal(pos.entitlement, getALEntitlement(CEA, 2027, []) + 1);
         assert.equal(pos.remaining, pos.entitlement);
+        assert.equal(alPosition({ overrides: worked, member: CEA, year: 2026, todayStr: '2026-12-31' }).entitlement,
+            getALEntitlement(CEA, 2026, []));
     });
 
-    test('the note says why the figure is one higher than a colleague\'s', () => {
+    test('the note says why the figure is one higher than a colleague\'s, and which Boxing Day earned it', () => {
         const worked = [ov(CEA, '2026-12-26', 'rdw', '06:00-14:00')];
-        assert.equal(entitlementNote({ member: CEA, year: 2026, overrides: worked }),
-            'Includes 1 day in lieu for working Boxing Day');
-        assert.equal(entitlementNote({ member: CEA, year: 2026, overrides: [] }), null);
+        assert.equal(entitlementNote({ member: CEA, year: 2027, overrides: worked }),
+            'Includes 1 day in lieu for working Boxing Day 2026');
+        assert.equal(entitlementNote({ member: CEA, year: 2026, overrides: worked }), null, '2026 is the contract figure');
+        assert.equal(entitlementNote({ member: CEA, year: 2027, overrides: [] }), null);
     });
 
     test('NO module but al-entitlement.js calls getALEntitlement — a second door leaves the day out', () => {
@@ -378,7 +434,7 @@ describe('a day shown wrongly — what each surface draws', () => {
             ['annual_leave', 'AL'], ['sick', 'SICK'], ['correction', 'RD'], ['spare_shift', 'SPARE']]) {
             const o = ov(CEA, '2026-12-26', type, value);
             assert.equal(isWorkedShift(resolveDayShift(o, 'RD', false, true).shift) ? 1 : 0,
-                boxingDayLieuDays(CEA, 2026, [o]), type);
+                boxingDayLieuDays(CEA, 2027, [o]), type);
         }
     });
 });
