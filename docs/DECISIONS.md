@@ -1073,13 +1073,15 @@ and are unchanged.
 
 **What holds it:** `e2e/guides.spec.js` reads every word of every guide on screen against the three
 sizes, with the exceptions named (`KEEPS_ITS_OWN_SIZE`); reads a sample of each guide on paper; compares
-a guide's sub-heading with the app's card title; and measures the top gap at 390 and 1,280px.
-`e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths and
-checks that its longer label never clips. `e2e/trains.spec.js` and `e2e/paycalc.spec.js` read the
+a guide's sub-heading with the app's card title; measures the top gap at 390 and 1,280px; and reads the
+Staff Guide at 375, 360 and 320px under 1.5× text ("enlarged text does not widen the column past a
+phone"). `e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths
+and checks that its longer label never clips. `e2e/trains.spec.js` and `e2e/paycalc.spec.js` read the
 show-more corners; `card-header-parity.test.mjs` requires the canvas group labels to be `h2`s on both
-pages. Ten mutations — an off-scale sub-line, the sizes reaching paper, the sub-heading's weight, a
-guide's own top margin, two pay columns, a print size removed, the button at 12px, both 8px corners and
-a `<p>` label — each failed its test.
+pages. Thirteen mutations — an off-scale sub-line, the sizes reaching paper, the sub-heading's weight, a
+guide's own top margin, two pay columns, a print size removed, the button at 12px, both 8px corners, a
+`<p>` label, the table's word-break rule removed, the tips' grid taken out of the stacking rule, and the
+Railcard guide's screen sizes reaching paper — each failed its test.
 
 ## No build step — the trade, and the two things that would reopen it
 
