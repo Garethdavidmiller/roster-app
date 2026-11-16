@@ -91,7 +91,9 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
 **In `guide-shell.css` (shared — change once):**
 - **Typeface:** the app's self-hosted Inter (`@font-face` + `--font-sans`; css-tokens.md → "Self-hosted
   Inter typeface"). Every guide body uses `var(--font-sans)` (railcard/fip/rangers in their own CSS;
-  staff-guide/paycalc-guide via `guide-doc.css`), and form controls inherit it.
+  staff-guide/paycalc-guide via `guide-doc.css`), and every form control inherits it
+  (`button, input, select, textarea { font-family: inherit }`), because a control does not take the
+  page's font by itself.
 - **Header:** full-bleed sticky navy `.page-header` (`top: 0`): `←` `.btn-back` (left) · title `<h1>` +
   `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top padding
   `max(14px, env(safe-area-inset-top))` for the iOS notch. **3px gold bottom rule** — the navy-and-gold
