@@ -454,7 +454,7 @@ button. The chevron is drawn here so the button's text stays its label alone. */
     margin-top: 10px;
     padding: 10px 0;
     border: 1.5px dashed var(--border-mid);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-button);   /* the Pay button's corner, which is every button's (v26.24) */
     background: none;
     color: var(--text-mid);
     font-family: inherit;

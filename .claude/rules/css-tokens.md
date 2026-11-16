@@ -216,7 +216,7 @@ would change meaning, not tidy it.
 
 | Token | Value | Use |
 |-------|-------|-----|
-| `--radius-button` | 12px | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`, Trains' `.tr-tab`, Team View's `.grade-tab`); the Calendar's controls and Team View's arrows; the leave panel's two links (`.al-lb-link`); Admin's week navigation |
+| `--radius-button` | 12px | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`, Trains' `.tr-tab`, Team View's `.grade-tab`); a SHOW-MORE is a button (Pay's `.show-more-btn`, Trains' `.tr-more` — 8px until v26.24); the Calendar's controls and Team View's arrows; the leave panel's two links (`.al-lb-link`); Admin's week navigation |
 | `--radius-field` | `= --radius-button` | every text field, select and picker trigger that sits on a card |
 | `--radius-xs` | 6px | dense inputs that sit in a ROW or a grid — the Links generator, the Operations email table, the navy member bar's picker |
 | `--field-border` | `2px solid var(--border-mid)` | the field's edge |
@@ -228,7 +228,10 @@ wears the same edge, or the join it exists to hide shows.
 
 **Use the tokens, never a literal**, for a new field or button. Nothing tests this app-wide. Where it
 drifted it is now pinned: the Calendar's two pairs of arrows (`calendar-controls-parity.test.mjs` 9)
-and every Trains tab (`e2e/trains.spec.js`).
+and every Trains tab (`e2e/trains.spec.js`), and since v26.24 every show-more button on Trains and on Pay
+(`e2e/trains.spec.js`, `e2e/paycalc.spec.js`). Trains' "Change station" and the grid's "Show every
+station" stay PILLS by decision: they act rather than reveal (`trains.css` says why), and the Trains
+test leaves them out by name.
 
 ## Overlay sizing — three sizes, one cap, one idiom
 
@@ -298,7 +301,14 @@ element**:
 - form/eyebrow labels → `--type-small`
 - inputs/selects → `--type-medium` (16px also stops iOS focus-zoom — **never go below 16px on a
   focusable field**; see "The 16px focusable-field rule" below)
-- primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) → `--type-button` (15px)
+- primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) → `--type-button` (15px) — and Pay's
+  "Fill from calendar" (`.fill-roster-btn`), which sat at 12px on a phone until v26.24. Its longer label,
+  "Replace with calendar values", fits one line from 360px and takes two balanced lines at 320px rather
+  than clipping (`e2e/paycalc.spec.js` measures both)
+
+**The guides read on the same three steps** — `--type-body`, `--type-label` and `--type-small`, restated
+under the same names in `guide-shell.css` because the guides load none of `shared.css`, and applied on
+screen only so every printed sheet keeps its own sizes (v26.24; `guide-pages.md` → "Three text sizes").
 
 Genuinely distinct components (nav drawer pills, dense roster-review rows, badges, lightbox text) keep
 their own sizes — they are not "the same element rendered differently", so do not force them onto the

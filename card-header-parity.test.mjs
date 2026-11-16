@@ -123,3 +123,22 @@ test('every card title\'s emoji is its FIRST element, wrapped as the hanging lay
             `${page}: a card title must begin <span aria-hidden="true">EMOJI</span>, or a wrapped title runs back under it → ${bad.join(' · ')}`);
     }
 });
+
+// THE GROUP LABELS ON THE PAGE CANVAS ARE HEADINGS WHEREVER THEY APPEAR (v26.24). Settings' three ("Your account",
+// "This device", "Your data") were h2s and Operations' three ("Publish", "Roster & accounts", "Monitoring") were
+// <p>s, though one recipe draws both — so a screen reader's list of headings named the groups on one page and none
+// of them on the other. Both are h2s now, at the level of the card titles beside them.
+test('the group labels on the page canvas are h2 headings, on every page that has them', () => {
+    // Walked by CLASS across the card pages, never by page name: page-contract-parity refuses a page
+    // list typed into this suite. Settings' and Operations' labels look alike, so they read alike.
+    const LABELS = ['settings-section-label', 'ops-group-label'];
+    const found = Object.fromEntries(LABELS.map(cls => [cls, 0]));
+    for (const page of PAGES) {
+        for (const cls of LABELS) {
+            const tags = [...read(page).matchAll(new RegExp(`<(\\w+)[^>]*\\bclass="[^"]*\\b${cls}\\b[^"]*"`, 'g'))].map(m => m[1]);
+            found[cls] += tags.length;
+            assert.deepEqual(tags.filter(tag => tag !== 'h2'), [], `${page}: every .${cls} is an h2`);
+        }
+    }
+    for (const cls of LABELS) assert.ok(found[cls] >= 3, `premise — the .${cls} labels are found (${found[cls]})`);
+});

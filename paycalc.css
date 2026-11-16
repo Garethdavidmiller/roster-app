@@ -431,7 +431,9 @@
       display: flex; align-items: center; gap: 6px; justify-content: center;
       width: 100%; margin-top: 4px; padding: 10px 0;
       background: none; border: 1.5px dashed var(--border-mid);
-      border-radius: var(--radius-sm); color: var(--text-mid);
+      /* --radius-button, not --radius-sm (v26.24): it is a button, and it sits under fields and buttons
+         at 12px — at 8px it was the one corner in the card a few pixels off (css-tokens.md → Corners). */
+      border-radius: var(--radius-button); color: var(--text-mid);
       font-size: var(--type-small); font-weight: 700; cursor: pointer;
       touch-action: manipulation; font-family: inherit;
       transition: border-color var(--dur-med), color var(--dur-med);
@@ -1119,10 +1121,10 @@
     }
     @media (min-width: 1024px) {
       /* The headline figure takes the extra width, and Fill from calendar — the obvious first action,
-         top left — a little more presence (scoped to the Hours card). */
+         top left — a little more room (scoped to the Hours card). Its size is the family's at every width. */
       .net-amount { font-size: 60px; }
       .net-period { font-size: var(--type-large); }
-      #hoursCard .fill-roster-btn { padding: 12px 22px; font-size: var(--type-button); }
+      #hoursCard .fill-roster-btn { padding: 12px 22px; }
     }
 
     /* ── PRINT STYLES ────────────────────────────────────────────────── */
@@ -1540,11 +1542,15 @@
     line-height: 1.45; margin: 0 0 8px;
   }
   .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  /* A primary-button family member: --radius-button, the shared press scale and the token ring. */
+  /* A primary-button family member: --radius-button, the shared press scale and the token ring — and,
+     since v26.24, the family's --type-button. It was --type-small (12px) below 1024px, the one main
+     button on any page smaller than Save beside it, though it is the obvious first action on the page.
+     Its longer label, "Replace with calendar values", fits one line from 360px; at 320px it takes two,
+     balanced, and the button grows rather than clipping (e2e/paycalc.spec.js measures both). */
   .fill-roster-btn {
     padding: 10px 16px; background: var(--primary-blue); color: white;
     border: none; border-radius: var(--radius-button); min-height: 44px;
-    font-family: inherit; font-size: var(--type-small); font-weight: 700;
+    font-family: inherit; font-size: var(--type-button); font-weight: 700; text-wrap: balance;
     cursor: pointer; touch-action: manipulation;
     transition: background var(--dur-med), transform var(--dur-fast) var(--ease-standard);
   }
