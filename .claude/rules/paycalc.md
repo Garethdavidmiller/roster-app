@@ -113,9 +113,8 @@ runs.
   7.69% of what is left after `_expectedNonPremiumYtd(ty)` subtracts expected basic + London − pension
   over the covered periods (to the `ytdSrcKey` source, else the last PAID payslip) and the lumps the
   app knows exactly (`knownYtdLumps`: peer-training pay, last year's premium, and the back-pay lump's
-  basic and London arrears via `awardLumpNonPremium` — its premium share stays in, owner, 10 Nov
-  2026). **What the record cannot split is SAID on the card, never guessed out**: a year whose old
-  rate is not on record (CES 2025/26 — "may include back pay"), a premium no tax year on record claims
+  basic and London arrears via `awardLumpNonPremium` — its premium share stays in). **What the record cannot split is SAID on the card, never guessed out**: a year whose old
+  rate is not on record (CES 2025/26 — "may include back pay", owner, 10 Nov 2026), a premium no tax year on record claims
   (16 Jan 2026 carries 2024/25's — "may be a little high"), and a year ON record with no figure stored
   for its premium (2025/26's, paid 15 Jan 2027). The doc comments of `knownYtdLumps` and
   `_expectedNonPremiumYtd` hold the reasoning. The line says what the figure covers ("up to your …
