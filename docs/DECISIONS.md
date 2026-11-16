@@ -1047,6 +1047,17 @@ paper as well as on screen.
 went to one column on screen, because two to a row left each about 120px of text at the new sizes and a
 description ran to nine lines; paper keeps two.
 
+**What the bigger words broke, and the fix.** A larger word raises the narrowest width a block can
+take, and under a larger text size on a phone the Staff Guide ran past the screen: its Shift Types
+table by 17px on a 360px phone at 1.5× and 2px on a 375px one, and its tips' grid on a 320px one (the
+browser suite caught the 375px case; a sweep of all five guides at 320–412px and 1–1.5×, against
+main, found the rest). The table's middle column may now break a long word, which at the default size
+changes nothing at any width, measured; and the tips stack as the badge key above them already did,
+under one rule for both grids. A 320px phone therefore shows the tips in one column at any size, as
+it did the badge key. After the fix the Staff Guide runs past no width in the sweep, where main ran
+21px past a 320px phone at 1.5×; the Rangers guide's pills and FIP's 2px at 320px were there before
+and are unchanged.
+
 **Checked and left as they are, so not re-raised:**
 - **The Calendar's header on a phone** differs from the other pages' — kept (owner, 8 Nov 2026); from
   768px it is the same header, and a test holds that.

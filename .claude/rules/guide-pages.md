@@ -163,6 +163,13 @@ not redefine them.
   controls keep their own sizes; `KEEPS_ITS_OWN_SIZE` in `e2e/guides.spec.js` names them, and
   "every word on … is in one of the app's three sizes on screen" fails on anything else.
   "every printed sheet keeps its own" reads a sample on paper.
+  **Bigger words raise a block's narrowest width**, and on a phone under a larger text size that is
+  where they bite: the Staff Guide's Shift Types table ran 17px past a 360px phone at 1.5×, and its
+  tips' grid past a 320px one. So the table's middle column may break a long word
+  (`overflow-wrap: anywhere` — nothing breaks at the default size, because the two one-word columns
+  beside it keep their widths), and the tips stack as the badge key does, under ONE rule written after
+  both grids' own. Pinned by "enlarged text does not widen the column past a phone", at 375, 360 and
+  320px. Measure a size change at 1.5× on 320–412px before trusting it.
 - **One sub-heading** (v26.24): on screen an `<h3>` is the app's card title — the body size, 700, navy,
   `-0.01em`. Its paper size stays in the page's print block. The Railcard's and Rangers' card names are
   headings by ARIA, not `<h3>`s, so the rule does not reach them. Pinned by "a sub-heading on screen is

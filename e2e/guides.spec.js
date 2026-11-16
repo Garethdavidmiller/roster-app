@@ -1421,10 +1421,12 @@ test('railcard: on a desktop the quick-check type steps up to fill its cards, an
             expect(card.empty, `${card.name} at ${width}px: the widest line stops ${Math.round(card.empty * 100)}% short of the card's edge`).toBeLessThan(0.15);
         });
     }
-    // Paper keeps the phone's sizes at any width: the step is `screen` only.
+    // Paper keeps the size its sheet was composed at, 12.5px, at any width: the desktop step is `screen` only,
+    // and so (since v26.24) is the phone's 13px, the guides' label size — so paper no longer matches the phone.
     await page.emulateMedia({ media: 'print' });
     const paper = await measure();
-    expect(paper.map(c => c.note), 'printed, the notes keep their size').toEqual(phone.map(c => c.note));
+    expect(phone.map(c => c.note), 'premise: on a phone\'s screen the notes are the label size').toEqual(phone.map(() => 13));
+    expect(paper.map(c => c.note), 'printed, the notes keep the size the sheet was composed at').toEqual(phone.map(() => 12.5));
     await page.emulateMedia({ media: 'screen' });
 });
 
@@ -1598,24 +1600,32 @@ test('staff guide: the on-screen banner\'s title has no top margin, as on paper'
 // two-column badge key — widened the column past a phone's edge, and every paragraph, heading and table in it ran off
 // the right. The text is scaled as Android's font scale scales it (`scaleText`): every size multiplied, the viewport
 // left alone.
+// The guides' 13px label size (v26.24) raised two floors of their own, found at 360px and 320px rather than at 375:
+// the Shift Types table's narrowest width (its middle column's longest word, at 1.5× — the table ran 17px past a
+// 360px phone) and the tips' grid, which had no rule to stack and ran past a 320px one. Hence three widths, and the
+// tips and badges read with the prose.
 test('staff guide: enlarged text does not widen the column past a phone @layout', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 800 });
-    await page.goto('/staff-guide.html');
-    await page.evaluate(() => document.fonts.ready);
-    await scaleText(page, 1.5);
-    const m = await page.evaluate(() => {
-        const vw = document.documentElement.clientWidth;
-        const cols = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.cols')]);
-        return {
-            tracks: cols.map(c => ({ track: parseFloat(getComputedStyle(c).gridTemplateColumns), box: c.getBoundingClientRect().width })),
-            past: [...document.querySelectorAll('.cols p, .cols h2, .cols table, .cols .info')]
-                .filter(el => el.getBoundingClientRect().right > vw + 1).length,
-        };
-    });
-    for (const { track, box } of m.tracks) {
-        expect(track, `a column's track is ${track}px in its ${box}px box`).toBeLessThanOrEqual(box + 0.5);
+    for (const width of [375, 360, 320]) {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/staff-guide.html');
+        await page.evaluate(() => document.fonts.ready);
+        await scaleText(page, 1.5);
+        const m = await page.evaluate(() => {
+            const vw = document.documentElement.clientWidth;
+            const cols = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.cols')]);
+            return {
+                tracks: cols.map(c => ({ track: parseFloat(getComputedStyle(c).gridTemplateColumns), box: c.getBoundingClientRect().width })),
+                past: [...document.querySelectorAll('.cols p, .cols h2, .cols table, .cols .info, .cols .nav-tip, .cols .badge-item')]
+                    .filter(el => el.getBoundingClientRect().right > vw + 1).map(el => `${el.tagName.toLowerCase()}.${el.className}`),
+                scroll: document.documentElement.scrollWidth - vw,
+            };
+        });
+        for (const { track, box } of m.tracks) {
+            expect(track, `${width}px: a column's track is ${track}px in its ${box}px box`).toBeLessThanOrEqual(box + 0.5);
+        }
+        expect(m.past, `${width}px: paragraphs, headings, tables, notes, tips and badges running past the screen's edge`).toEqual([]);
+        expect(m.scroll, `${width}px: the page scrolls sideways`).toBeLessThanOrEqual(0);
     }
-    expect(m.past, 'paragraphs, headings, tables and notes running past the screen\'s edge').toBe(0);
 });
 
 // The ← had no hover on four guides, and on the Railcard guide that page's `a:hover` (amber, meant for

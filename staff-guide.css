@@ -12,6 +12,12 @@
    narrow, so "🪑 Absent" / "🏷️ Other" were wrapping the word onto a second row). */
 .shift-types th:first-child,
 .shift-types td:first-child { white-space: nowrap; }
+/* The middle column takes whatever the Type and Time? columns leave, so its longest word set the
+   table's narrowest width — "confirmation" at 1.5× the 13px text made the table 2px wider than a
+   375px phone (v26.24), and 17px wider than a 360px one. A word there may now break, but only where
+   it cannot fit a line: at the default size the column is ~190px and nothing breaks, because the two
+   one-word columns beside it keep their own widths whatever this one's minimum is. */
+.shift-types td:nth-child(2) { overflow-wrap: anywhere; }
 
 /* "Admins only" role tag — marks the one admin-restricted workflow (Weekly Roster Upload, on the
    admin-only Operations page) so non-admin staff reading this shared guide know it doesn't apply
@@ -35,15 +41,8 @@
 
 /* ── Shift-badge reference grid ──────────────────────── */
 .badge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-/* On screen, two columns only while two badges fit side by side, else one. Two fixed `1fr` tracks
-   could not shrink below their widest badge, so under a larger text size the grid widened the
-   whole column past the screen's edge (19px at 1.5× on a 375px phone). A track is at least half the
-   grid — never a third column — and at least 12.5em, which grows with the text: a 360px phone keeps
-   the pair at the default size and stacks it from about 1.15×. Print keeps the pair: its two
-   sheets have ~7px to spare (see the print block below). */
-@media screen {
-    .badge-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(12.5em, (100% - 7px) / 2)), 1fr)); }
-}
+/* On screen it pairs only while two badges fit side by side: the rule is under the nav tips below,
+   which share it. */
 .badge-item {
     display: flex;
     align-items: center;
@@ -73,6 +72,20 @@
 
 /* ── Nav tips ────────────────────────────────────────── */
 .nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+/* ON SCREEN, THE BADGE KEY AND THE TIPS PAIR ONLY WHILE TWO FIT SIDE BY SIDE, else one column. Two
+   fixed `1fr` tracks could not shrink below their widest item, so under a larger text size a grid
+   widened the whole column past the screen's edge: the badge key by 19px at 1.5× on a 375px phone,
+   and the tips, once they took the 13px size (v26.24), on a 320px one. A track is at least half the
+   grid — never a third column — and at least 12.5em, which grows with the text: a 360px phone keeps
+   both pairs at the default size, and they stack from about 1.01× there, 1.06× at 375px and 1.17× at
+   412px (measured at the 13px these grids have — this note said 1.15× before). A 320px phone shows
+   them as one column at any size. Print keeps the pairs: the two
+   sheets have ~7px to spare (see the print block below). The rule comes AFTER both grids' own rules
+   on purpose: written above `.nav-grid { … }`, that rule's equal weight and later place beat it, and
+   the tips never stacked (css-tokens.md → "The 16px focusable-field rule", on source order). */
+@media screen {
+    .badge-grid, .nav-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, max(12.5em, (100% - 7px) / 2)), 1fr)); }
+}
 .nav-tip {
     display: flex;
     align-items: center;
