@@ -99,7 +99,12 @@ const paidOn = (y, m, d) => {
 };
 const day = (/** @type {Date} */ d) => d.toDateString();
 const rate2627 = (/** @type {string} */ g) => /** @type {any} */ (AWARD_RATES)[g]['2026/27'].rate;
-const PROMOTED = 'K. Jedlinski';
+// The row promoted from CEA to CES on Sun 22 Nov 2026, chosen by SHAPE rather than written down: these
+// tests price that member's payslips, and the Pages mirror serves this file (payroll-anonymity.test.mjs).
+const PROMOTED = /** @type {string} */ (teamMembers.find((/** @type {any} */ m) => m.role === 'CES'
+    && m.roleHistory?.length === 1 && m.roleHistory[0].role === 'CEA'
+    && m.roleHistory[0].until.getTime() === new Date(2026, 10, 21).getTime())?.name);
+assert.ok(PROMOTED, 'premise: a CEA promoted to CES on Sun 22 Nov 2026');
 
 describe('the three payslips around the promotion, priced through the settings module', () => {
     const BEFORE = paidOn(2026, 11, 20), ACROSS = paidOn(2026, 12, 18), AFTER = paidOn(2027, 1, 15);

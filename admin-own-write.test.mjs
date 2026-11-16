@@ -67,7 +67,7 @@ describe('ownWriteRowAction — what one row of a day the write touched does', (
 describe('clearedDaysLine / withClearedDays — what the card that made the write says', () => {
     test('nothing cleared: nothing said, and the line it would join is untouched', () => {
         assert.equal(clearedDaysLine([]), '');
-        assert.equal(withClearedDays('✓ Deleted: G. Miller — 24 Aug 2026 (Annual Leave)', []), '✓ Deleted: G. Miller — 24 Aug 2026 (Annual Leave)');
+        assert.equal(withClearedDays('✓ Deleted: A. Example — 24 Aug 2026 (Annual Leave)', []), '✓ Deleted: A. Example — 24 Aug 2026 (Annual Leave)');
     });
 
     test('one day, and several: the days named, in Change a Shift\'s own words', () => {
@@ -79,8 +79,8 @@ describe('clearedDaysLine / withClearedDays — what the card that made the writ
     });
 
     test('joined as the next sentence: a full stop added to a line without one, never a second', () => {
-        assert.equal(withClearedDays('✓ Deleted 2 AL days for G. Miller', [MON]),
-            `✓ Deleted 2 AL days for G. Miller. ${clearedDaysLine([MON])}`);
+        assert.equal(withClearedDays('✓ Deleted 2 AL days for A. Example', [MON]),
+            `✓ Deleted 2 AL days for A. Example. ${clearedDaysLine([MON])}`);
         assert.equal(withClearedDays('Saved — Tue 5 Jan now comes out of 2026’s allowance.', [MON]),
             `Saved — Tue 5 Jan now comes out of 2026’s allowance. ${clearedDaysLine([MON])}`);
     });

@@ -47,7 +47,7 @@ const select = (value) => /** @type {any} */ ({ value });
 function sickCfg(/** @type {any[]} */ confirms = []) {
     _cfgs.length = 0;
     initSickSection(/** @type {any} */ ({
-        sickMember: select('C. Reen'), syncSickMemberDisplay: noop, populateMemberDropdown: noop, lastMember: null,
+        sickMember: select('F. Fixture'), syncSickMemberDisplay: noop, populateMemberDropdown: noop, lastMember: null,
         updateALBanner: noop, updateALBookedBox: noop, updateSickBookedBox: noop,
         getCurrentUser: () => 'A. Admin', showInChangeAShift: noop, showSuccess: noop,
         showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm: noop,
@@ -59,7 +59,7 @@ function sickCfg(/** @type {any[]} */ confirms = []) {
 function alCfg(/** @type {any[]} */ confirms = []) {
     _cfgs.length = 0;
     initALSection(/** @type {any} */ ({
-        alMember: select('C. Reen'), syncMemberDisplay: noop, populateMemberDropdown: noop, lastMember: null,
+        alMember: select('F. Fixture'), syncMemberDisplay: noop, populateMemberDropdown: noop, lastMember: null,
         updateALBanner: noop, updateALBookedBox: noop, updateSickBookedBox: noop, setALPickerYear: noop,
         getCurrentUser: () => 'A. Admin', showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm: noop,
         showInChangeAShift: noop, showSuccess: noop,
@@ -176,32 +176,32 @@ describe('the leave card', () => {
     // just declared swapped still reads as REST everywhere else, so a check built on the stored state
     // alone lets a member with one day left book two (v23.79). Nothing ran this card's check at all.
     describe('a member with one day left', () => {
-        const reen = /** @type {any} */ (teamMembers.find(m => m.name === 'C. Reen'));
+        const fixedCea = /** @type {any} */ ({ name: 'F. Fixture', role: 'CEA', rosterType: 'fixed', currentWeek: 1 });   // invented, on the Mon–Fri line
         const WORK = '2026-12-04', REST = '2026-12-05';      // a working Friday on this line, and the Saturday after
 
         /** Fill the year to one day short of the allowance, on working weekdays early in 2026. */
         function oneDayLeft() {
-            const allowance = /** @type {number} */ (entitlementFor(reen, 2026, []));
+            const allowance = /** @type {number} */ (entitlementFor(fixedCea, 2026, []));
             /** @type {any[]} */ const ovs = [];
             for (const d = parseISODate('2026-01-05'); ovs.length < allowance - 1; d.setDate(d.getDate() + 1)) {
-                if (d.getDay() === 0 || d.getDay() === 6 || isBankHoliday(d) || isRestShift(getBaseShift(reen, d))) continue;
+                if (d.getDay() === 0 || d.getDay() === 6 || isBankHoliday(d) || isRestShift(getBaseShift(fixedCea, d))) continue;
                 const iso = days(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 1)[0];
-                ovs.push({ id: `al-${iso}`, memberName: 'C. Reen', date: iso, type: 'annual_leave', value: 'AL',
+                ovs.push({ id: `al-${iso}`, memberName: 'F. Fixture', date: iso, type: 'annual_leave', value: 'AL',
                     source: 'manual', createdAt: new Date(2025, 11, 1) });
             }
             _overrides = ovs;
         }
 
         test('the premise: a working Friday and a rest Saturday on this line', () => {
-            assert.ok(!isRestShift(getBaseShift(reen, parseISODate(WORK))));
-            assert.ok(isRestShift(getBaseShift(reen, parseISODate(REST))));
+            assert.ok(!isRestShift(getBaseShift(fixedCea, parseISODate(WORK))));
+            assert.ok(isRestShift(getBaseShift(fixedCea, parseISODate(REST))));
         });
 
         test('booking the working day and a DECLARED-SWAPPED rest day stops at the bar', () => {
             oneDayLeft();
             /** @type {any[]} */ const confirms = [];
             const cfg = alCfg(confirms);
-            const stopped = cfg.preSave({ member: 'C. Reen', dates: [WORK, REST], memberObj: reen,
+            const stopped = cfg.preSave({ member: 'F. Fixture', dates: [WORK, REST], memberObj: fixedCea,
                 swapAnswers: new Map([[REST, true]]) });
             assert.equal(stopped, true, 'two days against one left must not save silently');
             assert.equal(confirms.length, 1, 'the over-allowance bar is shown');
@@ -211,7 +211,7 @@ describe('the leave card', () => {
             oneDayLeft();
             /** @type {any[]} */ const confirms = [];
             const cfg = alCfg(confirms);
-            const stopped = cfg.preSave({ member: 'C. Reen', dates: [WORK, REST], memberObj: reen,
+            const stopped = cfg.preSave({ member: 'F. Fixture', dates: [WORK, REST], memberObj: fixedCea,
                 swapAnswers: new Map([[REST, false]]) });
             assert.equal(stopped, false);
             assert.equal(confirms.length, 0);

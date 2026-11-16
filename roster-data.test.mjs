@@ -62,7 +62,7 @@ import {
 // The grade on a day lives beside the data it reads, in a module of its own (roster-data.js is at its size cap).
 import { roleOn, rolesInRange } from './roster-roles.js';
 // The contract allowance left roster-data.js for a module of its own (Nov 2026 — its header says why).
-import { getALEntitlement } from './al-contract.js';
+import { getALEntitlement, allowanceRole } from './al-contract.js';
 import { isChristmasLeaveDay } from './christmas-leave.js';
 
 describe('isChilternWorkEmail', () => {
@@ -328,9 +328,9 @@ test('getALEntitlement: CEA on main roster gets 32 days', () => {
     assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main' }), 32);
 });
 
-test('getALEntitlement: a CEA on a FIXED roster (C. Reen) gets 32, not 34 (pins the Jun-2026 correction)', () => {
-    // Guards the header comment in roster-data.js from re-diverging: C. Reen is contractually CEA
-    // (not CEA-BL), so 32 — the same as every other CEA, regardless of the fixed rosterType.
+test('getALEntitlement: a CEA on a FIXED roster gets 32, not 34 (pins the Jun-2026 correction)', () => {
+    // Guards the header comment in al-contract.js from re-diverging: a CEA on a fixed line holds a CEA
+    // contract (not CEA-BL), so 32 — the same as every other CEA, regardless of the fixed rosterType.
     assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'fixed' }), 32);
 });
 
@@ -369,9 +369,22 @@ test('getALEntitlement: Dispatcher lieu count honours override precedence (manua
     assert.equal(getALEntitlement(member, 2026, overrides), 23, 'manual RDW wins → the BH counts as worked');
 });
 
-test('getALEntitlement: all CEAs incl. fixed-line (C. Reen) get the standard 32 — no fixed premium', () => {
-    assert.equal(getALEntitlement({ name: 'C. Reen', role: 'CEA', rosterType: 'fixed' }), 32);
-    assert.equal(getALEntitlement({ name: 'K. Jedlinski', role: 'CEA', rosterType: 'fixed' }), 32);
+test('getALEntitlement: all CEAs incl. fixed-line get the standard 32 — no fixed premium', () => {
+    // Invented people, as every leave figure in this file is: the GitHub Pages mirror serves the test
+    // files, so a real roster name beside an allowance would publish it (payroll-anonymity.test.mjs).
+    assert.equal(getALEntitlement({ name: 'F. Fixedline', role: 'CEA', rosterType: 'fixed', currentWeek: 1 }), 32);
+    assert.equal(getALEntitlement({ name: 'T. Trainee', role: 'CEA', rosterType: 'fixed', currentWeek: 3 }), 32);
+});
+
+test('getALEntitlement: every CEA on a fixed line in the REAL roster gets the plain contract figure', () => {
+    // Drives the shipped data, selected by shape rather than by name. A fixed-line CEA's joining year
+    // reads the clerks' own figure, so only the years after it are the contract's.
+    const fixedCeas = teamMembers.filter(m => m.role === 'CEA' && m.rosterType === 'fixed' && m.bilingualContract !== true);
+    assert.ok(fixedCeas.length > 0, 'premise: the roster has a CEA on a fixed line');
+    for (const m of fixedCeas) {
+        const year = Math.max(2026, ...Object.keys(m.proRatedAL ?? {}).map(Number)) + 1;
+        assert.ok(getALEntitlement(m, year, []) === 32, `${m.name}: a fixed line is not a premium`);
+    }
 });
 
 // ── A CEA's entitlement follows the CONTRACT, not the LINE (owner, 6 Sep 2026) ──────────────────
@@ -389,8 +402,9 @@ test('getALEntitlement: all CEAs incl. fixed-line (C. Reen) get the standard 32 
 // breaks the moment a CEA is parked on a bilingual line while waiting for a CEA one — routine, per
 // the owner — and it breaks in the staff member's favour, so nobody reports it.
 test('getALEntitlement: a bilingual CONTRACT gets 34', () => {
-    assert.equal(getALEntitlement({ name: 'T. Gherbi', role: 'CEA', rosterType: 'bilingual', bilingualContract: true }), 34);
-    assert.equal(getALEntitlement({ name: 'D. Irvine', role: 'CEA', rosterType: 'bilingual', bilingualContract: true }), 34);
+    assert.equal(getALEntitlement({ name: 'B. Lingual', role: 'CEA', rosterType: 'bilingual', bilingualContract: true }), 34);
+    // The CONTRACT, on whatever line: a bilingual contract parked on a main line keeps its 34.
+    assert.equal(getALEntitlement({ name: 'B. Parked', role: 'CEA', rosterType: 'main', bilingualContract: true }), 34);
 });
 
 test('getALEntitlement: a CEA parked on a BILINGUAL LINE without the contract still gets 32', () => {
@@ -415,13 +429,15 @@ test('getALEntitlement: a bilingual contract still yields to a joining year\'s p
     assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'bilingual', bilingualContract: true, proRatedAL: { 2026: 17 } }, 2026), 17);
 });
 
-test('getALEntitlement: the two bilingual contracts in the REAL roster are the ones flagged', () => {
+test('getALEntitlement: the two bilingual contracts in the REAL roster are flagged, and each is given 34', () => {
     // Drives the shipped data, not a fixture — the fix is worth nothing if the flag is on nobody.
-    // Pinned as a SET so adding a third contract fails here and gets read by a person.
-    const flagged = teamMembers.filter(m => m.bilingualContract === true).map(m => m.name).sort();
-    assert.deepEqual(flagged, ['D. Irvine', 'T. Gherbi']);
-    for (const m of flagged.map(n => teamMembers.find(x => x.name === n))) {
-        assert.equal(getALEntitlement(m), 34, `${m.name} holds a bilingual contract`);
+    // Pinned as a COUNT so adding a third contract fails here and gets read by a person. Not as a list
+    // of names: this is a leave test, and the Pages mirror serves it (payroll-anonymity.test.mjs).
+    const flagged = teamMembers.filter(m => m.bilingualContract === true);
+    assert.equal(flagged.length, 2, 'a bilingual contract was added or removed — check it against the clerks\' records');
+    for (const m of flagged) {
+        assert.equal(m.role, 'CEA', `${m.name}: the flag is a CEA contract term`);
+        assert.ok(getALEntitlement(m, 2027, []) === 34, `${m.name} holds a bilingual contract and is not given its premium`);
     }
 });
 
@@ -434,7 +450,7 @@ test('getALEntitlement: an unresolved member is refused, not defaulted', () => {
 // ---------------------------------------------------------------------------
 // projectAnnualLeaveOverage — the shared over-entitlement projection (v16.40)
 // ---------------------------------------------------------------------------
-const _proj = (existing, newDates, entitlement, name = 'G. Miller', year = '2026') =>
+const _proj = (existing, newDates, entitlement, name = 'A. Example', year = '2026') =>
     projectAnnualLeaveOverage({ name, year, existingALDates: new Set(existing), newALDates: newDates, entitlement });
 
 test('projectAnnualLeaveOverage: within entitlement → null', () => {
@@ -449,7 +465,7 @@ test('projectAnnualLeaveOverage: one over the cap → over:1 with the confirm st
     const r = _proj(['2026-02-10'], ['2026-02-11', '2026-02-12'], 2);
     assert.equal(r.over, 1);
     assert.equal(r.projectedTotal, 3);
-    assert.equal(r.headline, 'G. Miller will be 1 day over their 2026 AL entitlement');
+    assert.equal(r.headline, 'A. Example will be 1 day over their 2026 AL entitlement');
     assert.equal(r.detail, '3 days used of 2 allowed in 2026');
 });
 
@@ -1187,14 +1203,42 @@ test('getBaseShift: Christmas Day (Dec 25) always returns RD regardless of roste
 // ---------------------------------------------------------------------------
 
 test('getALEntitlement: proRatedAL overrides standard entitlement for the joining year', () => {
-    // M. Okeke has proRatedAL: { 2026: 24 }; standard CEA entitlement is 32.
-    // 24 and NOT the 23 a day-count from his startDate gives: he worked here through an agency
-    // first and that service counts, so the figure is agreed rather than derived (owner, 6 Sep
-    // 2026). Asserted against the roster clerk's workbook — do not "fix" it back to the formula.
-    const member = teamMembers.find(m => m.name === 'M. Okeke');
-    assert.ok(member, 'M. Okeke not found in teamMembers');
+    // An invented joiner. The real roster's figures are checked below, by shape and not by name.
+    const member = { name: 'J. Joiner', role: 'CEA', rosterType: 'main', currentWeek: 1, startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 24 } };
     assert.equal(getALEntitlement(member, 2026), 24, 'Expected pro-rated AL of 24 for joining year');
     assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
+});
+
+// EVERY JOINING-YEAR FIGURE ON THE REAL ROSTER IS READ AS WRITTEN. They are the roster clerks' figures,
+// and at least one is AGREED rather than derived — above the day-count from its start date, because
+// earlier service counted (owner, 6 Sep 2026) — so the app returns each verbatim and never recomputes
+// it. The year after reads the contract of the grade then held. Asserted over the whole roster and
+// selected by shape: a real name beside its allowance would be published by the Pages mirror, which
+// serves this file (payroll-anonymity.test.mjs). A failure names the person and prints no figure.
+test('getALEntitlement: every joining-year figure on the real roster stands as written, and the contract follows it', () => {
+    const contract = (/** @type {any} */ m, /** @type {number} */ y) => {
+        const role = allowanceRole(m, y);
+        if (role === 'CES') return 34;
+        if (role === 'CEA') return m.bilingualContract === true ? 34 : 32;
+        return undefined;   // a Dispatcher's figure is earned per year, and is tested on its own below
+    };
+    const joiners = teamMembers.filter(m => m.proRatedAL && Object.keys(m.proRatedAL).length > 0);
+    assert.ok(joiners.length >= 3, 'premise: the roster has joiners with a figure on record');
+    let checked = 0;
+    for (const m of joiners) {
+        const years = Object.keys(m.proRatedAL).map(Number);
+        for (const y of years) {
+            if (allowanceRole(m, y) === 'Dispatcher') continue;
+            assert.ok(getALEntitlement(m, y, []) === m.proRatedAL[y], `${m.name}: the ${y} figure on record is not the one returned`);
+            checked++;
+        }
+        const after = Math.max(...years) + 1;
+        const expected = contract(m, after);
+        if (expected !== undefined) {
+            assert.ok(getALEntitlement(m, after, []) === expected, `${m.name}: ${after} is not the contract figure for the grade then held`);
+        }
+    }
+    assert.ok(checked >= 3, 'premise: enough non-Dispatcher joining years were checked');
 });
 
 // A year that ended before the member joined has no allowance on record (whole-app review, 10 Nov
@@ -1990,11 +2034,30 @@ test('22 Nov 2026: each list holds the right three — the CES and CEA imports, 
     assert.ok(server.activeMembers.includes('W. Cummings'), 'W. Cummings keeps a working login');
 });
 
+// The leave each one keeps across that change. Selected by SHAPE, not by name — a leave test the Pages
+// mirror serves must not set a real name beside an allowance (payroll-anonymity.test.mjs) — and each
+// shape is asserted to exist, so a roster edit that removes it fails here rather than passing on nothing.
 test('22 Nov 2026: the leave each one keeps — the joining-year figures stand, and the grade sets the years after', () => {
-    assert.equal(getALEntitlement(byName('K. Jedlinski'), 2026), 18, 'the clerks\' 2026 figure, through the promotion');
-    assert.equal(getALEntitlement(byName('K. Jedlinski'), 2027), 34, 'a CES from 2027 (it would have been 32 as a CEA)');
-    assert.equal(getALEntitlement(byName('M. Campbell'), 2026), 9);
-    assert.equal(getALEntitlement(byName('M. Campbell'), 2027), 32, 'a CEA contract, not a bilingual one, on whichever line');
+    // A joiner PROMOTED in their joining year: the clerks' joining-year figure stands through the
+    // promotion, and the new grade — not the old — sets the year after.
+    const promoted = teamMembers.find(m => m.proRatedAL && m.startDate instanceof Date && m.roleHistory?.length
+        && m.roleHistory.some((/** @type {any} */ h) => h.until.getFullYear() === m.startDate.getFullYear()));
+    assert.ok(promoted, 'premise: a joiner promoted in their joining year');
+    const y = promoted.startDate.getFullYear();
+    assert.equal(getALEntitlement(promoted, y), promoted.proRatedAL[y], 'the clerks\' joining-year figure, through the promotion');
+    const asBefore = { ...promoted, role: promoted.roleHistory[0].role, roleHistory: undefined };
+    assert.equal(allowanceRole(promoted, y + 1), promoted.role, 'the year after is judged by the new grade');
+    assert.notEqual(getALEntitlement(promoted, y + 1), getALEntitlement(asBefore, y + 1),
+        'the year after reads the new grade\'s figure, not the old one\'s');
+    // A CEA joiner moved through a BILINGUAL LINE without the bilingual contract: the CEA figure the
+    // year after, whatever line they were on.
+    const parked = teamMembers.find(m => m.role === 'CEA' && m.proRatedAL && m.bilingualContract !== true
+        && m.rosterChanges?.some((/** @type {any} */ c) => c.rosterType === 'bilingual'));
+    assert.ok(parked, 'premise: a CEA joiner who spent time on a bilingual line');
+    const py = Math.max(...Object.keys(parked.proRatedAL).map(Number));
+    assert.equal(getALEntitlement(parked, py), parked.proRatedAL[py]);
+    assert.equal(getALEntitlement(parked, py + 1), getALEntitlement({ role: 'CEA', rosterType: 'main' }),
+        'a CEA contract, not a bilingual one, on whichever line');
 });
 
 // ── A GRADE ON A DAY: roleHistory ────────────────────────────────────────────────────────────────
@@ -2224,7 +2287,7 @@ test('the member table\'s comments say nothing about anybody\'s absence or healt
 // that day less worked.
 //
 // `proRatedAL` used to be checked before the Dispatcher branch and returned outright, so a mid-year
-// Dispatcher's joining year skipped the lieu count entirely — B. Toth was credited a flat 12 against
+// Dispatcher's joining year skipped the lieu count entirely — one was credited a flat joining-year figure against
 // two rostered bank holidays. Nothing errors when a leave balance is two days short: it renders, it
 // books against, and the only person who could notice is the member.
 describe('a Dispatcher who joined mid-year keeps the days they earned', () => {

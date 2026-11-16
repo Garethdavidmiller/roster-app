@@ -7,7 +7,7 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
-import { teamMembers, getBaseShift, parseISODate, CONFIG } from '../roster-data.js';
+import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG } from '../roster-data.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -2209,22 +2209,27 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
 
 // ── THE LIST COUNTS WHAT THE ENTITLEMENT COUNTS (v23.72, owner report) ─────────────────────────
 //
-// The owner compared the app against the roster office's own leave spreadsheet and found M. Robson
+// The owner compared the app against the roster office's own leave spreadsheet and found a member
 // a day apart: the app's December period read "Sat 5 – Fri 11 Dec · 6 days", the spreadsheet said
-// Mon 7 – Fri 11, and his chips summed to 33 against an allowance of 32.
+// Mon 7 – Fri 11, and the chips summed to one day more than the allowance.
 //
-// SAT 5 DEC 2026 IS A REST DAY on his line, and an AL override had been recorded on it. The
-// entitlement maths was already right — `consumesEntitlement` returns false for a rest day, so his
-// banner correctly read 32 of 32 — but the recorded-dates list filtered SUNDAYS and nothing else,
-// counted the rest day, and started the period a day before his leave did. One card, two
-// disagreeing counts of the same thing, with the wrong one next to the ✕ that deletes it.
+// SAT 5 DEC 2026 WAS A REST DAY on that line, and an AL override had been recorded on it. The
+// entitlement maths was already right — `consumesEntitlement` returns false for a rest day, so the
+// banner was right — but the recorded-dates list filtered SUNDAYS and nothing else, counted the rest
+// day, and started the period a day before the leave did. One card, two disagreeing counts of the
+// same thing, with the wrong one next to the ✕ that deletes it.
 //
-// REAL MEMBER, REAL ROSTER, REAL DATES. The fix is to hand the list the entitlement rule itself
-// rather than a second copy of it, so this test is worth nothing unless it runs against a genuine
-// rest day: `getBaseShift(M. Robson, 2026-12-05)` is 'RD' because of where his week-4 main line
-// falls, which no fixture here asserts and a roster edit could change. The first assertion below
-// therefore pins the PREMISE — if his line moves, this fails loudly as a stale test rather than
-// passing while measuring nothing.
+// REAL ROSTER, REAL DATES — and a member chosen by SHAPE, not by name, because this file is served by
+// the Pages mirror and a leave test must not set a real name beside a leave count
+// (payroll-anonymity.test.mjs). The fix is to hand the list the entitlement rule itself rather than a
+// second copy of it, so this test is worth nothing unless it runs against a genuine rest day: the
+// member is one whose line rests on Sat 5 Dec 2026 and works Mon 7 – Fri 11, which no fixture here
+// asserts and a roster edit could change. The first assertion below therefore pins the PREMISE — if
+// no line has that shape any more, this fails loudly as a stale test rather than measuring nothing.
+const REST_SAT_MEMBER = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate
+    && m.name !== 'G. Miller'
+    && isRestShift(getBaseShift(m, parseISODate('2026-12-05')))
+    && ['07', '08', '09', '10', '11'].every(d => !isRestShift(getBaseShift(m, parseISODate(`2026-12-${d}`)))))?.name;
 // CHRISTMAS LEAVE IS PART OF THESE LISTS (v25.37, owner 5 Nov 2026): a member due at work on 25/26
 // December has a 🎄 row in that year's Recorded Annual Leave, which is a record and not a booking. The
 // tests below are about BOOKINGS, so they count `BOOKED_ROWS`, and pin the clock — the Christmas rows
@@ -2232,38 +2237,38 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
 const BOOKED_ROWS = '#alBookedBody .al-period-row:not(.al-period-row--christmas)';
 
 test('admin: an AL day on a REST day is not listed and does not count', async ({ page }) => {
+    // THE PREMISE, asserted before anything is measured against it.
+    expect(REST_SAT_MEMBER, 'no CEA line rests on Sat 5 Dec 2026 and works Mon 7 – Fri 11 — this test proves nothing').toBeTruthy();
+    const who = /** @type {string} */ (REST_SAT_MEMBER);
     await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => {
+    await page.addInitScript((name) => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
             docs: [
                 // Sat 5 Dec — the rest day. Recorded, and spends nothing.
-                { id: 'r1', memberName: 'M. Robson', date: '2026-12-05', type: 'annual_leave', value: 'AL', note: '' },
-                // Mon 7 – Fri 11 — the leave he actually took.
-                { id: 'r2', memberName: 'M. Robson', date: '2026-12-07', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'r3', memberName: 'M. Robson', date: '2026-12-08', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'r4', memberName: 'M. Robson', date: '2026-12-09', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'r5', memberName: 'M. Robson', date: '2026-12-10', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'r6', memberName: 'M. Robson', date: '2026-12-11', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'r1', memberName: name, date: '2026-12-05', type: 'annual_leave', value: 'AL', note: '' },
+                // Mon 7 – Fri 11 — the leave actually taken.
+                ...['07', '08', '09', '10', '11'].map((d, i) =>
+                    ({ id: `r${i + 2}`, memberName: name, date: `2026-12-${d}`, type: 'annual_leave', value: 'AL', note: '' })),
             ],
         });
-    });
+    }, who);
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
-    // THE PREMISE, asserted before anything is measured against it.
-    const premise = await page.evaluate(async () => {
+    // The premise again, in the PAGE's copy of the roster: the one the list actually reads.
+    const premise = await page.evaluate(async (name) => {
         const rd = await import('./roster-data.js');
-        const m = rd.teamMembers.find(x => x.name === 'M. Robson');
+        const m = rd.teamMembers.find(x => x.name === name);
         return { five: String(rd.getBaseShift(m, rd.parseISODate('2026-12-05'))),
                  seven: String(rd.getBaseShift(m, rd.parseISODate('2026-12-07'))) };
-    });
-    expect(premise.five, 'Sat 5 Dec 2026 must be a REST day on M. Robson\'s line, or this test proves nothing')
+    }, who);
+    expect(premise.five, 'Sat 5 Dec 2026 must be a REST day on the chosen line, or this test proves nothing')
         .toMatch(/^(RD|OFF)$/);
     expect(premise.seven, 'Mon 7 Dec 2026 must be a working day, or the expected period is wrong')
         .not.toMatch(/^(RD|OFF)$/);
 
-    await page.locator('#fieldMember').selectOption('M. Robson');
+    await page.locator('#fieldMember').selectOption(who);
     await page.locator('#alToggleHeader').click();
     await expect(page.locator('#alBookedBox')).toBeVisible();
     await page.locator('#alBookedToggle').click();
@@ -2289,23 +2294,36 @@ test('admin: an AL day on a REST day is not listed and does not count', async ({
 //
 // The owner asked for it to be RECORDED in the leave records, not merely shown. Nothing is stored
 // for it — it comes from the roster — so the row carries no count and no delete, and it sits in date
-// order among the real bookings. G. Miller is due at work on both days in 2026 and has worked Boxing
-// Day, so only Christmas Day is leave. The day in lieu that earns is in 2027's allowance, not 2026's
-// (owner, 15 Nov 2026), so the 2026 banner is the contract figure; the test after this one reads 2027.
+// order among the real bookings. The member is due at work on both days in 2026 and the fixture has
+// them work Boxing Day, so only Christmas Day is leave. The day in lieu that earns is in 2027's
+// allowance, not 2026's (owner, 15 Nov 2026), so the 2026 banner is the contract figure; the test after
+// this one reads 2027.
+//
+// The member is chosen by SHAPE, never by name: these tests assert leave figures, and the Pages mirror
+// serves this file (payroll-anonymity.test.mjs). A plain-contract CEA with no joining year, change of
+// grade or change of line, whose PATTERN has a timed turn on 25 and 26 December 2026 and a working
+// Monday on the 21st — so the contract figure is the CEA one and every day below means what it says.
+const XMAS_MEMBER = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && m.name !== 'G. Miller'
+    && !m.startDate && !m.proRatedAL && m.bilingualContract !== true && !m.roleHistory && !m.rosterChanges
+    && [25, 26].every(d => /^\d\d:\d\d-/.test(String(getPatternShift(m, new Date(2026, 11, d)))))
+    && !isRestShift(getBaseShift(m, parseISODate('2026-12-21'))))?.name;
+
 test('admin: Christmas leave is listed with the recorded leave, not counted, with nothing to delete', async ({ page }) => {
+    expect(XMAS_MEMBER, 'premise: a CEA due at work on 25 and 26 December 2026 on a plain contract').toBeTruthy();
+    const who = /** @type {string} */ (XMAS_MEMBER);
     await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => {
+    await page.addInitScript((name) => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
             docs: [
-                { id: 'a1', memberName: 'G. Miller', date: '2026-12-21', type: 'annual_leave', value: 'AL', note: '' },
-                { id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '' },
+                { id: 'a1', memberName: name, date: '2026-12-21', type: 'annual_leave', value: 'AL', note: '' },
+                { id: 'bx', memberName: name, date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '' },
             ],
         });
-    });
+    }, who);
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldMember').selectOption(who);
     await page.locator('#alToggleHeader').click();
     await expect(page.locator('#alBookedBox')).toBeVisible();
     await page.locator('#alBookedToggle').click();
@@ -2319,7 +2337,7 @@ test('admin: Christmas leave is listed with the recorded leave, not counted, wit
     await expect(xmas.locator('.al-period-dates')).toContainText('25 Dec');
     // Laid out like every other row (v25.38): the day count in the pill column — outlined, not
     // filled — and what makes it different on a second line under the dates.
-    // One day: he works the Boxing Day he was due to work, so only Christmas Day is leave.
+    // One day: the member works the Boxing Day they were due to work, so only Christmas Day is leave.
     await expect(xmas.locator('.al-period-free')).toHaveText('1 day');
     await expect(xmas.locator('.al-period-note')).toContainText('Not counted');
     await expect(xmas.locator('.al-period-note')).toBeVisible();
@@ -2339,17 +2357,19 @@ test('admin: Christmas leave is listed with the recorded leave, not counted, wit
 // finish reading. Geometry, at a phone's widths and in the desktop side column. In January 2027,
 // because that year's allowance is the one holding the day (owner, 15 Nov 2026).
 test('admin: the AL banner keeps its figures and the Boxing Day note inside the banner', async ({ page }) => {
+    expect(XMAS_MEMBER, 'premise: a CEA due at work on Boxing Day 2026 on a plain contract').toBeTruthy();
+    const who = /** @type {string} */ (XMAS_MEMBER);
     await page.clock.setFixedTime(new Date('2027-01-05T09:00:00Z'));
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(() => {
+    await page.addInitScript((name) => {
         /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
-            docs: [{ id: 'bx', memberName: 'G. Miller', date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '' }],
+            docs: [{ id: 'bx', memberName: name, date: '2026-12-26', type: 'rdw', value: '13:30-21:00', note: '' }],
         });
-    });
+    }, who);
     await page.setViewportSize({ width: 375, height: 900 });
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldMember').selectOption(who);
     await page.locator('#alToggleHeader').click();
     await expect(page.locator('#alBannerLblEntitlement')).toHaveText('2027 entitlement');
     await expect(page.locator('#alBannerEntitlement')).toHaveText('33');
@@ -3296,9 +3316,11 @@ test('admin: a Recorded dates delete over a day with a staged edit clears that e
     await clickInView(del);
     await expect(del).toHaveText('Confirm?');
     await clickInView(del);
-    await expect(page.locator('#alFeedback')).toHaveText('✓ Deleted 1 AL day for G. Miller. '
+    // The receipt names the seeded member, read from the session rather than written beside its count.
+    const me = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_admin_session') ?? '{}').name);
+    await expect(page.locator('#alFeedback')).toHaveText(`✓ Deleted 1 AL day for ${me}. `
         + 'Your unsaved change to Mon 24 Aug in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.');
-    await expect(page.locator('#saveToast')).toHaveText('✓ Deleted 1 AL day for G. Miller');
+    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 AL day for ${me}`);
     await expect(monday.locator('.type-pill-btn[aria-pressed="true"]')).toHaveCount(0);
     await expect(friday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
     await clickInView(page.locator('#saveBtn'));
