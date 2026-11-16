@@ -2,7 +2,7 @@
 
 /**
  * functions/huddle-retention.js — how long a Daily Huddle is kept, and what its clean-up may delete.
- * Called by `ingestHuddle` (documents.js) at the end of every upload; it owns no endpoint.
+ * Called by `ingestHuddle` (huddle-ingest.js) at the end of every upload; it owns no endpoint.
  *
  * ── IT MUST DELETE ONLY WHAT IT SELECTED (v25.89, external review) ──────────────────────────────
  *

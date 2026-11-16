@@ -45,7 +45,7 @@ import { execFileSync } from 'node:child_process';
 import { teamMembers } from './roster-data.js';
 
 /** Payroll vocabulary. Deliberately broad — a false positive costs one reworded comment. */
-const PAYROLL = /student\s*loan|\bplan\s*[1245]\b|postgrad|taxable pay|tax paid|payslip|pension|\bYTD\b|year to date|net pay|take[- ]home|national insurance/i;
+const PAYROLL = /student\s*loan|\bplan\s*[1245]\b|postgrad|taxable pay|tax paid|payslip|pension|\bYTD\b|year to date|net pay|take[- ]home|national insurance|£\s?\d/i;
 
 /**
  * LEAVE vocabulary — a person's leave BALANCE, not the subject of annual leave (v24.15).
@@ -61,6 +61,87 @@ const PAYROLL = /student\s*loan|\bplan\s*[1245]\b|postgrad|taxable pay|tax paid|
  * (CLAUDE.md states that as a GDPR rule, and a served document is the last place to break it).
  */
 const LEAVE = /over[- ]quota|days remaining|grid days|days taken|\blong[- ]term sick|\bsickness\b|reason for absence/i;
+
+/**
+ * A LEAVE FIGURE — an allowance, a joining year's figure, a day in lieu, a count of AL days — as a
+ * TERM beside a NUMBER (16 Nov 2026).
+ *
+ * Added after a sweep of the test files found what `LEAVE` could not see, because none of it used a
+ * balance word: `getALEntitlement(<a real member>, 2026), 18` asserting a joining-year figure the
+ * clerks transcribed for that person; a test title naming a member beside "gets 32, not 34"; a
+ * comment naming another beside the figure a pro-rating bug once credited them; and a fixture that
+ * looked a member up by name two lines above "31 recorded days against a 32-day entitlement". The
+ * test files are served by the Pages mirror exactly as docs are, so each was a colleague's leave on a
+ * public URL. Tests now use invented people, or pick a real row by its SHAPE (role, line, start date)
+ * and never write the name down.
+ *
+ * The term alone is not enough — "the allowance" is the app's vocabulary — so it takes a NUMBER of
+ * one or two digits on the line too, once dates are taken out (a year, an ISO date, `new Date(…)`,
+ * "5 Dec", "Dec 5", a section mark): a leave figure is 0–35, and a date is not one.
+ */
+const LEAVE_TERM = /\b(getALEntitlement|entitlementFor|proRatedAL|dispatcherBaseAL|boxingDayLieuDays|alPosition|projectAnnualLeaveOverage)\b|\b(entitlement|allowance|lieu)\b|\bAL\b.{0,40}\bdays?\b/i;
+const MONTH = '(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*';
+const DATES = [
+    /§\s*\d+/g, /\d{4}-\d{2}-\d{2}/g, /new Date\([^)]*\)/g, /\b(19|20)\d\d\b/g,
+    new RegExp(`\\b\\d{1,2}(st|nd|rd|th)? ${MONTH}\\b|\\b${MONTH} \\d{1,2}\\b`, 'gi'),
+];
+/** One or two digits standing alone — not inside an identifier, a decimal, a range or a longer number. */
+const SMALL_NUMBER = /(^|[^\d\w.-])\d{1,2}(?![\d\w-])/;
+
+/**
+ * Does this line state a leave figure? Exported to the tests below by name, so the rule is proved on
+ * lines written for the purpose as well as run over the tree.
+ * @param {string} line
+ */
+function statesLeaveFigure(line) {
+    if (!LEAVE_TERM.test(line)) return false;
+    const undated = DATES.reduce((l, re) => l.replace(re, ' '), line);
+    return SMALL_NUMBER.test(undated);
+}
+
+/**
+ * How far a name may sit from a leave figure and still be beside it. A test looks somebody up and
+ * asserts their figure a line or two later (`const m = byName(…)` … `getALEntitlement(m, 2026), 24`),
+ * and a comment introduces a person on one line and their figure on the next. Three lines catches both
+ * without reaching the next test.
+ */
+const NEARBY = 3;
+
+/**
+ * The OWNER's own name is the e2e suites' seeded session, so it sits a few lines above whatever that
+ * fixture asserts — leave it brought in by the test itself, not a record of anybody's (owner, 16 Nov
+ * 2026: "leave seeding alone, but not beside figures"). It is exempt from the NEARBY rule only: on the
+ * SAME line as a leave figure it is caught like every other name.
+ */
+const SEEDED_OWNER = 'G. Miller';
+
+/**
+ * The member table itself. It IS the public classification (AUTH_PLAN.md §2): a joining year's
+ * `proRatedAL` sits on its member's row by design, and the header comment of a row explains that row.
+ * Everything else that restates it is a copy, and a copy is what this rule is for.
+ */
+const LEAVE_FIGURE_EXEMPT = new Set(['roster-member-data.js']);
+
+/**
+ * Every leave-figure offence in one file's text. Names are a parameter so the rule can be proved on
+ * invented ones.
+ * @param {string} text @param {(line: string) => string[]} names
+ * @returns {{ line: number, named: string[], text: string, nearby: boolean }[]}
+ */
+function leaveFigureOffences(text, names) {
+    const lines = text.split('\n');
+    /** @type {{ line: number, named: string[], text: string, nearby: boolean }[]} */
+    const out = [];
+    lines.forEach((l, i) => {
+        if (!statesLeaveFigure(l)) return;
+        const here = names(l);
+        if (here.length) { out.push({ line: i + 1, named: here, text: l, nearby: false }); return; }
+        const around = lines.slice(Math.max(0, i - NEARBY), i + NEARBY + 1).join('\n');
+        const near = names(around).filter(n => n !== SEEDED_OWNER);
+        if (near.length) out.push({ line: i + 1, named: near, text: l, nearby: true });
+    });
+    return out;
+}
 
 /** Every name the roster publishes, INCLUDING hidden rows — a leaver is still a person. */
 const NAMES = teamMembers.map(m => m.name).filter(Boolean);
@@ -226,6 +307,68 @@ describe('the enumeration survives an unzipped archive, with nothing lost', () =
         assert.ok(viaWalk.includes('payroll-anonymity.test.mjs'), 'the walk did not find this file');
         assert.ok(viaWalk.every(f => !f.startsWith('/') && !f.startsWith('./')),
             'the walk returned paths readFileSync cannot resolve from the repo root');
+    });
+});
+
+describe('no roster name sits beside a LEAVE FIGURE — an allowance, a joining year, a day in lieu', () => {
+    /** Names on a line, for a fixture: an invented roster. */
+    const fake = (/** @type {string[]} */ roster) => (/** @type {string} */ l) => roster.filter(n => l.includes(n));
+    const Q = fake(['Q. Example', SEEDED_OWNER]);
+
+    test('the rule sees each shape the November sweep found', () => {
+        // Every line here is the SHAPE of a real offence, with an invented name in it.
+        for (const line of [
+            "assert.equal(getALEntitlement(byName('Q. Example'), 2026), 18, 'the clerks\\' figure');",
+            "test('getALEntitlement: a CEA on a FIXED roster (Q. Example) gets 32, not 34', () => {",
+            '// Q. Example has proRatedAL: { 2026: 24 }; standard CEA entitlement is 32.',
+            "// one Dispatcher's joining year skipped the lieu count — Q. Example was credited a flat 12",
+            "assert.equal(r.headline, 'Q. Example will be 1 day over their 2026 AL entitlement');",
+            "assert.equal(text, '✓ Deleted 2 AL days for Q. Example');",
+        ]) {
+            assert.equal(leaveFigureOffences(line, Q).length, 1, `not caught: ${line}`);
+        }
+        // …and a figure asserted a couple of lines below the lookup that names the person.
+        const nearby = "const m = byName('Q. Example');\nassert.ok(m);\nassert.equal(getALEntitlement(m, 2027), 32);";
+        assert.deepEqual(leaveFigureOffences(nearby, Q).map(o => [o.line, o.nearby]), [[3, true]]);
+    });
+
+    test('and it lets through what is not a figure, or not beside a name', () => {
+        for (const line of [
+            // A date is not a leave figure, in any of the forms the tree writes one.
+            "// Q. Example's allowance is provisional until the 14 Nov 2026 copy of the workbook (§5).",
+            "{ memberName: 'Q. Example', date: '2026-12-05', type: 'annual_leave', value: 'AL' }",
+            "assert.equal(allowanceForBoxingDay(m, 2026), 2027, 'Q. Example');",
+            // A figure with no name, and a name with no leave term.
+            'assert.equal(getALEntitlement({ role: \'CEA\', rosterType: \'main\' }), 32);',
+            "assert.equal(roleOn(byName('Q. Example'), new Date(2026, 10, 22)), 'CEA');",
+        ]) {
+            assert.deepEqual(leaveFigureOffences(line, Q), [], `a false positive: ${line}`);
+        }
+        // The seeded owner a few lines above a fixture's figure is the fixture, not a record…
+        const seeded = `await seedSession(page, '${SEEDED_OWNER}');\nawait page.goto('/');\nawait expect(taken).toHaveText('1 AL day');`;
+        assert.deepEqual(leaveFigureOffences(seeded, Q), []);
+        // …but on the SAME line as one it is caught like any other name.
+        assert.equal(leaveFigureOffences(`'✓ Deleted 1 AL day for ${SEEDED_OWNER}'`, Q).length, 1);
+    });
+
+    test('every tracked text file', () => {
+        /** @type {string[]} */
+        const offences = [];
+        for (const file of TRACKED) {
+            if (LEAVE_FIGURE_EXEMPT.has(file)) continue;
+            let text;
+            try { text = readFileSync(file, 'utf8'); } catch { continue; }
+            for (const o of leaveFigureOffences(text, namesOn)) {
+                offences.push(`${file}:${o.line}  [${o.named.join(', ')}]${o.nearby ? ' (nearby)' : ''}  ${o.text.trim().slice(0, 120)}`);
+            }
+        }
+        assert.deepEqual(offences, [],
+            'A roster name is beside a LEAVE FIGURE — an allowance, a joining year\'s figure, a day in lieu or '
+            + `a count of AL days — in a file the GitHub Pages mirror serves at HTTP 200:\n\n  ${offences.join('\n  ')}\n\n`
+            + 'A test checks a RULE with an invented member of the same shape. A test of the REAL roster '
+            + 'selects its rows by a property (role, line, start date) and loops; a failure message may name '
+            + 'the person only if it prints no figure. A comment says "a member" or "one Dispatcher". The '
+            + 'figures themselves live in roster-member-data.js, which is the classification, and nowhere else.');
     });
 });
 

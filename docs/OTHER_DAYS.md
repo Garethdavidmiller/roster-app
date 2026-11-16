@@ -62,7 +62,7 @@ and the server uses an explicit alias table, so neither needs hand-edited UI):
    rules accept/reject rows (`firestore.rules.test` TYPE_VALUE_MAP loop covers the happy path),
    one pay-engine case each, badge words (`roster-data.test`).
 6. Copy strings that enumerate the flavours (only if wording should change): the flavour-choice save
-   error and the admin `CARD_TIPS` (both `admin-app.js`), the `staff-guide.html` badge row and table,
+   error and the admin `CARD_TIPS` (`admin-app.js`, `admin-tips.js`), the `staff-guide.html` badge row and table,
    and `paycalc-help.js` — plus the docs sweep (CLAUDE.md shift-types row, AI_MAP, OPERATIONS_REFERENCE).
    The Sunday row note, pill aria-labels (`admin-week-editor.js`) and Sunday save error say "Other"
    and need nothing.

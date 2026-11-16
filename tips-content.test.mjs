@@ -42,7 +42,7 @@ import { DAYTIME, renderFurtherChanges } from './trains-render.js';
  * about something else to pass.
  */
 const PAGES = [
-    { js: 'admin-app.js',      html: 'admin.html' },
+    { js: 'admin-tips.js',     html: 'admin.html' },
     { js: 'operations-tips.js', html: 'operations.html' },
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } },

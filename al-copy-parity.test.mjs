@@ -33,6 +33,7 @@ import { CHRISTMAS_LEAVE_FROM_YEAR } from './christmas-leave.js';
 const read =(/** @type {string} */ p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
 const adminSrc = read('./admin-app.js');
+const tipsSrc = read('./admin-tips.js');   // CARD_TIPS left admin-app.js for its own module
 const adminHtml = read('./admin.html');
 const guide = read('./staff-guide.html');
 
@@ -42,15 +43,15 @@ const guide = read('./staff-guide.html');
  * @param {string} key
  */
 function tipsBlock(key) {
-    const start = adminSrc.indexOf(`            '${key}': {`);
+    const start = tipsSrc.indexOf(`    '${key}': {`);
     if (start === -1) {
-        throw new Error(`al-copy-parity: CARD_TIPS['${key}'] not found in admin-app.js — it has moved `
+        throw new Error(`al-copy-parity: CARD_TIPS['${key}'] not found in admin-tips.js — it has moved `
             + 'or been renamed. Re-anchor rather than deleting these tests.');
     }
     // The next key at the same indentation ends the block; the last one ends at the closing brace.
-    const next = adminSrc.indexOf(`\n            '`, start + 1);
-    const end = next === -1 ? adminSrc.indexOf('\n        };', start) : next;
-    const block = adminSrc.slice(start, end === -1 ? undefined : end);
+    const next = tipsSrc.indexOf(`\n    '`, start + 1);
+    const end = next === -1 ? tipsSrc.indexOf('\n};', start) : next;
+    const block = tipsSrc.slice(start, end === -1 ? undefined : end);
     if (block.length < 200) throw new Error(`al-copy-parity: CARD_TIPS['${key}'] sliced to ${block.length} chars — the anchors are wrong.`);
     return block;
 }
@@ -75,7 +76,7 @@ describe('Annual Leave copy states the rule the save follows', () => {
     const al = tipsBlock('annual-leave');
 
     test('the Record Annual Leave tips do not claim rest days are handled automatically', () => {
-        assertNoAutomaticClaim(al, "admin-app.js CARD_TIPS['annual-leave']");
+        assertNoAutomaticClaim(al, "admin-tips.js CARD_TIPS['annual-leave']");
     });
 
     test('and they NAME the question — both audiences, since each has its own line', () => {

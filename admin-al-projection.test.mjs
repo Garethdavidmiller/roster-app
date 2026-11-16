@@ -25,9 +25,9 @@ import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, li
 import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 import { isRestShift } from './override-utils.js';
 
-// C. Reen is the fixed Mon–Fri 12:00–19:00 line: every weekend is a rest day and every weekday is
+// An INVENTED member on fixed pattern 1, the Mon–Fri 12:00–19:00 line: every weekend is a rest day and every weekday is
 // worked, which makes "working day" and "rest day" unambiguous without any override at all.
-const reen = teamMembers.find(m => m.name === 'C. Reen');
+const fixedCea = { name: 'F. Fixture', role: 'CEA', rosterType: 'fixed', currentWeek: 1 };
 const MON = '2026-06-15';   // working
 const SAT = '2026-06-13';   // base rest day
 const SUN = '2026-06-14';   // Sunday — never holds AL
@@ -35,7 +35,7 @@ const NO_OV = new Map();
 
 describe('projectAlBooking — a declared swap reaches every layer', () => {
     test('an unanswered rest day is neither counted nor skipped', () => {
-        const p = projectAlBooking({ member: reen, dates: [MON, SAT], ovByDate: NO_OV });
+        const p = projectAlBooking({ member: fixedCea, dates: [MON, SAT], ovByDate: NO_OV });
         assert.deepEqual(p.unanswered, [SAT]);
         assert.deepEqual(p.consuming, [MON]);
         // THE POINT: it must not be reported as skipped either. It has no answer yet, and a
@@ -45,7 +45,7 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
 
     test('answered SWAPPED: the rest day consumes, and is never called skipped', () => {
         const p = projectAlBooking({
-            member: reen, dates: [MON, SAT], ovByDate: NO_OV,
+            member: fixedCea, dates: [MON, SAT], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, true]]),
         });
         assert.deepEqual(p.consuming.sort(), [SAT, MON].sort());
@@ -53,7 +53,7 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
         assert.equal(p.counts.skipped, 0, 'nothing may say "skipped" about a day Save will count');
         // And the v23.78 rule — the one this replaces — still says the opposite about that day,
         // which is what made the defect invisible.
-        assert.equal(consumesEntitlement(reen, SAT, NO_OV), false);
+        assert.equal(consumesEntitlement(fixedCea, SAT, NO_OV), false);
     });
 
     test('WRITING is every day the save will touch, and a FREE answer is not one of them', () => {
@@ -72,7 +72,7 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
         // The first draft of this test asserted SAT into `writing`, on the reading that a free day
         // is recorded and merely costs nothing. It is not, and the suite said so.
         const p = projectAlBooking({
-            member: reen, dates: [MON, SAT, SUN], ovByDate: NO_OV,
+            member: fixedCea, dates: [MON, SAT, SUN], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, false]]),
         });
         assert.deepEqual(p.writing, [MON], 'only the contracted day is written');
@@ -83,7 +83,7 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
 
     test('answered FREE: the rest day is skipped and costs nothing', () => {
         const p = projectAlBooking({
-            member: reen, dates: [MON, SAT], ovByDate: NO_OV,
+            member: fixedCea, dates: [MON, SAT], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, false]]),
         });
         assert.deepEqual(p.consuming, [MON]);
@@ -91,7 +91,7 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
     });
 
     test('a Sunday is skipped and never asked about', () => {
-        const p = projectAlBooking({ member: reen, dates: [SUN], ovByDate: NO_OV });
+        const p = projectAlBooking({ member: fixedCea, dates: [SUN], ovByDate: NO_OV });
         assert.deepEqual(p.asked, []);
         assert.deepEqual(p.skipped, [SUN]);
         assert.equal(p.counts.writing, 0);
@@ -106,19 +106,19 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
 
 describe('willConsume — the one rule both surfaces ask', () => {
     test('a declared swap consumes; the same day without the answer does not', () => {
-        assert.equal(willConsume({ member: reen, date: SAT, ovByDate: NO_OV, swapped: true }), true);
-        assert.equal(willConsume({ member: reen, date: SAT, ovByDate: NO_OV }), false);
+        assert.equal(willConsume({ member: fixedCea, date: SAT, ovByDate: NO_OV, swapped: true }), true);
+        assert.equal(willConsume({ member: fixedCea, date: SAT, ovByDate: NO_OV }), false);
     });
 
     test('a working day consumes with or without the flag', () => {
-        assert.equal(willConsume({ member: reen, date: MON, ovByDate: NO_OV }), true);
-        assert.equal(willConsume({ member: reen, date: MON, ovByDate: NO_OV, swapped: true }), true);
+        assert.equal(willConsume({ member: fixedCea, date: MON, ovByDate: NO_OV }), true);
+        assert.equal(willConsume({ member: fixedCea, date: MON, ovByDate: NO_OV, swapped: true }), true);
     });
 });
 
 describe('projectAlOverage — the warning the manager did not get', () => {
-    // ONE day of entitlement left: her 2026 allowance is 32 and 31 days are already recorded.
-    // Weekdays only, walked forward from 2 March until there are exactly 31 — her fixed Mon–Fri line
+    // ONE day of entitlement left: a CEA's 2026 allowance is 32 and 31 days are already recorded.
+    // Weekdays only, walked forward from 2 March until there are exactly 31 — the fixed Mon–Fri line
     // works every one of them, so each is unambiguously a consuming day with no override needed.
     const usedDates = [];
     for (let d = new Date('2026-03-02T00:00:00'); usedDates.length < 31; d.setDate(d.getDate() + 1)) {
@@ -126,36 +126,36 @@ describe('projectAlOverage — the warning the manager did not get', () => {
         if (dow !== 0 && dow !== 6) usedDates.push(formatISO(d));
     }
     const existing = usedDates.map((date, i) => ({
-        id: 'x' + i, memberName: 'C. Reen', type: 'annual_leave', date, value: 'AL',
+        id: 'x' + i, memberName: 'F. Fixture', type: 'annual_leave', date, value: 'AL',
     }));
 
     test('THE REGRESSION: one day left, a working day AND a declared swapped rest day → the bar appears', () => {
         const p = projectAlBooking({
-            member: reen, dates: [MON, SAT], ovByDate: NO_OV,
+            member: fixedCea, dates: [MON, SAT], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, true]]),
         });
         const overage = projectAlOverage({
-            member: reen, memberName: 'C. Reen', overrides: existing, consuming: p.consuming,
+            member: fixedCea, memberName: 'F. Fixture', overrides: existing, consuming: p.consuming,
         });
         assert.ok(overage, 'two consuming days against one remaining must raise the confirmation');
-        assert.match(overage.headline, /C\. Reen will be \d+ days? over their 2026 AL entitlement/);
+        assert.match(overage.headline, /F\. Fixture will be \d+ days? over their 2026 AL entitlement/);
     });
 
     test('and WITHOUT the answer the projection is one day, so the same booking does not warn', () => {
         // Not a defect: an unanswered day cannot be saved at all. This is here to show the two
         // figures genuinely differ, which is what made the v23.78 bug silent.
-        const p = projectAlBooking({ member: reen, dates: [MON, SAT], ovByDate: NO_OV });
+        const p = projectAlBooking({ member: fixedCea, dates: [MON, SAT], ovByDate: NO_OV });
         assert.deepEqual(p.consuming, [MON]);
         // …and the check the name promises, which this never ran (test audit, 7 Nov 2026).
         assert.equal(projectAlOverage({
-            member: reen, memberName: 'The member', overrides: existing, consuming: p.consuming,
+            member: fixedCea, memberName: 'The member', overrides: existing, consuming: p.consuming,
         }), null, 'one consuming day against one remaining must fit');
     });
 
     test('premise: the fixture leaves exactly ONE day of the year\'s allowance', () => {
         // Every case in this block assumes it, and nothing checked it (test audit, 7 Nov 2026).
-        assert.equal(entitlementFor(reen, '2026', existing), usedDates.length + 1);
-        assert.equal(countedAlDates({ overrides: existing, member: reen, year: '2026' }).size, usedDates.length);
+        assert.equal(entitlementFor(fixedCea, '2026', existing), usedDates.length + 1);
+        assert.equal(countedAlDates({ overrides: existing, member: fixedCea, year: '2026' }).size, usedDates.length);
     });
 
     test('no entitlement on record → no bar, and no throw', () => {
@@ -167,32 +167,32 @@ describe('projectAlOverage — the warning the manager did not get', () => {
 
     test('nothing to charge → nothing to check', () => {
         assert.equal(projectAlOverage({
-            member: reen, memberName: 'C. Reen', overrides: existing, consuming: [],
+            member: fixedCea, memberName: 'F. Fixture', overrides: existing, consuming: [],
         }), null);
     });
 
     // v25.18: a January day moved back to last year's allowance keeps that year when it is booked
     // over again (`nextLeaveYear`), so the warning must charge it THERE — not to the year its date is in.
     test('a re-booked January day already moved to 2026 is charged to 2026, not 2027', () => {
-        const JAN = '2027-01-05';   // a Tuesday on her Mon–Fri line
-        const moved = { id: 'jan', memberName: 'C. Reen', type: 'annual_leave', date: JAN, value: 'AL', leaveYear: 2026 };
+        const JAN = '2027-01-05';   // a Tuesday on the Mon–Fri line
+        const moved = { id: 'jan', memberName: 'F. Fixture', type: 'annual_leave', date: JAN, value: 'AL', leaveYear: 2026 };
         // 2026 has ONE day left before the move is counted; the move spends it, so 2026 is exactly full
         // and re-booking the same day must not warn — it is the same day, already counted there.
         const overrides = [...existing, moved];
-        assert.equal(projectAlOverage({ member: reen, memberName: 'C. Reen', overrides, consuming: [JAN] }), null);
+        assert.equal(projectAlOverage({ member: fixedCea, memberName: 'F. Fixture', overrides, consuming: [JAN] }), null);
         // With 2026 at its limit BEFORE the move, the moved day puts it one over, and re-booking it
         // reports that. It does NOT show which year the re-booked day is charged to, though: the
         // moved day is already in 2026's EXISTING count, so 2026 is over either way (test audit,
         // 7 Nov 2026 — charging new days by their own date's year left this green).
         assert.ok(!existing.some(e => e.date === '2026-04-15'), 'fixture: the extra 2026 day is a new one');
-        const full = [...existing, { id: 'x31', memberName: 'C. Reen', type: 'annual_leave', date: '2026-04-15', value: 'AL' }];
-        const over = projectAlOverage({ member: reen, memberName: 'C. Reen', overrides: [...full, moved], consuming: [JAN] });
+        const full = [...existing, { id: 'x31', memberName: 'F. Fixture', type: 'annual_leave', date: '2026-04-15', value: 'AL' }];
+        const over = projectAlOverage({ member: fixedCea, memberName: 'F. Fixture', overrides: [...full, moved], consuming: [JAN] });
         assert.ok(over, 'charged to 2026, which the moved day has put one over');
         assert.match(over.headline, /2026 AL entitlement/);
         // The bucket itself: a save that OVERWRITES the moved day re-accounts it (`exclude`), so it
         // is out of the existing count and in this save's — and only charging it to 2026 finds 2026
         // one over. Charged to 2027, the year of its date, the save would pass with no warning.
-        const resaved = projectAlOverage({ member: reen, memberName: 'The member', overrides: [...full, moved],
+        const resaved = projectAlOverage({ member: fixedCea, memberName: 'The member', overrides: [...full, moved],
             consuming: [JAN], exclude: new Set([JAN]) });
         assert.ok(resaved, 'the re-saved January day was not charged to 2026, the year it was moved to');
         assert.match(resaved.headline, /1 day over their 2026 AL entitlement/);
@@ -206,7 +206,7 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
     // dates from its batch — and it must read THIS set rather than `skipped`, which also holds days
     // nobody was asked about.
     test('a rest day answered "free" is answeredFree, is skipped, and is not written', () => {
-        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: NO_OV,
+        const p = projectAlBooking({ member: fixedCea, dates: [SAT], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, false]]) });
         assert.deepEqual(p.answeredFree, [SAT]);
         assert.deepEqual(p.skipped, [SAT]);
@@ -216,7 +216,7 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
     });
 
     test('answered "swapped" is in neither — it is written, and it costs a day', () => {
-        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: NO_OV,
+        const p = projectAlBooking({ member: fixedCea, dates: [SAT], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, true]]) });
         assert.deepEqual(p.answeredFree, []);
         assert.deepEqual(p.writing, [SAT]);
@@ -224,14 +224,14 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
     });
 
     test('an UNANSWERED rest day is neither — it blocks the save instead', () => {
-        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: NO_OV, swapAnswers: new Map() });
+        const p = projectAlBooking({ member: fixedCea, dates: [SAT], ovByDate: NO_OV, swapAnswers: new Map() });
         assert.deepEqual(p.unanswered, [SAT]);
         assert.deepEqual(p.answeredFree, []);
         assert.deepEqual(p.skipped, []);
     });
 
     test('a SUNDAY is skipped and is NOT answeredFree — nobody was asked about it', () => {
-        const p = projectAlBooking({ member: reen, dates: [SUN], ovByDate: NO_OV, swapAnswers: new Map() });
+        const p = projectAlBooking({ member: fixedCea, dates: [SUN], ovByDate: NO_OV, swapAnswers: new Map() });
         assert.deepEqual(p.skipped, [SUN]);
         assert.deepEqual(p.answeredFree, [], 'a day nobody was asked about is not an answer');
     });
@@ -242,7 +242,7 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
     // costing anything. A grid that dropped its write would make a deliberate tap do nothing.
     test('a rest day carrying rdw is WRITTEN and costs nothing — asked about by nobody, skipped by nobody', () => {
         const ov = new Map([[SAT, { type: 'rdw', value: '08:00-16:00', date: SAT }]]);
-        const p = projectAlBooking({ member: reen, dates: [SAT], ovByDate: ov, swapAnswers: new Map() });
+        const p = projectAlBooking({ member: fixedCea, dates: [SAT], ovByDate: ov, swapAnswers: new Map() });
         assert.deepEqual(p.asked, [], 'voluntary work is never asked about');
         assert.deepEqual(p.writing, [SAT]);
         assert.deepEqual(p.freeWritten, [SAT]);
@@ -252,7 +252,7 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
     });
 
     test('a mixed booking separates them, and every set stays disjoint from consuming', () => {
-        const p = projectAlBooking({ member: reen, dates: [MON, SAT, SUN], ovByDate: NO_OV,
+        const p = projectAlBooking({ member: fixedCea, dates: [MON, SAT, SUN], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, false]]) });
         assert.deepEqual(p.consuming, [MON]);
         assert.deepEqual(p.answeredFree, [SAT]);
@@ -265,13 +265,13 @@ describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, exte
 });
 
 describe('Christmas Day and Boxing Day — never asked, never written, named as themselves (v25.37)', () => {
-    // Her Mon–Fri line has her DUE at work on Christmas Day 2026 (a Friday) and resting on Boxing
+    // The Mon–Fri line has the member DUE at work on Christmas Day 2026 (a Friday) and resting on Boxing
     // Day (a Saturday). The answer on both is the same and fixed — leave there never costs a day, and
     // somebody due at work already HAS it, shown from the roster — so neither may be asked about.
     const EVE = '2026-12-24', XMAS = '2026-12-25', BOXING = '2026-12-26';
 
     test('neither day is asked about, written or counted, whatever the pattern says', () => {
-        const p = projectAlBooking({ member: reen, dates: [EVE, XMAS, BOXING], ovByDate: NO_OV });
+        const p = projectAlBooking({ member: fixedCea, dates: [EVE, XMAS, BOXING], ovByDate: NO_OV });
         assert.deepEqual(p.asked, [], 'a question whose answer is fixed is not a question');
         assert.deepEqual(p.writing, [EVE]);
         assert.deepEqual(p.consuming, [EVE]);
@@ -285,7 +285,7 @@ describe('Christmas Day and Boxing Day — never asked, never written, named as 
 
     test('work already recorded there is replaced at no cost — the leave is still written', () => {
         const ov = new Map([[BOXING, { type: 'rdw', value: '06:00-14:00' }]]);
-        const p = projectAlBooking({ member: reen, dates: [BOXING], ovByDate: ov });
+        const p = projectAlBooking({ member: fixedCea, dates: [BOXING], ovByDate: ov });
         assert.deepEqual(p.writing, [BOXING]);
         assert.deepEqual(p.freeWritten, [BOXING]);
         assert.deepEqual(p.consuming, []);
@@ -293,7 +293,7 @@ describe('Christmas Day and Boxing Day — never asked, never written, named as 
     });
 
     test('before 2026 nothing changes: Christmas Day 2025 is asked about like any other rest day', () => {
-        const p = projectAlBooking({ member: reen, dates: ['2025-12-25'], ovByDate: NO_OV });
+        const p = projectAlBooking({ member: fixedCea, dates: ['2025-12-25'], ovByDate: NO_OV });
         assert.deepEqual(p.asked, ['2025-12-25']);
         assert.deepEqual(p.christmas, []);
     });
@@ -531,8 +531,8 @@ describe('projectAbsenceRange — an absence over work that earned a day in lieu
 // it and threw on the first ordinary working day (whole-app check, 10 Nov 2026).
 describe('projectAlBooking — an omitted override map means "nothing in play"', () => {
     test('it does not throw, and answers exactly as an empty map does', () => {
-        const omitted = projectAlBooking({ member: reen, dates: [MON, SAT, SUN] });
-        assert.deepEqual(omitted, projectAlBooking({ member: reen, dates: [MON, SAT, SUN], ovByDate: new Map() }));
+        const omitted = projectAlBooking({ member: fixedCea, dates: [MON, SAT, SUN] });
+        assert.deepEqual(omitted, projectAlBooking({ member: fixedCea, dates: [MON, SAT, SUN], ovByDate: new Map() }));
         assert.deepEqual(omitted.consuming, [MON]);
     });
 });
@@ -577,7 +577,7 @@ describe('rangeSundayCorrections — the worked Sundays a range booking sets as 
 
     test('no member, no dates — nothing to say', () => {
         assert.deepEqual(rangeSundayCorrections({ dates: [MON], memberObj: null }), []);
-        assert.deepEqual(rangeSundayCorrections({ dates: /** @type {any} */ (null), memberObj: reen }), []);
+        assert.deepEqual(rangeSundayCorrections({ dates: /** @type {any} */ (null), memberObj: fixedCea }), []);
     });
 });
 

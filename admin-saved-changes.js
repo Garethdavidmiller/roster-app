@@ -2,23 +2,16 @@
 /**
  * admin-saved-changes.js — the Saved Changes list: what has been recorded, and un-recording it.
  *
- * ── WHY IT LEFT THE COORDINATOR (v21.38) ────────────────────────────────────────────────────────
- *
- * The second of the two splits the external Admin review asked for. `admin-overrides.js` owned four
- * distinct surfaces; this is the one a manager uses to ANSWER A QUESTION rather than to change
- * something — what is on record for this member, this month — and its editing is deletion, which is
- * a different write path with a different failure mode from the week editor's.
+ * Its own module: the surface a manager uses to ANSWER A QUESTION (what is on record, this month),
+ * whose editing is deletion — a different write path, with a different failure mode, from the grid's.
  *
  * ── THE ONE INVARIANT: IT MAY NOT CLAIM COMPLETENESS IT DOES NOT HAVE ───────────────────────────
  *
- * The "All staff" view is a different question from "this member", and it is answered from a cache
- * that may hold only the selected member. `coversAllStaff()` is asked at RENDER time, not merely
- * when the toggle is pressed: the toggle flips a flag and then starts a load, and if that load
- * fails or is still running, a later re-render from any unrelated action would otherwise draw three
- * rows and label them "(all staff)" with the button agreeing. A manager asking "has anyone else
- * booked that week?" would get no, and act on it. That shipped once in this release and is the
- * reason the check is here rather than at the toggle. The same holds for ONE member: an empty list
- * for a member whose records were never read is "loading" or "couldn't load", not "no changes".
+ * "All staff" is answered from a cache that may hold only the selected member. `coversAllStaff()` is
+ * asked at RENDER time, not merely at the toggle: the toggle starts a load, and if it fails or is
+ * still running, any later re-render would draw three rows labelled "(all staff)" — and a manager
+ * asking "has anyone else booked that week?" would get no, and act on it. The same holds for ONE
+ * member: an empty list for a member never read is "loading" or "couldn't load", not "no changes".
  *
  * The renderers and permissions arrive through `initSavedChanges` rather than being imported, which
  * is what keeps this out of a cycle with the coordinator that wires it.
@@ -38,15 +31,12 @@ import { withClearedDays } from './admin-own-write.js';
 // The two-tap ✕ and the feedback line's fade, shared with the Recorded-dates lists (their header says why).
 import { armConfirm, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 
-/** The receipt's account of a duplicate cleared alongside (v24.48): said, never silent. @param {number} n */
+/** The receipt's account of a duplicate cleared alongside: said, never silent. @param {number} n */
 const _olderCopies = (n) => n > 0 ? `, and ${n} older cop${n === 1 ? 'y' : 'ies'} of the same day` : '';
-/** Newest first, then by name — the order every write path left the cache in, so the list no longer
- *  depends on which path last touched it: a member's read returns Firestore's id order (whole-app
- *  check, 10 Nov 2026). @param {any} a @param {any} b */
+/** Newest first, then by name, whichever path last touched the cache. @param {any} a @param {any} b */
 const _newestFirst = (a, b) => (b.date || '').localeCompare(a.date || '')
     || (a.memberName || '').localeCompare(b.memberName || '') || String(a.id).localeCompare(String(b.id));
-/** What to do about a failed delete, said for where the fix is: a refused write is not a poor signal,
- *  and blaming the connection "sends them to fix the one thing that is not wrong" (claim-retry.js). */
+/** What to do about a failed delete, said for where the fix is: a refusal is not a poor signal (claim-retry.js). */
 const _cause = (/** @type {any} */ err) => isAccessFailure(err)
     ? 'you may have been signed out. Please sign in again.' : 'check your connection and try again.';
 /** Why a bulk delete stopped part done when a later chunk found a row changed since the list loaded. */
@@ -70,8 +60,7 @@ let _wired = false;
  * @param {(msg: string) => void} deps.showError
  * @param {(e: MouseEvent) => void} deps.onEditRow
  * @param {() => void} deps.onAfterSave
- * @param {(rows: any[]) => string[]} deps.onOwnWrite  the week grid follows a delete: `syncWeekAfterOwnWrite`
- *        (admin-own-write.js), handed the deleted rows; returns the days whose staged change it cleared
+ * @param {(rows: any[]) => string[]} deps.onOwnWrite  `syncWeekAfterOwnWrite`: the days whose staged change it cleared
  * @param {(iso: string) => string} deps.formatDate
  * @returns {void}
  */
@@ -83,9 +72,7 @@ export function initSavedChanges(deps) {
     _onAfterSave      = deps.onAfterSave;
     _onOwnWrite       = deps.onOwnWrite;
     formatDisplay     = deps.formatDate;
-    // Deps above every time; wiring once — see the note in `initWeekEditor` for why (v21.94).
-    // `_initOverridesTable` delegates on `#overrideTableBody` and the bulk bar, so a second attach
-    // would make one tap of the two-tap Delete both arm and execute.
+    // Deps every time; wiring once: a second attach would make one tap of the two-tap Delete arm AND execute.
     if (_wired) return;
     _wired = true;
     _initOverridesTable();
@@ -104,11 +91,7 @@ export function resetTableMemberFilter() {
 /** Whether the list is showing every member rather than the selected one. */
 let _tableShowAllOverrides = false;
 
-/**
- * Renders the Saved Changes table from _allOverrides.
- * Filtered by the currently selected member and the month/year dropdown.
- * When _tableShowAllOverrides is true, shows all members (admin toggle).
- */
+/** Renders the Saved Changes table from the cache: the selected member (or all staff) and the month filter. */
 export function renderTable() {
     const fieldMember        = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const tableBody          = document.getElementById('overrideTableBody');
@@ -118,41 +101,27 @@ export function renderTable() {
     const bulkDeleteBtn      = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkDeleteBtn'));
     const countChip          = document.getElementById('overridesCountChip');
     const selectedMember     = fieldMember?.value;
-    // THE TOOLBAR STARTS AGAIN WITH THE ROWS (whole-app check, 10 Nov 2026). Every row is rebuilt, so
-    // nothing is ticked: before either exit below, or an emptied list kept a live "Delete selected"
-    // and a ticked "Select all", and a partial selection kept "Select all" at its dash.
+    // THE TOOLBAR STARTS AGAIN WITH THE ROWS, which are rebuilt unticked — before either exit below.
     if (selectAllOverrides) { selectAllOverrides.checked = false; selectAllOverrides.indeterminate = false; }
     if (bulkDeleteBtn) { bulkDeleteBtn.style.display = 'none'; if (bulkDeleteBtn.classList.contains('confirming')) disarmConfirm(bulkDeleteBtn, 'Delete selected'); }
-    // THE ALL-STAFF VIEW ASKS A DIFFERENT QUESTION, SO IT ASKS IT HERE TOO (v21.38, review): the toggle
-    // only STARTS a load, and a failed or running one leaves the flag over a per-member cache — three
-    // rows labelled "(all staff)" (header). `coversAllStaff()` is the LIST's question;
-    // `hasOverrideAuthorityFor` is every WRITE's.
+    // The header's invariant: `coversAllStaff()` is the LIST's question; `hasOverrideAuthorityFor` every WRITE's.
     const showAll            = _tableShowAllOverrides && coversAllStaff();
-    // One member on screen → their name is stated once, at the top, not on every row (v23.12). add/remove,
-    // not toggle(force): the unit suite's fake DOM has no `toggle`, and a throw there aborted the render.
+    // One member on screen → named once, at the top. Keyed on the FILTER (with nobody selected the rows are everyone's).
     const memberFilter       = showAll ? '' : (selectedMember || '');
-    // Keyed on the FILTER, not on the toggle (v23.15 review): with no member selected and the
-    // All-staff view off, the rows below are everyone's, and hiding the names on that list would
-    // leave nothing to tell one row from the next.
     if (tableBody) { if (memberFilter) tableBody.classList.add('oc-single-member'); else tableBody.classList.remove('oc-single-member'); }
     const memberRows         = (memberFilter
         ? getAllOverrides().filter(o => o.memberName === memberFilter)
         : getAllOverrides()).slice().sort(_newestFirst);
 
-    // Update "Show all / This member" toggle button
     const showAllBtn = document.getElementById('showAllOverridesBtn');
     if (showAllBtn) {
-        // Only admin/manager may reveal every member's changes — a locked self-service user
-        // always has their own name selected, so gating on selectedMember alone exposed the
-        // "All staff" toggle to them, contradicting the card's "your own changes only" tip.
+        // Only admin/manager may see every member's — never on selectedMember alone, which self-service has.
         showAllBtn.hidden = !selectedMember || !(_currentIsAdmin || _currentIsManager);
         showAllBtn.textContent = showAll ? 'This member only' : 'All staff';
     }
 
-    // NOT READ IS NOT "NO CHANGES" (whole-app check, 10 Nov 2026). An unread member and one with nothing
-    // recorded are the same empty slice; this said "No recorded changes yet" over a failed load (replacing
-    // its Retry) or a running one. Before the month filter, which would take its default from nothing.
-    // Rows a capped all-staff read left in the cache are still listed, under the cap note below.
+    // NOT READ IS NOT "NO CHANGES" — and before the month filter, which would take its default from
+    // nothing. Rows a capped all-staff read left in the cache are still listed, under the cap note.
     if (memberFilter && !showAll && !memberRows.length && !hasOverrideAuthorityFor(memberFilter)) {
         const failed = loadFailedFor(memberFilter);
         if (listCount) listCount.textContent = failed ? 'Error' : 'Loading…';
@@ -172,9 +141,7 @@ export function renderTable() {
         const isFirstRender = !overridesMonthFilter.dataset.initialized;
         const today         = new Date();
         const currentMonth  = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-        // Self-service staff mostly check FUTURE-dated leave, so default them to "All months" — a
-        // current-month default hid a booking made for a later month behind the filter, reading as
-        // "nothing saved". Admin/manager browse heavily, so keep their current-month default.
+        // Self-service staff check FUTURE leave, so start on "All months"; admin and managers on this month.
         const defaultMonth  = (_currentIsAdmin || _currentIsManager) ? currentMonth : '';
         const prevValue     = isFirstRender ? defaultMonth : overridesMonthFilter.value;
         overridesMonthFilter.dataset.initialized = '1';
@@ -197,21 +164,17 @@ export function renderTable() {
     if (listCount) {
         const label   = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
         const context = showAll ? ' (all staff)' : '';
-        // No-silent-caps: when the load hit the query cap, say the list is the most-recent subset so
-        // an admin isn't misled into thinking an unlisted old booking doesn't exist (Finding #8).
+        // No silent caps: a capped load says it lists only the most recent.
         const capped  = isTruncated() ? ` — showing the ${OVERRIDES_QUERY_CAP} most recent; older changes aren't listed` : '';
         listCount.textContent = label + context + capped;
     }
-    // Header context chip (v18.16): the list's current count while the card is collapsed, empty at zero
-    // (its :empty rule hides it). "+" when the load hit the query cap (v18.23, no-silent-caps): older
-    // rows exist beyond ANY view then, so a bare number would read as exact.
+    // Header chip: the count while collapsed, empty at zero (:empty hides it), "+" when capped.
     if (countChip) countChip.textContent = rows.length
         ? String(rows.length) + (isTruncated() ? '+' : '') : '';
 
     if (!rows.length) {
         const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
-        // Month-aware: never claim "nothing saved" when a month filter is just narrowing the view
-        // (a booking for another month is still there) — point the user at "All months".
+        // Month-aware: a month filter narrowing the view is not "nothing saved".
         const msg = monthFilter
             ? `No changes in the selected month${who}. Choose “All months” above to see other dates.`
             : `No recorded changes yet${who}. Any shifts you record will appear here.`;
@@ -242,7 +205,6 @@ export function renderTable() {
             </div>`;
         if (tableBody) tableBody.appendChild(card);
     });
-    // Listeners are delegated once, in _initOverridesTable() — not 3 × N per render.
 }
 
 function _updateBulkDeleteVisibility() {
@@ -278,33 +240,25 @@ function _refocusAfterDelete(pos) {
 
 /** @param {MouseEvent} e */
 async function _handleDelete(e) {
-    // closest() makes this work both directly and via delegation.
     const btn     = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('.btn-delete'));
     if (!btn) return;
     if (!btn.classList.contains('confirming')) { armConfirm(btn, 'Delete?', '✕'); return; }
-    // Signed out: say so, not "check your connection" — the write would be refused anyway (v24.38).
+    // Signed out: say so, not "check your connection" — the write would be refused anyway.
     if (!auth.currentUser) { disarmConfirm(btn, '✕'); _sayList("⚠ You've been signed out — please sign in again.", 'error'); return; }
     const deleted = getAllOverrides().find(o => o.id === btn.dataset.id);
-    // The row AND any older manual copy of the same day (v24.48 duplicates — external review, Oct
-    // 2026): deleting only the newer one let the older resurface as the day's value, which the week
-    // editor's delete already prevented. One transaction, so the day is never left half-cleared.
+    // The row AND any older manual copy of the day, or the older resurfaces — one transaction.
     const ids = [...withManualDuplicates([btn.dataset.id ?? ''])];
-    const shown = asShown(ids);   // as on screen at the press: what the transaction compares the server with (v25.89)
+    const shown = asShown(ids);   // as on screen at the press: what the transaction compares the server with
     const hadFocus = document.activeElement === btn;
     const pos = [...(document.getElementById('overrideTableBody')?.querySelectorAll('.btn-delete') ?? [])].indexOf(btn);
     btn.disabled = true;
     btn.textContent = '…';
     try {
-        // Wrap in writeWithClaimRetry so a just-provisioned manager on a pre-`manager`-claim token
-        // self-heals (force-refresh + retry once) instead of a hard permission-denied — parity with
-        // the executeSave / recordRangeOverrides / bulk-delete write paths. Compared and deleted in ONE
-        // transaction, so a colleague's edit cannot land between the two (v25.89, external review).
+        // Compared and deleted in ONE transaction, so a colleague's edit cannot land between the two.
         await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(shown)), { held: false });
         removeFromCache(ids);
         renderTable();
-        // The week grid follows the delete (admin-own-write.js): redrawn with nothing staged; otherwise only this day's
-        // row, never over staged edits elsewhere (v16.82), and a change staged on THIS day is cleared and named here.
-        // Before `_onAfterSave`, which asks whether anything is still staged.
+        // The week follows the delete, before `_onAfterSave` asks whether anything is still staged.
         const cleared = _onOwnWrite(shown);
         _onAfterSave();
         if (deleted) {
@@ -332,12 +286,10 @@ function _initOverridesTable() {
     const overridesMonthFilter = document.getElementById('overridesMonthFilter');
     const fieldMember        = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
 
-    // Delegated listeners — one per event type on the whole table body, replaces
-    // attaching N per-row listeners on every renderTable() call.
+    // Delegated listeners — one per event type on the table body, not N per row per render.
     const tableBody = document.getElementById('overrideTableBody');
     if (tableBody) {
-        // The Retry `renderTable` draws for an unread member asks for THAT member, by name: a bare
-        // `loadOverrides()` re-reads everybody once an All-staff read has been made.
+        // An unread member's Retry asks for THAT member: a bare load re-reads everybody after All staff.
         const retry = () => { loadOverrides({ everyone: false, member: fieldMember?.value ?? '' }); };
         tableBody.addEventListener('click', (e) => {
             const target = /** @type {Element} */ (e.target);
@@ -369,14 +321,14 @@ function _initOverridesTable() {
             const chunks = deleteChunks(picked, BULK_DELETE_CHUNK), ids = chunks.flat();   // with their older copies, a day never split
             const shown = new Map(asShown(ids).map((r, i) => [ids[i], r]));
 
-            // Two-tap confirm, ARMED FOR THIS SELECTION (v25.06): "⚠ Delete 1?" once deleted all three ticked by the 2nd tap.
+            // Two-tap confirm, ARMED FOR THIS SELECTION: the count asked about is the count deleted.
             if (!bulkDeleteBtn.classList.contains('confirming') || bulkDeleteBtn.dataset.armedFor !== picked.join('|')) {
                 bulkDeleteBtn.dataset.armedFor = picked.join('|');
                 armConfirm(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected', `Confirm delete ${picked.length} selected change${picked.length !== 1 ? 's' : ''}`);
                 return;
             }
             disarmConfirm(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
-            if (!auth.currentUser) {   // as the single delete (v24.38)
+            if (!auth.currentUser) {   // as the single delete
                 _sayList("⚠ You've been signed out — please sign in again.", 'error');
                 return;
             }
@@ -389,11 +341,8 @@ function _initOverridesTable() {
             /** @type {string[]} */
             const committed = []; let landed = 0;   // ids, and whole chunks, already deleted
             try {
-                // Re-runnable thunk so a stale-claim manager's bulk delete self-heals once via
-                // writeWithClaimRetry; a re-run resumes after the chunks already committed.
-                // CHUNKED (Oct 2026): over 500 writes is refused. EACH CHUNK IS ONE TRANSACTION (v25.89), and
-                // a list of several is first checked WHOLE, so what changed hours ago refuses it before any
-                // chunk lands; only an edit racing the chunks themselves can leave it part done, said below.
+                // Re-runnable, resuming after the chunks committed; each chunk ONE transaction, several first
+                // checked WHOLE — so only an edit racing the chunks can leave it part done, said below.
                 await withSlowSaveNotice(writeWithClaimRetry(async () => {
                     const stale = chunks.length > 1 && !landed ? await staleDeleteVerdict([...shown.values()]) : null;
                     if (stale) throw Object.assign(new Error(stale), { code: DELETE_REFUSED, line: stale });
@@ -415,8 +364,7 @@ function _initOverridesTable() {
                 if (committed.length) { removeFromCache(committed); renderTable(); cleared = _onOwnWrite(committed.map(id => shown.get(id))); }
                 const refused = /** @type {any} */ (err)?.code === DELETE_REFUSED, cause = refused ? PART_REFUSED : _cause(err);
                 const unsure = unconfirmedWriteLine(err, 'this delete', 'Saved Changes');
-                // AN UNKNOWN OUTCOME FIRST — the chunk in flight may still land, so nothing can be called "still
-                // listed" — then PART DONE (v25.89, review): a refusal's own line says "nothing was deleted".
+                // AN UNKNOWN OUTCOME FIRST (it may still land), then PART DONE (a refusal says "nothing was deleted").
                 _sayList(withClearedDays(unsure ? '⚠ ' + unsure
                     : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
                     : refused ? '⚠ ' + /** @type {any} */ (err).line
@@ -424,11 +372,7 @@ function _initOverridesTable() {
                     : '⚠ Bulk delete failed — ' + cause, cleared), 'error');
                 refocus = committed.length ? document.getElementById('listFeedback') : bulkDeleteBtn;
             } finally {
-                // RESTORE THE LABEL ON EVERY PATH, NOT JUST THE FAILING ONE (v21.94). Nothing else
-                // writes this button's `disabled` or label, and unlike a row's ✕ it lives OUTSIDE the
-                // table body, so no re-render replaces it: one successful bulk delete once left it
-                // disabled reading "Deleting 3…" for the rest of the page life. Label only — VISIBILITY
-                // is `renderTable`'s and `_updateBulkDeleteVisibility`'s.
+                // RESTORE THE LABEL ON EVERY PATH: no re-render replaces this button. Its VISIBILITY is renderTable's.
                 bulkDeleteBtn.disabled = false;
                 disarmConfirm(bulkDeleteBtn, 'Delete selected');
             }
@@ -443,11 +387,7 @@ function _initOverridesTable() {
     document.getElementById('showAllOverridesBtn')?.addEventListener('click', () => {
         if (!(_currentIsAdmin || _currentIsManager)) return;  // defence-in-depth: self-service can't view all staff
         _tableShowAllOverrides = !_tableShowAllOverrides;
-        // TURNING IT ON IS A DIFFERENT QUESTION, SO IT MAY NEED A DIFFERENT READ (v21.38). The cache
-        // holds whichever members have been selected; rendering "All staff" from that would list a
-        // handful of people and call it everybody — a short list that looks complete, which is the
-        // failure the query-cap banner exists to prevent one level up. Fetch the collection first.
-        // Turning it OFF needs nothing: the member's slice is already covered.
+        // TURNING IT ON NEEDS A FULL READ — the cache holds only the members picked so far. OFF needs nothing.
         if (_tableShowAllOverrides && !coversAllStaff()) {
             loadOverrides({ everyone: true });   // renders on completion, and shows its own retry on failure
             return;

@@ -119,7 +119,7 @@ storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf
              The rules bind it to its own collection (`huddles/<name>.pdf|docx`), because
              `getDocumentUrl` hands this path to the Admin Storage API, which would sign any object
 fileType     "pdf" | "docx" — the short form on both paths: browser writes are rule-constrained to
-             ['pdf','docx'], and the Cloud Function ingest writes the same (`functions/documents.js`)
+             ['pdf','docx'], and the Cloud Function ingest writes the same (`functions/huddle-ingest.js`)
 uploadedAt   Firestore server timestamp — the rules require `== request.time` of a client write
 uploadedBy   Member name string (manual upload) or "power-automate" (Cloud Function ingest)
 htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested; absent for PDFs. At most 250 KB (the rules cap it)

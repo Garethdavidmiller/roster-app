@@ -27,23 +27,17 @@ import { resolveAuthoritativeRates } from './paycalc-backpay-state.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
-/**
- * True when a period-data object has no hours or special flags entered.
- * Exported so coordinator (updateSaveStatus) and paycalc-backpay.js can import it.
- */
-// isDataEmpty lives in paycalc-format.js (the fill-year module needs it without this import chain).
+// isDataEmpty (no hours or special flags entered) lives in paycalc-format.js — the fill-year module
+// needs it without this import chain — and is re-exported for the coordinator and paycalc-backpay.js.
 export { isDataEmpty } from './paycalc-format.js';
 import { isDataEmpty } from './paycalc-format.js';
 
 /**
  * Resolve which HPP figure applies for a tax year's January payslip: a CONFIRMED actual —
- * present in storage, EVEN £0 — always wins over the running estimate. A member who enters the
- * real figure from their payslip (including a genuine £0, e.g. after a year of absence) must
- * override any earlier estimate; before v17.26 the `actual > 0` test silently ignored a confirmed
- * £0 and kept adding the stale estimate to the January take-home. Absence of the actual (never
- * entered / cleared) falls back to the estimate. Negatives clamp to 0 (a payslip HPP can't be
- * negative). Stored text that is not a figure confirms nothing (paycalc-2-15): it read as a
- * confirmed £0 and took the estimate out of the January payslip. PURE — the single source of the
+ * present in storage, EVEN £0 (a genuine £0 after a year of absence) — always wins over the running
+ * estimate. Absence of the actual (never entered / cleared) falls back to the estimate. Negatives
+ * clamp to 0 (a payslip HPP can't be negative). Stored text that is not a figure confirms nothing —
+ * read as a confirmed £0 it would take the estimate out of the January payslip. PURE — the single source of the
  * "actual beats estimate" rule, shared by calcHPP's take-home add (paycalc-app.js) and the
  * prior-year display (updatePriorHpp).
  * @param {string|null|undefined} actualRaw - raw stored actual ('' / null = not confirmed)
@@ -65,9 +59,8 @@ export function resolveHppForPeriod(actualRaw, estRaw) {
  * @param {any} d - Saved period data from localStorage.
  */
 export function _decodeHours(p, d) {
-  // Read every field AS A NUMBER (paycalc-2-15). This app always stores numbers, but a backup made
-  // elsewhere can hold "5" — and `"5" + 0.5` is "50.5", so HPP, back pay and the year block priced
-  // fifty hours of overtime where the form, which parses, showed five. Text that is not a figure is 0.
+  // Read every field AS A NUMBER: a backup made elsewhere can hold "5", and `"5" + 0.5` is "50.5"
+  // (fifty hours of overtime where the form showed five). Text that is not a figure is 0.
   const n = (/** @type {any} */ v) => Number(v) || 0;
   return {
     satHrs:  n(d.satH)  + n(d.satM)  / 60,
@@ -84,8 +77,7 @@ export function _decodeHours(p, d) {
  * The pension a SAVED payslip is priced with — the one rule for every reader of a saved payslip (the
  * year block and the rough Year to Date premium), matching what calculate() does with the pension
  * box: nothing inside an opt-out spell; the payslip's own figure when it reads as one, floored at £0
- * because a negative would add untaxed headroom (paycalc-2-16 — the result card floored it and the
- * year block added it); otherwise the period default, scaled for a joining period.
+ * because a negative would add untaxed headroom; otherwise the period default, scaled for a joining period.
  * @param {any} p @param {any} d - the saved payslip, or null @param {number} factor - getProRateFactor(p)
  * @returns {number}
  */
@@ -95,8 +87,6 @@ export function savedPeriodPension(p, d, factor) {
   return own != null ? Math.max(0, own) : (parseFloat(String(getPensionDefault(p))) || 0) * factor;
 }
 
-// Compute variable pay for one period from saved data. Used by calcHPP and
-// updatePriorHpp to avoid duplicating the capping logic.
 // bhCapped mirrors calculate(): when all contracted hours are Saturday, bhCapped = 0
 // and the BH premium must not contribute to HPP (it wasn't in that period's gross).
 /**
@@ -107,9 +97,8 @@ export function savedPeriodPension(p, d, factor) {
  * Does NOT include: London Allowance, peer training, basic pay, expenses, bonuses.
  *
  * London Allowance is a FIXED allowance paid EVERY period — including the periods you are on
- * leave — so it needs no holiday premium and does NOT accrue HPP. This is the documented payroll
- * rule (.claude/rules/paycalc.md invariant 6: London Allowance accrues no HPP), confirmed by the owner;
- * a real payslip shows the annual HPP lump as its own line, separate from London Allowance.
+ * leave — so it needs no holiday premium and does NOT accrue HPP (.claude/rules/paycalc.md
+ * invariant 6, owner-confirmed; a real payslip shows the HPP lump as its own line).
  * @param {any} p - Period object.
  * @param {any} d - Saved period data.
  * @param {number} rate - Hourly rate.
@@ -128,17 +117,13 @@ export function _varPayForPeriod(p, d, rate) {
 }
 
 // ── HPP ESTIMATOR ─────────────────────────────────────────────────────────────
-// Formula from Chiltern payroll (Marie Firby): (variable pay above basic) × 4/52 = HPP.
-// "Above basic" here means the genuinely VARIABLE premiums (OT/RDW/Sun/Sat/BH/Boxing) only —
-// the fixed London Allowance is paid every period incl. during leave, so it does NOT accrue HPP
-// (see _varPayForPeriod). Confirmed by a real Jan-2026 payslip (HPP and London are separate lines).
+// Formula from Chiltern payroll: (variable pay above basic) × 4/52 = HPP — the genuinely VARIABLE
+// premiums (OT/RDW/Sun/Sat/BH/Boxing) only (see _varPayForPeriod).
 
-// ── AMOUNT SOURCE (v18.32; 'ytd' reworked to read the Year to Date card v18.34) ──────────────────
-// The current-year estimate can come from three sources, mirroring the back-pay card's compute/enter
-// toggle: 'hours' (default — the per-payslip estimator below), 'ytd' (derived FROM the Year to Date
-// Figures card's Taxable Pay — see below), or 'exact' (a figure the member enters). Whichever mode
-// is active, calcHPP writes the resulting figure to hppEstKey(ty) — so the existing January take-home
-// add + prior-year rollover (both read hppEstKey via resolveHppForPeriod) work unchanged.
+// ── AMOUNT SOURCE ─────────────────────────────────────────────────────────────
+// Three sources: 'hours' (default — the per-payslip estimator below), 'ytd' (derived FROM the Year to
+// Date card's Taxable Pay) or 'exact' (a figure the member enters). Whichever is active, calcHPP
+// writes the figure to hppEstKey(ty), which the January take-home add + prior-year rollover read.
 
 /**
  * Rough HPP from a Year to Date TAXABLE PAY figure. Taxable Pay is ALL pay (basic + premiums +
@@ -155,9 +140,8 @@ export function hppFromYtdTaxable(taxablePayYtd, nonPremiumYtd) {
 }
 
 /**
- * Non-premium LUMPS inside a Year to Date Taxable Pay figure that the app itself holds exactly
- * (72-hour review) — without this the 'ytd' estimate priced each as premium pay and took 7.69% of
- * it. Three are known: peer-training pay (extra BASIC — 2h per day at the period rate, the same
+ * Non-premium LUMPS inside a Year to Date Taxable Pay figure that the app itself holds exactly —
+ * otherwise the 'ytd' estimate takes 7.69% of each. Three are known: peer-training pay (extra BASIC — 2h per day at the period rate, the same
  * `peerDays × 2 × rate` computeGross uses); last year's Holiday Pay Premium, which lands on this
  * year's January payslip (`hppCarrier`); and the pay award's back-pay lump (`awardCarrier`). Each
  * of the two lumps is inside the figure only once the payslip carrying it is covered.
@@ -198,9 +182,8 @@ export function knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHp
 function _expectedNonPremiumYtd(ty) {
   const srcNum      = parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0;
   // Cap at the YTD source payslip. With none recorded — or the figures detached, the stored '0' —
-  // cap at the last PAID payslip, the standing assumption `ytdAutoSource` makes too: the payslip still
-  // being earned is in no Taxable Pay figure, and counting its basic (as capping at today's period
-  // did) left the estimate about one payslip of basic pay short (paycalc-2-12).
+  // cap at the last PAID payslip (`ytdAutoSource`'s assumption): the payslip still being earned is in
+  // no Taxable Pay figure, and counting its basic would leave the estimate a payslip's basic short.
   const now    = new Date();
   const capNum = srcNum || ([...getPeriods()].reverse().find(/** @param {any} p */ p => p.payday <= now)?.num ?? 0);
   const covered = getPeriods().filter(/** @param {any} p */ p => {
@@ -212,13 +195,10 @@ function _expectedNonPremiumYtd(ty) {
   if (unpriced) return { nonPremium: 0, count: covered.length, upTo, unpricedAward: null, unrecordedPremium: null, unpriced };
   let nonPremium = 0;
   for (const p of covered) {
-    // Pro-rate EVERY non-premium component by the joining factor (v18.55), mirroring calculate()
-    // (London ×_proRateFactor in paycalc-app.js, pension ×getProRateFactor via periodDefaultPension)
-    // and the real payslip. `basic` already carries the factor via getEffectiveContr; London and
-    // pension were left at FULL value — so for a mid-year joiner every pre-start period (factor 0)
-    // added phantom "London − pension" non-premium pay (~£129/period) and the joining period
-    // double-counted, biasing the rough 'ytd' HPP estimate LOW. Factor is 0 for a fully-pre-start
-    // period and 1 for long-servers / noProRate returns, so this never over-reaches.
+    // Pro-rate EVERY non-premium component by the joining factor, mirroring calculate() and the real
+    // payslip (`basic` carries it via getEffectiveContr): at full value, a mid-year joiner's pre-start
+    // periods add phantom "London − pension" pay and bias the estimate LOW. Factor is 0 for a
+    // fully-pre-start period and 1 for long-servers / noProRate returns, so this never over-reaches.
     const factor  = getProRateFactor(p);
     // The rate the payslip was PAID at, by the grades of its days (paycalc-settings.js → periodRate).
     const basic   = getEffectiveContr(p) * /** @type {number} */ (periodRate(ty, p).rate);
@@ -247,7 +227,7 @@ function _expectedNonPremiumYtd(ty) {
   // A lump inside the figure that the record cannot split is NAMED on the card, never guessed.
   const unpricedAward = (_award && _award.nonPremium == null
     && covered.some(/** @param {any} p */ p => p.num === _award.carrier.num)) ? _award.carrier : null;
-  // So is a PREMIUM inside the figure that no tax year on record claims (v26.22): the first year's
+  // So is a PREMIUM inside the figure that no tax year on record claims: the first year's
   // January payslip carries the year before's, which TAX_YEARS does not hold (16 Jan 2026, 2024/25's),
   // so it cannot come out. Nor can a year ON record whose premium the member has not recorded (no
   // confirmed figure and no estimate) — read as £0, it went uncaveated. A member with no payslip in
@@ -344,7 +324,7 @@ export function readHppState(ty) {
 
 /**
  * Tax years whose saved amount-source choice was UNREADABLE when restored and has not been chosen
- * again since (paycalc-2-10). The card falls back to the hours estimate, and until the member picks
+ * again since. The card falls back to the hours estimate, and until the member picks
  * an option calcHPP neither overwrites the stored figure — which may be their own typed premium,
  * feeding the January payslip — nor stays silent about why the card shows something else.
  * @type {Set<string>}
@@ -362,8 +342,7 @@ export function saveHppState(ty) {
 
 /** Restore a tax year's saved mode + exact-figure input into the DOM (called before calcHPP reads it
  *  on a period/year change). Missing or unreadable → default 'hours'. Read through `readHppState`,
- *  which is total: this runs inside start-up (onPeriodChange), and `JSON.parse('null').exact` threw
- *  there on every load for a restored backup holding `null` (paycalc-2-7). @param {any} ty */
+ *  which is total: this runs inside start-up (onPeriodChange), where a throw breaks every load. @param {any} ty */
 export function restoreHppState(ty) {
   const s = readHppState(ty);
   if (ty) { if (s.damaged) _hppChoiceUnreadable.add(ty.label); else _hppChoiceUnreadable.delete(ty.label); }
@@ -374,8 +353,7 @@ export function restoreHppState(ty) {
 
 /** The status-word label: bare "Estimated" when a prior-year subhead carries the year, else the
  *  self-contained form. The member's OWN figure ('exact' mode) is not an estimate, so it is labelled
- *  as theirs (polish round 2) — it read "ESTIMATED" over a number the member had typed themselves.
- *  The two estimate modes ('hours', 'ytd') keep "Estimated". @param {any} ty @param {string} [mode] */
+ *  as theirs; the two estimate modes ('hours', 'ytd') keep "Estimated". @param {any} ty @param {string} [mode] */
 function _hppLabelText(ty, mode = 'hours') {
   const idx = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
   const hasPrior = idx > 0 && isTaxYearVisible(CONFIG.TAX_YEARS[idx - 1]);
@@ -426,14 +404,12 @@ function _renderHppManual(ty, mode) {
     if (Math.round(hpp * 100) > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
     if (amountEl) amountEl.textContent = y.below ? '£–' : fmt(hpp);
     if (basisEl) {
-      // A back-pay lump in the figure that the record cannot split (the CES 2025/26 award, whose old
-      // rate is not on record) is SAID, never guessed out (owner, 10 Nov 2026).
+      // A back-pay lump in the figure that the record cannot split is SAID, never guessed out (owner).
       const c = y.unpricedAward;
       const lumpNote = c
         ? ` <span class="hpp-partial-hint">This may include back pay: the pay-rise lump on your ${fdLong(c.payday)} payslip is part of your Year to Date pay, and the rates needed to take it out aren't on record, so this figure may be too high.</span>`
         : '';
-      // Last year's premium inside the figure, when no record says how much it was (v26.22) — the
-      // same rule: said, never guessed out.
+      // Last year's premium inside the figure, when no record says how much it was: said, never guessed out.
       const u = y.unrecordedPremium;
       const premiumNote = u
         ? ` <span class="hpp-partial-hint">This may be a little high: your Year to Date pay includes any Holiday Pay Premium on your ${fdLong(u.payday)} payslip, and the calculator has no record of that to take out.</span>`
@@ -460,15 +436,12 @@ function _renderHppManual(ty, mode) {
 }
 
 /**
- * The hours-mode ('from my payslips') estimate, extracted from calcHPP (v18.40) so it can run in
- * EVERY mode — it feeds the per-radio figures as well as the hours-mode render. NO side effects:
- * no DOM writes, no persistence (calcHPP's hours path owns those, guarded on `skipped`).
+ * The hours-mode ('from my payslips') estimate, run in EVERY mode — it feeds the per-radio figures
+ * as well as the hours-mode render. NO side effects: no DOM writes, no persistence (calcHPP's hours
+ * path owns those, guarded on `skipped`).
  *
- * Rate: THIS tax year's stored settled rate — deliberately NOT the live #hourlyRate field.
- * The field shows the PRE-AWARD rate whenever a pre-award period is selected (updateRateForPeriod),
- * so reading it made the whole-year HPP estimate SHIFT depending on which period you were viewing
- * (same year → two different premiums, purely from clicking Prev/Next). The stored year rate is
- * stable across navigation and mirrors updatePriorHpp's prior-year path, which already does this.
+ * Rate: THIS tax year's settled rate — deliberately NOT the live #hourlyRate field, which shows the
+ * PRE-AWARD rate on a pre-award period, so the whole-year estimate would SHIFT with the period viewed.
  *
  * @param {any} ty @param {any[]} allPeriods
  * @returns {{ hpp: number, totalVar: number, pCount: number, usingActuals: boolean,
@@ -478,8 +451,7 @@ function _hoursEstimate(ty, allPeriods) {
   const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
     // Exclude periods ENTIRELY before a mid-year joiner's start (getProRateFactor 0 — never for a
-    // noProRate return or a member with no startDate): they were named as "Not entered yet" and
-    // counted in "N of 13". And payslips under a role with no rates (pay-audience.js): never CEA's.
+    // noProRate return or a member with no startDate), and payslips under a role with no rates.
     return o >= ty.first && o <= ty.last && getProRateFactor(p) !== 0 && isPeriodPriced(p);
   });
 
@@ -488,13 +460,12 @@ function _hoursEstimate(ty, allPeriods) {
   let paidCount    = 0;   // entered periods whose payday has passed (v18.51 — the "N paid + M upcoming" split)
   let usingActuals = false;
   const skipped = /** @type {number[]} */ ([]);   // periods whose saved data couldn't be read — surfaced, never dropped silently
-  // Paid payslips with NO saved hours (v18.42 — review item 2): named on the card so "4 of 13"
+  // Paid payslips with NO saved hours: named on the card so "4 of 13"
   // becomes actionable. Only PAID paydays — a future payslip isn't "missing", it hasn't happened.
   const missingPaid = /** @type {Date[]} */ ([]);
   const _now = new Date();
-  // Device-local payslip actuals (developer account only; imported once per device, never served).
-  // When a period has real figures, its actual varPay is used instead of the entered-hours
-  // estimate — read once here, not per period.
+  // Device-local payslip actuals (developer account only, never served): a period's real varPay
+  // replaces the entered-hours estimate — read once here, not per period.
   const _actuals = isActualsDev(getLoggedMember()) ? readPayslipActuals() : null;
 
   periods.forEach(/** @param {any} p */ p => {
@@ -530,11 +501,9 @@ function _hoursEstimate(ty, allPeriods) {
 }
 
 /**
- * Print each amount-source's CURRENT figure beside its radio (v18.40 — review item 4), so choosing
- * a mode is informed rather than blind — and a big gap between "from my payslips" and "from Year
- * to Date" is itself a signal the entered hours are incomplete. Estimates carry a leading "≈";
- * the member's own exact figure is shown plain. A source with nothing to offer shows nothing
- * (quiet default — the empty span costs no space).
+ * Print each amount-source's CURRENT figure beside its radio, so choosing a mode is informed — and a
+ * big gap between "from my payslips" and "from Year to Date" itself signals incomplete hours.
+ * Estimates carry a leading "≈"; the member's own figure is plain; a source with nothing shows nothing.
  * @param {any} ty @param {{ hpp: number, pCount: number }} hoursRes
  */
 function _updateModeAmounts(ty, hoursRes) {
@@ -554,13 +523,10 @@ function _updateModeAmounts(ty, hoursRes) {
  * Compute and display the HPP estimate for the current tax year.
  * Called by calculate() after every calculation.
  *
- * Back pay is deliberately NOT added into the premium here (invariant 5). calcHPP prices EVERY
- * period of the year at its SETTLED (post-award) rate (settledRateFor), so a pre-award period already
- * contributes its variable pay AT THE NEW RATE — the award uplift, which is the lump's variable
- * portion, so adding the lump counted it twice. The TOTAL is every period's variable pay at the new
- * rate × 7.69%, combined lump or separate. The paid-in tick still adds the lump to that period's
- * TAKE-HOME. Do not re-thread back pay in without switching the whole-year pricing to period-aware
- * rates (rejected: the estimate shifted with the viewed period). London accrues none (invariant 6).
+ * Back pay is deliberately NOT added into the premium here (invariant 5): every period is priced at
+ * its SETTLED (post-award) rate (settledRateFor), which already includes the award uplift — the
+ * lump's variable portion — so adding the lump would count it twice. The paid-in tick still adds the
+ * lump to that period's TAKE-HOME. London accrues none (invariant 6).
  */
 export function calcHPP() {
   const allPeriods = getPeriods();
@@ -577,31 +543,24 @@ export function calcHPP() {
   const _noteEl = document.getElementById('hppNote');
   if (_noteEl) _noteEl.innerHTML = _hppNoteHtml(ty);
 
-  // The hours estimate is computed in EVERY mode now (v18.40 — review item 4): it feeds the
-  // per-radio figures so choosing an amount source is informed, not blind. Persistence stays
+  // The hours estimate is computed in EVERY mode (it feeds the per-radio figures); persistence stays
   // strictly per-mode below — only the ACTIVE mode's figure is written to hppEstKey.
   const hoursRes = _hoursEstimate(ty, allPeriods);
   _updateModeAmounts(ty, hoursRes);
 
-  // Manual amount sources ('ytd' / 'exact') short-circuit the per-payslip estimator below (v18.32).
+  // Manual amount sources ('ytd' / 'exact') short-circuit the per-payslip estimator below.
   if (_mode !== 'hours') { _renderHppManual(ty, _mode); updatePriorHpp(ty); return; }
 
   const { hpp, totalVar, pCount, usingActuals, skipped: _skipped } = hoursRes;
   const amountEl = document.getElementById('hppAmount');
   const basisEl  = document.getElementById('hppBasis');
 
-  // Persist the running estimate so it survives when the user moves to the next
-  // tax year. Delete when the estimate drops to zero to avoid a stale figure
-  // silently being added to the January payslip after entries are cleared —
-  // but NEVER when periods were skipped as corrupt: a zero produced by failing to
-  // READ the data is not "entries cleared", and wiping the previously-persisted
-  // (correct) estimate would compound the loss.
-  // Only touch the persisted estimate when the computation was CLEAN (no unreadable periods).
-  // When periods were skipped, `hpp` is UNDER-stated (missing them) — so neither overwrite a
-  // previously-complete stored figure (the pre-v17.26 bug: `if (hpp > 0)` wrote regardless) nor
-  // delete it. The card still SHOWS the understated hpp with the "may be too low" warning.
-  // Nor while this year's saved CHOICE is unreadable: hours mode is then a fallback nobody chose, and
-  // the stored figure may be the member's own (paycalc-2-10).
+  // Persist the running estimate so it survives into the next tax year; delete it at zero so a
+  // stale figure is not added to the January payslip after entries are cleared. Only when the
+  // computation was CLEAN: with periods skipped as corrupt, `hpp` is UNDER-stated, so neither
+  // overwrite nor delete a stored figure (the card still SHOWS it, with the "may be too low"
+  // warning). Nor while this year's saved CHOICE is unreadable: hours mode is then a fallback
+  // nobody chose, and the stored figure may be the member's own.
   const _choiceLost = _hppChoiceUnreadable.has(ty.label);
   if (_skipped.length === 0 && !_choiceLost) {
     if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
@@ -620,14 +579,11 @@ export function calcHPP() {
   } else {
     if (amountEl) amountEl.textContent = fmt(hpp);
     if (basisEl) {
-      // Show pCount OUT OF the year's total periods so a member with only a few payslips entered
-      // sees WHY the figure is small (the single biggest support-question risk — a partial estimate
-      // looks authoritative). One 4-weekly period = one payslip, so "payslips" reads plainer than
-      // "periods" for staff.
+      // Show pCount OUT OF the year's total payslips, so a member with only a few entered sees WHY
+      // the figure is small (a partial estimate looks authoritative).
       const _total = hoursRes.total;
-      // When entered periods include FUTURE payslips (calendar-filled ahead of time), say so —
-      // "11 of 13 entered" hid that 7 of them hadn't been paid yet, which made the count clash
-      // with the Year to Date card's "4 of 4 paid" frame (v18.51 — owner's screenshot review).
+      // When entered periods include FUTURE payslips (calendar-filled ahead of time), say so, or the
+      // count clashes with the Year to Date card's "4 of 4 paid" frame.
       const _upcoming = pCount - hoursRes.paidCount;
       const _countPhrase = _upcoming > 0
         ? `${hoursRes.paidCount} paid and ${_upcoming} upcoming ${hoursRes.paidCount + _upcoming === 1 ? 'payslip' : 'payslips'} entered`
@@ -636,8 +592,8 @@ export function calcHPP() {
         ? `All ${pCount} payslips of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
         : `${_countPhrase} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
       // Clean partial (no unreadable periods): nudge the member that the estimate isn't the
-      // full-year figure yet, NAMING the paid payslips still empty so "N of M" is actionable
-      // (v18.42 — review item 2). All paid payslips entered → say so; only future ones remain.
+      // full-year figure yet, NAMING the paid payslips still empty so "N of M" is actionable.
+      // All paid payslips entered → say so; only future ones remain.
       if (!usingActuals && _skipped.length === 0 && pCount < _total) {
         const _miss = hoursRes.missingPaid;
         basisEl.innerHTML += ` <span class="hpp-partial-hint">${_miss.length
@@ -668,10 +624,8 @@ export function calcHPP() {
 
 /**
  * What a confirmed prior-year premium, as typed, is STORED as: a clean 2dp figure, or null to clear
- * the confirmation. Never the text verbatim — a payslip-style "1,200" or "£350" was read back later
- * with parseFloat as 1 or NaN. A box left blank, or holding something that is not a figure, clears
- * it rather than confirming £0; a typed 0 IS a confirmed figure (a year of absence); a negative is
- * floored to 0, since a payslip's premium cannot be one.
+ * the confirmation — never the text verbatim ("1,200" reads back through parseFloat as 1). Blank or
+ * not a figure clears it; a typed 0 IS a confirmed figure (a year of absence); a negative floors to 0.
  * @param {string} raw @returns {string|null}
  */
 export function priorHppToStore(raw) {
@@ -681,10 +635,9 @@ export function priorHppToStore(raw) {
 
 /**
  * Commit the prior-year premium typed on the card of payslip year `ty` into THAT year's prior year,
- * and repaint the section. The caller commits on `change` (leaving the field), never per keystroke:
- * per keystroke, typing "843" flashed "✓ Confirmed £8.00" on the way, and a select-all then a stray
- * key — or an abandoned edit — deleted a confirmed figure, so the estimate resurfaced in the January
- * take-home. The first tax year on record has no prior year to commit to.
+ * and repaint the section. The caller commits on `change` (leaving the field), never per keystroke,
+ * which flashed "✓ Confirmed £8.00" on the way to 843 and let a stray key delete a confirmed figure.
+ * The first tax year on record has no prior year to commit to.
  * @param {any} ty - the viewed payslip's tax year @param {string} raw - the field's text
  */
 export function commitPriorHppActual(ty, raw) {
@@ -728,11 +681,9 @@ function _savedSourceOf(ty) {
 }
 
 /**
- * Last year's premium in the words its own card uses for it (paycalc-2-4). This is the figure that
- * lands on the January payslip and can be ticked into its take-home, and it read "Estimated from your
- * 2025/26 periods" over one payslip of thirteen, or over a figure the member typed themselves — while
- * a partial estimate that "looks authoritative" is the support risk calcHPP's own count exists for.
- * The count is a fact about what is saved, so it is stated as one ("N of M … entered").
+ * Last year's premium in the words its own card uses for it — never "Estimated from your periods"
+ * over one payslip of thirteen, or over a figure the member typed themselves. The count is a fact
+ * about what is saved, so it is stated as one ("N of M … entered").
  * @param {any} priorTy @param {'hours'|'ytd'|'exact'|'unknown'} source @returns {string}
  */
 function _priorSourcePhrase(priorTy, source) {
@@ -760,23 +711,19 @@ export function updatePriorHpp(ty) {
   }
 
   const priorTy   = /** @type {any} */ (CONFIG.TAX_YEARS[tyIdx - 1]);
-  // New-starter visibility clamp (v15.97): a member who only joined THIS tax year was never
-  // employed in the prior year, so they earn no prior-year HPP — hide the section entirely, the
-  // same clamp the period select / tax-year tabs / prev-next already honour. Without this a new
-  // starter saw a misleading "No <prior year> variable pay recorded — check your January payslip"
-  // prompt for a year they never worked (whole-codebase review, paycalc-maths finding #1).
+  // New-starter visibility clamp: a member who only joined THIS tax year earns no prior-year HPP —
+  // hide the section entirely, the clamp the period select / tax-year tabs / prev-next honour.
   if (!isTaxYearVisible(priorTy)) { section.classList.add('hidden'); return; }
   const estRaw    = lsGet(hppEstKey(priorTy));
   const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
   let _priorSkipped = 0;   // corrupt prior-year periods — surfaced on the card, never console-only (v16.70)
-  // A confirmed actual is any stored FIGURE, not `> 0` — a member who enters a genuine £0 from their
-  // payslip has confirmed it (v17.26); a pre-v16.84 raw "1,200" self-heals. One rule with the
+  // A confirmed actual is any stored FIGURE, not `> 0` (a genuine £0 is confirmed). One rule with the
   // take-home's, so the card and the January payslip can never disagree about what is confirmed.
   const { hasActual, amount: actual } = resolveHppForPeriod(actualRaw, null);
   const _anyStored = actualRaw != null && actualRaw.trim() !== '';   // even text that is not a figure
   // A STORED figure is whatever that year's own amount source last wrote; one computed below is from
-  // the saved hours. The block says which (paycalc-2-4) — see _priorSourcePhrase.
+  // the saved hours. The block says which — see _priorSourcePhrase.
   const _fromStore = est > 0;
 
   // If no stored estimate yet, compute on the fly so the prior-year HPP section
@@ -795,7 +742,7 @@ export function updatePriorHpp(ty) {
       }, 0);
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
-      // The PRIOR year's settled rate — derived from AWARD_RATES per tax year (v17.87), so last
+      // The PRIOR year's settled rate — derived from AWARD_RATES per tax year, so last
       // year prices at last year's rate, never the current one — and per payslip, by the grades its
       // days were worked under (settledRateFor).
       let _priorVar = 0;
@@ -823,8 +770,7 @@ export function updatePriorHpp(ty) {
   const pNum = currentPeriodNum();
   const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   // Is the payslip on screen the one that carries LAST year's premium? Asked of the shared
-  // schedule (paycalc-hpp-schedule.js) rather than re-derived here — four hand-rolled copies of
-  // this relation is how the v18.84 year-summary bug happened.
+  // schedule (paycalc-hpp-schedule.js) rather than re-derived here (invariant 4).
   const _carrier = hppPayslipForTaxYear(priorTy, getPeriods());
   const isJanPayday = !!(curP && _carrier && _carrier.num === curP.num);
 
@@ -837,11 +783,8 @@ export function updatePriorHpp(ty) {
   if (dueBadge) dueBadge.classList.toggle('hidden', !isJanPayday || hasActual);
 
   // The confirm box opens once the January payslip carrying the premium can be IN THE MEMBER'S HAND —
-  // from its cut-off, not its payday: payslips are issued before they pay, and `payslipMayBeInHand`
-  // is the app's one rule for that (v24.87), already obeyed by the Year to Date picker and the
-  // "Check against your payslip" box. On the payday proxy this box stayed locked for six days while
-  // the card above it said "enter the confirmed amount below" (paycalc-2-3). A stored actual keeps
-  // it open whatever the date: a wrong figure must never be locked in.
+  // from its cut-off, not its payday (`payslipMayBeInHand`, the app's one rule for that). A stored
+  // actual keeps it open whatever the date: a wrong figure must never be locked in.
   const inHand = !!(_carrier && payslipMayBeInHand(/** @type {any} */ (_carrier)));   // a full grid period
 
   const amtLabel = document.getElementById('priorHppAmtLabel');
@@ -864,12 +807,12 @@ export function updatePriorHpp(ty) {
   } else {
     if (amtLabel) amtLabel.textContent = 'Estimated';
     if (amtEl)    amtEl.textContent    = '£–';
-    // "No variable pay recorded" would be a LIE when the truth is unreadable saved data (v16.70).
+    // "No variable pay recorded" would be a LIE when the truth is unreadable saved data.
     if (basisEl)  basisEl.textContent  = _priorSkipped > 0
       ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} payslip${_priorSkipped > 1 ? 's' : ''} — open ${_priorSkipped > 1 ? 'those periods' : 'that period'} and enter the hours again, then check your January ${priorTy.hppPaidJan} payslip`
       : `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
   }
-  // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so (v16.70).
+  // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so.
   if (_priorSkipped > 0 && !hasActual && est > 0 && basisEl) {
     basisEl.innerHTML += ` <span class="pay-skip-warn"><span aria-hidden="true">⚠️</span> Couldn't read ${_priorSkipped} saved period${_priorSkipped > 1 ? 's' : ''}, so this may be too low.</span>`;
   }
@@ -883,13 +826,13 @@ export function updatePriorHpp(ty) {
     if (document.activeElement !== input) /** @type {HTMLInputElement} */ (input).value = stored;
     /** @type {HTMLInputElement} */ (input).disabled = !inHand && !_anyStored;
   }
-  // The entry apparatus must not go stale once a figure is confirmed (v17.99): the "enter when the
+  // The entry apparatus must not go stale once a figure is confirmed: the "enter when the
   // payslip arrives" note only shows while EMPTY, and the hint flips to how to undo.
   const actNote = document.getElementById('priorHppActualNote');
   if (actNote) actNote.classList.toggle('hidden', hasActual);
   const actHint = document.getElementById('priorHppActualHint');
   // The premium joins a take-home only through the opt-in tick in that payslip's green note, so the
-  // hint says where that is rather than promising the take-home changes on its own (paycalc-2-1).
+  // hint says where that is rather than promising the take-home changes on its own.
   if (actHint) actHint.innerHTML = hasActual
     ? 'Entered from your January payslip — clear the box to go back to the estimate.'
     : inHand

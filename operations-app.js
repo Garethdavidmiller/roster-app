@@ -48,48 +48,29 @@ import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
 
 /**
- * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init()
- * called by operations-boot.js (a 2-line bootstrap — CSP `script-src 'self'`
- * blocks inline module scripts). This replaces the former top-level `throw`s
- * (which aborted module evaluation on the login/forbidden paths) with explicit
- * early `return`s, and lets a test import this module WITHOUT auto-running it.
- * Body unchanged otherwise — same statements, same order, one indent level in.
+ * The coordinator body, called by operations-boot.js (CSP `script-src 'self'` blocks an inline module
+ * call), so a test can import this module WITHOUT running it. The login and forbidden paths return early.
  */
 export function init() {
     reloadIfRestoredForSomeoneElse();
-    // Register the service worker UNCONDITIONALLY, before the access gate — a signed-out (or
-    // non-admin) visit returns early below and would otherwise never register/update the SW for
-    // that page load (v16.21). Settings registers before its sign-in decision too.
-    // Defer an SW-update reload while an admin is mid-way through a Weekly Roster Upload REVIEW —
-    // the one piece of unsaved, in-flight work on this page (uncommitted review edits would be lost
-    // on a reload). #rosterReviewSection carries `.visible` only while a review table is on screen;
-    // otherwise reload immediately. Mirrors admin-app.js's hasUnsavedChanges guard. (v18.29)
-    // A roster PARSE in flight (the form is locked, #rosterType disabled) and a document UPLOAD in
-    // flight (doc-upload.js marks its button `data-uploading`) are in-flight work too: a reload
-    // mid-way loses the parse's answer, or leaves an upload unconfirmed (Sep 2026 review).
-    // Asked again at the moment of reloading (v24.61): the `{ once: true }` listener this replaced
-    // reloaded on the FIRST hide whether or not the review, parse or upload had finished — and if it
-    // had not, the one chance was spent and the page never reloaded for that release at all.
-    // And a WRITE still on its way holds it, read from the writes themselves (`writesInFlight`, as
-    // Admin and Settings do) rather than from the screen: a roster save in several parts whose review
-    // was dismissed is invisible to the three checks above, and a reload between parts strands the
-    // rest (Nov 2026 review). That count includes a write whose outcome is UNKNOWN, which holds the
-    // reload for good (v25.21; AUTH_AND_SESSIONS invariant 22): in a second tab Firestore keeps it in
-    // memory only, so a reload could lose it. The reader was told to reload; that is theirs to do.
-    // And a Document links check or run still waiting for its answer holds it too (v25.92): a run can
-    // take minutes, and its report is the only record of what it did (operations-doc-links.js).
-    // And an Annual leave sheet check, running or on screen, holds an UPDATE; a tap only its unsaved answers:
+    // Register the service worker UNCONDITIONALLY, before the access gate: a signed-out or non-admin
+    // visit returns early below and would otherwise never register or update it.
+    // An update reload waits — asked again at the moment of reloading — for the work a reload loses: a
+    // roster upload REVIEW on screen, a roster PARSE (#rosterType disabled), a document UPLOAD
+    // (`data-uploading`), any WRITE still on its way (`writesInFlight`, which includes one whose outcome
+    // is UNKNOWN and so holds it for good — AUTH_AND_SESSIONS 22), and a Document links check or run,
+    // whose report is the only record of what it did. An Annual leave sheet check, running or on
+    // screen, holds an UPDATE; a tap waits only for its unsaved answers:
     const _opsBusy = () =>
         !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
         || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
         || !!document.querySelector('[data-uploading]')
         || writesInFlight() > 0
         || docLinksRequestInFlight();
-    // a tap is the reader's own choice, and a check with nothing answered has nothing to lose (operations-al-sheet.js).
+    // a tap is the reader's own choice (operations-al-sheet.js).
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => _opsBusy() || alSheetBusy()), isBusy: () => _opsBusy() || alSheetUnsaved() });
-    // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
-    // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
-    // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
+    // Tear down a privileged Firebase identity whose local session has expired, so a deep link cannot
+    // keep an old credential live. Fire-and-forget and login-safe.
     reconcileExpiredIdentity().catch(() => {});
     // ============================================
     // SESSION — read from localStorage (shared with admin-app.js via session.js)
@@ -97,24 +78,14 @@ export function init() {
     const currentSession = getSession();
     const currentUser    = currentSession?.name ?? null;
 
-    // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 4a).
-    // The "local-derived" snapshot maps the localStorage session to an identity status — present →
-    // 'named' (today's optimistic fast render from local), absent → 'signedOut' — and requirePage
-    // applies the Operations policy (admin-only). Behaviour is identical to the prior two-gate form;
-    // this routes the same decision through the shared authz layer instead of inline checks.
+    // Page access (auth-policy.js): the local session maps to 'named' (the optimistic fast render) or
+    // 'signedOut', and requirePage applies the Operations policy — admin only.
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
     if (_access.decision === 'login') {
-        // Not signed in → show the shared in-place sign-in (no redirect). On success, re-invoke init()
-        // in place: the authorised body below never ran on this pass (we return now), so re-entering
-        // runs it exactly ONCE with the just-saved session — no reload, no double-wiring. Do NOT
-        // resolveSession(false) here, or the one-shot sessionReady would be poisoned before the
-        // in-place pass can resolve it true.
-        // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
-        // path is never less robust than the reload path (the overlay is already torn down by then).
-        // If saveSession silently failed (iOS private mode — lsSet swallows the error), getSession()
-        // is still null, so re-invoking init() would re-enter the 'login' branch where
-        // initLoginOverlay no-ops (overlay already mounted) and the button stays stuck on
-        // "Signed in…" — a soft-lock. Reload instead to present a fresh, usable overlay.
+        // Not signed in → the shared in-place sign-in. On success init() runs again, and the authorised
+        // body below runs exactly ONCE. Do NOT resolveSession(false) here: sessionReady is one-shot.
+        // A reload instead if init() throws, or if the session did not save (iOS private mode): the
+        // 'login' branch again would find the overlay mounted and soft-lock on "Signed in…".
         const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
         initLoginOverlay({ pageLabel: 'Operations', onSuccess });
         return;
@@ -129,36 +100,24 @@ export function init() {
     // remove it to reveal the page. No-op on a normal already-signed-in load (no overlay present).
     dismissLoginOverlay();
 
-    // Resolve sessionReady so admin-auth.js and huddle.js (feature modules) can
-    // import sessionReady and await it instead of reading window._mybSession.
+    // Resolve sessionReady, which the feature modules (admin-auth.js, huddle.js) await.
     const _opsAuth = ensureNamedSession(currentUser);
     resolveSession(_opsAuth);
-    // B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
-    // the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
-    // `requirePage(getAuthSnapshot(), 'operations')` returns 'login' exactly when the member's OWN
-    // named session could not be confirmed.
     // An own session that cannot be confirmed signs in again now; one revoked LATER does too
     // (page-session.js — the same follow-up every named page runs).
     guardNamedSession({ page: 'operations', pageLabel: 'Operations', member: currentUser, established: _opsAuth });
-
-    // The Operations read cards (Work Email, Error Log, Usage, App Speed) read admin-gated collections.
-    // Immediately after "Set up accounts" the freshly-minted token doesn't yet carry the `admin` claim
-    // (Firebase refreshes ID tokens ~hourly), so the first read fails `permission-denied` even though the
-    // account IS an admin. `withClaimRetry` (firebase-client.js) forces one token refresh + one retry to
-    // pick up the claim immediately — read/write-agnostic, so these reads use the same helper as the write
-    // paths instead of a byte-identical local copy (v17.08; was `adminReadWithRetry`).
+    // The admin-gated reads below go through `withClaimRetry`: just after "Set up accounts" the token
+    // may not carry the `admin` claim yet, and one refresh picks it up.
 
 
     // ============================================
     // PAGE INIT
     // ============================================
     document.body.classList.add('auth-ready');
-    // The page's content is on screen from this line: `.container` is `display:none` until
-    // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
+    // The page's content is on screen from this line (`.container` is hidden until `auth-ready`).
     markPageReady();
 
-    // Assigned by the About-lightbox IIFE further down; the closure below only reads
-    // it when the drawer logo is tapped, by which point it is set.
+    // Assigned by the About-lightbox IIFE further down, before any drawer-logo tap can read it.
     /** @type {any} */
     let openAboutLightbox = null;
 
@@ -184,8 +143,7 @@ export function init() {
         currentIsAdmin: true,
         parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
         getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
-        // Nothing to re-read: this page has no Saved Changes list. Admin's loadOverrides returned at once
-        // here (no member picker), and importing it loaded a dozen Admin modules (Nov 2026 review).
+        // Nothing to re-read: this page has no Saved Changes list (and importing Admin's loads a dozen modules).
         loadOverrides: async () => {},
     });
 
@@ -207,9 +165,8 @@ export function init() {
     initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
     initCardCollapse('alSheetToggleHeader',        'alSheetBody',        'alSheetChevron');
     const authSetupCard = initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
-    // Account status collapse wired ONCE here (not inside initAccountStatus) — its _cardLoadError
-    // retry re-invokes initAccountStatus, and initCardCollapse has no idempotency guard, so wiring it
-    // there would add a duplicate listener per failed load (an even number of retries → dead toggle).
+    // Wired ONCE here, not in initAccountStatus: its retry re-runs that, and initCardCollapse has no
+    // idempotency guard (an even number of retries → a dead toggle).
     initCardCollapse('accountStatusToggleHeader', 'accountStatusBody', 'accountStatusChevron');
     // A card this page opens BY CODE keeps its handle: `setOpen` is the one place a card's open state
     // is written (card-collapse.js), and a hand-made second copy here could drift from what a tap does.
@@ -218,14 +175,9 @@ export function init() {
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
 
-    // Deep link from the reset-request push (v18.95). The notification lands the admin on this page,
-    // which has nine collapsed cards — without this they would arrive and still have to go find the
-    // one the notification was about. Opens that card and scrolls it into view.
-    //
-    // Driven by the hash rather than a query so it costs nothing to add another later; the map is the
-    // allowlist, so an arbitrary hash can never expand an unrelated card. Runs on load AND on
-    // hashchange, because tapping the notification while Operations is already open re-navigates an
-    // existing client (see the SW's notificationclick) and fires only hashchange.
+    // Deep links (a push lands here, on a page of collapsed cards): open that card and scroll to it. The
+    // map is the allowlist, so an arbitrary hash can never expand an unrelated card. On load AND on
+    // hashchange — a notification tap while the page is open fires only hashchange.
     /** @type {Record<string, [{ setOpen(open: boolean): void }, string]>} hash → [collapse handle, cardId] */
     const DEEP_LINK_CARDS = {
         '#reset-requests': [resetRequestsCard, 'resetRequestsCard'],
@@ -242,15 +194,13 @@ export function init() {
         card.setOpen(true);
         document.getElementById(cardId)?.scrollIntoView({
             block: 'start',
-            // Under prefers-reduced-motion the jump is instant: a notification tap should not
-            // throw the page around for somebody who has asked for less motion.
+            // Instant under prefers-reduced-motion.
             behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
         });
     }
     /** A deep link has done its job once its card is open, so the hash is STRIPPED: a second tap on
      *  the same notification is then a hash CHANGE, where a repeat of an unchanged hash fired nothing.
-     *  And a reset-request tap while this page is already open REFRESHES the queue — it was read when
-     *  the page loaded, so the new request was not in it (Sep 2026 review). */
+     *  And a reset-request tap while this page is open REFRESHES the queue, read before the request came. */
     function followDeepLink(/** @type {boolean} */ refresh) {
         if (!DEEP_LINK_CARDS[location.hash]) return;
         const hash = location.hash;
@@ -262,24 +212,19 @@ export function init() {
     window.addEventListener('hashchange', () => followDeepLink(true));
     // Back to a tab left open: the queue may have grown while it was hidden.
     document.addEventListener('visibilitychange', () => {
-        // A REFRESH, not a re-open (48-hour review): the admin may have closed the card, and every
-        // return to the tab forced it open again. The list and the count chip still update.
+        // A REFRESH, not a re-open: the admin may have closed the card. The list and the chip still update.
         if (document.visibilityState === 'visible') initResetRequests({ autoOpen: false });
     });
 
-    // The Needs-attention strip (v22.03) — an index the cards feed; it runs no reads of its own
-    // (operations-attention.js header has the three refusals that ARE the design).
+    // The Needs-attention strip — an index the cards feed; it runs no reads of its own (operations-attention.js).
     const attention = createAttentionStrip({
         container: document.getElementById('attentionStrip'),
         onJump: (hash) => openDeepLinkedCard(hash),
     });
 
-    // Staff Login Accounts. AFTER the strip exists, deliberately — `onAttention` fires from an async
-    // read so a `const` declared below would happen to work, and "happens to work by timing" is not
-    // a thing to leave in a file this long. The audit feeds the strip only when it ANSWERED:
-    // admin-auth.js reports nothing on a failed or refused check, because an unreported item is
-    // UNKNOWN to the strip while an absent one reads as nothing to do — and a check that fails after
-    // one that answered WITHDRAWS what that one reported, so the strip goes back to unknown with it.
+    // Staff Login Accounts, AFTER the strip exists — not left to timing. The audit feeds the strip only
+    // when it ANSWERED (unreported is UNKNOWN, absent reads as nothing to do), and a check that fails
+    // after one that answered WITHDRAWS what that one reported.
     initAuthSetup({
         currentIsAdmin: true,
         onAttention: (counts) => reportLoginAccounts(attention, counts),   // with the PIN lockout's (operations-attention.js)
@@ -289,20 +234,14 @@ export function init() {
     // ============================================
     // ACCOUNT STATUS  (work email + password, per member)
     // ============================================
-    // The single per-member account-admin table (v18.65 — merged from the former Work Email Progress
-    // + Account status cards, which duplicated the email column). Joins getAllStaffContacts +
-    // getAllPasswordStatus (both admin-only reads) and renders, per member: the work email (address +
-    // Set/Edit/Remove) and the password posture (own password vs surname default + a break-glass
-    // Reset). Grade filter + two count summaries. PASSWORD_DESIGN.md §6.
+    // One per-member table joining getAllStaffContacts + getAllPasswordStatus (both admin-only): the work
+    // email (Set/Edit/Remove) and the password posture with a break-glass Reset. PASSWORD_DESIGN.md §6.
     async function initAccountStatus() {
         const contentEl = document.getElementById('accountStatusContent');
         if (!contentEl) return;
         const content = /** @type {HTMLElement} */ (contentEl);
-        // Eligible = active accounts + management (managerOnly: hidden from the calendar but login-capable).
-        // Excludes leavers. Management DO have Settings — `auth-policy.js` gates it on `requireNamed`
-        // with no role — so this card is a convenience for doing it on their behalf, not the only
-        // route. This comment said otherwise until v23.36; the same claim was corrected in the
-        // `account-status` tip below and not carried back here.
+        // Eligible = active accounts + management (managerOnly: off the calendar but login-capable); no
+        // leavers. Management have Settings too, so for them this card is a convenience, not the only route.
         const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
         /** @type {Map<string, string>} name → work email */
         let emailMap = new Map();
@@ -322,10 +261,8 @@ export function init() {
         /** @type {HTMLElement} */ let summaryEl;
         /** @type {HTMLElement} */ let listEl;
 
-        /** A row button's words and its name change TOGETHER, and the name LEADS with the words (WCAG
-         *  2.5.3, Nov 2026 review): fixed names went on describing buttons whose words had changed —
-         *  "Cancel", "Confirm?", "Retry" — and "Set email" was named "Set work email for …", so a voice
-         *  user saying what they saw reached nothing. @param {Element} btn @param {string} text @param {string} name */
+        /** A row button's words and its name change TOGETHER, and the name LEADS with the words (WCAG 2.5.3:
+         *  a voice user says what they see). @param {Element} btn @param {string} text @param {string} name */
         const say = (btn, text, name) => { btn.textContent = text; btn.setAttribute('aria-label', name); };
         const sayEmail = (/** @type {Element} */ btn, /** @type {string} */ nm) => (emailMap.has(nm)
             ? say(btn, 'Edit', `Edit email for ${nm}`) : say(btn, 'Set email', `Set email for ${nm}`));
@@ -357,35 +294,22 @@ export function init() {
             row.className = 'acct-row';
             row.dataset.member = m.name;
 
-            // Head line: name · password posture · Reset (ALWAYS — v18.84). Reset used to render only
-            // for a MIGRATED member ("a surname-default account has nothing to reset TO"), which quietly
-            // made the migration flag a security control. It isn't one: changeOwnPassword deliberately
-            // tolerates the Firestore stamp failing after updatePassword has already succeeded (its
-            // stamp settles false and its own JSDoc calls the stamp "a monitoring signal, not
-            // a security control"). A member whose stamp was lost therefore holds a REAL password while
-            // this table reads "Surname default" — and with Reset hidden, the only in-app break-glass
-            // path was gone: their surname no longer signs them in and recovery needed the Firebase
-            // console. Resetting a genuinely surname-default account is harmless (it re-applies the same
-            // default) and still usefully signs their other devices out, so always offer it.
+            // Head line: name · password posture · Reset, ALWAYS. The migration flag is not a security
+            // control: its stamp can be lost after a real password change, and a row reading "Default"
+            // must still offer the only in-app break-glass. Resetting a true default is harmless (and
+            // still signs their other devices out).
             const head = document.createElement('div');
             head.className = 'acct-row-head';
             const nameEl = document.createElement('span');
             nameEl.className = 'acct-name';
             nameEl.textContent = m.name;
-            // The NAME is what identifies the row, and at 375px it was the element being cut
-            // ("C. Francisco-C…", "R. Forrester-Bla…") while a chip reading the same fifteen
-            // characters on all 51 rows kept its full width (v21.72). The chip below gives back the
-            // space that caused it — and since v23.50 the name WRAPS rather than ellipsising, because
-            // the `title` this line used to set "restored it on long-press" only on paper: no phone
-            // shows a title on long-press, so on the device this card is read on the name was cut.
+            // The NAME identifies the row, so at 375px it WRAPS rather than being cut — the short chip below
+            // gives back the room, and no phone shows a `title` on long-press.
             const mig = migrated(m.name);
             const pwEl = document.createElement('span');
             pwEl.className = 'acct-pw' + (mig ? '' : ' acct-pw--warn');
-            // "Default", not "Surname default": the word repeated verbatim down every unmigrated
-            // row and the card's own key explains what the default IS. The full wording stays in
-            // the card's key and its `?` panel — this line used to say "and in the title here",
-            // which stopped being true at v23.50 when every tooltip in the app went.
-            // The ✓ is decoration; "Own" is the whole statement, on ~50 rows (v21.94).
+            // "Default", not "Surname default": the card's key and its `?` panel say what the default IS.
+            // The ✓ is decoration; "Own" is the whole statement.
             pwEl.innerHTML = mig ? '<span aria-hidden="true">✓</span> Own' : 'Default';
             head.append(nameEl, pwEl);
             const resetBtn = document.createElement('button');
@@ -487,16 +411,14 @@ export function init() {
                 }
                 saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; errorEl.textContent = '';
                 try {
-                    // Every write on this page says when the server is slow to answer, as Admin's and
-                    // Settings' do (slow-save.js), rather than sitting on "Saving…" (Nov 2026 review).
+                    // Every write here says when the server is slow to answer (slow-save.js).
                     await withSlowSaveNotice(saveStaffContact(m.name, email));
                     emailMap.set(m.name, email);
                     renderForGrade(filterSelect.value);
                     focusGradeFilter();
                 } catch (e) {
                     console.error('[AccountStatus] email save failed', e);
-                    // An UNKNOWN outcome says so and Save stays off — a second save would only be refused by
-                    // the gate (AUTH_AND_SESSIONS 21/22; the reset-requests Clear already did, v25.06).
+                    // An UNKNOWN outcome says so and Save stays off — the gate would refuse a second (AUTH_AND_SESSIONS 21/22).
                     const unknown = unconfirmedWriteLine(e, 'this save', 'this list');
                     errorEl.textContent = unknown || 'Couldn\'t save — check your connection and try again';
                     saveBtn.disabled = !!unknown; saveBtn.textContent = 'Save';
@@ -505,7 +427,7 @@ export function init() {
 
             input.addEventListener('keydown', e => {   // not the Enter that accepts an input method's suggestion, which saved half-typed text
                 if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); saveBtn.click(); }
-                // Focus back to the button that opened the form, not to the page (Nov 2026 review).
+                // Focus back to the button that opened the form, not to the page.
                 if (e.key === 'Escape') { form.remove(); sayEmail(setBtn, m.name); setBtn.focus(); }
             });
         }
@@ -529,13 +451,12 @@ export function init() {
                 focusGradeFilter();
             } catch (e) {
                 console.error('[AccountStatus] email remove failed', e);
-                // It used to fail SILENTLY — the button just came back. Now it says which kind (v25.06).
+                // Never silent: it says which kind of failure.
                 const unknown = unconfirmedWriteLine(e, 'this removal', 'this list');
                 removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; sayRemove(removeBtn, m.name);
                 const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: unknown || 'Couldn’t remove — check your connection and try again' });
                 msg.setAttribute('role', 'alert'); msg.dataset.removeError = '';
-                // Only ITS OWN earlier line (48-hour review): the first in the row was the open edit
-                // form's, and its next save failure then wrote to a detached element.
+                // Only ITS OWN earlier line: the first in the row may be the open edit form's.
                 removeBtn.closest('.acct-row')?.querySelector('.email-set-error[data-remove-error]')?.remove();
                 removeBtn.closest('.acct-row')?.append(msg);
             }
@@ -566,9 +487,8 @@ export function init() {
                              { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified, lostDevice: result?.lostDevice });
                 confirmDialog({ ...outcome, confirmLabel: 'OK' }).catch(() => {});   // informational; the reset itself already succeeded
             }
-            // Reset SUCCEEDED (member re-defaulted + signed out). The follow-up status re-read is
-            // best-effort — if it fails, do NOT show "Retry"/"Reset failed" (that would prompt a
-            // redundant second reset). Reflect the done state and let the next load reconcile the table.
+            // Reset SUCCEEDED. The status re-read is best-effort: if it fails, never show "Retry" (a
+            // redundant second reset) — show done, and let the next load reconcile the table.
             const sayDone = (/** @type {Element} */ b) => say(b, 'Reset ✓', `Reset done for ${name} — press to reset their password again`);
             try {
                 const fresh = await withClaimRetry(getAllPasswordStatus);
@@ -633,11 +553,9 @@ export function init() {
     // ============================================
     // PASSWORD RESET REQUESTS
     // ============================================
-    // The queue behind the login overlay's "ask the admin to reset your password" link. Read-only here
-    // plus a Clear; the actual reset is the Account status card's button directly below, so the two sit
-    // adjacent. Written ONLY by the requestPasswordReset Cloud Function (no client can write the
-    // collection — firestore.rules), and the name in each row came from the server-owned activeMembers
-    // list, never from the request body, which is what makes it safe to render.
+    // The queue behind the sign-in's "ask the admin to reset your password": read-only plus a Clear; the
+    // reset is Account status's button below. Written ONLY by requestPasswordReset (firestore.rules),
+    // its names from the server-owned member list, never the request body.
     let _rrLoading = false;
     let _rrReloadPending = false;
     let _rrPendingOpen = false;   // a queued reload inherits the strongest ask it stood in for
@@ -646,31 +564,20 @@ export function init() {
         const content = document.getElementById('resetRequestsContent');
         const chip    = document.getElementById('resetRequestsCountChip');
         if (!content) return;
-        // Two Clears in quick succession each started their own load; whichever snapshot landed LAST
-        // won, so an older one could repaint a just-deleted row as a ghost (v18.94).
-        //
-        // The v18.94 guard DROPPED the second refresh, which fixed the ordering but left a subtler
-        // ghost (external review, v18.96): clear A → its refresh starts → clear B → B's refresh is
-        // discarded → A's in-flight snapshot (taken before B was deleted) renders B back, and nothing
-        // is queued to correct it. QUEUE the request instead of dropping it, so the last word always
-        // belongs to a load started AFTER the last delete.
+        // A refresh during a load is QUEUED, never dropped or raced: the last word must belong to a load
+        // started AFTER the last Clear, or an older snapshot repaints a cleared row as a ghost.
         if (_rrLoading) { _rrReloadPending = true; _rrPendingOpen = _rrPendingOpen || autoOpen; return; }
         _rrLoading = true;
         content.setAttribute('aria-busy', 'true');
         try {
-            // Like the other admin reads on this page: after the session exists, and through the
-            // claim-retry, so a stale token is refreshed once instead of reading as a failed load.
+            // After the session, and through the claim-retry, like the page's other admin reads.
             await sessionReady;
             const requests = await withClaimRetry(getResetRequests);
             content.removeAttribute('aria-busy');
             if (chip) chip.textContent = requests.length ? String(requests.length) : '';
             attention.report('resets', requests.length);
             if (!requests.length) {
-                // Same treatment as the Error Log's empty state (v21.72): both cards report that
-                // nothing needs the admin's attention, and they said so in two different voices —
-                // a green ✓ there, plain grey here. On a page of ten cards an admin scans for
-                // trouble, "all clear" has to look the same wherever it appears, or the quieter
-                // one reads as "not loaded yet".
+                // "All clear" looks the same as the Error Log's, or the quieter one reads as "not loaded yet".
                 content.innerHTML = '<p class="email-count-done"><span aria-hidden="true">✓</span> No outstanding requests.</p>';
                 return;
             }
@@ -678,21 +585,14 @@ export function init() {
             // (someone is locked out right now) and this card is collapsed by default.
             if (autoOpen) resetRequestsCard.setOpen(true);
             content.innerHTML = `<div class="rr-list">${requests.map(r => {
-                // escapeHtml even though the writer is server-validated (v18.94). The allowlist IS the
-                // control, but it sits three layers away with no test tying it to this render, and a
-                // crafted name provably broke out of the data-member attribute — retargeting Clear at
-                // another doc id. The two neighbouring cards on this page escape; so does this one now.
+                // Escaped although the writer is server-validated: that control is three layers away, and
+                // a crafted name could break out of data-member and retarget Clear.
                 const safeName = escapeHtml(r.memberName);
                 const when = r.requestedAt?.toDate?.() ? _relativeTime(r.requestedAt.toDate()) : 'recently';
                 const again = (Number(r.count) || 1) > 1 ? ` · asked ${Number(r.count)} times` : '';
-                // provisioned === false means there is no Firebase account at all, so a Reset cannot
-                // help — the remedy is Set up accounts. The login overlay deliberately cannot tell the
-                // member which of the two it is (that would leak which names are provisioned); here it
-                // saves the admin a wasted round trip.
-                // Three states, not two (v18.94): the endpoint now OMITS `provisioned` when its Auth
-                // lookup failed, rather than losing the whole request — so "absent" means unknown, and
-                // saying "Reset below" for it would be a guess presented as fact. A DISABLED account
-                // exists, and a reset is refused for it: Set up accounts re-enables it (Nov 2026).
+                // No account (or a DISABLED one, which a reset refuses): the remedy is Set up accounts. The
+                // sign-in cannot tell the member (it would leak who is provisioned); here it saves a wasted
+                // round trip. An ABSENT `provisioned` means the lookup failed — unknown, so no guess.
                 const remedy = r.provisioned === false || r.disabled === true
                     ? `<span class="rr-remedy rr-remedy--setup">${r.disabled === true ? 'Account disabled' : 'No account yet'} — run Set up accounts</span>`
                     : r.provisioned === true
@@ -712,8 +612,7 @@ export function init() {
                     row?.querySelector('.rr-error')?.remove();
                     try { await withSlowSaveNotice(clearResetRequest(name)); initResetRequests(); }
                     catch (e) {
-                        // A gated write (Oct 2026 review): an outcome that is UNKNOWN is said so, and
-                        // the button stays off — a second Clear would only be refused by the gate.
+                        // An UNKNOWN outcome is said so, and the button stays off: the gate would refuse a second.
                         const unknown = unconfirmedWriteLine(e, 'this clear', 'this list');
                         /** @type {HTMLButtonElement} */ (btn).disabled = !!unknown;
                         const msg = document.createElement('span');
@@ -731,12 +630,8 @@ export function init() {
             });
         } catch {
             content.removeAttribute('aria-busy');
-            // Clear the chip: leaving the previous count above an error panel told the admin "5
-            // outstanding" while showing no list (v18.94).
-            if (chip) chip.textContent = '';
-            // The strip's count is as stale as the chip's was (whole-app review), and an absent item
-            // read as "nothing outstanding" from outside the closed card — so it says it couldn't
-            // check (owner, 10 Nov 2026).
+            if (chip) chip.textContent = '';   // a stale count above an error panel
+            // The strip says it couldn't check: an absent item would read as nothing outstanding (owner, 10 Nov 2026).
             attention.unchecked('resets');
             _cardLoadError(content, 'Couldn’t load the password reset requests — check your connection.', () => initResetRequests());
         } finally {
@@ -748,10 +643,8 @@ export function init() {
     }
     initResetRequests();
 
-    // A banner when this admin's named Firebase session could not be confirmed. The page renders
-    // either way, but the uploads, the reset and the Cloud Function reads all need a valid admin
-    // token, and each would otherwise fail on its own with less to say. (There is no anonymous
-    // fallback since v24.34: a refused session is simply not established.)
+    // A banner when this admin's Firebase session could not be confirmed: the uploads, the reset and the
+    // function reads all need a valid admin token, and each would otherwise fail with less to say.
     sessionReady.then(ok => {
         if (!ok || getFirebaseAuthError()) {
             const main   = document.querySelector('.container');
@@ -790,13 +683,9 @@ export function init() {
     initUsageCard();
     initPageSpeedCard();
 
-    // ============================================
-    // registerServiceWorker() moved to the top of init() (runs before the access gate) — v16.21.
     sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
-    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the sign-in's
-    // critical path, so it waits for the session. `currentUser` is right here: an in-place sign-in
-    // re-runs init() with the new session, and only that signed-in pass gets this far (Settings, which
-    // signs in without a re-run, is why the same line there must read the identity late).
+    // Forced set-password overlay — fire-and-forget, after the session. `currentUser` is right here: an
+    // in-place sign-in re-runs init(), and only that signed-in pass gets this far.
     sessionReady.then(() => initPasswordForce(currentUser));
 
 }

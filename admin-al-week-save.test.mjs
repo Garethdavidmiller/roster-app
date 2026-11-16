@@ -24,15 +24,15 @@ import { resolveEffectiveShift } from './override-utils.js';
 import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 
-// C. Reen's fixed Mon–Fri line: every weekend is a rest day and every weekday is worked, so
+// An INVENTED member on fixed pattern 1, the Mon–Fri line: every weekend is a rest day and every weekday is worked, so
 // "working day" and "rest day" are unambiguous with no override at all.
-const reen = teamMembers.find(m => m.name === 'C. Reen');
+const fixedCea = { name: 'F. Fixture', role: 'CEA', rosterType: 'fixed', currentWeek: 1 };
 const MON = '2026-06-15';   // worked
 const SAT = '2026-06-13';   // base rest day — the day the swap question is asked about
 const NO_OV = new Map();
 
 const al = (/** @type {string} */ date, /** @type {any} */ extra = {}) =>
-    ({ memberName: 'C. Reen', date, type: 'annual_leave', value: 'AL', note: '', ...extra });
+    ({ memberName: 'F. Fixture', date, type: 'annual_leave', value: 'AL', note: '', ...extra });
 
 /** 31 recorded days against a 32-day entitlement: one left. */
 const oneDayLeft = (() => {
@@ -41,19 +41,19 @@ const oneDayLeft = (() => {
         const dow = d.getDay();
         if (dow !== 0 && dow !== 6) dates.push(formatISO(d));
     }
-    return dates.map((date, i) => ({ id: 'x' + i, memberName: 'C. Reen', type: 'annual_leave', date, value: 'AL' }));
+    return dates.map((date, i) => ({ id: 'x' + i, memberName: 'F. Fixture', type: 'annual_leave', date, value: 'AL' }));
 })();
 
 test('premise: `oneDayLeft` leaves exactly ONE day of the year\'s allowance', () => {
     // Every case that uses it assumes this, and nothing checked it (test audit, 7 Nov 2026).
-    assert.equal(entitlementFor(reen, '2026', oneDayLeft), oneDayLeft.length + 1);
-    assert.equal(countedAlDates({ overrides: oneDayLeft, member: reen, year: '2026' }).size, oneDayLeft.length);
+    assert.equal(entitlementFor(fixedCea, '2026', oneDayLeft), oneDayLeft.length + 1);
+    assert.equal(countedAlDates({ overrides: oneDayLeft, member: fixedCea, year: '2026' }).size, oneDayLeft.length);
 });
 
 describe('a batch with no leave in it is not this module\'s business', () => {
     test('the SAME array comes back — not a copy, so nothing downstream can diverge', () => {
-        const toSave = [{ memberName: 'C. Reen', date: MON, type: 'shift', value: '09:00-17:00' }];
-        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave, ovByDate: NO_OV });
+        const toSave = [{ memberName: 'F. Fixture', date: MON, type: 'shift', value: '09:00-17:00' }];
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave, ovByDate: NO_OV });
         assert.equal(plan.toSave, toSave);
         assert.deepEqual(plan.skipped, []);
         assert.equal(plan.overage, null);
@@ -63,7 +63,7 @@ describe('a batch with no leave in it is not this module\'s business', () => {
 describe('"rest day — free": not written, and NAMED', () => {
     test('the leave is dropped from the batch and returned as skipped', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(MON), al(SAT)],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(MON), al(SAT)],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, false]]),
         });
         assert.deepEqual(plan.toSave.map(e => e.date), [MON]);
@@ -72,9 +72,9 @@ describe('"rest day — free": not written, and NAMED', () => {
 
     test('only the LEAVE on that date goes — another row for the same day survives', () => {
         // A save can carry more than one row for a date, and none of the rest was answered "free".
-        const correction = { memberName: 'C. Reen', date: SAT, type: 'correction', value: 'RD' };
+        const correction = { memberName: 'F. Fixture', date: SAT, type: 'correction', value: 'RD' };
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(SAT), correction],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(SAT), correction],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, false]]),
         });
         assert.deepEqual(plan.toSave, [correction]);
@@ -82,7 +82,7 @@ describe('"rest day — free": not written, and NAMED', () => {
 
     test('a day answered SWAPPED is kept — the answer decides, not the calendar', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(SAT)],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(SAT)],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, true]]),
         });
         assert.deepEqual(plan.toSave.map(e => e.date), [SAT]);
@@ -103,7 +103,7 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
 
     test('a rest day with NO answer is withheld from the batch, not written', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
+            member: fixedCea, memberName: 'F. Fixture',
             toSave: [al(SAT)], ovByDate: NO_OV, swapAnswers: new Map(), overrides: [],
         });
         assert.deepEqual(plan.unanswered, [SAT], 'the planner must report the day it could not judge');
@@ -114,7 +114,7 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
         // The two have to agree: a day that is not written must not be counted, and a day that IS
         // written must be. Withholding without this would just move the disagreement.
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
+            member: fixedCea, memberName: 'F. Fixture',
             toSave: [al(SAT)], ovByDate: NO_OV, swapAnswers: new Map(),
             overrides: oneDayLeft,
         });
@@ -123,7 +123,7 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
 
     test('the rest of the batch still saves — one open question is not a dead save', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
+            member: fixedCea, memberName: 'F. Fixture',
             toSave: [al(MON), al(SAT)], ovByDate: NO_OV, swapAnswers: new Map(), overrides: [],
         });
         assert.deepEqual(plan.unanswered, [SAT]);
@@ -133,7 +133,7 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
 
     test('ANSWERED is untouched by all of this — the control', () => {
         const yes = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
+            member: fixedCea, memberName: 'F. Fixture',
             toSave: [al(SAT)], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, true]]), overrides: [],
         });
@@ -141,7 +141,7 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
         assert.deepEqual(yes.toSave.map(e => e.date), [SAT], 'a declared swap is still written');
 
         const no = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
+            member: fixedCea, memberName: 'F. Fixture',
             toSave: [al(SAT)], ovByDate: NO_OV,
             swapAnswers: new Map([[SAT, false]]), overrides: [],
         });
@@ -151,8 +151,8 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
 
     test('a batch with no leave in it reports no open questions', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
-            toSave: [{ memberName: 'C. Reen', date: SAT, type: 'rdw', value: '09:00-17:00' }],
+            member: fixedCea, memberName: 'F. Fixture',
+            toSave: [{ memberName: 'F. Fixture', date: SAT, type: 'rdw', value: '09:00-17:00' }],
             ovByDate: NO_OV, swapAnswers: new Map(), overrides: [],
         });
         assert.deepEqual(plan.unanswered, [], 'the early return carries the key too');
@@ -165,16 +165,16 @@ describe('the over-entitlement bar', () => {
         // anywhere yet, so anything re-deriving from the stored record would filter it out as REST
         // and let the member be booked two days with no bar — then charge them both.
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(MON), al(SAT)],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(MON), al(SAT)],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, true]]), overrides: oneDayLeft,
         });
         assert.ok(plan.overage, 'two consuming days against one remaining must raise the bar');
-        assert.match(plan.overage.headline, /C\. Reen will be \d+ days? over their 2026 AL entitlement/);
+        assert.match(plan.overage.headline, /F\. Fixture will be \d+ days? over their 2026 AL entitlement/);
     });
 
     test('the same booking with that day answered FREE does not warn — it is not being charged', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(MON), al(SAT)],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(MON), al(SAT)],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, false]]), overrides: oneDayLeft,
         });
         assert.equal(plan.overage, null);
@@ -188,7 +188,7 @@ describe('the over-entitlement bar', () => {
         // check counting the batch would raise a bar against a day nobody is being charged for.
         const ov = new Map([[SAT, { type: 'rdw', value: '08:00-16:00', date: SAT }]]);
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(MON), al(SAT)],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(MON), al(SAT)],
             ovByDate: ov, overrides: oneDayLeft,
         });
         assert.deepEqual(plan.toSave.map(e => e.date), [MON, SAT], 'both are written');
@@ -198,7 +198,7 @@ describe('the over-entitlement bar', () => {
 
     test('nothing consuming, nothing to check', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(SAT)],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(SAT)],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, false]]), overrides: oneDayLeft,
         });
         assert.equal(plan.overage, null);
@@ -214,14 +214,14 @@ describe('ORDERING: the drop happens before `exclude` is built', () => {
     // that (v23.75). The first cut of this block left it out and FAILED — correctly, because a plain
     // leave record on a rest day is free, so excluding it or not moves no arithmetic and the ordering
     // these tests exist for would have been unobservable either way.
-    const recordedSat = { id: 'sat-al', memberName: 'C. Reen', type: 'annual_leave', date: SAT,
+    const recordedSat = { id: 'sat-al', memberName: 'F. Fixture', type: 'annual_leave', date: SAT,
                           value: 'AL', replacedType: 'shift' };
 
     test('a day answered FREE does not excuse its own existing record from the count', () => {
         // 31 elsewhere + this one = 32 recorded. Re-staging SAT and answering "free" writes nothing,
         // so that record stands; booking MON on top is the 33rd day and must warn.
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
+            member: fixedCea, memberName: 'F. Fixture',
             toSave: [al(MON), al(SAT, { existingId: 'sat-al' })],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, false]]),
             overrides: [...oneDayLeft, recordedSat],
@@ -234,7 +234,7 @@ describe('ORDERING: the drop happens before `exclude` is built', () => {
         // The mirror image, and the reason `exclude` exists: re-saving a day that already holds
         // leave replaces it. Without the exclusion this same booking would read as 33 days.
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
+            member: fixedCea, memberName: 'F. Fixture',
             toSave: [al(SAT, { existingId: 'sat-al' })],
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, true]]),
             overrides: [...oneDayLeft, recordedSat],
@@ -244,7 +244,7 @@ describe('ORDERING: the drop happens before `exclude` is built', () => {
 
     test('a DELETED leave document is excluded too — it is being removed, not re-counted', () => {
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen', toSave: [al(MON)], toDelete: ['sat-al'],
+            member: fixedCea, memberName: 'F. Fixture', toSave: [al(MON)], toDelete: ['sat-al'],
             ovByDate: NO_OV, overrides: [...oneDayLeft, recordedSat],
         });
         assert.equal(plan.overage, null, 'deleting one day and booking another is a net nil');
@@ -253,10 +253,10 @@ describe('ORDERING: the drop happens before `exclude` is built', () => {
     test('leave OVERWRITTEN BY ANOTHER TYPE is excluded too (review A16)', () => {
         // One recorded day changed back to a Shift, one new day booked: a net nil, which used to
         // read as "1 day over" because only leave rows' existingIds were excluded.
-        const recordedTue = { id: 'tue-al', memberName: 'C. Reen', type: 'annual_leave', date: '2026-06-16', value: 'AL' };
+        const recordedTue = { id: 'tue-al', memberName: 'F. Fixture', type: 'annual_leave', date: '2026-06-16', value: 'AL' };
         const plan = planAlWeekSave({
-            member: reen, memberName: 'C. Reen',
-            toSave: [al(MON), { memberName: 'C. Reen', date: '2026-06-16', type: 'shift', value: '12:00-19:00', note: '', existingId: 'tue-al' }],
+            member: fixedCea, memberName: 'F. Fixture',
+            toSave: [al(MON), { memberName: 'F. Fixture', date: '2026-06-16', type: 'shift', value: '12:00-19:00', note: '', existingId: 'tue-al' }],
             ovByDate: NO_OV, overrides: [...oneDayLeft, recordedTue],
         });
         assert.equal(plan.overage, null, 'the day given back pays for the day booked');
@@ -277,7 +277,7 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
     // So this pins the three layers the review named — what stays in Firestore, what the Calendar
     // shows, what the receipt says — together, in one test, because the defect was that they
     // disagreed while each was individually fine.
-    const legacyAl = { id: 'legacy-al', memberName: 'C. Reen', type: 'annual_leave', date: SAT, value: 'AL' };
+    const legacyAl = { id: 'legacy-al', memberName: 'F. Fixture', type: 'annual_leave', date: SAT, value: 'AL' };
     const heldLegacy = new Map([[SAT, legacyAl]]);
     const answeredFree = new Map([[SAT, false]]);
 
@@ -285,12 +285,12 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
     const restage = () => [al(SAT, { existingId: 'legacy-al' })];
 
     test('the question IS asked — legacy data has no provenance to settle it', () => {
-        assert.deepEqual(swapDecisionDates({ dates: [SAT], memberObj: reen, ovByDate: heldLegacy }), [SAT],
+        assert.deepEqual(swapDecisionDates({ dates: [SAT], memberObj: fixedCea, ovByDate: heldLegacy }), [SAT],
             'a record with no replacedType cannot answer the swap question on its own');
     });
 
     test('FIRESTORE: nothing is written and nothing is deleted — the record stands', () => {
-        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: restage(),
             ovByDate: heldLegacy, swapAnswers: answeredFree, overrides: [legacyAl] });
         assert.deepEqual(plan.toSave, [], 'answering free must not write leave');
         assert.deepEqual(plan.skipped, [SAT]);
@@ -299,7 +299,7 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
 
     test('CALENDAR: the surviving record still displays as leave', () => {
         // The half that made the old receipt wrong. Nothing in the save path changes this.
-        const base = getBaseShift(reen, new Date(SAT + 'T00:00:00'));
+        const base = getBaseShift(fixedCea, new Date(SAT + 'T00:00:00'));
         assert.equal(base, 'RD', 'fixture check: this is a base rest day');
         assert.equal(resolveEffectiveShift(legacyAl, base, false).shift, 'AL',
             'the reader will still see leave on this day');
@@ -309,16 +309,16 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
         // The real signature is (member, date, ovByDate). This was called with ONE object, so `date`
         // was undefined and the function returned false before it looked at anything — the assertion
         // could not fail (test audit, 7 Nov 2026: charging every rest day left it green).
-        assert.equal(consumesEntitlement(reen, SAT, heldLegacy), false);
+        assert.equal(consumesEntitlement(fixedCea, SAT, heldLegacy), false);
         // The control, so a function that never charges anything cannot pass either: the Monday
         // after is a working day on this line, and leave there costs a day.
-        assert.equal(consumesEntitlement(reen, '2026-06-15', new Map()), true, 'a working weekday must cost a day');
+        assert.equal(consumesEntitlement(fixedCea, '2026-06-15', new Map()), true, 'a working weekday must cost a day');
     });
 
     test('RECEIPT: the line says the leave was left, and how to clear it', () => {
-        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: restage(),
             ovByDate: heldLegacy, swapAnswers: answeredFree, overrides: [legacyAl] });
-        const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: 'C. Reen',
+        const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: 'F. Fixture',
             formatDate: d => d, describe: () => '', skipped: plan.skipped, keptLeave: plan.keptLeave });
         const line = receipt.lines.find(l => l.includes(SAT));
         assert.ok(line, 'the day must still be named');
@@ -334,16 +334,16 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
     test('THE CONTROL: with no existing record the wording is unchanged', () => {
         // Without this the fix could be "every skipped day now says leave was left", which would be
         // the same defect pointing the other way.
-        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: [al(SAT)],
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: [al(SAT)],
             ovByDate: NO_OV, swapAnswers: answeredFree });
         assert.deepEqual(plan.keptLeave, []);
-        const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: 'C. Reen',
+        const receipt = buildSaveReceipt({ toSave: [], removed: [], memberName: 'F. Fixture',
             formatDate: d => d, describe: () => '', skipped: plan.skipped, keptLeave: plan.keptLeave });
         assert.match(receipt.lines[0], /rest day, no leave recorded/);
     });
 
     test('a record being DELETED in the same save is not "kept"', () => {
-        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: restage(),
             toDelete: ['legacy-al'], ovByDate: heldLegacy, swapAnswers: answeredFree,
             overrides: [legacyAl] });
         assert.deepEqual(plan.keptLeave, [],
@@ -354,8 +354,8 @@ describe('LEGACY DATA: a rest day that already holds leave, answered "rest day �
         // Deliberate. The claim the line makes is about LEAVE, and it is true here: none was
         // recorded. The absence is still visible in the grid, which re-renders for exactly this
         // reason (v23.89), and the swap question is never wired to the Absence card.
-        const absence = { id: 'sick-1', memberName: 'C. Reen', type: 'sick', date: SAT, value: 'SICK' };
-        const plan = planAlWeekSave({ member: reen, memberName: 'C. Reen', toSave: restage(),
+        const absence = { id: 'sick-1', memberName: 'F. Fixture', type: 'sick', date: SAT, value: 'SICK' };
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: restage(),
             ovByDate: new Map([[SAT, absence]]), swapAnswers: answeredFree, overrides: [absence] });
         assert.deepEqual(plan.keptLeave, []);
     });
