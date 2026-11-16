@@ -270,10 +270,8 @@ access, or names a person:
   deleted and what stayed green. **Never a hand-rolled `sed`/`replace`:** a search string the source
   does not contain is a silent no-op, and a replace-first can land on the wrong copy of a repeated
   block — both look exactly like a green run, and both argue for WEAKENING a test that is fine, the
-  worst direction for an error here. The script refuses an absent target, refuses an ambiguous one
-  (`--in` narrows to a rule, a function or a rules block), refuses an edit that changed nothing,
-  refuses a command that fails WITHOUT the mutation (it runs it unchanged first), and puts the file
-  back however the run ends, even when the tool is killed outright.
+  worst direction for an error here. The script refuses an absent, ambiguous (`--in` narrows) or
+  no-op edit and a command that fails unmutated, and always puts the file back (its header says how).
 - **A harness that discards is a harness that cannot see.** A mock that answers `set: () => {}` can
   assert nothing about a payload; record what it is given.
 - **Access context is a dimension.** Safe-for-a-member is not safe-for-every-unlock-mode.
@@ -301,25 +299,12 @@ npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site,
 npm run test:offline        # SW/offline paths with the network cut — weekly, non-blocking (offline.yml)
 npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; its Android half gates Hosting
 ```
-- **Read the `visual baselines` check, not the `visual` job** — the job is `success` on a drifted lane
-  and a clean one alike; the check run is `neutral` when baselines drifted, and the PR comment names
-  them. Regenerate from the PR's `visual-diffs` artifact (the baselines are CI's render):
-  `node scripts/refresh-visual-baselines.mjs <unzipped artifact>` copies CI's render of each FAILED
-  one (with no folder it redraws locally — for looking, not committing); keep
-  `-- --update-snapshots=all` for a deliberate sweep, **then `git status e2e/visual-baselines/` and
-  revert anything you cannot explain**.
-- **WebKit is not in a fresh dev container:** `npx playwright install webkit && npx playwright install-deps webkit`
-  — the second is apt and needs root (without it the launch dies listing missing shared objects and
-  reads like "unsupported"). The standing "do not run playwright install" advice is about CHROMIUM,
-  which IS pre-installed.
-- **`test:live` prints `DIRECT` or `RELAYED` per page — a RELAYED pass is partial** (no API-key
-  referrer check, no live Firebase round trip). Its scheduled run requires DIRECT. The hourly
-  production-currency check is a different question: it asks whether the served version matches
-  `main`, which a stuck splash answers "yes" to.
-- **`npm test` skips the payslip regression honestly when the fixture is absent**, so a green run
-  cannot tell you whether the comparison RAN — `test:payslip-local` can (owner's checkout only).
-- **Keep the Functions PR job on Node 24**, the runtime `functions/package.json` declares, so the
-  handlers are tested on the version they run on.
+**Five traps, each in full in README.md → "The test lanes", beside its lane:** read the `visual
+baselines` CHECK, never the `visual` job (regenerate from CI's render with
+`scripts/refresh-visual-baselines.mjs`, then revert what you cannot explain); WebKit needs
+`npx playwright install webkit && npx playwright install-deps webkit` (Chromium is pre-installed); a
+`RELAYED` `test:live` pass is partial; `npm test` skips the payslip regression when the fixture is
+absent; the Functions job stays on Node 24.
 
 **Service worker caching:** every asset is served from the version-named cache `myb-roster-v{APP_VERSION}`
 and **a cached file is never re-fetched**, so a change reaches devices only through a version bump →
@@ -357,15 +342,15 @@ These bind more than one area. A decision that binds only one area is in that ar
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `touch-only` CSS class in `shared.css` | `display:none` by default; revealed via `@media (pointer: coarse)`. Use for touch-only UI. Do not use inline `display:none`. **Gesture-tutorial UI must only show on touch devices** — guard it with `window.matchMedia('(pointer: coarse)')`, as `initSwipeHint()` in `calendar-app.js` does. |
 | **Do not gate layout on `(hover: hover) and (pointer: fine)` alone** | Some Android devices misreport `hover: hover`. For layout breakpoints, always use `min-width`. Hover/pointer queries are only safe for cosmetic `:hover` transitions. |
-| `lsGet` / `lsSet` / `lsDel` / `lsKeys` from `ls.js` | iOS Safari private mode throws `SecurityError` on any `localStorage` access. **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers. `lsKeys()` returns a safe snapshot of all key names for code that must enumerate storage (e.g. the paycalc namespace migration). |
-| Per-member paycalc localStorage namespacing | On a shared device two staff must not read each other's pay data — every per-member key carries a `myb_pc_<slug>_…` member segment (`pcPrefix()` in `paycalc-migrations.js` is the single source; Settings' backup reads through it too). **Never read/write a paycalc key without `pcPrefix()`/`SK`, and never namespace device-level flags** (`DEVICE_KEYS`). **A retired device flag stays declared** in `RETIRED_DEVICE_KEYS`: nothing writes it any more but it still exists on devices, and deleting it reclassifies it as member data and fires the ownership prompt at people with none. Legacy unnamespaced data is claimed via a one-time ownership prompt, never silently. Full detail: `.claude/rules/paycalc.md`. |
+| `lsGet` / `lsSet` / `lsDel` / `lsKeys` from `ls.js` | iOS Safari private mode throws `SecurityError` on any `localStorage` access. **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers. `lsKeys()` is for code that must enumerate storage. |
+| Per-member paycalc localStorage namespacing | On a shared device two staff must not read each other's pay data. **Never read/write a paycalc key without `pcPrefix()`/`SK`, never namespace a device-level flag** (`DEVICE_KEYS`), and **a retired device flag stays declared** (`RETIRED_DEVICE_KEYS`) — deleting one fires the ownership prompt at people with none. Legacy data is claimed by a one-time prompt, never silently. Detail: `.claude/rules/paycalc.md` invariant 3. |
 | 3-digit time input auto-correction — `formatClockInput` / `finaliseClockInput` in `clock-input.js` | While typing, three digits whose FIRST is 3–9 take a leading `'0'` (`"630"` → `"06:30"`, never `"63:0"`). A first pair of 24–29 (`"240"`) may be the start of `"2400"`, so it waits for the box to be LEFT; every consumer calls both. One rule for every text clock box — no page keeps its own copy. |
 | **Calendar access: a named session OR the staff PIN** | `overrides` reads need a bound member (`isMember()`), `admin` or the shared `calendarViewer` capability. **Sign-in card first, PIN one tap behind** — an order, not a grant. **Anonymous grants nothing**, which is the substance: the Calendar used to sign every visitor in anonymously, so `request.auth != null` would re-admit exactly the people it closes out — ask for a CLAIM, never a session. The PIN is the real boundary; rollback is reverting a release. **The invariants are NOT restated here**, because two contracts own them and both require linking rather than repeating: `CALENDAR_DATA.md` 3/4/11/12 and `AUTH_AND_SESSIONS.md` 7–10, 19–20, **18** (the PIN is a barrier, not authentication — and what no surface may say about it) and **24** (the pages it may read). Before the grant, a member may see their own stored roster, labelled (owner, 5 Oct 2026 — `CALENDAR_DATA.md` 17, DECISIONS.md). Rollout, rollback, the caching caveat and the standing GCP IAM prerequisite: RECOVERY_RUNBOOK.md → "The Calendar PIN"; operations: OPERATIONS_REFERENCE.md. |
 | `cors: ADMIN_FUNCTION_ORIGINS` on every endpoint the browser calls | Each restricts CORS to the explicit origin allowlist `ADMIN_FUNCTION_ORIGINS` in `functions/index.js` — defence-in-depth on top of the real control, each endpoint's own check (an ID token and claim for all but the two public ones). Add any new hosting domain to that array, with the API key allowlist (Project identity). `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Canonical lightbox lifecycle | Every `.lb-overlay` lightbox is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. It owns focus save/restore, the scroll lock, Android Back, Escape (the topmost overlay only), the Tab trap, backdrop/close-button close and the mandatory `transitionend` fallback. Close controls are `<button class="lb-close">`, never `<span>` — not keyboard-focusable. **A one-time notice opens through `openNoticeIfClear(lightbox)`, never `lightbox.open()`.** **Three exceptions, each with its reason: AI_MAP → `overlay.js`** — the drawer's two lightboxes (they share the drawer's history entry, which is why they hand-roll it) and the huddle viewer (a full-bleed panel). The mechanism: `.claude/rules/nav-drawer.md`. |
 | Page chrome — the header and the drawer | Every app page has the burger `#navMenuBtn` and the shared drawer (`initNavPanel`), passing its pill gates, `onLogoClick: () => openAboutLightbox?.()` and its `onSignOut`. Sign-out lives only in the drawer footer and About opens from the drawer head. A sub-page's header logo goes back to the calendar (`wireHeaderLogo`, `about-lightbox.js`) and there is no header back button; the Calendar's own header logo opens About and must not navigate. Detail: `.claude/rules/nav-drawer.md`. |
-| Overtime page — the two audiences | **PAUSED**: `CONFIG.OVERTIME_ENABLED` false closes it to all, admin included (OVERTIME_AVAILABILITY.md → Paused). Reviewing and PARTICIPATING reach the same page, and keeping them apart is a safety property: a reviewer sees everybody's declarations, a beta participant answers only for themselves. **Reviewing** = the `admin`/`manager` claim (`isOvertimeReviewer`). **Participating** = a name in `CONFIG.OVERTIME_BETA` (`roster-data.js`) — **regenerate in the same commit**: `selectParticipants` reads the server copy. The nav pill and the page policy both gate on `canOpenOvertime` (either audience), and every page coordinator must pass it (page-contract-parity enforces it). **Never widen `isOvertimeReviewer` to make the pill work** — that hands a beta tester everybody else's availability (AUTH_AND_SESSIONS.md 14). |
-| Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; the `hashchange` handler in `calendar-huddle-viewer.js` triggers the viewer (`calendar-doc-viewer.js` handles `#circular`/`#newsletter`). **Two viewer paths — do not unify, and do not revert the notification path to a direct `window.open`/`location.href`:** with `htmlContent` (DOCX converted server-side) it renders inline; without it (PDF, or a failed conversion) the viewer offers an in-overlay "📄 Open Huddle" button, whose click is a REAL GESTURE — a direct open on a hash-open would be pop-up-blocked or knock the PWA out of standalone. The viewer opens **only** via the `#huddle` hash, from both the drawer link and a notification tap. **The three documents are behind the PIN or a password (owner decision, 7 Sep 2026)** — the viewers and the drawer's links consult `calendar-doc-access.js`, so a locked visitor's tap is answered with what to do and no read is issued. Full rationale: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
+| Overtime page — the two audiences | **PAUSED**: `CONFIG.OVERTIME_ENABLED` false closes it to all, admin included (OVERTIME_AVAILABILITY.md → Paused). **Reviewing** (`isOvertimeReviewer`, the `admin`/`manager` claim) sees everybody's declarations; **participating** (a name in `CONFIG.OVERTIME_BETA` — **regenerate in the same commit**) answers only for oneself. The pill and the page policy gate on `canOpenOvertime` (either). **Never widen `isOvertimeReviewer` to make the pill work** — it hands a beta tester everybody's availability (AUTH_AND_SESSIONS.md 14). |
+| Huddle notification → `#huddle` hash pattern | The viewer opens **only** via the `#huddle` hash (`calendar-huddle-viewer.js`; `calendar-doc-viewer.js` for `#circular`/`#newsletter`), from the drawer link and a notification tap alike. **Two viewer paths — do not unify, and never revert to a direct `window.open`/`location.href`:** DOCX `htmlContent` renders inline; without it the in-overlay "📄 Open Huddle" button supplies the real gesture a hash-open lacks. **The three documents are behind the PIN or a password (owner, 7 Sep 2026)**: viewers and drawer links consult `calendar-doc-access.js`, and a locked tap issues no read. Why: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
 | `initErrorReporter()` call pattern | It writes to Firestore `clientErrors`, so a valid auth token is required. **Never call it bare** — without an auth context every write is silently rejected by the rules, so the error log looks HEALTHY because it is broken. **Four canonical call sites**, differing because the pages establish identity differently: the Calendar (`calendarAuthReady`, which resolves only once access is granted — a locked Calendar starts no reporter), the pages with `sessionReady`, the Pay Calculator (which has none), and Trains' PIN branch once `holdsStaffPin` has confirmed the viewer. The exact shapes: the header of **`error-reporter.js`**; the rule: `AUTH_AND_SESSIONS.md` invariant 13. |
 
 ---
@@ -376,12 +361,9 @@ These bind more than one area. A decision that binds only one area is in that ar
 holds the HTML template, the JS patterns, the rules, the lessons of past notices and **the
 current-notices table**, which is kept current there.
 
-- **Every notice declares an AUDIENCE** — `'members'` (the default: anything about pay, settings or
-  an account), `'signed-out'` (only where nobody is signed in on this device — a PIN unlock) or
-  `'everyone'` (rarely right). The rule is `noticeAudienceAllows` in `calendar-access-core.js`; a
-  refused notice is left unflagged, so it arrives when that device's position changes. No live notice
-  is `'signed-out'`, so **the positive direction of the gate has nothing exercising it** until the
-  next one — the skill names the two tests that come back with it.
+- **Every notice declares an AUDIENCE** — `'members'` (the default), `'signed-out'` or `'everyone'`
+  (`noticeAudienceAllows`, `calendar-access-core.js`). A `'signed-out'` notice brings back two tests:
+  the skill → "Audience".
 - **A notice opens through `openNoticeIfClear(lightbox)`** (Canonical lightbox lifecycle, above).
 - **A notice goes INERT the moment `isNoticeExpired` fires** — it is marked seen *without being
   shown*, long before the removal rule below — so the table's Status column must say so.
@@ -392,14 +374,9 @@ current-notices table**, which is kept current there.
 
 ## Payday calculator — integrated
 
-| Component | Location |
-|-----------|----------|
-| `getPaydaysAndCutoffs(year)` | `roster-data.js` |
-| `isPayday(date)` / `isCutoffDate(date)` | `roster-data.js` |
-| 💷 / ✂️ calendar markers | `calendar-renderer.js` — `.payday` / `.cutoff` CSS classes |
-| `getRosterSuggestion(p, member)` | `paycalc-roster-suggestions.js` — counts Sat/Sun/BH/Boxing Day/RDW, and **never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — a permanent policy, `paycalc.md` invariant 11 |
-| `getEffectiveContr(p)` | `paycalc-settings.js` — contracted hours, pro-rated if member has `startDate` in the period |
-| Reference guide | `paycalc-guide.html` |
+Paydays and cut-offs come from `getPaydaysAndCutoffs` / `isPayday` / `isCutoffDate` (`roster-data.js`)
+and draw as 💷 / ✂️ on the Calendar; where each piece lives, and the roster-assist's permanent
+never-infer policy: `.claude/rules/paycalc.md` → "Paydays, cut-offs and the roster-assist".
 
 ---
 
@@ -620,23 +597,19 @@ All staff have Firebase Auth accounts. **Firestore writes need a claim, never a 
 `request.auth != null`** (AUTH_AND_SESSIONS 9). The contract is `docs/AUTH_AND_SESSIONS.md`; the
 working notes are `.claude/rules/sessions.md`, which loads with the session and auth modules.
 
-- **Every write page re-establishes the Firebase session on load**, through `ensureNamedSession(name)`
-  (`session.js`). A returning member with a valid 60-day local session skips the login screen, so
-  without it `auth.currentUser` stays null and every Firestore write fails. Do not remove this call.
+- **Every write page re-establishes the Firebase session on load** (`ensureNamedSession(name)`,
+  `session.js`) — without it a returning member's every write fails. Do not remove the call.
 - **Per-member write isolation is STRICT**: an `overrides` write needs the member's own bound name, or
   an `admin`/`manager` claim writing on behalf (AUTH_AND_SESSIONS 4, 19).
-- **Three claim tiers**, all set by `setupRosterAuth` from the server-owned list — admin, manager,
-  member, with `linksDesigner` on top (AUTH_AND_SESSIONS 3). **The `manager` tier is load-bearing**:
-  managers edit staff AL/sick/shifts on behalf daily, and without it the isolation rule silently locks
-  them out. Master-admin collections (huddles/circulars/newsletters/roster/auth) stay `admin`-only —
-  **do NOT grant managers `admin: true`.** A newly listed manager needs Operations → Set up accounts
-  and a token refresh before their writes work.
+- **Three claim tiers** from `setupRosterAuth` — admin, manager, member, `linksDesigner` on top
+  (AUTH_AND_SESSIONS 3). **The `manager` tier is load-bearing** (on-behalf edits, daily); **do NOT
+  grant managers `admin: true`.** A newly listed manager needs Set up accounts and a token refresh.
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 
-**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave, allowance or days remaining. It is a TRIGGER, not a checklist — it sends you to `docs/AL_WORKBOOK.md` §0 and requires the learnings to be written back in the same session. **Read §0 before answering from the spreadsheet** — answering first has gone wrong twice, on the same person, in sessions that had the document: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. To check the sheet against the app, a session makes a sealed leave file (`scripts/make-leave-file.mjs`) for Operations → Annual leave sheet, which adds missing leave, person by person (OPERATIONS_REFERENCE.md). **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
+**The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave, allowance or days remaining. It is a TRIGGER, not a checklist — it sends you to `docs/AL_WORKBOOK.md` §0 and requires the learnings to be written back in the same session. **Read §0 before answering from the spreadsheet** — answering first has gone wrong twice, on the same person, in sessions that had the document: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. The sheet is checked against the app with a sealed leave file (`scripts/make-leave-file.mjs`; AL_WORKBOOK.md, OPERATIONS_REFERENCE.md). **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
 
-**Removing a staff member:** invoke `/leaver` — the ordered checklist, including the step everybody gets wrong (**upload their final roster PDF FIRST**: `hidden` also drops them from the AI-parsing name list, and a later upload then reports their row as `missingMembers`, which reads exactly like a genuine absence) and the verification step that closes it (the Staff Login Accounts audit — every other failure in the sequence is silent). The reasoning, and what it deliberately does not do (Overtime weeks are frozen; their data stays): OPERATIONS_REFERENCE.md → "Removing a staff member".
+**Removing a staff member:** invoke `/leaver` — the ordered checklist, including the step everybody gets wrong (**upload their final roster PDF FIRST**: `hidden` also drops them from the AI-parsing name list, and a later upload then reports their row as `missingMembers`, which reads exactly like a genuine absence) and the verification step that closes it (the Staff Login Accounts audit — every other failure in the sequence is silent). Reasoning: OPERATIONS_REFERENCE.md → "Removing a staff member".
 
 Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 
