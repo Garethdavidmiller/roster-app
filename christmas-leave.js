@@ -33,11 +33,12 @@
  *
  * Every Christmas rule is here rather than spread across the three modules it touches — roster-data.js
  * (the pattern), override-utils.js (what a day shows) and al-entitlement.js (what it costs). It imports
- * from the first two and is imported by the third, so there is no cycle (import-graph.test.mjs), and
- * neither of the first two had room for it (coordinator-ratchet.test.mjs).
+ * from the first two — and from al-contract.js, for the Dispatcher bank-holiday rule it must not count
+ * twice — and is imported by the third, so there is no cycle (import-graph.test.mjs), and neither of
+ * the first two had room for it (coordinator-ratchet.test.mjs).
  *
- * The cost is that `getALEntitlement` cannot add the Boxing Day day itself: it would have to import
- * this module, which imports it. So the WHOLE allowance is `entitlementFor` in al-entitlement.js, and
+ * The cost is that `getALEntitlement` (al-contract.js) cannot add the Boxing Day day itself: it would
+ * have to import this module, which imports al-contract.js. So the WHOLE allowance is `entitlementFor` in al-entitlement.js, and
  * christmas-leave.test.mjs fails if any other module calls `getALEntitlement` directly — a second door
  * would be a surface that quietly leaves the earned day out.
  *
@@ -45,7 +46,8 @@
  * neither is ever counted there (AL_WORKBOOK.md §4 and §9).
  */
 
-import { getPatternShift, isChristmasRD, isWorkedShift, isBankHoliday, formatISO, parseISODate } from './roster-data.js';
+import { getPatternShift, isChristmasRD, isWorkedShift, formatISO, parseISODate } from './roster-data.js';
+import { countsAsDispatcherBankHoliday } from './al-contract.js';
 import { shouldReplaceOverride, resolveEffectiveShift, isOverrideDisplaySuppressed } from './override-utils.js';
 
 /** The first Christmas these rules apply to. Earlier years keep showing Rest, as they always did. */
@@ -107,7 +109,7 @@ export function isUncountedChristmasLeave(shift, dateStr, christmasLeave) {
  * December, or in January through the carry-back (leave-year.js).
  *
  * THE EXCEPTION IS A DISPATCHER WHOSE BOXING DAY IS A BANK HOLIDAY. Their bank-holiday rule counts
- * the day (`countDispatcherBankHolidaysWorked`, roster-data.js) in the year the holiday falls, as it
+ * the day (`countDispatcherBankHolidaysWorked`, al-contract.js) in the year the holiday falls, as it
  * counts every other one, and this rule adds nothing (`boxingDayLieuDays`), so the day is in that
  * year. Boxing Day is next a bank holiday in 2028. In 2026 it is a Saturday, and the holiday moves to
  * Monday 28 December.
@@ -117,7 +119,9 @@ export function isUncountedChristmasLeave(shift, dateStr, christmasLeave) {
  */
 export function allowanceForBoxingDay(member, year) {
     const y = Number(year);
-    return member?.role === 'Dispatcher' && isBankHoliday(new Date(y, 11, 26)) ? y : y + 1;
+    // Asked of the Dispatcher rule itself — the grade at the time, the bank holiday, the start date —
+    // so a Boxing Day that rule counts is never counted again here (al-contract.js).
+    return countsAsDispatcherBankHoliday(member, new Date(y, 11, 26)) ? y : y + 1;
 }
 
 /**

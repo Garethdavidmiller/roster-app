@@ -20,7 +20,6 @@ import {
     getPaydaysAndCutoffs,
     isPayday,
     isCutoffDate,
-    getALEntitlement,
     isWorkedShift,
     projectAnnualLeaveOverage,
     validateRosterPatterns,
@@ -62,6 +61,8 @@ import {
 } from './roster-data.js';
 // The grade on a day lives beside the data it reads, in a module of its own (roster-data.js is at its size cap).
 import { roleOn, rolesInRange } from './roster-roles.js';
+// The contract allowance left roster-data.js for a module of its own (Nov 2026 — its header says why).
+import { getALEntitlement } from './al-contract.js';
 import { isChristmasLeaveDay } from './christmas-leave.js';
 
 describe('isChilternWorkEmail', () => {
@@ -290,6 +291,27 @@ test('getPaydaysAndCutoffs: cutoff for 13 Feb 2026 payday is 7 Feb (previous Sat
 
 test('getPaydaysAndCutoffs: 8 Feb 2026 is not a cutoff date', () => {
     assert.equal(isCutoffDate(d(2026, 2, 8)), false);
+});
+
+// THE YEAR SPLIT (review, 16 Nov 2026). Every navigable year's paydays and cut-offs fall in that year,
+// which is what isCutoffDate and paydayForCutoff assume. The first that does not is beyond MAX_YEAR:
+// payday Fri 6 Jan 2034, whose cut-off is Sat 31 Dec 2033 and is seen by neither. Pinned rather than
+// fixed; the guard below fails the day MAX_YEAR is raised far enough to reach it.
+test('getPaydaysAndCutoffs: every navigable year keeps its cut-offs and paydays in that year', () => {
+    for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
+        const { paydays, cutoffs } = getPaydaysAndCutoffs(y);
+        assert.ok(paydays.every(p => p.getFullYear() === y) && cutoffs.every(c => c.getFullYear() === y), String(y));
+    }
+});
+
+test('getPaydaysAndCutoffs: the first split is payday 6 Jan 2034 — beyond MAX_YEAR, and pinned', () => {
+    const first = getPaydaysAndCutoffs(2034);
+    assert.equal(formatISO(first.paydays[0]), '2034-01-06');
+    assert.equal(formatISO(first.cutoffs[0]), '2033-12-31');
+    assert.equal(isCutoffDate(d(2033, 12, 31)), false, 'the known gap: the cut-off is in the year before its list');
+    assert.ok(CONFIG.MAX_YEAR < 2033,
+        'MAX_YEAR now reaches the first year whose cut-off sits in the year before its payday: teach '
+        + 'isCutoffDate and paydayForCutoff to look in the next year\'s list (roster-data.js) before raising it');
 });
 
 test('getPaydaysAndCutoffs: returns empty paydays for year below MIN_YEAR', () => {

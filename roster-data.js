@@ -36,7 +36,7 @@ export const CONFIG = {
     CES_ROSTER_REFERENCE_DATE:        new Date(2026, 1, 15, 12, 0, 0),          // Feb 15, 2026 (F. Mohamed on CES Week 1)
     DISPATCHER_ROSTER_REFERENCE_DATE: new Date(2026, 1, 1,  12, 0, 0),          // Feb 1, 2026 (Minto on Week 1, all 10 consecutive)
     MIN_YEAR:                         2024,                                      // Earliest navigable year
-    MAX_YEAR:                         2030,                                      // Latest navigable year — extend to 2032+ by end of 2028: check SPECIAL_BANK_HOLIDAYS for the new years first, and run `npm run generate:roster-members` in the same commit
+    MAX_YEAR:                         2030,                                      // Latest navigable year — extend to 2032+ by end of 2028: check SPECIAL_BANK_HOLIDAYS for the new years first, and run `npm run generate:roster-members` in the same commit. A Boxing Day worked in this year earns a day in the NEXT year's allowance, which no screen opens until this is raised; past 2032, see the payday note above getPaydaysAndCutoffs
     EARLY_START_THRESHOLD:            4,                                         // Shifts starting 04:00–10:59 are Early
     EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
@@ -137,147 +137,21 @@ import { teamMembers } from './roster-member-data.js';
 export { teamMembers };
 
 // ============================================
-// ANNUAL LEAVE ENTITLEMENTS
+// ANNUAL LEAVE — the allowance is al-contract.js (the contract figure, by the grade that decides each
+// year) and al-entitlement.js (the whole allowance, the one door). Only the worked-day test is here.
 // ============================================
-//
-// Entitlements by role (calendar year, resets 1 Jan):
-//   CES            → 34 days
-//   Dispatcher     → 22 days base + 1 day lieu per bank holiday actually worked that year.
-//                    "Worked" means the resolved shift (base roster after Firestore overrides)
-//                    is not RD, OFF, SPARE, AL, or SICK. SPARE does NOT count — only actual
-//                    worked shifts (time-format shifts or RDW) earn a lieu day.
-//   CEA            → 34 days on a BILINGUAL CONTRACT (`bilingualContract: true`), else 32.
-//                    The CONTRACT, never the rosterType: a plain CEA is routinely put on a
-//                    bilingual LINE until a CEA one frees up, so the line proves nothing.
-//                    C. Reen is a CEA on a fixed roster (NOT CEA-BL), so 32 — corrected Jun 2026.
-//                    Pinned by roster-data.test.mjs, incl. the line-vs-contract case.
-
-/**
- * Count how many UK bank holidays a dispatcher actually worked in a given year,
- * after applying Firestore overrides. Each worked bank holiday earns 1 day in lieu.
- *
- * @param {any}    member   — teamMembers entry (must be a Dispatcher)
- * @param {number} year     — calendar year to check
- * @param {Array<any>}  overrides — flat array of override objects { memberName, date, value, ... }
- * @returns {number}  count of bank holidays on which the member worked
- */
-function countDispatcherBankHolidaysWorked(member, year, overrides) {
-    const bankHolidays = getBankHolidays(year);
-
-    // Build a date → winning-override lookup for this member, applying shouldReplaceOverride
-    // precedence (manual beats roster_import; within a class, newer createdAt wins). A plain
-    // last-in-array-wins map let a stale roster_import shadow a manual RDW on a bank-holiday date,
-    // miscounting the dispatcher's lieu-day entitlement depending on Firestore result order.
-    const overrideMap = new Map();
-    for (const o of overrides) {
-        if (o.memberName === member.name && o.date) {
-            if (shouldReplaceOverride(overrideMap.get(o.date), o)) overrideMap.set(o.date, o);
-        }
-    }
-
-    let lieuDays = 0;
-    for (const bh of bankHolidays) {
-        // Use local-time date string to match Firestore override keys (YYYY-MM-DD)
-        const y = bh.getFullYear();
-        const m = String(bh.getMonth() + 1).padStart(2, '0');
-        const d = String(bh.getDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
-
-        // Override takes precedence; fall back to base roster.
-        // NOTE: getBaseShift applies isChristmasRD, so 25 and 26 Dec always read 'RD' from the base
-        // roster even when a dispatcher is due to work. A Christmas bank holiday counts only when an
-        // override records the member AT WORK that day — any worked value (isWorkedShift), not only RDW.
-        const shift = overrideMap.has(dateStr)
-            ? overrideMap.get(dateStr).value
-            : getBaseShift(member, bh);
-
-        if (isWorkedShift(shift)) lieuDays++;
-    }
-    return lieuDays;
-}
 
 /**
  * Single source for the "is this shift a WORKED day?" predicate (CLAUDE.md: "`isWorkedShift`: false for
  * RD, OFF, SPARE, AL, SICK"). Returns false for the non-worked set — RD/OFF (rest), SPARE (standby),
  * AL (annual leave), SICK (absence) — true for everything else (incl. RDW and worked times). Shared
- * by the dispatcher lieu-day count (above) and the calendar renderer so the two can never drift as
+ * by the dispatcher lieu-day count (al-contract.js) and the calendar renderer so the two can never drift as
  * the leave/absence set grows.
  * @param {string} shift
  * @returns {boolean}
  */
 export function isWorkedShift(shift) {
     return shift !== 'RD' && shift !== 'OFF' && shift !== 'SPARE' && shift !== 'AL' && shift !== 'SICK';
-}
-
-/** A Dispatcher's leave for `year` BEFORE any day in lieu: the joining year's transcribed `proRatedAL`,
- *  else 22. The one figure the allowance (getALEntitlement) and its caption's split (dispatcherBreakdown,
- *  al-entitlement.js) both start from, so the two cannot diverge. @param {any} member @param {number} year */
-export function dispatcherBaseAL(member, year) { return member?.proRatedAL?.[year] ?? 22; }
-
-/**
- * Annual leave entitlement for a staff member in a given year.
- * For Dispatchers the entitlement is dynamic: 22 base days plus one day in lieu
- * for every bank holiday on which they worked (after overrides). All other roles
- * return a fixed number regardless of year or overrides.
- *
- * NOT THE WHOLE ALLOWANCE — read it through `entitlementFor` (al-entitlement.js), which from 2027 adds
- * the day in lieu earned by working the Boxing Day before, when due at work (christmas-leave.js).
- * `christmas-leave.test.mjs` fails if any other module calls this directly.
- *
- * @param {any}    member    - teamMembers entry
- * @param {number} [year]    - calendar year; defaults to current year
- * @param {Array<any>}  [overrides] - all override objects for this member; defaults to []
- * @returns {number|null} null when there is no entitlement on record for this member — the member
- *   could not be resolved at all, their role has no leave figure here, or the year ended before
- *   they joined. Callers must TEST for it and refuse to render, never coerce: `null - taken -
- *   booked` is a plausible NUMBER, not NaN, so the one arithmetic that looks harmless is the one
- *   that invents a balance.
- */
-export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
-    if (!member) return null;   // unresolved member — see the null convention below
-
-    // NO ALLOWANCE FOR A YEAR BEFORE THE MEMBER JOINED (whole-app review, 10 Nov 2026). Such a year
-    // read the full contract figure with all of it remaining — on the Calendar's leave panel, whose
-    // year arrows reach back to MIN_YEAR, and in the January carry-back, which offered a January
-    // starter the year before they arrived as somewhere to take their leave from. It is no
-    // entitlement on record, so both fall into the em-dash state they already draw for null.
-    if (member.startDate instanceof Date && year < member.startDate.getFullYear()) return null;
-
-    // A DISPATCHER'S LIEU DAYS ARE EARNED, SO PRO-RATING MUST NOT REMOVE THEM (v22.50, owner
-    // decision). The 22 is an allowance a part-year deserves part of; a lieu day is owed because a
-    // specific day was worked, and arriving late in the year does not make that day less worked. So
-    // this branch comes FIRST and `proRatedAL` scales only the base. It used to be checked above and
-    // returned outright, so a mid-year Dispatcher's joining year skipped the lieu count and read two
-    // days short — with nothing to say so, because a wrong leave balance still renders and still
-    // books against. Cases and the reasoning: roster-data.test.mjs.
-    if (member.role === 'Dispatcher') {
-        return dispatcherBaseAL(member, year) + countDispatcherBankHolidaysWorked(member, year, overrides);
-    }
-    // Pro-rated entitlement takes priority for joiners in every other role, where the whole figure
-    // IS an allowance and there is no earned component to protect.
-    if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
-    if (member.role === 'CES') return 34;
-    // A CEA's entitlement follows the CONTRACT THEY HOLD, NOT THE LINE THEY ARE ON (owner, 6 Sep
-    // 2026): a bilingual contract is 34 days, every other CEA 32, whatever pattern they work.
-    //
-    // **`rosterType === 'bilingual'` IS THE WRONG TEST AND IT LOOKS RIGHT** — a plain CEA is
-    // routinely put on a bilingual line until a CEA one frees up, so the line is a rota fact and
-    // keying on it would quietly hand that person two days they are not owed. It passes today only
-    // because the two coincide today. The line-vs-contract case is pinned in roster-data.test.mjs.
-    //
-    // The June 2026 correction was RIGHT about C. Reen (contractually CEA on a fixed line) and
-    // wrong to generalise: it collapsed every CEA to 32 and took two days from the two genuine
-    // bilingual contracts, unnoticed, because a wrong balance still renders and still books.
-    if (member.role === 'CEA') return member.bilingualContract === true ? 34 : 32;
-    // NO ENTITLEMENT ON RECORD REFUSES RATHER THAN GUESSING (v22.45). This used to fall through to
-    // `return 32`, so a Management row — or any role added later — would have been handed a CEA's
-    // leave: a complete, plausible figure belonging to somebody else. **Not a defect anyone could
-    // reach today**, and the comment should say so rather than imply a fix: every Management row
-    // carries `hidden: true`, so `populateMemberDropdown` omits them and no surface can select
-    // one. It is one un-set flag away, which is the whole reason to close it — the same
-    // fall-through shape that DID give a Dispatcher somebody else's pay rate until v21.78.
-    // `null`, never 0: a zero is a claim about their leave and this function has none to make.
-    return null;
 }
 
 /**
@@ -344,7 +218,7 @@ export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDa
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
 import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS } from './roster-cycle-data.js';
-import { shouldReplaceOverride, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS };
 
 // ============================================
@@ -554,6 +428,10 @@ export function isEasterSunday(date) {
 
 // Cache and calculator for paydays + cutoff dates.
 // _paydaySetCache / _cutoffSetCache store Sets of ISO strings for O(1) lookup.
+// A year's list holds the paydays that FALL in it, each with its cut-off — and from payday 6 Jan 2034
+// that cut-off is in the year BEFORE (31 Dec 2033), where isCutoffDate and paydayForCutoff, which look
+// only in the date's own year, cannot see it. Beyond MAX_YEAR, so left alone and pinned by
+// roster-data.test.mjs, which fails the day MAX_YEAR reaches 2033 (review, 16 Nov 2026).
 const _paydayCache = new Map();
 const _paydaySetCache = new Map();
 const _cutoffSetCache = new Map();
@@ -880,8 +758,11 @@ export function getShiftBadge(timeStr, opts = {}) {
  * given date, applying any scheduled `rosterChanges`. Returns the member
  * unchanged when there are no changes or none apply yet; otherwise returns a
  * shallow copy with the matching change's rosterType/currentWeek overlaid.
- * The latest change whose `from` (midnight, inclusive) ≤ date wins, so the
- * `rosterChanges` array must be sorted ascending by `from`.
+ * The change with the latest `from` (midnight, inclusive) ≤ date wins, whatever
+ * the array's order (v16.19); the ascending sort is still the authoring rule,
+ * checked by roster-data.test.mjs and validateTeamMembers (calendar-member.js).
+ * A change's `currentWeek` is REFERENCE-ANCHORED, like the base one
+ * (.claude/rules/roster-data.md). Only the roster moves: `role` does not.
  * @param {any} member  teamMembers entry
  * @param {Date}   date
  * @returns {any}  member, or a copy with effective roster fields

@@ -104,6 +104,10 @@ never defaulted`) just because the fact arrived by PDF.
   Christmas leave decides those days, so their rows start unticked and say so (owner, 10 Nov 2026).
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
+- **A day before the member's `startDate` writes nothing** (16 Nov 2026, `isBeforeMemberStart`):
+  anything but a rest day there is a GUARDED row under its own reason (`before-start`), asking nothing,
+  whatever is saved on the day; a rest day with nothing saved is a MATCH. Checked before every other
+  branch, unreadable cells included, so no answer or pick can write it either.
 
 ### The `UNKNOWN|<raw>` sentinel
 

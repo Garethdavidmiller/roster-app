@@ -21,7 +21,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
-import { teamMembers, getBaseShift, getPatternShift, getALEntitlement, isWorkedShift, formatISO } from './roster-data.js';
+import { teamMembers, getBaseShift, getPatternShift, isWorkedShift, formatISO } from './roster-data.js';
+import { getALEntitlement } from './al-contract.js';
 import { resolveEffectiveShift } from './override-utils.js';
 import {
     CHRISTMAS_LEAVE_FROM_YEAR, isChristmasLeaveDay, isChristmasClosureDate, boxingDayLieuDays,
@@ -330,12 +331,12 @@ describe('the one door — every allowance is read through entitlementFor', () =
 
     test('NO module but al-entitlement.js calls getALEntitlement — a second door leaves the day out', () => {
         // Static, because the failure is a surface that compiles, renders a plausible figure, and is
-        // one day short for exactly the people who worked Boxing Day. roster-data.js is where it is
+        // one day short for exactly the people who worked Boxing Day. al-contract.js is where it is
         // defined (and where the Dispatcher rule lives); every other caller goes through
         // `entitlementFor`. Comments are stripped first: several modules NAME it in prose.
         const strip = (/** @type {string} */ src) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
         const offenders = readdirSync(new URL('.', import.meta.url))
-            .filter(f => f.endsWith('.js') && !['roster-data.js', 'al-entitlement.js', 'eslint.config.js'].includes(f))
+            .filter(f => f.endsWith('.js') && !['al-contract.js', 'al-entitlement.js', 'eslint.config.js'].includes(f))
             .filter(f => /\bgetALEntitlement\b/.test(strip(readFileSync(new URL('./' + f, import.meta.url), 'utf8'))));
         assert.deepEqual(offenders, [], 'read the allowance through entitlementFor (al-entitlement.js)');
     });

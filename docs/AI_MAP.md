@@ -150,11 +150,8 @@ every base-shift, date and shift-classification helper. Rules: `.claude/rules/ro
   `getShiftBadge(timeStr, { showTime? })` (`showTime` shows a timed shift's time — Admin's week grid and
   Overtime's `rosterBadge`; the default stays byte-identical) · `SHIFT_TIME_REGEX` · `TIME_RE` ·
   `validateRosterPatterns(rosters?)` (a load-time self-check on localhost or `?debug`).
-- **Leave and grades.** `getALEntitlement(member, year, overrides)` → number or **`null`** (none on
-  record — including a year before the member's `startDate`: test for it, because `null - taken - booked`
-  is a number). Read the whole allowance through `entitlementFor` (`al-entitlement.js`), never this
-  (`christmas-leave.test.mjs`). `dispatcherBaseAL(member, year)` — a Dispatcher's leave before days in
-  lieu (the joining year's `proRatedAL`, else 22), the one base the allowance and `dispatcherBreakdown` share.
+- **Leave and grades.** The contract allowance (`getALEntitlement`, `dispatcherBaseAL`) moved to
+  `al-contract.js` (Nov 2026), which this module does not re-export (it would be an import cycle).
   `projectAnnualLeaveOverage({...})` (both AL write paths' over-entitlement warning, or null) ·
   `gradeForRole(role)` → `'cea'|'ces'|null` (re-exported by `paycalc-settings.js`, whose entry says what
   null means) · `getMembersForGrade(grade)` (Management is not filtered on `hidden` — see the comment) ·
@@ -1440,9 +1437,17 @@ The Annual Leave booking section on `admin.html`: a thin configuration of `creat
 - `initALSection(deps)` — the AL config: the range-length cap, the preview (with the Spare sentence), the swapped-day question, the projection of what the save will write, and the over-entitlement pre-save check that shows the confirm bar. DOM handles and callbacks arrive through `deps`, so nothing imports `admin-app.js` back.
 - `triggerConfirmedALSave()` — called by the confirm bar in `admin-app.js` when the user accepts booking past the entitlement; it sets the flag and presses Save again. The flag is captured and reset at the top of every save, so an early return can never leave it set.
 
+### `al-contract.js`
+A member's CONTRACT leave allowance for a year — the grade that decides it, its figure, a Dispatcher's days in lieu. Left `roster-data.js` (Nov 2026) for the owner's "role at the time" rule; the header carries the rules. Imports roster-data, override-utils and roster-roles; imported by `al-entitlement.js` and `christmas-leave.js`.
+- `getALEntitlement(member, year, overrides)` → number or **`null`** (none on record — including a year before the member's `startDate`, or a year whose grades have no figure: test for it, because `null - taken - booked` is a number). Read the whole allowance through `entitlementFor` (`al-entitlement.js`), never this (`christmas-leave.test.mjs`).
+- `allowanceRole(member, year)` — the grade that decides a year (owner, 16 Nov 2026): the grade on 31 December, else the most recent grade held during the year that has a leave figure; `role` when there is no `roleHistory`.
+- `dispatcherBaseAL(member, year)` — a Dispatcher's leave before days in lieu (the joining year's `proRatedAL`, else 22), the one base the allowance and `dispatcherBreakdown` share.
+- `countsAsDispatcherBankHoliday(member, date)` — does the Dispatcher bank-holiday rule count this day: a bank holiday, on or after the start date, a Dispatcher year, a Dispatcher on the day. `allowanceForBoxingDay` asks it, so a Boxing Day is counted once. `countDispatcherBankHolidaysWorked(member, year, overrides)` — those days whose winning value is worked (a trainee's `TRG` included, owner 16 Nov 2026).
+- Tested by `al-entitlement.test.mjs` (the grade at the time, the start date, the trainee) and `roster-data.test.mjs`.
+
 ### `al-entitlement.js`
 Which annual-leave days spend a member's entitlement, and where that leaves them: taken, booked, remaining. Pure. One module because the set of counted days used to be built by hand in four places that disagreed (the header has the story and the rules).
-- `entitlementFor(member, year, overrides)` → `number|null` — the WHOLE allowance: `getALEntitlement` plus the day in lieu for working the Boxing Day BEFORE the year (`boxingDayLieuDays`: 2027 holds 26 Dec 2026's, owner 15 Nov 2026). **The one door**: `christmas-leave.test.mjs` fails if any other module calls `getALEntitlement`. `null` (no entitlement on record) stays `null`.
+- `entitlementFor(member, year, overrides)` → `number|null` — the WHOLE allowance: `getALEntitlement` (`al-contract.js`) plus the day in lieu for working the Boxing Day BEFORE the year (`boxingDayLieuDays`: 2027 holds 26 Dec 2026's, owner 15 Nov 2026). **The one door**: `christmas-leave.test.mjs` fails if any other module calls `getALEntitlement`. `null` (no entitlement on record) stays `null`.
 - `consumesEntitlement(member, date, ovByDate?)` — does leave on this date cost a day? Never a Sunday; never before the member's start date, a record's own evidence included (`isBeforeMemberStart`, asked first since 15 Nov 2026: a swapped working day there was charged); never Christmas Day or Boxing Day from 2026 (`isChristmasClosureDate`); otherwise what is UNDERNEATH decides — the override through `isContractedWorkOverride`, given the day's base (on an AL document, its `replacedType`, so a swapped-in day costs a day and a voluntary `rdw` does not, nor an Other day or a Spare turn on a base rest day — owner, 10 Nov 2026), else the base shift. Both halves of the overage projection ask it.
 - `countedAlDates({ overrides, member, year, exclude })` → `Set` — the AL days that spend `year`'s allowance, by the WINNING record and `leaveYearOf` it, so a January day moved back counts once, in the earlier year. `exclude` drops the dates a batch is about to rewrite.
 - `alPosition({ overrides, member, year, todayStr })` → `{ entitlement, taken, booked, remaining }` — split at `todayStr`; `remaining` may be negative (over the limit); a null entitlement gives a null remaining.
@@ -2438,7 +2443,7 @@ member changes grade"). Pure, no imports. Its own file because `roster-data.js` 
 - `roleOn(member, date)` → the role held that day (undefined without a member) · `rolesInRange(member,
   start, end)` → `[{ role, days }]`, consecutive days merged, both ends inclusive, `[]` when the end is
   before the start.
-- Read by the Pay Calculator: `paycalc-grade.js` prices each payslip by the grades over its days, and
+- Read by the leave allowance (`allowanceRole`, `al-contract.js` — the grade that decides a year) and by the Pay Calculator: `paycalc-grade.js` prices each payslip by the grades over its days, and
   `paycalc-grade-setting.js` asks for them over the payslip on screen (the grade prompt). A grade is not carried on `rosterChanges`: most line moves change no grade, and a member
   promoted on a fixed pattern changes grade without moving line. Tested against the real rows in
   `roster-data.test.mjs` ("A GRADE ON A DAY").

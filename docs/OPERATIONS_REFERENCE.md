@@ -855,14 +855,15 @@ on every date, past ones included:
   name lists from `role`, and the parser looks only for the names on the uploaded roster's list.
 - **Where they are listed**: the Calendar's member list, Team Week's grade tabs and the sign-in
   screen's grade step, for past weeks as well as future ones.
-- **Their leave allowance**, in any year without a `proRatedAL` figure (CLAUDE.md → AL entitlement).
-  A year that has one keeps it.
 - **The New link page**, which is for everyone on a normal CEA contract.
 
 **The old grade is recorded with its last day**, as `roleHistory: [{ role: 'CEA', until: new Date(2026,
 10, 21) }]` — the day BEFORE the change, midnight local, inclusive — and `role` becomes the new grade.
-`roleOn(member, date)` (`roster-roles.js`) reads the two together, for the one surface that needs the
-grade on a DAY: the **Pay Calculator**, which prices each payslip at the grade held on its days
+`roleOn(member, date)` (`roster-roles.js`) reads the two together. **The leave allowance** follows it
+too (owner, 16 Nov 2026, "role at the time"): each year is judged by the grade held on 31 December, or,
+where that grade has no leave figure (Management), by the most recent grade held during the year that
+has one (`allowanceRole`, `al-contract.js`); a year with a `proRatedAL` figure keeps it. And so does the
+one surface that needs the grade on a DAY: the **Pay Calculator**, which prices each payslip at the grade held on its days
 (`.claude/rules/paycalc.md` invariant 17) — the payslip across the change by its days, with a line
 under its rate saying so — and tells the member once that there is nothing to change. **Nothing needs
 doing in it.** Like a `rosterChanges` entry, a `roleHistory` entry is never deleted: without it the

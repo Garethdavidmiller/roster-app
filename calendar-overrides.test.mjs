@@ -104,6 +104,7 @@ mock.module('./roster-data.js', {
         isChristmasRD:  realRosterData.isChristmasRD,
         isWorkedShift:  realRosterData.isWorkedShift,
         isBankHoliday:  realRosterData.isBankHoliday,
+        getBankHolidays: realRosterData.getBankHolidays,   // al-contract.js, through christmas-leave.js
         parseISODate:   realRosterData.parseISODate,
         CONFIG:       { MIN_YEAR: 2024, MAX_YEAR: 2030 },
         teamMembers:  [],

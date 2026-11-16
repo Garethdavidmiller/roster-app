@@ -283,7 +283,11 @@ const CAPS = {
     // down with it rather than banking eighty lines as headroom, per the header's rule.
     'calendar-app.js':         1310,
                                        //   ← 1320 until v23.69, when the month LEGEND left for calendar-legend.js (1264 now)
-    'roster-data.js':          1250,   // mostly data, not logic
+    'roster-data.js':          1200,   // mostly data, not logic
+    // 1250 → 1200 on 16 Nov 2026 (v26.2x), an EXTRACT at 1250 of 1250: the seam the v22.50 note below names,
+    // taken. The leave allowance — `getALEntitlement`, `dispatcherBaseAL` and the bank-holiday count it could
+    // not leave without — went to al-contract.js, where the owner's "role at the time" rule then landed. Measured
+    // 1,131 after; the setting rule puts the cap at 1200, and the ceiling comes down with the code.
     // 1253 for a day (14 Nov 2026): CONFIG.NEWSLETTER_IN_MENU, the switch that hid the Newsletter's ☰ button, went
     // when the button began to follow its latest issue (newsletter-recency.js), and the ceiling came back down with it.
     // 1360 → 1250 at v23.31, and this is the entry below FINISHING rather than another raise. That

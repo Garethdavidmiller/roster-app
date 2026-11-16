@@ -25,7 +25,7 @@
  *
  * Every path that produces a value for the review — the parsed cell, a picked reading, an entered
  * shift — goes through `normaliseCellValue`. Two copies of these rules would eventually let one of
- * those paths write a Sunday AL, which is the one thing the six-layer Sunday rule exists to prevent.
+ * those paths write a Sunday AL, which is the one thing the seven-layer Sunday rule exists to prevent.
  */
 
 import { isSunday } from './roster-data.js';

@@ -61,21 +61,22 @@
  * pure, which is what lets the boundary (a day that is today) be tested at all.
  */
 
-import { getALEntitlement, dispatcherBaseAL, getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { getALEntitlement, dispatcherBaseAL, allowanceRole } from './al-contract.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
 import { isChristmasClosureDate, boxingDayLieuDays, boxingDayForAllowance } from './christmas-leave.js';
 
 /**
  * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through
- * (v25.37). The contract figure is `getALEntitlement` (roster-data.js); on top of it goes the day in
+ * (v25.37). The contract figure is `getALEntitlement` (al-contract.js); on top of it goes the day in
  * lieu earned by working a Boxing Day the member was due to work (`boxingDayLieuDays`,
  * christmas-leave.js), which is in the NEXT year's allowance: 2027 holds the day earned on
  * 26 December 2026 (owner, 15 Nov 2026). No entitlement on record stays `null` — a day is not added
  * to nothing, which would make it a number (v22.45).
  *
- * It is not inside `getALEntitlement` because christmas-leave.js imports roster-data.js, so
- * roster-data.js cannot import it back (christmas-leave.js's header). A second door would be a
+ * It is not inside `getALEntitlement` because christmas-leave.js imports al-contract.js, so
+ * al-contract.js cannot import it back (christmas-leave.js's header). A second door would be a
  * surface that quietly leaves the earned day out, so christmas-leave.test.mjs fails if any module
  * but this one calls `getALEntitlement`.
  * @param {any} member  teamMembers entry
@@ -294,8 +295,10 @@ export function leaveYearChoices({ overrides, member, todayStr }) {
  * @returns {{ base: number, lieu: number, boxingDay: number, proRated: boolean } | null}
  */
 export function dispatcherBreakdown({ member, year, overrides }) {
-    if (!member || member.role !== 'Dispatcher') return null;
     const y = parseInt(String(year), 10);
+    // The grade that decides the YEAR (al-contract.js, owner 16 Nov 2026), not `role` today: the caption
+    // must split the figure `entitlementFor` returns, and that figure is a Dispatcher's only then.
+    if (!member || allowanceRole(member, y) !== 'Dispatcher') return null;
     const entitlement = entitlementFor(member, y, overrides);
     // A year before the Dispatcher joined has no entitlement on record (getALEntitlement), so there
     // is nothing to split — without this, `entitlement - base` would invent a lieu count from null.

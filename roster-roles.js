@@ -4,7 +4,7 @@
 // ============================================
 //
 // `role` on a `teamMembers` entry is the grade NOW. Every list reads it as that — the pickers, Team
-// Week, the roster import's name lists, the leave allowance — so a change of grade reaches them with
+// Week, the roster import's name lists — so a change of grade reaches them with
 // the release that makes it. `roleHistory` records the grades held BEFORE it, each with the LAST day
 // it applied (`until`, midnight local, inclusive), oldest first:
 //
@@ -13,7 +13,8 @@
 // is a CEA up to and including Saturday 21 November 2026 and a CES from the Sunday. This module is
 // the one reader of the pair. Its caller is the Pay Calculator, the one surface that must know the
 // grade on a DAY rather than now: a promotion is released days before it starts, so pricing by `role`
-// alone would reprice the periods worked before it at the new grade's rates.
+// alone would reprice the periods worked before it at the new grade's rates. The leave allowance asks
+// it too, for the grade that decides a YEAR (`allowanceRole`, al-contract.js — owner, 16 Nov 2026).
 //
 // A grade is not carried on `rosterChanges`, because a change of grade and a change of line are
 // different facts: most line moves change no grade, and a CEA promoted on a fixed pattern changes
