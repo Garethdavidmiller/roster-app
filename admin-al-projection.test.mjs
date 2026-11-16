@@ -20,8 +20,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays } from './roster-data.js';
-import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections } from './admin-al-projection.js';
+import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays, isBankHoliday } from './roster-data.js';
+import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange } from './admin-al-projection.js';
 import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 import { isRestShift } from './override-utils.js';
 
@@ -434,6 +434,96 @@ describe('the preview names every day in lieu a booking takes back', () => {
         assert.equal(lieuGoesWords(['2026-12-25', '2026-12-26']),
             'Christmas Day and Boxing Day recorded as leave, so the days in lieu for working them go');
         assert.equal(lieuGoesWords(['2026-08-31']), 'the bank holiday on 31 August recorded as leave, so the day in lieu for working it goes');
+    });
+});
+
+// ── AN ABSENCE TAKES THE DAY IN LIEU BACK TOO (review of v26.22) ─────────────────────────────────
+// Recorded over a day whose WORK earned a day in lieu, an absence removes that work exactly as leave
+// does, so the allowance falls. The Absence card checked nothing; `projectAbsenceRange` is the range
+// card's own composition — the writer's dates, the allowance after them, nothing spent — so only a
+// FALLING allowance can raise the bar. People here are INVENTED names on real patterns.
+describe('projectAbsenceRange — an absence over work that earned a day in lieu', () => {
+    const BOXING = new Date(2026, 11, 26);
+    const pattern = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL && !m.rosterChanges
+        && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, BOXING)));
+    const person = { ...pattern, name: 'Z. Invented' };
+    /** Working days the pattern has in `year`, from March, skipping bank holidays. @param {number} year @param {number} n */
+    const workdays = (year, n) => {
+        /** @type {string[]} */ const out = [];
+        for (let d = new Date(year, 2, 2); out.length < n; d.setDate(d.getDate() + 1)) {
+            if (d.getDay() !== 0 && !isBankHoliday(d) && isWorkedShift(getBaseShift(person, d)) && getBaseShift(person, d) !== 'SPARE') out.push(formatISO(d));
+        }
+        return out;
+    };
+    const in2027 = workdays(2027, 34);
+    const asLeave = (/** @type {string[]} */ dates) => dates.map((date, i) => ({ id: 'z' + i, memberName: person.name, type: 'annual_leave', date, value: 'AL' }));
+    const worked = { id: 'zbx', memberName: person.name, type: 'rdw', date: '2026-12-26', value: '06:00-14:00' };
+    const run = (/** @type {any[]} */ overrides, /** @type {string[]} */ dates) => projectAbsenceRange({ member: person,
+        memberName: person.name, overrides, ovByDate: new Map(overrides.map(o => [o.date, o])), dates });
+
+    test('the fixture: a 32-day CEA pattern due at work on Boxing Day 2026, and 33 working days in 2027', () => {
+        assert.ok(pattern, 'needs a plain CEA due at work on Boxing Day 2026');
+        assert.equal(entitlementFor(person, 2027, [worked]), 33, '32, and the worked Boxing Day\'s day in lieu');
+    });
+
+    test('at the next year\'s limit, an absence over the worked Boxing Day raises the bar and names the day', () => {
+        const r = run([...asLeave(in2027.slice(0, 33)), worked], ['2026-12-26']);
+        assert.deepEqual(r.writing, ['2026-12-26']);
+        assert.deepEqual(r.lieuLost, ['2026-12-26']);
+        assert.ok(r.overage, 'the absence takes back the day in lieu, so 33 of 33 becomes 33 of 32');
+        assert.equal(r.overage.detail, 'Boxing Day recorded as absent, so the day in lieu for working it goes · 33 days used of 32 allowed in 2027');
+    });
+
+    test('with a day to spare, the day in lieu is named and the save is not stopped', () => {
+        const r = run([...asLeave(in2027.slice(0, 32)), worked], ['2026-12-26']);
+        assert.deepEqual(r.lieuLost, ['2026-12-26']);
+        assert.equal(r.overage, null);
+    });
+
+    test('a Boxing Day with no work on record is not written, and loses nothing', () => {
+        const r = run(asLeave(in2027.slice(0, 33)), ['2026-12-26']);
+        assert.deepEqual(r.writing, []);
+        assert.equal(r.overage, null);
+    });
+
+    test('ONLY A FALLING ALLOWANCE WARNS: a member already over is not stopped by an absence that lowers nothing', () => {
+        const r = run(asLeave(in2027.slice(0, 33)), [in2027[33]]);   // 33 of 32 already, absent on an ordinary day
+        assert.deepEqual(r.writing, [in2027[33]], 'premise: the day is written');
+        assert.deepEqual(r.lieuLost, []);
+        assert.equal(r.overage, null);
+    });
+
+    test('leave the absence replaces is no longer counted: losing the day in lieu and a day of leave together still fits', () => {
+        // At the limit (33 of 33). The absence takes the Boxing Day lieu (→ 32) and replaces one day of
+        // 2027 leave (→ 32 used): exactly at the limit, so no bar. Counted twice, it read "1 day over".
+        const r = run([...asLeave(in2027.slice(0, 33)), worked], ['2026-12-26', in2027[0]]);
+        assert.deepEqual(r.lieuLost, ['2026-12-26']);
+        assert.equal(r.overage, null);
+    });
+
+    test('a Dispatcher\'s worked bank holiday: an absence on it at the limit raises the bar', () => {
+        const disp = teamMembers.find(m => m.role === 'Dispatcher' && !m.hidden && !m.startDate && !m.proRatedAL && !m.rosterChanges);
+        const at = (/** @type {string} */ iso) => new Date(`${iso}T12:00:00`);
+        const bh = getBankHolidays(2026).map(formatISO)
+            .find(iso => at(iso).getMonth() < 11 && at(iso).getDay() !== 0 && isWorkedShift(getBaseShift(disp, at(iso))));
+        assert.ok(disp && bh, 'premise: a plain Dispatcher pattern rostered on a 2026 bank holiday');
+        const d = { ...disp, name: 'Y. Invented' };
+        const allowance = /** @type {number} */ (entitlementFor(d, 2026, []));
+        /** @type {string[]} */ const leave = [];
+        for (let x = new Date(2026, 0, 2); leave.length < allowance; x.setDate(x.getDate() + 1)) {
+            if (x.getDay() !== 0 && !isBankHoliday(x) && isWorkedShift(getBaseShift(d, x)) && getBaseShift(d, x) !== 'SPARE') leave.push(formatISO(x));
+        }
+        const ovs = leave.map((date, i) => ({ id: 'y' + i, memberName: d.name, type: 'annual_leave', date, value: 'AL' }));
+        const r = projectAbsenceRange({ member: d, memberName: d.name, overrides: ovs, ovByDate: new Map(ovs.map(o => [o.date, o])), dates: [bh] });
+        assert.deepEqual(r.lieuLost, [bh]);
+        assert.ok(r.overage, 'at the limit, the bank holiday\'s day in lieu going leaves them one over');
+        assert.equal(r.overage.over, 1);
+    });
+
+    test('the leave card\'s words are unchanged, and the Absence card says "absent"', () => {
+        assert.equal(lieuGoesWords(['2026-12-26']), 'Boxing Day recorded as leave, so the day in lieu for working it goes');
+        assert.equal(lieuGoesWords(['2026-12-25', '2026-12-26'], 'absent'),
+            'Christmas Day and Boxing Day recorded as absent, so the days in lieu for working them go');
     });
 });
 

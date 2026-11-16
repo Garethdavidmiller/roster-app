@@ -1789,6 +1789,9 @@ test('admin: the Sunday row offers no pill for anything that cannot be recorded 
     const weekday = page.locator(`.day-row[data-date="${days.wed}"]`);
 
     for (const type of SUNDAY_FORBIDDEN_TYPES) {
+        // `other` is the one forbidden TYPE whose pill stays: the Other pill is also the door to Spare,
+        // its own type, which a Sunday takes (owner, Nov 2026). Its Other-day chips are what is refused — below.
+        if (type === 'other') continue;
         await expect(sunday.locator(`.pill-${type}`), `${type} must not be pressable on a Sunday`)
             .toBeDisabled();
         // A disabled button leaves the tab order, so the reason has to be in the accessible name —
@@ -1803,6 +1806,19 @@ test('admin: the Sunday row offers no pill for anything that cannot be recorded 
     // Sunday work is overtime; a row where every pill were dead would pass the loop above while
     // making a genuinely payable shift unrecordable.
     await expect(sunday.locator('.pill-rdw')).toBeEnabled();
+    // OTHER OFFERS SPARE ALONE ON A SUNDAY (admin-day-pills.js): every Other-day chip is dead and says
+    // why, and Spare — the only choice — is pressed the moment Other is.
+    await expect(sunday.locator('.pill-other')).toHaveAttribute('aria-label', 'Other — only Spare on Sundays');
+    await sunday.locator('.day-cb').check();
+    await sunday.locator('.pill-other').click();
+    await expect(sunday.locator('.other-flavour-btn[data-flavour="SPARE"]')).toHaveAttribute('aria-pressed', 'true');
+    const dead = sunday.locator('.other-flavour-btn:not([data-flavour="SPARE"])');
+    expect(await dead.count(), 'every Other-day chip is drawn').toBeGreaterThan(0);
+    for (const chip of await dead.all()) {
+        await expect(chip).toBeDisabled();
+        await expect(chip).toHaveAttribute('aria-label', /unavailable on Sundays$/);
+    }
+    await expect(sunday.locator('.sunday-note')).toContainText('but a Spare turn can');
 });
 
 test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped, and it says so', async ({ page }) => {
@@ -1934,12 +1950,15 @@ async function adminOnWeek(page, member, iso) {
 
 // BOXING DAY IS NEVER AN OTHER DAY (owner, Jul 2026 — CLAUDE.md, Shift types), refused the way a Sunday's
 // is: at the pill, with the reason in the row, and at Save for a row that reaches it another way.
-test('admin: Boxing Day takes no Other day — the pill says why, and Save refuses one', async ({ page }) => {
+test('admin: Boxing Day takes no Other day — the chips say why, and Save refuses one', async ({ page }) => {
     await adminOnWeek(page, 'G. Miller', '2026-12-21');
     const boxing = page.locator('.day-row[data-date="2026-12-26"]');
     await boxing.locator('.day-cb').click();
-    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toBeDisabled();
-    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toHaveAttribute('aria-label', /Boxing Day/);
+    // The pill stays for Spare alone (owner, Nov 2026); the Other-day chips are what is refused.
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toBeEnabled();
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toHaveAttribute('aria-label', 'Other — only Spare on Boxing Day');
+    await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]')).toBeDisabled();
+    await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]')).toHaveAttribute('aria-label', /unavailable on Boxing Day$/);
     await expect(boxing.locator('.col-pills')).toContainText('Boxing Day can’t be an Other day');
     await expect(boxing.locator('.type-pill-btn[data-type="rdw"]'), 'work on Boxing Day is still recordable').toBeEnabled();
     const thu = page.locator('.day-row[data-date="2026-12-24"]');   // a working day, so the save has a batch
@@ -1952,6 +1971,25 @@ test('admin: Boxing Day takes no Other day — the pill says why, and Save refus
     await page.locator('#saveBtn').click();
     await expect(page.locator('#formFeedback')).toContainText('26 Dec 2026: an "Other" day cannot be recorded on Boxing Day');
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
+});
+
+// SPARE ON A SUNDAY AND ON BOXING DAY (owner, Nov 2026). The saves always took one — a Sunday Spare
+// passes the single-row save, and Boxing Day's backstop refuses only an Other day — but the grid had
+// turned the whole Other pill off on both days, and Spare lives behind it. Now Other offers Spare alone.
+test('admin: a Spare turn can be recorded on a Sunday and on Boxing Day — Other offers Spare alone', async ({ page }) => {
+    await adminOnWeek(page, 'G. Miller', '2026-12-21');   // Sunday 20 Dec to Saturday 26 Dec 2026
+    for (const date of ['2026-12-20', '2026-12-26']) {
+        const row = page.locator(`.day-row[data-date="${date}"]`);
+        await row.locator('.day-cb').check();
+        await row.locator('.pill-other').click();
+        await expect(row.locator('.other-flavour-btn[data-flavour="SPARE"]'), `${date}: Spare, the only choice, is pressed`)
+            .toHaveAttribute('aria-pressed', 'true');
+        await expect(row.locator('.time-note'), 'a Spare takes no times').toBeVisible();
+    }
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('2 changes saved for G. Miller', { timeout: 10000 });
+    const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type} ${w.value}`));
+    expect(written.sort()).toEqual(['2026-12-20 spare_shift SPARE', '2026-12-26 spare_shift SPARE']);
 });
 
 // A DAY BEFORE A MEMBER'S START DATE TAKES NO CHANGE (whole-app check, Nov 2026; decided default). The
@@ -3778,7 +3816,8 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
     await page.locator('#bulkApplyBtn').click();
     // Also reveal the per-row "Other" sub-controls (flavour chips + optional times) on a
     // weekday row — the most width-hungry revealed control set, now reached only per-row.
-    const otherPill = page.locator('.day-row .pill-other:not([disabled])').first();
+    // Not a Sunday or Boxing Day row: there Other offers Spare alone, which hides the times (admin-day-pills.js).
+    const otherPill = page.locator('.day-row:not([data-spare-only="1"]) .pill-other:not([disabled])').first();
     if (await otherPill.count()) await otherPill.click();
     await page.waitForTimeout(200);
 
@@ -3802,7 +3841,8 @@ test('admin: the Other submenu\'s chips and tick clear the 24px tap floor on tou
     await seedSession(page);
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    const row = page.locator('.day-row').filter({ has: page.locator('.pill-other:not([disabled])') }).first();
+    // Not a Sunday or Boxing Day row: Other presses Spare there, which hides the RDW tick measured below.
+    const row = page.locator('.day-row:not([data-spare-only="1"])').filter({ has: page.locator('.pill-other:not([disabled])') }).first();
     // A row's pills are offered once its day is ticked.
     await row.locator('.day-cb').check();
     await row.locator('.pill-other').click();

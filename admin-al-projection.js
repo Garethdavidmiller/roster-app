@@ -47,7 +47,7 @@
 import { projectAnnualLeaveOverage, parseISODate, isSunday, getBaseShift } from './roster-data.js';
 import { isRestShift, isBeforeMemberStart } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
-import { swapDecisionDates } from './al-swapped-days.js';
+import { swapDecisionDates, rangeWriteDates } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
 import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
@@ -181,12 +181,16 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
  * In EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), not just its own: a
  * worked Boxing Day's day in lieu is in the NEXT year's allowance (owner, 15 Nov 2026), so leave over
  * that work leaves its own year where it was and takes the day from the year after.
+ *
+ * `written` is the record the save puts there — leave by default; an absence takes the day in lieu
+ * back exactly as leave does, because it too replaces the work (`projectAbsenceRange`).
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
+ * @param {{type: string, value: string}} [written]
  * @returns {boolean}
  */
-function lowersAllowance(member, date, ovByDate) {
+function lowersAllowance(member, date, ovByDate, written = { type: 'annual_leave', value: 'AL' }) {
     const held = ovByDate && typeof ovByDate.values === 'function' ? [...ovByDate.values()].filter(Boolean) : [];
-    const leave = { memberName: member.name, date, type: 'annual_leave', value: 'AL', createdAt: { seconds: 4102444800 } };
+    const leave = { memberName: member.name, date, ...written, createdAt: { seconds: 4102444800 } };
     const withLeave = [...held.filter(o => o.date !== date), leave];
     return allowanceYearsOf(member, date).some(year => {
         const before = entitlementFor(member, year, held);
@@ -216,18 +220,57 @@ export function rangeSundayCorrections({ dates, memberObj, ovByDate = null }) {
 }
 
 /**
- * How the range card's preview names the days in lieu a booking takes back (7 Nov 2026): Christmas
- * Day and Boxing Day by name, any other bank holiday — a Dispatcher's — by its date.
- * @param {string[]} dates ISO dates, ascending @returns {string}
+ * What an ABSENCE range does to the leave ALLOWANCE (review of v26.22). An absence spends no leave,
+ * but written over a day whose WORK earned a day in lieu — a worked Boxing Day (whose day goes into
+ * the NEXT year's allowance), a Dispatcher's worked bank holiday — it takes that day back, exactly as
+ * leave over it does: the day is no longer worked. The Absence card checked nothing, so the allowance
+ * fell without a word, while the week grid already asked (`planAlWeekSave`'s no-leave path).
+ *
+ * This is that same check for a range, with no second copy of any rule in it: the dates are the
+ * writer's own (`rangeWriteDates`, and the Sundays `rangeSundayCorrections` sets), the allowance after
+ * the save is `overridesAfterSave`, and `projectAlOverage` is given NOTHING spent — so only a year
+ * whose allowance FALLS is checked, and an absence elsewhere never raises the bar. `exclude` is every
+ * written date: leave the absence replaces is no longer counted.
+ *
+ * @param {object} args
+ * @param {any} args.member the team-member object; without it nothing is judged
+ * @param {string} args.memberName the name, for the message
+ * @param {Array<any>} args.overrides every override the page holds
+ * @param {Map<string, any>|null} [args.ovByDate] the member's overrides in play, keyed by date
+ * @param {string[]} args.dates every date the range covers
+ * @returns {{ writing: string[], lieuLost: string[], overage: {over:number, projectedTotal:number, headline:string, detail:string}|null }}
+ *   `writing` the dates recorded as absent; `lieuLost` those whose day in lieu goes, for the preview;
+ *   `overage` the confirmation message, its detail naming the days in lieu, or null.
  */
-export function lieuGoesWords(dates) {
+export function projectAbsenceRange({ member, memberName, overrides, ovByDate = null, dates }) {
+    if (!member || !Array.isArray(dates)) return { writing: [], lieuLost: [], overage: null };
+    const ov = ovByDate ?? new Map();
+    const absent = { type: 'sick', value: 'SICK' };
+    const writing = rangeWriteDates({ type: absent.type, dates, memberObj: member, ovByDate: ov });
+    if (!writing.length) return { writing, lieuLost: [], overage: null };
+    const writes = [...writing.map(date => ({ date, ...absent })),
+        ...rangeSundayCorrections({ dates, memberObj: member, ovByDate: ov }).map(date => ({ date, type: 'correction', value: 'RD' }))];
+    const lieuLost = writing.filter(date => lowersAllowance(member, date, ov, absent));
+    const overage = projectAlOverage({ member, memberName, overrides, consuming: [], exclude: new Set(writing),
+        after: overridesAfterSave(overrides, { memberName, writes }) });
+    return { writing, lieuLost,
+        overage: overage && lieuLost.length ? { ...overage, detail: `${lieuGoesWords(lieuLost, 'absent')} · ${overage.detail}` } : overage };
+}
+
+/**
+ * How the range cards' previews name the days in lieu a booking takes back (7 Nov 2026): Christmas
+ * Day and Boxing Day by name, any other bank holiday — a Dispatcher's — by its date. `as` is what the
+ * day is recorded as: leave on the leave card, absent on the Absence card.
+ * @param {string[]} dates ISO dates, ascending @param {'leave'|'absent'} [as] @returns {string}
+ */
+export function lieuGoesWords(dates, as = 'leave') {
     const name = (/** @type {string} */ d) => d.endsWith('-12-25') ? 'Christmas Day' : d.endsWith('-12-26') ? 'Boxing Day'
         : `the bank holiday on ${parseISODate(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`;
     const names = dates.map(name);
     const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : (names[0] ?? '');
     return dates.length > 1
-        ? `${list} recorded as leave, so the days in lieu for working them go`
-        : `${list} recorded as leave, so the day in lieu for working it goes`;
+        ? `${list} recorded as ${as}, so the days in lieu for working them go`
+        : `${list} recorded as ${as}, so the day in lieu for working it goes`;
 }
 
 /** @param {Record<string, string[]>} sets */

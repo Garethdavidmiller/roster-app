@@ -4975,6 +4975,32 @@ test('operations annual leave sheet: the Save adds a confirmed person’s missin
     expect(errors).toEqual([]);
 });
 
+// A SAVE WHERE ONLY SWAPS LANDED IS LOGGED WITH NOTHING ADDED, and as the newest log it hid the Undo of
+// the Save before it (review of v26.22). The Undo on offer is the latest Save that ADDED leave
+// (al-leave-plan.js → judgeUploads' `undoable`), and its line does not call it the last Save.
+test('operations annual leave sheet: a later Save that added no leave does not take the earlier Save’s Undo away (review of v26.22)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const fx = await alSheetFixture();
+    const key = `${fx.A.name}|${fx.dates.match}`;
+    const log = (/** @type {string} */ id, /** @type {number} */ hoursAgo, /** @type {string[]} */ added) => ({ id, year: fx.year,
+        fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256, clerksLastSaved: fx.file.source.clerksLastSaved,
+        lastSavedByClerk: true, savedAt: { seconds: Math.floor(Date.now() / 1000) - hoursAgo * 3600 }, savedBy: 'A. Clerkson',
+        appVersion: 'e2e', inLine: [key], added, writesMarked: true });
+    await openAlSheet(page, fx.records, { docsByQuery: { overrides: fx.records,
+        alUploads: [log('log-added', 2, [key]), log('log-swaps-only', 1, [])] } });
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+    const last = page.locator('.al-sheet-last');
+    await expect(last).toContainText('The last Save here that added leave was');
+    await expect(last).toContainText('adding 1 day of leave. Later Saves added none.');
+    await expect(last.locator('.al-sheet-undo'), 'the earlier Save can still be undone').toHaveCount(1);
+    await last.locator('.al-sheet-undo').click();
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText(undoConfirmWords(1));
+    await page.locator('.lb-overlay.open .dialog-btn-cancel').click();
+    expect(errors).toEqual([]);
+});
+
 test('operations annual leave sheet: the Undo keeps a day the same admin changed after the Save, though it is stamped before the log (external review, 15 Nov 2026)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     const fx = await alSheetFixture();

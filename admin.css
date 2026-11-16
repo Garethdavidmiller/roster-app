@@ -2559,6 +2559,9 @@
     transition: background var(--dur-med), color var(--dur-med);
 }
 .other-flavour-btn.active { background: var(--other); color: white; }
+/* A chip a Sunday or Boxing Day refuses: there the Other pill offers Spare alone (admin-day-pills.js).
+   Inert the way a disabled type pill is, and the row's note says why in words. */
+.other-flavour-btn:disabled { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
 /* Spare lives in this submenu but is its own thing — keep its 📋 purple colour (v15.57). */
 .other-flavour-spare { border-color: var(--purple); color: var(--purple); }
 .other-flavour-spare.active { background: var(--purple); color: white; border-color: var(--purple); }

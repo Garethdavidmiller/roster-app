@@ -209,7 +209,11 @@ const CAPS = {
     // headroom"), the time boxes left for admin-time-inputs.js, and the ~40 lines that freed are
     // the headroom the review asked for — lowering the cap to the new size would hand the next
     // week-grid change the same zero it had. The ceiling still only falls.
-    'admin-week-editor.js':    830,
+    // 830 -> 810 in Nov 2026, an EXTRACT: the file stood at 830/830 again, and a rule — which changes a
+    // day takes at its pills (the Sunday rule's layer 1, Boxing Day, before the start date, and Spare
+    // alone on a Sunday or Boxing Day) — left for admin-day-pills.js, 830 down to 796. Lowered by 20,
+    // not to 796, for the v24.64 reason: the rest is the next week-grid change's headroom.
+    'admin-week-editor.js':    810,
     'admin-saved-changes.js':  460,
     // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
     // 1,638 — taking a pointer state machine with no business rule in it. What a week change MEANS

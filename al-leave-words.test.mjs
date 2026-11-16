@@ -407,6 +407,9 @@ test('the last Save and its Undo, singular and plural', () => {
         'This sheet was last saved here on 14 Nov 2026 by A. Clerkson, adding 1 day of leave.');
     assert.equal(lastSaveWords({ savedAt: null, savedBy: 'A. Clerkson', added: 2 }),
         'This sheet was last saved here by A. Clerkson, adding 2 days of leave.');
+    // A later Save added nothing (al-leave-plan.js → `undoable`): the line never calls this one the last.
+    assert.equal(lastSaveWords({ savedAt: new Date('2026-11-14T10:00:00Z'), savedBy: 'A. Clerkson', added: 1, latest: false }),
+        'The last Save here that added leave was on 14 Nov 2026 by A. Clerkson, adding 1 day of leave. Later Saves added none.');
     assert.equal(undoConfirmWords(1), 'This takes back the 1 day of leave the Save added — except any that somebody has changed since.');
     assert.equal(undoConfirmWords(3), 'This takes back the 3 days of leave the Save added — except any that somebody has changed since.');
     assert.deepEqual(undoneWords({ removed: [], kept: ['C. Specimen|2026-03-03'], gone: [] }), [SAVE_WORDS.undoNothing,
@@ -459,7 +462,7 @@ test('the Save’s voice: calm, never "override", never names the admin — the 
         ...receiptWords({ days: 2, people: 1, refused: new Map([['D. Placeholder', ['2026-03-03']]]) }),
         ...receiptWords({ days: 2, people: 1, refused: new Map([['D. Placeholder', ['2026-03-03']]]), landedFor: new Set(['D. Placeholder']) }),
         leftFreeWords('C. Specimen', [{ date: '2026-03-03', held: true }]),
-        lastSaveWords({ savedAt: null, savedBy: 'A. Clerkson', added: 2 }), undoConfirmWords(2),
+        lastSaveWords({ savedAt: null, savedBy: 'A. Clerkson', added: 2 }), lastSaveWords({ savedAt: null, savedBy: 'A. Clerkson', added: 2, latest: false }), undoConfirmWords(2),
         ...undoneWords({ removed: ['C. Specimen|2026-03-02'], kept: ['C. Specimen|2026-03-03'], gone: ['C. Specimen|2026-03-04'] }),
     ];
     for (const s of lines) {

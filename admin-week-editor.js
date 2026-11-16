@@ -37,6 +37,7 @@ import { isChristmasLeaveDay, resolveDayShift, allowanceForBoxingDay } from './c
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
 import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
+import { restrictDayPills } from './admin-day-pills.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
@@ -214,7 +215,8 @@ export function buildWeekGridInto(container, dateStr) {
         const existing = memberDateMap.get(dateISO);
         // TWO DAYS THAT TAKE NO CHANGE, refused at the pills as a Sunday is, with the reason in the row
         // (admin-shift-rules.js → checkDayRules, the backstop at Save): before the member's start date,
-        // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026).
+        // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026) — Spare
+        // excepted, on Boxing Day as on a Sunday (admin-day-pills.js).
         const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
         // CHRISTMAS LEAVE (v25.37) — said in the row, as the Sunday reason is, because the Base roster
         // column shows the rest day `getBaseShift` makes both Christmas days for everybody. A member due
@@ -255,10 +257,10 @@ export function buildWeekGridInto(container, dateStr) {
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
                 ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
-                ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded</span>` : ''}
+                ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded, but a Spare turn can</span>` : ''}
                 ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
                 ${beforeStart ? `<span class="start-note">Before the start date (${formatDisplay(formatISO(/** @type {Date} */ (member.startDate)))}) — the Calendar doesn’t show changes here, so none can be recorded</span>`
-                    : boxing ? '<span class="christmas-note">Boxing Day can’t be an Other day — training, meetings and the rest</span>' : ''}
+                    : boxing ? '<span class="christmas-note">Boxing Day can’t be an Other day — training, meetings and the rest — but a Spare turn can be recorded</span>' : ''}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
@@ -290,45 +292,9 @@ export function buildWeekGridInto(container, dateStr) {
 
         container.appendChild(row);
 
-        // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 1: disable pills in week grid). Only e2e/admin.spec.js proves them dead.
-        if (isSunday(dateISO)) {
-            const alPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-annual_leave'));
-            if (alPill) {
-                alPill.disabled = true;
-                // Disabled buttons drop out of the tab order — put the reason in the accessible
-                // name so a screen reader reading the row in browse mode hears why the pill is
-                // unavailable. Sighted readers get the same reason as a LINE IN THE ROW (the
-                // `.sunday-note` below, v23.50): it used to be a `title`, which is a hover surface
-                // no phone shows, so on the device every manager uses the pills simply went grey.
-                alPill.setAttribute('aria-label', 'Annual Leave — unavailable on Sundays (not a contracted day)');
-            }
-            const sickPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-sick'));
-            if (sickPill) {
-                sickPill.disabled = true;
-                sickPill.setAttribute('aria-label', 'Absent — unavailable on Sundays (not a contracted day)');
-            }
-            const otherPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-other'));
-            if (otherPill) {
-                otherPill.disabled = true;
-                otherPill.setAttribute('aria-label', 'Other — unavailable on Sundays (not a contracted day)');
-            }
-            // A worked Sunday is always Rest Day Working (RDW), never a plain shift — Sundays are
-            // uncontracted, so any Sunday work is overtime. Disable the Shift pill and point staff at
-            // RDW (the roster-upload path promotes Sunday shift→rdw for the same reason). Without this,
-            // a Sunday saved as 'shift' rendered as an ordinary worked badge and the pay calculator's
-            // Sunday-overtime pre-fill missed it, under-counting pay.
-            const shiftPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-shift'));
-            if (shiftPill) {
-                shiftPill.disabled = true;
-                shiftPill.setAttribute('aria-label', 'Shift — unavailable on Sundays; record Sunday work as Rest Day Working (RDW)');
-            }
-        }
-        if (beforeStart || boxing) row.querySelectorAll('.type-pill-btn').forEach(p => {
-            const t = /** @type {HTMLElement} */ (p).dataset.type ?? '';
-            if (!beforeStart && t !== 'other') return;
-            /** @type {HTMLButtonElement} */ (p).disabled = true;
-            p.setAttribute('aria-label', `${TYPES[t]?.label ?? t} — unavailable ${beforeStart ? 'before the start date' : 'on Boxing Day'}`);
-        });
+        // What this day cannot take is turned off at its pills, with the reason — the Sunday rule's layer 1,
+        // Boxing Day, and before the start date; Other offers Spare alone on a Sunday or Boxing Day.
+        restrictDayPills(row, { sunday: isSunday(dateISO), boxing, beforeStart });
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
         const pills    = row.querySelectorAll('.type-pill-btn');

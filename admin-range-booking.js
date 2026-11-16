@@ -77,7 +77,7 @@ import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim
  *   Omit it (the absence card does) and `projection` is null.
  * @param {(ctx: { member: string, dates: string[], memberObj: any, swapAnswers: Map<string, boolean> })
  *   => boolean} [cfg.preSave]  Runs after the
- *   member/dates guard; return true to abort the save (AL: the over-entitlement check that shows the confirm bar).
+ *   member/dates guard; return true to abort the save (AL: the over-entitlement check that shows the confirm bar; Absence: the same bar when it takes back a day in lieu).
  * @param {(ctx: { dates: string[], memberObj: any, ovByDate: Map<string, any>|null }) => string[]} [cfg.swapQuestion]
  *   THE SWAPPED-DAY QUESTION (v23.75, AL only). Returns the dates in the range whose base roster says REST and
  *   which therefore would not cost a day — the only case where leave on a rest day is real is a member who
