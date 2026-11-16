@@ -20,7 +20,7 @@ import { gradeForRole } from './roster-data.js';
 import { byDays, gradeSplitLine, windowGrade } from './paycalc-grade.js';
 import {
   getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt,
-  saveGradeSetting, loadGradeSetting,
+  saveGradeSetting, loadGradeSetting, isPeriodPriced, unpricedLineFor,
 } from './paycalc-grade-setting.js';
 import { lsGet, lsSet } from './ls.js';
 import { fdShort } from './paycalc-format.js';
@@ -37,7 +37,7 @@ import {
 export { gradeForRole };
 // The grade setting lives in paycalc-grade-setting.js; these are re-exported so its readers here — the
 // page, back pay, the HPP and year cards, the hint bar, the tests — did not move with it.
-export { getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt };
+export { getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt, isPeriodPriced, unpricedLineFor };
 
 /**
  * Return effective contracted hours for the given period, pro-rated if the
@@ -301,12 +301,14 @@ export function settledRate(grade, ty) {
  * A PAYSLIP's settled rate: each grade it was worked under at its settled rate for the year,
  * weighted by its days (paycalc-grade.js → byDays). Use it wherever every period of a year is priced
  * at the settled rate — the Holiday Pay Premium estimate, which does that on purpose (paycalc.md).
+ * null for a payslip with a day under a role that has no rates — never CEA's rate in its place
+ * (invariant 13): the caller leaves that payslip out.
  * @param {any} p
  * @param {any} [ty] - p's tax year (derived when omitted)
- * @returns {number}
+ * @returns {number|null}
  */
 export function settledRateFor(p, ty = taxYearForPeriod(p)) {
-  return byDays(gradeDaysFor(p), g => settledRate(g, ty)) ?? settledRate('cea', ty);
+  return byDays(gradeDaysFor(p), g => settledRate(g, ty));
 }
 
 /**
@@ -320,8 +322,10 @@ export function settledRateFor(p, ty = taxYearForPeriod(p)) {
  *
  * A window that SPANS a change of grade is priced at the grade held at its end, and logged: no
  * member's dates produce one today, and paycalc-grade-wiring.test.mjs fails the commit that would.
+ * null when neither the window nor the payslip on screen was worked under a grade with rates — a
+ * manager's award is not this calculator's to price, so the card refuses (invariant 13).
  * @param {any} awardTy
- * @returns {string} 'cea' | 'ces'
+ * @returns {string|null} 'cea' | 'ces' | null
  */
 export function awardGrade(awardTy) {
   if (awardTy) {
@@ -336,7 +340,7 @@ export function awardGrade(awardTy) {
     if (grade) return grade;
   }
   const onScreen = getPeriods().find(/** @param {any} x */ x => x.num === (currentPeriodNum() || todaysPeriodNum()));
-  return gradeDaysFor(onScreen).find(x => x.grade)?.grade ?? 'cea';
+  return gradeDaysFor(onScreen).find(x => x.grade)?.grade ?? null;
 }
 
 /**
@@ -350,10 +354,11 @@ export function awardGrade(awardTy) {
  * A payslip worked under two grades is each grade's rate weighted by its days, UNROUNDED: 7 days
  * as a CEA and 21 as a CES in 2026/27 is £22.3225, so 140 contracted hours come to the £3,125.15
  * that 35 hours at £21.49 and 105 at £22.60 do (paycalc-grade.js). The field shows it to the penny; calculate() uses
- * this figure, never the field's rounding.
+ * this figure, never the field's rounding. A payslip with a day under a role that has no rates has
+ * NO rate (null) — never CEA's in its place (invariant 13); the page shows `unpricedLineFor` instead.
  * @param {any} ty - the period's tax year
  * @param {any} [p] - the period (omitted → the settled rate of a chosen grade, else CEA's)
- * @returns {{ rate: number, preAward: boolean }}
+ * @returns {{ rate: number|null, preAward: boolean }}
  */
 export function periodRate(ty, p) {
   if (!p) {
@@ -361,10 +366,21 @@ export function periodRate(ty, p) {
     return { rate: settledRate(GRADES[g] ? g : 'cea', ty), preAward: false };
   }
   const parts = gradeDaysFor(p);
-  const rate  = byDays(parts, g => getRateForPeriod(p, g, ty.label, settledRate(g, ty)))
-             ?? getRateForPeriod(p, 'cea', ty.label, settledRate('cea', ty));
-  const preAward = parts.some(x => !!x.grade && isPreAwardPeriod(p, x.grade, ty.label));
+  const rate  = byDays(parts, g => getRateForPeriod(p, g, ty.label, settledRate(g, ty)));
+  const preAward = rate != null && parts.some(x => !!x.grade && isPreAwardPeriod(p, x.grade, ty.label));
   return { rate, preAward };
+}
+
+/**
+ * The Settings card's collapsed summary for a payslip: "✓ 2026/27 — £21.49/hr", with "· pre-rise" on
+ * a payslip paid before its year's award — or, for a payslip that cannot be priced, no rate at all.
+ * ONE writer for the coordinator's summary and confirmSettings', so the two cannot disagree.
+ * @param {any} ty @param {any} [p] @returns {string}
+ */
+export function settingsSummary(ty, p) {
+  const { rate, preAward } = periodRate(ty, p);
+  return rate == null ? `✓ ${ty.label} — no rate for this payslip`
+    : `✓ ${ty.label} — £${rate.toFixed(2)}/hr${preAward ? ' · pre-rise' : ''}`;
 }
 
 /**
@@ -378,7 +394,7 @@ export function updateRateForPeriod(ty, p) {
   const { rate, preAward } = periodRate(ty, p);
   const parts    = p ? gradeDaysFor(p) : [];
   const field    = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
-  field.value = rate.toFixed(2);
+  field.value = rate == null ? '–' : rate.toFixed(2);
   // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise
   // payslip shows that period's historic rate, a current/post-rise payslip the new rate.
   field.readOnly = true;
@@ -389,7 +405,7 @@ export function updateRateForPeriod(ty, p) {
   const preUnknown = !preAward && !!p && !!from && p.payday < from
     && parts.some(x => !!x.grade && awardRatesFor(x.grade, ty.label)?.pre == null);
   const lbl = document.getElementById('rateYearLabel');
-  if (lbl) lbl.textContent = `${ty.label} · ${preAward ? 'pre-rise rate' : preUnknown ? 'post-rise rate' : 'current rate'}`;
+  if (lbl) lbl.textContent = `${ty.label} · ${rate == null ? 'no rate' : preAward ? 'pre-rise rate' : preUnknown ? 'post-rise rate' : 'current rate'}`;
   // Spell out the pre/post-rise position plainly under the field (owner: make pre vs post clear),
   // and, on a payslip that spans a change of grade, the two rates and the days behind the blend.
   const note = document.getElementById('rateStepNote');
@@ -402,7 +418,7 @@ export function updateRateForPeriod(ty, p) {
     const split = p
       ? gradeSplitLine({ parts, rateOf: g => getRateForPeriod(p, g, ty.label, settledRate(g, ty)), start: p.start, today: new Date() })
       : '';
-    note.textContent = [step, split].filter(Boolean).join(' ');
+    note.textContent = rate == null ? unpricedLineFor(p) : [step, split].filter(Boolean).join(' ');
     note.style.display = note.textContent ? '' : 'none';
   }
 }
@@ -536,12 +552,9 @@ export function confirmSettings(calculate) {
   // periodRate is the one answer for this payslip's rate and its pre-rise position — the rate field,
   // calculate() and this hint all read it, so the three cannot disagree (a payslip that spans a
   // change of grade is the blend, to the penny).
-  const { rate: _cfRate, preAward: _cfPre } = periodRate(curTy, curP);
-  const rate = (_cfRate || parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value)
-    || GRADES.cea.rate).toFixed(2);
   const hintEl = document.getElementById('settingsHint');
-  // No tax code here — matches the coordinator's summary writer (one line at 390px; v17.95).
-  if (hintEl) setStatus(hintEl, `✓ ${curTy.label} — £${rate}/hr${_cfPre ? ' · pre-rise' : ''}`);
+  // No tax code here — the coordinator's summary writes the same line (one line at 390px; v17.95).
+  if (hintEl) setStatus(hintEl, settingsSummary(curTy, curP));
   // Brief "saved" confirmation then collapse — UNLESS one consequence of the save could not be
   // applied, in which case the line STAYS and the card stays open. A partial-success message that
   // clears itself after 2.5 seconds and folds the card away is a message nobody reads, and this one

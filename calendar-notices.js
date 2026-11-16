@@ -51,7 +51,8 @@ import { createLightbox, openNoticeIfClear } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
-import { teamMembers, gradeForRole } from './roster-data.js';
+import { teamMembers } from './roster-data.js';
+import { payCalculatorPrices } from './pay-audience.js';   // the Pay page's own audience question
 import { installRoute, promptInstall, yieldToInstallNotice, retireInstallStrip } from './install-prompt.js';
 import { canOpenNewlink } from './auth-policy.js';   // the New link notice's audience — the drawer pill's own question
 
@@ -150,15 +151,16 @@ function followedDone(doneKey) {
 }
 
 /**
- * Would the Pay Calculator price THIS member, or show them its refusal card? `gradeForRole` is the
- * Pay page's own test, imported from roster-data.js so the two cannot disagree. Read at OPEN time by
- * the notices that ask it: a member signing in at the front door on this very load has no session
- * at wiring time.
+ * Would the Pay Calculator price THIS member, or show them its refusal card? `payCalculatorPrices`
+ * (pay-audience.js) is the Pay page's own test, by the role AT THE TIME: asked here with no payslips,
+ * so only TODAY's grade counts — a notice invites work on the payslip being earned — and the page,
+ * which also asks today, can never refuse a member this sends there. Read at OPEN time by the notices
+ * that ask it: a member signing in at the front door on this very load has no session at wiring time.
  * @returns {boolean}
  */
 function payCalcIsTheirs() {
     const name = getSession()?.name;
-    return !!gradeForRole(teamMembers.find(m => m.name === name)?.role);
+    return payCalculatorPrices(teamMembers.find(m => m.name === name) ?? null);
 }
 
 /**
@@ -246,8 +248,8 @@ export function initCalendarNotices({ after } = {}) {
     //
     // ONLY TO A MEMBER THE PAY CALCULATOR CAN PRICE. It refuses every role without confirmed rates
     // (Dispatchers, the manager accounts) and any name the roster no longer holds, so a notice sent
-    // to them would advertise a page that turns them away. `gradeForRole` is the Pay page's own
-    // test, imported from roster-data.js so the two cannot disagree. Read at OPEN time, through the
+    // to them would advertise a page that turns them away. `payCalcIsTheirs` asks the Pay page's own
+    // test (pay-audience.js), so the two cannot disagree. Read at OPEN time, through the
     // gate: a member who signs in at the front door on this very load has no session at wiring time.
     // Refused, it is left unflagged, like an out-of-audience notice.
     //

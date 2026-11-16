@@ -4,7 +4,9 @@
  *
  * Owns: the result card's headline label and figure, the summary rows when a confirmed payslip is
  *   on screen, the breakdown button's label, the sticky bar's amount, label and accessible name, and
- *   the Year to Date line under the figure with its button (`renderYtdLine` / `wireYtdLine`).
+ *   the Year to Date line under the figure with its button (`renderYtdLine` / `wireYtdLine`), and a
+ *   payslip with no figure at all (`renderUnpricedPayslip` — a role with no confirmed rates), and
+ *   "Check against your payslip" at the card's foot (`renderActualCheck`).
  * Does NOT own: any calculation (paycalc-calc.js), the breakdown rows (paycalc-breakdown.js), or
  *   the sticky bar's show/hide behaviour (paycalc-sticky-total.js).
  * Edit here for: the words beside the money. Do not edit here for: the money.
@@ -40,6 +42,8 @@
 
 import { fmt, fdShort } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
+import { parseSmartFloat } from './roster-data.js';
+import { buildActualCheck, buildActualComparison } from './paycalc-breakdown.js';
 
 /**
  * The words, with no DOM and no money maths. One object per render, so a test can hold both
@@ -172,6 +176,61 @@ export function renderResultHeadline({ actual, net, payday, bpThisPeriod = 0, hp
         const summary = byId('summary');
         if (summary) summary.innerHTML = actualSummaryHtml(actual, net);
     }
+}
+
+/**
+ * A payslip this calculator cannot price (paycalc-grade.js → unpricedPayslipLine) has NO figure: the
+ * headline and the sticky bar read "£–", the line says why in the figure's place, and
+ * `body.payslip-unpriced` hides everything a figure would have fed (paycalc.css). Called on EVERY
+ * calculate() run, with '' for a payslip that can be priced, so a refusal never outlives its payslip
+ * — the same both-paths contract as the headline above.
+ * @param {string} line  the refusal, or '' for a payslip that can be priced
+ */
+export function renderUnpricedPayslip(line) {
+  document.body.classList.toggle('payslip-unpriced', !!line);
+  const note = document.getElementById('unpricedPayslipNote');
+  if (note) { note.textContent = line; note.hidden = !line; }
+  if (!line) return;
+  for (const id of ['netDisplay', 'stickyAmount']) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '£–';
+  }
+}
+
+/**
+ * "Check against your payslip" at the result card's foot: the member's own payslip figures set
+ * against this estimate. Shown from the payslip's CUT-OFF, because a payslip arrives before it pays —
+ * `inHand`, which the caller asks of `payslipMayBeInHand` (paycalc-periods.js, whose import chain
+ * reaches the SDK, so this module stays loadable in Node). The verdict names THIS estimate's tax code and pension first
+ * (buildActualCheck), and the other lines are compared with the SAME figures the summary rows show
+ * (buildActualComparison), never guessing a cause; the payslip's pay figure is its Taxable Pay, after
+ * the pension, so it is set against "Pay after pension deduction". Moved here from calculate()
+ * (16 Nov 2026): it is the card's other statement about the figure, and touches no coordinator state.
+ * @param {{ inHand: boolean, net: number, taxCode: string, recognised: boolean, deducted: number, ytdFrom: string,
+ *   estimate: { gross: number, pension: number, tax: number, ni: number, net: number } }} o
+ *   deducted — the pension the estimate actually took; ytdFrom — the payslip its Year to Date figures
+ *   came from, '' when the cumulative method did not run
+ */
+export function renderActualCheck({ inHand, net, taxCode, recognised, deducted, ytdFrom, estimate }) {
+  const wrap = document.getElementById('checkActualWrap');
+  if (!wrap) return;
+  wrap.hidden = !inHand;
+  /** A typed figure, or null for a blank box — never a phantom £0. @param {string} id */
+  const typed = id => {
+    const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
+    return (el && el.value.trim() !== '') ? parseSmartFloat(el.value) : null;
+  };
+  const actual = inHand ? Math.max(0, typed('actualNetInput') || 0) : 0;
+  const verdict = document.getElementById('actualVerdict');
+  if (verdict) verdict.innerHTML = buildActualCheck(actual, net, { taxCode, recognised, pension: deducted, ytdFrom });
+  const cmp = document.getElementById('actualCompare');
+  if (cmp) {
+    cmp.innerHTML = inHand ? buildActualComparison({
+      actual: { gross: typed('actualGrossInput'), pension: typed('actualPensionInput'),
+                tax: typed('actualTaxInput'), ni: typed('actualNiInput'), net: actual > 0 ? actual : null },
+      estimate,
+    }) : '';
+  }
 }
 
 /**

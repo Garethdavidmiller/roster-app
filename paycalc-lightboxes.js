@@ -39,17 +39,19 @@ export function initPaycalcLightboxes() {
   // One-time notices must not stack — overlay.js manages a single active overlay
   // (history entry + focus trap), so two open at once fight over Back/Escape/Tab.
   //
-  // THE YTD NOTICE GOES LAST, ALWAYS. It is the lowest-stakes thing this page can open: the
-  // ownership prompt guards another member's pay data and forces a reload, and the forced
-  // set-password overlay is a block the member has to satisfy. A prompt about copying two figures
-  // off a payslip must never sit in front of either. Two guards, and they catch different cases:
+  // THE PAGE'S NOTICES GO LAST, ALWAYS — the Year to Date notice, then the Holiday Pay Premium
+  // estimate notice, second and never on the same load (paycalc-notice-order.test.mjs). They are the
+  // lowest-stakes things this page can open: the ownership prompt guards another member's pay data and
+  // forces a reload, and the forced set-password overlay is a block the member has to satisfy. A
+  // prompt about copying figures off a payslip must never sit in front of either. Two guards, and they
+  // catch different cases:
   //
   //   `_ownerPending`  — a WILL-OPEN guard, read here, before the ownership prompt has opened.
   //   `openNoticeIfClear` — an IS-OPEN guard, read at open time, for anything already on screen.
   //
   // Neither could see the forced password overlay, because that one is decided AFTER an auth
-  // round-trip while this function runs synchronously at init — so until v21.91 the YTD notice
-  // simply won the race and appeared first. That is why the opener below is returned rather than
+  // round-trip while this function runs synchronously at init — so until v21.91 the Year to Date
+  // notice simply won the race and appeared first. That is why the opener below is returned rather than
   // called: the coordinator invokes it once `initPasswordForce` has settled.
   //
   // Deferring never loses the notice. `openNoticeIfClear` leaves it unflagged, so it returns on the

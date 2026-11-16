@@ -190,6 +190,7 @@
     }
     .net-period { font-size: var(--type-medium); font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
     .net-hint   { font-size: var(--type-label); color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
+    .net-unpriced { font-size: var(--type-label); color: rgba(255,255,255,0.88); margin: 10px auto 0; max-width: 34em; line-height: 1.45; }
     /* Provenance chips: quiet on-navy labels naming what is inside the £ (the drawer's translucent
        chip language). Gold = money ADDED to the total (back pay, HPP); neutral = how it was worked
        out. :empty hides the row, so a normal payslip pays no space for it. */
@@ -1193,7 +1194,7 @@
       }
       /* Ink-light result hero — navy text on white instead of a full navy ink block */
       .result-net { background: white !important; }
-      .net-label, .net-amount, .net-period { color: var(--primary-blue) !important; }
+      .net-label, .net-amount, .net-period, .net-unpriced { color: var(--primary-blue) !important; }
       .bd-body { max-height: none !important; overflow: visible !important; }
       /* The Settings card prints its VALUES, whatever it was doing on screen. A shut
          `.collapsible-body` is `max-height: 0; overflow: hidden`, padding zero and `visibility:
@@ -1819,6 +1820,16 @@ body.role-unsupported .privacy-note-standalone,
 body.role-unsupported #stickyTotal,
 body.role-unsupported .guide-footer-link,
 body.role-unsupported .disclaimer { display: none; }
+
+/* ── A PAYSLIP THIS CALCULATOR CANNOT PRICE ────────────────────────────────────────────────────
+   Set on <body> by renderUnpricedPayslip (paycalc-result-headline.js) while the payslip on screen
+   has a day under a role with no confirmed rates. Everything a figure would have fed goes: the
+   rows, the breakdown, the banners and the sticky £. !important because the two banners carry an
+   inline `display` that paintBanner writes, and that run does not happen for this payslip. The
+   year-so-far card goes too, because the run that would rewrite it for this tax year is skipped. */
+body.payslip-unpriced :is(#provChips, #netYtdNudge, #netHint, #payBreakBar, #payBreakLegend, #summary,
+  #bpActiveBanner, #hppActiveBanner, #resultRateNotice, #checkActualWrap, #bdBtn, #bdBody,
+  #stickyTotal, #ytdYearSoFar) { display: none !important; }
 
 /* ── Fill-the-year control + receipt — lives in the year-so-far block ─────────────────────── */
 .yearso-fill { margin: 8px 0 2px; }

@@ -54,6 +54,7 @@ mock.module('./paycalc-settings.js', {
         getProRateFactor:     /** @param {any} p */ p => _proRate(p),
         getPensionDefault:    /** @param {any} p */ p => (_optedOut(p) ? 0 : 147.36),
         isPensionOptedOut:    /** @param {any} p */ p => _optedOut(p),
+        isPeriodPriced:       () => true,   // a refused payslip: paycalc-grade-wiring.test.mjs
     },
 });
 
@@ -87,7 +88,7 @@ mock.module('./roster-data.js', {
 
 const _calc = await import('./paycalc-calc.js');
 const { computeYearSoFar } = await import('./paycalc-year-summary.js');
-const { computeGross, computeTax, computeNI, computeSL, getThresholds } = await import('./paycalc-calc.js');
+const { computeGross, computeTax, computeNI, computeSL, getThresholds, takeHomePay } = await import('./paycalc-calc.js');
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
 
@@ -120,7 +121,7 @@ function mirror({ oHrs = 0, sHrs = 0, pension = PENSION, plan = 'none', slSkip =
     const tax = computeTax(sacGross, '1257L', T25).tax;
     const ni  = computeNI(sacGross, T25.ni);
     const sl  = computeSL(sacGross, plan, T25.sl, slSkip);
-    return { sacGross, tax, ni, sl, net: sacGross - tax - ni - sl };
+    return { sacGross, tax, ni, sl, net: sacGross - tax - ni - sl, pension };
 }
 
 function reset() {
@@ -352,6 +353,25 @@ describe('computeYearSoFar', () => {
         const m = mirror({ oHrs: 10, pension: 0 });
         assert.ok(Math.abs(y.taxable - m.sacGross) < 0.005,
             `taxable £${y.taxable.toFixed(2)} — the card would price £${m.sacGross.toFixed(2)}`);
+    });
+
+    // ── THE YEAR IS THE SUM OF THE FIGURES A MEMBER READS (review, 16 Nov 2026) ───────────────────
+    // The result card rounds each payslip as it shows it (`takeHomePay`): pay after pension to the
+    // penny, the take-home that less the deductions. This block summed the UNROUNDED figures, so a
+    // year could come a penny or two away from the payslips a member adds up by hand.
+    test('each payslip is rounded as the result card shows it, so the year is the sum of the shown figures', () => {
+        // Odd minutes: every payslip's pay lands between two pennies, and their fractions add up.
+        const SAVED = [{ otH: 3, otM: 1 }, { sunH: 2, sunM: 1 }, { otH: 1, otM: 1 }];
+        [P60, P61, P62].forEach((p, i) => _ls.set(`myb_pc_p${p.num}`, JSON.stringify(SAVED[i])));
+        const y = computeYearSoFar(TY, OPTS);
+        assert.equal(y.entered, 3);
+        const mirrored = [mirror({ oHrs: 3 + 1 / 60 }), mirror({ sHrs: 2 + 1 / 60 }), mirror({ oHrs: 1 + 1 / 60 })];
+        const shown = mirrored.map(m => takeHomePay({ gross: m.sacGross + m.pension, pension: m.pension, tax: m.tax, ni: m.ni, sl: m.sl }));
+        const net = shown.reduce((s, x) => s + x.net, 0), taxable = shown.reduce((s, x) => s + x.afterPension, 0);
+        assert.equal(Math.round(y.net * 100), Math.round(net * 100), `the year £${y.net} — the payslips shown add to £${net.toFixed(2)}`);
+        assert.equal(Math.round(y.taxable * 100), Math.round(taxable * 100));
+        const unrounded = mirrored.reduce((s, m) => s + m.net, 0);
+        assert.notEqual(Math.round(unrounded * 100), Math.round(net * 100), 'premise: summing unrounded figures lands on another penny');
     });
 
     test('hours saved as TEXT are priced as the figures they are (paycalc-2-15)', () => {

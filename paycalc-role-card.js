@@ -3,7 +3,8 @@
  * paycalc-role-card.js — what the Pay Calculator says to somebody it will not price (v25.50).
  *
  * The calculator models CEA and CES pay and nothing else (`gradeForRole`, roster-data.js), and it
- * WITHHOLDS rather than captions for everybody else: its whole output is one confident £ figure, and
+ * WITHHOLDS rather than captions for everybody who held neither grade on a day it can show
+ * (`payCalculatorPrices`, pay-audience.js — the role at the time): its whole output is one confident £ figure, and
  * a member told "this may not apply" and handed one will use it (v21.78, paycalc.md invariant 13).
  * This module holds the WORDS of that refusal, because they differ by who is reading (owner,
  * 7 Nov 2026):

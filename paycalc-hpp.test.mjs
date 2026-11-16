@@ -66,6 +66,9 @@ mock.module('./paycalc-settings.js', {
         getProRateFactor:  (/** @type {any} */ p) => (typeof _proRate === 'function' ? _proRate(p) : _proRate),
         getPensionDefault: () => 147.36,
         isPensionOptedOut: () => false,
+        // Every payslip here is worked under a grade with rates; a refused one is
+        // paycalc-grade-wiring.test.mjs's, through the real settings module.
+        isPeriodPriced:    () => true,
     },
 });
 
@@ -863,12 +866,28 @@ describe('premiumStillToEstimate — the reader the January notice is for (v26.2
         assert.equal(premiumStillToEstimate(TY25), 'none');
     });
 
-    test('a figure from Year to Date pay, or typed in, is done', () => {
+    test('a figure from the Year to Date pay on the year\'s LAST payslip, or typed in, is done', () => {
+        const last = /** @type {any} */ (periodsInTaxYear(TY25, getPeriods()).at(-1));
+        _ls.set(ytdSrcKey(TY25), String(last.num));
         _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'ytd', exact: '' }));
         _ls.set(hppEstKey(TY25), '445.10');
         assert.equal(premiumStillToEstimate(TY25), 'done');
         _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'exact', exact: '320' }));
         _ls.set(hppEstKey(TY25), '320.00');
+        assert.equal(premiumStillToEstimate(TY25), 'done');
+    });
+
+    test('a rough figure from an EARLIER payslip\'s Year to Date pay covers part of the year: still open', () => {
+        // The notice asks for the LAST payslip's figure because only that one holds the whole year; a
+        // figure from the 19 Dec 2025 payslip is the low one it is there to replace.
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'ytd', exact: '' }));
+        _ls.set(hppEstKey(TY25), '310.00');
+        _ls.set(ytdSrcKey(TY25), '46');
+        assert.equal(premiumStillToEstimate(TY25), 'open', 'from the 19 Dec 2025 payslip');
+        _ls.delete(ytdSrcKey(TY25));
+        assert.equal(premiumStillToEstimate(TY25), 'open', 'from no payslip on record');
+        // A figure the member TYPED is theirs to vouch for, whatever the card holds.
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'exact', exact: '310' }));
         assert.equal(premiumStillToEstimate(TY25), 'done');
     });
 
@@ -899,6 +918,7 @@ describe('premiumStillToEstimate — the reader the January notice is for (v26.2
 
     test('it asks about the year it is handed, never another', () => {
         _ls.set(hppModeKey(TY26), JSON.stringify({ mode: 'ytd', exact: '' }));
+        _ls.set(ytdSrcKey(TY26), String(/** @type {any} */ (periodsInTaxYear(TY26, getPeriods()).at(-1)).num));
         _ls.set(hppEstKey(TY26), '500.00');
         assert.equal(premiumStillToEstimate(TY26), 'done');
         assert.equal(premiumStillToEstimate(TY25), 'open', '2026/27\'s figure says nothing about 2025/26');
@@ -932,13 +952,41 @@ describe('the rough 2025/26 premium names last January\'s premium, which no reco
         // premium in. At £12,000 it refused ("below") first, and this passed whatever the rule said:
         // mutation testing found it (v26.22) — the 16 Jan 2026 payslip was never theirs to name.
         runYtd(t, 49, '49', 200000);
-        assert.match(_els.hppBasis.textContent, /^Rough estimate:/, 'premise: the estimate is drawn, not refused');
+        assert.match(_els.hppBasis.textContent, /^Rough estimate from your Year to Date pay up to your /, 'premise: the estimate is drawn, not refused');
         assert.doesNotMatch(_els.hppBasis.textContent, /little high/);
     });
 
     test('2026/27\'s January premium IS on record: it comes out, and nothing is said', (t) => {
+        _ls.set(hppEstKey(TY25), '300.00');                   // the 2025/26 premium the member worked out
         runYtd(t, 61, '60', 45000);                           // covering the 15 Jan 2027 payslip
+        assert.match(_els.hppBasis.textContent, /^Rough estimate/, 'premise: the estimate is drawn');
         assert.doesNotMatch(_els.hppBasis.textContent, /little high/);
+    });
+
+    test('2026/27\'s January premium with NO 2025/26 figure stored is said — never read as £0 (review, 16 Nov 2026)', (t) => {
+        // The year is on record, so before this the premium on the 15 Jan 2027 payslip was taken out
+        // as £0 — nothing came out, and nothing was said: the figure ran high with no word of it.
+        runYtd(t, 61, '60', 45000);
+        assert.ok(_els.hppBasis.textContent.includes('This may be a little high: your Year to Date pay includes any Holiday Pay '
+            + 'Premium on your 15 Jan 2027 payslip, and the calculator has no record of that to take out.'), _els.hppBasis.textContent);
+        // A member not employed in 2025/26 had none to record, so there is nothing to say.
+        _proRate = (/** @type {any} */ p) => (p.num - 48 >= TY26.first ? 1 : 0);
+        _resetDom(); t.mock.timers.reset();
+        runYtd(t, 61, '60', 45000);
+        assert.doesNotMatch(_els.hppBasis.textContent, /little high/);
+    });
+
+    test('the rough line says what it covers — and, for a year that has ended, that a part of it may be low', (t) => {
+        runYtd(t, 49, '46', 40000);                           // 19 Dec 2025's figures, viewed on 10 Nov 2026
+        assert.match(_els.hppBasis.textContent, /^Rough estimate from your Year to Date pay up to your 19 Dec 2025 payslip:/);
+        assert.ok(_els.hppBasis.textContent.includes('It covers 2025/26 only up to that payslip, so it may be low — the Year to '
+            + 'Date pay on your 13 Mar 2026 payslip covers the whole year.'), _els.hppBasis.textContent);
+        _resetDom(); t.mock.timers.reset();
+        runYtd(t, 49, '49', 40000);                           // the year's LAST payslip: the whole year
+        assert.doesNotMatch(_els.hppBasis.textContent, /may be low/);
+        _resetDom(); t.mock.timers.reset();
+        runYtd(t, 58, '57', 40000);                           // 2026/27, still under way: part of it is all there is
+        assert.doesNotMatch(_els.hppBasis.textContent, /may be low/);
     });
 });
 

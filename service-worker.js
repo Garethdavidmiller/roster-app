@@ -127,13 +127,13 @@ const NETWORK_FIRST_FILES = [
     'overlay.js', 'card-collapse.js', 'select-sheet.js', 'session.js', 'staff-pin-ended.js', 'silent-sign-in.js', 'viewer-shed.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js', 'login-core.js', 'date-picker.js',
-    'roster-data.js', 'date-format.js', 'roster-cycle-data.js', 'roster-member-data.js', 'roster-roles.js', 'firebase-client.js', 'own-password.js', 'account-calls.js', 'claim-retry.js', 'page-session.js', 'unsaved-draft.js', 'storage-utils.js', 'document-url.js', 'storage-keys.js', 'status-text.js', 'upload-commit.js', 'doc-retention.js', 'documents-client.js', 'analytics-client.js', 'auth-identity.js', 'client-errors.js',
+    'roster-data.js', 'date-format.js', 'roster-cycle-data.js', 'roster-member-data.js', 'roster-roles.js', 'pay-audience.js', 'firebase-client.js', 'own-password.js', 'account-calls.js', 'claim-retry.js', 'page-session.js', 'unsaved-draft.js', 'storage-utils.js', 'document-url.js', 'storage-keys.js', 'status-text.js', 'upload-commit.js', 'doc-retention.js', 'documents-client.js', 'analytics-client.js', 'auth-identity.js', 'client-errors.js',
     'shared.css',
     'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-sticky-total.js', 'paycalc-role-card.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js', 'paycalc-fill-year.js', 'paycalc-year-card.js',
     'paycalc-periods.js', 'paycalc-settings.js', 'paycalc-grade.js', 'paycalc-grade-setting.js',
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-hpp-schedule.js', 'paycalc-backpay.js', 'paycalc-backpay-state.js', 'paycalc-backpay-accrual.js', 'paycalc-pension.js', 'paycalc-year-summary.js',
-    'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-result-headline.js', 'paycalc-money-banner.js', 'paycalc-guide.html',
+    'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-result-headline.js', 'paycalc-money-banner.js', 'paycalc-ytd-card.js', 'paycalc-disclosures.js', 'paycalc-guide.html',
     'fip-guide.html', 'staff-guide.html',
     'railcard-guide.html', 'rangers-guide.html',
     'guide-chips.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'legacy-redirect.js', 'guide-shell.css',
@@ -278,7 +278,7 @@ const CORE_ASSETS = [
     "./perf-stats.js",
     "./roster-data.js",
     "./roster-cycle-data.js",
-    "./roster-member-data.js", "./roster-roles.js",
+    "./roster-member-data.js", "./roster-roles.js", "./pay-audience.js",
     "./firebase-client.js", "./own-password.js", "./account-calls.js",
     "./claim-retry.js",
     "./page-session.js", "./unsaved-draft.js",
@@ -349,7 +349,7 @@ const CORE_ASSETS = [
     "./paycalc-roster-suggestions.js",
     "./paycalc-lightboxes.js",
     "./paycalc-result-headline.js",
-    "./paycalc-money-banner.js",
+    "./paycalc-money-banner.js", "./paycalc-ytd-card.js", "./paycalc-disclosures.js",
 ];
 
 // The guides with their scripts and styles, and the vendored DOMPurify — warmed after the core files.

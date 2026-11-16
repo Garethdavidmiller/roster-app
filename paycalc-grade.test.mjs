@@ -73,8 +73,8 @@ describe('re-pricing the past — a promotion prices each payslip at the grade h
 
     test('a day under a role with no rates is never priced as something else', () => {
         // The real manager row: a CES until Sat 21 Nov 2026, then a role this calculator has no
-        // rates for. The page refuses that member before anything is priced; here, the payslip
-        // across the change has no figure at all rather than a guessed one.
+        // rates for. The page admits that member by the role at the time (pay-audience.js); here,
+        // the payslip across the change has no figure at all rather than a guessed one.
         const row = teamMembers.find(m => m.name === 'W. Cummings');
         assert.ok(row, 'the row is on the roster');
         const parts = gradeDays(row, ACROSS, ROSTER);
@@ -238,10 +238,10 @@ describe('the one-time note — a change of grade on the roster needs nothing do
 
 describe('THE DATA — a grade the roster dates is one this calculator can price', () => {
     test('a member the page prices held only grades it prices: no day of theirs is ever guessed', () => {
-        // A day under a role with no rates has no figure (byDays), so the payslip it falls in would
-        // have none either. The page refuses a member whose CURRENT role has no rates; this keeps
-        // the earlier ones honest too. A CEA who was a Dispatcher, say, needs a decision about how
-        // those days are priced before the row records it.
+        // A day under a role with no rates has no figure (byDays), so the payslip it falls in has
+        // none either — refused on screen, never guessed (unpricedPayslipLine). This keeps a priced
+        // member's earlier grades priced too: a CEA who was a Dispatcher, say, would lose every
+        // payslip from before the change, which needs a decision before the row records it.
         for (const m of teamMembers.filter(x => gradeForRole(x.role) && x.roleHistory?.length)) {
             for (const held of m.roleHistory) {
                 assert.ok(gradeForRole(held.role), `${m.name} was a ${held.role} until ${held.until.toDateString()} — this calculator has no rates for it`);

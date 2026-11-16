@@ -25,6 +25,7 @@ import { teamMembers, gradeForRole } from './roster-data.js';
 import { roleOn, rolesInRange } from './roster-roles.js';
 import {
   FROM_ROSTER, gradeDays, byDays, settingFromLegacy, rosterStretches, rosterGradeLine, gradeChangeNote,
+  payslipPriced, unpricedPayslipLine,
 } from './paycalc-grade.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { setStatus } from './status-text.js';
@@ -67,8 +68,32 @@ export function gradeDaysFor(p) {
 }
 
 /**
+ * Can the signed-in member's payslip be priced — every one of its days under a grade with rates? A
+ * member is admitted by the role AT THE TIME (pay-audience.js), so a payslip worked under a role with
+ * no rates can be on screen; every figure it would feed is refused, never priced as CEA.
+ * @param {any} p @returns {boolean}
+ */
+export function isPeriodPriced(p) { return !!p && payslipPriced(gradeDaysFor(p)); }
+
+/**
+ * What the payslip on screen says in place of its figure when it cannot be priced (paycalc-grade.js →
+ * unpricedPayslipLine), naming the nearest payslip the member can see that CAN be — the latest before
+ * it, else the first after. '' for a payslip that can be priced.
+ * @param {any} p @returns {string}
+ */
+export function unpricedLineFor(p) {
+  const m = getLoggedMember();
+  if (!p || !m || isPeriodPriced(p)) return '';
+  const priced = /** @type {any[]} */ (visiblePeriods().filter(/** @param {any} x */ x => isPeriodPriced(x)));
+  const near = [...priced].reverse().find(x => x.num < p.num) ?? priced.find(x => x.num > p.num);
+  return unpricedPayslipLine({ stretches: rosterStretches(m, p.start, p.cutoff), start: p.start, cutoff: p.cutoff, nearest: near?.payday ?? null });
+}
+
+/**
  * Contracted hours for a payslip, by its grades' days — 140 for both grades today, so a payslip that
- * spans a promotion is 140 too. Without a payslip, the hours of a chosen grade, else CEA's.
+ * spans a promotion is 140 too. Without a payslip, the hours of a chosen grade, else CEA's — and a
+ * payslip that cannot be priced (isPeriodPriced) still has hours to cap the Hours card's boxes by,
+ * though no figure is priced from them.
  * @param {any} [p]
  * @returns {number}
  */

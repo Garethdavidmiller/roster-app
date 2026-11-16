@@ -183,7 +183,12 @@ const CAPS = {
     // load-time stamp and the one payslip-list builder (paycalc-periods.js), one rate for the field
     // and the Settings summary (paycalc-settings.js), the stored prior-year HPP (paycalc-hpp.js) — and
     // the comments that had become a changelog, each cut to the reason it left behind.
-    'paycalc-app.js':          1600,
+    // 1600 → 1550 on 16 Nov 2026, an EXTRACT: the file stood at 1,600 of 1,600 when pricing by the role
+    // AT THE TIME (pay-audience.js) needed its gate and a refused payslip in calculate(). Out went the
+    // page's disclosures (paycalc-disclosures.js), the Year to Date card's anchor, note and chip
+    // (paycalc-ytd-card.js) and "Check against your payslip" (paycalc-result-headline.js →
+    // renderActualCheck) — none closing over coordinator state. 1,483 measured lines + 50, rounded up.
+    'paycalc-app.js':          1550,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.

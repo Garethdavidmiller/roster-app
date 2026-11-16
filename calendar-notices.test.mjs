@@ -240,10 +240,12 @@ function FINAL_WEEK_OF(/** @type {string} */ overlay) {
 /** Has this notice reached the week in which it waits for nobody? */
 const inFinalWeek = (/** @type {{ finalWeek: number|null }} */ n) => n.finalWeek !== null && Date.now() >= n.finalWeek;
 
-/** Would the Pay Calculator price this session's member? The real test, from the real roster. */
-const { teamMembers, gradeForRole, CONFIG } = await import('./roster-data.js');
+/** Would the Pay Calculator price this session's member? The real test (pay-audience.js, by the role
+ *  at the time — today's, as the notices ask it), from the real roster. */
+const { teamMembers, CONFIG } = await import('./roster-data.js');
+const { payCalculatorPrices } = await import('./pay-audience.js');
 function payCalcFor(/** @type {{ name: string } | null} */ session) {
-    return !!gradeForRole(teamMembers.find(m => m.name === session?.name)?.role);
+    return payCalculatorPrices(teamMembers.find(m => m.name === session?.name) ?? null);
 }
 /** The role of the REAL roster row a case leans on. The cases below name real people because the
  *  rule under test reads the real roster, so each one first asserts the person is still the kind of
@@ -924,7 +926,7 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
     });
 
     test('never to a member the Pay Calculator turns away — and never flagged for them', async () => {
-        // Its own refusal is `gradeForRole`; the same function decides here. A refused member is left
+        // Its own refusal is `payCalculatorPrices` (pay-audience.js); the same function decides here. A refused member is left
         // unflagged, like an out-of-audience device: the notice is not theirs to have seen.
         // A CURRENT manager (48-hour review): S. Stewart left the roster at v25.05, which quietly turned
         // the manager case into a second "not on the roster" one — green whatever the manager rule did.

@@ -137,6 +137,8 @@ export function renderYearCard({ ty, plan, pgLoan, slPaidOffFromP, bpLump }) {
             ? `<div class="yearso-proj">If the rest of ${ty.label} looks similar: take-home ≈ <strong>${fmt(y.projectedNet)}</strong> for the year (rough — based on your entered payslips).</div>`
             : '') +
         (y.skipped ? `<div class="yearso-proj pay-skip-warn">⚠️ Couldn't read ${y.skipped} saved payslip${plural(y.skipped)}, so these totals may be too low.</div>` : '') +
+        // Payslips under a role with no rates are in none of the figures (pay-audience.js) — said, not hidden.
+        (y.unpriced ? `<div class="yearso-proj">These figures leave out ${y.unpriced} ${ty.label} payslip${plural(y.unpriced)} worked in a grade this calculator has no rates for.</div>` : '') +
         receiptHtml;
     _restoreFocus(el, hadFocus);
 }

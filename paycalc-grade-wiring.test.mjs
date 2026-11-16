@@ -77,7 +77,8 @@ const _els = {};
 };
 
 const { SK, periodKey, hppEstKey, ytdSrcKey } = await import('./paycalc-migrations.js');
-const { periodRate, getContr, settledRate, settledRateFor, awardGrade, gradeDaysFor, getEffectiveContr } = await import('./paycalc-settings.js');
+const { periodRate, getContr, settledRate, settledRateFor, awardGrade, gradeDaysFor, getEffectiveContr,
+    isPeriodPriced, unpricedLineFor, settingsSummary } = await import('./paycalc-settings.js');
 const { GRADES, AWARD_RATES, TAX_YEARS, awardRatesFor, awardFromForYear, getRateForPeriod, isPreAwardPeriod, taxYearForPeriod,
     computeGross, getLondonAllowanceForPeriod, HPP_FRACTION } = await import('./paycalc-calc.js');
 const { getPeriods } = await import('./paycalc-periods.js');
@@ -117,7 +118,7 @@ describe('the three payslips around the promotion, priced through the settings m
         assert.deepEqual(periodRate(ty, ACROSS), { rate: (7 * rate2627('cea') + 21 * rate2627('ces')) / 28, preAward: false });
         assert.deepEqual(periodRate(taxYearForPeriod(AFTER), AFTER), { rate: rate2627('ces'), preAward: false });
         // Today's figures, written out, so a reader can hold them against the real payslips.
-        assert.deepEqual([BEFORE, ACROSS, AFTER].map(p => periodRate(taxYearForPeriod(p), p).rate.toFixed(4)), ['21.4900', '22.3225', '22.6000']);
+        assert.deepEqual([BEFORE, ACROSS, AFTER].map(p => Number(periodRate(taxYearForPeriod(p), p).rate).toFixed(4)), ['21.4900', '22.3225', '22.6000']);
     });
 
     test('the contracted hours are 140 on each, so the payslip across the change pays £3,125.15 basic', () => {
@@ -126,7 +127,7 @@ describe('the three payslips around the promotion, priced through the settings m
             assert.equal(getContr(p), GRADES.cea.contr);
             assert.equal(getEffectiveContr(p), 140, 'a full payslip — the join date was in June');
         }
-        const { rate } = periodRate(taxYearForPeriod(ACROSS), ACROSS);
+        const rate = Number(periodRate(taxYearForPeriod(ACROSS), ACROSS).rate);
         assert.equal(Math.round(rate * getEffectiveContr(ACROSS) * 100) / 100, 3125.15);
     });
 
@@ -174,7 +175,9 @@ describe('the promoted member\'s whole year: every payslip at its own grade, thr
                     oHrs: h.otHrs, rHrs: h.rdwHrs, sHrs: h.sunHrs, bHrs: h.boxHrs,
                     peerDays: 0, london: getLondonAllowanceForPeriod(p, TY), otherAdj: 0,
                 });
-                return s + Math.max(0, g.gross - savedPeriodPension(p, HOURS, 1));
+                // Each payslip as the result card shows it (takeHomePay): to the penny, then summed.
+                const pennies = (/** @type {number} */ x) => Number(x.toFixed(2));
+                return s + Math.max(0, pennies(pennies(g.gross) - pennies(savedPeriodPension(p, HOURS, 1))));
             }, 0);
             const want = priced(RATES);
             assert.ok(Math.abs(out.taxable - want) < 1e-6, `the year's pay ${out.taxable}, want ${want}`);
@@ -293,6 +296,123 @@ describe('a member who never changed grade is priced exactly as before, on every
             }
         }
         assert.ok(checked > 500, `premise: the sweep reached the roster (${checked} payslips)`);
+    });
+});
+
+// ── THE ROLE AT THE TIME (owner, 16 Nov 2026) ──────────────────────────────────────────────────────
+// A CES promoted into management on Sun 22 Nov 2026 is admitted (pay-audience.js) and keeps the CES
+// payslips; every payslip with a day under the role with no rates has NO figure, on every surface that
+// prices one — never CEA's in its place, which is what each of these surfaces used to fall back to.
+// The member is INVENTED, so nothing here describes a colleague.
+describe('a member promoted OUT of a priced grade: CES payslips priced, the rest refused on every surface', () => {
+    const BEFORE = paidOn(2026, 11, 20), ACROSS = paidOn(2026, 12, 18), AFTER = paidOn(2027, 1, 15);
+    const TY = taxYearForPeriod(ACROSS);
+    const MANAGER = { name: 'Test Promoted Manager', currentWeek: 9, rosterType: 'ces', role: 'Management',
+        hidden: true, managerOnly: true, roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] };
+    const HOURS = { otH: 10, otM: 0, satH: 7, satM: 30 };
+    /** Sign the invented member in for `fn`, with HOURS on `periods`, then put everything back. */
+    const asManager = (/** @type {any[]} */ periods, /** @type {() => void} */ fn) => {
+        _members.push(MANAGER);
+        _session = { name: MANAGER.name };
+        for (const p of periods) _ls.set(periodKey(p.num), JSON.stringify(HOURS));
+        try { fn(); } finally {
+            for (const p of periods) _ls.delete(periodKey(p.num));
+            _members.splice(_members.indexOf(MANAGER), 1);
+        }
+    };
+
+    test('the CES payslip is priced at the CES rate; the two after the promotion have NO rate', () => {
+        asManager([], () => {
+            assert.deepEqual(periodRate(TY, BEFORE), { rate: rate2627('ces'), preAward: false });
+            assert.deepEqual(periodRate(TY, ACROSS), { rate: null, preAward: false }, 'seven CES days do not price the other 21');
+            assert.equal(periodRate(taxYearForPeriod(AFTER), AFTER).rate, null);
+            assert.equal(settledRateFor(BEFORE), rate2627('ces'));
+            assert.equal(settledRateFor(ACROSS), null, 'never the CEA rate in its place');
+            assert.deepEqual([BEFORE, ACROSS, AFTER].map(p => isPeriodPriced(p)), [true, false, false]);
+        });
+    });
+
+    test('a refused payslip says why, and where the member\'s figures are', () => {
+        asManager([], () => {
+            assert.equal(unpricedLineFor(BEFORE), '', 'a payslip that can be priced says nothing');
+            assert.equal(unpricedLineFor(ACROSS), 'No estimate for this payslip. From Sun 22 Nov 2026 the roster lists you as '
+                + 'Management, and this calculator only has rates for CEA and CES. The nearest payslip it can estimate is the one paid Fri 20 Nov 2026.');
+            assert.match(unpricedLineFor(AFTER), /^No estimate for this payslip\. For this payslip's days the roster lists you as Management,/);
+            assert.equal(settingsSummary(TY, ACROSS), '✓ 2026/27 — no rate for this payslip');
+            assert.equal(settingsSummary(TY, BEFORE), `✓ 2026/27 — £${rate2627('ces').toFixed(2)}/hr`);
+        });
+    });
+
+    test('a grade chosen by hand does not price a day the roster gives a role with no rates', () => {
+        assert.deepEqual(gradeDays(MANAGER, ACROSS, { grade: 'ces', from: 0 }), [{ grade: 'ces', days: 7 }, { grade: null, days: 21 }]);
+        assert.deepEqual(gradeDays(MANAGER, BEFORE, { grade: 'cea', from: 0 }), [{ grade: 'cea', days: 28 }],
+            'on a payslip the roster prices, a chosen grade still covers it whole');
+    });
+
+    test('This tax year so far adds the CES payslip only, and says how many it left out', () => {
+        asManager([BEFORE, ACROSS, AFTER], () => {
+            const out = computeYearSoFar(TY, { taxCode: '1257L', plan: 'none', pgLoan: false, now: new Date(2027, 0, 16, 12) });
+            assert.equal(out.entered, 1, 'only the payslip the calculator can price');
+            assert.equal(out.unpriced, 4, 'the four 2026/27 payslips from 18 Dec');
+            assert.ok(!out.missing.some((/** @type {Date} */ d) => d >= ACROSS.payday), 'a refused payslip is never "not entered yet"');
+            const h = _decodeHours(BEFORE, HOURS);
+            const g = computeGross({ rate: rate2627('ces'), effContr: getEffectiveContr(BEFORE),
+                satHrs: h.satHrs, bhHrs: h.bhHrs, bhOtHrs: h.bhOtHrs, oHrs: h.otHrs, rHrs: h.rdwHrs, sHrs: h.sunHrs, bHrs: h.boxHrs,
+                peerDays: 0, london: getLondonAllowanceForPeriod(BEFORE, TY), otherAdj: 0 });
+            // As the result card shows it: pay and pension each to the penny, then the one less the other.
+            const pennies = (/** @type {number} */ x) => Number(x.toFixed(2));
+            assert.equal(out.taxable, pennies(pennies(g.gross) - pennies(savedPeriodPension(BEFORE, HOURS, 1))));
+        });
+    });
+
+    test('the Holiday Pay Premium from the hours counts the CES payslip only — at the CES rate', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2027, 0, 20, 10) });
+        _periodSelect.value = String(AFTER.num);
+        _els.hppBasis = { textContent: '', innerHTML: '' };
+        try {
+            asManager([BEFORE, ACROSS, AFTER], () => {
+                calcHPP();
+                assert.equal(_ls.get(hppEstKey(TY)), (_varPayForPeriod(BEFORE, HOURS, rate2627('ces')) * HPP_FRACTION).toFixed(2));
+                // Out of the payslips it CAN price: a refused one is neither "entered" nor "not entered yet".
+                const priced = getPeriods().filter((/** @type {any} */ p) => p.num - 48 >= TY.first && p.num - 48 <= TY.last && p.num < ACROSS.num).length;
+                assert.match(_els.hppBasis.textContent, new RegExp(`^1 of ${priced} payslips entered`), _els.hppBasis.textContent);
+            });
+        } finally {
+            _periodSelect.value = '';
+            delete _els.hppBasis;
+            _ls.delete(hppEstKey(TY));
+        }
+    });
+
+    test('the rough Year to Date premium refuses a figure that covers a payslip it cannot price', () => {
+        _periodSelect.value = String(AFTER.num);
+        Object.assign(_els, { ytdPay: { value: '40000' }, hppModeYtdAmt: { textContent: 'stale' } });
+        try {
+            asManager([], () => {
+                _ls.set(ytdSrcKey(TY), String(AFTER.num));
+                calcHPP();
+                assert.equal(_els.hppModeYtdAmt.textContent, '', 'no figure beside the option');
+            });
+        } finally {
+            _ls.delete(ytdSrcKey(TY));
+            _ls.delete(hppEstKey(TY));
+            _periodSelect.value = '';
+            delete _els.ytdPay; delete _els.hppModeYtdAmt;
+        }
+    });
+
+    test('back pay: the award\'s months were CES, so CES; a manager who never held a priced grade has none', (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2027, 0, 20, 10) });
+        const TY2627 = /** @type {any} */ (TAX_YEARS.find(x => x.label === '2026/27'));
+        asManager([], () => { assert.equal(awardGrade(TY2627), 'ces'); });
+        const always = { name: 'Test Manager', role: 'Management' };
+        _members.push(always);
+        try {
+            _session = { name: always.name };
+            assert.equal(awardGrade(TY2627), null, 'never CEA\'s in its place');
+        } finally {
+            _members.pop();
+        }
     });
 });
 

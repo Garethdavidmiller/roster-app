@@ -33,7 +33,7 @@ are about to break. Each states WHAT must hold; the WHY is below, or in the modu
 | 10 | **`validateBackup` is the trust boundary, and restore is a REPLACE, never a merge.** A backup is a file from somewhere; these are pay figures, not approximations. | `paycalc-transfer.js` |
 | 11 | **The roster-assist never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — and **viewing a period never persists it**. | `paycalc-roster-suggestions.js` · `paycalc-app.js` |
 | 12 | **A pension opt-out is DATED, and the date is EDITABLE in both directions.** It applies from the payslip the member named onwards and never earlier — a period storing `null` takes the period default, so a timeless flag rewrites history (measured: £115.92 onto one 2025/26 take-home). An empty or unreadable timeline means CONTRIBUTING. Correcting the date must MOVE the spell's start (`withOptOutStartAt`), and un-ticking must END the spell at the payslip on screen (`withRejoinAt`) — recording a raw change at a payslip silently swallows a forward correction and turns every rejoin into an erasure. A start moved to or before an earlier rejoin is refused (`withOptOutStartAt` returns the timeline unchanged), so a spell that has already ENDED is left alone. | `paycalc-pension.js` |
-| 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's — and nothing sends such a member to the page either (the Calendar's notices ask the same function, `calendar-notices.js`). | `roster-data.js` → `gradeForRole` (re-exported by `paycalc-settings.js`) · `functions/pay-reminder.js` (the pay reminder push goes to CEA and CES members only — owner, 10 Nov 2026) |
+| 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's — and nothing sends such a member to the page either (the Calendar's notices ask the same function, `calendar-notices.js`). **It is the role AT THE TIME** (owner, 16 Nov 2026): a member is admitted when they held a priced grade on any day of the payslips the page shows, or today, and each payslip with a day under a role with no rates shows NO figure (`unpricedPayslipLine`) — never CEA's rate in its place, on any surface. | `roster-data.js` → `gradeForRole` · `pay-audience.js` → `payCalculatorPrices` · `paycalc-grade.js` → `payslipPriced` · `functions/pay-reminder.js` (the pay reminder push goes to CEA and CES members only — owner, 10 Nov 2026) |
 | 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, so `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay-accrual.js` → `awardWindowFactor` |
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary silently under-reported tax years — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so the headers are not the only EXPLANATION — they are the only route that costs the reader nothing and asks nothing of them first: a member who has never heard of HPP has no reason to open a guide looking for it. Never hide, group or shorten these headers without an owner decision; the case that nearly did is DECISIONS.md → "More pay tools" … DECLINED, and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
@@ -121,7 +121,10 @@ runs.
   (CES 2025/26) is not guessed: the card says the figure may include back pay (owner, 10 Nov 2026).
   Nor is a PREMIUM inside the figure that no tax year on record claims (v26.22): the first year on
   record's January payslip carries the year before's — 16 Jan 2026, 2024/25's, a year `TAX_YEARS`
-  does not hold — so it stays in and the card says the figure "may be a little high".
+  does not hold — so it stays in and the card says the figure "may be a little high". So does a year ON
+  record with no figure stored for its premium (2025/26's, paid 15 Jan 2027): read as £0 it came out as
+  nothing and went unsaid. The line says what the figure covers ("up to your … payslip"), and that a
+  part-year figure for a year that has ended may be low.
   **`_expectedNonPremiumYtd` pro-rates ALL non-premium components by `getProRateFactor(p)`** —
   London and pension as well as basic — mirroring `calculate()` (London ×`_proRateFactor`, pension
   ×`getProRateFactor`) and the real payslip; at full value, every pre-start period of a mid-year joiner
@@ -131,7 +134,8 @@ runs.
   and unit-tested.
 - **The 2025/26 premium, paid in January 2027, has no hours here** — the calculator did not exist
   that year. The Pay page's second notice (`hpp_2526`, 16 Nov 2026 – 8 Jan 2027, owner 16 Nov 2026)
-  sends a member with a 2025/26 payslip (`premiumStillToEstimate`) to the 'ytd' route: the Taxable Pay
+  sends a member with a 2025/26 payslip (`premiumStillToEstimate` — which counts a rough figure as
+  done only when it came from the year's LAST payslip, and a typed one always) to the 'ytd' route: the Taxable Pay
   on the LAST 2025/26 payslip (13 Mar 2026), whose Year to Date box holds the whole year, then the
   rough-estimate option on that payslip. The figure then reaches "Last year (2025/26)" and the January
   take-home add through `hppEstKey`, like any other. It ends the day before that January payslip can
@@ -177,8 +181,16 @@ HPP non-premium estimate and the year summary all route through it.
   reverse. Invariant 12 above; the rules and their reasoning are in `paycalc-pension.js`.
 
 **A grade this app has no confirmed rates for REFUSES.** `gradeForRole(role)` returns null for
-anything but CEA/CES, and `paycalc-app.js` then withholds the calculator behind a card naming the gap
-— never a complete, polished estimate at somebody else's rate. **Do not invent Dispatcher values** —
+anything but CEA/CES. A member who held neither on any day of the payslips the page shows, or today
+(`payCalculatorPrices`, `pay-audience.js`), is shown a card naming the gap instead of the calculator
+— never a complete, polished estimate at somebody else's rate. **By the role AT THE TIME** (owner,
+16 Nov 2026): a CES promoted into management keeps the CES payslips, and each payslip with a day under
+the new role has no figure — the result card says why and names the nearest payslip it can estimate
+(`unpricedLineFor`), the year so far leaves it out and says so, the premium estimate skips it, the
+rough Year to Date premium refuses a figure covering it, and back pay refuses an award whose months
+were all under it (`awardGrade` → null). A grade chosen by hand does not price such a day either. The
+Calendar's notices ask the same function over TODAY alone, so they never invite a member the page
+refuses. **Do not invent Dispatcher values** —
 the rates and contractual terms are not on record. **A session name the roster does not hold refuses
 the same way**: a leaver or a renamed member keeps a valid local session, and pricing them would fall
 back to CEA rates in the bare shared `myb_pc_` namespace.
@@ -845,7 +857,8 @@ The card's hint asks for the tax code to be checked against the same payslip, fo
 payslips — `computeYearSoFar(ty, opts)` in **`paycalc-year-summary.js`** re-runs the same engine
 headlessly per paid payslip with saved hours (decode → `computeGross` with period-aware
 rate/London/pension → non-cumulative `computeTax`/`computeNI`/`computeSL`, honouring the per-period
-`slSkip` and the stopped-deductions cutover) → taxable/tax/NI/SL/take-home totals + a projection
+`slSkip` and the stopped-deductions cutover) → taxable/tax/NI/SL/take-home totals, each payslip rounded as the result card shows it (`takeHomePay`),
+so the year is the sum of the figures a member reads + a projection
 (net ÷ entered × the year's payslip count, deliberately labelled rough). Rendered by `renderYearCard`
 in `paycalc-year-card.js` after every `calculate()`; hidden until a payslip has hours; corrupt periods
 surface a "may be too low" warning (no silent caps). Unit-tested by `paycalc-year-summary.test.mjs`
