@@ -23,24 +23,14 @@ body {
     box-sizing: border-box;
     overflow-x: hidden; overflow-x: clip;
 }
-/* ── THE TRACK MUST BE ALLOWED TO SHRINK (v23.31) ──────────────────────────────────────────
-   The same defect `admin.css` documents at length, in the same words, because it is the same
-   CSS: a grid with no `grid-template-columns` gets ONE `auto` track whose automatic minimum is
-   MIN-CONTENT, so a single child that refuses to shrink drags the TRACK wider than the
-   container — and every sibling in it, header and all, stretches to that width and is then cut
-   off by the `overflow-x: clip` above. The page never scrolls; it is simply shaved down its
-   right edge, which is why it does not read as overflow.
-   MEASURED HERE, not assumed: at the default text size Operations fits, and at Android's 1.3x
-   font scale it still does — which is why the Admin fix did not obviously extend to it. At
-   1.6x it goes, and 1.6x is a real device state rather than a stress test: Font size and
-   Display size are two separate Android settings and they MULTIPLY (1.3 x 1.3 = 1.69).
-   `minmax(0, 1fr)` lets the track shrink; each card then clips its own overflow, as
-   `.card { overflow: hidden }` already intends, instead of the page doing it for them. */
+/* ── THE TRACK MUST BE ALLOWED TO SHRINK ──────────────────────────────────────────────────
+   The defect `admin.css` documents: one `auto` track with a min-content minimum lets a child that
+   will not shrink widen every sibling, and `overflow-x: clip` shaves the page down its right edge.
+   Measured here at Android's 1.6× text — Font size and Display size MULTIPLY (1.3 × 1.3), so it is
+   a real device state. `minmax(0, 1fr)` lets the track shrink; each card clips its own overflow. */
 .container { grid-template-columns: minmax(0, 1fr); }
-/* The items get it too — a grid item's own `min-width: auto` is min-content, so a track allowed
-   to shrink can still be held open by its item. Kept as a pair for the reason admin.css gives:
-   which of the two binds depends on the content, and the content changes. Below 1024px the column
-   wrappers are `display: contents`, so the cards are the grid's items and are named here too. */
+/* The items get it too, as the pair admin.css keeps. Below 1024px the column wrappers are
+   `display: contents`, so the cards are the grid's items and are named here too. */
 .container > *, .ops-left-column > *, .ops-right-column > * { min-width: 0; }
 /* The header is <main>'s sibling (inside it, it was not the banner landmark), so it takes here what
    the grid gave it: the page's band, 4px above the first card at every width as on Settings, and
@@ -48,16 +38,11 @@ body {
 .app-header { max-width: var(--content-max-width); margin: 0 auto 4px; }
 body:not(.auth-ready) .app-header { display: none; }
 body.auth-ready .container { display: grid; }
-/* ── Needs attention strip (v22.03; group-label redesign same release) ──────────────────────
-   The page organises itself with group labels on the navy canvas (PUBLISH · ROSTER & ACCOUNTS ·
-   MONITORING). "Needs attention" is a FOURTH, CONDITIONAL group in exactly that voice — an
-   eyebrow label and a row of pills, no banner and no card frame. Two earlier cuts are worth
-   remembering: a full-tint amber banner read as the one pink surface on a page of white cards,
-   and a white card frame around two small chips was mostly empty field. Each pill is a MINIATURE
-   OF THE CARD HEADER it opens — emoji, name, and the same .card-year-chip count the target card's
-   header wears — so what you tap looks like where you land. Display stays default block on the
-   container: the module toggles `hidden`, and page-visibility-parity holds any author `display:`
-   off it. */
+/* ── Needs attention strip ─────────────────────────────────────────────────────────────────
+   A FOURTH, CONDITIONAL group in the voice of the page's group labels on the navy canvas: an
+   eyebrow and a row of pills, no banner or card frame. Each pill is a MINIATURE OF THE CARD HEADER
+   it opens — emoji, name and the same .card-year-chip count — so what you tap looks like where you
+   land. No author `display:` on the container: the module toggles `hidden` (page-visibility-parity). */
 .attn-strip { margin-bottom: -2px; }
 .attn-head {
     /* .ops-group-label's voice, warmed: this group exists only when something is wrong. */
@@ -556,38 +541,22 @@ body.auth-ready .container { display: grid; }
    reads as a bug, which is the opposite of what a safety gate should communicate. */
 .roster-blocked .roster-tick { opacity: .35; cursor: not-allowed; }
 
-/* A member whose row is suspect but whose read was not refused outright.
-   TINT, NOT A RULE — and the difference was measured on a screenshot rather than reasoned about.
-   A `border-left` needs `padding-left` to clear it, which indents every row inside the section by
-   the same amount, so the suspect member's rows no longer line up with the sections above and
-   below. That misalignment reads as a rendering bug, which is the opposite of "this state is
-   deliberate". A background tint says the same thing and moves nothing.
-   The `.roster-shift-warning` inside already states "nothing here is selected", so this only has to
-   bound the section it applies to. */
+/* A member whose row is suspect but whose read was not refused outright. A TINT, NOT A RULE: a
+   border-left's padding would put these rows out of line with the sections around them, which
+   reads as a rendering bug. The warning inside says the rest; this only bounds the section. */
 .roster-person-suspect {
     background: color-mix(in oklch, var(--error-red) 4%, transparent);
     border-radius: 10px;
     padding: 2px 8px 8px;
 }
-/* On a REFUSED read every row is evidence to check, not a change to approve — so the whole list
-   recedes. Without this the page still reads "here are your changes" with a red note on top, which
-   is the shape of a warning, not of a refusal. Action labels are hidden outright rather than
-   dimmed: "UPDATE" beside a row that will not update is a statement, and it is untrue.
-   THE RECESSION WAS AN OPACITY UNTIL v24.00, AND THIS COMMENT HAD ALREADY ARGUED AGAINST IT. The
-   first pass used .62 and worked against itself — these rows are exactly what the admin has been told to check
-   against the PDF, so making the shift badges hard to read is the opposite of the intent — and .78
-   was a step in this direction that stopped short: measured by axe, it left 36 elements at
-   3.26-4.11:1 against a 4.5 floor, the badges among them. No opacity could have fixed that (the
-   dims note further down has the numbers), so the recession is carried by the SUNKEN SURFACE the
-   skipped row uses, which says the same thing at full strength. Removing the affordances is what
-   says "not actionable"; the surface only has to stop the list reading as a to-do.
-   The TICK keeps its own dim — it is a genuinely inactive control here, clicks are returned early
-   at the delegate, and an inactive component is the one thing WCAG's contrast rule exempts. */
+/* On a REFUSED read every row is evidence to check, not a change to approve — so the list recedes,
+   onto the SUNKEN SURFACE, never an opacity (the dims note below). Action labels are hidden outright:
+   "UPDATE" beside a row that will not update is untrue. The TICK keeps its own dim — a genuinely
+   inactive control, the one thing WCAG's contrast rule exempts. */
 .roster-blocked .roster-act,
 .roster-blocked .roster-skip-all-btn { visibility: hidden; }
-/* A conflict row's choice pair keeps SHOWING both values — that is the evidence — but the chosen
-   one loses its fill. A solid green "Keep saved" on a read that will not be saved reads as a live
-   decision, and it is the one control on this page that looks pressed rather than available. */
+/* A conflict's choice pair keeps SHOWING both values (the evidence), but the chosen one loses its
+   fill: a solid "Keep saved" on a read that will not be saved reads as a live decision. */
 .roster-blocked .roster-choice-btn { cursor: not-allowed; }
 .roster-blocked .roster-choice-btn.is-chosen,
 .roster-blocked .roster-choice-btn[data-swap].is-chosen {
@@ -603,11 +572,8 @@ body.auth-ready .container { display: grid; }
     border: 1px solid var(--border-light);
     border-radius: 10px;
 }
-/* A skipped row is SET ASIDE, not faded (see the dims note above). Three cues carry it, none
-   of them costing contrast: the tick is empty, the row drops to the sunken surface, and the
-   action tag loses its success green. The tag still reads "Update" — that is what the row would
-   do if it were re-ticked — but green is the colour this page uses for an outcome, and wearing it
-   on a row that will not be saved is the claim `.roster-blocked` below strips for the same reason. */
+/* A skipped row is SET ASIDE, not faded (the dims note): an empty tick, the sunken surface, and an
+   action tag without its success green — the colour of an outcome, which this row will not have. */
 .roster-change-row.is-skipped .roster-act { background: var(--bg-faint); color: var(--text-mid); }
 /* Conflict card keeps its warm tint + gains a left accent (needs-a-decision), like the admin
    accent-cards. align-items:flex-start so the stacked choicebox reads top-down. */
@@ -624,38 +590,28 @@ body.auth-ready .container { display: grid; }
     flex: 1; flex-wrap: wrap; font-size: var(--type-small);
     min-width: 0;   /* or the values push the action tag off the row on a narrow card (v24.43) */
 }
-/* ── THE DIMS THAT WERE UNREADABLE, AND WHY OPACITY IS NEVER THE LEVER HERE (v24.00) ────────────
-   Four rules on this card used to fade their content with `opacity` — this one, `.cv-dim`,
-   `.roster-change-row.is-skipped` and `.roster-blocked` above — and all four failed WCAG AA on
-   the shift badges they contain: 1.76–4.11:1 against a 4.5 floor, measured by axe on the real
-   rendered review, which nothing had ever scanned.
+/* ── THE DIMS THAT WERE UNREADABLE, AND WHY OPACITY IS NEVER THE LEVER HERE ──────────────────────
+   Four rules on this card once faded their content with `opacity` — this one, `.cv-dim`,
+   `.roster-change-row.is-skipped` and `.roster-blocked` — and all four failed WCAG AA on the shift
+   badges inside: 1.76–4.11:1 against a 4.5 floor, measured by axe on the real rendered review.
 
-   The badges themselves are FINE. Measured undimmed, every one clears AA: Early 4.65 · AL 5.17 ·
-   Late 5.75 · Absent 6.19 · Other 6.80 · Spare 8.20 · Unknown 8.63 · Rest 13.77 · Night 17.06.
-   Early's 4.65 is the floor, and it is the whole argument: halving the opacity of a pair that
-   clears by 0.15 cannot leave it clearing, so there is no opacity value that both quietens a badge
-   and keeps it legible. Recolouring `.shift-badge` would not have helped either — it is shared with
-   the Calendar, and whatever colour it were given, a fade over it halves the ratio just the same.
+   The badges themselves clear AA undimmed, and Early's 4.65 is the floor: a pair that clears by
+   0.15 cannot survive being halved, so NO opacity both quietens a badge and keeps it legible — and
+   recolouring the shared `.shift-badge` would not help, since a fade halves any colour's ratio.
 
-   So each dim was replaced by the cue that was ALREADY carrying the meaning beside it: the "was"
-   value is smaller than the "now" value · the not-chosen conflict option is struck through · a
-   skipped row's tick is empty and its row sits on the sunken surface · a refused read has had its
-   affordances removed outright. Each says the same thing and costs no contrast.
-
-   This is the same intent the `.roster-blocked` comment above states for its own rows: these rows
-   are exactly what the admin has been told to check against the PDF, so making the shift badges
-   hard to read is the opposite of the point. It applies with more force here, because the "was"
-   value is half of every comparison on the screen.
+   So each dim became the cue ALREADY carrying the meaning beside it, at no contrast cost: the "was"
+   value is smaller · the not-chosen conflict option is struck through · a skipped row's tick is
+   empty and the row sunken · a refused read has lost its affordances. These are the rows the admin
+   checks against the PDF; the "was" value is half of every comparison on the screen.
 
    `e2e/axe.spec.js` scans the review in all four states, so a re-added fade fails the a11y gate —
    each of the four was put back with `scripts/mutate.mjs` and each turned it red. */
 .roster-from-val { font-size: var(--type-badge); color: var(--text-mid); }
 .roster-from-val .shift-badge { font-size: var(--type-micro); padding: 1px 5px; }
-/* The arrow belongs to the NEW value (v24.43): when a narrow row wraps, "→ Rest" starts the second
-   line instead of the arrow dangling at the end of the first, pointing at nothing. */
+/* The arrow belongs to the NEW value: a wrapped row starts its second line "→ Rest". */
 .roster-arrow { color: var(--text-light); font-size: var(--type-badge); margin-right: 6px; }
 .roster-to-val { font-size: var(--type-small); display: inline-flex; flex-wrap: wrap; align-items: center; row-gap: 2px; }
-/* nowrap: a time is one value — "22:00-" / "06:00" across two lines read as two (v24.43). */
+/* nowrap: a time is one value — "22:00-" / "06:00" across two lines read as two. */
 .review-shift-time { font-size: var(--type-badge); font-weight: 600; color: var(--text-mid); margin-left: 4px; white-space: nowrap; }
 /* Tick control — "this row will save". Ticked = green box; tap to skip (empties it + dims the row). */
 .roster-tick {
@@ -701,16 +657,10 @@ body.auth-ready .container { display: grid; }
 .roster-cb-lab { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
                  text-transform: uppercase; color: var(--conflict-text); }
 .roster-cv-manual, .roster-cv-pdf { font-size: var(--type-small); font-weight: 600; }
-/* Strikethrough only — see the dims note above. This is the option the admin may be about to
-   switch TO, so it is the last thing on the card that should be hard to read.
-   THE SECOND RULE IS NOT A TIDY-UP (v24.02). `text-decoration` does not inherit into an atomic
-   inline box, and `.shift-badge` is `display: inline-flex` with a colour of its own — so with only
-   the rule above, a conflict whose two values are BADGES rather than times (Rest, AL, Spare, an
-   Other flavour with no time) rendered the not-chosen option pixel-identical to the chosen one.
-   The v24.00 fixture could not see it: both its conflict values are times, and a time IS struck
-   because it is a plain `.review-shift-time` span. Measured on the badge: `line-through` on the
-   parent, `none` on the child. The dim it replaced faded the whole subtree, so this was a
-   REGRESSION introduced by the fix, on the one control where two options must not look alike. */
+/* Strikethrough only (the dims note): this is the option the admin may switch TO.
+   THE SECOND RULE IS NOT A TIDY-UP: `text-decoration` does not inherit into an atomic inline box,
+   and `.shift-badge` is `inline-flex` — without it a conflict between two BADGES (Rest, AL, Spare)
+   drew the not-chosen option identical to the chosen one. */
 .cv-dim { text-decoration: line-through; color: var(--text-mid); }
 .cv-dim .shift-badge { text-decoration: line-through; }
 /* Full-width choice row (v15.66): the two buttons share the row 50/50 and wrap to stacked
@@ -778,26 +728,17 @@ body.auth-ready .container { display: grid; }
     background: color-mix(in oklch, var(--warning-amber) 10%, white);
     border-left: 4px solid var(--warning-amber);
 }
-/* ── SET ASIDE: ONE RULE, DECLARED LAST, BECAUSE THE FIRST THREE NEVER REACHED TWO ROW TYPES ────
-   A row the admin skipped, a whole member skipped, and every row of a refused read all recede the
-   same way — onto the sunken surface. This was three separate declarations until v24.02, each
-   sitting beside the state it described, and all three were DEAD for a conflict row and an
-   unreadable one: `.roster-change-row.roster-change-conflict` and `.roster-change-row
-   .roster-change-unreadable` carry the same specificity and are declared later, so they won.
-   Measured in a refused read: plain rows `oklch(.963)`, conflict `oklch(.979)` — the row that was
-   supposed to recede came out LIGHTER than the rows around it, inverting the comment above it.
-   It is declared HERE, after both, rather than given a specificity bump: the cascade is the
-   mechanism, so the fix is to respect the order rather than to out-weigh it.
-   A conflict row loses its warm "needs a decision" tint when it is set aside, and that is the
-   point — in a refused read nothing is decidable, and the buttons are already inert. */
+/* ── SET ASIDE: ONE RULE, DECLARED LAST ──────────────────────────────────────────────────────
+   A skipped row, a skipped member and a refused read all recede onto the sunken surface. DECLARED
+   AFTER the conflict and unreadable rows, which carry the same specificity and would otherwise win
+   (a set-aside conflict came out LIGHTER than its neighbours). A conflict loses its warm tint when
+   set aside — in a refused read nothing is decidable. */
 .roster-change-row.is-skipped,
 .section-skipped .roster-change-row,
 .roster-blocked .roster-change-row { background: var(--surface-sunken); }
 
-/* The tag was amber-on-amber against the row's own tint, so it read as a slightly different patch
-   of background rather than as a tag. White ground separates it without adding a colour. The
-   conflict row's "Your choice" had the same fault exactly — its tag and its card are both
-   `--al-confirm-bg` — so it shares the cure (v24.43). */
+/* A tag on its own row's tint reads as a patch of background: white ground separates it without
+   adding a colour — the unreadable row's tag and the conflict's "Your choice" alike. */
 .roster-change-conflict .act-choice,
 .roster-change-unreadable .act-read {
     background: white;
@@ -805,20 +746,14 @@ body.auth-ready .container { display: grid; }
 }
 .roster-change-conflict .act-choice { border-color: color-mix(in oklch, var(--conflict-strong) 35%, white); }
 .review-shift-unreadable { font-size: var(--type-small); font-weight: 600; color: var(--warning-amber); }
-/* GUARDED — the PDF carried a value the app's rules will not record on that day (v23.97).
-   NOT amber. The unreadable row is amber because something went wrong and the admin has to act;
-   this row is the app working correctly and has no control on it at all, so it takes the calm
-   informational tint and a neutral left edge. Making it look like a problem would send an admin
-   hunting for the tick that is deliberately absent — the same mistake in the opposite direction
-   from the one this state was created to fix, where the day had no row at all. */
+/* GUARDED — the PDF carried a value the app's rules will not record on that day. NOT amber: this is
+   the app working correctly, with no control on it, and a problem colour would send an admin
+   hunting for a tick that is deliberately absent. */
 .roster-change-row.roster-change-guarded {
     background: var(--surface-sunken);
     border-left: 4px solid var(--border-light);
-    /* A COLUMN (v24.90): the day and its tag, what the roster said, what is saved now, the reason
-       and the question, each on its own line — the "Your choice" card's shape. It was a three-column
-       grid (day · said · tag), and on a phone with large text the badge outgrew its column and drew
-       over the tag, which read "IOT RECORDED" (owner's screenshot, 22 Oct). Nothing shares a line
-       with the badge now, so no text size can make the two meet. */
+    /* A COLUMN, each part on its own line (the "Your choice" card's shape): nothing shares a line
+       with the badge, so no text size can draw it over the tag. */
     flex-direction: column; align-items: stretch; gap: 6px;
 }
 .roster-guard-said { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -845,13 +780,10 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-badge); color: var(--text-light); white-space: nowrap;
 }
 
-/* ── A CHANGED DAY: THE NEW VALUE MAY RUN UNDER THE TAG (v24.90) ───────────────────────────────
-   The tick, the day, what it was, what it becomes, the tag. The tag shares the FIRST line with what
-   the day was, and the new value takes the second line across the full width, under the tag too.
-   As one wrapping row both values shared a line's width with the tag, so on a phone with large text
-   the new time fell to a third line under "→ Early" while the old one stayed beside its badge
-   (owner's screenshot, 22 Oct). The new value is what will be written, so it gets the room. A
-   REMOVE row's note takes a third line. `display: contents` lifts the values into this grid. */
+/* ── A CHANGED DAY: THE NEW VALUE MAY RUN UNDER THE TAG ────────────────────────────────────────
+   The tag shares the FIRST line with what the day was; the new value — what will be written — takes
+   the second line at full width, so large text cannot push it to a third. A REMOVE row's note takes a
+   third line. `display: contents` lifts the values into this grid. */
 .roster-change-row.roster-change-diff {
     display: grid; align-items: center;
     grid-template-columns: auto auto minmax(0, 1fr) auto;
@@ -876,37 +808,28 @@ body.auth-ready .container { display: grid; }
     margin-top: 10px; font-family: inherit;
     transition: border-color var(--dur-med), color var(--dur-med);
 }
-/* When the read is refused, the remedy stops being the quiet secondary.
-   DECLARED AFTER `.roster-cancel-btn`, and that is load-bearing rather than tidy: both are single
-   class selectors, so the later one wins. The first cut put this 109 lines EARLIER in the file and
-   it rendered as an ordinary secondary button — the exact cascade trap `.claude/rules/css-tokens.md`
-   describes, found by looking at a screenshot rather than by reading the file, which reads fine. */
+/* When the read is refused, the remedy stops being the quiet secondary. DECLARED AFTER
+   `.roster-cancel-btn`, and load-bearing: both are single classes, so the later one wins. */
 .roster-cancel-btn--primary {
     background: var(--primary-blue);
     color: white;
     border-color: var(--primary-blue);
     font-weight: 700;
 }
-/* …and order does not reach the HOVER rule, which outweighs the variant (0,2,0 to 0,1,0): it turned
-   the primary's words navy on its navy fill (Nov 2026). The primary darkens under a mouse, as the
-   page's other navy buttons do. */
+/* …but order does not reach the HOVER rule, which outweighs the variant (0,2,0 to 0,1,0): the
+   primary darkens under a mouse, as the page's other navy buttons do. */
 @media (hover: hover) and (pointer: fine) {
     .roster-cancel-btn:not(.roster-cancel-btn--primary):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
     .roster-cancel-btn--primary:hover { background: var(--primary-blue-dark); border-color: var(--primary-blue-dark); }
 }
-/* `display: block` above out-ranks the browser's own `[hidden]` rule, so a hidden button would still
-   show. The Annual leave sheet's Clear button is hidden until a check is on screen (14 Nov 2026). */
+/* `display: block` above out-ranks `[hidden]`: the Annual leave sheet's Clear hides until a check shows. */
 .roster-cancel-btn[hidden] { display: none; }
 
 /* ---- Form inputs ---- */
-/* `.fieldpick` is named beside `select` in all three rules below, and it has to be: this page
-   styles its fields BY ELEMENT, and `select-sheet.js` replaces the visible control with a
-   `<button>` that inherits only the select's CLASSES. Without it the two enhanced selects here
-   would lose the border, the fill, the 16px type and the chevron — the page's field design would
-   simply stop applying to two of its fields, with nothing to throw. Same edit index.css and
-   paycalc.css needed at v23.36. THE PAGE'S OWN FIELDS ONLY (Nov 2026), as admin.css's copy says:
-   bare, these turned the drawer's search white under its white text and scrolled the sign-in screen
-   sideways. `:where()` adds no weight, so nothing on this page that overrides them changes. */
+/* `.fieldpick` is named beside `select` in all three rules below: this page styles fields BY
+   ELEMENT, and `select-sheet.js`'s trigger `<button>` inherits only the select's CLASSES. THE
+   PAGE'S OWN FIELDS ONLY, as admin.css's copy says — bare, these restyled the drawer's search and
+   the sign-in card. `:where()` adds no weight, so nothing on this page that overrides them changes. */
 :where(.container) select, :where(.container) .fieldpick, :where(.container) input[type="text"], :where(.container) input[type="date"] {
     width: 100%;
     padding: 8px 10px;
@@ -942,28 +865,17 @@ body.auth-ready .container { display: grid; }
     .container { gap: 14px; }
 }
 
-/* ── Desktop: 1024px — wrapper-column layout (mirrors admin.html's col-main/col-side) ──
-   Each column is its own independent flex stack, so a tall card (the roster review
-   table) never couples row heights with the other column — no auto-placement and no
-   masonry gaps. Narrow left = the three short publishing cards (Huddle / Circular /
-   Newsletter); wide right = the width-hungry cards (roster review table, Work Email
-   list, Error Log, Usage, Auth). On mobile the wrappers are display:contents so the
-   cards remain direct grid children and stack in source order with the normal gap. */
+/* ── Desktop: 1024px — wrapper columns (as admin.html's col-main/col-side) ──
+   Each column is its own flex stack, so a tall card never couples row heights with the other:
+   narrow left = the publishing cards, wide right = the width-hungry ones. On mobile the wrappers
+   are display:contents, so the cards stack in source order with the normal gap. */
 .ops-left-column,
 .ops-right-column { display: contents; }
 
-/* Group labels (v18.89). With every card collapsed, Operations was nine near-identical bars with
-   no hierarchy — nothing said which were "publish a document", which were "manage the roster and
-   accounts", and which were read-only reporting. These use the app's existing uppercase micro-label
-   rank (matching .field-eyebrow) so they add structure without adding chrome. Staff Login Accounts
-   moved up beside Account status in the same change — both are account admin, and three monitoring
-   cards used to sit between them. Sits on the navy canvas, so it takes a light colour. */
-/* The SAME recipe as Settings' `.settings-section-label` since v25.12 — they are one element (an
-   uppercase signpost on the navy canvas grouping the cards below it) and were drawn two ways: 700 on
-   0.5px tracking in white at 55% here, 800 on .09em in --on-navy-muted there. The Settings recipe is
-   the one that names its colour through the on-navy token rather than restating an alpha. And since
-   v26.24 the same ELEMENT, an h2: these were <p>s, so a screen reader's list of headings named the
-   three groups on Settings and none of them here, though a sighted reader sees the same signpost. */
+/* Group labels: with every card collapsed, the page was near-identical bars with no hierarchy. The
+   SAME recipe as Settings' `.settings-section-label` — one element, an uppercase signpost on the
+   navy canvas, its colour through the on-navy token — and the same ELEMENT, an h2, so a screen
+   reader's list of headings names the groups here as it does on Settings. */
 .ops-group-label {
     font-size: var(--type-micro);
     font-weight: 800;
@@ -978,15 +890,9 @@ body.auth-ready .container { display: grid; }
 
 @media (min-width: 1024px) {
     body.auth-ready .container {
-        /* 1100px matches paycalc.css and settings.css — keeps all three
-           sub-pages a consistent width. */
         max-width: var(--content-max-width);
-        /* Left column widened 380px → 440px (v18.86). At 380 the three upload cards — the most
-           text-heavy on the page — wrapped their hints to three ragged lines ("…staff open it from
-           ☰ → Marylebone Newsletter") while the right column's one-line hints left ~half its width
-           empty: the narrow column was doing the wordy work. 440 lets those hints settle to two
-           lines and evens the measure, and the right column still lands ~636px — comfortably the
-           wider of the two, which the desktop-columns e2e asserts. */
+        /* A 440px left column lets the wordy upload cards' hints settle to two lines; the right column
+           still lands ~636px, the wider of the two (the desktop-columns e2e asserts it). */
         grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
         column-gap: 24px;
         align-items: start;
@@ -1023,13 +929,8 @@ body.auth-ready .container { display: grid; }
        margin so the label sits tight to the card it introduces, not midway between the two. */
     .ops-group-label { margin: 0 0 -8px 2px; }
 
-    /* NO width cap on `.huddle-upload-btn` (polish pass). It was `max-width: 280px` "because a
-       full-width button looks wrong inside the narrow left column" — but the date + Choose-file row
-       above it runs the full ~408px, so the button stopped 128px short of the row it submits: a
-       gutter on ONE side, which css-tokens.md (v22.22) names as the arrangement that reads as
-       unfinished. The same cap also shortened "Read roster" in the WIDE right column, where every
-       other action (Try again, Set up accounts, Save changes) spans the card. Full width is the
-       consistent answer, as Settings concluded at v18.89. */
+    /* NO width cap on `.huddle-upload-btn`: a button short of the row it submits leaves a gutter on
+       ONE side, which reads as unfinished (css-tokens.md); every action spans its card. */
 }
 
 /* ---- Work Email Progress card ---- */
@@ -1275,15 +1176,10 @@ body.auth-ready .container { display: grid; }
 .btn-acct-reset:disabled { opacity: 0.6; cursor: not-allowed; }
 /* The inline email Set/Edit form sits full-width under the email line inside the row. */
 .acct-row .email-set-form { margin: 2px 0 0; }
-/* ONE LINE PER MEMBER FOR A MOUSE (desktop audit, Nov 2026). Stacked, ~50 rows made this card 4,617px
-   tall at every desktop width: the head over the email line is right for a thumb at 375px and wasteful
-   at a desk, where the card is ~600px wide. Gated on the POINTER as well as the width, as Admin's day
-   rows are (css-tokens.md → density). The head is ONE width on every row, so each email starts at the
-   same x down the list; the email line takes the rest, its hairline turned from a rule above it to one
-   beside it. The Set/Edit form and a removal error still take a whole line under the row.
-   A LINE TOO NARROW FOR ITS ADDRESS TAKES THE NEXT ONE (Nov 2026): sized by its content (`auto`, not 0),
-   the email line wraps under the head when the address and its buttons do not fit beside it, and there
-   has the row's whole width — so a row with no address, or a short one, stays one line. */
+/* ONE LINE PER MEMBER FOR A MOUSE: stacked, ~50 rows ran to 4,600px at a desk. Gated on the POINTER
+   as well as the width (css-tokens.md → density). The head is ONE width on every row, so each email
+   starts at the same x; the Set/Edit form and a removal error still take a whole line under the row.
+   A line too narrow for its address takes the next one (sized `auto`, not 0), at the row's full width. */
 @media (min-width: 1024px) and (pointer: fine) {
     .acct-row { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: 6px 12px; }
     .acct-row-head  { flex: 0 0 19rem; width: auto; }
@@ -1949,13 +1845,9 @@ body.auth-ready .container { display: grid; }
     border: 1.5px solid var(--border-light);
     margin-bottom: 14px;
 }
-/* ONE LEFT EDGE FOR EVERY PANEL'S SENTENCE (polish pass, Oct 2026). The column was as wide as its own
-   figure, so the sentences down the card started 1–3px apart — and 41px for "8%", 70px for "100%" or a
-   bare dash would have moved them further. Tabular digits make every two-digit figure one width (57px,
-   measured), and the floor — a touch over it, for an engine that measures a hair wider — holds that
-   width for one digit and for the empty dash. Only a three-character figure ("100%", ">99%") is wider,
-   and that is rare: sizing every panel for it would take 15px from the sentence beside it on a 320px
-   phone. */
+/* ONE LEFT EDGE FOR EVERY PANEL'S SENTENCE: tabular digits make every two-digit figure one width (57px,
+   measured), and the floor holds it for one digit and the dash. Only a rare "100%" is wider — sizing
+   for it would take 15px from the sentence on a 320px phone. */
 .speed-verdict-num {
     display: flex;
     flex-direction: column;
@@ -2089,14 +1981,10 @@ body.auth-ready .container { display: grid; }
     text-align: right;
 }
 
-/* ── The "why some are slower" breakdown (v20.19; column layout v20.21) ────────────────────────
-   FOUR columns — label | bar | % over 1s | loads — under a header row, the same idiom the per-page
-   dual bars already use. It first shipped as three columns with "11% over 1s · 315" crammed into
-   the last one: on a 390px screen three words that never change took most of the column and the two
-   numbers were hard to compare down the list. Splitting them lets each be a bare figure, and the
-   header says once what every row would otherwise repeat.
-   The % is the figure being hunted, so it carries the emphasis; the sample size sits beside it in
-   muted weight because its job is only to stop a four-load group being read as a finding. */
+/* ── The "why some are slower" breakdown ────────────────────────────────────────────────────────
+   FOUR columns — label | bar | % over 1s | loads — under a header row, so each figure is bare and
+   comparable down the list. The % carries the emphasis; the sample size is muted, there only to stop
+   a four-load group being read as a finding. */
 .speed-row--why { grid-template-columns: minmax(76px, 27%) minmax(0, 1fr) minmax(5ch, auto) minmax(5ch, auto); }
 /* The two trailing tracks carry a FLOOR wide enough for every value they hold (polish pass). Each
    row is its own grid, and a bare `auto` sized to that row's own figures — so "1,130" pushed its
@@ -2188,16 +2076,9 @@ body.auth-ready .container { display: grid; }
    it was opened" reads as that row's label rather than the start of a new group.
    MUST stay after `.usage-section-label` — same specificity, and that rule's `margin` SHORTHAND
    resets margin-top, so declared earlier this silently does nothing. */
-/* AND THEY ARE NESTED, so they must not look like the section above them (v22.00). The blocks
-   inside "A closer look" (it was "Why some are slower" until Oct 2026) carried the SAME style as
-   "By page", which is not their parent but their parent's sibling — children rendered as peers of
-   their own uncle. Subordinated by TREATMENT rather than by size: an uppercase eyebrow reads as a
-   label under a heading, where 10px would have been a heading too small to read comfortably at the
-   width most of this card is read on.
-
-   THE RULE, NOT A COUNT: this class marks a block nested inside "A closer look" and nothing else, so
-   no wrapper element is needed to scope it. A number written down beside the list it counts is the
-   one thing here guaranteed to go stale. */
+/* AND THEY ARE NESTED, so they must not look like "By page", their parent's sibling. Subordinated by
+   TREATMENT, not size: an uppercase eyebrow reads as a label under a heading. This class marks a block
+   nested inside "A closer look" and nothing else, so no wrapper is needed to scope it. */
 .speed-dim-label {
     margin-top: 18px;
     font-size: var(--type-badge);
@@ -2223,13 +2104,8 @@ body.auth-ready .container { display: grid; }
    The label column narrows to pay for it: three bars in the width that held two is the whole cost,
    and at 78px the page names still read. */
 .speed-row--dual { grid-template-columns: minmax(64px, 26%) 1fr 1fr 1fr minmax(5ch, auto); }
-/* …and "at 78px the page names still read" was measured on a DESKTOP card. On a phone 26% is ~86px
-   before the emoji, which rendered "Pay calculator" as "Pay calcul…" and "Settings" as "Setti…" —
-   a page name truncated past the point of being one, in the column whose whole job is to say which
-   page the row is about. The bars give the width back: three of them share what is left, so each
-   loses ~9px and stays perfectly legible as a bar, which is not a shape that needs precision. Kept
-   to the narrow end deliberately — above it the desktop measurement still holds and the bars are
-   worth more than the slack. */
+/* …but on a phone 26% cut the page names ("Pay calcul…") in the column whose job is to name the page.
+   The three bars give the width back, ~9px each — a bar needs no precision. Narrow widths only. */
 @media (max-width: 480px) {
     .speed-row--dual { grid-template-columns: minmax(88px, 36%) 1fr 1fr 1fr minmax(5ch, auto); }
 }
@@ -2270,18 +2146,12 @@ body.auth-ready .container { display: grid; }
     body.auth-ready .container > .attn-strip { grid-column: 1 / -1; }
 }
 
-/* ═══ TOUCH TARGETS (polish pass) ═════════════════════════════════════════════════════════════════
-   (The App Speed card's This month / Last month switch takes the same 36px floor: it measured about
-   26px tall, App Speed review, Oct 2026.)
-   Account status carries two small buttons on every one of ~50 rows — Reset (destructive) and Set
-   email / Edit / Remove — and on a coarse pointer they measured 23px tall, under the 24px WCAG 2.2
-   floor and well under the app's 36px compact touch tier. The rows are dense on purpose, so the
-   REGION grows rather than the pill: the `.btn-contact-remove` / `.btn-card-tips` idiom, a
-   transparent pseudo-element around the button. 6.5px each way lands at ~36px and still leaves the
-   Reset target and the email target beneath it ~1px apart, so neither can steal the other's tap.
-   The reset-request Clear button is a lone control on its line, so it simply takes the 36px floor.
-   At the END of the file for the reason settings.css records: these are same-property conflicts at
-   equal specificity with the rules above, and a block placed earlier would lose silently. */
+/* ═══ TOUCH TARGETS ═══════════════════════════════════════════════════════════════════════════════
+   Account status's row buttons measured 23px on a coarse pointer, under WCAG 2.2's 24px and the app's
+   36px compact tier. The rows are dense on purpose, so the REGION grows, not the pill: a transparent
+   pseudo-element (the `.btn-contact-remove` idiom), 6.5px each way — ~36px, with Reset and the email
+   target still ~1px apart. A lone control (reset-request Clear, App Speed's month switch) takes the
+   36px floor. At the END of the file: equal-specificity conflicts with the rules above would lose. */
 .btn-acct-reset, .email-set-btn { position: relative; }
 @media (pointer: coarse) {
     .btn-acct-reset::after, .email-set-btn::after { content: ''; position: absolute; inset: -6.5px -2px; }

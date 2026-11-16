@@ -199,7 +199,8 @@ const CAPS = {
     // change handler and a focus helper — and there is no second rule left to pull out. Bring this
     // down the moment anything else leaves the file.
     'overtime-form.js':        1000,
-    'admin-overrides.js':      560,
+    // 560 → 550 on 16 Nov 2026 (tidy-up), brought DOWN: changelog comments cut to their reasons (559 measured lines to 480).
+    'admin-overrides.js':      550,
     // **950 IS ABSOLUTE, AND THE FILE IS AT IT** (external review of v23.92, 16 Sep 2026). Zero
     // headroom is not a coincidence to be relieved with a bigger number — it is the signal this
     // ratchet exists to produce. The reviewer's instruction, adopted: *the next meaningful
@@ -219,8 +220,11 @@ const CAPS = {
     // day takes at its pills (the Sunday rule's layer 1, Boxing Day, before the start date, and Spare
     // alone on a Sunday or Boxing Day) — left for admin-day-pills.js, 830 down to 796. Lowered by 20,
     // not to 796, for the v24.64 reason: the rest is the next week-grid change's headroom.
-    'admin-week-editor.js':    810,
-    'admin-saved-changes.js':  460,
+    // 810 → 800 on 16 Nov 2026 (tidy-up): changelog comments cut to their reasons, 796 measured lines to 720 — the
+    // setting rule's figure, which leaves 80 lines for the next week-grid change.
+    'admin-week-editor.js':    800,
+    // 460 → 450 on 16 Nov 2026 (tidy-up): changelog comments cut to their reasons, 457 measured lines to 397.
+    'admin-saved-changes.js':  450,
     // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
     // 1,638 — taking a pointer state machine with no business rule in it. What a week change MEANS
     // to Admin stayed here, as two callbacks. The e2e covering it was written BEFORE the move and
@@ -245,14 +249,19 @@ const CAPS = {
     // 1731 → 1744 on 11 Nov 2026 (v25.78), a RAISE: the sign-in card's explanation, `ADMIN_SIGN_IN_ABOUT` — words
     // handed to login-overlay.js, with no rule in them to extract, and no module of Admin's about its sign-in to hold
     // them (Pay's sit beside its role card). Set at the measured size: the room was 2 lines, and stays spent.
-    'admin-app.js':            1744,
+    // 1744 → 1500 on 16 Nov 2026 (tidy-up), brought DOWN (1,744 measured lines to 1,429): the `?` panels' content left for
+    // admin-tips.js — content, not coordination, as Operations' did — and the comments that had become a
+    // changelog were cut to their reasons. Measured + 50, rounded up.
+    'admin-app.js':            1500,
     'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same
     // kind of rule, pure and shared by every save path that wants it; admin-overrides.js, the caller,
     // is at its own cap. A pure DOMAIN module like links-design.js, so capped where it stands.
-    'override-utils.js':        928,
+    // 928 → 900 (16 Nov 2026, at 928 of 928): changelog narrative in its comments cut to the rule and
+    // its reason (git log keeps the history), 928 lines down to 847 — the ceiling comes down with them.
+    'override-utils.js':        900,
     // 1350 → 1100 at v21.90. The three date-keyed document collections left for
     // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
     // them: signature check, versioned path, and what a failed or ambiguous commit does to the
@@ -392,7 +401,9 @@ const CAPS = {
     // filter cannot fold into another line without hiding the gate from the check that keeps it honest.
     // 1352 → 1300 (Nov 2026, at 1,248) — the extraction named above, done: the App Notices archive's rules left for
     // notice-archive.js (re-exported, so no page's import moved), and the drawer's thrice-told history became one telling.
-    'nav-panel.js':            1300,
+    // 1300 → 1250 (16 Nov 2026, at 1,299): comments that had become a changelog cut to their reasons — the header's
+    // four rules and their measurements kept — 1,299 lines down to 1,153.
+    'nav-panel.js':            1250,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
@@ -413,7 +424,8 @@ const CAPS = {
     // 837 → 805 on 14 Nov 2026, a LOWER, to the measured size: the Annual leave sheet card was the next
     // real feature, so it arrived as its own module (operations-al-sheet.js) and the coordinator only
     // wires it; the Circular and Newsletter cards' configuration left for operations-doc-uploads.js.
-    'operations-app.js':        805,
+    // 805 → 750 on 16 Nov 2026 (tidy-up), brought DOWN: changelog comments cut to their reasons (802 measured lines to 691).
+    'operations-app.js':        750,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip
     // added ~14 lines of pure WIRING — the strip module owns every rule, the coordinator only
     // creates it and feeds it from the loads the cards already run. Capped as the ratchet asks
@@ -443,13 +455,19 @@ const CAPS = {
     // second visit) whose every judgement is in trains-render.js or trains-stations.js. Measured
     // 410 with the mirror gone — ten lines over, which is the headroom the v24.84 raise left
     // having been spent by two releases of wiring. Measured + 50, rounded to the next 50.
-    'trains-app.js':            450,
+    // 450 → 400 in the Nov 2026 tidy-up, a SPLIT at 450 of 450: the card painters — each card read from
+    // the timetables and written to the page, with the caches and setHTML's no-repeat write — left for
+    // trains-cards.js; the state, the access gate and the wiring stayed. 326 measured, plus 50, to the next 50.
+    'trains-app.js':            400,
     // NEW at v24.92: crossed LARGE_THRESHOLD (929) when the headlines gained their lead, detail and
     // chip and the grid its two line bands (`stationBands`). Pure and tested throughout, so the size
     // is the domain's, not a coordinator's — but the seam is plain if it grows again: the headline
     // builder (`headlineChanges` and `foldSameTrains`, ~230 lines) is a module of its own waiting to
     // be cut, the same shape as trains-change.js. Measured + 50, rounded to the next 50.
-    'trains-stations.js':      1000,
+    // 1000 → 850 in the Nov 2026 tidy-up: that seam was cut. The headline builder (`headlineChanges`,
+    // `foldSameTrains` and the chip's words) left for trains-headlines.js, pure and tested beside the
+    // rest; 767 measured, plus 50, to the next 50. Kept in the table, so crossing 900 again is a decision.
+    'trains-stations.js':       850,
     // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
     // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
     // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a
@@ -523,7 +541,10 @@ const CAPS = {
     // `roster-import-save.js`, the weekly import's Save, which left admin-roster-upload.js for a module
     // of its own. Every module the app serves must be in CORE_ASSETS, one entry per line, and nothing
     // else in the worker grew.
-    'service-worker.js':       1095,
+    // 1095 → 1050 (16 Nov 2026, at 1095 of 1095): comments only — version-by-version history cut to each
+    // rule and its reason, every do-not-revert warning kept, no code and no precache line touched —
+    // 1,095 lines down to 973.
+    'service-worker.js':       1050,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The
@@ -555,7 +576,8 @@ const CAPS = {
     // the two halves of "a card OR the Calendar" now sit together. 746 lines down to 720. The ceiling
     // comes down with the code, less ten lines kept as room for a fix, because a file at its cap fails on
     // a one-line comment (this file's header) and the gate's next fix should not have to extract first.
-    'calendar-access.js':      730,
+    // 730 → 700 (16 Nov 2026): comments that had become a changelog cut to their reasons, 720 lines down to 640.
+    'calendar-access.js':      700,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;
@@ -615,7 +637,11 @@ const CAPS = {
     // 1000 → 950 at v25.89: the Huddle retention — the 3-month prune and what it may delete — left for
     // functions/huddle-retention.js (861 measured, so back under LARGE_THRESHOLD). Brought down with the
     // code, as the rule above asks; kept rather than dropped, so crossing 900 again is still a decision.
-    'functions/documents.js':             950,
+    // 950 → 600 in the Nov 2026 tidy-up, a SPLIT: ingestHuddle — the Power Automate upload, its auth,
+    // validation, Storage write, metadata transaction and announce decision — left whole for
+    // functions/huddle-ingest.js, built here so index.js's exports are unchanged; and the comments that
+    // had become a changelog were cut to their reasons. 550 measured, plus 50, to the next 50.
+    'functions/documents.js':             600,
 
 };
 

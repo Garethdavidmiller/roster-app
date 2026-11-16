@@ -22,8 +22,7 @@ export function isRestShift(shift) {
  * ── WHY `rdw` IS DELIBERATELY ABSENT, AND WHY THAT IS THE WHOLE POINT ───────────────────────────
  *
  * `WORKED_OVERRIDE_TYPES` (admin-shift-types.js) answers a different question — "is somebody at
- * work that day?" — and for that, `rdw` and `shift` are the same. For ANNUAL LEAVE they are
- * opposites, and nothing in the app used to say so:
+ * work that day?" — and for that, `rdw` and `shift` are the same. For ANNUAL LEAVE they are opposites:
  *
  *   · `shift` on a base rest day is a SWAP. The member moved their contracted day onto it, so
  *     taking leave there spends a day of entitlement exactly like any other working day.
@@ -49,12 +48,9 @@ export const CONTRACTED_WORK_TYPES = new Set([
 
 /** Work a member VOLUNTEERED for. Declining it is not leave. (`overtime` is the retired `rdw` — above.)
  *
- *  CONFIRMED BY THE OWNER, 26 Aug 2026 (VAL-AL-001, previously an inference). The operational
- *  answer is narrower than the rule: annual leave reaches a rest day ONLY where a member has
- *  SWAPPED working days and then books the swapped-in day off — which is `shift`, and is charged
- *  above. Agreeing RDW and later booking it as leave is not a thing the roster office records. So
- *  this branch guards a path that does not arise in practice, and is kept because the alternative
- *  is falling through to the base roster, which would charge a day for declining overtime. */
+ *  CONFIRMED BY THE OWNER, 26 Aug 2026 (VAL-AL-001): annual leave reaches a rest day only over a
+ *  SWAP (`shift`, charged above); booking agreed RDW as leave is not recorded. This branch is kept
+ *  because falling through to the base roster would charge a day for declining overtime. */
 export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
 
 /**
@@ -77,11 +73,9 @@ export const VOLUNTARY_WORK_TYPES = new Set(['rdw', 'overtime']);
 export function isContractedWorkOverride(ov, baseShift) {
     if (!ov || !ov.type) return null;
     if (isRestShift(ov.value || '')) return false;          // a rest VALUE is not work whatever its type
-    // A `correction` is classifiable by TYPE ALONE: its value is pinned to 'RD' by both TYPES'
-    // fixedValue and the Firestore rules, so the type implies rest even when the value is absent —
-    // which it always is when the override is being reconstructed from a `replacedType` (v21.56:
-    // the first cut read a `replacedValue` that no write path has ever produced, so a swapped-OUT
-    // day's AL was charged the moment the correction doc was destroyed).
+    // A `correction` is classifiable by TYPE ALONE: its value is pinned to 'RD' (TYPES' fixedValue and
+    // the rules), and it is always absent when reconstructed from a `replacedType` — reading a value
+    // there charged a swapped-OUT day's AL once the correction doc was destroyed.
     if (ov.type === 'correction') return false;
     if (CONTRACTED_WORK_TYPES.has(ov.type)) return !((ov.type === 'other' || ov.type === 'spare_shift') && isRestShift(baseShift ?? ''));
     if (VOLUNTARY_WORK_TYPES.has(ov.type)) return false;
@@ -143,8 +137,7 @@ export function isOverrideDisplaySuppressed(override, baseShift, sunday) {
  * booked-dates boxes, merging two dates into ONE period when every calendar day BETWEEN them is a
  * "rest gap" (a Sunday or a base rest day) — so e.g. a Fri + the following Mon reads as one period
  * across the weekend. Pure: the day-of-week / base-roster knowledge stays with the caller, which
- * supplies `isRestGap(dateStr)` and `addDay(dateStr)`. Extracted from admin-app.js `_renderBookedPeriods`
- * (v16.42) so this previously-untested merge logic is unit-testable.
+ * supplies `isRestGap(dateStr)` and `addDay(dateStr)`.
  * @param {string[]} dateList  sorted ascending "YYYY-MM-DD", already Sunday-filtered
  * @param {(dateStr: string) => boolean} isRestGap  true if the date is a skippable rest gap
  * @param {(dateStr: string) => string} addDay      the next calendar day after `dateStr`
@@ -189,10 +182,8 @@ export function tsToMillis(ts) {
     if (!ts) return 0;
     if (typeof ts.toMillis === 'function') return ts.toMillis();
     if (typeof ts.seconds === 'number') return ts.seconds * 1000;
-    // Plain JS Date (v16.23): the write paths stamp cache-inserted docs with `createdAt: new Date()`.
-    // Returning 0 for those made shouldReplaceOverride rank a JUST-SAVED override below a lingering
-    // same-source duplicate with a real Firestore timestamp — the grid kept showing the stale value
-    // until the next full reload.
+    // Plain JS Date: cache-inserted docs carry `createdAt: new Date()`, and 0 here would rank a
+    // JUST-SAVED override below a stale same-source duplicate with a real Firestore timestamp.
     if (ts instanceof Date) return ts.getTime();
     return 0;
 }
@@ -218,10 +209,8 @@ export function isBeforeMemberStart(member, date) {
  * layer + `shouldReplaceOverride` consume: the value plus note/type/source/createdAt with the
  * exact same defaults. Single source for every write into `rosterOverridesCache` — a divergence in
  * these defaults would produce subtle precedence bugs, since shouldReplaceOverride keys off
- * source/createdAt. (There is now exactly ONE writer, calendar-overrides.js: Team Week View's own
- * per-week fetch was removed at v18.76 and the clearShiftTypesCache() export at v18.84 depends on
- * that staying true. These comments still said "two writers" until v18.91 — a reader following them
- * would reasonably add a second, which is the precise failure both changes exist to prevent.)
+ * source/createdAt. There is exactly ONE writer, calendar-overrides.js — do not add a second
+ * (clearShiftTypesCache() depends on it; CALENDAR_DATA.md invariant 6).
  * @param {any} data - a Firestore override doc's `.data()`
  * @returns {{ value: any, note: string, type: string, source: any, createdAt: any, changedBy?: string }}
  */
@@ -232,30 +221,21 @@ export function toOverrideRecord(data) {
         type:      data.type      || '',
         source:    data.source    || null,
         createdAt: data.createdAt || null,
-        // Carried so the calendar cache holds the SAME shape of a doc as the admin cache (v21.56).
-        // Nothing on the calendar reads it today (the AL lightbox does its own raw getDocs), but
-        // two mirrors holding different shapes of one document is how a future consumer re-opens
-        // the swapped-day bug silently — same key-presence convention as the write builders.
+        // The calendar cache holds the SAME shape of a doc as the admin cache: two mirrors holding
+        // different shapes of one document is how a consumer silently misses a field (key-presence
+        // convention as the write builders). The day panel reads `changedBy` and `leaveYear` here.
         ...(data.replacedType ? { replacedType: data.replacedType } : {}),
-        // The future consumer the note above anticipated arrived at v22.69: the day panel names who
-        // changed a shift. `source` was already carried and `changedBy` was not, so the roster-import
-        // case worked and the person's name silently never appeared — the shape being ALMOST right
-        // is exactly how that goes unnoticed.
         ...(data.changedBy ? { changedBy: data.changedBy } : {}),
-        // Which year's allowance a January leave day comes out of, when it is the year before
-        // (v25.18, leave-year.js). The day panel says so, and it reads this cache.
+        // Which year's allowance a January leave day comes out of, when it is the year before (leave-year.js).
         ...(Number.isInteger(data.leaveYear) ? { leaveYear: data.leaveYear } : {}),
     };
 }
 
 /**
  * Collect validated override records from a Firestore range-query snapshot, ready for
- * `reconcileRangeIntoCache`. The SINGLE source for the required-field validation — it was once
- * copied into both the month fetch and Team View's own week fetch, so a change had to be made twice
- * or the two would silently diverge. The week fetch is gone (v18.76), leaving calendar-overrides.js
- * as the only feeder; this stays the one place the validation lives. Malformed docs (missing
- * memberName/date/value) are skipped; only the doc **id** is logged — never the doc body, which can
- * carry a member name / free-text note (the calendar path used to `console.error` the whole doc).
+ * `reconcileRangeIntoCache`. The SINGLE source for the required-field validation. Malformed docs
+ * (missing memberName/date/value) are skipped; only the doc **id** is logged — never the doc body,
+ * which can carry a member name / free-text note.
  * @param {{ forEach: (cb: (doc: any) => void) => void }} snapshot - a Firestore QuerySnapshot
  * @returns {Array<{ memberName: string, date: string, record: ReturnType<typeof toOverrideRecord> }>}
  */
@@ -306,8 +286,7 @@ export function buildOverrideWrite(f, createdAt, { uploadId = null } = {}) {
         // Only when there IS one — the Firestore rules use hasOnly + `is string`, so writing the
         // key as null would be rejected outright rather than treated as absent.
         ...(f.replacedType ? { replacedType: f.replacedType } : {}),
-        // Only when it is one the rules accept (v25.18): January leave, the year before. Anything
-        // else is dropped rather than sent, because the rules would refuse the whole write.
+        // Only one the rules accept (January leave, the year before) — anything else would refuse the write.
         ...(isValidLeaveYear(f.date, f.leaveYear) && f.type === 'annual_leave' ? { leaveYear: f.leaveYear } : {}),
         createdAt,
         changedBy:  f.changedBy,
@@ -318,8 +297,8 @@ export function buildOverrideWrite(f, createdAt, { uploadId = null } = {}) {
 /**
  * Assemble the OPTIMISTIC in-memory cache record for a just-written override (the admin `_allOverrides`
  * mirror that avoids a Firestore round-trip). Same field set as the write MINUS `changedBy`, PLUS the
- * new doc `id`, and with a real `Date` for `createdAt` (so `tsToMillis` ranks a just-saved override
- * correctly — see the v16.23 fix). Single source so no write path can drift its mirror.
+ * new doc `id`, and a real `Date` for `createdAt` (so `tsToMillis` ranks a just-saved override
+ * correctly). Single source so no write path can drift its mirror.
  * @param {string} id  the new Firestore doc id
  * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, replacedType?:string|null, leaveYear?:number|null}} f
  * @param {Date} createdAt  `new Date()` — the optimistic local timestamp
@@ -334,10 +313,8 @@ export function buildOverrideCacheRecord(id, f, createdAt) {
         value:      f.value,
         note:       f.note ?? '',
         source:     f.source,
-        // Only when there IS one — the Firestore rules use hasOnly + `is string`, so writing the
-        // key as null would be rejected outright rather than treated as absent.
+        // The same tests as the write, so the mirror can never hold a choice the server refused.
         ...(f.replacedType ? { replacedType: f.replacedType } : {}),
-        // The same test as the write, so the mirror can never hold a choice the server refused.
         ...(isValidLeaveYear(f.date, f.leaveYear) && f.type === 'annual_leave' ? { leaveYear: f.leaveYear } : {}),
         createdAt,
     };
@@ -370,13 +347,11 @@ export function buildOverrideCacheRecord(id, f, createdAt) {
 export function nextReplacedType(existing, newType) {
     if (!existing || !existing.type) return null;
     if (existing.type === newType) return existing.replacedType || null;
-    // CHAIN THROUGH AN ABSENCE (v21.56, external sweep). A type change used to record
-    // `existing.type` unconditionally — but when the doc being deleted is itself an absence
-    // carrying a chain (swap → sick → AL is two routine operations), recording `sick` DISCARDS the
-    // `shift` underneath it, and `sick` is precisely a type `isContractedWorkOverride` calls "no
-    // information", so the re-derived day fell back to the base roster and the leave went free.
-    // An absence carries no contract information of its own, so what IT replaced is the fact worth
-    // keeping; an informative type (`shift`, `rdw`, `correction`…) IS the fact and still wins.
+    // CHAIN THROUGH AN ABSENCE. When the doc being deleted is itself an absence carrying a chain
+    // (swap → sick → AL), recording `sick` would DISCARD the `shift` underneath — and `sick` is "no
+    // information" to `isContractedWorkOverride`, so the leave would go free. An absence carries no
+    // contract information, so what IT replaced is kept; an informative type (`shift`, `rdw`,
+    // `correction`…) IS the fact and still wins.
     if (existing.replacedType && isContractedWorkOverride({ type: existing.type }) === null) {
         return existing.replacedType;
     }
@@ -411,27 +386,19 @@ export function shouldReplaceOverride(existing, incoming) {
  *
  * A range query for [startStr, endStr] is the single source of truth for those dates, so the winner
  * for each in-range key must be rebuilt from the SNAPSHOT RECORDS ALONE (deduped by
- * `shouldReplaceOverride`), never merged against the possibly-stale existing cache. The old
- * per-doc merge kept a cached higher-priority record alive when the snapshot no longer contained it:
- *   • a MANUAL override deleted in Firestore, but a lower-priority IMPORT for the same date still
- *     exists — the incoming import can't out-rank the cached manual (shouldReplaceOverride → false),
- *     so the merge kept the deleted manual AND (because the key WAS seen) skipped the deletion pass;
- *   • a newer import deleted, leaving only an older import — the cached newer one likewise survived.
- * Rebuilding winners from the snapshot fixes both: whatever the snapshot says for a key wins, and any
- * in-range key the snapshot omits entirely is a genuine delete.
+ * `shouldReplaceOverride`), never merged against the possibly-stale existing cache: a per-doc merge
+ * keeps a cached higher-priority record alive after it is deleted (a deleted MANUAL override over a
+ * surviving IMPORT, which cannot out-rank it; a deleted newer import over an older one). Rebuilt from
+ * the snapshot, whatever it says for a key wins, and any in-range key it omits is a genuine delete.
  *
  * The cache is mutated in place. Returns whether any in-range slot's DISPLAY changed (added, removed,
  * or type/value/note differs) so a caller can gate a re-render; metadata-only differences (a new
  * winner with the same visible shift) still update the cache but don't force a repaint.
  *
- * @param {Map<string, any>} cache     the shared rosterOverridesCache (mutated in place)
- * @param {Array<{ memberName: string, date: string, record: any }>} records  validated snapshot rows
- * **`authoritative: false` (v19.01)** — merge the snapshot in but evict NOTHING. Required for a read
- * whose snapshot is not the truth for the range: a LOCAL-CACHE read (`getDocsFromCache`) returns a
+ * **`authoritative: false`** — merge the snapshot in but evict NOTHING. Required for a read whose
+ * snapshot is not the truth for the range: a LOCAL-CACHE read (`getDocsFromCache`) returns a
  * possibly-stale SUBSET, so treating an absent key as a delete would wipe live overrides. Only a server
- * range query may evict. Getting this wrong is not theoretical — two authoritative reconcilers racing on
- * one range is exactly the v18.76 Team View bug, where the later-resolving staler snapshot evicted
- * overrides the other fetch had just loaded and the grid fell back to the base roster.
+ * range query may evict (two authoritative reconcilers racing on one range blanked the grid once).
  *
  * @param {Map<string, any>} cache     the shared rosterOverridesCache (mutated in place)
  * @param {Array<{ memberName: string, date: string, record: any }>} records  validated snapshot rows
@@ -461,19 +428,11 @@ export function reconcileRangeIntoCache(cache, records, startStr, endStr, opts =
     // 3. Store each fresh winner (always — so its metadata is authoritative), flagging visible changes.
     for (const [key, record] of winners) {
         const existing = cache.get(key);
-        // WHAT "DISPLAY" MEANS HERE HAS TO TRACK WHAT IS ACTUALLY DISPLAYED (v22.71). This list was
-        // type/value/note, written when a note was the only metadata on screen. v22.69 removed the
-        // note's three display paths and gave the day panel a provenance line built from `source`
-        // and `changedBy` — so the comparison was left tracking the one field nothing renders and
-        // missing the two that now do. A same-value re-save by a different person updated the cache
-        // (step 3 stores unconditionally) and reported nothing visible had changed, so the panel
-        // went on naming the previous person until an unrelated render replaced it. Reproduced.
-        //
-        // `note` stays in the list deliberately: it is '' on every override in production, so it can
-        // only ever cause a SPURIOUS repaint, and a spurious repaint is free where a missed one is
-        // the defect above. Add a field here whenever a display path starts reading it — as
-        // `leaveYear` (the day panel's previous-year line) and `replacedType` (whether an absence on a
-        // rest day shows, isOverrideDisplaySuppressed) did without being added, until 10 Nov 2026.
+        // "DISPLAY" MUST TRACK WHAT IS ACTUALLY DISPLAYED: a field a display path reads but this list
+        // misses lets a re-save update the cache and report nothing visible changed, so the screen
+        // goes stale (the day panel named the previous person). ADD A FIELD HERE whenever a display
+        // path starts reading it. `note` stays deliberately: always '' in production, it can only
+        // cause a SPURIOUS repaint, which is free where a missed one is the defect.
         const shown = ['type', 'value', 'note', 'source', 'changedBy', 'leaveYear', 'replacedType'];
         if (!existing || shown.some(f => existing[f] !== record[f])) displayChanged = true;
         cache.set(key, record);
@@ -508,13 +467,10 @@ function _shiftISODate(dateStr, deltaDays) {
  * be kept if a REMAINING AL/sick override still spans the Sunday.
  *
  * "Still spans" is detected by a remaining leave override within TWO days either side of the
- * Sunday (Fri/Sat before, Mon/Tue after). The Sunday itself never carries AL/sick, and the
- * immediately-adjacent Saturday is often a base rest day (so no leave override is written there
- * either) — a range that ENDS on the Sunday then has its nearest surviving leave on the Friday,
- * two days back. Checking only ±1 day therefore missed it and wrongly deleted the shared
- * correction, resurrecting the worked Sunday shift in the MIDDLE of a member's remaining leave.
- * (An earlier bug looked for an AL/sick record ON the Sunday — which never exists — and deleted
- * the correction every time.)
+ * Sunday (Fri/Sat before, Mon/Tue after). The Sunday itself never carries AL/sick, and the adjacent
+ * Saturday is often a base rest day with no leave written either — so a range ending on the Sunday
+ * has its nearest surviving leave on the Friday. ±1 day alone would delete the shared correction
+ * and resurrect the worked Sunday in the MIDDLE of a member's remaining leave.
  *
  * THE EDGE SUNDAY (review A1). The Recorded-dates list never shows a Sunday, so a booking that ENDS
  * on one (Sat–Sun, or Mon–Sun with a rest-day Saturday) is listed as a range stopping short of it,
@@ -525,12 +481,10 @@ function _shiftISODate(dateStr, deltaDays) {
  *
  * …BUT ONLY A CORRECTION THAT BOOKING WROTE (re-review R-A2). An edge Sunday lies OUTSIDE the listed
  * range, so a manager's own Change-a-Shift "Rest Day" there is not the booking's to delete. No field
- * marks a range-written correction (the rules' `hasOnly` admits none, and a new one would have to ship
- * rules-first), so the proof is the timestamp: `recordRangeOverrides` commits the leave days and their
- * Sunday corrections in one batch, and every `serverTimestamp()` in a batch resolves to the same
- * instant. An edge correction whose `createdAt` equals a deleted leave day's is that booking's; any
- * other is kept. Keeping is the safe direction — it is the pre-A1 behaviour. INTERIOR Sundays are
- * unchanged: a Rest Day inside a leave period has nothing left to rest from once the period goes.
+ * marks a range-written correction, so the proof is the timestamp: `recordRangeOverrides` commits the
+ * leave days and their Sunday corrections in one batch, and every `serverTimestamp()` in a batch
+ * resolves to the same instant. An edge correction whose `createdAt` equals a deleted leave day's is
+ * that booking's; any other is kept (the safe direction). INTERIOR Sundays go with the period.
  *
  * @param {Array<{id:string,memberName:string,date:string,type:string,value:string,createdAt?:any}>} allOverrides
  * @param {{type:string, memberName:string, start:string, end:string,
@@ -549,9 +503,7 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
                 (o.type === 'annual_leave' || o.type === 'sick') && !leaveIds.has(o.id))
             .map(o => o.date)
     );
-    // A surviving range covers the Sunday iff it has a leave override within 2 days either side
-    // (±1 = Sat/Mon, ±2 = Fri/Tue for when the adjacent rest day carries no leave). Keep the shared
-    // correction in that case; only delete it when nothing surviving spans the Sunday.
+    // A surviving range covers the Sunday iff it has a leave override within 2 days either side.
     // ACCEPTED TRADE-OFF: per-day override docs carry no booking-range identity, so this heuristic
     // can FALSE-KEEP — an unrelated 1-day absence at Sunday±2 preserves a correction whose booking
     // was fully deleted (calendar shows a stale RD on a worked Sunday until manually removed). We
@@ -584,14 +536,12 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
 //   FLAVOUR := "TRG" | "IND" | "ASSESS" | "TEAM" | "UNION" | "MEET"
 //
 // Examples: 'TRG' · 'IND RDW' · 'ASSESS 08:00-16:00' · 'TRG RDW 08:00-16:00' · 'TEAM' · 'UNION' · 'MEET'.
-// " RDW" marks an Other-family rest-day (explicitly written on the roster as "TRG RDW");
-// the optional time range is the trainer's ACTUAL hours, entered manually by the
-// admin — or, for a MEETING only, the times printed on the roster ("10:00-14:00 MTG" imports
-// as 'MEET 10:00-14:00', v25.38). No other flavour's upload carries times. This module is the client-side single
-// source for the grammar; a deliberate duplicate of the RECOGNITION grammar (the looser roster-word
-// aliases, OTHER_DAY_ALIASES and BARE_OTHER_DAY) lives in functions/roster-other-days.js —
-// Cloud Functions are CommonJS and cannot import this module (same accepted
-// pattern as normaliseSurname). If the grammar changes, update both.
+// " RDW" marks an Other-family rest-day (written on the roster as "TRG RDW"); the optional time
+// range is the ACTUAL hours, entered by the admin — or, for a MEETING only, printed on the roster
+// ("10:00-14:00 MTG" imports as 'MEET 10:00-14:00'). This module is the client-side single source
+// for the grammar; a deliberate duplicate of the RECOGNITION grammar (OTHER_DAY_ALIASES and
+// BARE_OTHER_DAY) lives in functions/roster-other-days.js — Cloud Functions are CommonJS and cannot
+// import this module (as with normaliseSurname). If the grammar changes, update both.
 
 /** Badge (short) and full display words per Other-family flavour. Badge word shows in the
  *  calendar-cell badge next to 🏷️; full word is used on tap (day detail / tooltip / aria).
@@ -603,11 +553,9 @@ export const OTHER_FLAVOURS = {
     ASSESS: { badge: 'Assess', full: 'Assessment' },
     TEAM:   { badge: 'Team',   full: 'Team Day'   },
     // `hideBaseTime`: Meetings + Union duties are "attend-an-event" days not tied to a rostered
-    // shift time, so their calendar hours slot shows NO time (badge only) unless a time is actually
-    // entered/on the roster. Training/Induction/Assessment/Team days happen DURING your shift, so
-    // they keep showing the base shift time. Pay is unaffected either way — `resolveOtherPay` is
-    // flavour-agnostic (all Other days pay as the day underneath; a rest-day RDW pays the 8h default
-    // unless a time is given). Confirmed by Gareth Jul 2026.
+    // shift time, so the hours slot shows NO time unless one is entered/on the roster; the others
+    // happen DURING your shift and keep the base time. Pay is unaffected — `resolveOtherPay` is
+    // flavour-agnostic. Confirmed by Gareth Jul 2026.
     UNION:  { badge: 'Union',  full: 'Union',     hideBaseTime: true },
     MEET:   { badge: 'Meet',   full: 'Meeting',   hideBaseTime: true },
 };
@@ -618,15 +566,9 @@ export const OTHER_FLAVOURS = {
 export const OTHER_RDW_DEFAULT_MINS = 480;
 
 // Anchored full-string grammar. Time range is bounded HH:MM (00-23 / 00-59) so an
-// impossible time can never ride in on an Other-family value.
-//
-// The flavour alternation is DERIVED from OTHER_FLAVOURS, not hand-written (v18.91). It used to be
-// a literal `TRG|IND|ASSESS|TEAM|UNION|MEET` list, which meant the READER's accept-set and the
-// WRITER's (composeOtherValue tests `hasOwnProperty(OTHER_FLAVOURS, …)`) were two lists that had to
-// be kept in step by hand. Adding a flavour the way UNION and MEET were added — one OTHER_FLAVOURS
-// entry, which is also what renders the admin flavour buttons — would have let the composer write a
-// value this regex rejects: unparseable data, permanently, in Firestore. That is the exact drift the
-// v18.85 extraction was meant to end, and it survived it. One source now feeds both halves.
+// impossible time can never ride in on an Other-family value. The flavour alternation is DERIVED
+// from OTHER_FLAVOURS, never hand-written: the composer accepts any OTHER_FLAVOURS key, so a literal
+// list here would let it write a value this regex rejects — unparseable data, permanently.
 const _OTHER_RE = new RegExp(
     `^(${Object.keys(OTHER_FLAVOURS).join('|')})( RDW)?( ([01]\\d|2[0-3]):[0-5]\\d-([01]\\d|2[0-3]):[0-5]\\d)?$`
 );
@@ -659,12 +601,8 @@ export function parseOtherValue(v) {
 
 /**
  * COMPOSE an Other-family value — the writer half of the grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`,
- * living next to `parseOtherValue` (its reader) so the two can never drift apart (v18.85).
- *
- * Until now the parser was single-sourced and unit-tested here while the COMPOSER was written
- * inline in `admin-app.js`'s 1,700-line save handler with no test of its own — the wrong way round
- * for a format that gets persisted to Firestore and read back by three display paths and the pay
- * engine. A parse bug shows the wrong thing; a compose bug writes bad data permanently.
+ * living next to `parseOtherValue` (its reader) so the two can never drift apart. A parse bug shows
+ * the wrong thing; a compose bug writes bad data permanently.
  *
  * Returns `{ value }` on success, or `{ error }` with a bare, staff-facing sentence (no date
  * prefix — the caller adds "Fri 3 Jul: " itself). Times are OPTIONAL: both blank means "use the
@@ -746,20 +684,16 @@ export function resolveOtherPay(parsed, baseValue) {
 /** A worked-shift "HH:MM-HH:MM" range (the DISPLAY form — 1-or-2-digit hours, no anchoring;
  *  matches the renderer's historical inline regex, deliberately looser than roster-data's TIME_RE). */
 const SHIFT_RANGE_RE = /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/;
-// Worked override types whose TIMED value on a Sunday must display as RDW (never a plain shift) —
-// see resolveEffectiveShift. `rdw` already resolves to RDW; `spare_shift` is a badge, not a time.
+// Worked override types whose TIMED value on a Sunday must display as RDW — see resolveEffectiveShift.
 const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift']);
 
 /**
  * Resolve a Firestore override onto a base shift into ONE canonical display descriptor.
  *
- * This is the single source for the "apply override onto base shift" ladder that used to be
- * re-implemented in three places (calendar renderer, Team Week View, month legend). Those
- * copies drifted once already — the missing Sunday-AL suppression in Team view (fixed v16.37
- * by extracting `isOverrideDisplaySuppressed`). This extracts the whole ladder (v16.48) so the
- * three consumers render from one resolution and can never disagree again. Pure — no DOM, no
- * Firestore, no roster lookup; the caller passes the already-fetched override and base shift
- * (and must pass `null` for a before-member-start / absent override, exactly as before).
+ * The single source for the "apply override onto base shift" ladder, so the calendar renderer,
+ * Team Week View and month legend render from one resolution and can never disagree (copies of it
+ * drifted once). Pure — no DOM, no Firestore, no roster lookup; the caller passes the already-fetched
+ * override and base shift (and must pass `null` for a before-member-start / absent override).
  *
  * @param {any}     override  The override for this member+date, or null/undefined.
  * @param {string}  baseShift The base shift from getBaseShift (Christmas/startDate already applied).
@@ -773,10 +707,6 @@ const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift']);
  *              (actual time → 'RDW' → the base shift's own time → ''); '' otherwise.
  *   derivedRdw true when the day is rest-day working by DERIVATION, not an `rdw` override: a parseable
  *              Other day with the flag or a rest-day base, or a timed `shift` on a Sunday. Read for Other days.
- *
- * It returned a fourth field, `note`, until v22.69. The renderer was its only consumer — the hover
- * tooltip and the day-detail panel — and both were removed with it; see `buildOverrideWrite` above
- * for why the field survives on the WRITE side and what retiring it would take.
  */
 export function resolveEffectiveShift(override, baseShift, sunday) {
     if (!override || isOverrideDisplaySuppressed(override, baseShift, sunday)) {
@@ -785,13 +715,10 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     if (override.type === 'rdw') {
         return { shift: 'RDW', rdwTime: override.value, derivedRdw: false };
     }
-    // A worked Sunday is ALWAYS Rest Day Working, never a plain shift — Sundays are non-contracted
-    // for every grade. New creation is blocked at every write path (the admin Sunday Shift-pill
-    // guard + bulk skip + roster-upload time→rdw promotion, v18.73), but an older or hand-written
-    // `shift` doc sitting on a Sunday must still
-    // DISPLAY as 💼 RDW, not an Early/Late badge — matching the creation invariant and the pay
-    // engine (which already prices any worked Sunday at 1.5× via its own dow===0 branch). A
-    // timed value is treated exactly like an `rdw` override; a non-time value falls through.
+    // A worked Sunday is ALWAYS Rest Day Working, never a plain shift — Sundays are non-contracted.
+    // Every write path blocks creating one, but an older or hand-written `shift` doc on a Sunday must
+    // still DISPLAY as 💼 RDW, matching the pay engine (any worked Sunday pays 1.5×). A timed value is
+    // treated exactly like an `rdw` override; a non-time value falls through.
     if (sunday && SUNDAY_RDW_DISPLAY_TYPES.has(override.type) && SHIFT_RANGE_RE.test(override.value || '')) {
         return { shift: 'RDW', rdwTime: override.value, derivedRdw: true };
     }
@@ -810,18 +737,16 @@ export function resolveEffectiveShift(override, baseShift, sunday) {
     return { shift: override.value, rdwTime: '', derivedRdw: false };
 }
 
-// ── WHAT MAY NOT BE RECORDED ON A SUNDAY (v21.32) ───────────────────────────────────────────────
+// ── WHAT MAY NOT BE RECORDED ON A SUNDAY ───────────────────────────────────────────────
 //
 // Sundays are not contracted for any grade here, so annual leave, an absence and an "Other" day
 // cannot apply to one — and a worked Sunday is always RDW (overtime), never a plain shift.
 //
-// The rule is enforced at SEVERAL points on purpose and that stays. Defence in depth is right for a
-// rule whose failure writes leave against a day nobody was contracted to work. What was wrong is
-// that each site STATED the policy itself, in its own vocabulary, with `// Rule: see CLAUDE.md`
-// comments pointing at prose because there was no code to point at. They agreed — checked site by
-// site — but nothing made them agree, and the next site would have had to re-derive it.
+// The rule is enforced at SEVERAL points on purpose and that stays: defence in depth is right for a
+// rule whose failure writes leave against a day nobody was contracted to work. But the POLICY is
+// declared once, here, so no site re-derives it.
 //
-// Two sites now CONSULT this declaration: the bulk bar (`isForbiddenOnSunday`) and the roster import
+// Two sites CONSULT this declaration: the bulk bar (`isForbiddenOnSunday`) and the roster import
 // (`sundaySafeValue`). Two keep a bespoke copy for a reason, and are pinned to this list by
 // override-utils.test.mjs instead — a fifth forbidden type added here fails those tests rather than
 // being silently writable:
@@ -851,14 +776,12 @@ export const SUNDAY_FORBIDDEN_TYPES = Object.freeze(['annual_leave', 'sick', 'ot
 export function isForbiddenOnSunday(type) { return SUNDAY_FORBIDDEN_TYPES.includes(type); }
 
 /**
- * Compose the parsed-roster VALUE a chosen override TYPE plus optional times amounts to (v22.17).
+ * Compose the parsed-roster VALUE a chosen override TYPE plus optional times amounts to.
  *
- * The roster review needs this because an unreadable cell can now be answered in place rather than
- * being a dead end that sends the admin to another page with a name and a date to remember. The
- * admin picks a type — the same pill vocabulary as Change a Shift — and this turns that back into
- * the parsed-value alphabet the review already speaks, so the entry goes through `normaliseCellValue`
- * and every guard an ordinary parsed value gets. It is the TRANSLATION the note above warns about
- * being skipped at the point of use, written once, here, beside both vocabularies.
+ * The roster review answers an unreadable cell in place: the admin picks a type (the Change a Shift
+ * pill vocabulary) and this turns it into the parsed-value alphabet, so the entry goes through
+ * `normaliseCellValue` and every guard an ordinary parsed value gets. It is the TRANSLATION the note
+ * above warns about being skipped at the point of use, written once, beside both vocabularies.
  *
  * Returns null when the type needs times and does not have a usable pair — the caller then has
  * nothing to write, which is the right answer for a half-filled entry.
@@ -879,17 +802,13 @@ export function manualCellValue(type, from = '', to = '') {
     if (type === 'sick')         return 'SICK';
     if (type === 'spare_shift')  return 'SPARE';
     if (type !== 'shift' && type !== 'rdw') return null;   // incl. `other` — see above
-    // A REAL clock time, not merely the shape of one. The boxes are text (the entry control's
-    // header says why), so nothing in the browser rejects `29:00` or `99:99` — and the shape test
-    // this replaced let both through to compose a shift that every duration and classification
-    // helper downstream would then read as nonsense. `24:00` is refused with them: the roster
-    // writes a midnight finish as `00:00` (`15:00-00:00` appears on the real Supervisor sheet),
-    // and an overnight range is expressed by end < start, which is ordinary here.
+    // A REAL clock time, not merely the shape of one: the boxes are text, so nothing in the browser
+    // rejects `29:00` or `99:99`. `24:00` is refused too: the roster writes a midnight finish as
+    // `00:00`, and an overnight range is expressed by end < start, which is ordinary here.
     if (!isClockTime(from) || !isClockTime(to)) return null;
     const range = `${from}-${to}`;
     return type === 'rdw' ? `RDW|${range}` : range;
 }
-
 
 /** Parsed roster VALUES that cannot stand on a Sunday, and what they become instead — unchanged when fine, so a
  *  caller can use it unconditionally. The import NORMALISES rather than refusing: a PDF is a statement about the past,

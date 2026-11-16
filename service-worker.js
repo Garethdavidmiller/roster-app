@@ -1,30 +1,22 @@
 // MYB Roster — Service Worker
-// Strategy:
-//   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
+// Strategy (the do-not-revert decisions: .claude/rules/pwa.md):
+//   HTML documents + JS modules + CSS (owner-approved)
 //               → Served INSTANTLY from this version's cache; a cached entry is never
-//                 rewritten (Oct 2026 — it mixed releases, see the JS/CSS branch) or re-fetched
-//                 (Nov 2026): no network request for a page or file held. Freshness is the version-bump →
-//                 new SW → new cache lifecycle (each deploy precaches fresh assets
-//                 and the new SW claims immediately, then reloads the page); roster
+//                 rewritten (it mixed releases — see the JS/CSS branch) or re-fetched.
+//                 Freshness is the version-bump → new SW → new cache lifecycle; roster
 //                 DATA is always live from Firestore, independent of cached code.
 //                 A cache MISS (first visit / evicted storage) falls back to
 //                 network-first with a 2s cache-fallback race for HTML.
-//   Firebase SDK (gstatic, version-pinned) → Cache-first in a dedicated SDK-versioned
-//                 cache; offline no longer depends on the browser HTTP cache.
+//   Firebase SDK (gstatic, version-pinned) → Cache-first in a dedicated SDK-versioned cache.
 //   Icons, fonts, manifest → Cache-first: stable assets served instantly; fetched on miss.
 //   Anything under docs/ (the repository's documents, on the Pages mirror) → left to the browser.
 //
-// self.skipWaiting() on install activates the new SW immediately — install does
-// NOTHING else (v15.41: precache moved to a detached post-activation warm-up, so
-// activation is never held behind ~90 re-fetches; see the install handler note).
-// self.clients.claim() makes the new SW take control of all open tabs at once.
-// Together these mean an update lands within moments of opening the app — the
-// app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
-//
-// Cache name includes the app version so any app version bump triggers a full
-// cache refresh on all clients — staff always receive the latest roster logic.
+// install does ONLY skipWaiting() (the precache is a detached post-activation warm-up — see the
+// install handler note); activate claims every open tab at once, so an update lands within moments.
+// The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
+// The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '26.24';
+const APP_VERSION = '26.25';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -32,9 +24,8 @@ const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 // relative to this, so the app behaves correctly under a sub-path, not just the root.
 const SCOPE_PATH = new URL(self.registration.scope).pathname;
 
-// Memoised handle on this version's cache — caches.open was being re-issued for every
-// fetch event (~35 IPC hops per page open). Reset on failure so a transient error
-// doesn't poison the SW for its whole lifetime.
+// Memoised handle on this version's cache (one caches.open, not one per fetch event). Reset on
+// failure so a transient error doesn't poison the SW for its whole lifetime.
 let _cacheHandle = null;
 function openCache() {
     if (!_cacheHandle) _cacheHandle = caches.open(CACHE_NAME).catch(err => { _cacheHandle = null; throw err; });
@@ -52,19 +43,13 @@ function unredirect(res) {
         : res;
 }
 
-// Cross-version fallback selector (v16.86 — mixed-version window mitigation). When an asset
-// misses the CURRENT version's cache and can't be fetched (offline / a mid-deploy hosting
-// hiccup), it's served from a cached copy for availability. `caches.match()` searches every
-// cache in CREATION order — it returns the OLDEST version's copy, maximising the version gap
-// against any modules that DID load fresh from the current cache (a mixed, potentially
-// interface-incompatible page). This picks the NEWEST available OLDER app cache instead, so a
-// page that falls back mid-transition stays as close to single-version as the caches allow, and
-// HTML + JS/CSS fallbacks land on the SAME older version. It REDUCES (does not eliminate) the
-// window — a partially-warmed current cache can still pair a fresh module with an older fallback;
-// fully closing it needs per-file version markers (removed in v16.81) or per-page load
-// coordination, both deliberately out of scope. Fails safe: any error → null, and every caller
-// already degrades a null to Response.error()/a network retry, so this is never worse than the
-// previous caches.match() miss.
+// Cross-version fallback selector (mixed-version window mitigation). When an asset misses the
+// CURRENT version's cache and can't be fetched (offline / a mid-deploy hiccup), it's served from a
+// cached copy. `caches.match()` searches in CREATION order and returns the OLDEST version's copy,
+// maximising the gap against modules that DID load fresh (a mixed, potentially incompatible page).
+// This picks the NEWEST OLDER app cache instead, so HTML + JS/CSS fallbacks land on the SAME older
+// version. It REDUCES (does not eliminate) the window. Fails safe: any error → null, which every
+// caller already degrades to Response.error()/a network retry.
 /** Parse 'myb-roster-v16.85' → [16, 85]; newest-first comparator for App caches. */
 function _appCacheVersion(name) {
     const parts = name.slice('myb-roster-v'.length).split('.');
@@ -91,14 +76,11 @@ async function matchNewestManagedCache(request, opts) {
     return null;
 }
 
-// Firebase SDK runtime cache (v16.10, owner-approved): the gstatic CDN modules are
-// version-pinned (immutable), but offline launch used to depend on the browser HTTP
-// cache keeping ~400 KB of them — evictable under storage pressure on budget Androids,
-// which silently broke offline with no self-heal. They are now served cache-first from
-// a dedicated SDK-versioned cache — NOT the app cache, so a 0.01 app bump never
-// refetches the SDK — swept only when the pinned SDK version changes. Bumping the SDK
-// in firebase-client.js requires bumping THIS constant too; sw-asset-check.test.mjs
-// enforces the pair stays in sync.
+// Firebase SDK runtime cache (owner-approved): the gstatic modules are version-pinned (immutable),
+// and offline launch must not depend on the browser HTTP cache keeping ~400 KB of them (evictable
+// on budget Androids). Served cache-first from a dedicated SDK-versioned cache — NOT the app cache,
+// so an app bump never refetches the SDK — swept only when the SDK version changes. Bumping the SDK
+// in firebase-client.js requires bumping THIS constant too; sw-asset-check.test.mjs enforces it.
 const FIREBASE_SDK_VERSION = '13.1.0';
 const SDK_CACHE_NAME = `myb-roster-sdk-v${FIREBASE_SDK_VERSION}`;
 const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
@@ -108,9 +90,8 @@ const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.j
 // The "managed" same-origin app files: HTML pages, JS modules, and CSS — all served from this
 // version's cache, never re-fetched once cached (HTML falls back to network-first on a miss). Each
 // must ALSO be in a precache list (CORE_ASSETS / SUPPLEMENTARY_ASSETS), or it is never precached.
-// Matching is SCOPE-RELATIVE (the fetch handler strips SCOPE_PATH before lookup), so
-// these names match under both '/' (Firebase) and '/roster-app/' (GitHub Pages). (Name
-// kept for the sw-asset-check test that parses this array; not "network-first only".)
+// Matching is SCOPE-RELATIVE, so these names match under both '/' (Firebase) and '/roster-app/'
+// (GitHub Pages). (Name kept for the sw-asset-check test that parses this array.)
 const NETWORK_FIRST_FILES = [
     'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html', 'overtime.html', 'trains.html', 'newlink.html',
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css', 'overtime.css', 'trains.css', 'newlink.css',
@@ -121,8 +102,8 @@ const NETWORK_FIRST_FILES = [
     'calendar-team-view.js', 'override-utils.js', 'clock-input.js', 'print-guard.js', 'calendar-huddle-viewer.js', 'huddle-table-grid.js', 'settings-status.js', 'calendar-doc-viewer.js',
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'newsletter-recency.js', 'notice-archive.js', 'nav-guide-search.js', 'guide-search.js', 'guide-index.js', 'install-prompt.js', 'calendar-notif-prompt.js', 'calendar-doc-access.js', 'calendar-access-state.js', 'calendar-redraw.js', 'calendar-lock-slot.js', 'calendar-snapshot.js', 'text-scale.js', 'notif.js',
     'admin-roster-upload.js', 'roster-import-save.js', 'roster-alignment.js', 'roster-cell-rules.js', 'roster-review-states.js', 'admin-period-dates.js', 'roster-entry-control.js', 'admin-overrides.js', 'admin-override-store.js', 'admin-override-coverage.js', 'override-id.js', 'override-compare.js', 'admin-shift-types.js', 'admin-week-editor.js', 'admin-saved-changes.js', 'admin-shift-rules.js', 'admin-save-receipt.js', 'slow-save.js', 'admin-rangepicker.js', 'admin-deep-link.js',
-    'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'al-contract.js', 'christmas-leave.js', 'leave-year.js', 'admin-leave-year.js', 'admin-leave-year-save.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js', 'admin-day-pills.js', 'admin-own-write.js', 'admin-time-inputs.js', 'admin-bulk-apply.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-pin-lockout.js', 'operations-tips.js', 'operations-doc-links.js', 'operations-reset.js', 'operations-doc-uploads.js', 'operations-al-sheet.js', 'operations-al-save.js', 'al-leave-file.js', 'al-leave-compare.js', 'al-leave-plan.js', 'al-leave-save.js', 'al-leave-words.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'pdf-viewer.js', 'pdf-viewer-core.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
+    'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'al-contract.js', 'christmas-leave.js', 'leave-year.js', 'admin-leave-year.js', 'admin-leave-year-save.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js', 'admin-day-pills.js', 'admin-own-write.js', 'admin-time-inputs.js', 'admin-bulk-apply.js', 'admin-tips.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-pin-lockout.js', 'operations-tips.js', 'operations-doc-links.js', 'operations-reset.js', 'operations-doc-uploads.js', 'operations-al-sheet.js', 'operations-al-save.js', 'al-leave-file.js', 'al-leave-compare.js', 'al-leave-plan.js', 'al-leave-save.js', 'al-leave-words.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-headlines.js', 'trains-cards.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'pdf-viewer.js', 'pdf-viewer-core.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
     'links-design-naming.js', 'links-design-header.js', 'links-proposals.js', 'links-shortlist.js', 'links-generator-targets.js', 'links-design-store.js', 'links-queued-saves.js', 'links-design-library.js', 'links-import.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-compare-analysis.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js', 'links-grid-input.js',
     'overlay.js', 'card-collapse.js', 'select-sheet.js', 'session.js', 'staff-pin-ended.js', 'silent-sign-in.js', 'viewer-shed.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
@@ -200,7 +181,7 @@ const CORE_ASSETS = [
     "./overtime-form.js",
     "./overtime-roster.js",
     "./overtime-manager.js",
-    "./overtime-review-controller.js", "./trains.html", "./trains.css", "./trains-app.js", "./trains-boot.js", "./trains-change.js", "./trains-data.js", "./trains-tips.js", "./trains-stations.js", "./trains-render.js", "./trains-grid-mirror.js",
+    "./overtime-review-controller.js", "./trains.html", "./trains.css", "./trains-app.js", "./trains-boot.js", "./trains-change.js", "./trains-data.js", "./trains-tips.js", "./trains-stations.js", "./trains-headlines.js", "./trains-cards.js", "./trains-render.js", "./trains-grid-mirror.js",
     "./newlink.html", "./newlink.css", "./newlink-app.js", "./newlink-boot.js", "./newlink-config.js", "./newlink-data.js", "./newlink-render.js", "./pdf-viewer.js", "./pdf-viewer-core.js",
     "./calendar-app.js",
     "./calendar-state.js",
@@ -254,7 +235,7 @@ const CORE_ASSETS = [
     "./admin-al-spare-note.js",
     "./admin-al-projection.js",
     "./admin-al-week-save.js",
-    "./admin-week-row-state.js", "./admin-day-pills.js", "./admin-own-write.js", "./admin-bulk-apply.js",
+    "./admin-week-row-state.js", "./admin-day-pills.js", "./admin-own-write.js", "./admin-bulk-apply.js", "./admin-tips.js",
     "./admin-time-inputs.js",
     "./al-swapped-days.js",
     "./admin-booked-periods.js",
@@ -359,15 +340,9 @@ const SUPPLEMENTARY_ASSETS = [
     "./staff-guide.html",
     "./railcard-guide.html",
     "./rangers-guide.html",
-    // The two legacy guide URLs (v22.48). ~3 KB redirect stubs — mostly the mirrored CSP meta and
-    // the comment explaining why they exist — cached for the same reason as the guides themselves:
-    // the Pages mirror serves no redirect rules, so this file IS the redirect there, and an old
-    // bookmark opened offline should still land rather than fail. (It claimed one kilobyte until
-    // 3 Sep 2026, when an external review measured them — a figure nobody had checked, inside a
-    // comment justifying a cost, which is the shape this repo has a rule about. Note for the next
-    // editor: do NOT write a quoted string in this comment. The ghost-entry check parses quoted
-    // paths out of these arrays and does not skip comments, so it read the quoted figure as an
-    // asset that does not exist. It caught it immediately, which is the system working.)
+    // The two legacy guide URLs: ~3 KB redirect stubs, cached because the Pages mirror serves no
+    // redirect rules, so the file IS the redirect there and an old bookmark should land offline.
+    // Do NOT write a quoted string in a comment here: the ghost-entry check parses quoted paths.
     "./guide.html",
     "./fip.html",
     "./legacy-redirect.js",
@@ -385,14 +360,10 @@ const SUPPLEMENTARY_ASSETS = [
     "./purify.es.mjs",
 ];
 
-// Self-hosted typeface — stable asset, cache-first like icons. Precached so the
-// app renders in Inter on the first offline launch (otherwise it would fall back
-// to the system font until the file was fetched online once).
-// cache-first: the old version persists until APP_VERSION bumps the cache name.
-// ⚠ If the font (or any icon) ever needs updating, RENAME the file as well as bumping
-// the version: fonts/icons warm via the HTTP cache (served max-age=1y immutable, and
-// the warm-up deliberately doesn't force revalidation — v16.09), so same-name byte
-// changes would repopulate the new cache from a year-old HTTP-cache copy.
+// Self-hosted typeface — stable asset, cache-first like icons, precached so the first offline
+// launch renders in Inter. ⚠ If the font (or any icon) ever needs updating, RENAME the file as well
+// as bumping the version: fonts/icons warm via the HTTP cache (max-age=1y immutable, no forced
+// revalidation), so same-name byte changes would repopulate the new cache from a year-old copy.
 const FONT_ASSETS = [
     "./fonts/inter-latin.woff2",
 ];
@@ -410,10 +381,9 @@ const ICON_ASSETS = [
 // ============================================
 // INSTALL — activate immediately; precache happens AFTER activation (see below)
 // ============================================
-// ⚠ THE UPDATE-LAG FIX (v15.41). A worker CANNOT leave 'installing' until install's waitUntil
-// settles, skipWaiting() or not — so precaching there held every update behind ~90 no-cache
-// re-fetches, and the reload landed long after staff had started using the app ("the app updates
-// with a lot of lag"). Install now finishes at once → activate → claim; the cache warms after.
+// ⚠ THE UPDATE-LAG FIX — do not revert. A worker CANNOT leave 'installing' until install's waitUntil
+// settles, skipWaiting() or not — so precaching there held every update behind the whole app's
+// re-fetches ("the app updates with a lot of lag"). Install finishes at once; the cache warms after.
 self.addEventListener("install", () => {
     console.log(`[SW ${APP_VERSION}] Installing (instant — precache deferred to post-activation)`);
     self.skipWaiting();
@@ -429,13 +399,11 @@ const PRECACHE_MARKER = './__precache-complete';
 // no lifetime guarantee and Chrome kills an idle SW ~30s after the last event settles.
 let _warmupInFlight = null;
 
-/** Start (or join) the cache warm-up. Runs DETACHED from the SW lifecycle events (never
- *  inside a waitUntil — install's would delay activation, which was the v15.41 update-lag
- *  bug; activate's would queue every fetch of the freshly-reloaded page behind ~90 files).
- *  Resilience (v15.46): a completion MARKER is written only when every asset cached, the
- *  top-level startup check re-runs an incomplete warm-up on every SW wake, and the fetch
- *  handler extends the SW's lifetime while a warm-up is in flight — so a killed or
- *  partially-failed warm-up retries until it genuinely completes, on first installs too. */
+/** Start (or join) the cache warm-up. Runs DETACHED from the SW lifecycle events (never inside a
+ *  waitUntil — install's would delay activation, activate's would queue every fetch of the
+ *  freshly-reloaded page). Resilience: a completion MARKER is written only when every asset
+ *  cached, the startup check re-runs an incomplete warm-up on every wake, and the fetch handler
+ *  extends the SW's lifetime meanwhile — so a killed or partial warm-up retries until complete. */
 function startWarmup() {
     if (_warmupInFlight) return _warmupInFlight;
     _warmupInFlight = warmCacheAndSweepOld()
@@ -444,10 +412,9 @@ function startWarmup() {
     return _warmupInFlight;
 }
 
-/** Run precache fetches a few at a time instead of ~100 in parallel — the warm-up fires
- *  right after the post-update reload, and an unbounded burst starved the freshly-loaded
- *  page's own critical path (modules on the cold new cache, Firestore) of the one mobile
- *  connection. Failures are recorded by the precache fn itself. */
+/** Run precache fetches a few at a time, not all in parallel — the warm-up fires right after the
+ *  post-update reload, and an unbounded burst starved the page's own critical path of the one
+ *  mobile connection. Failures are recorded by the precache fn itself. */
 async function fetchInBatches(assets, precacheFn) {
     const BATCH = 8;
     for (let i = 0; i < assets.length; i += BATCH) {
@@ -455,17 +422,13 @@ async function fetchInBatches(assets, precacheFn) {
     }
 }
 
-/** Content-type sanity check before caching an asset (v16.23; positively validated v17.01). A
- *  trusted-cert intermediary (corporate MITM / managed-device proxy) can return a 200 body of ANY
- *  type for ANY URL — an HTML login interstitial, a JSON/XML gateway error; caching that under a
- *  module path poisons the version cache for its whole life (SyntaxError → stuck splash). The old
- *  rule rejected only a PRESENT text/html; a wrong-but-not-html body (e.g. `application/json` under
- *  a `.js` path — Finding #10) slipped through. Now POSITIVELY match the asset's extension to its
- *  expected content-type family; a MISSING type is still accepted (offline-first tolerance — a
- *  same-origin 200 with no CT is trusted), and an UNKNOWN extension falls back to the old reject-html
- *  rule so a new asset kind can never be silently dropped. Rejecting is SAFE: ctSafe only gates
- *  CACHING (the response is still served to the page), so the worst case is a re-fetch next time —
- *  never a broken page — while caching a wrong body breaks the app for the version's whole life. */
+/** Content-type sanity check before caching an asset. A trusted-cert intermediary (corporate MITM /
+ *  managed-device proxy) can return a 200 body of ANY type for ANY URL — an HTML login interstitial,
+ *  a JSON gateway error; caching that under a module path poisons the version cache for its whole
+ *  life (SyntaxError → stuck splash). So the extension is POSITIVELY matched to its content-type
+ *  family; a MISSING type is accepted (offline-first tolerance), and an UNKNOWN extension only
+ *  rejects html, so a new asset kind is never silently dropped. Rejecting is SAFE: ctSafe gates
+ *  CACHING only (the response is still served), so the worst case is a re-fetch next time. */
 function ctSafe(assetPath, res) {
     const ct = (res.headers.get('content-type') || '').toLowerCase();
     if (!ct) return true;   // missing type — trust a same-origin 200 (offline-first tolerance)
@@ -481,11 +444,10 @@ function ctSafe(assetPath, res) {
     return !ct.includes('text/html');   // unknown extension — keep the original lenient reject-html rule
 }
 
-/** fetch, and hand the response to `store`, inside ONE hard timeout (v16.23): one hung fetch
- *  (half-open TCP on flaky mobile) stalled its batch forever — no marker, and every fetch event's
- *  waitUntil(_warmupInFlight) pinned the SW. The BODY is inside it too (Nov 2026; fetch-timeout.js's
- *  rule): cleared at the headers, a body that then stalled hung `cache.put` the same way. The abort
- *  rejects the put, and the per-asset .catch records a miss → normal retry-next-wake. */
+/** fetch, and hand the response to `store`, inside ONE hard timeout: one hung fetch (half-open TCP
+ *  on flaky mobile) would stall its batch forever and pin the SW. The BODY is inside it too
+ *  (fetch-timeout.js's rule), or a stalled body hangs `cache.put`. The abort rejects the put, and
+ *  the per-asset .catch records a miss → normal retry-next-wake. */
 async function fetchAndStore(/** @type {RequestInfo} */ req, /** @type {(res: Response) => any} */ store, ms = 30000) {
     if (typeof AbortController === 'undefined') return store(await fetch(req));
     const c = new AbortController();
@@ -497,14 +459,12 @@ async function warmCacheAndSweepOld() {
     const cache = await openCache();
     if (await cache.match(PRECACHE_MARKER)) return;   // already fully warmed + swept
     let allOk = true;
-    // revalidate=true → cache:'no-cache' (app code: server serves no-cache, so this is a
-    // conditional 304 check). revalidate=false → default HTTP-cache mode for the immutable
-    // fonts/icons (max-age=1y) — forcing revalidation there was 8 guaranteed-304 round
-    // trips per warm-up for assets that only ever change alongside a version bump.
+    // revalidate=true → cache:'no-cache' (app code: a conditional 304 check). revalidate=false →
+    // default HTTP-cache mode for the immutable fonts/icons (max-age=1y), which only ever change
+    // alongside a version bump (and a rename — FONT_ASSETS).
     const precache = (asset, revalidate) => (async () => {
-        // The post-update page load populates this same cache through the fetch handler at
-        // the same moment — skip anything already present instead of fetching it twice.
-        // (Everything in this version-pinned cache was fetched fresh from the origin.)
+        // The post-update page load fills this same cache through the fetch handler at the same
+        // moment — skip anything already present instead of fetching it twice.
         if (await cache.match(asset)) return;
         await fetchAndStore(new Request(asset, revalidate ? { cache: 'no-cache' } : {}), res => {
             if (res.ok && ctSafe(asset, res)) return cache.put(asset, unredirect(res));
@@ -515,10 +475,9 @@ async function warmCacheAndSweepOld() {
     await fetchInBatches(CORE_ASSETS, a => precache(a, true));
     await fetchInBatches(SUPPLEMENTARY_ASSETS, a => precache(a, true));
     await fetchInBatches([...FONT_ASSETS, ...ICON_ASSETS], a => precache(a, false));
-    // Warm the SDK cache too — offline-first must not depend on the browser HTTP cache
-    // keeping the CDN modules. SDK failures are tracked SEPARATELY (sdkOk, v16.11) so
-    // third-party CDN reachability can never hold the APP-cache sweep hostage. Default
-    // cache mode: the URLs are immutable, so an HTTP-cache copy is always valid.
+    // Warm the SDK cache too. SDK failures are tracked SEPARATELY (sdkOk) so third-party CDN
+    // reachability can never hold the APP-cache sweep hostage. Default cache mode: the URLs are
+    // immutable, so an HTTP-cache copy is always valid.
     let sdkOk = true;
     const sdkCache = await caches.open(SDK_CACHE_NAME);
     const precacheSdk = sdkUrl => (async () => {
@@ -531,14 +490,12 @@ async function warmCacheAndSweepOld() {
     })().catch(err => { sdkOk = false; console.warn(`[SW ${APP_VERSION}] SDK cache skipped (${sdkUrl}):`, err); });
     await fetchInBatches(SDK_ASSETS, precacheSdk);
 
-    // Sweep superseded caches as soon as their REPLACEMENT is complete, per group:
-    // old app caches once every app asset cached (they are the fallback for exactly the
-    // incomplete-app case, so an app miss keeps them); old SDK caches once the new SDK
-    // cache is fully warmed. Decoupled (v16.11) so a device that can't reach gstatic —
-    // where the app is hard-broken anyway — doesn't accumulate an old app cache per
-    // deploy forever. Prefix-scoped so we never clobber another cache on the origin.
-    // OLDER versions only (v25.06): deleting every OTHER version let an old worker's retried warm-up
-    // delete the NEWER cache, leaving nothing to launch offline — sw-internals.test.mjs has the sequence.
+    // Sweep superseded caches as soon as their REPLACEMENT is complete, per group: old app caches
+    // once every app asset cached (they are the fallback for exactly the incomplete-app case); old
+    // SDK caches once the new SDK cache is fully warmed — decoupled, so a device that can't reach
+    // gstatic doesn't accumulate an app cache per deploy. Prefix-scoped. OLDER versions only: deleting
+    // every OTHER version let an old worker's retried warm-up delete the NEWER cache, leaving nothing
+    // to launch offline — sw-internals.test.mjs has the sequence.
     const cacheNames = await caches.keys();
     await Promise.all(
         cacheNames
@@ -550,9 +507,8 @@ async function warmCacheAndSweepOld() {
             })
     );
     if (!allOk || !sdkOk) {
-        // Something missed (flaky network / unreachable CDN). Do NOT write the marker, so
-        // the next SW start retries the missing files (everything cached is skip-if-cached,
-        // so a retry only re-fetches the gaps). SWR also self-heals per-file on demand.
+        // Something missed (flaky network / unreachable CDN). Do NOT write the marker, so the next
+        // SW start retries — and only re-fetches the gaps, since everything cached is skipped.
         console.warn(`[SW ${APP_VERSION}] Warm-up incomplete (app ${allOk ? 'ok' : 'MISSES'}, sdk ${sdkOk ? 'ok' : 'MISSES'}) — will retry`);
         return;
     }
@@ -563,10 +519,8 @@ async function warmCacheAndSweepOld() {
 /** Dotted numeric versions ('25.06', '12.19.0'): is `a` older than `b`? Unparseable → false (keep it). */
 function isOlderVersion(a, b) { const x = a.split('.').map(Number), y = b.split('.').map(Number); if ([...x, ...y].some(Number.isNaN)) return false; for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; }
 
-// STARTUP RE-CHECK — this top-level code runs every time the browser wakes the SW (any
-// fetch/push/message), so a warm-up killed mid-run resumes on the next wake instead of
-// leaving the "transition window" open until the next deploy. One cheap cache.match when
-// already complete.
+// STARTUP RE-CHECK — this top-level code runs every time the browser wakes the SW, so a warm-up
+// killed mid-run resumes on the next wake. One cheap cache.match when already complete.
 (async () => {
     try {
         const cache = await openCache();
@@ -577,19 +531,16 @@ function isOlderVersion(a, b) { const x = a.split('.').map(Number), y = b.split(
 // ============================================
 // ACTIVATE — claim all open tabs IMMEDIATELY; cache warm-up runs detached
 // ============================================
-// waitUntil holds ONLY the (instant) claim: functional events (fetch) are queued
-// until activate's waitUntil settles, so putting the precache here would hang
-// the freshly-reloaded page's every request until ~90 files finished. The
-// warm-up + old-cache sweep run as a detached promise instead — the post-claim
-// reload's own fetch traffic keeps the SW alive while it completes.
+// waitUntil holds ONLY the (instant) claim: fetch events are queued until activate's waitUntil
+// settles, so the precache here would hang the freshly-reloaded page's every request. The warm-up
+// runs detached instead — the post-claim reload's own fetch traffic keeps the SW alive.
 self.addEventListener("activate", event => {
     console.log(`[SW ${APP_VERSION}] Activating — claiming clients`);
     event.waitUntil(Promise.all([
         self.clients.claim(),
-        // Navigation Preload OFF (Nov 2026) — actively: the setting outlives the worker that set it.
-        // With HTML never re-fetched once cached, a preload was a request on every open thrown away, and
-        // on a miss could be last release's page from the HTTP cache (the mirror's max-age). Off, a miss
-        // is the worker's own no-cache fetch. Feature-detected; non-fatal.
+        // Navigation Preload OFF — actively: the setting outlives the worker that set it. With HTML
+        // never re-fetched, a preload was a wasted request on every open, and on a miss could be last
+        // release's page from the HTTP cache. Feature-detected; non-fatal.
         self.registration.navigationPreload
             ? self.registration.navigationPreload.disable().catch(() => {})
             : null,
@@ -609,21 +560,15 @@ self.addEventListener("fetch", event => {
     if (event.request.method !== "GET") return;
     const url = new URL(event.request.url);
 
-    // Firebase SDK modules: cache-first from the SDK-versioned cache. The URLs are
-    // version-pinned (immutable), so a cached copy is always correct; on a miss the
-    // network response is cached for deterministic offline. During an SDK bump, a
-    // still-open OLD page imports the old-version URLs — those fail this prefix check
-    // and pass through to the browser/network untouched (the pre-v16.10 behaviour),
-    // which is fine for the seconds until the update reload. The .catch below is
-    // storage-error resilience only (a broken Cache Storage must not kill the fetch).
+    // Firebase SDK modules: cache-first from the SDK-versioned cache (immutable URLs); a miss is
+    // cached for deterministic offline. During an SDK bump a still-open OLD page's old-version URLs
+    // fail this prefix check and pass through untouched, fine for the seconds until the reload.
     if (url.href.startsWith(SDK_URL_PREFIX)) {
         event.respondWith(
             caches.open(SDK_CACHE_NAME).then(cache =>
                 cache.match(event.request).then(cached => cached
                     || fetch(event.request).then(response => {
-                        // ctSafe (v16.23): match the warm-up/SWR puts — never cache an HTML
-                        // interstitial masquerading as an SDK module (the runtime path was the
-                        // one remaining unguarded put).
+                        // ctSafe: never cache an HTML interstitial masquerading as an SDK module.
                         if (response && response.status === 200 && ctSafe(url.pathname, response)) {
                             const clone = response.clone();
                             cache.put(event.request, clone).catch(() => {});
@@ -631,11 +576,9 @@ self.addEventListener("fetch", event => {
                         return response;
                     })
                 )
-            // Terminal backstop hardening (v16.23): the fallback caches.match can ITSELF reject on a
-            // fully-broken Cache Storage (rejecting respondWith → failed SDK import → app won't boot),
-            // and when caches.open rejected the fetch above was never reached — so an ONLINE device
-            // with wedged storage got Response.error() without ever trying the network. Catch the
-            // fallback lookup and end with a real network attempt, mirroring the doc branch.
+            // Terminal backstop: on a fully-broken Cache Storage the fallback lookup can ITSELF reject
+            // (→ failed SDK import → app won't boot), and the fetch above may never have run. So catch
+            // the lookup and end with a real network attempt, mirroring the doc branch.
             ).catch(() => caches.match(event.request).catch(() => null))
              .then(r => r || fetch(event.request).catch(() => Response.error()))
         );
@@ -645,8 +588,8 @@ self.addEventListener("fetch", event => {
     if (url.origin !== self.location.origin || url.pathname.startsWith(`${SCOPE_PATH}docs/`)) return;
 
     const path = url.pathname;
-    // HTML documents and JS/CSS are both served instantly from this version's cache (v16.10) and
-    // never re-fetched once there; HTML falls back to network-first on a miss.
+    // HTML documents and JS/CSS are both served instantly from this version's cache and never
+    // re-fetched once there; HTML falls back to network-first on a miss.
     const isDoc          = path === '/' || path.endsWith('/') || path.endsWith('.html');
     // Scope-relative so JS/CSS match under a sub-path (/roster-app/) too, not just root.
     const relPath        = path.startsWith(SCOPE_PATH) ? path.slice(SCOPE_PATH.length) : path.replace(/^\//, '');
@@ -654,14 +597,10 @@ self.addEventListener("fetch", event => {
 
     if (isDoc) {
         // Cache-hit → served instantly, nothing fetched. Miss → network-first: revalidate (304 if
-        // unchanged), store it, fall back to a cached copy if offline or the network hangs past 2 s.
-        // The source is the SW's own fetch below — or a Navigation Preload answer, should one arrive.
-        // AbortController cancels OUR fetch on timeout (feature-detected: it throws in
-        // service workers on iOS < 15.1); a preload response can't be cancelled, so a late
-        // one still refreshes the cache via waitUntil — only this response is already served.
-        // 2 s timeout: fast enough for 4G, short enough to serve cache quickly on poor signal.
-        // cache: 'no-cache' (vs 'no-store') lets the browser do a conditional request and
-        // return 304 when the file is unchanged — same freshness, much less bandwidth.
+        // unchanged), store it, fall back to a cached copy if offline or the network hangs past 2 s
+        // (fast enough for 4G, short enough on poor signal). AbortController cancels OUR fetch on
+        // timeout (feature-detected: it throws in service workers on iOS < 15.1). 'no-cache' (vs
+        // 'no-store') lets the browser revalidate with a 304 — same freshness, less bandwidth.
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const freshReq   = new Request(event.request.url, {
             method:  event.request.method,
@@ -697,24 +636,19 @@ self.addEventListener("fetch", event => {
         const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`));
         const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
         const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
-        // CURRENT-version cache first — the global caches.match() prefers the OLDEST
-        // cache (creation order), which during a warm-up window served the PREVIOUS
-        // version's HTML to a page whose JS then loaded fresh (a mixed-version page).
-        // The any-version lookup stays as the last resort so pure-offline still works
-        // mid-transition. iOS can evict the entire Cache Storage under storage
-        // pressure — synthesise a minimal offline page so the request still resolves.
-        // ignoreSearch: navigations are cached under the bare path (no ?query — see the
-        // network handler), so a deep link like paycalc.html?payday=… must match it.
-        // Every cache lookup below is .catch-guarded (v16.23): a rejecting openCache/match on
-        // broken storage previously rejected the WHOLE fallback chain — skipping the synthesised
-        // offline page exactly when it was designed to appear (the rejection then landed in the
-        // untimed outer network backstop). The offline page must always be reachable.
-        /** The best cached copy for this navigation, or null when there is NONE (v24.61). */
+        // CURRENT-version cache first — the global caches.match() prefers the OLDEST cache, which
+        // served the PREVIOUS version's HTML to a page whose JS then loaded fresh (mixed-version).
+        // The newest-older lookup is the last resort, so pure-offline still works mid-transition; iOS
+        // can evict ALL Cache Storage, so a minimal offline page is synthesised as the floor.
+        // ignoreSearch: navigations are cached under the bare path, so paycalc.html?payday=… matches.
+        // Every lookup is .catch-guarded: one rejection on broken storage must not skip the
+        // synthesised offline page exactly when it is needed.
+        /** The best cached copy for this navigation, or null when there is NONE. */
         const findCachedFallback = () => openCache().then(c => c.match(event.request, { ignoreSearch: true })).catch(() => null)
             .then(r => r || matchNewestManagedCache(event.request, { ignoreSearch: true }))
             .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || matchNewestManagedCache(fallback)).catch(() => null) : null))
             .then(r => r || null);
-        /** The synthesised last resort, with a "Try again" that RELOADS (v24.61): an installed app has
+        /** The synthesised last resort, with a "Try again" that RELOADS: an installed app has
          *  no address bar, and a reload keeps the fragment a notification tap carried (#huddle), which
          *  a link built from the request could not — the fragment never reaches a service worker. The
          *  inline handler is allowed because a synthesised response carries no CSP. */
@@ -726,21 +660,14 @@ self.addEventListener("fetch", event => {
             );
         };
         event.respondWith((async () => {
-            // ── A HELD PAGE IS SERVED AT ONCE, AND NOTHING IS FETCHED (v16.10, owner-approved —
-            // replaces the v14.18 network-first decision): this removes the last blocking round
-            // trip per page open (100–500ms on 4G; a full 2s on the old timeout path on poor
-            // signal). Freshness propagates exactly like JS/CSS: HTML never changes without a
-            // version bump → new SW → new cache → warm-up → controllerchange reload. Serving HTML
-            // and JS from the SAME version cache also shrinks the mixed-version window network-first
-            // had. A copy fetched beside a hit could only be the same or the wrong release (Oct 2026).
-            // EXACT-page match only — '/' (the scope root) additionally tries the warm-up's
-            // './index.html' key. Never map one page to another here: the fallback chain's
-            // index-default is OFFLINE-fallback behaviour, not an instant-serve rule.
-            // A broken Cache Storage (corrupt IndexedDB backing, iOS eviction mid-read) must
-            // DEGRADE to the network path, never reject: a rejected respondWith on a navigation
-            // makes the browser render its own error page, so index.html — and therefore the
-            // splash — never even loads (the stuck-launch class the watchdog papers over). The
-            // SDK and cache-first branches already .catch their cache access (v16.19).
+            // ── A HELD PAGE IS SERVED AT ONCE, AND NOTHING IS FETCHED (owner-approved; pwa.md): no
+            // blocking round trip per page open. HTML never changes without a version bump → new SW →
+            // new cache → warm-up → controllerchange reload, and a copy fetched beside a hit could only
+            // be the same or the wrong release. EXACT-page match only — '/' (the scope root) also tries
+            // the warm-up's './index.html' key; never map one page to another here (the index default
+            // is OFFLINE-fallback behaviour). A broken Cache Storage must DEGRADE to the network path,
+            // never reject: a rejected navigation renders the browser's own error page, and the splash
+            // never even loads.
             const cache = await openCache().catch(() => null);
             const cachedDoc = cache
                 ? (await cache.match(event.request, { ignoreSearch: true }).catch(() => null)
@@ -751,22 +678,17 @@ self.addEventListener("fetch", event => {
             let networkSettled = false;
             let viaPreload = false;   // a preload answer may be the browser's HTTP cache — see below
             const networkPromise = (event.preloadResponse
-                // The preload promise RESOLVES undefined when preload is disabled/unsupported
-                // (→ fall back to our own fetch) but REJECTS when the preload network request
-                // itself errors — so it needs a reject handler too, or on a cache MISS a preload
-                // failure would reach the fallback chain and show the offline page to an ONLINE user
-                // whose own fetch would have worked. Two-arg .then (not trailing .catch) so a
+                // The preload promise RESOLVES undefined when preload is off (→ our own fetch) but
+                // REJECTS when the preload request errors — so it needs a reject handler too, or an
+                // ONLINE user would get the offline page. Two-arg .then (not trailing .catch) so a
                 // genuine offline fetch rejection still propagates instead of re-fetching.
                 ? event.preloadResponse.then(pre => (pre ? ((viaPreload = true), pre) : fetch(freshReq)), () => fetch(freshReq))
                 : Promise.resolve().then(() => fetch(freshReq))
             ).then(response => {
                 networkSettled = true;
-                // Only cache a genuine HTML document. A 200 that is NOT html (a host
-                // interstitial or a JSON error page returned with status 200) would otherwise
-                // be written under the page path and served instantly by SWR for the life of
-                // the version cache. A MISSING content-type still caches (offline-first
-                // guarantee: Firebase always sets it, so absence means a stub we shouldn't
-                // second-guess) — only a present, clearly-non-html type is skipped (v16.19).
+                // Only cache a genuine HTML document: a 200 that is NOT html (a host interstitial, a
+                // JSON error page) would be served for the life of the version cache. A MISSING
+                // content-type still caches (offline-first tolerance); only a clearly-non-html one is skipped.
                 const ct = response ? (response.headers.get('content-type') || '') : '';
                 // NEVER A PRELOAD ANSWER (preload is off, but one may arrive): it may be last release's page
                 // from the HTTP cache. Serve it; STORE a NEW Request (the race aborts freshReq). Stored under
@@ -784,10 +706,9 @@ self.addEventListener("fetch", event => {
             // next open (a preload response cannot be aborted anyway, so consuming it is free).
             try { event.waitUntil(networkPromise.catch(() => null)); } catch (_e) { /* settled */ }
 
-            // Network-first with the 2s cache-fallback race, as before v16.10 — PROVIDED THERE IS
-            // SOMETHING TO FALL BACK TO (v24.61, iOS audit B3). With nothing cached the race served the
-            // synthesised "Offline" page to an ONLINE member on a slow connection and the abort killed
-            // the real fetch; now it waits for the network, and only the network's failure is offline.
+            // Network-first with the 2s cache-fallback race — PROVIDED THERE IS SOMETHING TO FALL BACK
+            // TO (iOS audit B3). With nothing cached, the race would serve "Offline" to an ONLINE member
+            // on a slow connection; so it waits for the network, and only the network's failure is offline.
             const fallbackDoc = await findCachedFallback();
             if (!fallbackDoc) {
                 let response;
@@ -796,9 +717,8 @@ self.addEventListener("fetch", event => {
                 return finishNetworkDoc(response);
             }
 
-            // The abort is GUARDED on networkSettled: firing it after the response resolved
-            // would kill the body mid-stream (the old timeout-boundary race, where a response
-            // arriving at ~1999ms could be destroyed by the 2000ms abort).
+            // The abort is GUARDED on networkSettled: firing it after the response resolved would
+            // kill the body mid-stream (a response arriving at ~1999ms destroyed by the 2000ms abort).
             const timeout = new Promise(resolve => setTimeout(() => {
                 if (!networkSettled && controller) controller.abort();
                 resolve('timeout');
@@ -815,22 +735,16 @@ self.addEventListener("fetch", event => {
             }
             return finishNetworkDoc(response);
         })().catch(() => fetch(event.request).catch(() => Response.error())));
-        // Ultimate backstop: if ANYTHING in the doc branch rejects (a broken Cache Storage
-        // reaching the fallback chain's own openCache().then chain), degrade to a plain
-        // network fetch, then a network-error response — never a rejected navigation (v16.19).
+        // Ultimate backstop: if ANYTHING in the doc branch rejects, degrade to a plain network
+        // fetch, then a network-error response — never a rejected navigation.
 
         /** What a network answer for a document becomes. Shared by the two cache-miss paths above. */
         function finishNetworkDoc(response) {
             if (response && response.status === 200) return unredirect(response);
-            // A redirect under redirect-mode 'manual' (navigation preload, or a manual-mode
-            // fetch) surfaces as type 'opaqueredirect' — status 0, ok:false. Pass it straight
-            // through: the BROWSER follows the redirect and issues a fresh navigation (and
-            // fetch event) for the target. Treating it as a broken-site response sent every
-            // installed-PWA launch (start_url ./index.html → Firebase 301 → /) down the
-            // cache-fallback path — network-first defeated for the entry point.
+            // A redirect under redirect-mode 'manual' surfaces as 'opaqueredirect' (status 0). Pass it
+            // straight through so the BROWSER follows it: treated as a broken-site response, every
+            // installed-PWA launch (start_url ./index.html → Firebase 301 → /) took the cache fallback.
             if (response && response.type === 'opaqueredirect') return response;
-            // Navigation request returned 4xx/5xx (e.g. staff site is down) — serve cached
-            // app so a notification tap still loads the app rather than GitHub's 404 page.
             // A 4xx/5xx for a navigation: the cached app if there is one (a notification tap still
             // opens the app when the site is down) — otherwise the SERVER'S answer, not an "Offline"
             // page about a device that is online (24-hour review of v24.61).
@@ -846,19 +760,11 @@ self.addEventListener("fetch", event => {
         event.respondWith((async () => {
             const cache   = await openCache();
             const cached  = await cache.match(event.request);
-            // A CACHED FILE IS SERVED AND LEFT ALONE (Oct 2026 production review). This used to
-            // revalidate each file once per worker process and WRITE the answer back — a "self-heal
-            // for an un-bumped deploy", which the mandatory bump forbids. What the write actually
-            // did was the opposite of healing: the fetch used the page's own cache mode, so on the
-            // GitHub Pages mirror (every file `max-age=600`) a module the browser had cached in the
-            // last ten minutes — the PREVIOUS release's — was stored in the NEW release's cache,
-            // and the warm-up then skipped it as present. And an OLD worker, still in control just
-            // after a deploy, wrote the NEW release's files into the OLD cache. Either way the
-            // version-pinned cache held two versions, which is the one thing it exists to prevent.
-            //
-            // So: a hit is served and nothing is fetched; a miss is fetched past the browser's HTTP
-            // cache (`no-cache` — a revalidation, a 304 when unchanged) and stored. Freshness comes
-            // from the version bump → new worker → new cache, as it always did.
+            // A CACHED FILE IS SERVED AND LEFT ALONE — do not reintroduce a background refresh. One
+            // that wrote its answer back used the page's cache mode, so on the Pages mirror
+            // (`max-age=600`) it stored the PREVIOUS release's module in the NEW cache, and an OLD
+            // worker wrote new files into the OLD cache: the version-pinned cache held two versions.
+            // A miss is fetched past the HTTP cache (`no-cache`, a 304 when unchanged) and stored.
             // `new Request(url, …)`, not opts on the existing Request: older Safari ignores a cache
             // mode passed that way (.claude/rules/pwa.md → SW new Request(url) fetch pattern).
             let network = null;
@@ -869,9 +775,7 @@ self.addEventListener("fetch", event => {
                     mode:        event.request.mode === 'navigate' ? 'same-origin' : event.request.mode,
                 }))
                     .then(response => {
-                        // ctSafe (v16.23): never cache a text/html body under a JS/CSS path — a
-                        // proxy interstitial 200 would otherwise poison the module for the whole
-                        // version (this branch never serves .html; isDoc routes those first).
+                        // ctSafe: never cache a proxy interstitial under a JS/CSS path.
                         if (response && response.status === 200 && ctSafe(relPath, response)) {
                             cache.put(event.request, response.clone())
                                 .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err));
@@ -881,26 +785,16 @@ self.addEventListener("fetch", event => {
                     .catch(() => null);
             }
             if (cached) return cached;
-            // Cold current-version cache: prefer a GOOD (2xx) network response, but if the network
-            // resolved a 4xx/5xx (a transient 502 mid-deploy, a hosting hiccup) fall back to an older
-            // release's cached copy — the warm-up keeps the previous version's cache, holding a
-            // working module, until the new one is fully populated.
-            // Returning the bad response to a <script type=module> would break the import and stick
-            // the splash — the doc branch already falls back on !response.ok, this mirrors it (v16.19).
+            // Cold current-version cache: prefer a GOOD (2xx) network response; on a 4xx/5xx (a
+            // transient 502 mid-deploy) fall back to the NEWEST older cached copy
+            // (matchNewestManagedCache) — a bad response to a <script type=module> would stick the splash.
             const net = await network;
-            // Prefer a good network response; else the NEWEST older cached copy (not the oldest
-            // caches.match() would pick) so a mid-deploy fallback stays closest to the current
-            // version — see matchNewestManagedCache. Null → Response.error() → clean reload (v16.86).
             return (net && net.ok ? net : null) || (await matchNewestManagedCache(event.request)) || Response.error();
         })().catch(() => caches.match(event.request).catch(() => null)
             .then(r => r || fetch(event.request).catch(() => Response.error()))));
-        // A rejected respondWith for a <script type=module> fails the import and breaks the
-        // module graph → calendar-app.js never runs → the splash sticks. A broken Cache
-        // Storage at the initial openCache()/cache.match must degrade like the else-branch,
-        // not hard-fail the module load (v16.19). v16.23: the backstop's own caches.match can
-        // ALSO reject on fully-broken storage, and when openCache rejected the branch's fetch
-        // was never reached — so catch the lookup and end with a real network attempt (an
-        // online device with wedged storage must still get its modules).
+        // A rejected respondWith for a <script type=module> breaks the module graph and sticks the
+        // splash, so a broken Cache Storage must degrade: the backstop's own lookup is caught, and it
+        // ends with a real network attempt (an online device with wedged storage still gets its modules).
     } else {
         // Cache-first: icons/manifest served from cache instantly, fetched if missing
         event.respondWith(
@@ -908,24 +802,17 @@ self.addEventListener("fetch", event => {
                 .then(cached => {
                     if (cached) return cached;
                     return fetch(event.request).then(response => {
-                        // ctSafe (v16.83): match the SWR/SDK/warm-up puts — never cache a text/html
-                        // body under an icon/font/manifest path. A corporate-proxy login interstitial
-                        // returned as 200 for manifest.json or icon-192.png would otherwise poison the
-                        // cache for the life of the version cache (the exact class ctSafe was added for).
+                        // ctSafe: never cache a proxy interstitial under an icon/font/manifest path.
                         if (response && response.status === 200 && ctSafe(url.pathname, response)) {
                             const clone = response.clone();
-                            // .catch to match the SWR/SDK puts — an unguarded put rejects (quota /
-                            // broken Cache Storage) as an unhandled rejection; respondWith still
-                            // returns the response independently, so caching is best-effort (v16.19).
+                            // Best-effort: an unguarded put would reject (quota / broken storage) unhandled.
                             openCache().then(cache => cache.put(event.request, clone)).catch(() => {});
                         }
                         return response;
                     });
                 })
-                // Match the SDK/managed branches' resilience: on a broken Cache Storage or an
-                // offline miss, degrade to a network-error response instead of a rejected
-                // respondWith (a hard browser error). v16.23: guard the fallback lookup itself
-                // and end with a network attempt, like the other branches.
+                // As the other branches: on broken storage or an offline miss, degrade (the lookup
+                // guarded, then a network attempt) — never a rejected respondWith.
                 .catch(() => caches.match(event.request).catch(() => null)
                     .then(r => r || fetch(event.request).catch(() => Response.error())))
         );
@@ -942,9 +829,7 @@ self.addEventListener("message", event => {
         console.log(`[SW ${APP_VERSION}] SKIP_WAITING received — activating`);
         self.skipWaiting();
     }
-    // The App Speed card's worker-count question (v22.94) was retired in Oct 2026, and with it the
-    // REVALIDATION_COUNT reply: the count was the PROCESS's, not one page's, so it could not answer
-    // it. An older page that still asks gets no reply and records nothing, which is its rule anyway.
+    // No REVALIDATION_COUNT reply any more: an older page that still asks gets none and records nothing.
 });
 
 // ============================================
@@ -959,9 +844,8 @@ self.addEventListener("message", event => {
 // rather than stacking.
 self.addEventListener("push", event => {
     // Neutral defensive fallback for a data-less / unparseable push — we can't know the feature, so
-    // do NOT assume a Huddle (the old fallback used the app name as title and mistagged everything as
-    // 'huddle', colliding with real Huddle notifications). Well-formed payloads come from
-    // buildPushPayload in functions/roster-parse-helpers.js and Object.assign over these defaults.
+    // do NOT assume a Huddle (it would collide with real Huddle notifications). Well-formed payloads
+    // come from buildPushPayload (functions/push-notices.js) and Object.assign over these defaults.
     let data = { title: "Marylebone Roster", body: "Open the app for the latest update." };
     try { if (event.data) Object.assign(data, event.data.json()); } catch (_) {}
 
@@ -990,8 +874,7 @@ self.addEventListener("push", event => {
 });
 
 // When staff tap a notification, bring the correct app page to the front.
-// Huddle → the app root with #huddle (the in-app Huddle viewer opens on the hash; the old #huddleBtn
-//   title-bar button was removed at v12.57 — the viewer is reached via the nav link + this tap).
+// Huddle → the app root with #huddle (the in-app Huddle viewer opens on the hash).
 // Pay reminder → paycalc.html. Every page a payload may name: SAFE_NOTIFICATION_PAGES, below.
 //
 // iOS-safe order: focus the existing window FIRST, then navigate.
@@ -1006,16 +889,11 @@ const APP_SCOPE = self.registration.scope;
 // Function hardcodes one absolute URL, but installs live on different origins/paths
 // (…/roster-app/ vs myb-roster.web.app), so we take only the page + query + hash from the
 // payload and RE-BASE it onto this install's scope — never trusting the payload's origin
-// or path. This was the cause of the "notification opens a 404" bug: the old allowlist used
-// bare-root routes (/index.html#huddle), so the real /roster-app/#huddle never matched and
-// it fell back to the bare origin (a 404). Re-basing fixes it for any origin/sub-path.
-// operations.html (v18.95) is the admin-only reset-request queue's landing page. Listing it here is
-// not an access grant — this allowlist only decides which in-scope page a payload may navigate to;
-// the page itself still runs its own admin gate, and a non-admin who somehow received the payload
-// would land on that gate. It is on the list because the notification is only ever SENT to the
-// admin's own owner-stamped devices (sendTargetedPush in functions/push.js). trains.html (v24.94) is the one-off timetable reminder's landing page.
-// It matches notifications.md → "Deep link" entry for entry (sw-asset-check.test.mjs); `index.html` left
-// it in Nov 2026 — no sender names it, and nothing there explained it.
+// or path (a bare-root route fell back to the bare origin on the Pages install: a 404).
+// Listing a page is not an access grant: it only decides which in-scope page a payload may open,
+// and each page runs its own gate (operations.html, the admin's reset-request queue, is only ever
+// SENT to the admin's own devices). It matches notifications.md → "Deep link" entry for entry
+// (sw-asset-check.test.mjs).
 const SAFE_NOTIFICATION_PAGES = ['', 'paycalc.html', 'operations.html', 'overtime.html', 'settings.html', 'trains.html'];
 
 self.addEventListener("notificationclick", event => {
@@ -1080,7 +958,7 @@ function askIfBusy(client) {
     });
 }
 
-// THE SUBSCRIPTION ROTATED UNDER US (v24.61, iOS audit B4): re-subscribe with the key the OLD one
+// THE SUBSCRIPTION ROTATED UNDER US (iOS audit B4): re-subscribe with the key the OLD one
 // carried — this file holds no copy of the VAPID key — or take the ready-made `newSubscription`.
 // notif.js re-saves the server record at once when the live endpoint differs from the one it last
 // saved. Full account: .claude/rules/notifications.md → "When the push service rotates a subscription".

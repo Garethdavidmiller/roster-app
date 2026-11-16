@@ -253,6 +253,20 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
 - **The single Fill re-checks that the payslip on screen is still the one it fetched for** before
   writing, so switching payslip mid-fetch cannot write one payslip's calendar into the next.
 
+## Paydays, cut-offs and the roster-assist
+
+Moved from `CLAUDE.md` (16 Nov 2026), where it was loaded into every session; it binds this page and
+the Calendar's 💷 / ✂️ markers.
+
+| Component | Location |
+|-----------|----------|
+| `getPaydaysAndCutoffs(year)` | `roster-data.js` |
+| `isPayday(date)` / `isCutoffDate(date)` | `roster-data.js` |
+| 💷 / ✂️ calendar markers | `calendar-renderer.js` — `.payday` / `.cutoff` CSS classes |
+| `getRosterSuggestion(p, member)` | `paycalc-roster-suggestions.js` — counts Sat/Sun/BH/Boxing Day/RDW, and **never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — a permanent policy, invariant 11 |
+| `getEffectiveContr(p)` | `paycalc-settings.js` — contracted hours, pro-rated if member has `startDate` in the period |
+| Reference guide | `paycalc-guide.html` |
+
 ## Payroll rules — do not change without confirmation
 
 **Statutory deductions — HMRC methods, corrected against real payslips.**

@@ -40,6 +40,7 @@ import { initCardCollapse, createLightbox, confirmDialog, watchScrollFade } from
 import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
+import { CARD_TIPS } from './admin-tips.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, consumesEntitlement, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
@@ -89,13 +90,9 @@ function openCollapsibleCard(body, chevron) {
 
 
 /**
- * Coordinator body as an exported init() (AUTH_ARCHITECTURE.md Phase 4a.2 — admin was the last
- * coordinator still auto-running at module scope). admin-boot.js imports and calls init() once
- * (CSP `script-src 'self'` blocks an inline module call), so importing admin-app.js no longer runs
- * the coordinator — a test can `import { init }` without it wiring listeners / touching the DOM.
- * Behaviour is UNCHANGED: init() runs the exact code that used to run at module scope, exactly once
- * (ES modules are deferred, so the timing is identical). The in-place-login re-invocation still
- * calls the nested initAuthorised(), NOT init(), so module wiring happens once.
+ * The coordinator body. admin-boot.js calls init() once (CSP `script-src 'self'` blocks an inline
+ * module call), so a test can `import { init }` without it wiring listeners or touching the DOM. The
+ * in-place sign-in calls the nested initAuthorised(), NOT init(), so module wiring happens once.
  */
 export function init() {
     reloadIfRestoredForSomeoneElse();
@@ -110,19 +107,14 @@ export function init() {
         history.replaceState(null, '', location.pathname); // remove ?logout from URL
     }
 
-    // Tear down a lingering privileged Firebase identity whose LOCAL app session has expired (review
-    // item 7 / Finding #9). Previously only the calendar did this, so a protected page reached by a
-    // direct deep-link kept the old named/admin/manager/designer credential live (real Firestore
-    // access on a shared device) until the calendar or a fresh login replaced it. Fire-and-forget and
-    // login-safe: it's a no-op when a valid session exists (getSession) and stands down if a login/
-    // logout supersedes it (the _authGen guard), so it never fights the sign-in below.
+    // Tear down a privileged Firebase identity whose LOCAL session has expired, so a deep link cannot
+    // keep an old credential live on a shared device. Fire-and-forget and login-safe: a no-op on a
+    // valid session, and it stands down if a sign-in supersedes it.
     reconcileExpiredIdentity().catch(() => {});
 
     // ---- Check session immediately ----
-    // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these are refreshed
-    // inside initAuthorised() from the just-saved session — the module loaded while signed out, so the
-    // load-time values are null. (The AL/sick sections read currentUser via a live getter so a later
-    // in-place save still stamps the correct `changedBy`.)
+    // `let`: an in-place sign-in refreshes these inside initAuthorised(). The AL and Absence sections
+    // read currentUser through a live getter, so a later save still stamps the right `changedBy`.
     let currentSession = getSession();
     let isAuthenticated = !!currentSession;
     let currentUser     = currentSession?.name ?? null;
@@ -130,24 +122,17 @@ export function init() {
     let currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 
     // ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
-    /** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in, reload straight
-     *  into the app.
-     *  NOTHING may be awaited on this path (v14.74, LOGIN_INCIDENT.md). The retired work-email check
-     *  used to await a Firestore read here, and the FIRST read after a fresh sign-in can take several
-     *  seconds (connection + auth-token handshake warming up) — which froze the user on the login
-     *  overlay (the v14.72–73 login-freeze reports). Keep post-login work fire-and-forget. */
+    /** Show the shared sign-in overlay configured for Admin.
+     *  NOTHING may be awaited on this path (LOGIN_INCIDENT.md): the first read after a fresh sign-in
+     *  can take seconds, and it froze people on the overlay. Keep post-login work fire-and-forget. */
     function showAdminLogin({ reloadOnSuccess = false } = {}) {
         initLoginOverlay({
             pageLabel: 'Admin',
             about: ADMIN_SIGN_IN_ABOUT,
             onSuccess: () => {
-                // reloadOnSuccess is set on the B1 stale-session path (see the _adminAuth.then block in
-                // initAuthorised): initAuthorised() ALREADY ran optimistically there and resolved the
-                // one-shot sessionReady, which cannot be re-resolved — so re-initialising in place would
-                // leave feature modules (admin-overrides, admin-override-store) gated on a stale/failed auth
-                // barrier. Reload for a fresh page life + fresh sessionReady, mirroring operations/settings/
-                // links' B1 handling. The normal not-signed-in path (initAuthorised never ran, sessionReady
-                // still pending) initialises in place as before, falling back to a reload if init throws.
+                // reloadOnSuccess: on the stale-session path initAuthorised() already ran and resolved the
+                // one-shot sessionReady, so only a reload gives a fresh one. A first sign-in initialises in
+                // place, falling back to a reload if that throws.
                 if (reloadOnSuccess) {
                     window.location.reload();
                 } else {
@@ -157,10 +142,7 @@ export function init() {
         });
     }
 
-    // ---- Lightbox ----
-    // Exposed to module scope so the nav-panel drawer logo can open it (the header
-    // logo is a back button — see headerIcon handler below). Lifecycle, SW update
-    // status, bug link, and print button are the shared about-lightbox.js.
+    // ---- About lightbox (about-lightbox.js) — opened from the drawer logo; the header logo goes back ----
     /** @type {any} */
     let openAboutLightbox = null;
     (function() {
@@ -171,125 +153,13 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo: back to the calendar, through the unsaved-changes banner like every other exit
-        // (whole-app review, Oct 2026). The wiring itself is shared (about-lightbox.js).
+        // Header logo: back to the calendar, through the unsaved-changes banner like every other exit.
         wireHeaderLogo(() => { const go = () => { window.location.href = './'; }; if (confirmNavigate(go)) go(); });
     })();
 
-    // ---- Per-card tips lightbox ----
-    // Each card has a small ? button. Tapping it opens a focused lightbox
-    // with only the tips relevant to that card. Content lives here as data
-    // so the HTML stays clean; lifecycle, renderer (incl. the adminOnly /
-    // staffOnly filtering), and button wiring live in tips-lightbox.js.
-    (function() {
-        /** Tips content keyed by data-card attribute on each .btn-card-tips button. */
-        const CARD_TIPS = {
-            'change-shift': {
-                title: 'Change a Shift',
-                sections: [
-                    { heading: 'One shift', items: [
-                        { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top.', adminOnly: true },
-                        { icon: '1️⃣', html: 'Select the <strong>week</strong> at the top, using the arrows or the date picker.', staffOnly: true },
-                        // "amber" until v20.91 — the row turns GOLD, which is the word the rest of
-                        // the app uses for the same colour, and the one thing a reader compares
-                        // against what is in front of them. Until the desktop audit (Nov 2026) a row
-                        // with a type wore Today's ivory and only a TICKED row had the gold edge, so
-                        // this described a row nobody could find; admin.css now draws what it says.
-                        { icon: '2️⃣', html: 'Choose a type on any day. The row turns <strong>gold</strong>, with a gold edge, to show it is ready to save; select <strong>Save changes</strong> when you have finished.' },
-                        { icon: '☑️', html: 'A ticked day with no type yet has the gold edge only, and saves nothing until it has one.' },
-                        // Sundays are not contracted, so four of the six pills are disabled there
-                        // (override-utils.js → SUNDAY_FORBIDDEN_TYPES). Saying "any day" sent an
-                        // admin to a row where the pill they wanted would not respond.
-                        { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong> and <strong>Rest Day</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW.' },
-                        { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
-                        // Owner, 10 Nov 2026: a tick chooses a day for Apply, and never removes anything.
-                        { icon: '🗑️', html: 'To remove a saved change, select its type again — the day reads <strong>⚠ Removing</strong> — then <strong>Save changes</strong>. A tick only chooses a day for <strong>Apply</strong>.' },
-                        // Both ways, for both pointers (desktop audit, Nov 2026): this said only "Swipe",
-                        // which a mouse cannot do, and never named the arrows or Today.
-                        { icon: '↔️', html: 'Move between weeks with <strong>‹</strong> and <strong>›</strong>, or swipe the week sideways on a phone. <strong>📍 Today</strong> brings you back to this week.' },
-                    ]},
-                    { heading: 'Several days at once', items: [
-                        { icon: '1️⃣', html: 'Use <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick the days you want individually.' },
-                        { icon: '2️⃣', html: 'Pick a type, and add a start and end time if it needs one.' },
-                        // It names the type's full LABEL (admin-week-editor.js) — this said “AL”, which the button never reads.
-                        { icon: '3️⃣', html: 'Select the <strong>Apply</strong> button under the pills — once you have picked a type it names it, so it reads <em>Apply “Annual Leave” to ticked days</em> — then <strong>Save changes</strong>.' },
-                        { icon: 'ℹ️', html: 'Until a day is ticked and a type is chosen, <strong>Apply</strong> is greyed out, and the line under it says which is still missing.' },
-                        { icon: '🏖️', html: 'For a run of annual leave or absence, the two cards beside this one — below it on a phone — do a whole date range in one go — you do not have to tick days here.' },
-                    ]},
-                    { heading: 'What each type means', items: [
-                        { icon: '🏖️', html: '<strong>AL</strong> — annual leave. <strong>Absent</strong> — away for any reason; only the dates are saved, never the reason.' },
-                        { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift. Use it to confirm a spare week, change shift times, or record a swap with a colleague.' },
-                        { icon: '💼', html: '<strong>RDW</strong> — rest day worked. Use it when somebody works a full shift on their rest day.' },
-                        { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
-                        // SIX flavours since v18.61 (Union, Meeting). The tip named four for two
-                        // years' worth of releases, so nobody reading it knew the other two existed.
-                        { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (on standby, shift not yet known).' },
-                        { icon: '⏱️', html: 'On an <strong>Other</strong> day that falls on a rest day, <strong>Rest day (RDW)</strong> is already ticked and cannot be unticked — it is automatic. On a day they were rostered to work, tick it yourself to pay the day as rest-day working. Add times if you know them; leave them blank and it pays as the day underneath, or eight hours on a rest day.' },
-                    ]},
-                ],
-            },
-            'annual-leave': {
-                title: 'Record Annual Leave',
-                sections: [
-                    { items: [
-                        { icon: '🏖️', html: 'Choose the <strong>staff member at the top of the page</strong>, then a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if the member had swapped a working day onto it.', adminOnly: true },
-                        { icon: '🏖️', html: 'Select a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if you had swapped a working day onto it.', staffOnly: true },
-                        // It does NOT list the days — the preview is a COUNT and the span ("3 working days
-                        // … 1 Jul – 5 Jul"). Saying otherwise invited an admin to check something
-                        // that is not on the screen, on the one card that writes leave.
-                        { icon: '👀', html: 'Before you save you are told <strong>how many working days</strong> the range comes to and the dates it spans. Sundays are never in that count; a rest day is in it only where you have said it was a swapped working day. Check the number against what you meant to book.' },
-                        { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
-                        { icon: '🗓️', html: 'Leave in <strong>January</strong> comes out of that year’s allowance. When some is booked, a <strong>Which year’s allowance</strong> panel appears under the Record button, and a day can come out of the year before instead, while that year still has days left.' },
-                    ]},
-                ],
-            },
-            'sick-days': {
-                title: 'Record Absence',
-                sections: [
-                    { heading: 'What to use it for', items: [
-                        { icon: '🗓️', html: '<strong>Any kind of absence</strong>, for any number of days.' },
-                        { icon: '👨‍👩‍👧', html: 'Sickness, a family or domestic emergency, caring for a relative — it is all the same entry here.' },
-                        { icon: '🪑', html: 'You never say why. Only the dates are saved; the reason is not recorded anywhere in the app.' },
-                    ]},
-                    { heading: 'Good to know', items: [
-                        { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically. Sundays are never recorded as absence — a rostered Sunday in the range is set as a rest day, and the preview names it.' },
-                        { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and everybody can see it, the same as annual leave. What they cannot see is why.' },
-                    ]},
-                ],
-            },
-            // NOTE: the daily-huddle / weekly-roster / staff-login tips live in operations-app.js's
-            // CARD_TIPS, and `notifications` in settings-app.js's (those cards are on Operations and
-            // Settings, not Admin — this note said operations for all four). They used to
-            // be duplicated here as dead entries — removed v17.44 to kill the drift trap.
-            'saved-changes': {
-                title: 'Saved Changes',
-                sections: [
-                    { heading: 'Viewing', items: [
-                        { icon: '🔍', html: 'The list follows the <strong>member selected at the top of the page</strong>. Select <strong>All staff</strong> above the table for everyone\'s changes, and the same button again to come back.', adminOnly: true },
-                        { icon: '🔍', html: 'This list shows your own saved changes only.', staffOnly: true },
-                        { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on this month.', adminOnly: true },
-                        // Staff default to All months on purpose — see admin-saved-changes.js.
-                        { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on <strong>All months</strong>, so leave you have booked for later in the year is not hidden behind it.', staffOnly: true },
-                    ]},
-                    { heading: 'Editing and deleting', items: [
-                        { icon: '✏️', html: 'Select <strong>✎</strong> (Edit) on a change to adjust its type or time, then <strong>Save changes</strong>.' },
-                        { icon: '🗑️', html: 'Select <strong>✕</strong> (Delete), then again to confirm. That day goes back to whatever the roster originally said.' },
-                    ]},
-                    { heading: 'Where a change came from', adminOnly: true, items: [
-                        { icon: '📋', html: 'Entries marked <strong>PDF upload</strong> came in from a roster PDF. A later upload of the same week replaces them — they arrive in the review already ticked rather than flagged for a decision, because the PDF is the source for those days.' },
-                        { icon: '✍️', html: 'Everything else was entered by hand. If a later upload disagrees with one of those, it is flagged for you to decide rather than replaced.' },
-                    ]},
-                ],
-            },
-        };
-
-        // Managers pick members and see All staff exactly as the admin does, so they get the same tips (v24.56).
-        initTipsLightbox(CARD_TIPS, { getIsAdmin: () => currentIsAdmin || currentIsManager });
-    })();
-
-    // ============================================
-    // ROSTER LOGIC
-    // ============================================
+    // ---- Per-card tips lightbox: content in admin-tips.js, lifecycle and filtering in tips-lightbox.js ----
+    // Managers pick members and see All staff exactly as the admin does, so they get the same tips (v24.56).
+    initTipsLightbox(CARD_TIPS, { getIsAdmin: () => currentIsAdmin || currentIsManager });
 
     // ============================================
     // DOM
@@ -302,11 +172,9 @@ export function init() {
     const saveBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('saveBtn'));
     const formFeedback = /** @type {HTMLElement} */ (document.getElementById('formFeedback'));
 
-    // THE MEMBER BAR STAYS WHERE THE DOCUMENT PUTS IT (desktop audit, Nov 2026). From 1024px it was
-    // MOVED into `.col-side`, which drew it atop the right column and made the page's one member control
-    // the 23rd Tab stop, behind the whole Change a Shift card. admin.css now draws it there from its own
-    // place, so it comes straight after the header at every width. What CSS cannot know is three heights it
-    // lays out round — this bar's, the fixed Unsaved bar's (0 while hidden) and the over-allowance question's.
+    // THE MEMBER BAR STAYS WHERE THE DOCUMENT PUTS IT — straight after the header, an early Tab stop —
+    // and admin.css places it. What CSS cannot know is three heights it lays out round: this bar's,
+    // the fixed Unsaved bar's (0 while hidden) and the over-allowance question's.
     if (typeof ResizeObserver === 'function') {
         const root = document.documentElement, heights = new Map([[document.querySelector('.member-context-bar'), '--member-bar-h'],
             [document.getElementById('stagedBar'), '--staged-bar-h'], [document.getElementById('alConfirmBar'), '--al-confirm-h']]);
@@ -319,10 +187,7 @@ export function init() {
     // ============================================
     // POPULATE MEMBER DROPDOWNS
     // ============================================
-    // Order the optgroups by the shared CONFIG.GRADE_ORDER (single-sourced with login-overlay's dropdown,
-    // v17.05) rather than teamMembers insertion order — otherwise reordering a member row could silently
-    // break the documented CEA·CES·Dispatcher·Management grouping. Any role not listed falls to the end,
-    // order preserved. (v16.21)
+    // Optgroups in CONFIG.GRADE_ORDER (as the sign-in's), not teamMembers order; unlisted roles go last.
     const _GRADE_ORDER = CONFIG.GRADE_ORDER;
     const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))]
         .sort((a, b) => {
@@ -353,25 +218,17 @@ export function init() {
     function _setSelectValue(sel, val) {
         for (const o of sel.options) if (o.value === val) {
             o.selected = true;
-            // Announce it — see the same line in paycalc-periods.js `_setSelectPeriod`. Setting
-            // `selected` is invisible to every observer, so since v23.36 the enhanced trigger (the
-            // only member name on screen) kept whoever was chosen before. The self-service lock
-            // below survived only because it writes `disabled` straight afterwards, which IS
-            // observed; the runtime path did not — switching member on Change a Shift moved
-            // alMember/sickMember while both pickers went on naming the previous person.
+            // Announce it: setting `selected` is invisible to every observer, so the enhanced trigger —
+            // the only member name on screen — would keep naming the previous person (select-sheet-parity 8).
             sel.dispatchEvent(new Event('input', { bubbles: false }));
             return true;
         }
         return false;   // no matching option — caller may need to handle (e.g. a hidden/leaver member)
     }
 
-    // Restore the last-used member from the shared cross-page key (written by both index and admin)
-    // so navigating between pages keeps the same person selected. It must still be SELECTABLE
-    // (exists AND not hidden): populateMemberDropdown omits hidden members, so a stale name would
-    // leave the STAFF MEMBER dropdown blank — reject and clear it (v12.32). With nothing to restore,
-    // the first member is chosen HERE, not left to the engine (v25.24): Chromium skips the disabled
-    // "— Select member —" by itself, but WebKit 2359 (Safari 26.6) does not, which gave an admin or
-    // manager a blank member and no week. applyPermissions still locks staff to their own name.
+    // Restore the last-used member from the shared cross-page key — if still SELECTABLE (not hidden),
+    // or the field would be blank. With nothing to restore the first member is chosen HERE: WebKit,
+    // unlike Chromium, does not skip the disabled placeholder. applyPermissions still locks staff.
     const _savedMember = lsGet(SELECTED_MEMBER);
     const lastMember = (_savedMember && teamMembers.find(m => m.name === _savedMember && !m.hidden))
         ? _savedMember : null;
@@ -389,10 +246,7 @@ export function init() {
     const _urlDate = new URLSearchParams(location.search).get('date');
     fieldDate.value = linkableDate(_urlDate) ? /** @type {string} */ (_urlDate) : formatISO(new Date());
     fieldDate.min = `${CONFIG.MIN_YEAR}-01-01`; fieldDate.max = `${CONFIG.MAX_YEAR}-12-31`;   // the configured years; the date picker greys out past them
-    // Delegate to updateWeekNavLabel (admin-overrides.js) rather than rebuilding the same string
-    // here (v18.90). The two copies had to agree on the format and didn't after the same-month
-    // collapse landed — the init one changed, the one that actually runs on every week change did
-    // not, so the label reverted on the first navigation. One writer now owns the format.
+    // One writer owns the label's format (admin-week-editor.js).
     updateWeekNavLabel(fieldDate.value);
 
     // ============================================
@@ -404,18 +258,15 @@ export function init() {
     // dataset.type (which is set by the pre-fill as well).
     let userMadeChanges = false;
 
-    /** True if the user has edited the week grid AND something is still staged. Derived rather than
-     *  cleared by hand (review A4/A7): loads and Saved-Changes deletes keep staged rows on screen but
-     *  used to clear the flag through onAfterSave, and an all-"free" save cleared nothing. */
+    /** True if the user has edited the week grid AND something is still staged — derived, never
+     *  cleared by hand, since loads and deletes keep staged rows on screen. */
     function hasUnsavedChanges() { return userMadeChanges && _hasStagedEdits(); }
 
     /** Marks the grid as having unsaved changes. Call on any user interaction. */
     function markChanged() {
         userMadeChanges = true;
-        // A new edit invalidates a showing AL over-limit bar: its captured batch predates this edit,
-        // so "Save anyway" would write a stale snapshot and the success path would then deactivate
-        // the rows, silently discarding the newer edit (v16.69 review fix). The admin re-taps Save,
-        // which recollects and re-checks.
+        // A new edit invalidates a showing over-limit bar: its batch predates the edit, and "Save anyway"
+        // would write it and discard the newer edit. Save again recollects and re-checks.
         hideALConfirm();
     }
 
@@ -444,11 +295,7 @@ export function init() {
             // the saved reference so it can't be restored over the new view.
             _bannerReturnFocus = null;
             userMadeChanges = false;
-            // Disarm any pending AL over-limit confirm bar too (v16.80 review fix): discarding
-            // staged edits mid-flow must not leave "Save anyway" armed with the batch the admin
-            // just threw away — otherwise a later tap writes overrides they explicitly discarded.
-            // The v16.69 disarm sweep covered markChanged / member-change / stagedDiscardBtn but
-            // not this banner path.
+            // …and disarm the over-limit bar, or "Save anyway" writes the batch just discarded.
             hideALConfirm();
             if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; fn(); }
         });
@@ -459,8 +306,7 @@ export function init() {
             _bannerReturnFocus?.focus?.();
             _bannerReturnFocus = null;
         });
-        // Escape is "Keep editing" (desktop audit, Nov 2026), as it declines every other question in the
-        // app — but not while a dialog is open over the banner: that Escape is the dialog's.
+        // Escape is "Keep editing", as it declines every question — unless a dialog over it owns that Escape.
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape' && banner.style.display === 'flex' && !document.body.classList.contains('lb-open')) keepBtn.click();
         });
@@ -504,23 +350,15 @@ export function init() {
             fieldDate.value = formatISO(d);
             lastFieldDate = fieldDate.value;
             renderWeekGrid();
-            // Match the swipe-commit + fieldDate-change paths: refresh the AL banner + booked boxes so a
-            // Dec→Jan week jump doesn't leave the previous year's entitlement/taken figures showing
-            // (updateALBanner infers the year from fieldDate when no range is picked) (v16.21).
+            // As the swipe and the date field: a Dec→Jan jump must not leave last year's figures showing.
             updateALBanner(); updateALBookedBox(); updateSickBookedBox();
         };
         if (confirmNavigate(go)) go();
     }
 
-    // The week label IS the date picker's trigger (v23.38). It used to be a <span> with an
-    // invisible full-size `<input type="date">` laid over it, so a tap opened the OS calendar —
-    // the one control on this page still drawn by the platform, next to a range picker and a
-    // week grid the app draws itself. `date-picker.js` was built for exactly this and given to
-    // Operations' four date fields; Admin's was never wired up.
-    //
-    // The input stays as the value holder, so every consumer is untouched: the picker writes
-    // `.value` and dispatches `change`, which is the SAME event the OS picker fired — so the
-    // unsaved-changes guard below still gets its say, and still reverts on a decline.
+    // The week label IS the app's date picker's trigger (the OS draws nothing the app can). The input
+    // stays the value holder: the picker writes `.value` and dispatches `change`, so the unsaved-changes
+    // guard below still gets its say, and still reverts on a decline.
     /** @type {HTMLElement} */ (document.getElementById('weekNavLabel'))
         // `week: true` — this grid's week runs Sunday–Saturday, so the picker does too, and bands it.
         .addEventListener('click', () => openDatePicker(fieldDate, { title: 'Jump to a week', week: true }));
@@ -528,7 +366,7 @@ export function init() {
     /** @type {HTMLElement} */ (document.getElementById('thisWeekBtn')).addEventListener('click', () => {
         const go = () => {
             fieldDate.value = formatISO(new Date()); lastFieldDate = fieldDate.value; renderWeekGrid();
-            updateALBanner(); updateALBookedBox(); updateSickBookedBox();   // keep the banner year in sync (v16.21)
+            updateALBanner(); updateALBookedBox(); updateSickBookedBox();   // keep the banner year in sync
         };
         if (confirmNavigate(go)) go();
     });
@@ -562,7 +400,7 @@ export function init() {
     /** The year the AL range picker is SHOWING, or null until it crosses a year (see admin-al-year.js). */
     let alPickerViewYear = /** @type {number|null} */ (null);
 
-    // WHICH YEAR'S ALLOWANCE A JANUARY LEAVE DAY COMES OUT OF (v25.18): admin-leave-year.js. Built
+    // WHICH YEAR'S ALLOWANCE A JANUARY LEAVE DAY COMES OUT OF: admin-leave-year.js. Built
     // BEFORE `updateALBanner`, which reads it, so no first call can find it uninitialised.
     const _leaveYearPanel = initLeaveYearPanel({
         getMember: () => teamMembers.find(m => m.name === alMember?.value) ?? null,
@@ -584,14 +422,11 @@ export function init() {
         const warnEl      = /** @type {HTMLElement} */ (document.getElementById('alBannerWarn'));
         if (!alMember || !banner) return;
         const memberName  = alMember.value;
-        _leaveYearPanel?.refresh();   // the same moment as this banner, before any exit below (v25.18)
+        _leaveYearPanel?.refresh();   // the same moment as this banner, before any exit below
 
-        /** Hide every figure this card states. There are now three ways to have nothing truthful to
-         *  say — no member selected, a name that resolves to nobody, and a member with no
-         *  entitlement on record (v22.45) — and all three must clear the HEADER chip as well as the
-         *  banner. The middle one did not: it hid the banner and left "AL left: 32" sitting in the
-         *  collapsed header, the previous member's number under the new member's name. Found while
-         *  adding the third; one shared exit is why a fourth cannot repeat it. */
+        /** Hide every figure this card states — the banner AND the header chip, or the previous
+         *  member's "AL left" sits under the new member's name. ONE exit for every way to have nothing
+         *  truthful to say. */
         const showNothing = () => {
             banner.hidden = true;
             const _hb = document.getElementById('alHeaderBalance');
@@ -603,9 +438,7 @@ export function init() {
         const member      = teamMembers.find(m => m.name === memberName);
         if (!member)      { showNothing(); return; }
 
-        // A FOURTH WAY TO HAVE NOTHING TRUTHFUL TO SAY: this member's overrides were never read
-        // (v23.08). Every figure below comes from `getAllOverrides()`, where an unread member and a
-        // member with no leave are the same empty slice — see admin-override-coverage.js's header.
+        // Nor for a member whose overrides were never read: unread and no leave are the same empty slice.
         if (!hasOverrideAuthorityFor(memberName)) { showNothing(); return; }
 
         // WHICH YEAR THESE FOUR FIGURES DESCRIBE — the precedence between the four places this page
@@ -622,12 +455,8 @@ export function init() {
             todayStr: formatISO(new Date()),
         });
 
-        // NO ENTITLEMENT ON RECORD → SHOW NO FIGURES (v22.45). Unreachable today (a Management
-        // account is `hidden`, so it is in no selector), which is exactly why the old
-        // fall-through to 32 sat here unnoticed. Hiding is the honest answer: every number in this
-        // banner is derived from the entitlement, and there is nothing truthful to put in them.
-        // Both are checked, not just one: they come back null together, and asking about each is
-        // what lets the type checker prove the arithmetic below can never see one.
+        // NO ENTITLEMENT ON RECORD → SHOW NO FIGURES: every number here derives from it. Both are
+        // checked — they are null together — so the type checker can prove the arithmetic never sees one.
         if (entitlement === null || remaining === null) { showNothing(); return; }
 
         remEl.textContent    = String(remaining);
@@ -638,10 +467,8 @@ export function init() {
         const entLbl = document.getElementById('alBannerLblEntitlement');
         if (entLbl) entLbl.textContent = `${yearStr} entitlement`;
 
-        // What the entitlement is made of — a Dispatcher's base and bank-holiday days, anybody's
-        // Boxing Day in lieu (v25.37) — in ONE line shared with the Calendar's leave panel
-        // (`entitlementNote`). Never `entitlement - 22`: for a mid-year joiner that went NEGATIVE
-        // and read `22 base + -8 BH lieu` about a real person (al-entitlement.js → dispatcherBreakdown).
+        // What the entitlement is made of, in ONE line shared with the Calendar's leave panel
+        // (`entitlementNote`). Never `entitlement - 22`, which goes negative for a mid-year joiner.
         const breakdownEl = document.getElementById('alBannerBreakdown');
         if (breakdownEl) {
             const note = entitlementNote({ member, year: yearStr, overrides: getAllOverrides() });
@@ -662,8 +489,7 @@ export function init() {
         if (headerBalEl && headerRemEl) {
             headerRemEl.textContent = String(remaining);
             headerBalEl.hidden = false;
-            // Header context chip (v18.16 — shared .card-year-chip, the paycalc-parity pattern);
-            // .al-left-chip modifiers colour the low/none states.
+            // The shared .card-year-chip; .al-left-chip modifiers colour the low/none states.
             headerBalEl.className = 'card-year-chip al-left-chip'
                 + (remaining <= 0 ? ' balance-none' : remaining <= 5 ? ' balance-low' : '');
         }
@@ -716,12 +542,9 @@ export function init() {
             // misses). 'shift' and 'rdw' share the same timed value composition, so this flows cleanly.
             if (type === 'shift' && isSunday(date)) type = 'rdw';
 
-            // ── THE SWAPPED-DAY ANSWER IS REQUIRED (v23.75) ──────────────────────────────────
-            // AL on a base REST day costs nothing unless the member was SWAPPED onto it, and only
-            // the person recording it knows which. Until v23.75 this path wrote the leave and let it
-            // cost nothing, silently — three of one member's days went missing that way and were
-            // found only by comparing against the depot's workbook. The row asks; this refuses to
-            // save it unanswered, which is the owner's rule and the whole point (al-swapped-days.js).
+            // ── THE SWAPPED-DAY ANSWER IS REQUIRED ───────────────────────────────────────────
+            // AL on a base REST day costs nothing unless the member was SWAPPED onto it, which only the
+            // person recording it knows. The row asks; this refuses to save it unanswered (al-swapped-days.js).
             if (type === 'annual_leave' && row.dataset.alSwapAsk === '1' && !row.dataset.alSwap) {
                 row.classList.add('row-error');
                 errors.push(`${formatDisplay(date)}: say whether this rest day was a swapped working day`);
@@ -739,11 +562,8 @@ export function init() {
                 errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
                 return;
             }
-            // Read the flavour BEFORE the Sunday guard (v18.91). Spare sits under the Other pill but
-            // is its own override type and IS legal on a Sunday — the roster import can even create
-            // one. With the guard ahead of the SPARE route below, a Sunday Spare row failed with
-            // 'an "Other" day cannot be recorded on a Sunday' — wrong on its face, and because the
-            // save aborts the whole batch it blocked every other staged change in that week too.
+            // The flavour BEFORE the Sunday guard: Spare sits under the Other pill but is its own type,
+            // and IS legal on a Sunday.
             const otherFlavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour;
             if (type === 'other' && isSunday(date) && otherFlavour !== 'SPARE') {
                 row.classList.add('row-error');
@@ -762,27 +582,19 @@ export function init() {
                 // defaults apply (base shift on a rostered day, 8h RDW on an Other rest-day) —
                 // but a half-filled or malformed pair is still an error.
                 const flavour = otherFlavour;
-                // Force an explicit flavour choice — no silent Training default (owner decision,
-                // v15.56): a manager recording an induction/assessment/team day who didn't tap a
-                // type would otherwise have it saved as Training.
+                // An explicit flavour choice — no silent Training default (owner decision).
                 if (!flavour) {
                     row.classList.add('row-error');
                     errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day, Union, Meeting or Spare)`);
                     return;
                 }
                 if (flavour === 'SPARE') {
-                    // Spare lives under the Other pill but is its OWN override type — a standby
-                    // placeholder (not a worked day; keeps its 📋 purple badge; no RDW/times). Write
-                    // it directly as spare_shift and skip the Other-family grammar below. (v15.57)
+                    // Spare is its OWN type — a standby placeholder, no RDW or times: written as spare_shift.
                     toSave.push({ memberName, date, type: 'spare_shift', value: 'SPARE', note, existingId: row.dataset.existingId || null });
                     return;
                 }
-                // Compose the value through override-utils' composeOtherValue — the WRITER half of
-                // the grammar, sitting next to parseOtherValue (its reader) so the two can't drift
-                // (v18.85; this was inline + untested here). Rest-day base FORCES the RDW marker
-                // regardless of the tick: the pay engine and both display layers derive RDW-ness
-                // from a rest-day base anyway (as-base would pay £0), so storing a bare 'TRG' for
-                // such a day would make the saved value lie about the behaviour the app honours.
+                // composeOtherValue is the grammar's WRITER, beside its reader parseOtherValue. A rest-day
+                // base FORCES the RDW marker, or the saved value would lie about how the day is paid.
                 const _composed = composeOtherValue({
                     flavour,
                     rdwTicked: (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked,
@@ -836,25 +648,13 @@ export function init() {
         if (dayRules.errors.length)           return showError("Can't save — " + dayRules.errors.join(' · '));
         if (!toSave.length && !toDelete.length) return showError('No changes to save.');
 
-        // Both the rest-gap validation below (validateShiftRules → getEffectiveShift reads _allOverrides
-        // for the ±1 adjacent days) and the AL over-entitlement check depend on the loaded cache. Wait for
-        // the initial load so they never run cold (the v16.85 race: an adjacent SAVED shift invisible → a
-        // real <12h rest gap missed and an invalid shift written, or a valid save wrongly BLOCKED against
-        // the base shift). Disable the Save button FIRST so this await can't open a cold-cache double-tap
-        // window (the v16.23 "disable before the first await" invariant); the finally restores the button
-        // on every exit path (executeSave manages it on its own path too — the extra updateSaveBtn is a
-        // harmless recompute). (v16.85) IN-FLIGHT, not merely disabled (v24.26): any keystroke re-ran
-        // updateSaveBtn during this wait and re-armed Save — the double-tap the line exists to stop.
+        // The rest-gap check (adjacent days) and the entitlement check read the cache, so wait for the
+        // load — Save IN FLIGHT first, not merely disabled, or a keystroke re-arms it during the wait.
+        // The finally restores it on every exit.
         setSaveInFlight(true);
         await whenOverridesReady();
-        // A failed initial load leaves the cache empty — validateShiftRules would see no adjacent
-        // shifts (a real <12h rest gap missed) and the AL entitlement check would read zero existing
-        // leave. Refuse to validate/save against it and prompt a reload (Finding #2, v16.97). The
-        // finally restores the button; this returns BEFORE the misleading validation runs.
-        // ASK ABOUT THIS MEMBER (v21.38). It used to ask whether the load had succeeded, which was the
-        // same question while the load fetched everybody. Now it is not: the cache can be loaded and
-        // hold nothing about the member on screen, and the checks below (rest gap, AL entitlement)
-        // would then be built from an absence they cannot distinguish from an empty week.
+        // …and refuse unless THIS MEMBER's records were read: an unread member reads as an empty week,
+        // a rest gap missed and no leave taken.
         if (!hasOverrideAuthorityFor(fieldMember?.value)) return showError(globalThis.navigator?.onLine === false
             ? "You're offline, so this member's saved changes can't be checked — reconnect, then save."
             : "Still loading this member's saved changes — try again in a moment.");
@@ -896,10 +696,7 @@ export function init() {
             console.error('[Admin] Save handler error:', err);
             showError('Unexpected error — please reload and try again.');
         } finally {
-            // Restore the Save button on every exit path — including the two early returns that don't
-            // reach executeSave (rest-gap error; AL over-entitlement → showALConfirm, whose own bar button
-            // drives executeSave and so doesn't depend on this button). updateSaveBtn recomputes the
-            // enabled/label state from the grid, so it re-arms after the disable above. (v16.85)
+            // Restore the Save button on every exit path, recomputed from the grid.
             setSaveInFlight(false);
         }
     });
@@ -908,8 +705,7 @@ export function init() {
     document.getElementById('stagedSaveBtn')?.addEventListener('click', () => saveBtn.click());
     document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
         userMadeChanges = false;
-        // The bar's captured batch is exactly what was just discarded — "Save anyway" after a discard
-        // must not write it back (v16.69 review fix).
+        // "Save anyway" after a discard must not write the batch back.
         hideALConfirm();
         renderWeekGrid();
     });
@@ -935,14 +731,12 @@ export function init() {
         name.textContent = who;
         row.hidden = !who;
     }
-    // The two cards' read-only "Staff member" labels are gone from admin.html (whole-app check, Nov 2026 —
-    // hidden for good, still written to); "Recording for" is what each card says about its member now.
+    // "Recording for" is what each card says about its member.
     function syncMemberDisplay()     { _syncMemberFor('alMemberFor', 'alMemberForName'); }
     function syncSickMemberDisplay() { _syncMemberFor('sickMemberFor', 'sickMemberForName'); }
 
-    // Preview refreshers exposed by initALSection / initSickSection (assigned when those
-    // run, further down). Called on member change so the AL/absence previews can't keep
-    // naming the previously-selected person or their rest-day count. (stale-preview fix)
+    // Preview refreshers from initALSection / initSickSection (assigned further down), called on a
+    // member change so neither preview keeps naming the previous person.
     /** @type {(() => void) | null} */ let _refreshAlPreview   = null;
     /** @type {(() => void) | null} */ let _refreshSickPreview = null;
 
@@ -962,17 +756,14 @@ export function init() {
         updateALBanner(); updateALBookedBox(); updateSickBookedBox();
         _refreshAlPreview?.();   // an already-picked range must not keep naming the previous member
         _refreshSickPreview?.();
-        // The over-limit bar was computed for the PREVIOUS view: "Save anyway" must not book the new
-        // member with the entitlement check skipped (v16.69 review fix).
+        // The over-limit bar was for the PREVIOUS view: "Save anyway" must not book the new member unchecked.
         hideALConfirm();
     }
     fieldMember.addEventListener('change', () => {
         const chosen   = fieldMember.value;
         const previous = lastFieldMember;
         const go = () => {
-            // Re-assert the value: on the unsaved-changes path the select was reverted to
-            // `previous` (line below) and the banner's Discard runs this later, so without
-            // this the field would stay on the old member while the grid switched. (v12.32)
+            // Re-assert: on the unsaved-changes path the select was reverted to `previous` below.
             _setSelectValue(fieldMember, chosen);
             _followMember(chosen);
             resetTableMemberFilter(); // also calls renderTable internally
@@ -1018,10 +809,7 @@ export function init() {
         const memberName = btn.dataset.member || '';
         const date       = btn.dataset.date || '';
         const go = () => {
-            // A hidden/leaver member is NOT in the STAFF MEMBER dropdown (populateMemberDropdown omits
-            // them), so _setSelectValue can't switch to them — proceeding would silently edit whoever is
-            // currently selected. Abort with a message instead (v16.84 review fix). To touch a leaver's
-            // record, un-hide the member first, or just delete the row from Saved Changes.
+            // A hidden member is not in the dropdown, and going on would edit whoever IS selected.
             if (!_setSelectValue(fieldMember, memberName)) {
                 showError(`${memberName} isn't in the staff list (hidden or left) — can't edit their entry here. Delete it from Saved Changes, or un-hide the member first.`);
                 return;
@@ -1062,11 +850,8 @@ export function init() {
             // The grid was rebuilt fresh from saved data — no pending edits remain.
             userMadeChanges = false;
         };
-        // Re-pointing the grid re-renders it, which would silently discard any UNSAVED
-        // week-grid edits. Guard it the same way every other navigation does (member/date
-        // change, edit-from-table): if the grid is dirty, show the Discard/Keep-editing
-        // banner instead of wiping the staged edits. The AL/absence save has already
-        // committed; this only governs whether the grid jumps to reflect it. (data-loss fix)
+        // Re-pointing the grid would discard UNSAVED edits, so it asks as every navigation does. The
+        // booking has already committed; this only governs whether the grid jumps to it.
         if (confirmNavigate(go)) go();
     }
 
@@ -1100,11 +885,8 @@ export function init() {
             details.appendChild(ul);
             formFeedback.appendChild(details);
         }
-        // A RECEIPT DOES NOT TIME OUT (v21.38, review). A plain confirmation can fade, but the fold
-        // is an interactive control: hiding it on a timer takes focus off whatever the user was
-        // reading and dumps it on <body>, and a manager checking a seven-day batch against a paper
-        // request can easily outlast any number we would have picked. It stays until the next save,
-        // the next error, or a member change — each of which replaces the block outright.
+        // A RECEIPT DOES NOT TIME OUT: the fold is an interactive control, and a timer would drop focus
+        // on <body> mid-check. It stays until the next save, error or member change replaces it.
         if (!lines?.length) _feedbackTimer = setTimeout(hideFeedback, 7000);
 
         // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
@@ -1114,7 +896,7 @@ export function init() {
     /**
      * The bottom-anchored confirmation — visible whatever the scroll position, which is the point:
      * the inline feedback lines sit at the TOP of their cards, and the control that was just used
-     * can be a screen's height below them. Shared by Save and by a recorded-dates delete (v23.09).
+     * can be a screen's height below them. Shared by Save and by a recorded-dates delete.
      * @param {string} msg
      */
     function showToast(msg) {
@@ -1184,19 +966,15 @@ export function init() {
         _alResume        = null;
         _alPendingSkipped = [];
         _alPendingKept    = [];
-        // Disarm the button too: the slide-out keeps the bar hit-testable for 0.25s, and with
-        // _alPendingSave just nulled a tap in that window would fall through to the AL-booking
-        // branch (an entitlement-unchecked booking). showALConfirm re-arms it. (v16.69)
+        // Disarm the button too: hit-testable through the 0.25s slide-out, a tap would fall through to
+        // the AL-booking branch unchecked. showALConfirm re-arms it.
         alConfirmSaveBtn.disabled = true;
     }
 
     alConfirmSaveBtn.addEventListener('click', async () => {
-        // Disable immediately: the bar's slide-out keeps it hit-testable for 0.25s (CSS visibility
-        // delay), so without this a fast double-tap on the week-editor path would see _alPendingSave
-        // already nulled by hideALConfirm and fall into the AL-booking branch — an unintended,
-        // entitlement-unchecked AL write. Re-enabled by showALConfirm the next time the bar opens.
+        // Disabled at once, for the same slide-out: a double-tap would fall into the unchecked AL branch.
         if (alConfirmSaveBtn.disabled) return;
-        // ONE WRITE AT A TIME (v24.38), this button too (Nov 2026): a booking still sending holds the lock, which this save's end released.
+        // ONE WRITE AT A TIME, this button too: a booking still sending holds the lock.
         if (_alPendingSave && isSaveInFlight()) return showError('Another change is still saving — try again when it has finished.');
         alConfirmSaveBtn.disabled = true;
         if (_alPendingSave) {
@@ -1218,25 +996,18 @@ export function init() {
     alConfirmCancelBtn.addEventListener('click', () => {
         hideALConfirm();
         saveBtn.textContent = 'Save changes';
-        // Let staged-row state govern the week-editor Save's disabled state (v16.23). The confirm bar
-        // is shared by the AL-BOOKING card too — force-enabling here on that path left a primary
-        // action enabled with ZERO staged rows (clicking only yielded "No changes to save").
-        updateSaveBtn();
-        // …and focus back to the Save that asked (whole-app check, Nov 2026): left here, it sat on a hidden button.
+        updateSaveBtn();   // staged rows govern Save: the bar is the AL card's too
+        // …and focus back to the Save that asked, not a hidden button.
         if (_alOpener?.isConnected && !(/** @type {any} */ (_alOpener)).disabled) _alOpener.focus();
     });
 
     // ============================================
     // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
     // ============================================
-    // The TWO dropdowns on this page open the app's own sheet, not the OS one (v23.33). `alMember`
-    // and `sickMember` were in this list until v23.74 and must not come back: they are `hidden`
-    // value holders, not controls — the member is chosen ONCE, in the top bar — and enhancing them
-    // built a second, fully operable member picker inside each card. Picking a name there moved the
-    // value the SAVE reads while every visible label stayed on the previous member, so the card
-    // could record leave against one person under another's name and entitlement. One member
-    // control on the page is the whole point of the top bar; see select-sheet.js's hidden-select
-    // note, and `select-sheet-parity.test.mjs`, which now refuses a hidden id in this list.
+    // The TWO dropdowns open the app's own sheet. `alMember` and `sickMember` must never join: they
+    // are `hidden` value holders — the member is chosen ONCE, in the top bar — and enhancing them made a
+    // second picker that moved what the SAVE reads under another person's name. select-sheet-parity
+    // refuses a hidden id here.
     initSelectSheets([
         { id: 'fieldMember',          title: 'Which member are you working on?', searchLabel: 'Search staff' },
         { id: 'overridesMonthFilter', title: 'Show which month?' },
@@ -1247,8 +1018,7 @@ export function init() {
         syncMemberDisplay,
         populateMemberDropdown, lastMember,
         updateALBanner, updateALBookedBox, updateSickBookedBox,
-        // ONLY the AL picker feeds this — the Sick card has a picker too and no per-year figure
-        // above it (admin-sick.js says so). The first cut wired it there; `tsc` caught it, no test.
+        // ONLY the AL picker feeds this: the Absence card has no per-year figure (admin-sick.js).
         setALPickerYear: (/** @type {number} */ y) => { alPickerViewYear = y; },
         getCurrentUser: () => currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
         showSuccess,
@@ -1277,28 +1047,18 @@ export function init() {
      * @param {number} [listedCount]  How many days the row showed — what the confirmation reports
      */
     async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn, listedCount) {
-        // Scope the delete so an overlapping range's shared Sunday RD-correction is not
-        // stripped. The previous check looked for an AL/sick record ON the Sunday, which the
-        // range writer never creates (Sundays are non-contracted) — so it always removed the
-        // correction, even when another overlapping range still needed it. The pure helper
-        // keeps a Sunday correction whenever a remaining AL/sick override is adjacent to it.
+        // Scoped so a Sunday RD correction another range still needs is kept (computePeriodDeleteIds).
         const allForDelete = getAllOverrides();
         const memberObj = teamMembers.find(m => m.name === memberName);
         const deleteIds = computePeriodDeleteIds(allForDelete,
             { type, memberName, start, end, isRestGap: d => isRestGap(d, memberObj) });   // edge Sunday (A1)
-        // THE BUTTON'S STATES ARE NOT THIS FUNCTION'S TO SET — admin-booked-periods.js owns them and
-        // restores idle when the promise this returns settles. It used to write the word "Delete"
-        // back into what is now a glyph control, on exactly the paths where the row stays on screen.
+        // THE BUTTON'S IDLE STATE IS admin-booked-periods.js's, restored when this promise settles.
         if (!deleteIds.length) return;
         const idSet = new Set(deleteIds);
-        // The DAYS the row listed (review A15), not documents: duplicates, uncounted rest-day leave and
-        // the Sunday corrections are deleted too, and none of them is a day the row showed.
+        // The DAYS the row listed, not documents: duplicates and corrections are no day it showed.
         const leaveCount = listedCount ?? new Set(allForDelete.filter(o => idSet.has(o.id) && o.type === type).map(o => o.date)).size;
-        // Wait for the Firebase Auth session to (re-)establish before writing, and surface a clear
-        // message if it hasn't — parity with executeSave(). A returning user has a valid LOCAL session
-        // but auth.currentUser is briefly null while Firebase restores; a delete fired in that window
-        // gets a permission-denied that writeWithClaimRetry can't recover (no currentUser to refresh),
-        // showing a false "Delete failed" for a session that is merely still loading (v16.19).
+        // Wait for the session, as executeSave() does: auth.currentUser is briefly null while a returning
+        // session restores, and a delete then would report a false "Delete failed".
         await sessionReady;
         if (!auth.currentUser) {
             if (feedbackEl) {
@@ -1312,17 +1072,15 @@ export function init() {
         btn.disabled    = true;
         btn.textContent = '…';
         try {
-            // Re-runnable thunk so a stale-claim manager's period delete self-heals via writeWithClaimRetry. The
-            // rows this card LISTED are compared with the server and deleted in ONE transaction (v25.89).
+            // The rows this card LISTED are compared with the server and deleted in ONE transaction.
             await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(allForDelete.filter(o => idSet.has(o.id)))), { held: false });
-            removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage (v21.38)
+            removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage
             renderTable();
             updateALBanner();
             updateALBookedBox();
             updateSickBookedBox();
             _refreshAlPreview?.(); _refreshSickPreview?.();   // a range already picked was drawn over the deleted days (admin-2-2)
-            // The week follows the delete (admin-own-write.js): only the deleted days' rows while edits are staged (v16.82), a
-            // change staged on one of them cleared — and named below, where the toast's short line has no room for it.
+            // The week follows the delete (admin-own-write.js): a change staged on a deleted day is cleared, named below.
             const cleared = syncWeekAfterOwnWrite(allForDelete.filter(o => idSet.has(o.id)));
             const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
             const said = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;
@@ -1331,9 +1089,7 @@ export function init() {
                 feedbackEl.className = 'feedback success';
                 if (!cleared.length) fadeFeedback(feedbackEl, 'feedback', 6000);   // the line's ONE fade, which a later message cancels (admin-2-7)
             }
-            // The inline line above sits at the top of the card; the row that was just deleted can
-            // be a screen below it. A destructive action whose confirmation lands off-screen is one
-            // the admin repeats — so it gets the same toast Save does (v23.09).
+            // The inline line can be a screen above the deleted row, so the same toast Save gets.
             showToast(said);
         } catch (err) {
             console.error('[Admin] Period delete failed:', err);
@@ -1357,16 +1113,11 @@ export function init() {
         }
     }
 
-    // The four pure answers behind the booked-date lists — stepping a date, what counts as a gap,
-    // and the wording — live in admin-period-dates.js (v23.54). They were already handed OUT of
-    // this closure as named collaborators below, which is what made keeping them in it arbitrary.
-
-    // THE RECORDED-DATES LIST lives in admin-booked-periods.js (v23.09) — it grew a year selector,
-    // and choosing a year is precedence, which belongs somewhere it can be tested with no DOM.
-    // Every handle it needs is passed in here; nothing about the list is decided in this file.
+    // THE RECORDED-DATES LIST is admin-booked-periods.js (its date helpers admin-period-dates.js);
+    // every handle it needs is passed in here, and nothing about the list is decided in this file.
     const _bookedPeriods = createBookedPeriods({
         doc: document,
-        // THE WINNER MAP, not a filter over every historical document (v23.79) — resolve which doc
+        // THE WINNER MAP, not a filter over every historical document — resolve which doc
         // owns the date first, then ask what it is. Why it matters: al-entitlement.js.
         getEntries: (memberName, type) => winningEntriesOfType(getAllOverrides(), memberName, type),
         hasAuthority: hasOverrideAuthorityFor,
@@ -1386,7 +1137,7 @@ export function init() {
         onRendered:   boxId => _landing.settle(boxId),
     });
 
-    // The Calendar's leave panel links here for one year (`?alYear=2027#alBookedBox`, v24.46).
+    // The Calendar's leave panel links here for one year (`?alYear=2027#alBookedBox`).
     const _linkedAlYear = new URLSearchParams(location.search).get('alYear');
     if (_linkedAlYear && /^\d{4}$/.test(_linkedAlYear)) _bookedPeriods.pin('alBookedBox', _linkedAlYear);
 
@@ -1419,20 +1170,14 @@ export function init() {
     function applyPermissions() {
         if (currentIsAdmin || currentIsManager) return; // full access — nothing to restrict
 
-        // Non-admin: lock all member selectors to their own name.
-        // Flag it on <body> so the mobile sticky-member-bar rule can opt OUT for these
-        // self-service users — their bar shows only their own (unchangeable) name, so
-        // pinning it would just cost vertical space. Admins/managers (who switch between
-        // people and can lose track on scroll) keep the sticky bar.
+        // Non-admin: lock every member selector to their own name, and flag <body> so the sticky
+        // member bar (admin.css) stands down for a name that cannot change.
         document.body.classList.add('member-locked');
         const _memberSelectable = _setSelectValue(fieldMember, currentUser);
         if (!_memberSelectable) {
-            // currentUser isn't a selectable (non-hidden) member — a leaver whose Firebase account
-            // wasn't disabled yet but still holds a valid 60-day session. Without this, the three
-            // DISABLED selects stay pinned to the FIRST member in the dropdown, so any AL/absence/shift
-            // booking would silently target the WRONG person (changedBy is real, target is not). Clear
-            // the selects so their value is '' and every write path's `if (!member) return` guard blocks,
-            // and surface a clear message. (v16.21)
+            // Not selectable — a leaver whose session is still valid. The disabled selects would stay on
+            // the FIRST member, so every booking would target the WRONG person: clear them, so every
+            // write path's `if (!member) return` blocks, and say why.
             fieldMember.selectedIndex = -1;
             alMember.selectedIndex = -1;
             sickMember.selectedIndex = -1;
@@ -1449,26 +1194,19 @@ export function init() {
         alMember.disabled     = true;
         _setSelectValue(sickMember, currentUser);
         sickMember.disabled   = true;
-        // And the absence card's member row (v16.23): with the select disabled no change event ever
-        // re-syncs it. (Its read-only label, which once showed a colleague's name here, is gone.)
+        // And the absence card's member row: with the select disabled no change event re-syncs it.
         syncSickMemberDisplay();
         lsSet(SELECTED_MEMBER, currentUser);
 
         // Reword card hints to use first-person language for self-service users
         const sickHint = document.querySelector('#sickToggleHeader .hint');
         const savedHint = document.querySelector('#overridesToggleHeader .hint');
-        // NO AL hint here (v23.90): admin.html's own text is already audience-neutral, and this line
-        // overwrote it with the pre-v23.75 rule. One sentence, one home — al-copy-parity.test.mjs.
+        // NO AL hint here: admin.html's own is audience-neutral. One sentence, one home (al-copy-parity).
         if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
         if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
-        // The Annual Leave card used to auto-open here, on the reasoning that self-service staff
-        // mostly come to book leave. It stopped at v21.38 for the task row, and the task row itself
-        // was removed at v21.40 (owner: clutter) — so nothing auto-opens now and every card ships
-        // collapsed for everyone. Re-adding the auto-open is a real option if self-service staff ask
-        // for it; what it must not become again is a SECOND writer of a collapse state something
-        // else also sets, which is how the arrow and its card ended up disagreeing before.
-        // The scroll-first self-service experience is a recorded decision — DECISIONS.md → "Admin task navigator".
+        // Nothing auto-opens: every card ships collapsed for everyone. An auto-open must never be a
+        // SECOND writer of a collapse state. DECISIONS.md → "Admin task navigator".
     }
 
     // ============================================
@@ -1481,23 +1219,17 @@ export function init() {
             memberName: alMember.value,
             boxId:      'alBookedBox',
             bodyId:     'alBookedBody',
-            // THE SAME RULE THE BANNER ABOVE USES. Not a copy of it — the function itself, so the
-            // list and the entitlement cannot answer differently about the same day. A rest day
-            // carrying an AL override spends nothing, and used to be listed and counted anyway.
+            // THE SAME RULE THE BANNER USES — the function itself, so the two cannot disagree about a day.
             consumes:   consumesEntitlement,
-            // CHRISTMAS LEAVE (v25.37) — on record here, never counted (christmas-leave.js); and for any later year shown.
+            // CHRISTMAS LEAVE — on record here, never counted (christmas-leave.js); and for any later year shown.
             christmas:  christmasLeaveByYear({ member: teamMembers.find(m => m.name === alMember.value),
                                                overrides: getAllOverrides(), thisYear: new Date().getFullYear() }),
             christmasFor: year => christmasLeaveDates({ member: teamMembers.find(m => m.name === alMember.value), year, overrides: getAllOverrides() }),
-            // "3 days", not "3 days AL" — the card is titled Recorded Annual Leave dates and the
-            // pill is AL-green. The two dropped words are what let the date, the count and the
-            // delete control share ONE line at 375px instead of stacking into two.
+            // "3 days", not "3 days AL": the title says so, and it keeps the row on ONE line at 375px.
             countFn:    n => `${n} day${n !== 1 ? 's' : ''}`,
             countClass: 'al-period-count',
             feedbackId: 'alFeedback',
-            // THE SAME YEAR THE BANNER IS TALKING ABOUT, by the same rule (admin-al-year.js) — so
-            // opening the list lands on the year you are already working in rather than wherever
-            // the data happens to end. A tapped chip outranks it; see pickBookedYear.
+            // THE SAME YEAR THE BANNER IS TALKING ABOUT (admin-al-year.js); a tapped chip outranks it.
             preferredYear: alFigureYear({ pickedFrom: alFrom?.value, pickerViewYear: alPickerViewYear,
                                           shiftDate: fieldDate.value, today: new Date() }),
         });
@@ -1513,17 +1245,10 @@ export function init() {
     initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
 
 
-    // Admin is not a printable page (v18.71) — printing shows a branded "use the
-    // Calendar to print your shifts" notice (admin.css @media print). The old
-    // beforeprint week-grid header stamp was removed with it.
+    // Admin does not print: printing shows a "use the Calendar" notice (admin.css @media print).
 
-    // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 6).
-    // Admin's policy is "any named user" (role null) — staff get self-service; the admin/manager split
-    // gates ACTIONS (applyPermissions below), NOT page access, so there is no 'forbidden' path here.
-    // The snapshot maps the LOCAL session-existence flag (isAuthenticated = !!currentSession) to an
-    // optimistic 'named' status — preserving the exact prior trigger — so requirePage returns 'login'
-    // iff there is no local session (decision identical to the old `if (!isAuthenticated)`). member is
-    // irrelevant to the decision because Admin requires no role.
+    // Page access (auth-policy.js): "any named user" — the admin/manager split gates ACTIONS
+    // (applyPermissions), not the page, so there is no 'forbidden' path. 'login' iff no local session.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
     if (_access.decision === 'login') {
         // Not signed in → show login overlay; do not load any Firestore data. On a confirmed sign-in,
@@ -1548,62 +1273,35 @@ export function init() {
         isAuthenticated = !!currentSession;
         // In-place: remove the still-mounted overlay to reveal the page. No-op on a normal load.
         dismissLoginOverlay();
-        // Returning user with a valid localStorage session never passes through the
-        // login click handler, so re-establish the Firebase Auth session here.
-        // Without this, auth.currentUser stays null and every Firestore write fails.
-        // resolveSession() fulfils sessionReady so feature modules (admin-overrides.js, admin-override-store.js,
-        // admin-leave-year-save.js) can import sessionReady instead of window._mybSession.
+        // A returning member never passes the sign-in, so re-establish the Firebase session here —
+        // without it every Firestore write fails. resolveSession() fulfils the sessionReady the
+        // feature modules await.
         const _adminAuth = ensureNamedSession(currentUser);
         resolveSession(_adminAuth);
-        // B1.2: a returning local session that can't be confirmed as this member's OWN Firebase
-        // identity is cleared and re-authenticated via the login overlay. Decided via the policy: once
-        // the named session resolves, the store (fed by the Phase-2 bridge inside ensureNamedSession)
-        // reflects the terminal Firebase identity, so `requirePage(getAuthSnapshot(), 'admin')` returns
-        // 'login' exactly when the member's OWN named session could not be confirmed.
-        // B1: an optimistic 'allow' init that turns out to be an unconfirmable session is cleared and
-        // re-shown Admin's login — and so is one whose account goes LATER (claim-retry.js, v24.37). The
-        // re-login RELOADS on success (reloadOnSuccess): this pass already resolved the one-shot
-        // sessionReady, and re-initialising in place cannot re-resolve it. page-session.js clears the
-        // session and the drawer's stale identity before the login is shown.
+        // A session that cannot be confirmed as this member's OWN — now, or LATER (claim-retry.js) — is
+        // cleared and shown Admin's sign-in, which RELOADS on success: sessionReady is one-shot.
         guardNamedSession({ page: 'admin', pageLabel: 'Admin', member: currentUser, established: _adminAuth,
             signIn: () => showAdminLogin({ reloadOnSuccess: true }) });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');
-        // The page's content is on screen from this line: `.container` is `display:none` until
-        // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
+        // The page's content is on screen from this line (`.container` is hidden until `auth-ready`).
         markPageReady();
         applyPermissions();
-        // SYNC THE BOOKING SELECTS FROM THE MEMBER FIELD (v21.38). They were only ever set by the
-        // fieldMember CHANGE handler, so on a fresh admin load — where the member is RESTORED rather
-        // than chosen — they stayed empty and both booking cards said "Select a staff member above"
-        // over a page that plainly had one selected. It shipped harmless because the cards were
-        // collapsed, and it was the task row (v21.38–21.40) that put the contradiction on screen;
-        // the row is gone, the sync stays, because a card that has to be opened to be wrong is
-        // still wrong.
-        //
-        // AFTER applyPermissions, NOT BEFORE (review). `alMember.disabled` is set by that function,
-        // so running first meant the guard could never be false and the sync fired for everybody —
-        // including the LEAVER branch, which clears the selects, disables them and returns WITHOUT
-        // re-syncing the displays. A hidden member would have read a colleague's name under "Your
-        // account is no longer on the roster", which is the alarming display the v16.23 fix removed.
+        // SYNC THE BOOKING SELECTS FROM THE MEMBER FIELD: a RESTORED member never fires the change
+        // handler, and both cards would say "Select a staff member above" over a page that has one.
+        // AFTER applyPermissions, which sets `alMember.disabled` — or the LEAVER branch, which clears
+        // the selects, would show a colleague's name under "no longer on the roster".
         if (fieldMember.value && !alMember.disabled) {
             _setSelectValue(alMember, fieldMember.value);
             _setSelectValue(sickMember, fieldMember.value);
             syncMemberDisplay();
             syncSickMemberDisplay();
-            // AND REPAINT THE PREVIEWS (v21.39). Both sections render once at init, which happens
-            // BEFORE this — so setting the selects silently left two cards still showing "Select a
-            // staff member above" over a page that had one. The task row's chip handler happened to
-            // refresh them, which masked it; removing the row is what exposed it.
+            // AND REPAINT THE PREVIEWS, which rendered once at init, before this.
             _refreshAlPreview?.();
             _refreshSickPreview?.();
         }
-        // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills).
-        // 'other' is excluded here — the deliberate one exception: an "Other" day needs a per-row
-        // flavour (Training/Induction/Assessment/Team Day/Union/Spare) that the bulk bar can't supply, so
-        // bulk-applying it staged rows that ALWAYS failed at save with "choose the type of Other day".
-        // Other is still applied per-row in the week grid. (If bulk training-weeks ever need first-class
-        // support, add a bulk flavour sub-selector rather than re-adding the bare pill.)
+        // Bulk-bar pills from PILL_TYPES, minus 'other' — deliberately: its flavour is per-row, and a
+        // bulk Other ALWAYS failed at save. A bulk flavour sub-selector, never the bare pill, if needed.
         const _bulkPillsContainer = document.getElementById('bulkTypePills');
         if (_bulkPillsContainer) {
             _bulkPillsContainer.innerHTML = PILL_TYPES.filter(t => t !== 'other').map(t =>
@@ -1663,9 +1361,8 @@ export function init() {
                 (put ? showSuccess : showError)(weekRestoredLine(put, left.map(formatDisplay)));
             } });
         };
-        // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. (It also marked the
-        // speed ladder's `rosterLive` rung until the App Speed review retired the ladder, Oct 2026.)
-        // Drawn FIRST, so the week says "Loading…" while it reads — not the page's "Select a staff member" (Nov 2026).
+        // Loads the SELECTED MEMBER only (admin-override-coverage.js). Drawn FIRST, so the week says
+        // "Loading…" while it reads.
         renderWeekGrid();
         loadOverrides().then(_offerDraft).catch((err) => console.error('[Admin] The unsaved-changes offer failed:', err));
         // AN INSTALLED APP STAYS OPEN FOR DAYS (iPhone audit, Nov 2026), and this week was read once, its "Today" stamped
@@ -1681,13 +1378,7 @@ export function init() {
             for (const f of _deepLink.folds) openCollapsibleCard(f.body, f.chevron);
             _landing.arrive(_deepLink);
         }
-        // Forced password migration — fire-and-forget: it does an async Firestore read inside and is
-        // NOT on the login critical path (see showAdminLogin above / LOGIN_INCIDENT.md).
-        //
-        // This used to be SEQUENCED ahead of the work-email check, which was retired at v19.30 (every
-        // member's email is registered, and a wrong one is fixed in Settings). The precedence logic and
-        // its marker deletion went with it — there is now only one post-login overlay, so there is
-        // nothing left to lose a race with.
+        // Forced password migration — fire-and-forget, NOT on the sign-in's critical path (showAdminLogin).
         initPasswordForce(currentUser, { ready: sessionReady });
         // Nav panel — deferred here on the in-place login path so it renders with the signed-in identity
         // (deduped by initNavPanel's navPanelInit guard if already wired on a normal load).
@@ -1697,10 +1388,8 @@ export function init() {
     // ============================================
     // If the admin has unsaved changes, wait until they navigate away before reloading.
     registerServiceWorker({
-        // A write still waiting on the server counts as unsaved (review A13): a range booking
-        // commits in chunks, and reloading between them strands the rest. The shared helper
-        // (v24.61) re-asks BOTH at the moment of reloading — the hand-rolled version re-asked only
-        // the writes, so staged week-grid edits could still be reloaded away on a hide.
+        // A write still waiting on the server counts as unsaved (a range commits in chunks); both are
+        // re-asked at the moment of reloading.
         beforeReload: () => reloadWhenNotBusy(() => hasUnsavedChanges() || writesInFlight() > 0),
         isBusy: () => hasUnsavedChanges() || writesInFlight() > 0,   // a notification tap asks too
     });
@@ -1721,13 +1410,9 @@ export function init() {
             beforeSignOut: askBeforeSignOut(hasUnsavedChanges),
             onSignOut:   () => signOutAndLeave(),
         });
-        // Calendar pill: name the week's date in the link, so index.html opens on the month the user was
-        // editing — a `?date=` opens once, a future month included. Until v26.19 it also wrote the
-        // Calendar's stored month, a second writer. (Replaces the removed v10.63 header back button.)
-        // Wired HERE — inside wireNavPanel, guarded per element — not at module scope: the
-        // B1 teardown path resetNavPanel()s and re-injects a FRESH pill, and a module-scope listener on
-        // the old pill would be silently lost with it. initNavPanel's own guard means the pill element
-        // survives repeat wireNavPanel() calls, so the dataset guard prevents double-attach.
+        // Calendar pill: the week's date in the link, so the Calendar opens on the month being edited.
+        // Wired HERE, guarded per element: a teardown re-injects a FRESH pill, which a module-scope
+        // listener would miss, and the dataset guard prevents a double attach on a repeat call.
         const calPill = /** @type {HTMLElement|null} */ (document.querySelector('.nav-panel-pill--calendar'));
         if (calPill && !calPill.dataset.monthPersistWired) {
             calPill.dataset.monthPersistWired = '1';

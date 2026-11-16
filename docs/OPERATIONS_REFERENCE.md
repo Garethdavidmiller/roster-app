@@ -48,7 +48,7 @@ huddles**, which is their one home. Two operational points: `uploadedBy` is `"po
 Cloud Function and a member name for a manual admin upload; and `htmlContent` (DOCX converted to HTML
 by mammoth.js at upload time) is absent for PDFs, for a conversion longer than `MAX_HUDDLE_HTML_CHARS`
 (200,000 characters), and for a Word file that was not converted: one Power Automate sends over 2 MB
-(`MAX_DOCX_CONVERT_BYTES` in `functions/documents.js`), or one whose conversion failed. The viewer then
+(`MAX_DOCX_CONVERT_BYTES` in `functions/huddle-ingest.js`), or one whose conversion failed. The viewer then
 falls back to the file.
 
 ### Cloud Function — `ingestHuddle` request format
@@ -72,7 +72,7 @@ Body:
 The function then reads the record back, and finding its own upload there it finishes as usual:
 stored, announced, 200. Only if Firestore stays unreachable through the write's retries and that read
 too does it answer 500 with the Huddle possibly in the app — and nobody told, because Power Automate's
-retry finds the flow's own record and stays silent as a re-send (`functions/documents.js`).
+retry finds the flow's own record and stays silent as a re-send (`functions/huddle-ingest.js`).
 
 **File type detection:** Based on `X-Huddle-Filename` extension — never rely on `Content-Type` (Power Automate sends `text/plain` for both).
 

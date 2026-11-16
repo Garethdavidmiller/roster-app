@@ -68,10 +68,8 @@ export function buildMemberDateMap(memberName) {
     return map;
 }
 
-// `isWorkingDate` now lives in `al-entitlement.js` (v23.79), beside `consumesEntitlement` — the two
-// answer the two halves of the same question ("is it written?" / "does it cost a day?") and were in
-// different modules, one of which cannot be imported outside a browser. It is RE-EXPORTED here so
-// every existing call site is unchanged.
+// `isWorkingDate` lives in `al-entitlement.js` beside `consumesEntitlement` ("is it written?" / "does it
+// cost a day?"); re-exported so every call site is unchanged.
 export { isWorkingDate } from './al-entitlement.js';
 
 
@@ -117,11 +115,7 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
     _showError      = showError;
     _onAfterSave    = onAfterSave;
     _markChanged    = markChanged;
-
-    // The once-only wiring guard lives with the LISTENERS, in `initWeekEditor` and
-    // `initSavedChanges` (v21.94). It used to be an `if` with an empty body here, left behind when
-    // the v21.38 split moved the listeners out — a guard that looked like protection, a comment
-    // asserting the hazard was handled, and the actual wiring sitting unguarded two modules away.
+    // The once-only wiring guard lives with the LISTENERS (`initWeekEditor`, `initSavedChanges`);
     // `initOverrides` re-assigns identity on every call, which is the part that must NOT be guarded.
 }
 
@@ -137,8 +131,8 @@ const refusedLine = (/** @type {string[]} */ dates) => `Someone else has changed
  * @param {string[]} toDelete  Firestore document IDs to delete
  * @param {string[]} [skipped]  dates staged but deliberately NOT written — see buildSaveReceipt. With
  *        nothing else to write this still reports, rather than being a Save that did nothing silently.
- * @param {string[]} [keptLeave]  the subset of `skipped` that still holds leave afterwards (v23.93),
- *        so the receipt does not call a day clear that the Calendar is about to show leave on.
+ * @param {string[]} [keptLeave]  the subset of `skipped` that still holds leave afterwards, so the
+ *        receipt does not call a day clear that the Calendar is about to show leave on.
  */
 export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave = []) {
     const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
@@ -146,52 +140,38 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     const memberName  = fieldMember?.value;
     const savedDate   = fieldDate?.value;
-    // Captured BEFORE the write: after it these rows are gone, and a receipt that cannot name what
-    // it removed is missing the half a manager is least able to reconstruct from the grid.
-    // NOT `.filter(Boolean)` (review): an id the cache cannot resolve is still a document being
-    // deleted, and dropping it would take the day out of the receipt AND out of its count.
-    // AS ITS ROW SHOWED IT (v25.89, review): a load landing under staged edits refreshes the cache but not
-    // the grid, so the cache's copy can be a colleague's newer record — and comparing with that deleted it.
+    // Captured BEFORE the write, which removes them: the receipt must name what it removed. NOT
+    // `.filter(Boolean)`: an unresolvable id is still a document deleted, and still a day in the count.
+    // AS ITS ROW SHOWED IT: a load under staged edits refreshes the cache, not the grid, so the cache's
+    // copy can be a colleague's newer record — and comparing with that would delete it.
     const drawn = drawnRecords(document.getElementById('weekGrid')), shownDays = drawnDays(document.getElementById('weekGrid'));
     const removedRows = toDelete.map(id => drawn.get(id) ?? getAllOverrides().find(o => o.id === id) ?? null);
-    // The per-kind counters went with the summary line they fed — the receipt names the DAYS, so
-    // "2 added, 1 updated" had nobody left to tell (v21.38).
     const total       = toSave.length + toDelete.length;
 
-    // NOTHING TO WRITE IS STILL AN OUTCOME (v23.88). Every staged day can resolve to a rest day the
-    // admin answered "free", which the projection leaves alone — so this is reached with an empty
-    // batch, and the one thing it must not be is a Save button that did nothing and said nothing.
-    // No Firestore round trip: there is no document to touch, and the days are named instead.
+    // NOTHING TO WRITE IS STILL AN OUTCOME: every staged day can be a rest day answered "free", and a
+    // Save must never do nothing silently. No round trip — no document to touch; the days are named.
     if (!total && skipped.length) {
         const only = buildSaveReceipt({ toSave: [], removed: [], memberName: memberName ?? '',
             formatDate: formatDisplay, skipped, keptLeave, describe: () => '' });   // describe never called: nothing written
         _showSuccess(only.summary, only.lines);
         resetStagedRows();
-        // …AND RE-RENDER, exactly as the path below does. `resetStagedRows` only DEACTIVATES a row:
-        // it clears the pills and the times and does not put back what a PREFILLED row was showing
-        // before the admin staged over it. A rest day answered "free" can be a day that already
-        // holds an override — an absence, say — and a blank row would say that record had gone.
+        // …AND RE-RENDER: `resetStagedRows` only deactivates a row and does not put back what a
+        // PREFILLED row showed; a blank row would say a "free" day's existing record had gone.
         if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
         updateSaveBtn();
         return;
     }
 
-    // Disable the button BEFORE awaiting sessionReady (v16.23): a double-tap during a slow sign-in
-    // passed the collector twice and wrote duplicates. Fixed ids (v24.48) now make a second run land on
-    // the same documents, so this is a guard against a wasted write. The finally re-enables it.
-    // `grid`: the batch is the week as it stood at the press, and the week is redrawn when it lands —
-    // so the week is held still until then, rather than taking a change it would throw away. And what it
-    // sends is held with it, for a draft kept if the page goes before it is answered (v25.97).
+    // Disable BEFORE awaiting sessionReady: a double-tap during a slow sign-in would run twice (fixed
+    // ids make that a wasted write, not a duplicate). The finally re-enables it. `grid`: the week is
+    // held still until the batch lands and redraws it; `sending` keeps what it sends for a kept draft.
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true, { grid: true, sending: sendingEntries(toSave, toDelete, removedRows, memberName) });
 
     await sessionReady;
-    // Don't mutate the cache until the initial load has settled — otherwise the in-flight initial
-    // snapshot can resolve AFTER this write and overwrite `_allOverrides`, silently dropping the
-    // change we just saved from the Saved-changes list (v16.85).
+    // Not before the initial load settles: a snapshot landing after this write would drop it from the cache.
     await whenOverridesReady();
-    // A failed load leaves the cache empty and the admin operating blind: refuse, prompt a reload (v16.97).
-    // Every member this batch touches, not merely the one in the dropdown: the entries carry their
-    // own `memberName`, and authority is now per member, so the question has to be asked of each.
+    // A failed load leaves the cache empty and the admin operating blind: refuse, prompt a reload.
+    // Asked of EVERY member the batch touches — authority is per member.
     const writeMembers = [...new Set([memberName, ...toSave.map(e => e.memberName)].filter(Boolean))];
     if (writeMembers.some(m => !hasOverrideAuthorityFor(m))) await whenLoadSettled().catch(() => {});   // still LOADING ≠ failed (v24.38)
     if (writeMembers.some(m => !hasOverrideAuthorityFor(m))) {
@@ -214,34 +194,26 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     toSave = toSave.map(e => ({ ...e, existingId: buildMemberDateMap(e.memberName).get(e.date)?.id ?? null }));
     const deleteIds = withManualDuplicates(toDelete);   // or a deleted day's older duplicate resurfaces (v24.48)
     try {
-        // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a
-        // stale-claim `permission-denied` (a just-provisioned manager on a pre-`manager`-claim token).
-        // A WriteBatch can't be re-committed, so the batch (and newDocs) is rebuilt on each attempt;
-        // the thunk RETURNS newDocs so the retry's fresh doc IDs are the ones we cache below.
-        // withSlowSaveNotice: on a weak signal the commit waits for the server with no limit, and
-        // the button alone reads as a freeze. It explains the wait and changes nothing else (slow-save.js).
+        // A re-runnable thunk, so writeWithClaimRetry can retry a stale-claim `permission-denied`: a
+        // WriteBatch can't be re-committed, so it is rebuilt each attempt and RETURNS the docs to cache.
+        // withSlowSaveNotice explains a long wait for the server and changes nothing else (slow-save.js).
         const { docs: newDocs, dropped } = await withSlowSaveNotice(writeWithClaimRetry(async () => {
             /** @type {any[]} */
             let docs = [];
             /** @type {Set<string>} */
             const dropped = new Set(deleteIds);
-            // By ID, because that is all a staged row carries. Built once rather than per entry —
-            // a full-week save is seven lookups over the whole cache otherwise.
-            const byId = new Map(getAllOverrides().map(o => [o.id, o]));
+            const byId = new Map(getAllOverrides().map(o => [o.id, o]));   // a staged row carries only an id
             /** The writes, onto a batch or a transaction — which may run this again, so nothing carries over. @param {any} w */
             const fill = (w) => { docs = []; const gone = new Set(deleteIds); gone.forEach(id => w.delete(doc(db, COLLECTIONS.overrides, id)));
             toSave.forEach(entry => {
                 // Read BEFORE the delete on the next line, which is what destroys it: on a swapped-in
                 // day it is the only record of contracted work, on a moved January day of its year.
                 const _under = entry.existingId ? byId.get(entry.existingId) : null;
-                // A row the admin answered "swapped" records `shift` — the type the swapped-in day
-                // would have carried had anybody entered the swap — so the entitlement check can see
-                // it was contracted work (v23.75).
+                // A day answered "swapped" records `shift`, so the entitlement check sees contracted work.
                 const replacedType = entry.swapped
                     ? replacedTypeForSwap(_under, entry.type)
                     : nextReplacedType(_under, entry.type);
-                // ONE id per member and date (v24.48, override-id.js): a colleague saving this day at the
-                // same moment lands on the SAME document, not beside it.
+                // ONE id per member and date (override-id.js): a colleague's save lands on the same document.
                 const fixedId = manualOverrideId(entry.memberName, entry.date);
                 for (const id of idsReplacedBy(entry.memberName, entry.date, entry.existingId)) {
                     if (!gone.has(id)) { w.delete(doc(db, COLLECTIONS.overrides, id)); gone.add(id); dropped.add(id); }
@@ -255,25 +227,19 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
                 w.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                 docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
             }); };
-            // EVERY DAY IT TOUCHES must still be what its row showed, checked in ONE transaction (a removal
-            // since v25.89, a day it writes since v25.90: commitChecked). Offline, a save that only writes is
-            // held on the device unchecked, as before; one that removes waits for the server.
-            // What a day showed is its row's record; a day with no row on screen, what the page has for it.
+            // EVERY DAY IT TOUCHES must still be what its row showed (else what the page has), checked in ONE
+            // transaction (commitChecked). Offline, a save that only writes is held unchecked; a removal waits.
             await commitChecked(fill, { shownFor: (m, d) => (m === memberName && shownDays.has(d) ? shownDays.get(d) : buildMemberDateMap(m).get(d)), line: refusedLine,
                 removed: [...removedRows.map((r, i) => r ?? toDelete[i]), ...deleteIds], holdOffline: !deleteIds.size });
             return { docs, dropped };
         }), { held: !deleteIds.size && globalThis.navigator?.onLine === false });
 
-        // A RECEIPT, NOT A COUNT (v21.38). "2 added, 1 removed" cannot answer the question a manager
-        // actually has — did I change the days I meant to? — and the commonest real mistake here
-        // (a bulk apply that caught the wrong days, a grid left on last week) produces a perfectly
-        // plausible count. The days are known before the commit, so this costs nothing.
+        // A RECEIPT, NOT A COUNT: a manager's question is "did I change the days I meant to?", and a
+        // bulk apply on the wrong days produces a perfectly plausible count.
         const receipt = buildSaveReceipt({
             toSave, removed: removedRows, memberName: memberName ?? '', skipped, keptLeave,
             formatDate: formatDisplay,
-            // An Other day's value is the raw grammar `FLAVOUR[" RDW"][" HH:MM-HH:MM"]`, so printing it
-            // gave "Other TRG RDW 09:00-17:00" — internal spelling in the one line that tells a
-            // manager what they just did. The full word is what every other surface shows.
+            // An Other day's value is raw grammar (`TRG RDW 09:00-17:00`): name it by its full word instead.
             describe: e => {
                 if (TYPES[e.type]?.fixed) return TYPES[e.type].label;
                 if (e.type === 'other') {
@@ -286,11 +252,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         });
         _showSuccess(receipt.summary, receipt.lines);
 
-        // THE MERGE IS BY ID (v21.42, external review): a read can already hold what was just written,
-        // and appending `newDocs` put one id in the cache twice. Firestore is untouched, but everything
-        // that COUNTS rows — Saved Changes, AL taken and booked, the entitlement a manager books
-        // against — read a day wrong. `newIds` before `newDocs`: whatever a read brought back for these
-        // documents is the same document, so the write's own record replaces it rather than joining it.
+        // THE MERGE IS BY ID: a read can already hold what was just written, and an append counts a day
+        // twice in everything that counts rows (Saved Changes, AL taken and booked). The write's own
+        // record replaces whatever a read brought back for the same id.
         const newIds     = new Set(newDocs.map(d => d.id));
         const removedIds = new Set([...dropped].filter(id => !newIds.has(id)));
         const merge = () => mutateCache(rows => {
@@ -303,18 +267,14 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         // ASKED AT EACH REDRAW, not once before the wait below — a navigation can land inside it too.
         const sameView = () => !!fieldMember?.value && !!fieldDate?.value
             && fieldMember.value === memberName && fieldDate.value === savedDate;
-        // DRAWN AS SAVED NOW (whole-app check, Nov 2026). The rows used to be switched off here and
-        // redrawn only after the wait: while a load was running the day just saved showed nothing and
-        // the Unsaved bar still counted it — and a switched-off row with a saved record reads as a
-        // staged REMOVAL, so the kept-draft check found unsaved work in a week that had none.
+        // DRAWN AS SAVED NOW, not after the wait: a switched-off row with a saved record reads as a
+        // staged REMOVAL, and the Unsaved bar and the kept-draft check would count it.
         merge();
         if (sameView()) renderWeekGrid();
 
-        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` answers only
-        // for the BOOT load; a member switch, All staff or a Retry can be in flight at commit, and it
-        // assigns the cache from a snapshot that may predate this write — the saved day vanishing from
-        // Saved Changes while correct in Firestore, which reads as data loss. So the merge runs AGAIN
-        // once it has landed. A FAILED load must not fail a committed save.
+        // AND ANY LOAD ALREADY RUNNING LANDS FIRST: `whenOverridesReady()` answers only for the boot
+        // load, and a later one can assign a snapshot older than this write — so merge AGAIN once it
+        // has landed. A FAILED load must not fail a committed save.
         await whenLoadSettled().catch(() => {});
         merge();
         renderTable();
@@ -340,7 +300,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
  * @param {string} dateISO  YYYY-MM-DD
  * @param {any[]}  batch    Pending toSave entries
  * @param {string[]} [toDelete]  Override doc IDs being deleted in the SAME save — skipped so an
- *   adjacency check doesn't constrain against a shift this save is removing (v16.83 review fix).
+ *   adjacency check doesn't constrain against a shift this save is removing.
  */
 export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
     const inBatch = batch.find(e => e.date === dateISO);
@@ -360,15 +320,12 @@ export function getEffectiveShift(memberName, dateISO, batch, toDelete = []) {
  * Validates max shift duration (12 h) and minimum rest gap (12 h) for toSave.
  * Marks failing rows with .row-error in the DOM.
  *
- * DECIDES ELSEWHERE, PAINTS HERE (v21.38): the rules are `checkShiftRules` in
- * `admin-shift-rules.js`, which has no DOM and no cache — the two things that made a legally
- * load-bearing check awkward to test. This resolves the adjacent days, then marks exactly the rows
- * it was told failed; deriving the rows again from the messages is how a highlight and its sentence
- * come to disagree.
+ * DECIDES ELSEWHERE, PAINTS HERE: the rules are `checkShiftRules` (admin-shift-rules.js, no DOM).
+ * This resolves the adjacent days and marks exactly the rows it was told failed — re-deriving them
+ * from the messages is how a highlight and its sentence come to disagree.
  * @param {any[]}  toSave
  * @param {string} memberName
- * @param {string[]} [toDelete]  Override doc IDs being deleted in the same save (v16.83) — so an
- *   adjacency check doesn't constrain against a shift this save is removing.
+ * @param {string[]} [toDelete]  Override doc IDs being deleted in the same save (see getEffectiveShift).
  * @returns {string[]} Human-readable error strings (empty = valid)
  */
 export function validateShiftRules(toSave, memberName, toDelete = []) {
@@ -409,72 +366,48 @@ export function validateShiftRules(toSave, memberName, toDelete = []) {
  * @param {string}   opts.memberName
  * @param {string[]} opts.dates       Full date range including rest days
  * @param {string}   opts.changedBy   Written to the Firestore changedBy field
- * @param {string[]} [opts.swappedDates] Rest days the admin has DECLARED swapped-in working days
- *        (v23.75). Written as leave that COSTS a day, carrying `replacedType: 'shift'`. Only the AL
- *        card supplies these — absence keeps the old skip-every-rest-day behaviour.
+ * @param {string[]} [opts.swappedDates] Rest days the admin has DECLARED swapped-in working days,
+ *        written as leave that COSTS a day (`replacedType: 'shift'`). Only the AL card supplies these.
  * @returns {Promise<{workingCount: number, sundayCount: number, cleared: string[]}>} `cleared`: the days whose
  *          change staged in Change a Shift the booking cleared — and on an error after part of it landed, `err.cleared`
  * @throws {Error} 'auth/session-expired' if no Firebase Auth session, or Firestore error
  */
 export async function recordRangeOverrides({ type, value, memberName, dates, changedBy, swappedDates = [] }) {
-    // Wait for the Firebase Auth session to be (re-)established before the currentUser check —
-    // mirrors executeSave(). A returning user has a valid LOCAL session but auth.currentUser is null
-    // for a moment while Firebase restores; without this await an AL/sick save fired in that window
-    // throws a FALSE 'auth/session-expired' (the v14.83 review's write-race). sessionReady resolves on
-    // the same onAuthStateChanged the restore completes on, so the wait is sub-second on a normal load.
+    // auth.currentUser is briefly null while a returning session restores; without this wait a save in
+    // that window throws a FALSE 'auth/session-expired'. As executeSave().
     await sessionReady;
-    // Wait for the initial cache load before building ovByDate — on a cold cache buildMemberDateMap
-    // returns an empty map, so an existing roster_import shift wouldn't be deleted (duplicate) and a
-    // not-yet-loaded worked Sunday could be erased by an RD correction (v16.85).
+    // A cold cache would miss an existing roster_import shift (a duplicate) or a worked Sunday (erased
+    // by an RD correction); a FAILED read is worse, so refuse — the caller asks for a reload.
     await whenOverridesReady();
-    // If that initial read FAILED the cache is empty, not merely cold — writing now would build the
-    // exact duplicate/erased-Sunday corruption the wait above guards against. Refuse rather than corrupt;
-    // the caller surfaces a "reload before recording" message (Finding #2, v16.97).
     if (!hasOverrideAuthorityFor(memberName)) await whenLoadSettled().catch(() => {});   // still loading ≠ failed (v24.38)
     if (!hasOverrideAuthorityFor(memberName)) throw new Error('cache/load-failed');
     if (!auth.currentUser) throw new Error('auth/session-expired');
 
     const memberObj = teamMembers.find(m => m.name === memberName);
 
-    // Build a priority-correct Map<date, override> — buildMemberDateMap applies
-    // shouldReplaceOverride() so manual overrides beat roster_import entries.
-    const ovByDate = buildMemberDateMap(memberName);
+    const ovByDate = buildMemberDateMap(memberName);   // priority-correct: manual beats roster_import
 
-    // Rest days the admin has DECLARED swapped-in working days (v23.75). They fail `isWorkingDate` —
-    // that is why the question was asked — so they are unioned in here rather than filtered by it,
-    // and they carry a forced `replacedType` below so the entitlement check can see what they are.
-    // A Sunday can never be one: it holds no annual leave at all, for any grade.
+    // Declared swapped-in rest days fail `isWorkingDate` (hence the question), so they are unioned in,
+    // with a forced `replacedType` below. Never a Sunday: it holds no annual leave, for any grade.
     const swapped = new Set((Array.isArray(swappedDates) ? swappedDates : []).filter(d => !isSunday(d)));
     // Which dates are written: `rangeWriteDates` — an answered-"free" rest day never (review A2).
     const workingDates = rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates: [...swapped] });
 
-    // Sundays within the range that have a worked base shift need an explicit RD correction so the base
-    // roster shift doesn't still show on the calendar during the absence period — skipped where the day
-    // already holds a rest value, or a WORKED record (WORKED_OVERRIDE_TYPES) it would erase; a leave or
-    // absence record still gets corrected, the v12.61 masking (v16.19). ONE rule, which the range cards'
-    // preview and receipt name too (whole-app check, Nov 2026): `rangeSundayCorrections`, admin-al-projection.js.
+    // A Sunday in the range with a worked base shift gets an RD correction, so the shift does not show
+    // during the absence — unless it already holds a rest value or a WORKED record it would erase. ONE
+    // rule, which the range cards' preview and receipt name too: `rangeSundayCorrections` (admin-al-projection.js).
     const sundayCorrections = rangeSundayCorrections({ dates, memberObj, ovByDate });
 
-    // No working days → record nothing (and report sundayCount:0 accurately). A Sunday RD
-    // correction only makes sense ALONGSIDE an AL/absence booking (so a worked Sunday inside the
-    // absence range shows as RD, not its shift). With zero working days there is no absence to
-    // accompany, so writing a standalone correction/RD would SILENTLY erase a worked (possibly
-    // RDW/overtime) Sunday — worse than doing nothing. (This is UI-unreachable anyway: the AL/sick
-    // save button is disabled when workDays === 0, computed with the same isWorkingDate rule.)
+    // No working days → record nothing. A Sunday correction only makes sense ALONGSIDE a booking; on
+    // its own it would silently erase a worked (possibly RDW) Sunday. (The Save is disabled there too.)
     if (!workingDates.length) return { workingCount: 0, sundayCount: 0, cleared: [] };
 
-    // Combine the two write sets into one op list and CHUNK it. One un-chunked batch blew Firestore's
-    // hard 500-writes-per-batch cap on a long absence range (~250 working days each already carrying
-    // a roster_import override), so the WHOLE commit was rejected and the booking silently lost
-    // (admin-sick allows a ~1-year range). `chunkByWrites` counts WRITES, as the import's
-    // _saveOverrideBatches does: a date is its set plus a delete per id `idsReplacedBy` names, and an
-    // older manual duplicate adds one, so counting DATES (200 × 2) could still cross the cap. Each
-    // chunk is its own re-runnable writeWithClaimRetry thunk (a just-provisioned manager's stale
-    // `manager` claim self-heals per chunk), rebuilt on each attempt because a WriteBatch can't be
-    // re-committed; the partial-commit trade-off is the import's (v16.19). In DATE order, and a Sunday
-    // correction never starts a chunk: one batch is one server timestamp, which is how deleting the
-    // period knows the edge Sunday is its own (computePeriodDeleteIds, re-review R-A2). The cache
-    // records share one stamp per batch to match.
+    // CHUNKED under Firestore's 500-writes-per-batch cap, which a year's absence range can cross — and
+    // then the whole booking is lost. `chunkByWrites` counts WRITES (a set plus a delete per id
+    // `idsReplacedBy` names), not dates. Each chunk is its own re-runnable writeWithClaimRetry thunk;
+    // the partial-commit trade-off is the import's. In DATE order, and a Sunday correction never starts
+    // a chunk: one batch is one server timestamp, which is how deleting the period knows the edge
+    // Sunday is its own (computePeriodDeleteIds). The cache records share one stamp per batch to match.
     const ops = [
         ...workingDates.map(date => ({ date, type, value })),
         ...sundayCorrections.map(date => ({ date, type: 'correction', value: 'RD' })),
@@ -495,16 +428,12 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                 /** The chunk's writes, onto a batch or a transaction — which may run it again. @param {any} w */
                 const fill = (w) => { docs = []; delIds = new Set(); slice.forEach(op => {
                     const existing = ovByDate.get(op.date);
-                    // Read BEFORE the delete, which destroys it: the only record that a swapped-in day
-                    // was contracted work, and of which year a moved January leave day comes out of.
-                    // A declared swap has nothing to carry forward — the day held no contracted
-                    // override, which is precisely why it needed asking about — so it records
-                    // `shift`, the type the swapped-in day would have had if the swap had been
-                    // entered. Everything else carries forward as it always did.
+                    // Read BEFORE the delete, which destroys it: the only record that a swapped-in day was
+                    // contracted work, and of a moved January day's year. A declared swap records `shift`.
                     const replacedType = swapped.has(op.date)
                         ? replacedTypeForSwap(existing, op.type)
                         : nextReplacedType(existing, op.type);
-                    const fixedId = manualOverrideId(memberName, op.date);   // one per member and date (v24.48)
+                    const fixedId = manualOverrideId(memberName, op.date);   // one per member and date
                     for (const id of idsReplacedBy(memberName, op.date, existing?.id)) {
                         if (!delIds.has(id)) { w.delete(doc(db, COLLECTIONS.overrides, id)); delIds.add(id); }
                     }
@@ -512,16 +441,14 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                     w.set(doc(db, COLLECTIONS.overrides, fixedId), buildOverrideWrite(fields, serverTimestamp()));
                     docs.push(buildOverrideCacheRecord(fixedId, fields, stamp));
                 }); };
-                // Each day must still hold what this page had for it (v25.90) — checked online, held offline.
+                // Each day must still hold what this page had for it — checked online, held offline.
                 await commitChecked(fill, { shownFor: (_m, d) => ovByDate.get(d), line: refusedLine });
                 return { docs, delIds };
             }), { batched: chunks.length > 1, held: globalThis.navigator?.onLine === false });
         } catch (err) {
-            // A chunk failed AFTER earlier chunks committed → Firestore holds partial data the
-            // in-memory cache doesn't reflect (the cache update below never runs). Resync from
-            // Firestore so the Saved-changes list is TRUTHFUL, and tag the error so the caller can
-            // warn the user that some of the range may already have saved (v16.25). A first-chunk
-            // SIGNED_OUT may still land; the write gate (claim-retry.js) refuses a retry until reload.
+            // A chunk failed AFTER earlier ones committed: resync so Saved Changes is truthful, and tag
+            // the error so the caller can say part of the range may have saved. A first-chunk SIGNED_OUT
+            // may still land; the write gate (claim-retry.js) refuses a retry until reload.
             if (newDocs.length || deletedIds.size) {
                 const landed = new Set([...deletedIds, ...newDocs.map(d => d.id)]);   // in the cache first, should the re-read fail
                 mutateCache(rows => [...rows.filter(o => !landed.has(o.id)), ...newDocs]);
@@ -535,15 +462,9 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
         res.delIds.forEach(id => deletedIds.add(id));
     }
 
-    // Any load already running lands FIRST — the same ordering `executeSave` takes, and for the same
-    // reason: `whenOverridesReady()` above answers only for the boot load (v21.41). A range booking
-    // is the write where this matters most, because it is the one that can put a fortnight of annual
-    // leave into the list and then watch it disappear.
+    // Any load already running lands FIRST, then the merge is BY ID — both for executeSave's reasons,
+    // and here a duplicated row is a duplicated DAY of annual leave in the taken/booked figures.
     await whenLoadSettled().catch(() => {});
-    // Merged by ID for the reason `executeSave` sets out: waiting is what makes a snapshot NEWER than
-    // the commit possible, so it can already hold these documents and a blind append duplicates them.
-    // This is the path where the count matters most — it writes a whole range, so a duplicated row is
-    // a duplicated DAY of annual leave in the taken/booked figures.
     const newIds = new Set(newDocs.map(d => d.id));
     // Update in-memory cache — no Firestore round-trip needed
     mutateCache(rows => [...rows.filter(o => !deletedIds.has(o.id) && !newIds.has(o.id)), ...newDocs]);

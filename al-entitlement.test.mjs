@@ -619,7 +619,11 @@ describe('isWorkingDate without an override map', () => {
 // year before somebody joined is no entitlement on record, and every surface already has a state
 // for that. Asked through the doors the surfaces read, not only `getALEntitlement`.
 describe('a year before the member joined has no allowance on record', () => {
-    const joiner = /** @type {any} */ (teamMembers.find(m => m.name === 'J. Davies'));
+    // Selected by SHAPE, not by name: a 2026 CEA joiner on a plain contract with no change of grade,
+    // so the year after reads the plain contract figure. No roster name sits beside a leave figure.
+    const joiner = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden
+        && m.startDate instanceof Date && m.startDate.getFullYear() === 2026
+        && typeof m.proRatedAL?.[2026] === 'number' && m.bilingualContract !== true && !m.roleHistory));
     const TODAY = '2026-11-10';
 
     test('the premise: a real member who joined during 2026, with a pro-rated first year', () => {

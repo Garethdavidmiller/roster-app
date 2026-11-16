@@ -2,19 +2,15 @@
 /**
  * admin-week-editor.js — the seven-day grid, its pills, and everything staged but not yet saved.
  *
- * ── WHY IT LEFT THE COORDINATOR (v21.38) ────────────────────────────────────────────────────────
- *
- * The largest of the surfaces `admin-overrides.js` owned, and the one the review named first: the
- * week grid, the per-row type pills, the bulk bar, and the Save button's read of what is staged.
- * All of it is one job — decide what a week SHOULD say — and it ends where `executeSave` begins.
+ * The week grid, the per-row type pills, the bulk bar, and the Save button's read of what is staged:
+ * one job — decide what a week SHOULD say — which ends where `executeSave` begins.
  *
  * ── STAGED IS NOT SAVED, AND THE DIFFERENCE IS LOAD-BEARING ─────────────────────────────────────
  *
  * `hasStagedEdits` is the reason a background refresh does not repaint over an admin mid-edit, and
  * it counts BOTH directions: a row given a type that is not an unchanged prefill (a staged change)
- * and a prefilled row with its type taken away (a staged REMOVAL). Counting only the first is a
- * defect that has shipped here before — the refresh discarded staged removals while `userMadeChanges` stayed true,
- * which blocked the week swipe and left a phantom unsaved-changes warning behind.
+ * and a prefilled row with its type taken away (a staged REMOVAL). Counting only the first lets a
+ * refresh discard staged removals while the page still believes it has unsaved changes.
  *
  * ── AN UNREAD MEMBER IS NOT A MEMBER WITH NO CHANGES ────────────────────────────────────────────
  *
@@ -39,14 +35,11 @@ import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
 import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
 import { restrictDayPills } from './admin-day-pills.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
-// The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
-// headroom. Same names, so every call site below is unchanged; see that module's header for why
-// this cluster was the seam and the bulk bar was not.
+// The row's own appearance rules (admin-week-row-state.js), under the same names.
 import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, isStagedRow, prefillRow,
          rosteredWords } from './admin-week-row-state.js';
 export { rosteredWords };   // its home is the row's own words now; exported here as it always was
-// The grid's time boxes — typed formatting and the HH:MM check — moved out at v24.64, for the same
-// reason as the line above, and now share clock-input.js's rule rather than restating it.
+// The grid's time boxes — typed formatting and the HH:MM check, by clock-input.js's rule.
 import { initTimeInputs } from './admin-time-inputs.js';
 import { setStatus } from './status-text.js';
 
@@ -73,44 +66,27 @@ export function initWeekEditor(deps) {
     _showSuccess      = deps.showSuccess;
     _markChanged      = deps.markChanged;
     buildMemberDateMap = deps.memberDateMap;
-    // DEPS ABOVE EVERY TIME; WIRING ONCE (v21.94).
-    //
-    // `initOverrides` can be called twice on the in-place login path — an optimistic 'allow' init,
-    // then again after B1 clears an unconfirmable session — and both of these attach DELEGATED
-    // listeners, `initTimeInputs` (admin-time-inputs.js) two of them at `document` level. A second attach double-fires
-    // every click, which on the two-tap Delete means one tap both arms AND executes.
-    //
-    // The guard used to live in `admin-overrides.js`, around wiring that moved out in the v21.38
-    // split; what was left there was an `if` with an EMPTY body and a comment still describing the
-    // hazard as handled. It belongs where the listeners are. Identity/permissions are re-assigned
-    // on every call, which is what keeps a re-init meaningful.
+    // DEPS ABOVE EVERY TIME; WIRING ONCE. `initOverrides` can run twice on the in-place login path,
+    // and these attach DELEGATED listeners (`initTimeInputs` two at `document` level): a second attach
+    // double-fires every click — on the two-tap Delete, one tap both arms AND executes. The guard lives
+    // where the listeners are; identity and permissions are re-assigned on every call.
     if (_wired) return;
     _wired = true;
     _initBulkBar();
     initTimeInputs();
 }
 
-/** True when the week grid currently holds STAGED (unsaved) work — mirrors updateSaveBtn's
- *  save/delete counts so it catches BOTH a staged addition/change (a row with a chosen type that
- *  isn't an unchanged prefill) AND a staged REMOVAL (a prefilled row whose type was taken away →
- *  existingId, no type). Used to avoid re-rendering the week grid over the admin's in-progress edits — by
- *  loadOverrides AND by the page's own writes, which then redraw only the days they touched (admin-own-write.js;
- *  v16.82: deleting an unrelated saved change must not silently discard staged pills; the old active-pill-only
- *  check also missed staged removals). Exported for admin-app's unsaved-changes guard. The row test is
- *  `isStagedRow` (admin-week-row-state.js), which a kept draft reads its rows with too. */
+/** True when the week grid holds STAGED (unsaved) work, BOTH directions (the header). It stops a
+ *  re-render over in-progress edits — by loadOverrides, and by the page's own writes, which then redraw
+ *  only the days they touched (admin-own-write.js) — and feeds admin-app's unsaved-changes guard. The
+ *  row test is `isStagedRow` (admin-week-row-state.js), which a kept draft reads its rows with too. */
 export function _hasStagedEdits() {
     const weekGrid = document.getElementById('weekGrid');
     if (!weekGrid) return false;
     return [...weekGrid.querySelectorAll('.day-row')].some(r => isStagedRow(/** @type {HTMLElement} */ (r)));
 }
 
-/**
- * Return every row in the week grid to its unstaged state.
- *
- * Called after a successful save. It lives here because the row lifecycle does — `executeSave` used
- * to reach into `_deactivateRow` directly, which is the coordinator knowing how a row is built.
- * @returns {void}
- */
+/** Return every row in the week grid to its unstaged state, after a save — here, with the row lifecycle. @returns {void} */
 export function resetStagedRows() {
     document.getElementById('weekGrid')?.querySelectorAll('.day-row').forEach(rowEl => {
         const row      = /** @type {HTMLElement} */ (rowEl);
@@ -122,8 +98,7 @@ export function resetStagedRows() {
     });
 }
 
-/** Returns a new Date set to the Sunday of the week containing dateStr. */
-/** @param {string} dateStr */
+/** Returns a new Date set to the Sunday of the week containing dateStr. @param {string} dateStr */
 function getSundayOfWeek(dateStr) {
     const d = parseISODate(dateStr);
     d.setDate(d.getDate() - d.getDay());
@@ -145,28 +120,19 @@ export function updateWeekNavLabel(dateStr) {
     saturday.setDate(sunday.getDate() + 6);
     const label = document.getElementById('weekNavLabel');
     if (label) {
-        // Same-month ranges collapse to "19–25 Jul 2026" (v18.90). The full form repeats the month
-        // for no information, and at the documented 375px width it overflowed the nav pill — it
-        // ellipsised to "19 Jul – 25 Jul 2026 …", dropping the 📅 tap affordance with it.
-        // formatTeamWeekLabel (calendar-team-view.js) has always collapsed; admin was the outlier.
-        // The CROSS-month form uses the same tight en-dash as the same-month one (v18.91). The
-        // spaced " – " cost ~6px, and at 375px that was the difference between fitting and
-        // ellipsising: v18.89 reclaimed 14px from this row (gap replaced padding) without
-        // re-measuring, which pushed SIX cross-month weeks over the line. v18.90 then collapsed
-        // only the same-month form, so today's week looked fixed while those six still clipped —
-        // and what gets cut is the trailing 📅, the date-picker's only affordance.
+        // Same-month ranges collapse to "19–25 Jul 2026", as formatTeamWeekLabel does, and both forms use
+        // a tight en-dash: at 375px a few pixels more ellipsise the label and cut the date picker's 📅.
         label.textContent = sunday.getMonth() === saturday.getMonth()
             ? `${sunday.getDate()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`
             : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
-        // The NAME leads with the week it shows (v25.27, WCAG 2.5.3 Label in Name): somebody driving
-        // the page by voice says "1–7 Nov 2026", and a fixed "Jump to week containing date" never
-        // contained it. Written here, beside the text, so the two cannot describe different weeks.
+        // The NAME leads with the week it shows (WCAG 2.5.3 Label in Name), written beside the text so
+        // the two cannot describe different weeks.
         label.setAttribute('aria-label', `${label.textContent} — jump to week containing date`);
         const todaySun = new Date();
         todaySun.setDate(todaySun.getDate() - todaySun.getDay());
         label.classList.toggle('is-current-week', sunday.toDateString() === todaySun.toDateString());
     }
-    // NO ARROW INTO A WEEK OUTSIDE THE CONFIGURED YEARS (whole-app check, Nov 2026) — `weekStepAllowed`.
+    // NO ARROW INTO A WEEK OUTSIDE THE CONFIGURED YEARS — `weekStepAllowed`.
     for (const [id, n] of /** @type {Array<[string, number]>} */ ([['prevWeekBtn', -7], ['nextWeekBtn', 7]])) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = !weekStepAllowed(dateStr, n); }
 }
 
@@ -195,9 +161,7 @@ export function buildWeekGridInto(container, dateStr) {
 
     // Compute once for the whole 7-row loop instead of allocating a Date per row.
     const todayISO      = formatISO(new Date());
-    // buildMemberDateMap applies shouldReplaceOverride() so manual beats roster_import
-    // (bare .find() would return whichever arrived first in the array — wrong precedence).
-    const memberDateMap = buildMemberDateMap(memberName);
+    const memberDateMap = buildMemberDateMap(memberName);   // priority-correct: manual beats roster_import
     /** Icon → meaning, for the legend below the grid; a Map, so a repeat lists once.
      *  @type {Map<string, string>} */
     const weekBadges = new Map();
@@ -218,13 +182,9 @@ export function buildWeekGridInto(container, dateStr) {
         // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026) — Spare
         // excepted, on Boxing Day as on a Sunday (admin-day-pills.js).
         const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
-        // CHRISTMAS LEAVE (v25.37) — said in the row, as the Sunday reason is, because the Base roster
-        // column shows the rest day `getBaseShift` makes both Christmas days for everybody. A member due
-        // at work is on leave that is never counted, unless work is recorded on the day; a Boxing Day
-        // worked by somebody due to work it adds a day in lieu to the NEXT year's allowance
-        // (christmas-leave.js has the rules).
-        // Asked of the SAME resolver the Calendar draws with, so the note can never describe a day the
-        // Calendar shows differently — a correction there is rest, and says nothing here.
+        // CHRISTMAS LEAVE — said in the row, as the Sunday reason is, because the Base roster column shows
+        // the rest day `getBaseShift` makes both Christmas days (rules: christmas-leave.js). Asked of the
+        // SAME resolver the Calendar draws with, so the note can never describe a day it shows differently.
         const xmasDue   = isChristmasLeaveDay(member, date);
         const xmasShows = xmasDue ? resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), true).shift : '';
         const christmasNote = !xmasDue ? ''
@@ -237,8 +197,7 @@ export function buildWeekGridInto(container, dateStr) {
         const row = document.createElement('div');
         const isToday = dateISO === todayISO;
         // The overwrite badge is drawn empty: `prefillRow` below writes its words before the row is painted.
-        // Unique id linking each row's time inputs to their inline error message
-        // (aria-describedby / aria-errormessage need a per-row target id).
+        // A per-row id links the time inputs to their inline error message (aria-describedby).
         const timeErrId = `timeErr-${dateISO}`;
         row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
@@ -271,8 +230,7 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>
-            <!-- Swapped-day question (v23.75): no pre-pressed state, save refuses until answered.
-                 Why it is asked: al-swapped-days.js. -->
+            <!-- Swapped-day question: no pre-pressed state, save refuses until answered (al-swapped-days.js). -->
             <div class="col-al-swap" role="group" aria-label="Is this a swapped working day?" hidden>
                 <span class="al-swap-q">Rest day on the roster — was this a <strong>swapped</strong> working day?</span>
                 <span class="al-swap-opts"><button type="button" class="al-swap-btn" data-swap="yes" aria-pressed="false">Swapped — counts</button><button type="button" class="al-swap-btn" data-swap="no" aria-pressed="false">Rest day — free</button></span>
@@ -312,13 +270,11 @@ export function buildWeekGridInto(container, dateStr) {
                 row.classList.remove('prefilled-existing');
                 if (already) {
                     _deactivateRow(row, checkbox, pills, startEl, endEl);
-                    // Time inputs return to tabindex=-1 on deactivate; keep focus on the
-                    // (still-focusable) pill so keyboard users aren't stranded.
+                    // Time inputs return to tabindex=-1, so focus stays on the pill.
                     pill.focus();
                 } else {
                     _activateRow(row, checkbox, pills, startEl, endEl, type);
-                    // Pre-fill times from the base roster shift when choosing Shift or RDW,
-                    // but only if the user hasn't already entered something.
+                    // Shift or RDW pre-fill the base shift's times, unless something is already entered.
                     if (!TYPES[type]?.fixed && !/** @type {HTMLInputElement} */ (startEl).value && !/** @type {HTMLInputElement} */ (endEl).value) {
                         if ((type === 'shift' || type === 'rdw') && baseShift && baseShift.includes('-')) {
                             const [prefillS, prefillE] = baseShift.split('-');
@@ -326,16 +282,15 @@ export function buildWeekGridInto(container, dateStr) {
                             /** @type {HTMLInputElement} */ (endEl).value   = prefillE;
                         }
                     }
-                    // timesOptional types (Other): DON'T auto-focus the time input — on a phone the
-                    // keyboard would pop over the just-revealed flavour/RDW sub-controls, for times
-                    // that are optional and usually unknown. (This is timesOptional's behavioural job.)
+                    // timesOptional (Other): no focus on the time input, whose keyboard would cover the
+                    // just-revealed flavour and RDW controls for times that are usually unknown.
                     if (!TYPES[type]?.fixed && !TYPES[type]?.timesOptional) /** @type {HTMLInputElement} */ (startEl).focus();
                 }
                 // Show RD hint when Shift is chosen on a base-rest day
                 const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
                 if (rdHint) rdHint.hidden = !(type === 'shift' && row.dataset.baseIsRd === '1' && !already);
-                // AL on a base rest day is asked about (v23.75) — shown and reset by _activateRow /
-                // _deactivateRow now, so bulk apply and the checkbox follow the same rule (review A6).
+                // AL on a base rest day is asked about — by _activateRow / _deactivateRow, so bulk apply and
+                // the checkbox follow the same rule.
                 _markChanged();
                 updateSaveBtn();
             });
@@ -345,12 +300,10 @@ export function buildWeekGridInto(container, dateStr) {
             checkbox.addEventListener('change', () => {
                 if (/** @type {HTMLInputElement} */ (checkbox).checked) {
                     if (!row.dataset.type) row.classList.add('selected');
-                    // Ticking stages nothing (the collector keys off dataset.type), so it is not a
-                    // change — the v16.23 rule for the bulk tick buttons, missed here (review A17).
+                    // Ticking stages nothing (the collector keys off dataset.type), so it is not a change.
                 } else {
-                    // UNTICKING NEVER DELETES A SAVED CHANGE (owner, 10 Nov 2026): a day with a saved
-                    // record goes back to it, unticked; any other day is cleared. Removing a saved change
-                    // is its type selected again, or ✕ in Saved Changes.
+                    // UNTICKING NEVER DELETES A SAVED CHANGE (owner, 10 Nov 2026): a saved day goes back to its
+                    // record; any other is cleared. Removal is its type selected again, or ✕ in Saved Changes.
                     const hadStaged = isStagedRow(row);
                     if (existing) prefillRow(row, existing); else _deactivateRow(row, checkbox, pills, startEl, endEl);
                     if (hadStaged) _markChanged();
@@ -359,10 +312,8 @@ export function buildWeekGridInto(container, dateStr) {
             });
         }
 
-        // 'input' is needed alongside 'change' because the auto-format handler in
-        // initTimeInputs() (admin-time-inputs.js) programmatically sets element.value on each keystroke.
-        // On Safari/WebKit this resets the browser's change-detection baseline, so
-        // 'change' never fires when focus leaves (current value == last programmatic value).
+        // 'input' as well as 'change': the auto-format (admin-time-inputs.js) sets .value on each
+        // keystroke, which on WebKit resets the baseline, so 'change' never fires on leaving.
         const onTimeEdit = () => { row.classList.remove('prefilled-existing'); _markChanged(); updateSaveBtn(); };
         if (startEl) {
             startEl.addEventListener('input',  onTimeEdit);
@@ -437,16 +388,11 @@ export function renderWeekGrid() {
         return;
     }
 
-    // AN UNREAD MEMBER IS NOT A MEMBER WITH NO CHANGES (v21.38). The load is staged, so selecting
-    // somebody whose slice has not arrived would paint seven base-roster days with no overrides on
-    // them — which is exactly what a member with a clear week looks like, and an admin reading it
-    // would conclude there is nothing recorded. Saving is refused in this state anyway; this is the
-    // half that stops it being MISREAD. Cleared by the re-render `loadOverrides` runs on arrival.
+    // AN UNREAD MEMBER IS NOT A MEMBER WITH NO CHANGES (the header). Saving is refused here anyway;
+    // this stops the week being MISREAD. Cleared by the re-render `loadOverrides` runs on arrival.
     if (!hasOverrideAuthorityFor(memberName)) {
-        // WAITING AND STUCK ARE DIFFERENT STATES (v21.38, review). Saying "Loading…" over a load
-        // that has already failed is the same class of false claim as showing an empty week — it
-        // just fails in the patient direction, and the admin waits instead of acting. The retry
-        // lives HERE as well as in Saved Changes, because this is the card they are looking at.
+        // WAITING AND STUCK ARE DIFFERENT STATES. The retry is here as well as in Saved Changes,
+        // because this is the card the admin is looking at.
         if (weekGrid) {
             if (loadFailedFor(memberName)) {
                 weekGrid.innerHTML = '<div class="week-empty" role="alert">' + (globalThis.navigator?.onLine === false
@@ -485,13 +431,12 @@ export function renderWeekGrid() {
     updateSaveBtn();
 }
 
-// A save awaiting the server (v24.23): updateSaveBtn used to re-arm Save mid-save on any keystroke,
-// and the sticky bar's Discard stayed live — a "discarded" save then landed anyway. Set around the
-// commit by executeSave; while set, Save and both sticky-bar buttons stay disabled.
+// A save awaiting the server, set around the commit: Save and both sticky-bar buttons stay disabled,
+// or a keystroke re-arms Save and a "discarded" save lands anyway.
 let _saveInFlight = false;
 /** Is the week itself held still for its own save? @type {boolean} */
 let _weekHeld = false;
-/** What the week's save in flight sends, for a draft kept mid-save (v25.97). @type {null|import('./admin-week-row-state.js').SendingDay[]} */ let _sending = null;
+/** What the week's save in flight sends, for a draft kept mid-save. @type {null|import('./admin-week-row-state.js').SendingDay[]} */ let _sending = null;
 /**
  * @param {boolean} on
  * @param {{ grid?: boolean, sending?: null|import('./admin-week-row-state.js').SendingDay[] }} [opts] `grid`: the write is this WEEK's own save, which resets and redraws
@@ -507,7 +452,7 @@ export function setSaveInFlight(on, { grid = false, sending = null } = {}) {
     for (const id of ['weekGrid', 'bulkBar']) { const el = document.getElementById(id); if (el) el.inert = _weekHeld; }
     updateSaveBtn();
 }
-/** Is any override write on this page still sending? One lock for the grid AND the range cards (v24.38). @returns {boolean} */
+/** Is any override write on this page still sending? One lock for the grid AND the range cards. @returns {boolean} */
 export function isSaveInFlight() { return _saveInFlight; }
 /** What the week's save in flight is sending, or null between saves: kept with a draft taken mid-save (unsaved-draft.js rule 6). @returns {null|import('./admin-week-row-state.js').SendingDay[]} */
 export function sendingDays() { return _sending; }
@@ -522,12 +467,10 @@ export function updateSaveBtn() {
     const delCount   = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
     const total = saveCount + delCount;
     saveBtn.disabled = total === 0 || _saveInFlight;
-    // The unsaved banner's "Discard and continue" too (review A9): navigating mid-save let the
-    // landing save reset the rows of the NEW view.
+    // The unsaved banner's "Discard and continue" too: a landing save would reset the NEW view's rows.
     for (const id of ['stagedSaveBtn', 'stagedDiscardBtn', 'unsavedDiscardBtn']) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = _saveInFlight; }
 
-    // Staged bar — mirrors the save state as a fixed bottom affordance so users
-    // can save without scrolling back up to the Save button.
+    // Staged bar — the save state as a fixed bottom affordance, so nobody scrolls back up to save.
     const stagedBar   = document.getElementById('stagedBar');
     const stagedCount = document.getElementById('stagedCount');
     if (stagedBar) {
@@ -540,24 +483,18 @@ export function updateSaveBtn() {
         }
     }
 
-    // Inline change preview (v15.58) — a calm "what you're about to do" line above the
-    // Save button, naming the member so a wrong-person / wrong-count edit is caught before
-    // saving. Type-neutral copy; reuses the counts already computed above.
+    // Inline change preview — what you are about to do, naming the member, so a wrong person or count
+    // is caught before saving.
     const gridPreview = document.getElementById('gridPreview');
     let previewShown = false;
     if (gridPreview) {
         const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         if (total > 0 && memberName) {
-            // THE VERB BELONGS TO EACH CLAUSE, NOT TO THE SENTENCE (v21.40). This used to read
-            // "You're about to save <n days to change>", which is what you get when one fixed verb
-            // has to cover both halves — and it was worse on a pure deletion ("about to save 2 to
-            // remove"). Each clause carries its own verb, so every combination is a sentence.
+            // THE VERB BELONGS TO EACH CLAUSE, so every combination is a sentence.
             const bits = [];
             if (saveCount) bits.push(`change <strong>${saveCount} day${saveCount > 1 ? 's' : ''}</strong>`);
             if (delCount)  bits.push(`remove <strong>${delCount} change${delCount > 1 ? 's' : ''}</strong>`);
-            // #gridPreview is an aria-live region, and updateSaveBtn() also fires on every
-            // time-input keystroke — only rewrite (and thus re-announce) when the summary
-            // actually changes, so typing a shift time doesn't re-read the unchanged sentence.
+            // A live region, and this runs on every keystroke: rewrite (re-announce) only on a change.
             const sig = `${saveCount}|${delCount}|${memberName}`;
             if (gridPreview.dataset.sig !== sig) {
                 gridPreview.innerHTML = `<span aria-hidden="true">🗓️</span> <span>You're about to ${bits.join(' and ')} for <strong>${escapeHtml(memberName)}</strong>.</span>`;
@@ -574,9 +511,7 @@ export function updateSaveBtn() {
 
     const hint = document.getElementById('saveBtnHint');
     if (hint) {
-        // Blank the hint only when the preview above is actually carrying the summary; if the
-        // preview isn't showing (no member selected, or stale HTML without #gridPreview) fall
-        // back to the guidance so there's never an enabled Save with no on-screen explanation.
+        // Blank only while the preview carries the summary: never an enabled Save with no explanation.
         // While the week is held for its own save, a tap on it does nothing, and this says why.
         hint.textContent = _weekHeld ? 'You can change this week again once the save has finished.'
             : previewShown ? '' : 'Select a type on at least one day, then save your changes';
@@ -617,9 +552,7 @@ function _leftAloneBy(type) {
 // ── BULK BAR ──────────────────────────────────────────────────────────────────
 /**
  * Clears the active bulk-bar type pill, hides the time inputs, resets values, and recounts the
- * "N days selected" line against the grid as it stands. The recount is here, not left to callers,
- * because a week SWIPE settles by calling this on a panel built fresh with nothing ticked — and the
- * line went on naming boxes that were no longer on screen (whole-app review, Oct 2026).
+ * "N days selected" line — here, because a week SWIPE settles by calling this on a fresh panel.
  */
 export function resetBulkPills() {
     _bulkActiveType = '';
@@ -631,8 +564,7 @@ export function resetBulkPills() {
     if (bulkTimeGroup) bulkTimeGroup.style.display = 'none';
     if (bulkStart) bulkStart.value = '';
     if (bulkEnd)   bulkEnd.value   = '';
-    // Write the LABEL span, not the button's textContent — the button also carries the
-    // step-number circle (.bulk-step-num), which textContent would wipe (v16.73).
+    // The LABEL span, not the button's textContent, which would wipe its step-number circle.
     const bulkApplyLabel = document.getElementById('bulkApplyLabel');
     if (bulkApplyLabel) bulkApplyLabel.textContent = 'Apply to ticked days';
     _updateBulkSelCount();
@@ -647,14 +579,8 @@ function _initBulkBar() {
     const weekGrid      = document.getElementById('weekGrid');
 
     if (bulkTypePills) {
-        // DELEGATED ON THE CONTAINER, not attached per pill (v21.94).
-        //
-        // The pills do not exist in `admin.html` — `#bulkTypePills` ships empty and `admin-app.js`
-        // fills it from `PILL_TYPES` at init. Per-pill listeners therefore depend on this running
-        // AFTER that fill and on the row never being rebuilt, and the wiring guard added in the
-        // same release makes the second half load-bearing: a rebuild would leave dead pills with
-        // no second `initWeekEditor` to re-attach them. The container is static, so delegating on
-        // it is true whatever order the two run in and however often the row is redrawn.
+        // DELEGATED ON THE CONTAINER: `#bulkTypePills` ships empty and `admin-app.js` fills it at init,
+        // and the wiring runs once — per-pill listeners would depend on the order and die on a rebuild.
         bulkTypePills.addEventListener('click', (e) => {
             const pill = /** @type {HTMLButtonElement|null} */ (
                 /** @type {Element} */ (e.target).closest('.type-pill-btn'));
@@ -673,7 +599,7 @@ function _initBulkBar() {
     }
 
     /**
-     * Deselect one out-of-selection row for the bulk tick buttons (v16.23). Three cases:
+     * Deselect one out-of-selection row for the bulk tick buttons. Three cases:
      *  · UNTOUCHED prefilled row (existingId + prefilled-existing): visually uncheck only —
      *    _deactivateRow would clear dataset.type and stage a DELETE of the saved doc.
      *  · EDITED saved-override row (existingId, prefilled class removed): leave the checkbox
@@ -714,8 +640,7 @@ function _initBulkBar() {
                 stagedChanged = _bulkDeselectRow(row, checkbox) || stagedChanged;
             }
         });
-        // Only when staged state genuinely changed — mere ticking stages nothing, and a false
-        // unsaved-changes flag also froze the admin week-swipe gesture (v16.23).
+        // Only when staged state changed — ticking stages nothing, and a false flag freezes the week swipe.
         if (stagedChanged) _markChanged();
         updateSaveBtn();
     });
@@ -724,7 +649,7 @@ function _initBulkBar() {
         let stagedChanged = false;
         const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
-        // Build priority-correct override map once — manual beats roster_import per date.
+        // Priority-correct, once: manual beats roster_import per date.
         const selMemberDateMap = memberName ? buildMemberDateMap(memberName) : null;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
@@ -737,7 +662,7 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                stagedChanged = _bulkDeselectRow(row, checkbox) || stagedChanged;   // see bulkSelMonFri (v16.23)
+                stagedChanged = _bulkDeselectRow(row, checkbox) || stagedChanged;   // see bulkSelMonFri
             }
         });
         if (stagedChanged) _markChanged();
@@ -774,8 +699,7 @@ function _initBulkBar() {
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
-            // User-edited, not pre-filled — cleared FIRST so _activateRow sees a staged row (the swap
-            // question is only asked of one, review A6).
+            // User-edited — cleared FIRST, so _activateRow sees a staged row (the swap question asks only one).
             row.classList.remove('prefilled-existing');
             _activateRow(row, checkbox, pills, startEl, endEl, _bulkActiveType);
             applied++;

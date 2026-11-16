@@ -3027,8 +3027,8 @@ test('day detail: a January leave day moved to last year\'s allowance says so, a
 // The rules are unit-tested in christmas-leave.test.mjs and the grid's wiring in
 // calendar-renderer.test.mjs. This is the half only a browser sees: the panel SAYS it, and the leave
 // panel lists the day and counts the earned one — in 2027, the NEXT year's allowance (owner, 15 Nov
-// 2026: the roster clerk says the day is valid for a year). G. Miller's pattern has him on a late turn
-// on both days in 2026; the fixture records his Boxing Day as worked, and nothing else.
+// 2026: the roster clerk says the day is valid for a year). The signed-in member's pattern has a late
+// turn on both days in 2026; the fixture records that Boxing Day as worked, and nothing else.
 test('christmas: a day due at work is leave never counted, and a worked Boxing Day adds a day to the next year', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
@@ -3046,7 +3046,7 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await cell('Friday 25 December 2026').click();
     await expect(line).toBeVisible();   // the text alone is no proof: a hidden line still holds it
     await expect(line).toHaveText('Christmas Day: due at work, so this is annual leave. It does not come off the allowance.');
-    // The pair names the turn he was ROSTERED — never "Rest day", which `getBaseShift` makes the day.
+    // The pair names the turn the member was ROSTERED — never "Rest day", which `getBaseShift` makes the day.
     await expect(page.locator('#dayDetailChange')).toHaveAttribute('aria-label', /^Base roster Late shift 14:00-22:30, changed to /);
     await page.locator('#dayDetailClose').click();
 
@@ -4609,15 +4609,20 @@ test('calendar: the leave panel\'s two links take the gold focus ring on its nav
 // nobody, naming the SIGNED-IN member on a colleague's calendar, and naming whoever was chosen when the
 // page loaded after the picker has moved — a name read once at init, which no single open can see.
 test('calendar: the leave panel names whose leave it is, and follows the member picker', async ({ page }) => {
+    // The colleague is chosen by SHAPE, not written down: this test seeds leave and reads a leave
+    // figure, and the Pages mirror serves this file (payroll-anonymity.test.mjs).
+    const colleague = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly
+        && !m.startDate && m.name !== 'G. Miller')?.name);
+    expect(colleague, 'premise: a colleague on the member picker').toBeTruthy();
     await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
-    await page.addInitScript(() => {
+    await page.addInitScript((name) => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
-        // A whole working week, so some of it costs leave whatever S. Silva's pattern makes of any
+        // A whole working week, so some of it costs leave whatever the colleague's pattern makes of any
         // single date (a rest day costs nothing, and the figure would read 0 for the wrong reason).
         w.__E2E.docs = ['2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05', '2026-03-06'].map((date, i) =>
-            ({ id: 's' + i, memberName: 'S. Silva', date, type: 'annual_leave', value: 'AL', note: '' }));
-    });
+            ({ id: 's' + i, memberName: name, date, type: 'annual_leave', value: 'AL', note: '' }));
+    }, colleague);
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
 
@@ -4627,22 +4632,23 @@ test('calendar: the leave panel names whose leave it is, and follows the member 
     await expect(who).toHaveText('G. Miller');
     // ...and the dialog's own name says it, so a screen reader hears whose balance it is on arrival.
     await expect(dialog).toHaveAttribute('aria-label', 'Annual Leave balance, G. Miller');
-    await expect(page.locator('#alLbTaken'), 'G. Miller has no leave in this fixture').toHaveText('0');
+    await expect(page.locator('#alLbTaken'), 'the signed-in member has no leave in this fixture').toHaveText('0');
     await page.locator('#alLightboxClose').click();
     await expect(dialog).not.toHaveClass(/open/);
 
     // A colleague chosen in the picker, with no reload — the case the owner reported.
-    await page.evaluate(() => {
+    await page.evaluate((name) => {
         const sel = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
-        const opt = [...sel.options].find(o => o.textContent?.trim() === 'S. Silva');
-        if (!opt) throw new Error('S. Silva is not in the member picker');
+        const opt = [...sel.options].find(o => o.textContent?.trim() === name);
+        if (!opt) throw new Error(`${name} is not in the member picker`);
         sel.value = opt.value;
         sel.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    }, colleague);
     await page.locator('#alBtn').click();
-    await expect(who).toHaveText('S. Silva');
-    await expect(dialog).toHaveAttribute('aria-label', 'Annual Leave balance, S. Silva');
-    // The name and the figures belong to the same person: S. Silva's March leave, not G. Miller's none.
+    await expect(who).toHaveText(colleague);
+    await expect(dialog).toHaveAttribute('aria-label', `Annual Leave balance, ${colleague}`);
+    // The name and the figures belong to the same person: the colleague's March leave, not the
+    // signed-in member's none.
     await expect(page.locator('#alLbTaken')).not.toHaveText(/^(0|…|—)$/);
 });
 

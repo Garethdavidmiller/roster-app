@@ -4,6 +4,31 @@ import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFir
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
 import { GRADES, AWARD_RATES, TAX_YEARS, computeGross, computeTax, computeNI, getThresholds, getPensionForPeriod } from '../paycalc-calc.js';
+import { teamMembers } from '../roster-data.js';
+import { memberSlug } from '../paycalc-migrations.js';
+
+// ── THE REAL ROWS THESE TESTS SIGN IN AS ARE CHOSEN BY SHAPE, NEVER WRITTEN DOWN ────────────────
+// A pay test prices a payslip for whoever it signs in as, and the GitHub Pages mirror serves this file,
+// so a roster name here would sit beside that member's pay (payroll-anonymity.test.mjs). Each row is
+// found by a property the test depends on, and its storage prefix is derived from it.
+/** The 5 May 2026 joiner: employed for none of 2025/26, and two 2026/27 payslips before the start. */
+const JOINER = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && m.startDate instanceof Date
+    && m.startDate.getTime() === new Date(2026, 4, 5).getTime())?.name);
+const JOINER_PC = `myb_pc_${memberSlug(JOINER)}_`;
+/** The row promoted from CEA to CES on Sun 22 Nov 2026: its last CEA day is Sat 21 Nov. */
+const PROMOTED = /** @type {string} */ (teamMembers.find(m => m.role === 'CES' && m.roleHistory?.length === 1
+    && m.roleHistory[0].role === 'CEA' && m.roleHistory[0].until.getTime() === new Date(2026, 10, 21).getTime())?.name);
+const PROMOTED_PC = `myb_pc_${memberSlug(PROMOTED)}_`;
+/** A CEA employed all of 2025/26 who is NOT the developer account (whose device offers the actuals sheet). */
+const LONG_SERVING = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly
+    && !m.startDate && !m.roleHistory && m.name !== 'G. Miller')?.name);
+const LONG_SERVING_PC = `myb_pc_${memberSlug(LONG_SERVING)}_`;
+
+test('the rows these tests sign in as are on the roster', () => {
+    expect(JOINER, 'premise: a CEA who started on Tue 5 May 2026').toBeTruthy();
+    expect(PROMOTED, 'premise: a CEA promoted to CES on Sun 22 Nov 2026').toBeTruthy();
+    expect(LONG_SERVING, 'premise: a CEA employed all of 2025/26').toBeTruthy();
+});
 
 
 test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {
@@ -593,21 +618,21 @@ test('paycalc: the January premium pointer waits for the payslip, then points at
 test('paycalc: the January banner offers last year\'s premium on the pass that works it out', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));   // opens on 18 Dec 2026 (p59)
-    await seedSession(page, 'C. Reen');
+    await seedSession(page, LONG_SERVING);
     const sat = JSON.stringify({ satH: 40, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0,
         sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null });
-    await page.addInitScript((seed) => {
+    await page.addInitScript(({ seed, pc }) => {
         localStorage.setItem('myb_pc_ns_migrated', '1');
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
-        localStorage.setItem('myb_pc_creen_grade', 'cea');
-        localStorage.setItem('myb_pc_creen_setup', '1');
-        localStorage.setItem('myb_pc_creen_p45', seed);   // a 2025/26 payslip with premium hours
-    }, sat);
+        localStorage.setItem(`${pc}grade`, 'cea');
+        localStorage.setItem(`${pc}setup`, '1');
+        localStorage.setItem(`${pc}p45`, seed);   // a 2025/26 payslip with premium hours
+    }, { seed: sat, pc: LONG_SERVING_PC });
     await page.goto('/paycalc.html');
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
     await expect(page.locator('#periodSelect')).toHaveValue('59');
-    await page.evaluate(() => {
-        localStorage.removeItem('myb_pc_creen_hpp_est_2025_26');
+    await page.evaluate((pc) => {
+        localStorage.removeItem(`${pc}hpp_est_2025_26`);
         // One ordered log of every pass's take-home write and every banner show/hide.
         const log = /** @type {string[]} */ ([]);
         Object.assign(window, { __passLog: log });
@@ -618,7 +643,7 @@ test('paycalc: the January banner offers last year\'s premium on the pass that w
         }).observe(net, { childList: true, characterData: true, subtree: true });
         new MutationObserver(() => log.push(`banner:${banner.style.display || 'shown'}`))
             .observe(banner, { attributes: true, attributeFilter: ['style'] });
-    });
+    }, LONG_SERVING_PC);
 
     await page.locator('#periodSelect').selectOption('60');   // 15 Jan 2027 — carries the 2025/26 premium
     await expect(page.locator('#priorHppAmt'), 'premise: the pass worked the premium out').toHaveText(/£\d/);
@@ -637,12 +662,12 @@ test('paycalc: the January banner offers last year\'s premium on the pass that w
 test('paycalc: a joiner is not pointed at last year\'s premium, which the card hides from them', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(JAN_2027_PAID_DAY);
-    await seedSession(page, 'J. Davies');   // started 5 May 2026 — employed for none of 2025/26
-    await page.addInitScript(() => {
+    await seedSession(page, JOINER);   // started 5 May 2026 — employed for none of 2025/26
+    await page.addInitScript((pc) => {
         localStorage.setItem('myb_pc_ns_migrated', '1');
-        localStorage.setItem('myb_pc_jdavies_grade', 'cea');
-        localStorage.setItem('myb_pc_jdavies_setup', '1');
-    });
+        localStorage.setItem(`${pc}grade`, 'cea');
+        localStorage.setItem(`${pc}setup`, '1');
+    }, JOINER_PC);
     await page.goto('/paycalc.html');
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
     await page.locator('#periodSelect').selectOption('60');
@@ -853,7 +878,7 @@ const HPP_NOTICE_DAY = new Date('2026-11-20T09:00:00Z');
 /** The established seed: a CEA with no start date, so employed the whole of 2025/26. */
 const HPP_MEMBER = 'G. Miller';
 /** Started 5 May 2026, so employed for none of 2025/26 (the joiner the tests above use). */
-const HPP_JOINER = 'J. Davies';
+const HPP_JOINER = JOINER;
 
 /**
  * A member signed in on `day` with neither Pay notice answered. Not `seedSession`, which marks both
@@ -1060,14 +1085,14 @@ for (const [w, h] of [[360, 740], [375, 667]]) {
 test('paycalc: a joiner is not asked to fill in pre-employment payslips', async ({ page }) => {
     await page.clock.setFixedTime(PAY_2026_27_DAY);
     await page.setViewportSize({ width: 390, height: 844 });
-    await seedSession(page, 'J. Davies');   // getLoggedMember reads the session, not the calendar member
+    await seedSession(page, JOINER);   // getLoggedMember reads the session, not the calendar member
     const oneSat = JSON.stringify({ satH:8,satM:0,bhH:0,bhM:0,bhOtH:0,bhOtM:0,otH:0,otM:0,rdwH:0,rdwM:0,sunH:0,sunM:0,boxH:0,boxM:0,peer:0,slSkip:false,otherAdj:0,actualNet:null });
-    await page.addInitScript((seed) => {
+    await page.addInitScript(({ seed, pc }) => {
         localStorage.setItem('myb_pc_ns_migrated','1');
-        localStorage.setItem('myb_pc_jdavies_grade','cea');
-        localStorage.setItem('myb_pc_jdavies_setup','1');
-        localStorage.setItem('myb_pc_jdavies_p52', seed);   // p52 = 5 Jun 2026 — after her 5 May start
-    }, oneSat);
+        localStorage.setItem(`${pc}grade`,'cea');
+        localStorage.setItem(`${pc}setup`,'1');
+        localStorage.setItem(`${pc}p52`, seed);   // p52 = 5 Jun 2026 — after the 5 May start
+    }, { seed: oneSat, pc: JOINER_PC });
     await page.goto('/paycalc.html');
     // The page has calculated, waited for rather than slept past (test audit, 7 Nov 2026 — these
     // were 800ms and 400ms). The figure is written by the opening period's calculate(), and the two
@@ -1102,13 +1127,13 @@ test('paycalc: a joiner is not asked to fill in pre-employment payslips', async 
 test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', async ({ page }) => {
     await page.clock.setFixedTime(PAY_2026_27_DAY);   // the joining tax year — see the note above Fill-the-year
     await page.setViewportSize({ width: 390, height: 844 });
-    await seedSession(page, 'J. Davies');
-    await page.addInitScript(() => {
+    await seedSession(page, JOINER);
+    await page.addInitScript((pc) => {
         localStorage.setItem('myb_pc_ns_migrated','1');
-        localStorage.setItem('myb_pc_jdavies_grade','cea');
-        localStorage.setItem('myb_pc_jdavies_setup','1');
-        localStorage.setItem('myb_pc_jdavies_ytd_src_2026_27','52');
-    });
+        localStorage.setItem(`${pc}grade`,'cea');
+        localStorage.setItem(`${pc}setup`,'1');
+        localStorage.setItem(`${pc}ytd_src_2026_27`,'52');
+    }, JOINER_PC);
     await page.goto('/paycalc.html');
     // Calculated, not slept past (test audit, 7 Nov 2026 — 700ms): the figure appears in the same
     // synchronous init that wires #ytdPay's listener, so a value typed from here is heard.
@@ -2967,7 +2992,7 @@ test('paycalc: "Keep CEA" keeps the member\'s own grade, and is not asked again'
 // and a CES from the Sunday. Each payslip is priced at the grade held on its days (paycalc-grade.js):
 // paid 20 Nov, all CEA; paid 18 Dec, 7 days as a CEA and 21 as a CES — £22.3225 an hour, explained in
 // a line under the rate; paid 15 Jan 2027, all CES. Nothing is asked, because the roster decides.
-const PROMOTED = 'K. Jedlinski';
+// The row is `PROMOTED`, chosen by shape at the top of this file.
 /**
  * Open the calculator on `today` as the promoted row, with `stored` (SK names → values) already on
  * this device — `grade` is what a device saved before grades had dates. `path` names a payslip.
@@ -2976,14 +3001,14 @@ async function openAsPromoted(/** @type {import('@playwright/test').Page} */ pag
     /** @type {Record<string, string>} */ stored = {}, /** @type {string} */ path = '/paycalc.html') {
     await page.clock.setFixedTime(new Date(today));
     await seedSession(page, PROMOTED);
-    await page.addInitScript((kv) => {
+    await page.addInitScript(({ kv, pc }) => {
         localStorage.setItem('myb_pc_ns_migrated', '1');
-        localStorage.setItem('myb_pc_kjedlinski_setup', '1');
+        localStorage.setItem(`${pc}setup`, '1');
         if (!sessionStorage.getItem('seeded')) {
-            for (const [k, v] of Object.entries(kv)) localStorage.setItem(`myb_pc_kjedlinski_${k}`, v);
+            for (const [k, v] of Object.entries(kv)) localStorage.setItem(`${pc}${k}`, v);
             sessionStorage.setItem('seeded', '1');
         }
-    }, stored);
+    }, { kv: stored, pc: PROMOTED_PC });
     await page.goto(path);
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
 }
@@ -2997,7 +3022,7 @@ test('paycalc: a promotion dated 22 Nov 2026 — each payslip at the grade held 
     await openAsPromoted(page, '2026-11-25T09:00:00Z', { grade: 'cea' });
     await expect(page.locator('#gradeSelect')).toHaveValue('roster');
     await expect(page.locator('#gradePrompt'), 'with the roster deciding there is nothing to ask').toBeHidden();
-    expect(await page.evaluate(() => localStorage.getItem('myb_pc_kjedlinski_grade'))).toBe('roster');
+    expect(await page.evaluate(k => localStorage.getItem(k), `${PROMOTED_PC}grade`)).toBe('roster');
 
     for (const [payday, rate, line] of /** @type {const} */ ([
         ['2026-11-20', '21.49', null],
@@ -3052,7 +3077,7 @@ test('paycalc: the change of grade is said once — before the day, then never a
     const done = page.locator('#gradeNoteDone');
     await expect(done).toHaveText("✓ Your grade's dates are in Your Settings, under Grade.");
     await expect(done, 'the button pressed is gone, so focus goes to what happened').toBeFocused();
-    expect(await page.evaluate(() => localStorage.getItem('myb_pc_kjedlinski_grade_note'))).toBe('2026-11-22');
+    expect(await page.evaluate(k => localStorage.getItem(k), `${PROMOTED_PC}grade_note`)).toBe('2026-11-22');
 
     await page.reload();
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
@@ -3076,13 +3101,13 @@ for (const [name, confirmed] of /** @type {const} */ ([['settings confirmed', tr
         await page.setViewportSize({ width: 1280, height: 593 });
         await page.clock.setFixedTime(new Date('2026-11-13T09:00:00Z'));
         await seedSession(page, PROMOTED);
-        await page.addInitScript((ok) => {
+        await page.addInitScript(({ ok, pc }) => {
             localStorage.setItem('myb_pc_ns_migrated', '1');
             localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
-            localStorage.setItem('myb_pc_kjedlinski_grade', 'roster');
-            localStorage.setItem('myb_pc_kjedlinski_p59', JSON.stringify({ satH: 8 }));
-            if (ok) { localStorage.setItem('myb_pc_kjedlinski_setup', '1'); localStorage.setItem('myb_pc_kjedlinski_setup_2026_27', '1'); }
-        }, confirmed);
+            localStorage.setItem(`${pc}grade`, 'roster');
+            localStorage.setItem(`${pc}p59`, JSON.stringify({ satH: 8 }));
+            if (ok) { localStorage.setItem(`${pc}setup`, '1'); localStorage.setItem(`${pc}setup_2026_27`, '1'); }
+        }, { ok: confirmed, pc: PROMOTED_PC });
         await page.goto('/paycalc.html');
         await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
         await expect(page.locator('#gradeNote')).toBeVisible();
@@ -3128,7 +3153,7 @@ test('paycalc: a grade chosen by hand covers whole payslips from the one named; 
     await page.locator('#gradeSelect').selectOption('roster');
     await expect(page.locator('#gradeFromField'), 'the roster needs no date of its own').toBeHidden();
     await expect(page.locator('#hourlyRate')).toHaveValue('22.60');
-    expect(await page.evaluate(() => localStorage.getItem('myb_pc_kjedlinski_grade_from'))).toBeNull();
+    expect(await page.evaluate(k => localStorage.getItem(k), `${PROMOTED_PC}grade_from`)).toBeNull();
     expect(errors).toHaveLength(0);
 });
 

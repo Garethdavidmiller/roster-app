@@ -19,16 +19,12 @@
 }
 
 /* ============================================================
-   TYPEFACE — Inter (self-hosted, v11.53)
-   Self-hosted (not Google Fonts CDN) for three reasons: (1) the
-   app's CSP is locked to `font-src 'self'` — a CDN would mean
-   loosening it; (2) offline-first — the file is a same-origin
-   asset the service worker caches, so it renders on the very
-   first offline load with no flash; (3) no third-party request.
-   One variable woff2 (latin subset, ~47 KB, wght 100–900) covers
-   every weight the app uses. `font-display: swap` shows the system
-   fallback instantly and swaps Inter in once loaded, so a cold or
-   offline first paint looks exactly like the old system-font app.
+   TYPEFACE — Inter (self-hosted)
+   Self-hosted, not Google Fonts CDN: the CSP is `font-src 'self'`,
+   the service worker caches it for the first offline load, and there
+   is no third-party request. One variable woff2 (latin, wght 100–900)
+   covers every weight; `font-display: swap` shows the system fallback
+   instantly and swaps Inter in once loaded.
    ============================================================ */
 @font-face {
     font-family: 'Inter';
@@ -78,7 +74,7 @@
        shared.css referenced it every other page was reading a property nothing declared. */
     --gold-text: oklch(46% 0.11 85deg);
 
-    /* ── Page identity (v25.14) ─────────────────────────────────
+    /* ── Page identity ─────────────────────────────────────────
        ONE colour per page, declared ONCE in that page's own stylesheet `:root`, and read by
        everything that wears it: the header badge (.badge-page), the About badge (.lightbox-badge),
        the current row of a picker sheet (.picker-opt.is-current) and every CHOSEN control (below).
@@ -89,12 +85,11 @@
        These defaults are the Calendar's gold; the Calendar declares nothing. Every card page
        declares all three, Admin included (page-identity-parity.test.mjs).
 
-       CHOSEN = THE PAGE'S COLOUR (v25.16). Whatever you have chosen — a tab, a segment, a chip, a
+       CHOSEN = THE PAGE'S COLOUR. Whatever you have chosen — a tab, a segment, a chip, a
        toggle that is on — fills with --page-accent, its text --page-accent-ink, and nothing else:
        no gold underline, no darker edge, so one page never shows two colours for one idea (owner,
        with screenshots; css-tokens.md has the account). Three things are NOT this, on purpose:
-         · NAVY IS FOR A BUTTON THAT DOES SOMETHING (Save, View, Answer). Chosen and do-something
-           were both navy before, so a selected tab and an action button looked alike.
+         · NAVY IS FOR A BUTTON THAT DOES SOMETHING (Save, View, Answer), never a choice.
          · A CHOICE WITH A MEANING keeps its meaning's colour: the shift types, yes and no, enter and
            skip. That colour is information; the page's colour would erase it.
          · A tick box, a radio and the row built round one keep the app-drawn recipe, whose own
@@ -300,24 +295,18 @@
     --bg-light: oklch(97.9% 0 0);
     --bg-faint: oklch(97.0% 0 0);
 
-    /* ── Surface scale — three-surface model (v11.55, updated v11.58) ─
+    /* ── Surface scale — three-surface model ─────────────────────
        Depth comes from three layers, deepest first:
          canvas → the brand navy page background (body)
          card   → barely-tinted off-white cards that lift off the canvas
          sunken → a more visibly cool-tinted off-white for RECESSED
                   elements inside cards (form fields, wells).
-       Form fields rest on --field-bg (sunken, 96.3% L) and brighten
-       to white on :focus-visible — a tactile 'fills in when active' cue
-       that's more visible now the card surface is below pure white.
-       Focus rules use the literal value 'white', not var(--surface),
-       so focus always reaches the true white ceiling.
-       Disabled fields use --field-bg-disabled: a flatter, slightly
-       darker NEUTRAL grey, kept deliberately distinct (different hue
-       AND lightness) from the cool enabled tint so locked/disabled
-       controls still read as inert. Always set field fills with
-       'background-color' (longhand) — selects layer their dropdown
-       arrow via 'background-image', which the 'background' shorthand
-       would wipe. */
+       Form fields rest on --field-bg and brighten to the literal 'white'
+       (not var(--surface)) on :focus-visible — the 'fills in' cue.
+       Disabled fields use --field-bg-disabled, a NEUTRAL grey distinct in
+       hue AND lightness from the enabled tint, so they read as inert.
+       Always set field fills with 'background-color' (longhand) — the
+       'background' shorthand wipes a select's arrow (background-image). */
     --surface-canvas:    var(--primary-blue);
     --surface:           oklch(98% 0.004 250deg); /* barely-tinted card; focus rules use 'white' not this */
     --surface-sunken:    oklch(96.3% 0.006 250deg);
@@ -333,16 +322,11 @@
     --print-muted: oklch(37% 0 0); /* ≈#444 — secondary text on printed pages (timestamps, sub-lines) */
 
     /* ── Page shell ──────────────────────────────────────────────── */
-    /* Two desktop content widths, single-sourced (v15.90). Only the CALENDAR earns the wide
-       cap — its 7-column month grid and Team Week View genuinely use the horizontal space.
-       EVERY other page (admin, paycalc, operations, settings, links) uses the narrower content
-       cap so forms and prose stay a comfortable width and the app doesn't re-lay-out ~300px on
-       every desktop hop. Both live here as tokens, not hardcoded per file. (Admin moved to the
-       content cap at v15.90 once its week grid became vertical day-cards rather than a wide table;
-       settings and overtime joined at v20.72 — they had capped at 600px to stop their form fields
-       stretching, which fixed the fields by moving the page chrome 250px, the "re-lay-out on every
-       desktop hop" this token exists to prevent. Columns are the app's answer to a wide band and
-       small cards.) NO PAGE IS AN EXCEPTION: every served page uses one of these two. */
+    /* Two desktop content widths, single-sourced. Only the CALENDAR earns the wide cap — its
+       7-column month grid and Team Week View use the space. EVERY other page uses the narrower
+       content cap, so forms and prose stay a comfortable width and the page chrome does not
+       re-lay-out on every desktop hop (columns are the answer to a wide band and small cards).
+       NO PAGE IS AN EXCEPTION: every served page uses one of these two. */
     --page-max-width:    1400px;   /* wide: calendar only */
     --content-max-width: 1100px;   /* every other page */
 
@@ -363,12 +347,7 @@
     /* The app has TWO overlay families and they carry different corners on purpose: compact DIALOGS at
        --radius-xl — white ones (month-jump, login, Tips, confirm/prompt, the Calendar's
        Circular/Newsletter viewer) and the Calendar's see-through team info — and full navy GLASS SHEETS
-       (About, notices, day detail, AL) at 24px. The six glass panels each
-       restated `border-radius: 24px`, so that rule lived nowhere — naming it fixed that (v18.87).
-       CORRECTION (v18.90): that pass documented two families while the code actually had three —
-       four white panels (login/work-email/Tips/dialog) were on --radius-lg, i.e. the CARD radius,
-       which is easy to miss because it reads as a token rather than a literal. They now all sit on
-       --radius-xl, so the two-family description is finally true of the code. */
+       (About, notices, day detail, AL) at 24px. A dialog is never on --radius-lg, the CARD radius. */
     --radius-panel: 24px;   /* navy glass overlay sheets */
     --radius-pill:  999px;  /* fully-rounded pills/chips (v17.72) */
 
@@ -398,41 +377,31 @@
        The big bespoke £ numerals keep their own hand-tuned px tracking. */
     --track-tight:  -0.02em;  /* display headings (24px+) */
 
-    /* ── Elevation (unified v17.45) ───────────────────────────────
+    /* ── Elevation ────────────────────────────────────────────────
        ONE material at three heights: a two-layer, navy-tinted shadow
        (a tight contact edge + a soft ambient) at EVERY level, so cards,
-       raised bars and floating overlays read as the same physical
-       surface — just higher. Navy-tinted (not neutral black) so they lift
-       off the navy canvas warmly. A single flat blur reads 'pasted on'
-       (v16.71 lesson) — so shadow-1 and shadow-3 are now layered too, not
-       just shadow-2. --shadow-2 (the app-wide CARD elevation) is unchanged. */
+       raised bars and overlays read as one surface — just higher. A
+       single flat blur reads 'pasted on'. --shadow-2 is the CARD elevation. */
     --shadow-1: 0 1px 2px rgba(0,22,48,0.08), 0 2px 8px rgba(0,22,48,0.10);   /* resting / small chips */
     --shadow-2: 0 1px 2px rgba(0,22,48,0.14), 0 6px 20px rgba(0,22,48,0.16);  /* cards, sticky bar, today */
     --shadow-3: 0 2px 6px rgba(0,22,48,0.16), 0 16px 40px rgba(0,22,48,0.22); /* floating: lightboxes, drawer */
-    /* ── Overlay sizing (v19.04) ──────────────────────────────────
-       THREE sizes, ONE viewport cap, ONE idiom. Before this the seven overlays carried five widths
-       (300/320/340/360/380), three caps (85 / 86 / 90vw — 86 against 85 cannot be a decision), two
-       different width idioms (`width: min(Npx, Xvw)` vs `max-width: Npx; width: 100%`) and six
-       paddings, none of the variation meaning anything. Pick a size when adding an overlay; do not
-       invent a sixth width.
+    /* ── Overlay sizing ───────────────────────────────────────────
+       THREE sizes, ONE viewport cap, ONE idiom. Pick a size when adding an overlay; do not invent a
+       new width (five widths and three caps once meant nothing).
          --modal-compact   short panels with no form: About, coming-soon, App Notices
          --modal-standard  a form or a list to read: login, one-time notices, Tips
          --modal-wide      confirm/prompt dialogs, whose message needs the measure
-       --modal-cap is the single viewport cap. 90vw was chosen over 85vw because it leaves the WIDEST
-       overlay (the dialog) unchanged, so the cap unification moves nothing on the surface where a
-       clipped message would matter most. */
+       --modal-cap is the single viewport cap: 90vw, so the WIDEST overlay (the dialog), where a
+       clipped message matters most, keeps its room. */
     --modal-compact:  300px;
     --modal-standard: 340px;
     --modal-wide:     380px;
     --modal-cap:      90vw;
 
-    /* ── Focus indicators (v18.99) ────────────────────────────────
-       One vocabulary for the whole app's focus treatment. The four recipes below were
-       hand-written literals in ~80 places across the seven app stylesheets, so retuning the
-       app's focus look meant an 80-site sweep — and a site missed in that sweep drifts
-       SILENTLY, because a focus ring only appears during keyboard navigation, which no
-       screenshot baseline and no axe rule can see. Same pattern (and the same reason) as
-       --dur-med / --dur-slow below. Which outline to use is a CONTRAST decision:
+    /* ── Focus indicators ─────────────────────────────────────────
+       One vocabulary for the whole app's focus treatment: a hand-written ring drifts SILENTLY,
+       because a focus ring only appears during keyboard navigation, which no screenshot baseline
+       and no axe rule can see. Which outline to use is a CONTRAST decision:
          --focus-outline        navy  — the default, on light surfaces (cards, prose, fields)
          --focus-outline-gold   gold  — on the navy drawer and other dark surfaces, where navy vanishes
          --focus-outline-light  white — on the darkest fills (burger, guide header, design chips)
@@ -561,14 +530,10 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 /* ============================================================
-   NATIVE CONTROLS THE APP DRAWS — checkbox + radio (v23.50)
+   NATIVE CONTROLS THE APP DRAWS — checkbox + radio
    ============================================================
-   The last two form widgets the OS was still drawing. `accent-color` tinted them and nothing more:
-   the box shape, the tick glyph, the pressed state and the animation were all the platform's, and
-   the platform is not the same one on the two phones staff carry. That is the argument
-   `select-sheet.js` and `date-picker.js` already made, applied to the controls the audit of
-   9 Sep 2026 found still native — twenty-five of them, five of which decide which PAY figure the
-   calculator shows (the back-pay and Holiday Pay Premium mode radios).
+   `accent-color` only tints them: the box, the tick, the pressed state and the animation stay the
+   platform's, which is not the same on the two phones staff carry — `select-sheet.js`'s argument.
 
    ONE RECIPE, HERE, AND NO PAGE RESTATES IT. A page may recolour through `--check-fill` /
    `--check-border` (the Other-day RDW tick is leaf-green that way) and may put the FOCUS RING on
@@ -581,10 +546,8 @@ button, input, select, textarea { font-family: inherit; }
    the spring easing so a change of state is seen to happen, and the box stays 2px-bordered in
    every state so toggling causes no reflow (the `.gen-obj` rule that already argued this).
 
-   The box is 20px, 22px under a coarse pointer — the figure the `.gen-obj` and `.pw-show-row`
-   sites had each settled on with the same reasoning: the ROW is the touch target, the box is
-   what you see. It is NOT 24px, so the `KNOWN_SMALL` entries in `e2e/pages.spec.js` for the
-   sibling-labelled toggles still stand, with their measurements updated. */
+   The box is 20px, 22px under a coarse pointer: the ROW is the touch target, the box is what you
+   see. It is NOT 24px, so the `KNOWN_SMALL` entries in `e2e/pages.spec.js` still stand. */
 input[type="checkbox"],
 input[type="radio"] {
     -webkit-appearance: none;
@@ -689,29 +652,19 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
 
 /* WINDOWS HIGH CONTRAST — the one environment where drawing our own box LOSES information.
 
-   MEASURED, not reasoned (v23.67, external review). Under `forced-colors: active` the UA replaces
-   author colours with the user's theme: a background becomes `Canvas`, a border `CanvasText`. Our
-   box's checked fill is a background and the tick's `::before` is ALSO a background, so both were
-   forced to Canvas — a white tick on a white fill inside a black border. Decoding the painted
-   pixels of a 20px box, checked and unchecked came back with the SAME colours in the SAME counts
-   (255,255,255 x248 · 0,0,0 x92). Not merely low contrast: the checked state was not drawn at all,
-   on all twenty-five of these controls, five of which pick which PAY figure the calculator shows.
-
-   Nothing could see it. `getComputedStyle` returns the AUTHOR value — the forcing happens at paint
-   time — so a style assertion reads back our navy and reports it correct; the visual baselines are
-   captured with forced colours off; and axe has no rule for it. Only rendering under the emulation
-   and reading the pixels says anything, which is what `forced-colors.spec.js` now does.
+   MEASURED, not reasoned. Under `forced-colors: active` the UA replaces author colours with the
+   user's theme: a background becomes `Canvas`, a border `CanvasText`. Our checked fill and the
+   tick's `::before` are both backgrounds, so both were forced to Canvas and the checked state was
+   not drawn at all (decoded from the painted pixels). `getComputedStyle` returns the AUTHOR value
+   and axe has no rule for it, so only `forced-colors.spec.js`, reading the pixels, can see it.
 
    Every colour below is a SYSTEM colour, so this is not an opt-OUT of the reader's theme: it still
    resolves to whatever theme they chose. It states the distinction IN their palette rather than
    letting a blanket substitution erase it.
 
-   **`forced-color-adjust: none` is belt-and-braces, and it was MEASURED rather than assumed.**
-   Removing it changes nothing in Chromium today — system colours survive the forcing — so the
-   first draft of this comment was wrong to call it load-bearing. It is kept because it makes the
-   result independent of whether an engine substitutes a system colour for a system colour, which
-   is the one thing here that is not worth discovering from a staff report. Know what it costs:
-   it also stops `box-shadow` being forced away, which is why the focus rule below has to remove
+   **`forced-color-adjust: none` is belt-and-braces (MEASURED):** removing it changes nothing in
+   Chromium today; it keeps the result independent of an engine substituting one system colour for
+   another. It also stops `box-shadow` being forced away, which is why the focus rule below removes
    the brand ring by hand. If it ever goes, that line goes with it.
 
    Three things that ARE load-bearing, each pinned by native-surface-parity contract 13:
@@ -769,17 +722,14 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
 }
 
 /* ============================================================
-   A CHOSEN CONTROL IN A FORCED-COLOURS THEME (v25.21)
+   A CHOSEN CONTROL IN A FORCED-COLOURS THEME
    ============================================================
    Every chosen fill in this app is a BACKGROUND (shared.css → "CHOSEN = THE PAGE'S COLOUR"), and a
    forced-colours theme (Windows High Contrast; the station PC is Windows) repaints backgrounds as
-   `Canvas` — so a chosen tab, segment, chip, toggle or date painted exactly like the ones beside it.
-   Only Trains' view tabs and New link's tiles said otherwise, each with a border rule of its own, and
-   Trains' lost to a later rule on its in-card tabs. One OUTLINE in the theme's `Highlight` now states
-   the choice everywhere: an outline is no element's layout, so it cannot fight a page's border rules.
-   It reads the pressed/selected/checked/current states on anything a reader can press, and the
-   classes the pages spell "chosen" with too: every chosen control today sets both, on separate
-   lines, and an edit that drops one should not take the outline with it. Only PRESSABLE things:
+   `Canvas`, so a chosen control painted like the ones beside it. One OUTLINE in the theme's
+   `Highlight` states the choice everywhere — an outline is no element's layout, so it cannot fight a
+   page's border rules. It reads the pressed/selected/checked/current states AND the classes the pages
+   spell "chosen" with, so an edit that drops one keeps the outline. Only PRESSABLE things:
    Admin marks a whole day row `.active`, and a row is not a choice. The range picker's days are `role="button"` and every day of a chosen range is pressed,
    so the outline draws the range itself; the week picker presses only the chosen day.
    `e2e/forced-colors.spec.js` reads the pixels, because `getComputedStyle` returns the author value
@@ -806,24 +756,16 @@ input[type="checkbox"]:disabled:indeterminate { background-color: var(--check-fi
 }
 
 /* ============================================================
-   THE PASSWORD FIELD'S OWN BUTTONS (v23.51)
+   THE PASSWORD FIELD'S OWN BUTTONS
    ============================================================
-   The audit that produced v23.50 missed these because they are drawn by only TWO engines and
-   neither is the one CI renders in. Edge paints `::-ms-reveal` — an eye — inside every password
-   field, and Safari paints `::-webkit-credentials-auto-fill-button`, a key, in the same corner.
-   The app already draws its own control there: `.login-pw-toggle` is absolutely positioned at the
-   field's right edge and the input reserves 62px for it, so the platform's button lands UNDER or
-   BESIDE the app's, and the Settings card offers a third route to the same thing in its
-   "Show passwords" tick. Three controls, one job, two of them the OS's.
+   Edge paints `::-ms-reveal` (an eye) and Safari `::-webkit-credentials-auto-fill-button` (a key)
+   in the corner where the app's own `.login-pw-toggle` sits, so the platform's button lands UNDER
+   or BESIDE the app's. The station PC is Windows, so the Edge one is on the surface a member uses
+   to sign in at work.
 
-   The station PC is Windows, so the Edge one is not hypothetical — it is on the surface a member
-   uses to sign in at work.
-
-   `::-webkit-strong-password-auto-fill-button` is deliberately NOT in this list. The others
-   duplicate a control the app draws; that one offers something the app does not (a keychain
-   password), which is the line v23.50 drew between chrome to replace and a platform feature to
-   leave alone. iOS AutoFill is unaffected either way — it is offered on the keyboard's QuickType
-   bar, which no page can style or suppress. */
+   `::-webkit-strong-password-auto-fill-button` is deliberately NOT in this list: it offers something
+   the app does not (a keychain password) — a platform feature, not chrome to replace. iOS AutoFill
+   is offered on the keyboard's QuickType bar, which no page can style or suppress. */
 input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear { display: none; }
 input::-webkit-credentials-auto-fill-button,
@@ -834,12 +776,10 @@ input::-webkit-contacts-auto-fill-button {
 }
 
 /* ============================================================
-   AUTOFILL REPAINTS THE APP'S OWN FIELD (v23.51)
+   AUTOFILL REPAINTS THE APP'S OWN FIELD
    ============================================================
-   Chrome and Safari paint an autofilled input in their own yellow (or blue), which is the one
-   place the platform overrides a surface the three-surface model specifies: the sunken
-   `--field-bg` well becomes a colour the app never chose. It lands on the sign-in overlay and the
-   Settings work-email and password card — precisely the fields autofill fires on.
+   Chrome and Safari paint an autofilled input in their own yellow (or blue), overriding the sunken
+   `--field-bg` well — on the sign-in overlay and the Settings cards, where autofill fires.
 
    `!important` is load-bearing and is the reason this is a recipe rather than a declaration: the
    UA sheet's autofill background is itself `!important`, and an inset box-shadow is the only
@@ -867,11 +807,9 @@ textarea:-webkit-autofill:focus-visible {
 }
 
 /* ============================================================
-   SELECTION, PLACEHOLDER AND CARET (v23.51)
+   SELECTION, PLACEHOLDER AND CARET
    ============================================================
-   The last three things the platform still coloured. Selection was the browser's default blue on
-   a navy-and-gold app; the caret was the OS accent; and of fifty placeholders exactly one was
-   styled (`.nav-gs-input`), so every other one was whatever grey the engine happened to pick.
+   Otherwise the browser's default blue, the OS accent and whatever grey the engine picks.
 
    ONE selection rule serves both surface families, which is why it sets no `color`: at 35% the
    gold tint leaves dark text at 10.2:1 on a card and white text at 7.3:1 on the navy drawer
@@ -1028,12 +966,9 @@ body.lb-open #stickyTotal { display: none !important; }
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
-/* ── A SCROLLING PANEL SAYS SO (v21.36) ────────────────────────────────────────────────────────
-   `.lb-content` caps at 85vh and scrolls, and nothing marked the fold. At 390px the Change a Shift
-   panel runs 765px against ~1,100px of content and the Link design grid panel clips its "MULTIPLE
-   DESIGNS" heading exactly on the edge — which reads as a rendering fault, not as "there is more".
-   Both are the panels with the most to say, so the readers most in need of the rest of it are the
-   ones told least clearly that it exists.
+/* ── A SCROLLING PANEL SAYS SO ────────────────────────────────────────────────────────────────
+   `.lb-content` caps at 85vh and scrolls, and a heading clipped exactly on the edge reads as a
+   rendering fault, not as "there is more".
 
    A mask rather than an overlaid gradient: on a scroll container the mask is applied to the border
    box, so it stays pinned at the bottom edge instead of scrolling away with the content. `has-more`
@@ -1101,15 +1036,10 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 22px 22px 18px;
     width: min(var(--modal-wide), var(--modal-cap));
     text-align: left;
-    /* NEVER TALLER THAN THE VIEWPORT (v22.14). This dialog had no height cap at all, which was
-       harmless while every message was two lines — and stopped being so the moment the restore
-       confirmation began itemising both sides of a replace. Measured at 360x640 with a full
-       namespace: 616px of 640, i.e. one more tax year from putting Cancel and Replace off the
-       bottom of the screen with no way to scroll to them. A modal that cannot be dismissed is
-       the worst failure available to a modal, so the cap is structural rather than a limit on
-       what a caller may say. The `dvh` twin (v24.61, iOS audit): on iOS `vh` is the LARGE viewport,
-       the one with the browser bar minimised, so in landscape on a Pro the 86vh cap could still clip
-       the buttons until the bar hid — every other dialog in this file already carries the pair. */
+    /* NEVER TALLER THAN THE VIEWPORT: a long message (the restore confirmation itemises both sides
+       of a replace) must never put Cancel and Replace off the screen — a modal that cannot be
+       dismissed is the worst failure available to one. The `dvh` twin: on iOS `vh` is the LARGE
+       viewport (browser bar minimised), so the 86vh cap alone could clip the buttons. */
     max-height: 86vh;
     max-height: 86dvh;
 }
@@ -1181,8 +1111,7 @@ body.lb-open #stickyTotal { display: none !important; }
    `confirmDialog`/`promptDialog` BUILD their dialog and remove it on close, so at any moment at
    most one `.dialog-btn-confirm` exists — which is what lets a caller (and every e2e spec) mean
    "the affirmative of the dialog that is open" by it. Static markup wearing the same class breaks
-   that permanently: the links Import panel did, at v20.98, and `.dialog-btn-confirm` then resolved
-   to a button inside a CLOSED lightbox, timing out sixteen tests that had nothing to do with it.
+   that permanently (the selector then resolves to a button inside a CLOSED lightbox).
    A static panel that wants this treatment takes `.panel-btn-*` below instead — same recipe, one
    declaration, no claim to be an open dialog. */
 .dialog-btn-cancel,
@@ -1427,25 +1356,14 @@ button.lightbox-bug-link {
 
 /* The native select stays in the DOM as the value holder — every consumer still reads `.value`
    and hears `change` — taken out of the LAYOUT and out of the a11y tree, but deliberately NOT
-   `display: none`.
-
-   That was the first cut and it broke the promise this module makes. "Consumers are unchanged"
-   has to include the ~50 places the e2e suite drives these controls with Playwright's
-   `selectOption`, which requires a rendered box; `display: none` made every one of them
-   unactionable. Anything that focuses or measures the select would have gone the same way.
-   Invisible-but-rendered is the same trick the Links masthead used for two releases, and
-   `pointer-events: none` under a trigger that covers the slot means nothing can reach it by
-   touch. */
+   `display: none`: "consumers are unchanged" includes the e2e suite's `selectOption`, which needs
+   a rendered box, and anything that focuses or measures the select. `pointer-events: none` under
+   a trigger that covers the slot means nothing can reach it by touch. */
 .fieldpick-native {
-    /* EVERY declaration here is `!important`, and that is not laziness — it is the only thing that
-       makes this rule win (v23.35). The pages style their fields by ID and by class:
-       `#periodSelect { width: 100% }` is (1,0,0) and `.gen-select { width: 100% }` is (0,1,0) and
-       later in source order, so a plain `.fieldpick-native { width: 1px }` LOSES to both. The
-       select then kept `width: 100%` while being `position: absolute` — 100% of the initial
-       containing block, laid out from its static position — and the document grew to roughly twice
-       the viewport. Chromium happened to clip it and stayed green; WebKit reported 977px of
-       overflow at 1024 and 1254px at 1440, on four paycalc widths and the Links generator.
-       Caught by the branch's WebKit lane, which is the only one that sees Safari before release. */
+    /* EVERY declaration here is `!important` — the only thing that makes this rule win over the
+       pages' field rules by ID (`#periodSelect`, (1,0,0)) and later classes. Losing, the select kept
+       `width: 100%` while `position: absolute` and the document grew to about twice the viewport
+       (WebKit only — Chromium clipped it and stayed green). */
     position: absolute !important;
     width: 1px !important;
     height: 1px !important;
@@ -1478,16 +1396,11 @@ button.lightbox-bug-link {
 }
 .fieldpick:disabled { opacity: 0.55; cursor: default; }
 .fieldpick:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-/* THE TRIGGER IS SIZED BY ITS WIDEST OPTION, NOT BY THE ONE IT IS SHOWING (v23.39).
-   A `<select>` takes its intrinsic width from the widest option, so the control is the same width
-   whoever is selected; a button sizes to its own text, so from v23.33 the Calendar's name picker
-   changed width as you switched member and the whole control row re-centred around it. The button
-   is a one-cell grid holding the visible face and a hidden copy of the widest option, both in that
-   cell — so the button's intrinsic width is the max of the two, which is the widest option. That
-   is the `<select>` behaviour restored, with no percentage anywhere (see index.css, where a
-   percentage width against a shrink-to-fit parent is recorded as the cyclic case Chromium resolves
-   as `none`). The page's own `max-width` cap still applies on top, and the face still ellipsises
-   under it. */
+/* THE TRIGGER IS SIZED BY ITS WIDEST OPTION, NOT BY THE ONE IT IS SHOWING, as a `<select>` is —
+   or the control row re-centres on every change. The button is a one-cell grid holding the visible
+   face and a hidden copy of the widest option, so its intrinsic width is the widest option, with no
+   percentage anywhere (index.css records the cyclic percentage case). The page's own `max-width`
+   cap still applies on top, and the face still ellipsises under it. */
 .fieldpick { display: grid; grid-template-columns: auto; }
 /* `display: grid` out-specifies the UA `[hidden]` rule, so without this `enhanceSelect`'s
    `btn.hidden = select.hidden` — the guard against a retired value holder growing a live picker —
@@ -1508,15 +1421,10 @@ button.lightbox-bug-link {
     pointer-events: none;
 }
 
-/* THE SHEET MUST OUTRANK WHATEVER OPENED IT, AND THE LOGIN OVERLAY IS THE CASE THAT PROVES IT
-   (v23.49). Every other `.lb-overlay` sits at `--z-lightbox` (8000), and the login overlay sits
-   deliberately above them at `--z-login` (9000) so it covers the page and its notices. That is
-   right — until the login overlay OPENS one. The sign-in grade/name pickers then rendered BEHIND
-   the card that opened them: the rows were painted, `elementFromPoint` at a row's centre returned
-   `.login-app-name`, and the member could see names they could not tap.
-   No other FIXED layer lives between 9000 and `--z-splash` (9999), so raising the sheet costs no
-   other surface. Caught by the e2e that clicks a real row rather than by the three tests that only
-   read the trigger's label — the label was right the whole time.
+/* THE SHEET MUST OUTRANK WHATEVER OPENED IT, AND THE LOGIN OVERLAY IS THE CASE THAT PROVES IT.
+   The login overlay sits above every `.lb-overlay` at `--z-login` (9000), so a sheet it OPENS at
+   `--z-lightbox` rendered behind it: names visible and not tappable. No other FIXED layer lives
+   between 9000 and `--z-splash` (9999), so raising the sheet costs no other surface.
    ONE THING ENTERS THAT RANGE, AT RUN TIME: a confirm dialog raised over a higher layer (a notification's
    question while this sheet or the sign-in card is up) is lifted one above the highest layer on screen
    (overlay.js → `_openDialog`) — it holds the keyboard, so it must paint on top. */
@@ -1788,33 +1696,21 @@ button.lightbox-bug-link {
    `newlink-2026` (v25.61). */
 .notice-badge--newlink  { background: var(--al);          color: white; }
 
-/* THE CARD — three zones, and a surface that reads (v23.32).
+/* THE CARD — three zones, and a surface that reads.
    Use class="lb-content notice-lb-content" on every notice content div, and put the children in
    .notice-head / .notice-main / .notice-actions. The card itself carries NO padding and NO gap:
-   each zone owns its own, which is the whole point of the change.
+   each zone owns its own. Two faults that are easy to reintroduce:
 
-   WHAT WAS WRONG, because both faults are easy to reintroduce:
+   1. A SEE-THROUGH CARD. It sits on an OPAQUE --primary-blue base with a top-lit gradient, so it is
+      a sheet rather than a lighter patch of the dimmed page. Of the navy-glass family only day
+      detail and AL stay see-through, deliberately: they are a look AT something behind them, while a
+      notice is an interruption (and About describes the app, not anything behind it).
 
-   1. THERE WAS BARELY A CARD. The panel was rgba(255,255,255,0.08) over .lb-overlay's
-      rgba(0,10,20,0.82) backdrop — near enough the same value that the calendar's coloured cells
-      read straight through it and the card's own edges did not. It now sits on an OPAQUE
-      --primary-blue base with a top-lit gradient over it, so it is a sheet rather than a lighter
-      patch of the dimmed page. Of the navy-glass family only day detail and AL stay see-through,
-      and deliberately: they are a look AT something still on screen behind them, while a notice is
-      an interruption that wants a decision. The About panel joined the notice at v25.14 for the
-      same reason in another form: it describes the app, not anything behind it, and its see-through
-      surface made each pill's contrast depend on whichever page was underneath (--status-ok's note).
-      The blurred backdrop around the card keeps the family resemblance.
+   2. NO GROUPING. Space is tight WITHIN a zone and generous BETWEEN zones, with a hairline under
+      the header — even spacing with no grouping is what "undesigned" looks like.
 
-   2. NOTHING GROUPED. Six children at a uniform `gap: 6px` — badge, title, date, prose, CTA,
-      dismiss — all equally spaced, so the eye got no structure. Even spacing with no grouping is
-      what "undesigned" looks like. Space is now tight WITHIN a zone and generous BETWEEN zones,
-      with a hairline under the header.
-
-   The card is also LEFT-aligned throughout. It used to centre the badge, title and date over
-   left-aligned body copy (the v18.89 arrangement, borrowed from the About panel) — which changed
-   alignment twice on the way down and orphaned the last word of a wrapping title onto its own
-   centred line. `text-wrap: balance` handles a wrap now; one alignment handles the rest. */
+   The card is also LEFT-aligned throughout: centring the head over left-aligned prose changed
+   alignment twice on the way down. `text-wrap: balance` handles a wrapping title. */
 .notice-lb-content {
     display: flex;
     flex-direction: column;
@@ -1984,21 +1880,11 @@ button.lightbox-bug-link {
    ============================================================ */
 
 /* Update status pill */
-/* THE UNMARKED STATE IS A STATE, AND IT WAS THE ONLY UNREADABLE ONE (v23.95).
-   Three states reach this element and only two had a colour: `up-to-date`, `needs-update`, and
-   the bare class — "Couldn't check for an update", set by `refreshUpdateStatus`'s catch branch in
-   about-lightbox.js. With nothing declared here it inherited BLACK onto the dark glass panel:
-   2.15:1, measured, against WCAG AA's 4.5. Unreadable exactly when something has gone wrong and
-   the member most needs to read it.
-
-   WEBKIT IS WHAT FOUND IT, and how is the part worth keeping. Chromium resolves
-   `navigator.serviceWorker.getRegistration()` to null with service workers blocked and takes the
-   happy path, so the a11y gate had only ever scanned `up-to-date`; WebKit rejects and lands in
-   the catch. One engine's scan of one error state — which is the argument for the WebKit lane in
-   one sentence.
-
-   So the base carries its own opaque pair, and every state now answers for its own contrast
-   rather than borrowing from whatever is behind the modal. */
+/* THE UNMARKED STATE IS A STATE. Three states reach this element: `up-to-date`, `needs-update`, and
+   the bare class — "Couldn't check for an update" (`refreshUpdateStatus`'s catch, about-lightbox.js).
+   With nothing declared it inherited BLACK onto the dark panel, unreadable exactly when something has
+   gone wrong (only WebKit's scan reaches that state). So the base carries its own opaque pair, and
+   every state answers for its own contrast. */
 .lightbox-status {
     color: var(--text-dark);
     background: var(--surface-sunken);
@@ -3111,20 +2997,13 @@ button.nav-panel-link--notices {
     width: 100%;
 }
 
-/* Overlay, not a card — --radius-xl with the other compact dialogs (v18.90; was --radius-lg, the
-   card radius).
+/* Overlay, not a card — --radius-xl with the other compact dialogs.
 
    `.cal-lock-card` (the Calendar's staff-PIN panel) JOINS this recipe rather than carrying a
-   parallel one (v20.14). It is the same moment in the app — "this page is not available to you yet;
-   do this one thing" — and staff meet that moment on five other pages wearing exactly this panel.
-   Written separately it had drifted on every axis at once: a tinted surface instead of white, a
-   hardcoded 420px where the modal tokens exist, a hardcoded shadow where --shadow-3 exists, tighter
-   padding, and a different title rank. Joining the selector is the precedent `#pwForceContent`
-   already set for a second do-this-first panel.
-
-   `.pc-role-card` (the Pay Calculator's refusal, v25.50) joins for the same reason: it is that page's
-   other way of saying "not for you", to a Dispatcher or a manager, and it sits on the same page as
-   the sign-in card. Two doors on one page that look nothing alike read as two different apps.
+   parallel one: it is the same moment — "not available to you yet; do this one thing" — and written
+   separately it drifted on every axis at once (as `#pwForceContent` joined before it).
+   `.pc-role-card` (the Pay Calculator's refusal) joins for the same reason: it sits on the same page
+   as the sign-in card, and two doors that look nothing alike read as two different apps.
 
    What does NOT join: the fixed full-screen `#loginOverlay` wrapper. The lock card stays in the
    page flow, because the nav drawer, the guides and the documents must stay reachable while the
@@ -3298,16 +3177,11 @@ button.nav-panel-link--notices {
     cursor: default;
     transform: none;
 }
-/* The "— Select grade first —" state. Two long-standing rules were being broken here at once, and
-   both are visible in a screenshot of the resting card (v20.49):
-     · `white` is the FOCUS ceiling in the three-surface model, so a DISABLED control wearing it was
-       the brightest thing in the card — brighter than the enabled password field beside it, and
-       equal to the focused select above it. That reads as the most active field, not the inert one.
-       `--field-bg-disabled` exists for exactly this and is what every other disabled field uses.
-     · `background` is the SHORTHAND, which wipes a `<select>`'s `background-image` — so this rule
-       silently deleted the dropdown arrow that `.login-field select` draws. The two adjacent selects
-       therefore looked like two different kinds of control. Fills on a field are always set with the
-       `background-color` longhand (.claude/rules/css-tokens.md). */
+/* The "— Select grade first —" state:
+     · `white` is the FOCUS ceiling in the three-surface model, so a DISABLED control wearing it reads
+       as the most active field; `--field-bg-disabled` is what every disabled field uses.
+     · the `background-color` LONGHAND, never `background`, which wipes the select's arrow
+       (.claude/rules/css-tokens.md). */
 #loginNameTrigger:disabled,
 #loginName:disabled {
     background-color: var(--field-bg-disabled);
@@ -3546,28 +3420,14 @@ body.auth-ready .boot-placeholder { display: none; }
     display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
-/* THE TITLE BLOCK MUST BE ALLOWED TO SHRINK, AND ITS HINT TO BREAK (v23.35).
-   A flex item's automatic minimum is its MIN-CONTENT, so a hint containing one unbreakable token
-   pins the left block at that token's width — and `.card-header-actions` is `flex-shrink: 0`, so
-   the whole cluster is pushed past the card's right edge, where `.card`'s `overflow: hidden`
-   deletes it. Measured on Settings at 320px with a work email saved: the Work Email card's chevron
-   sat at x=317 against a card ending at 310, `elementFromPoint` returned `<body>`, and the card
-   rendered with no chevron at all while its three neighbours kept theirs.
-   The third instance of this class — Admin's week grid, then Links and Operations at v23.32 — and
-   the first where the overflowing thing was a CONTROL rather than spare width.
-   WHICH OF THE TWO DECLARATIONS BELOW IS DOING THE WORK — stated, because mutation testing said
-   so and the first version of this comment said otherwise. Deleting `min-width: 0` alone leaves
-   the guard GREEN: `overflow-wrap: anywhere` also shrinks the block's min-content (that is the
-   difference between `anywhere` and `break-word`), so the wrap frees the chevron by itself.
-   The wrap is therefore the fix, and it is the half that is protected by a test.
-   `min-width: 0` stays as the structural statement of the same rule, for the case the wrap cannot
-   reach: an unbreakable token in the card's `h2` TITLE, which carries no wrap of its own. Nothing
-   in the app puts one there today, so there is no test for it and this says so rather than
-   pretending the mutation failed.
-   The wrap is not cosmetic either: it is what keeps the address READABLE rather than clipped
-   mid-token, and the collapsed card's whole job is to answer "which address is saved?" without
-   being opened — so freeing the chevron by letting the hint be cut off would trade one defect for
-   another. */
+/* THE TITLE BLOCK MUST BE ALLOWED TO SHRINK, AND ITS HINT TO BREAK.
+   A flex item's automatic minimum is its MIN-CONTENT, so a hint holding one unbreakable token (a
+   saved work email at 320px) pins the left block, and the `flex-shrink: 0` actions are pushed past
+   the card's edge, where `overflow: hidden` deletes the chevron.
+   WHICH DECLARATION DOES THE WORK (mutation-tested): `overflow-wrap: anywhere` — it also shrinks the
+   min-content, so it frees the chevron alone and is the half a test protects. `min-width: 0` stays
+   as the structural statement for an unbreakable token in the `h2` TITLE, which nothing puts there
+   today, so no test covers it. The wrap also keeps the address READABLE rather than clipped. */
 .card-header-toggle > :first-child { min-width: 0; }
 .card-header .hint { overflow-wrap: anywhere; }
 @media (hover: hover) and (pointer: fine) {
