@@ -54,11 +54,11 @@ const {
     refundAttempt,
     GLOBAL_SOURCE_KEY,
     GLOBAL_THROTTLE,
-    isThrottleStateStale,
     viewerClaims,
     viewerAccountTamper,
 } = require('./calendar-viewer-auth');
-const { requireAdmin, readJsonBody } = require('./request-helpers');
+const { requireAdmin, readJsonBody, readRawBody: readCappedBody } = require('./request-helpers');
+const { sweepExpiredThrottleRows, buildPinLockoutNotifier, noteStationBlock } = require('./pin-lockout');
 const { londonIsoDate }          = require('./london-clock');
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
@@ -92,10 +92,11 @@ const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FR
 // No trailing slash: the payloads below append `/#huddle` and `/paycalc.html`.
 const STAFF_SITE_URL = 'https://myb-roster.web.app';
 
-// Allowed browser origins for admin Cloud Functions (parseRosterPDF, setupRosterAuth).
-// Firebase ID token auth is the real security control; this CORS allowlist is defence-in-depth
-// to prevent arbitrary browser origins from attempting token-bearing calls.
-// Add any new hosting domain here.
+// The browser origins this app is served from — the CORS allowlist of EVERY endpoint a browser calls
+// (the admin endpoints, the document links, the two public doors, Overtime), not only the admin ones
+// it was first written for. Each endpoint's own check is the real control (an ID token and claim, or
+// the PIN and its throttle); this is defence-in-depth against an arbitrary origin trying a call.
+// Add any new hosting domain here, with the API key's referrer allowlist (CLAUDE.md → Project identity).
 const ADMIN_FUNCTION_ORIGINS = [
     'https://garethdavidmiller.github.io',
     'https://myb-roster.web.app',
@@ -130,62 +131,13 @@ const _isRetriableFirestoreError = (err) => _RETRIABLE_FIRESTORE_CODES.has(err &
 const PARSE_MODEL_DEADLINE_MS = 100_000;
 
 /**
- * Read the raw base64 plain-text request body (bypasses the JSON body-size limit), size-capped at
- * MAX_RAW_BODY_BYTES so an oversized upload is rejected DURING streaming rather than after buffering
- * + decoding the whole thing (which could OOM the 512 MiB instance). Shared by ingestHuddle and
- * parseRosterPDF (extracted v16.39 — the streaming/size-cap block was byte-identical bar the log tag).
- * On any failure it sends the HTTP error response itself and returns null; otherwise returns the
- * trimmed base64 string. The caller does its own whitespace-strip / charset-validate / decode.
- * @param {import('express').Request}  req
- * @param {import('express').Response} res
- * @param {string} logTag  console prefix (the calling function's name)
- * @returns {Promise<string|null>} trimmed base64 body, or null if a response was already sent
+ * The raw base64 request body, size-capped at MAX_RAW_BODY_BYTES while it streams (`readRawBody`,
+ * ./request-helpers.js, where the reasoning is). Shared by ingestHuddle and parseRosterPDF; on a
+ * failure it has sent the 413/400 itself and answers null.
+ * @param {import('express').Request} req @param {import('express').Response} res @param {string} logTag
+ * @returns {Promise<string|null>}
  */
-async function readRawBody(req, res, logTag) {
-    try {
-        if (req.rawBody) {
-            if (req.rawBody.length > MAX_RAW_BODY_BYTES) {
-                res.status(413).json({ error: 'File exceeds the size limit' });
-                return null;
-            }
-            return req.rawBody.toString('utf8').trim();
-        }
-        const chunks = [];
-        let total = 0;
-        await new Promise((resolve, reject) => {
-            req.on('data', chunk => {
-                total += chunk.length;
-                if (total > MAX_RAW_BODY_BYTES) {
-                    req.destroy();
-                    reject(new Error('BODY_TOO_LARGE'));
-                    return;
-                }
-                chunks.push(chunk);
-            });
-            req.on('end', resolve);
-            req.on('error', reject);
-        });
-        return Buffer.concat(chunks).toString('utf8').trim();
-    } catch (err) {
-        if (err.message === 'BODY_TOO_LARGE') {
-            res.status(413).json({ error: 'File exceeds the size limit' });
-            return null;
-        }
-        console.error(`[${logTag}] Failed to read body:`, err.message);
-        res.status(400).json({ error: 'Could not read request body' });
-        return null;
-    }
-}
-
-/**
- * Today's London calendar date as {year, month (0-based), day}, never dependent on the server's TZ.
- * From london-clock.js's `londonIsoDate` — one London-date derivation, not two (functions-core-8).
- * @returns {{ year: number, month: number, day: number }}
- */
-function nowInLondon() {
-    const [year, month, day] = londonIsoDate(Date.now()).split('-').map(Number);
-    return { year, month: month - 1, day };
-}
+const readRawBody = (req, res, logTag) => readCappedBody(req, res, logTag, MAX_RAW_BODY_BYTES);
 
 // ============================================================================
 // Document-and-notification domain — functions/documents.js (the index.js split)
@@ -199,7 +151,9 @@ function nowInLondon() {
 // CEA and CES members only — an audience that may never come from a request.
 Object.assign(exports, buildDocumentEndpoints({
     HUDDLE_SECRET, VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
-    readRawBody, nowInLondon, isRetriableFirestoreError: _isRetriableFirestoreError,
+    readRawBody, isRetriableFirestoreError: _isRetriableFirestoreError,
+    // Today's London date as {year, month (0-based), day}: londonIsoDate, one derivation (functions-core-8).
+    nowInLondon: () => { const [year, month, day] = londonIsoDate(Date.now()).split('-').map(Number); return { year, month: month - 1, day }; },
     MAX_FILE_BYTES, MAX_HUDDLE_HTML_CHARS,
     ADMIN_FUNCTION_ORIGINS, rosterMembers,
 }));
@@ -909,6 +863,11 @@ Object.assign(exports, rosterMembers.overtimeEnabled === false ? { purgeExpiredO
  *    stop limiting" is the one policy an attacker would choose. An uncounted guess must not be
  *    answered.
  */
+// Built once: the admin's notice when the station-wide block trips. The admin NAMES come from the
+// server-owned roster, never a request (./admin-recipients.js decides which of their accounts are told).
+const notifyAdminOfPinLockout = buildPinLockoutNotifier({
+    VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, adminNames: rosterMembers.roles && rosterMembers.roles.admin,
+});
 exports.unlockCalendarViewer = onRequest(
     {
         region: 'europe-west2',
@@ -923,7 +882,9 @@ exports.unlockCalendarViewer = onRequest(
         // second, infrastructure-level brake on a flood that the per-source throttle would let
         // through by arriving from many sources at once.
         maxInstances: 5,
-        secrets: [CALENDAR_VIEWER_PIN],
+        // The PIN, and the push key the station-wide block's notice to the admin is signed with
+        // (./pin-lockout.js). The notice is a courtesy: a key that will not load costs it, never the door.
+        secrets: [CALENDAR_VIEWER_PIN, VAPID_PRIVATE_KEY],
     },
     async (req, res) => {
         // Never cached anywhere — the response carries a credential.
@@ -998,24 +959,14 @@ exports.unlockCalendarViewer = onRequest(
         // ONE branch for "wrong shape" and "wrong value" — see rule 2 in the header.
         const ok = isValidPinShape(supplied) && pinMatches(supplied, expected);
         if (!ok) {
-            // Already charged, above. Opportunistic sweep of everything that has aged out (v20.15).
-            // `isThrottleStateStale` was written and tested at v20.12 and then never called — so this
-            // collection only ever grew, one document per source hash, while the module header claimed
-            // it was swept. Done here rather than on a schedule because there is no scheduled job to
-            // hang it on and the volume never justifies one; on the FAILURE path only, so the normal
-            // correct-PIN path pays for no collection read. Best-effort: a sweep that fails must
-            // never affect the response the member already earned.
-            try {
-                const old = await getFirestore().collection('viewerAttempts').limit(50).get();
-                const dead = old.docs.filter(d => isThrottleStateStale(d.data(), now));
-                if (dead.length) {
-                    const batch = getFirestore().batch();
-                    dead.forEach(d => batch.delete(d.ref));
-                    await batch.commit();
-                    console.log('[unlockCalendarViewer] swept', dead.length, 'expired throttle rows');
-                }
-            } catch (e) {
-                console.warn('[unlockCalendarViewer] throttle sweep failed:', e && e.code);
+            // Already charged, above. Opportunistic sweep of everything that has aged out (v20.15 —
+            // ./pin-lockout.js, best-effort: a sweep that fails never affects the answer).
+            await sweepExpiredThrottleRows(now);
+            // THIS wrong PIN tripped the station-wide block (the charge above reached GLOBAL_THROTTLE):
+            // record it, and tell the admin at most once a day (owner, Nov 2026 — calendar-viewer-auth.js
+            // header). Only on the failure path: a right PIN's charge is refunded, block and all.
+            if (reserved.global && reserved.global.blockedUntil > 0) {
+                await noteStationBlock({ now, blockedUntil: reserved.global.blockedUntil, notify: notifyAdminOfPinLockout });
             }
             console.warn('[unlockCalendarViewer] rejected', sourceKey);
             return res.status(401).json({ error: 'PIN not recognised' });

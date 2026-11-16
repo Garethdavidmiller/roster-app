@@ -1382,10 +1382,19 @@ describe('what may not be recorded on a Sunday', () => {
         // Anchored on admin-week-editor.js since v21.38 — the week grid moved there in the Admin
         // split. The re-anchor was forced by this assertion failing, which is the guard doing its
         // job: it refuses to pass when it cannot find the code it claims to be checking.
-        const scope = blockAfter(readSrc('./admin-week-editor.js'),
-            'layer 1: disable pills in week grid', '\n        }');
+        // Re-anchored on admin-day-pills.js (Nov 2026), where the pills' refusals left the week grid.
+        // `other` is refused differently there, and deliberately (owner, Nov 2026): its PILL stays,
+        // because it is also the door to Spare — its own type, which a Sunday takes — and what is
+        // refused is every Other-family chip behind it. So for `other` the block must turn the chips off.
+        const scope = blockAfter(readSrc('./admin-day-pills.js'),
+            'layer 1: disable pills in week grid', '\n}');
         for (const t of SUNDAY_FORBIDDEN_TYPES) {
-            assert.ok(scope.includes(`.pill-${t}`),
+            if (t === 'other') {
+                assert.match(scope, /\.other-flavour-btn:not\(\[data-flavour="SPARE"\]\)'\)\.forEach\(b =>\s*off\(b,/,
+                    'no Sunday-disable for the Other-day chips — the declaration and the grid have drifted');
+                continue;
+            }
+            assert.match(scope, new RegExp(`off\\(row\\.querySelector\\('\\.pill-${t}'\\)`),
                 `no Sunday-disable for the ${t} pill — the declaration and the grid have drifted`);
         }
     });

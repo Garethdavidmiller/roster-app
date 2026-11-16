@@ -855,14 +855,15 @@ on every date, past ones included:
   name lists from `role`, and the parser looks only for the names on the uploaded roster's list.
 - **Where they are listed**: the Calendar's member list, Team Week's grade tabs and the sign-in
   screen's grade step, for past weeks as well as future ones.
-- **Their leave allowance**, in any year without a `proRatedAL` figure (CLAUDE.md → AL entitlement).
-  A year that has one keeps it.
 - **The New link page**, which is for everyone on a normal CEA contract.
 
 **The old grade is recorded with its last day**, as `roleHistory: [{ role: 'CEA', until: new Date(2026,
 10, 21) }]` — the day BEFORE the change, midnight local, inclusive — and `role` becomes the new grade.
-`roleOn(member, date)` (`roster-roles.js`) reads the two together, for the one surface that needs the
-grade on a DAY: the **Pay Calculator**, which prices each payslip at the grade held on its days
+`roleOn(member, date)` (`roster-roles.js`) reads the two together. **The leave allowance** follows it
+too (owner, 16 Nov 2026, "role at the time"): each year is judged by the grade held on 31 December, or,
+where that grade has no leave figure (Management), by the most recent grade held during the year that
+has one (`allowanceRole`, `al-contract.js`); a year with a `proRatedAL` figure keeps it. And so does the
+one surface that needs the grade on a DAY: the **Pay Calculator**, which prices each payslip at the grade held on its days
 (`.claude/rules/paycalc.md` invariant 17) — the payslip across the change by its days, with a line
 under its rate saying so — and tells the member once that there is nothing to change. **Nothing needs
 doing in it.** Like a `rosterChanges` entry, a `roleHistory` entry is never deleted: without it the
@@ -1236,6 +1237,26 @@ Blocks expire on their own; there is no permanent lock, deliberately, because a 
 control that anyone can drive into a permanent state is a denial-of-service handle pointed at staff.
 **If the all-sources ceiling ever trips during normal use, the code in circulation is wrong — reissue
 it rather than raising the number.**
+
+#### When the PIN is blocked for everyone — what the admin is told (owner, Nov 2026)
+
+Anybody can reach the all-sources ceiling on purpose, and do it again; the limit stays, so the admin is
+TOLD instead (`functions/pin-lockout.js`; the trade-off is `functions/calendar-viewer-auth.js`'s header):
+
+- **A push to the admin's own devices** — "🔢 Staff PIN — blocked station-wide", "200 wrong entries in 15
+  minutes. It reopens by itself at 14:20." — at most ONCE A DAY however often it trips. Only an admin
+  account that is enabled and carries the `admin` claim (`enabledAdminUids`, the rule the Error Log and
+  reset-request notices share); never a broadcast. A count and a time only: never the PIN, never an
+  address. The tap opens Operations → Staff Login Accounts.
+- **Operations**: a "Staff PIN blocked" item on the "Needs attention" strip, and a line on Staff Login
+  Accounts, while a block runs or one began in the last day. It rides on that card's account check
+  (`getAccountSetupGaps`), so it appears when the card's check answers; a check that could not read the
+  record shows nothing about the PIN rather than an all-clear.
+- **What to do**: nothing, if it was once — the block clears itself, and members can still sign in with
+  their password. If it keeps happening, somebody is guessing: rotate the PIN (below).
+- **The record** is one document in `viewerAttempts` (`_lockout-record`: the block times of the last day,
+  when the latest ends, when the admin was last told). Server-only, like the rest of the collection; the
+  sweep never removes it. Deleting it by hand in the console only makes the next block notify again.
 
 **If the throttle store itself is unreachable, the endpoint refuses (503) rather than guessing
 unthrottled.** The refusal costs nothing real: the overrides live in the same Firestore the throttle

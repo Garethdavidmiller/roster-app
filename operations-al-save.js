@@ -49,7 +49,9 @@
  * lost to a moment's lost signal. The Save's records carry its id, so the later log calls added only
  * what is still the Save's own, whatever was changed in between (al-leave-plan.js). A closed page loses it: the next Save's log still names every day in
  * line. And a Save of which nothing landed is recorded by nobody: a log with nothing added became the
- * newest and took the earlier Save's Undo off the screen.
+ * newest and took the earlier Save's Undo off the screen. A Save where only swaps landed IS recorded —
+ * its days in line and its copy of the workbook protect what comes later — and the Undo on offer
+ * passes over it to the latest Save that added leave (`judgeUploads`'s `undoable`, review of v26.22).
  *
  * ── NOTHING IS KEPT ─────────────────────────────────────────────────────────────────────────────
  *
@@ -209,13 +211,15 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
                         ? { clerksLastSaved: judged.newest.clerksLastSaved, savedAt: stampDate(judged.newest.savedAt) } : null });
                 root.append(el('p', 'al-sheet-warn', line));
             }
-            const last = judged?.newest;
+            // The latest Save that ADDED leave — a later one where only swaps landed has no Undo of its own (al-leave-plan.js).
+            const last = judged?.undoable;
             if (!last || !me || !Array.isArray(last.added) || !last.added.length || 'undoneAt' in last) return;
             const row = el('div', 'al-sheet-last');
             const undo = /** @type {HTMLButtonElement} */ (el('button', 'roster-cancel-btn al-sheet-undo', SAVE_WORDS.undo));
             undo.type = 'button';
             undo.addEventListener('click', () => { void runUndo(/** @type {any} */ (last)); });
-            row.append(el('p', '', lastSaveWords({ savedAt: stampDate(last.savedAt), savedBy: last.savedBy, added: last.added.length })), undo);
+            row.append(el('p', '', lastSaveWords({ savedAt: stampDate(last.savedAt), savedBy: last.savedBy, added: last.added.length,
+                latest: last === judged?.newest })), undo);
             root.append(row);
         },
 

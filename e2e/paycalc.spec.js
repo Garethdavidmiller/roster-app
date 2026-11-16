@@ -950,7 +950,10 @@ for (const { who, name, extra } of [
     { who: 'a joiner who started after 2025/26', name: HPP_JOINER, extra: {} },
     // Already estimated from Year to Date pay: the notice would ask for what is done.
     { who: 'a member who already has a figure of their own', name: HPP_MEMBER,
-      extra: { myb_pc_gmiller_hpp_mode_2025_26: JSON.stringify({ mode: 'ytd', exact: '' }), myb_pc_gmiller_hpp_est_2025_26: '444.12' } },
+      // From the year's LAST payslip (p49, 13 Mar 2026): a rough figure from any earlier one covers only
+      // part of the year, so it does not count as theirs and the notice still asks (review, 16 Nov 2026).
+      extra: { myb_pc_gmiller_hpp_mode_2025_26: JSON.stringify({ mode: 'ytd', exact: '' }), myb_pc_gmiller_hpp_est_2025_26: '444.12',
+               myb_pc_gmiller_ytd_src_2025_26: '49' } },
 ]) {
     test(`paycalc: the premium notice is not for ${who}, and is not answered for them (v26.22)`, async ({ page }) => {
         const errors = collectFatalErrors(page);
@@ -2697,6 +2700,61 @@ test('paycalc: a manager is told who the calculator is for — with nothing prom
     await expect(page.locator('.pc-work')).toBeHidden();
     await expect(page.locator('.pc-side')).toBeHidden();
     expect(errors, 'Uncaught JS exceptions on the manager card').toHaveLength(0);
+});
+
+// ── THE ROLE AT THE TIME (owner, 16 Nov 2026) ──────────────────────────────────────────────────
+// A CES promoted into management keeps the CES payslips: the page admits them by the grade held on the
+// days it shows (pay-audience.js), prices the CES payslip at the CES rate, and gives each payslip with
+// a day under the new role NO figure — the rendered £ is the assertion, not the helper's answer, and
+// "£–" with the reason in its place is the whole of what such a payslip may show. The member is
+// INVENTED, served into the roster file for this test only.
+const PROMOTED_MANAGER = 'Test Promoted Manager';
+async function openAsPromotedManager(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ path) {
+    await page.clock.setFixedTime(new Date('2026-11-25T09:00:00Z'));
+    await page.route('**/roster-member-data.js', async (route) => {
+        const res = await route.fetch();
+        const entry = `{ name: '${PROMOTED_MANAGER}', currentWeek: 9, rosterType: 'ces', role: 'Management', hidden: true, `
+            + `managerOnly: true, roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] }`;
+        const body = (await res.text()).replace(/\n\];\s*$/, `\n    ${entry},\n];\n`);
+        expect(body, 'premise: the invented member reached the served roster').toContain(PROMOTED_MANAGER);
+        await route.fulfill({ response: res, body });
+    });
+    await seedSession(page, PROMOTED_MANAGER);
+    // The page's two one-time notices are answered, so neither covers the controls this test presses.
+    await page.addInitScript(() => {
+        for (const k of ['myb_pc_ns_migrated', 'myb_pc_ytd_notice_2_shown', 'myb_pc_hpp_notice_2526_shown']) localStorage.setItem(k, '1');
+    });
+    await page.goto(path);
+}
+
+test('paycalc: a CES promoted into management keeps the CES payslips — and a payslip under the new role has no figure', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await openAsPromotedManager(page, '/paycalc.html?payday=2026-11-20');
+    await expect(page.locator('#unsupportedGradeBanner'), 'admitted by the role at the time').toBeHidden();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('#hourlyRate'), 'the CES payslip at the CES rate').toHaveValue(AWARD_RATES.ces['2026/27'].rate.toFixed(2));
+    await expect(page.locator('#unpricedPayslipNote')).toBeHidden();
+
+    // The payslip across the promotion: seven CES days, 21 under a role with no rates.
+    await page.goto('/paycalc.html?payday=2026-12-18');
+    await expect(page.locator('#unsupportedGradeBanner')).toBeHidden();
+    await expect(page.locator('#netDisplay'), 'no figure — never one at the CEA rate').toHaveText('£–');
+    await expect(page.locator('#unpricedPayslipNote')).toHaveText('No estimate for this payslip. From Sun 22 Nov 2026 the roster '
+        + 'lists you as Management, and this calculator only has rates for CEA and CES. The nearest payslip it can estimate is the one paid Fri 20 Nov 2026.');
+    await expect(page.locator('#hourlyRate')).toHaveValue('–');
+    for (const sel of ['#summary', '#bdBtn', '#stickyTotal', '#ytdYearSoFar']) {
+        await expect(page.locator(sel), `${sel} is fed by a figure, so it goes`).toBeHidden();
+    }
+    // Hours typed here move nothing: there is no figure to move.
+    await page.locator('#otH').fill('10');
+    await expect(page.locator('#netDisplay')).toHaveText('£–');
+
+    // Back on the CES payslip the refusal does not outlive its payslip.
+    await page.locator('#prevBtn').click();
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('#unpricedPayslipNote')).toBeHidden();
+    await expect(page.locator('#summary')).toBeVisible();
+    expect(errors, 'Uncaught JS exceptions on a payslip the calculator cannot price').toHaveLength(0);
 });
 
 // …and on a short laptop window the refusal is read whole (laptop polish, 13 Nov 2026): at 1280×593 its

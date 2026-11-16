@@ -18,11 +18,13 @@ import assert from 'node:assert/strict';
 
 /** Every configuration a card handed the factory, in order. @type {any[]} */
 const _cfgs = [];
+/** How many times a card clicked its own Save — "Save anyway" resumes that way. */
+let _clicks = 0;
 /** The page's override cache, as the leave card's check reads it. @type {any[]} */
 let _overrides = [];
 
 mock.module('./admin-range-booking.js', { namedExports: {
-    createRangeBookingSection: (/** @type {any} */ cfg) => { _cfgs.push(cfg); return { updatePreview() {}, saveBtn: { click() {} } }; },
+    createRangeBookingSection: (/** @type {any} */ cfg) => { _cfgs.push(cfg); return { updatePreview() {}, saveBtn: { click() { _clicks++; } } }; },
 } });
 mock.module('./admin-overrides.js', { namedExports: {
     getAllOverrides: () => _overrides,
@@ -32,7 +34,7 @@ mock.module('./admin-overrides.js', { namedExports: {
 
 const { initSickSection } = await import('./admin-sick.js');
 const { initALSection } = await import('./admin-al.js');
-const { teamMembers, isBankHoliday, parseISODate, getBaseShift } = await import('./roster-data.js');
+const { teamMembers, isBankHoliday, parseISODate, getBaseShift, getPatternShift } = await import('./roster-data.js');
 const { entitlementFor } = await import('./al-entitlement.js');
 const { isRestShift } = await import('./override-utils.js');
 
@@ -40,13 +42,15 @@ const noop = () => {};
 /** @param {string} value */
 const select = (value) => /** @type {any} */ ({ value });
 
-/** Wire the Absence card and return the configuration it handed the factory. */
-function sickCfg() {
+/** Wire the Absence card and return the configuration it handed the factory; `confirms` records
+ *  every over-allowance bar it shows, as the page's `showALConfirm` receives it. */
+function sickCfg(/** @type {any[]} */ confirms = []) {
     _cfgs.length = 0;
     initSickSection(/** @type {any} */ ({
         sickMember: select('C. Reen'), syncSickMemberDisplay: noop, populateMemberDropdown: noop, lastMember: null,
         updateALBanner: noop, updateALBookedBox: noop, updateSickBookedBox: noop,
         getCurrentUser: () => 'A. Admin', showInChangeAShift: noop, showSuccess: noop,
+        showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm: noop,
     }));
     return _cfgs[0];
 }
@@ -91,6 +95,67 @@ describe('the Absence card', () => {
         const { validateRange } = sickCfg();
         assert.equal(validateRange(['2026-01-05', '2027-01-05']), null, 'a whole year is allowed');
         assert.match(String(validateRange(['2026-01-05', '2027-01-06'])), /Maximum range is 1 year/);
+    });
+
+    // AN ABSENCE OVER A WORKED BOXING DAY TAKES ITS DAY IN LIEU BACK (review of v26.22). The card
+    // checked nothing, so the next year's allowance fell with no word. Its check runs the rule
+    // (`projectAbsenceRange`), shows the shared bar, and "Save anyway" resumes THIS card's save.
+    // An INVENTED person on a real pattern.
+    describe('an absence that takes back a day in lieu', () => {
+        const pattern = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
+            && !m.rosterChanges && m.bilingualContract !== true && !isRestShift(getPatternShift(m, new Date(2026, 11, 26)))));
+        const person = { ...pattern, name: 'Z. Invented' };
+        const worked = { id: 'zbx', memberName: person.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual', createdAt: new Date(2026, 11, 27) };
+        /** The next year filled to `n` days of leave on working weekdays, with the Boxing Day worked. */
+        function nextYear(/** @type {number} */ n) {
+            /** @type {any[]} */ const ovs = [];
+            for (const d = parseISODate('2027-01-04'); ovs.length < n; d.setDate(d.getDate() + 1)) {
+                if (d.getDay() === 0 || d.getDay() === 6 || isBankHoliday(d) || isRestShift(getBaseShift(person, d))) continue;
+                const iso = days(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 1)[0];
+                ovs.push({ id: `z-${iso}`, memberName: person.name, date: iso, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(2026, 11, 1) });
+            }
+            _overrides = [...ovs, worked];
+        }
+        const ask = (/** @type {any} */ cfg) => cfg.preSave({ member: person.name, dates: ['2026-12-26'], memberObj: person, swapAnswers: new Map() });
+
+        test('premise: a pattern due at work on Boxing Day 2026, whose worked day lifts 2027 by one', () => {
+            assert.ok(pattern);
+            assert.equal(entitlementFor(person, 2027, [worked]), /** @type {number} */ (entitlementFor(person, 2027, [])) + 1);
+        });
+
+        test('at the limit, the save stops at the bar, which names the day in lieu', () => {
+            nextYear(/** @type {number} */ (entitlementFor(person, 2027, [worked])));
+            /** @type {any[]} */ const confirms = [];
+            assert.equal(ask(sickCfg(confirms)), true, 'the allowance falls below what is booked: not silently');
+            assert.equal(confirms.length, 1);
+            assert.match(confirms[0][1], /^Boxing Day recorded as absent, so the day in lieu for working it goes · /);
+            assert.equal(confirms[0][2], null, 'the range path, not the week grid\'s batch');
+        });
+
+        test('"Save anyway" clicks this card\'s Save, and that click is let through once', () => {
+            nextYear(/** @type {number} */ (entitlementFor(person, 2027, [worked])));
+            /** @type {any[]} */ const confirms = [];
+            const cfg = sickCfg(confirms);
+            ask(cfg);
+            _clicks = 0;
+            confirms[0][4]();
+            assert.equal(_clicks, 1, 'the resume clicks the Absence card\'s own Save');
+            cfg.onClick();
+            assert.equal(ask(cfg), false, 'the confirmed click saves');
+            cfg.onClick();
+            assert.equal(ask(cfg), true, 'and the next click is checked again');
+        });
+
+        test('with a day to spare, nothing stops the save — but the preview names the day in lieu', () => {
+            nextYear(/** @type {number} */ (entitlementFor(person, 2027, [worked])) - 1);
+            /** @type {any[]} */ const confirms = [];
+            const cfg = sickCfg(confirms);
+            assert.equal(ask(cfg), false);
+            assert.equal(confirms.length, 0);
+            const html = cfg.renderReady({ member: person.name, dates: ['2026-12-26'], memberObj: person,
+                memberOvByDate: new Map([['2026-12-26', worked]]), rangeStr: '26 Dec', workDays: 1, restCount: 0 });
+            assert.match(html, /Boxing Day recorded as absent, so the day in lieu for working it goes/);
+        });
     });
 });
 

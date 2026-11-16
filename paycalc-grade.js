@@ -9,6 +9,8 @@
 // that into what a payslip needs: the grades its 28 days were worked under, with the days on each.
 //
 //   gradeDays(member, p, setting)  → [{ grade, days }]   the payslip's days, by grade
+//   payslipPriced(parts)           → whether every day of them has a grade with rates
+//   unpricedPayslipLine(...)       → what a payslip it cannot price says in place of a figure
 //   byDays(parts, valueOf)         → one figure for the payslip, each grade's figure weighted by its days
 //   settingFromLegacy(...)         → what a device's pre-dated saved grade becomes (one migration)
 //   windowGrade(parts)             → the grade an award's backdated months were worked under
@@ -67,19 +69,36 @@ function spanDays(a, b) {
 export function gradeDays(member, p, setting) {
   if (!p) return [];
   const dated = p.start instanceof Date && p.cutoff instanceof Date;
+  /** @type {GradePart[]|null} */
+  let roster = null;
+  if (member && dated) {
+    roster = [];
+    for (const { role, days } of rolesInRange(member, p.start, p.cutoff)) {
+      const grade = gradeForRole(role);
+      const tail = roster[roster.length - 1];
+      if (tail && tail.grade === grade) tail.days += days;   // two roles with no rates are one unpriced stretch
+      else roster.push({ grade, days });
+    }
+    // A day the roster gives a role with no rates is refused even under a grade chosen by hand: the
+    // page admits a member by the role AT THE TIME (pay-audience.js), so a manager's later payslips
+    // are on screen, and a chosen CES must not price them (invariant 13 — never guessed).
+    if (!payslipPriced(roster)) return roster;
+  }
   if (setting && setting.grade !== FROM_ROSTER && GRADES[setting.grade] && (p.num ?? Infinity) >= (setting.from || 0)) {
     return [{ grade: setting.grade, days: dated ? spanDays(p.start, p.cutoff) : 28 }];
   }
-  if (!member || !dated) return [];
-  /** @type {GradePart[]} */
-  const out = [];
-  for (const { role, days } of rolesInRange(member, p.start, p.cutoff)) {
-    const grade = gradeForRole(role);
-    const tail = out[out.length - 1];
-    if (tail && tail.grade === grade) tail.days += days;   // two roles with no rates are one unpriced stretch
-    else out.push({ grade, days });
-  }
-  return out;
+  return roster ?? [];
+}
+
+/**
+ * True when every day of a payslip has a grade this calculator has rates for — the payslip can be
+ * priced. False for no days at all, which is no payslip to price.
+ * @param {GradePart[]} parts
+ * @returns {boolean}
+ */
+export function payslipPriced(parts) {
+  const counted = parts.filter(x => x.days > 0);
+  return counted.length > 0 && counted.every(x => !!x.grade);
 }
 
 /**
@@ -206,6 +225,30 @@ export function rosterStretches(member, start, end) {
     from = dayAfter(from, days);
   }
   return out;
+}
+
+/**
+ * What a payslip this calculator cannot price says in place of its figure, or '' for one it can. A
+ * member is admitted by the role AT THE TIME (pay-audience.js), so a payslip worked — wholly or in
+ * part — under a role with no confirmed rates is on screen and has NO figure, never a guessed one
+ * (invariant 13): "No estimate for this payslip. From Sun 22 Nov 2026 the roster lists you as
+ * Management, and this calculator only has rates for CEA and CES." `nearest` is the payday of the
+ * nearest payslip it can price, when there is one, so the member knows where their figures are.
+ * @param {{ stretches: RosterStretch[], start: Date, cutoff: Date, nearest?: Date|null }} o
+ *   stretches — rosterStretches over the payslip's own days; start/cutoff — its first and last day
+ * @returns {string}
+ */
+export function unpricedPayslipLine({ stretches, start, cutoff, nearest = null }) {
+  const off = stretches.find(x => !x.grade);
+  if (!off) return '';
+  if (!off.role) return 'No estimate for this payslip: this calculator only has rates for CEA and CES.';
+  const fromStart = dayKey(off.from) <= dayKey(start), toEnd = dayKey(off.until) >= dayKey(cutoff);
+  const from = formatWeekdayDate(off.from, true), until = formatWeekdayDate(off.until, true);
+  const when = fromStart && toEnd ? 'For this payslip\'s days'
+    : fromStart ? `Until ${until}` : toEnd ? `From ${from}` : `From ${from} to ${until}`;
+  return `No estimate for this payslip. ${when} the roster lists you as ${off.role}, and this calculator `
+    + 'only has rates for CEA and CES.'
+    + (nearest ? ` The nearest payslip it can estimate is the one paid ${formatWeekdayDate(nearest, true)}.` : '');
 }
 
 /**

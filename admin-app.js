@@ -1146,6 +1146,7 @@ export function init() {
     /** @type {string[]} */ let _alPendingSkipped = [];   // staged days the projection leaves alone
     /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
     /** @type {HTMLElement|null} */ let _alOpener = null;
+    /** @type {(() => void)|null} */ let _alResume = null;   // a range card's own "Save anyway" (the Absence card's, admin-sick.js)
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -1155,21 +1156,23 @@ export function init() {
     /**
      * Shows the AL over-entitlement confirmation bar with a warning and two options.
      * In the week editor path, pendingSave is the toSave array to resume with.
-     * In the AL booking path, pendingSave is null — the bar re-triggers alSaveBtn.click().
+     * In the AL booking path, pendingSave is null — the bar re-triggers alSaveBtn.click(), or runs `resume`.
      * @param {string}      msg          Main warning line
      * @param {string}      sub          Secondary detail line
      * @param {any[]|null}  pendingSave  toSave batch to resume, or null for AL booking path
      * @param {string[]}    pendingDelete  IDs to delete in the same batch
+     * @param {(() => void)|null} [resume] what "Save anyway" runs for a range card other than AL's
      */
-    function showALConfirm(msg, sub, pendingSave, pendingDelete = []) {
+    function showALConfirm(msg, sub, pendingSave, pendingDelete = [], resume = null) {
         clearTimeout(_feedbackTimer);   // an earlier success line's fade must not take the question down (Oct 2026)
         _alPendingSave   = pendingSave;
         _alPendingDelete = pendingDelete;
+        _alResume        = resume;
         alConfirmMsg.textContent = msg;
         alConfirmSub.textContent = sub;
         alConfirmSaveBtn.disabled = false;   // re-arm (the click handler disables to block a double-tap)
         const asker = document.activeElement;   // the Save that asked, which Cancel goes back to — on Safari, which focuses no button on a tap, this path's Save
-        _alOpener = asker && asker !== document.body ? /** @type {HTMLElement} */ (asker) : pendingSave ? saveBtn : document.getElementById('alSaveBtn');
+        _alOpener = asker && asker !== document.body ? /** @type {HTMLElement} */ (asker) : pendingSave ? saveBtn : document.getElementById(resume ? 'sickSaveBtn' : 'alSaveBtn');
         alConfirmBar.classList.add('visible');
         alConfirmSaveBtn.focus();
     }
@@ -1178,6 +1181,7 @@ export function init() {
         alConfirmBar.classList.remove('visible');
         _alPendingSave   = null;
         _alPendingDelete = [];
+        _alResume        = null;
         _alPendingSkipped = [];
         _alPendingKept    = [];
         // Disarm the button too: the slide-out keeps the bar hit-testable for 0.25s, and with
@@ -1204,9 +1208,10 @@ export function init() {
             hideALConfirm();
             await executeSave(toSave, toDelete, skipped, kept);
         } else {
-            // AL booking path — delegate to admin-al.js which owns the save button and flag
+            // A range card — delegate to the card that asked (admin-al.js or admin-sick.js), which owns its button and flag
+            const resume = _alResume;
             hideALConfirm();
-            triggerConfirmedALSave();
+            (resume ?? triggerConfirmedALSave)();
         }
     });
 
@@ -1256,7 +1261,7 @@ export function init() {
         sickMember,
         syncSickMemberDisplay, populateMemberDropdown, lastMember,
         updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser: () => currentUser, showInChangeAShift,
-        showSuccess,
+        showSuccess, showALConfirm, hideALConfirm,   // an absence can take back a day in lieu (admin-sick.js)
     })?.updateSickPreview ?? null;
 
 

@@ -176,7 +176,7 @@ describe('a false all-clear — the failure this card exists to prevent', () => 
         // The mirror image, and the reason the two cannot share a code path: a known-clean roster
         // must report so, or an item raised on an earlier load could never be cleared.
         const { reported, gaps } = await wire(CLEAN);
-        assert.deepEqual(reported, [{ setUp: 0, leavers: 0 }]);
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: null }]);
         assert.match(gaps.textContent, /Everyone on the roster has a login/);
     });
 
@@ -201,7 +201,7 @@ describe('a false all-clear — the failure this card exists to prevent', () => 
 describe('and the gaps themselves reach both the card and the strip', () => {
     test('the two groups are reported separately, never as one total', async () => {
         const { reported } = await wire(GAPPY);
-        assert.deepEqual(reported, [{ setUp: 2, leavers: 1 }]);
+        assert.deepEqual(reported, [{ setUp: 2, leavers: 1, pinLockout: null }]);
     });
 
     test('the block NAMES people — a count alone cannot be acted on', async () => {
@@ -230,7 +230,7 @@ describe('and the gaps themselves reach both the card and the strip', () => {
         const { gaps, reported } = await wire({ setUp: [], leavers: ['B. Khalil'] });
         assert.ok(!/not set up/.test(gaps.textContent));
         assert.match(gaps.textContent, /can still sign in/);
-        assert.deepEqual(reported, [{ setUp: 0, leavers: 1 }]);
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 1, pinLockout: null }]);
     });
 
     test('one of each is singular, two is plural', async () => {
@@ -259,7 +259,7 @@ describe('the members Set up accounts will reset are named, before it is pressed
         assert.match(gaps.textContent, /B\. Khalil \(account disabled\)/);
         assert.deepEqual(remedies(gaps), ['Press Set up accounts below.',
             'It will reset the passwords of S. Silva and B. Khalil to their surnames and sign them out — tell them afterwards.']);
-        assert.deepEqual(reported, [{ setUp: 3, leavers: 0 }], 'the strip counts every gap, reset or not');
+        assert.deepEqual(reported, [{ setUp: 3, leavers: 0, pinLockout: null }], 'the strip counts every gap, reset or not');
     });
 
     test('one member is told in the singular', async () => {
@@ -307,7 +307,7 @@ describe('a check that cannot answer takes back what an earlier one told the str
     /** Answer the load with GAPPY, then press Set up accounts with the re-audit answering `after`. */
     async function runThenReaudit(/** @type {any} */ after) {
         const w = await wire(GAPPY);
-        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }], 'premise: the load answered');
+        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1, pinLockout: null }], 'premise: the load answered');
         assert.equal(w.withdrawals.length, 0, 'premise: an answer withdraws nothing');
         _setupReply = { created: [], skipped: [] };
         _next = after;
@@ -327,14 +327,14 @@ describe('a check that cannot answer takes back what an earlier one told the str
             assert.match(w.gaps.textContent, /Couldn’t check/);
             assert.equal(w.withdrawals.length, 1,
                 'the strip would go on stating two leavers beside a card that says it cannot tell');
-            assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }], 'and nothing is reported in their place');
+            assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1, pinLockout: null }], 'and nothing is reported in their place');
         });
     }
 
     test('a re-audit that answers reports its counts, and withdraws nothing', async () => {
         const w = await runThenReaudit(CLEAN);
         assert.equal(w.withdrawals.length, 0);
-        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1 }, { setUp: 0, leavers: 0 }]);
+        assert.deepEqual(w.reported, [{ setUp: 2, leavers: 1, pinLockout: null }, { setUp: 0, leavers: 0, pinLockout: null }]);
     });
 
     test('a Retry that fails again withdraws again', async () => {
@@ -381,4 +381,33 @@ test('a page without the block still initialises', async () => {
     _next = CLEAN;
     assert.doesNotThrow(() => initAuthSetup({ currentIsAdmin: true }));
     for (let i = 0; i < 6; i++) await Promise.resolve();
+});
+
+// ── THE STAFF PIN SHUT FOR EVERYONE, ON THE SAME ANSWER (owner, Nov 2026) ───────────────────────
+// The audit's answer carries `pinLockout` (getAccountSetupGaps). The wiring: an object draws a line on
+// the card and reports the count; `null` draws none and reports 0; ABSENT — an older server, or a
+// record it could not read — draws none and reports `null`, which the strip turns into a WITHDRAW.
+describe('the staff PIN lockout rides on the audit, and unknown is never "none"', () => {
+    const NOW = Date.now();
+    const running = { active: true, blockedUntil: NOW + 10 * 60_000, lastBlockedAt: NOW - 5 * 60_000, blocks: 1 };
+
+    test('a block running now: a line on the card, a count for the strip', async () => {
+        const { gaps, reported } = await wire({ ...CLEAN, pinLockout: running });
+        assert.match(gaps.textContent, /The staff PIN is blocked for everyone until \d{2}:\d{2}/);
+        assert.match(gaps.textContent, /members can still sign in with their password/);
+        assert.match(gaps.textContent, /Everyone on the roster has a login/, 'the audit\'s own answer still shows');
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: 1 }]);
+    });
+
+    test('none: no line, and a zero the strip can clear an old item with', async () => {
+        const { gaps, reported } = await wire({ ...CLEAN, pinLockout: null });
+        assert.doesNotMatch(gaps.textContent, /staff PIN/);
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: 0 }]);
+    });
+
+    test('absent (an older server): no line, and UNKNOWN to the strip — never a zero', async () => {
+        const { gaps, reported } = await wire(CLEAN);
+        assert.doesNotMatch(gaps.textContent, /staff PIN/);
+        assert.deepEqual(reported, [{ setUp: 0, leavers: 0, pinLockout: null }]);
+    });
 });

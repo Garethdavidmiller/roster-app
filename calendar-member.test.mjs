@@ -23,8 +23,8 @@ const FAKE_MEMBERS = [
 // runs before any mock is registered. The dropdown tests need both — what the filter has to remove
 // is a property of the roster people are actually on, and what removing it would expose is a
 // property of `getALEntitlement`. A fixture could state neither.
-const { teamMembers: LIVE_MEMBERS, getALEntitlement: realGetALEntitlement } =
-    await import('./roster-data.js?real');
+const { teamMembers: LIVE_MEMBERS, CONFIG: REAL_CONFIG } = await import('./roster-data.js?real');
+const { getALEntitlement: realGetALEntitlement } = await import('./al-contract.js?real');
 
 mock.module('./ls.js', {
     namedExports: {
@@ -45,7 +45,8 @@ mock.module('./session.js', {
 });
 mock.module('./roster-data.js', {
     namedExports: {
-        CONFIG:      { DEFAULT_MEMBER_NAME: 'A. Smith' },
+        // The real CONFIG (the cycle lengths and grades validateTeamMembers checks against), one name swapped.
+        CONFIG:      { ...REAL_CONFIG, DEFAULT_MEMBER_NAME: 'A. Smith' },
         teamMembers: FAKE_MEMBERS,
     },
 });
@@ -273,6 +274,50 @@ describe('getCurrentMember', () => {
 describe('validateTeamMembers', () => {
     test('returns no errors for the valid FAKE_MEMBERS fixture', () => {
         assert.deepEqual(validateTeamMembers(), []);
+    });
+
+    /** Validate `members` in place of the fixture — the same array object the module reads. */
+    const validating = (/** @type {any[]} */ members) => {
+        const saved = FAKE_MEMBERS.slice();
+        FAKE_MEMBERS.length = 0;
+        FAKE_MEMBERS.push(...members);
+        try { return validateTeamMembers(); } finally { FAKE_MEMBERS.length = 0; FAKE_MEMBERS.push(...saved); }
+    };
+    const ok = { name: 'D. Invented', currentWeek: 2, rosterType: 'fixed', role: 'CEA' };
+
+    test('the live roster passes every check', () => {
+        assert.deepEqual(validating(LIVE_MEMBERS), []);
+    });
+
+    test('the optional fields are checked too (Nov 2026) — each wrong shape is named', () => {
+        const cases = /** @type {Array<[any, RegExp]>} */ ([
+            [{ ...ok, role: 'Supervisor' }, /Unknown role "Supervisor"/],
+            [{ ...ok, startDate: new Date(2026, 5, 1, 9) }, /startDate must be a Date at midnight/],
+            [{ ...ok, startDate: '2026-06-01' }, /startDate must be a Date at midnight/],
+            [{ ...ok, proRatedAL: { 2026: 12.5 } }, /proRatedAL must map a year/],
+            [{ ...ok, proRatedAL: { '26': 12 } }, /proRatedAL must map a year/],
+            [{ ...ok, proRatedAL: 12 }, /proRatedAL must map a year/],
+            [{ ...ok, rosterChanges: { from: new Date(2026, 6, 1) } }, /rosterChanges must be an array/],
+            [{ ...ok, rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'mian', currentWeek: 3 }] }, /unknown rosterType "mian"/],
+            [{ ...ok, rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 11 }] }, /invalid currentWeek 11/],
+            [{ ...ok, rosterChanges: [{ from: '2026-07-01', rosterType: 'ces', currentWeek: 1 }] }, /rosterChanges\[0\]\.from must be a Date/],
+            [{ ...ok, rosterChanges: [{ from: new Date(2026, 8, 1), rosterType: 'ces', currentWeek: 1 },
+                                      { from: new Date(2026, 6, 1), rosterType: 'main', currentWeek: 1 }] }, /sorted ascending by from/],
+            [{ ...ok, roleHistory: [{ role: 'Trainee', until: new Date(2026, 6, 1) }] }, /unknown role "Trainee"/],
+            [{ ...ok, roleHistory: [{ role: 'CEA', until: new Date(2026, 6, 1, 23, 59) }] }, /until must be a Date at midnight/],
+            [{ ...ok, roleHistory: [{ role: 'CEA', until: new Date(2026, 8, 1) }, { role: 'CES', until: new Date(2026, 6, 1) }] }, /sorted ascending by until/],
+        ]);
+        for (const [member, expected] of cases) {
+            const errors = validating([member]);
+            assert.ok(errors.some(e => expected.test(e)), `${JSON.stringify(member)} → ${JSON.stringify(errors)}`);
+        }
+    });
+
+    test('and the well-formed optional fields pass', () => {
+        assert.deepEqual(validating([{ ...ok, startDate: new Date(2026, 5, 1), proRatedAL: { 2026: 12 },
+            roleHistory: [{ role: 'CEA', until: new Date(2026, 6, 1) }],
+            rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 10 },
+                            { from: new Date(2026, 8, 1), rosterType: 'fixed', currentWeek: 4 }] }]), []);
     });
 });
 

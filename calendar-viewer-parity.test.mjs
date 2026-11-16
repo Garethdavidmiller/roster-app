@@ -243,7 +243,8 @@ describe('Contract B — the PIN is not in the repository', () => {
         assert.ok(fn.includes('CALENDAR_VIEWER_PIN.value()'), 'the handler does not read the secret parameter');
         assert.ok(src.includes("defineSecret('CALENDAR_VIEWER_PIN')"),
             'the secret must be bound with defineSecret, not read from the environment');
-        assert.ok(/secrets:\s*\[CALENDAR_VIEWER_PIN\]/.test(fn),
+        // The PIN first; the push key may sit beside it (the station-wide block's notice to the admin).
+        assert.ok(/secrets:\s*\[CALENDAR_VIEWER_PIN\b/.test(fn),
             'the function declaration does not BIND the secret — .value() would be empty at runtime');
         // Nothing that could carry the candidate into a log line or a response body.
         for (const line of fn.split('\n')) {

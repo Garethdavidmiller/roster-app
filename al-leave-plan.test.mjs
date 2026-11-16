@@ -326,6 +326,51 @@ describe('what the logs already written say about a new file', () => {
         assert.deepEqual([...j.protectedKeys].sort(), ['A. Example|2026-03-02', 'B. Example|2026-04-01']);
     });
 
+    // A SAVE WHERE ONLY SWAPS LANDED IS LOGGED WITH NOTHING ADDED, AND IT HID THE UNDO (review of v26.22).
+    // The Undo on offer is the latest Save that ADDED leave; a later log that added none is passed over,
+    // and nothing further back is. The undone days leave every log written before the undo.
+    describe('the Undo on offer, and a later Save that added nothing', () => {
+        const A = log({ id: 'A', savedAt: { seconds: 100 }, inLine: ['A. Example|2026-03-02', 'A. Example|2026-03-03'], added: ['A. Example|2026-03-03'] });
+        const B = log({ id: 'B', savedAt: { seconds: 200 }, inLine: ['A. Example|2026-03-02', 'A. Example|2026-03-03'], added: [] });
+        const judge = (/** @type {any[]} */ logs) => judgeUploads({ logs, file: file('2026-11-06T10:00:00Z') });
+
+        test('premise: the swap-only Save is the newest', () => {
+            assert.equal(judge([A, B]).newest?.id, 'B');
+        });
+
+        test('its Undo is still offered, past the later Save that added nothing', () => {
+            assert.equal(judge([A, B]).undoable?.id, 'A');
+            assert.equal(judge([B, A]).undoable?.id, 'A', 'whatever order the logs were read in');
+        });
+
+        test('the newest Save that added is the one offered, when it is the newest', () => {
+            const C = log({ id: 'C', savedAt: { seconds: 300 }, inLine: ['B. Example|2026-04-01'], added: ['B. Example|2026-04-01'] });
+            assert.equal(judge([A, B, C]).undoable?.id, 'C');
+        });
+
+        test('ONE UNDO: once the latest Save that added is undone, nothing earlier is offered', () => {
+            const C = log({ id: 'C', savedAt: { seconds: 300 }, inLine: ['B. Example|2026-04-01'], added: ['B. Example|2026-04-01'],
+                undoneAt: { seconds: 400 }, undone: ['B. Example|2026-04-01'] });
+            assert.equal(judge([A, B, C]).undoable, null, 'A is not offered behind an undone C');
+            assert.equal(judge([{ ...A, undoneAt: { seconds: 300 }, undone: A.added }, B]).undoable, null);
+        });
+
+        test('nothing added anywhere: no Undo', () => {
+            assert.equal(judge([B]).undoable, null);
+        });
+
+        test('an undo takes its days out of the later log too — the Undo removed them, not somebody in the app', () => {
+            const undone = { ...A, undoneAt: { seconds: 300 }, undone: ['A. Example|2026-03-03'] };
+            assert.deepEqual([...judge([undone, B]).protectedKeys].sort(), ['A. Example|2026-03-02'],
+                'the later log still says 3 March was in line; without this, it would be stuck as "removed since"');
+        });
+
+        test('…but a log written AFTER the undo keeps its claim', () => {
+            const undone = { ...A, undoneAt: { seconds: 150 }, undone: ['A. Example|2026-03-03'] };
+            assert.equal(judge([undone, B]).protectedKeys.has('A. Example|2026-03-03'), true, 'B brought it back into line after the undo');
+        });
+    });
+
     test('a Save is refused before anything is written: no save time, too old, or an older copy', () => {
         const judged = judgeUploads({ logs: [], file: file('2026-11-06T10:00:00Z') });
         assert.equal(saveRefusal({ file: file(null), todayStr: TODAY, judged }), 'age-unknown');

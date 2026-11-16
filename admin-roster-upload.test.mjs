@@ -712,6 +712,34 @@ describe('computeCellStates — review state machine', () => {
         assert.deepEqual(collectRosterWrites(states).map(w => w.memberName), [mname], 'and only they are saved');
     });
 
+    // A DAY BEFORE THE MEMBER STARTED (review, 16 Nov 2026). Nothing in the import read `startDate`,
+    // so a starter's row printed early was a pre-ticked change on days before they joined. An INVENTED
+    // starter is put on the roster for the test and taken off again.
+    test('a day before the start date is shown as GUARDED and writes nothing; the start day is ordinary', async () => {
+        const { guardCopy } = await import('./roster-review-states.js');
+        const starter = { name: 'V. Invented', currentWeek: 1, rosterType: 'main', role: 'CEA', startDate: new Date(2026, 5, 17) };
+        teamMembers.push(starter);
+        try {
+            const MON = '2026-06-15', TUE = '2026-06-16', SUN = '2026-06-14', WED = '2026-06-17';
+            const startBase = getBaseShift(starter, new Date(WED + 'T12:00:00'));
+            const startDiffer = (startBase === 'RD' || startBase === 'OFF') ? '07:00-15:00' : 'RD';
+            const held = { memberName: starter.name, date: TUE, value: '08:00-16:00', type: 'shift', source: 'roster_import', id: 'early' };
+            const states = computeCellStates({ parsed: [{ memberName: starter.name,
+                shifts: { [SUN]: 'RD', [MON]: '07:00-15:00', [TUE]: 'AL', [WED]: startDiffer } }],
+                dates: [SUN, MON, TUE, WED] }, [held]);
+            const st = (/** @type {string} */ d) => states.get(`${starter.name}|${d}`);
+            assert.deepEqual([st(MON).state, st(MON).guarded, st(MON).chosen], ['GUARDED', 'before-start', null], 'a shift printed before the start');
+            assert.deepEqual([st(TUE).state, st(TUE).guarded], ['GUARDED', 'before-start'], 'leave over a record held before the start');
+            assert.equal(st(SUN).state, 'MATCH', 'a rest day with nothing saved: nothing to say');
+            assert.equal(st(WED).state, 'DIFF', 'the start day itself is reviewed as any other day');
+            const writes = collectRosterWrites(states);
+            assert.deepEqual(writes.map(w => w.date), [WED], 'only the start day is written');
+            assert.equal(guardCopy('before-start'), 'Before this member’s start date, so nothing is recorded.');
+        } finally {
+            teamMembers.splice(teamMembers.indexOf(starter), 1);
+        }
+    });
+
     // ── THE APP DECIDED SOMETHING; IT MAY NOT REPORT THAT AS A MATCH (v23.97) ────────────────
     //
     // Leave or an absence on a base rest day is normalised to RD before the state is chosen, so

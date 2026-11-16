@@ -5,7 +5,8 @@
  * Owns: turning one `.day-row` on and off, drawing it from its saved record (`prefillRow`) and
  *   remembering which record that was (`drawnRecords` — what a staged removal is compared with), and
  *   keeping the four things that depend on a row's current type in step with it — the RDW warning,
- *   the Spare submenu mode, the swapped-day question, and the overwrite badge. And, since the iPhone
+ *   the Spare submenu mode (Spare pressed at once on a Spare-only day, admin-day-pills.js), the
+ *   swapped-day question, and the overwrite badge. And, since the iPhone
  *   audit (Nov 2026), a row's staged state
  *   AS DATA: `isStagedRow` (the one test of "is this row staged?") and the reading and putting back
  *   of a week's staged rows that a kept draft is made of (`readWeekDraft` / `applyWeekDraft`,
@@ -169,6 +170,10 @@ export function _activateRow(row, checkbox, pills, startEl, endEl, type) {
         if (type === 'other') {
             const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
             if (cb && row.dataset.baseIsRd === '1') cb.checked = true;
+            // A Sunday or Boxing Day offers Spare alone (admin-day-pills.js): one choice is pressed, not asked for.
+            const spare = row.dataset.spareOnly === '1' && !row.querySelector('.other-flavour-btn.active')
+                ? row.querySelector('.other-flavour-btn[data-flavour="SPARE"]') : null;
+            if (spare) { spare.classList.add('active'); spare.setAttribute('aria-pressed', 'true'); }
         }
         _syncOtherRdwWarn(row);
         // Re-selecting Other must re-apply a Spare chip still active from before (review A18) —
@@ -255,7 +260,9 @@ export function prefillRow(row, existing) {
         b.classList.toggle('active', on);
         b.setAttribute('aria-pressed', String(on));
     });
-    if (isSpare) _syncOtherSpareMode(row);   // hides the RDW tick and the times: "No time needed"
+    // Spare hides the RDW tick and the times ("No time needed"); any other flavour shows them — and must,
+    // on a Spare-only day, where activating Other pressed Spare before this flavour was drawn.
+    if (flavour) _syncOtherSpareMode(row);
     if (other) {
         const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
         if (cb && !cb.disabled) cb.checked = other.rdw;

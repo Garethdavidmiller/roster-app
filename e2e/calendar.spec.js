@@ -804,6 +804,39 @@ test('calendar: the Today highlight moves when the local date turns', async ({ p
     await expect.poll(async () => (await today.textContent())?.trim()).not.toBe(before);
 });
 
+// …AND TEAM VIEW'S WEEK FOLLOWS THE SAME RULE AS THE MONTH (16 Nov 2026). It kept the week it was on, so
+// a phone resumed on Sunday morning showed last week with no today in it, while a reload opened on this
+// week. A grid on the old today's week moves with the date; a browsed week stays, until the member has
+// been away for longer than half an hour (calendar-state.js, BROWSED_MONTH_KEPT_MS) — then this week.
+test('calendar: Team View follows the date to the new week, and returns to this week after a long absence', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 10, 14, 23, 59, 0) });   // Saturday night
+    await seedMember(page);
+    await page.goto('/');
+    await page.locator('#teamViewBtn').click();
+    const week = page.locator('#tvWeekJump');
+    await expect(week).toHaveText('8–14 Nov 2026');
+    await page.clock.runFor('02:00');   // past local midnight: Sunday the 15th starts a new week
+    await expect(week, 'the date turned and Team View stayed on last week').toHaveText('15–21 Nov 2026');
+    await expect(page.locator('.tv-week-status--now')).toHaveText('This week');
+
+    const visibility = (/** @type {'hidden'|'visible'} */ state) => page.evaluate((v) => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v });
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => v === 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+    }, state);
+    await page.locator('#tvNextWeek').click();
+    await page.locator('#tvNextWeek').click();
+    await expect(week).toHaveText('29 Nov–5 Dec 2026');
+    await visibility('hidden');
+    await page.clock.fastForward('10:00');
+    await visibility('visible');
+    await expect(week, 'ten minutes away took the member off the week they chose').toHaveText('29 Nov–5 Dec 2026');
+    await visibility('hidden');
+    await page.clock.fastForward('31:00');
+    await visibility('visible');
+    await expect(week, 'back after half an hour, still on a browsed week').toHaveText('15–21 Nov 2026');
+});
+
 // A month read once used to stay "current" for the life of the page, so a PC or a resumed phone showed
 // the morning's roster in the afternoon (Oct 2026 review). Coming back into view after ten minutes
 // re-reads; coming back sooner does not. The observable is the read itself.
@@ -4425,10 +4458,13 @@ test('calendar: the leave panel refuses a balance served from the offline cache'
 // cal-ui-2). The saved copy has no age limit: the member who reads "6 left" from a copy saved before
 // three more days were recorded must be told it was not checked — the month grid's words for the same
 // state (CALENDAR_DATA.md 18) — rather than shown it as current, and the figures stay.
-/** Seed a saved balance for G. Miller's 2026 that no read would produce: 20 taken, 6 booked, of 32. */
+/** Seed a saved 2026 balance for whoever the seeded session names, that no read would produce: 20
+ *  taken, 6 booked, of 32. It is kept in the member's own stored roster (calendar-snapshot.js, 16 Nov
+ *  2026), the copy every sign-out deletes — a balance with no month beside it is still a copy. */
 const seedSavedBalance = (/** @type {import('@playwright/test').Page} */ page) => page.addInitScript(() => {
-    localStorage.setItem('myb_al_stats_G. Miller|2026', JSON.stringify(
-        { taken: 20, booked: 6, entitlement: 32, breakdown: null, carry: null, christmas: null }));
+    const member = JSON.parse(localStorage.getItem('myb_admin_session') ?? '{}').name;
+    localStorage.setItem('myb_cal_snapshot', JSON.stringify({ v: 1, member, months: {}, leave: { 2026: { savedAt: Date.now(),
+        stats: { taken: 20, booked: 6, entitlement: 32, breakdown: null, carry: null, christmas: null } } } }));
 });
 
 test('calendar: the leave panel labels a saved balance it could not check, and keeps it', async ({ page }) => {
@@ -4458,6 +4494,28 @@ test('calendar: the leave panel says a saved balance is being checked, and drops
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
     await expect(page.locator('#alLbTaken'), 'the server\'s answer replaces the copy').toHaveText('0');
     await expect(page.locator('#alLbError')).toBeHidden();
+});
+
+// …AND A BALANCE IS THE READER'S OWN, AND GOES WITH THEM (16 Nov 2026). The panel used to keep one key per
+// member and year, `myb_al_stats_<name>|<year>`, and nothing deleted one: a shared phone kept every balance
+// anybody had opened on it. The balance now rides in the member's own stored copy (calendar-snapshot.js), so
+// the old keys are swept on load, and a balance is saved only into the signed-in member's copy.
+test('calendar: the leave panel keeps no balance outside the member\'s own copy, and sweeps the old keys', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_al_stats_A. Colleague|2026', JSON.stringify({ taken: 1, booked: 1, entitlement: 30 }));
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbTaken'), 'premise: the read settled').toHaveText('0');
+    const keys = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('myb_al_stats_')));
+    expect(keys, 'a retired per-member balance key survived the load').toEqual([]);
+    const copy = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_cal_snapshot') ?? 'null'));
+    const session = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_admin_session') ?? '{}').name);
+    expect(copy?.member, 'the balance is saved into the signed-in member\'s own copy').toBe(session);
+    expect(Object.keys(copy?.leave ?? {})).toEqual(['2026']);
 });
 
 // ── THE LEAVE PANEL'S YEAR AND ITS SECOND ROUTE (v24.46, owner) ─────────────────────────────────

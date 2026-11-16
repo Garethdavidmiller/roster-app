@@ -2,10 +2,10 @@
  * functions/auth-endpoints.js — the ACCOUNT-AND-CREDENTIAL domain of the Cloud Functions
  * (third cut of the index.js domain split; push.js v20.52, documents.js in the same pass as this).
  *
- * Owns: setupRosterAuth (provision accounts + claim tiers from the server-owned roster),
- * resetMemberPassword (the admin break-glass), getSignInStats (the admin-only exact sign-in read)
- * and getAccountSetupGaps (the read-only provisioning audit); and it BUILDS requestPasswordReset (the
- * public doorbell, ./reset-request.js) and returns it with them. Everything ACCOUNT-shaped: who has
+ * Owns: setupRosterAuth (provision accounts + claim tiers from the server-owned roster) and
+ * resetMemberPassword (the admin break-glass); and it BUILDS requestPasswordReset (the public
+ * doorbell, ./reset-request.js) and the two admin reads, getSignInStats and getAccountSetupGaps
+ * (./account-reads.js), and returns them with its own. Everything ACCOUNT-shaped: who has
  * a login, what tier it carries, and how a locked-out member reaches the admin.
  *
  * NOT here, deliberately: unlockCalendarViewer. It is account-ADJACENT but it stays in
@@ -17,8 +17,8 @@
  * index.js stays the composition root, the static guards keep one home for the shared
  * literals, and the deps seam is what a future Node test drives fake boundaries through.
  * The pure DECISIONS in these endpoints already live in roster-parse-helpers.js
- * (resolveRosterAuthConfig, claimsForTier, computeOrphanLabels, summariseAccountGaps,
- * summariseSignIns), member-identity.js and account-lifecycle.js (passwordWriteRefused,
+ * (resolveRosterAuthConfig, claimsForTier, computeOrphanLabels; summariseAccountGaps and
+ * summariseSignIns for the reads), member-identity.js and account-lifecycle.js (passwordWriteRefused,
  * unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids), and are unit-tested there —
  * this module is the ORCHESTRATION around them.
  *
@@ -37,13 +37,12 @@ const {
     resolveRosterAuthConfig,
     claimsForTier,
     computeOrphanLabels,
-    summariseSignIns,
-    summariseAccountGaps,
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push');
 const { requireAdmin, readJsonBody } = require('./request-helpers');
 const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('./member-identity');
 const { buildResetRequestEndpoint } = require('./reset-request');
+const { buildAccountReadEndpoints, listAllUsers } = require('./account-reads');
 const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids } = require('./account-lifecycle');
 
 /**
@@ -349,48 +348,46 @@ const setupRosterAuth = onRequest(
         const orphansToDisable = [];  // dry-run preview: labels that WOULD be disabled
         if (removeOrphans) {
             try {
-                let pageToken;
-                do {
-                    const page = await getAuth().listUsers(1000, pageToken);
-                    // computeOrphanLabels (unit-tested) owns the "which accounts are leaver orphans"
-                    // filter (@myb-roster.local, not in activeEmails, not already disabled).
-                    for (const { uid, label } of computeOrphanLabels(page.users, activeEmails)) {
-                        if (!confirmOrphanRemoval) {
-                            orphansToDisable.push(label);   // DRY RUN — preview only, disable nothing
-                            continue;
-                        }
+                // Every account first (listAllUsers, account-reads.js), so a page that fails to load
+                // stops the sweep before it has disabled anybody, rather than part-way through.
+                const users = await listAllUsers();
+                // computeOrphanLabels (unit-tested) owns the "which accounts are leaver orphans"
+                // filter (@myb-roster.local, not in activeEmails, not already disabled).
+                for (const { uid, label } of computeOrphanLabels(users, activeEmails)) {
+                    if (!confirmOrphanRemoval) {
+                        orphansToDisable.push(label);   // DRY RUN — preview only, disable nothing
+                        continue;
+                    }
+                    try {
+                        await getAuth().updateUser(uid, { disabled: true });
+                        // Revoke so an already-issued ID token for this account is rejected on
+                        // its next refresh (within the hour), not just future sign-ins. Best-effort.
+                        try { await getAuth().revokeRefreshTokens(uid); } catch (_) { /* non-fatal */ }
+                        // And stop the broadcasts (whole-app review, H4): a leaver who never ran
+                        // Sign out keeps an owner-stamped push record, and every staff broadcast
+                        // went on reaching their phone. Best-effort, like the revoke — the account
+                        // is disabled either way, and that is what this row reports.
                         try {
-                            await getAuth().updateUser(uid, { disabled: true });
-                            // Revoke so an already-issued ID token for this account is rejected on
-                            // its next refresh (within the hour), not just future sign-ins. Best-effort.
-                            try { await getAuth().revokeRefreshTokens(uid); } catch (_) { /* non-fatal */ }
-                            // And stop the broadcasts (whole-app review, H4): a leaver who never ran
-                            // Sign out keeps an owner-stamped push record, and every staff broadcast
-                            // went on reaching their phone. Best-effort, like the revoke — the account
-                            // is disabled either way, and that is what this row reports.
-                            try {
-                                const n = await releasePushForOwner(uid);
-                                if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) for leaver: ${label}`);
-                            } catch (pushErr) {
-                                console.warn(`[setupRosterAuth] Could not remove push records for ${label}: ${pushErr.message}`);
-                            }
-                            disabled.push(label);
-                            console.log(`[setupRosterAuth] Disabled + revoked leaver: ${label}`);
-                        } catch (err) {
-                            failed.push(label);
-                            console.error(`[setupRosterAuth] Failed to disable ${label}: ${err.message}`);
+                            const n = await releasePushForOwner(uid);
+                            if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) for leaver: ${label}`);
+                        } catch (pushErr) {
+                            console.warn(`[setupRosterAuth] Could not remove push records for ${label}: ${pushErr.message}`);
                         }
+                        disabled.push(label);
+                        console.log(`[setupRosterAuth] Disabled + revoked leaver: ${label}`);
+                    } catch (err) {
+                        failed.push(label);
+                        console.error(`[setupRosterAuth] Failed to disable ${label}: ${err.message}`);
                     }
-                    // And the leavers ALREADY disabled (sign-in audit D2): a phone with a token still valid
-                    // after the sweep can save its push record again. Every confirmed run releases them —
-                    // idempotent, never listed as newly disabled, and never the PIN account (account-lifecycle.js).
-                    if (confirmOrphanRemoval) for (const uid of disabledLeaverUids(page.users, activeEmails)) {
-                        try { disabledLeaverPushRemoved += await releasePushForOwner(uid); } catch (pushErr) {
-                            console.warn(`[setupRosterAuth] Could not remove push records of a disabled leaver: ${pushErr.message}`);
-                        }
+                }
+                // And the leavers ALREADY disabled (sign-in audit D2): a phone with a token still valid
+                // after the sweep can save its push record again. Every confirmed run releases them —
+                // idempotent, never listed as newly disabled, and never the PIN account (account-lifecycle.js).
+                if (confirmOrphanRemoval) for (const uid of disabledLeaverUids(users, activeEmails)) {
+                    try { disabledLeaverPushRemoved += await releasePushForOwner(uid); } catch (pushErr) {
+                        console.warn(`[setupRosterAuth] Could not remove push records of a disabled leaver: ${pushErr.message}`);
                     }
-                    pageToken = page.pageToken;
-                } while (pageToken);
+                }
             } catch (err) {
                 orphanSweepFailed = true;
                 console.error(`[setupRosterAuth] Leaver sweep failed (accounts above were still processed): ${err.message}`);
@@ -600,142 +597,9 @@ const RESET_REQUESTS_ENABLED = true;
 const { requestPasswordReset } = buildResetRequestEndpoint({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL,
     ADMIN_FUNCTION_ORIGINS, enabled: RESET_REQUESTS_ENABLED, resetRequestAnswerFloorMs });
 
-/**
- * getSignInStats — how many DISTINCT accounts have actually signed in (admin-only, v18.96).
- *
- * WHY THIS EXISTS. The Operations Usage card's "active accounts" figure is deduped on the DEVICE
- * (localStorage flags in usage-reporter.js that never leave the phone), which is what keeps it
- * anonymous — the server only ever receives `increment(1)` and never learns WHO was active. The
- * price of that anonymity is that a member using a phone AND a laptop counts twice: it is a usage
- * TREND, not a headcount. Making it a true unique count would mean giving the server a per-account
- * handle, i.e. recording who opened the app and when — attendance-adjacent data in a workplace, and
- * a deliberate reversal of that design.
- *
- * This route avoids the trade entirely. **Firebase Auth already stores `lastSignInTime` per
- * account**, whether we look at it or not, so uniqueness is a property of the data rather than
- * something we have to enforce — and reading it adds no privacy surface that did not already exist.
- * Nothing is written, nothing is cached, and **no identity leaves this function**: the response is
- * four integers.
- *
- * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 60 days (absolute — `SESSION_MS`
- * in session.js, 30 until v20.47), so most page opens are session RESTORES, not sign-ins — a member
- * can sign in once and use the app daily for two months. Two consequences, both stated on the card:
- *   · "Signed in within 30 days" is therefore NOT a count of active people, in either direction: it
- *     misses anyone whose one sign-in was 31–60 days ago and who has used the app every day since,
- *     and it includes anyone who signed in once and stopped. (While sessions lasted 30 days a live
- *     session required a sign-in inside the window, and this line called the figure a slight
- *     over-count; that stopped being true at v20.47.)
- *   · There is no history. `lastSignInTime` is only the LAST one, so month-over-month cannot be
- *     reconstructed retroactively; this figure is deliberately a snapshot, and it sits ALONGSIDE the
- *     existing trend rather than replacing it.
- *
- * The one genuinely actionable number here is `neverSignedIn`: accounts provisioned by Set up
- * accounts that have never been used — staff who quite possibly do not know the app exists.
- *
- * Auth: a fresh admin ID token as a Bearer header, `checkRevoked` — same shape as
- * resetMemberPassword. GET (it is a pure read), and CORS-restricted like the other admin functions.
- */
-const getSignInStats = onRequest(
-    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
-    async (req, res) => {
-        if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-
-        if (!(await requireAdmin(req, res))) return;
-
-        // An ALLOWLIST of the current roster, not a denylist of admins (v18.97, external review).
-        // Excluding only admins counted every other enabled account in the project — a leaver whose
-        // orphan sweep hasn't run, or one it failed on — inflating both the total and the
-        // never-signed-in figure on a card that calls itself exact. Admins are excluded by being left
-        // out here, mirroring recordUsage's write-time CONFIG.ADMIN_NAMES filter.
-        // Derived from the SERVER-owned roster (roster-members.json), never a client payload.
-        const cfg = resolveRosterAuthConfig(rosterMembers);
-        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
-        const adminSet = new Set(cfg.admin);
-        const allowedEmails = new Set(
-            cfg.processMembers.filter(n => !adminSet.has(n)).map(n => nameToEmail(n).toLowerCase()));
-
-        try {
-            // Paginate: listUsers caps at 1000 per page. The roster is ~50, so this is one page in
-            // practice — the loop is here so it stays correct if that ever stops being true.
-            const users = [];
-            let pageToken;
-            do {
-                const page = await getAuth().listUsers(1000, pageToken);
-                users.push(...page.users);
-                pageToken = page.pageToken;
-            } while (pageToken);
-
-            const stats = summariseSignIns(users, Date.now(), allowedEmails);
-            console.log('[getSignInStats]', JSON.stringify(stats));
-            return res.json(stats);
-        } catch (e) {
-            console.error('[getSignInStats] failed', e && e.code, e);
-            return res.status(500).json({ error: 'Could not read sign-in stats' });
-        }
-    }
-);
-/**
- * getAccountSetupGaps — who on the roster is not properly provisioned, and who has left but still is.
- *
- * WHY A SEPARATE ENDPOINT FROM getSignInStats. That one's whole contract, stated in its own header
- * and relied on by the Usage card's privacy note, is "four integers; no identity". This one has to
- * return NAMES — a count of gaps the admin cannot act on is worse than none — so folding it in
- * would quietly break the promise the other one makes. Two endpoints, two contracts, neither
- * apologising for the other.
- *
- * It is a PURE READ. Nothing is written, no account is touched, no claim is applied: pressing "Set
- * up accounts" is still the only thing that changes anything, and it is still idempotent. That
- * separation is deliberate — a check that silently repaired what it found would make the gap
- * invisible again, which is the state this feature exists to end.
- *
- * The comparison is against the SERVER-owned roster (`roster-members.json`), never a client
- * payload, exactly as setupRosterAuth resolves it — so what this reports missing is precisely what
- * that button would create. `summariseAccountGaps` (unit-tested) owns every judgement, including
- * the refusal when no roster account is visible at all.
- *
- * Auth: a fresh admin ID token as a Bearer header, `checkRevoked`. GET, CORS-restricted like the
- * other admin functions.
- */
-const getAccountSetupGaps = onRequest(
-    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
-    async (req, res) => {
-        if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-
-        if (!(await requireAdmin(req, res))) return;
-
-        const cfg = resolveRosterAuthConfig(rosterMembers);
-        if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
-
-        try {
-            // Paginate exactly as setupRosterAuth's leaver sweep does; ~50 accounts is one page.
-            const users = [];
-            let pageToken;
-            do {
-                const page = await getAuth().listUsers(1000, pageToken);
-                users.push(...page.users);
-                pageToken = page.pageToken;
-            } while (pageToken);
-
-            // Admins are INCLUDED here, unlike getSignInStats. There they are excluded because the
-            // figure is about staff usage; here a second admin whose claim was never applied is
-            // exactly the kind of gap being looked for.
-            const gaps = summariseAccountGaps(users, {
-                processMembers: cfg.processMembers,
-                adminSet:    new Set(cfg.admin),
-                managerSet:  new Set(cfg.manager),
-                designerSet: new Set(cfg.designer),
-            });
-            // Counts only in the log — the names are for the admin's screen, not the project's logs.
-            console.log('[getAccountSetupGaps]', JSON.stringify({
-                refused: gaps.refused || null, setUp: gaps.setUp.length, leavers: gaps.leavers.length,
-            }));
-            return res.json(gaps);
-        } catch (e) {
-            console.error('[getAccountSetupGaps] failed', e && e.code, e);
-            return res.status(500).json({ error: 'Could not read account setup state' });
-        }
-    }
-);
+// The two admin READS — getSignInStats and getAccountSetupGaps — are ./account-reads.js (SPLIT, Nov
+// 2026: they change nothing, and share only the roster and the account list with what is above).
+const { getSignInStats, getAccountSetupGaps } = buildAccountReadEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers });
 
     return { setupRosterAuth, resetMemberPassword, requestPasswordReset, getSignInStats, getAccountSetupGaps };
 }

@@ -24,7 +24,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '26.22';
+const APP_VERSION = '26.23';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -121,19 +121,19 @@ const NETWORK_FIRST_FILES = [
     'calendar-team-view.js', 'override-utils.js', 'clock-input.js', 'print-guard.js', 'calendar-huddle-viewer.js', 'huddle-table-grid.js', 'settings-status.js', 'calendar-doc-viewer.js',
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'newsletter-recency.js', 'notice-archive.js', 'nav-guide-search.js', 'guide-search.js', 'guide-index.js', 'install-prompt.js', 'calendar-notif-prompt.js', 'calendar-doc-access.js', 'calendar-access-state.js', 'calendar-redraw.js', 'calendar-lock-slot.js', 'calendar-snapshot.js', 'text-scale.js', 'notif.js',
     'admin-roster-upload.js', 'roster-import-save.js', 'roster-alignment.js', 'roster-cell-rules.js', 'roster-review-states.js', 'admin-period-dates.js', 'roster-entry-control.js', 'admin-overrides.js', 'admin-override-store.js', 'admin-override-coverage.js', 'override-id.js', 'override-compare.js', 'admin-shift-types.js', 'admin-week-editor.js', 'admin-saved-changes.js', 'admin-shift-rules.js', 'admin-save-receipt.js', 'slow-save.js', 'admin-rangepicker.js', 'admin-deep-link.js',
-    'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'christmas-leave.js', 'leave-year.js', 'admin-leave-year.js', 'admin-leave-year-save.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js', 'admin-own-write.js', 'admin-time-inputs.js', 'admin-bulk-apply.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-tips.js', 'operations-doc-links.js', 'operations-reset.js', 'operations-doc-uploads.js', 'operations-al-sheet.js', 'operations-al-save.js', 'al-leave-file.js', 'al-leave-compare.js', 'al-leave-plan.js', 'al-leave-save.js', 'al-leave-words.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'pdf-viewer.js', 'pdf-viewer-core.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
+    'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'al-contract.js', 'christmas-leave.js', 'leave-year.js', 'admin-leave-year.js', 'admin-leave-year-save.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js', 'admin-day-pills.js', 'admin-own-write.js', 'admin-time-inputs.js', 'admin-bulk-apply.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-pin-lockout.js', 'operations-tips.js', 'operations-doc-links.js', 'operations-reset.js', 'operations-doc-uploads.js', 'operations-al-sheet.js', 'operations-al-save.js', 'al-leave-file.js', 'al-leave-compare.js', 'al-leave-plan.js', 'al-leave-save.js', 'al-leave-words.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'pdf-viewer.js', 'pdf-viewer-core.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
     'links-design-naming.js', 'links-design-header.js', 'links-proposals.js', 'links-shortlist.js', 'links-generator-targets.js', 'links-design-store.js', 'links-queued-saves.js', 'links-design-library.js', 'links-import.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-compare-analysis.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js', 'links-grid-input.js',
-    'overlay.js', 'card-collapse.js', 'select-sheet.js', 'session.js', 'staff-pin-ended.js', 'silent-sign-in.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
+    'overlay.js', 'card-collapse.js', 'select-sheet.js', 'session.js', 'staff-pin-ended.js', 'silent-sign-in.js', 'viewer-shed.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
-    'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js', 'date-picker.js',
-    'roster-data.js', 'date-format.js', 'roster-cycle-data.js', 'roster-member-data.js', 'roster-roles.js', 'firebase-client.js', 'own-password.js', 'claim-retry.js', 'page-session.js', 'unsaved-draft.js', 'storage-utils.js', 'document-url.js', 'storage-keys.js', 'status-text.js', 'upload-commit.js', 'doc-retention.js', 'documents-client.js', 'analytics-client.js', 'auth-identity.js', 'client-errors.js',
+    'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js', 'login-core.js', 'date-picker.js',
+    'roster-data.js', 'date-format.js', 'roster-cycle-data.js', 'roster-member-data.js', 'roster-roles.js', 'pay-audience.js', 'firebase-client.js', 'own-password.js', 'account-calls.js', 'claim-retry.js', 'page-session.js', 'unsaved-draft.js', 'storage-utils.js', 'document-url.js', 'storage-keys.js', 'status-text.js', 'upload-commit.js', 'doc-retention.js', 'documents-client.js', 'analytics-client.js', 'auth-identity.js', 'client-errors.js',
     'shared.css',
     'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-sticky-total.js', 'paycalc-role-card.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js', 'paycalc-fill-year.js', 'paycalc-year-card.js',
     'paycalc-periods.js', 'paycalc-settings.js', 'paycalc-grade.js', 'paycalc-grade-setting.js',
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-hpp-schedule.js', 'paycalc-backpay.js', 'paycalc-backpay-state.js', 'paycalc-backpay-accrual.js', 'paycalc-pension.js', 'paycalc-year-summary.js',
-    'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-result-headline.js', 'paycalc-money-banner.js', 'paycalc-guide.html',
+    'paycalc-format.js', 'paycalc-breakdown.js', 'paycalc-inputs.js', 'paycalc-form-data.js', 'paycalc-transfer.js', 'paycalc-transfer-card.js', 'paycalc-inventory.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-result-headline.js', 'paycalc-money-banner.js', 'paycalc-ytd-card.js', 'paycalc-disclosures.js', 'paycalc-guide.html',
     'fip-guide.html', 'staff-guide.html',
     'railcard-guide.html', 'rangers-guide.html',
     'guide-chips.js', 'guide-print.js', 'guide-back.js', 'fip-guide.js', 'legacy-redirect.js', 'guide-shell.css',
@@ -249,12 +249,12 @@ const CORE_ASSETS = [
     "./admin-rangepicker.js",
     "./admin-deep-link.js",
     "./admin-al.js",
-    "./al-entitlement.js", "./christmas-leave.js", "./leave-year.js", "./admin-leave-year.js", "./admin-leave-year-save.js",
+    "./al-entitlement.js", "./al-contract.js", "./christmas-leave.js", "./leave-year.js", "./admin-leave-year.js", "./admin-leave-year-save.js",
     "./admin-al-year.js",
     "./admin-al-spare-note.js",
     "./admin-al-projection.js",
     "./admin-al-week-save.js",
-    "./admin-week-row-state.js", "./admin-own-write.js", "./admin-bulk-apply.js",
+    "./admin-week-row-state.js", "./admin-day-pills.js", "./admin-own-write.js", "./admin-bulk-apply.js",
     "./admin-time-inputs.js",
     "./al-swapped-days.js",
     "./admin-booked-periods.js",
@@ -262,7 +262,7 @@ const CORE_ASSETS = [
     "./admin-range-booking.js",
     "./admin-week-swipe.js",
     "./operations-app.js",
-    "./operations-attention.js",
+    "./operations-attention.js", "./operations-pin-lockout.js",
     "./operations-tips.js",
     "./operations-boot.js",
     "./operations-reports.js",
@@ -278,8 +278,8 @@ const CORE_ASSETS = [
     "./perf-stats.js",
     "./roster-data.js",
     "./roster-cycle-data.js",
-    "./roster-member-data.js", "./roster-roles.js",
-    "./firebase-client.js", "./own-password.js",
+    "./roster-member-data.js", "./roster-roles.js", "./pay-audience.js",
+    "./firebase-client.js", "./own-password.js", "./account-calls.js",
     "./claim-retry.js",
     "./page-session.js", "./unsaved-draft.js",
     "./storage-utils.js",
@@ -295,7 +295,7 @@ const CORE_ASSETS = [
     "./doc-upload.js",
     "./overlay.js", "./card-collapse.js",
     "./select-sheet.js",
-    "./session.js", "./staff-pin-ended.js", "./silent-sign-in.js",
+    "./session.js", "./staff-pin-ended.js", "./silent-sign-in.js", "./viewer-shed.js",
     "./auth-identity.js",
     "./auth-state-core.js",
     "./auth-state.js",
@@ -304,7 +304,7 @@ const CORE_ASSETS = [
     "./splash-watchdog.js",
     "./about-lightbox.js",
     "./tips-lightbox.js",
-    "./login-overlay.js",
+    "./login-overlay.js", "./login-core.js",
     "./date-picker.js",
     "./date-format.js",
     "./nav-panel.js", "./newsletter-recency.js", "./notice-archive.js",
@@ -349,7 +349,7 @@ const CORE_ASSETS = [
     "./paycalc-roster-suggestions.js",
     "./paycalc-lightboxes.js",
     "./paycalc-result-headline.js",
-    "./paycalc-money-banner.js",
+    "./paycalc-money-banner.js", "./paycalc-ytd-card.js", "./paycalc-disclosures.js",
 ];
 
 // The guides with their scripts and styles, and the vendored DOMPurify — warmed after the core files.

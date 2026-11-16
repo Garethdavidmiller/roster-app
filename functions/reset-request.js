@@ -31,6 +31,7 @@ const {
     shouldNotifyAdmin,
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush } = require('./push');
+const { enabledAdminUids } = require('./admin-recipients');
 const { readJsonBody } = require('./request-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -114,9 +115,10 @@ const ADMIN_NOTIFY_CLAIM_MS = ADMIN_NOTIFY_BUDGET_MS + 5_000;
  * Push the "someone asked for a password reset" notice to the ADMIN's devices only (Phase 2).
  *
  * Two lookups, both of which fail closed rather than widening the audience:
- *  · admin name → Firebase Auth uid (`getUserByEmail` on the synthetic account address). A name that
- *    can't be resolved is simply dropped from the target list — an unresolvable admin must not become
- *    "send to everyone".
+ *  · admin name → the admin's own account, ENABLED and carrying the `admin` claim (`enabledAdminUids`,
+ *    ./admin-recipients.js — the Error Log's rule, shared since Nov 2026; this notice names a locked-out
+ *    colleague, and used to go to whatever account held the admin's address). A name that resolves to
+ *    anything else is dropped — an unresolvable admin must not become "send to everyone".
  *  · uid → their own push subscriptions (sendTargetedPush).
  *
  * The headline states the queue DEPTH, so read `resetRequests` AFTER the write — inside the claim's
@@ -129,15 +131,7 @@ const ADMIN_NOTIFY_CLAIM_MS = ADMIN_NOTIFY_BUDGET_MS + 5_000;
  * @returns {Promise<void>}
  */
 async function notifyAdminOfResetRequest(member, adminNames, vapidPrivate) {
-    const uids = [];
-    for (const name of adminNames || []) {
-        try {
-            const user = await getAuth().getUserByEmail(nameToEmail(name));
-            if (user && user.uid) uids.push(user.uid);
-        } catch (e) {
-            console.warn('[requestPasswordReset] could not resolve admin uid for', name, e && e.code);
-        }
-    }
+    const uids = await enabledAdminUids(adminNames, '[requestPasswordReset]');
     if (uids.length === 0) return;   // sendTargetedPush would refuse anyway; skip the VAPID setup
 
     // ONE PUSH PER BURST, DECIDED BY A CLAIM TAKEN IN A TRANSACTION (sign-in review, Nov 2026). The

@@ -453,6 +453,10 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
      *  fade hands back the same promise rather than a fresh resolved one. */
     /** @type {Promise<void>|null} */
     let _settling = null;
+    /** Counts opens, so a close knows whether it was SUPERSEDED: a re-open before it landed (during the
+     *  fade, or after the fade with the history echo still out) leaves the overlay open, and that close's
+     *  `afterClose` must not then run against it (16 Nov 2026). Moved on by every open. */
+    let _openSeq = 0;
     /** Retires this open's scroll/resize listeners. Reassigned per open, called on close. */
     let _stopScrollFade = /** @type {() => void} */ (() => {});
     let _stopFocusGuard = /** @type {() => void} */ (() => {});   // this open's guard; retired first thing in a close
@@ -482,6 +486,9 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         // lockBodyScroll (depth counter → the lock never releases on close) and re-run onOpen.
         // Reachable via a fast double-tap on a trigger during the opener's slide-in.
         else if (overlay.classList.contains('visible')) return;
+        // A close not yet LANDED is superseded by this open: its landing still resolves the promise its
+        // caller holds, but runs no `afterClose` and clears no `_settling` — `close()`'s landing below.
+        _openSeq++;
         _focusReturn = document.activeElement;
         onOpen?.(...args);
         lockBodyScroll();
@@ -576,11 +583,18 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         // the first half is already done by this line and the second is what the caller is really
         // waiting for; a picker that opened a dialog on the fade alone would have it popped.
         const echo = /** @type {Promise<void>} */ (new Promise(res => whenHistorySettled(() => res())));
-        _settling = Promise.all([fade, echo]).then(() => {
+        // A CLOSE THAT A RE-OPEN OVERTOOK IS NOT A CLOSE (16 Nov 2026). `afterClose` says the overlay has
+        // gone; reopened before this landed, it has not, and running it then undid the reopen's state —
+        // calendar-doc-viewer.js's resets the viewer's z-index, putting a reopened viewer back under the
+        // Huddle. The promise still resolves: a caller awaiting it is told this close is over.
+        const seq = _openSeq;
+        const landing = Promise.all([fade, echo]).then(() => {
+            if (seq !== _openSeq) return;
             _settling = null;
             try { afterClose?.(); } catch (e) { console.error('[overlay] afterClose threw:', e); }
         });
-        return _settling;
+        _settling = landing;
+        return landing;
     }
 
     closeOnBackdropTap(overlay, close);

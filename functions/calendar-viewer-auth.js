@@ -33,9 +33,28 @@
  * rows are swept opportunistically on the failure path — see `isThrottleStateStale`, which was
  * written here at v20.12 and NOT actually called until v20.15, so for three versions this comment
  * described a sweep that did not happen and the collection only ever grew.
+ *
+ * ── THE STATION-WIDE BLOCK IS A LOCK ANYBODY CAN TURN, SO THE ADMIN IS TOLD (owner, Nov 2026) ────
+ *
+ * `GLOBAL_THROTTLE` counts failures under one fixed key, which is what makes it hold against a caller
+ * who can forge the forwarding header — and also what makes it a handle: anybody, from anywhere, can
+ * send 200 wrong PINs and close the PIN door for EVERY station PC for fifteen minutes, and do it again
+ * as often as they like. That trade is KEPT, deliberately: the alternative is a limit an attacker can
+ * walk round, and the four-digit PIN has nothing else between it and the roster. What the door costs
+ * while it is shut is bounded — a member's password sign-in never goes through it, and the block ends
+ * by itself — so the answer is not a different limit but a person who KNOWS. Two things now say so:
+ *   · a push to the admin's devices only (`sendTargetedPush` through `enabledAdminUids`, never
+ *     `fanOutPush`), at most once a day, carrying a count and a time and never the PIN or an address
+ *     (`noteGlobalBlock`, `lockoutNoticeWords`; the sender is ./pin-lockout.js);
+ *   · Operations' "Needs attention" strip, while a block is running or one began in the last day
+ *     (`lockoutSummary`, read through getAccountSetupGaps).
+ * The record behind both is ONE document beside the throttle rows (`LOCKOUT_RECORD_KEY`), closed to
+ * every client by the same `viewerAttempts` rule; the sweep leaves it alone. It holds times and counts,
+ * never a source key — "who tripped it" is the per-source throttle's to know, and it keeps no addresses.
  */
 
 const crypto = require('crypto');
+const { londonOffsetMinutes } = require('./london-clock');
 
 /** The dedicated viewer UID. Must match `CALENDAR_VIEWER_UID` in calendar-access-core.js — asserted
  *  by calendar-viewer-parity.test.mjs, which exists because the two live either side of the
@@ -430,6 +449,87 @@ function viewerClaims() {
     return { calendarViewer: true };
 }
 
+// ── THE STATION-WIDE BLOCK, TOLD (owner, Nov 2026 — see the header) ─────────────────────────────
+
+/** The document, beside the throttle rows in `viewerAttempts`, that remembers station-wide blocks.
+ *  Not 32 hex characters, so it cannot collide with a `sourceKeyFor` key; the sweep skips it. */
+const LOCKOUT_RECORD_KEY = '_lockout-record';
+/** At most one push to the admin per this long, however often the block is tripped. */
+const LOCKOUT_ALERT_GAP_MS = 24 * 60 * 60 * 1000;
+/** How long a block that has ended stays on Operations' strip. */
+const LOCKOUT_RECENT_MS = 24 * 60 * 60 * 1000;
+/** Block times kept: a block lasts 15 minutes, so a day cannot hold 100 of them. */
+const LOCKOUT_KEPT = 100;
+
+/** @param {unknown} v @returns {number} a finite number, or 0 */
+const finiteOrZero = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/**
+ * Fold one station-wide block, imposed now, into the stored record, and decide whether the admin is
+ * told about it. PURE — the caller owns the transaction.
+ *
+ * Told when no notice was attempted in the last `LOCKOUT_ALERT_GAP_MS`. The stamp is the ATTEMPT, not
+ * a delivery: a notice that reaches no device is not tried again until the gap has passed, because the
+ * strip on Operations says the same thing without a phone. A stamp far ahead of this clock (a clock that
+ * was wrong) counts as long ago, so it cannot hold the notices off for ever.
+ *
+ * @param {{ blocks?: number[], blockedUntil?: number, alertedAt?: number|null }|null|undefined} record
+ * @param {number} now  epoch ms — when the block began
+ * @param {number} blockedUntil  epoch ms — when it ends
+ * @returns {{ next: { blocks: number[], blockedUntil: number, alertedAt: number|null }, alert: boolean }}
+ */
+function noteGlobalBlock(record, now, blockedUntil) {
+    const r = record && typeof record === 'object' ? record : {};
+    const blocks = (Array.isArray(r.blocks) ? r.blocks : [])
+        .filter(t => typeof t === 'number' && Number.isFinite(t) && t <= now && now - t < LOCKOUT_RECENT_MS)
+        .slice(-(LOCKOUT_KEPT - 1));
+    blocks.push(now);
+    const last = finiteOrZero(r.alertedAt);
+    const alert = !(last > 0 && last <= now && now - last < LOCKOUT_ALERT_GAP_MS);
+    return {
+        next: { blocks, blockedUntil: Math.max(finiteOrZero(r.blockedUntil), blockedUntil), alertedAt: alert ? now : (last || null) },
+        alert,
+    };
+}
+
+/**
+ * What Operations is told: `null` when there is nothing to say — no block running and none begun in
+ * the last day — otherwise whether one is running, when it ends or ended, when the last began and how
+ * many began in the day. Times and counts only. PURE.
+ * @param {{ blocks?: number[], blockedUntil?: number }|null|undefined} record
+ * @param {number} now  epoch ms
+ * @returns {{ active: boolean, blockedUntil: number, lastBlockedAt: number, blocks: number }|null}
+ */
+function lockoutSummary(record, now) {
+    const r = record && typeof record === 'object' ? record : {};
+    const recent = (Array.isArray(r.blocks) ? r.blocks : [])
+        .filter(t => typeof t === 'number' && Number.isFinite(t) && t <= now && now - t < LOCKOUT_RECENT_MS);
+    const blockedUntil = finiteOrZero(r.blockedUntil);
+    const active = blockedUntil > now;
+    if (!recent.length && !active) return null;
+    return { active, blockedUntil, lastBlockedAt: recent.length ? Math.max(...recent) : 0, blocks: Math.max(recent.length, 1) };
+}
+
+/** "14:20" in London — the time the notice names. @param {number} ms @returns {string} */
+function londonClockTime(ms) {
+    const t = new Date(ms + londonOffsetMinutes(ms) * 60000);
+    return `${String(t.getUTCHours()).padStart(2, '0')}:${String(t.getUTCMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * The admin's notice, in the event grammar of `.claude/rules/notifications.md`: what happened and
+ * when it ends. A COUNT and a TIME, nothing else — never the PIN, never an address or a source key,
+ * because a push renders on a lock screen. PURE.
+ * @param {{ blockedUntil: number }} block
+ * @returns {{ headline: string, body: string }}
+ */
+function lockoutNoticeWords({ blockedUntil }) {
+    return {
+        headline: 'Staff PIN — blocked station-wide',
+        body: `${GLOBAL_THROTTLE.maxFailures} wrong entries in ${GLOBAL_THROTTLE.windowMs / 60000} minutes. It reopens by itself at ${londonClockTime(blockedUntil)}.`,
+    };
+}
+
 module.exports = {
     CALENDAR_VIEWER_UID,
     PIN_LENGTH,
@@ -448,4 +548,10 @@ module.exports = {
     viewerClaims,
     viewerAccountTamper,
     isViewerAccount,
+    LOCKOUT_RECORD_KEY,
+    LOCKOUT_ALERT_GAP_MS,
+    LOCKOUT_RECENT_MS,
+    noteGlobalBlock,
+    lockoutSummary,
+    lockoutNoticeWords,
 };

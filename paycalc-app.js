@@ -18,7 +18,7 @@ import { initSelectSheets } from './select-sheet.js';
 import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import { printedStamp, formatClock } from './date-format.js';
 import {
-  GRADES, RATE_125, RATE_150, RATE_300,
+  RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, takeHomePay,
 } from './paycalc-calc.js';
@@ -35,16 +35,17 @@ import {
   hasBoxingDay, hasBankHoliday,
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
-  setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, buildYtdSourceSelect, ytdSourceToStamp, ytdSourceAfterRetype, ytdAnchorStatus, payslipMayBeInHand, ytdUpdateFrom,
+  setEarliestVisiblePeriod, computeEarliestVisiblePNum, isTaxYearVisible, visiblePeriods,
+  _setSelectPeriod, ytdSourceAfterRetype, payslipMayBeInHand, ytdUpdateFrom,
   appendPayslipOptions,
 } from './paycalc-periods.js';
 import {
   getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
-  applyPensionOptOutUI, wirePensionControls, gradeForRole, periodDefaultPension,
+  applyPensionOptOutUI, wirePensionControls, periodDefaultPension, settingsSummary, unpricedLineFor,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
   saveSettings, confirmSettings, loadSettings, periodRate, wireSettingsCard,
 } from './paycalc-settings.js';
+import { payCalculatorPrices } from './pay-audience.js';
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
   fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
@@ -68,12 +69,14 @@ import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTa
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { classifyPayKey } from './paycalc-inventory.js';
-import { buildSummaryRows, buildLoanLines, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips, buildBreakBar } from './paycalc-breakdown.js';
+import { buildSummaryRows, buildLoanLines, buildBreakdownRows, buildProvChips, buildBreakBar } from './paycalc-breakdown.js';
 
 import { setStatus } from './status-text.js';
-import { renderResultHeadline, renderYtdLine, wireYtdLine } from './paycalc-result-headline.js';
+import { renderResultHeadline, renderYtdLine, wireYtdLine, renderUnpricedPayslip, renderActualCheck } from './paycalc-result-headline.js';
 import { backPayBannerCopy, hppBannerCopy, paintBanner } from './paycalc-money-banner.js';
 import { initPaycalcStickyTotal } from './paycalc-sticky-total.js';
+import { ytdHasFigures, refreshYtdSrc, updateYtdNote } from './paycalc-ytd-card.js';
+import { setDisclosure, toggleDisclosure, toggleHoursExtra, toggleHppNote, toggleBD, toggleDisclaimer } from './paycalc-disclosures.js';
 
 /**
  * Withhold the calculator from a role it has no confirmed rates for, and say why.
@@ -142,14 +145,17 @@ export function init() {
     // A ROLE WITH NO CONFIRMED RATES REFUSES RATHER THAN GUESSING: the grade lookup treats "no grade
     // stored" as CEA at every consumer, so every Dispatcher and manager account was handed a polished
     // estimate at somebody else's rate. Before every other init step, so nothing can render a figure
-    // first. Why: `gradeForRole`'s JSDoc (roster-data.js).
+    // first. Why: `gradeForRole`'s JSDoc (roster-data.js). It asks the role AT THE TIME (owner, 16 Nov
+    // 2026; pay-audience.js): a CES promoted into management keeps the CES payslips on this page, and
+    // each payslip under a role with no rates is refused on its own (calculate(), unpricedLineFor).
     //
     // A SESSION NAME THE ROSTER DOES NOT HOLD REFUSES TOO: a leaver or a renamed
     // member keeps a valid local session, `getLoggedMember()` returns null, and a null used to skip
     // this check — so the calculator ran on CEA rates and `setPaycalcNamespace(undefined)` opened the
     // bare `myb_pc_` namespace, i.e. the shared legacy keys of everyone on the device.
     const _roleMember = getLoggedMember();
-    if (!_roleMember || !gradeForRole(_roleMember.role)) {
+    const _floor = computeEarliestVisiblePNum(_roleMember);
+    if (!payCalculatorPrices(_roleMember, { periods: getPeriods().filter(/** @param {any} p */ p => p.num >= _floor) })) {
       // No calculator follows, so nothing will read the sign-in timer: drop it, or the next page
       // opened within two minutes would count this visit as its sign-in time (App Speed review).
       clearLoginStart();
@@ -235,44 +241,6 @@ export function init() {
       calculate();
     }
 
-    /** True when either Year to Date field holds text — the one guard the anchor stamp, the note and
-     *  the header chip all branch on. */
-    function _ytdHasFigures() {
-      return ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdPay')))?.value.trim() || '') !== ''
-          || ((/** @type {HTMLInputElement|null} */ (document.getElementById('ytdTax')))?.value.trim() || '') !== '';
-    }
-
-    /**
-     * Refresh the Year to Date card's source anchor for the viewed tax year: rebuild the "From which
-     * payslip?" select, record a source for figures that never had one (`ytdSourceToStamp`) and select
-     * the stored source. Its note and chip follow in the calculate() that every caller runs next.
-     * @param {any} ty
-     */
-    function _refreshYtdSrc(ty) {
-      const sel = /** @type {HTMLSelectElement|null} */ (document.getElementById('ytdSrcSelect'));
-      if (!sel) return;
-      buildYtdSourceSelect(ty);
-      const _rawSrc = lsGet(ytdSrcKey(ty));
-      const stamp = ytdSourceToStamp(_rawSrc, _ytdHasFigures(), ty);
-      if (stamp != null) lsSet(ytdSrcKey(ty), String(stamp));
-      const src = stamp ?? (parseInt(_rawSrc ?? '', 10) || 0);
-      if (src) _setSelectPeriod(sel, src);
-    }
-
-    /** The Year to Date note and header chip for the payslip on screen (`ytdAnchorStatus`), from what
-     *  computeTax DID — written by calculate() on every run, so a tax code, a pair that does not fit
-     *  it (`misfit`) or a half-typed pair that stops the figures being used is said at once.
-     *  @param {any} ty @param {any} p @param {number} src @param {boolean} inUse @param {string} taxCode @param {boolean} [misfit] */
-    function _updateYtdNote(ty, p, src, inUse, taxCode, misfit = false) {
-      const note = document.getElementById('ytdUptoNote');
-      if (!note) return;
-      const s = ytdAnchorStatus({ p, ty, src, hasFigures: _ytdHasFigures(), inUse, taxCode, misfit });
-      note.classList.toggle('ytd-upto-note--live', s.noteLive);
-      note.innerHTML = s.note;   // '' is hidden by `.ytd-upto-note:empty`
-      const chip = document.getElementById('ytdStatusChip');
-      if (chip) { chip.classList.toggle('ytd-status-chip--live', s.chipLive); chip.textContent = s.chip; }
-    }
-
     function onPeriodChange() {
       _resetClearConfirm();   // switching period disarms a pending two-tap Clear (_resetClearConfirm says why)
       const pNum    = +/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect')).value;
@@ -342,7 +310,7 @@ export function init() {
 
       // The Year to Date figures are stored per tax year WITH the payslip they were copied from; the
       // cumulative method uses them only on the payslip straight after it (see calculate()).
-      _refreshYtdSrc(ty);
+      refreshYtdSrc(ty);
 
       // This tax year's HPP amount source, restored BEFORE loadPeriodData() runs calculate() (calcHPP
       // reads the mode), so each year shows its own choice.
@@ -363,13 +331,9 @@ export function init() {
       _settingsHintDefault ??= _hintEl.textContent ?? '';
       if (tyConfirmed) {
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
-        // The rate THIS payslip was paid at, as the rate field shows it (periodRate), with the field's
-        // "pre-rise" qualifier — never the year's settled rate over a payslip priced at the old one.
-        const { rate: _hintRate, preAward: _hintPreAward } = periodRate(ty, p);
-        const rate = (_hintRate || numVal('hourlyRate') || GRADES.cea.rate).toFixed(2);
-        // No tax code here: beside the period chip it wrapped onto a second line at 390px, and the
-        // year, the rate and its pre-rise position are the at-a-glance facts. The code is in the card.
-        setStatus(_hintEl, `✓ ${ty.label} — £${rate}/hr${_hintPreAward ? ' · pre-rise' : ''}`);
+        // The rate THIS payslip was paid at (periodRate), with its "pre-rise" qualifier — never the
+        // year's settled rate over a payslip priced at the old one. No tax code: it wrapped at 390px.
+        setStatus(_hintEl, settingsSummary(ty, p));
       } else {
         _hintEl.textContent = _settingsHintDefault;
         // What is TRUE (whole-app review): grade, tax code, loan and pension are single settings used
@@ -531,11 +495,11 @@ export function init() {
       // holding a saved figure was priced WITH that deduction beside a field reading a locked £0.00.
       if (_pObj) applyPensionOptOutUI(_pObj);
       updateAdjSign();
-      // Open "more options" when this payslip has extras saved — through _setDisclosure, so the
+      // Open "more options" when this payslip has extras saved — through setDisclosure, so the
       // button's aria-expanded and arrow stay in step with it (a class alone told a screen reader
       // "collapsed" about an open panel).
       const hasExtras = !!(d.slSkip || d.otherAdj);
-      _setDisclosure('hoursShowMore', 'hoursExtra', hasExtras, { arrowSel: '.show-more-arrow' });
+      setDisclosure('hoursShowMore', 'hoursExtra', hasExtras, { arrowSel: '.show-more-arrow' });
       updateSaveStatus(pNum);
       calculate();
       // Refresh the roster hint bar AFTER the new period's field values are written. onPeriodChange
@@ -671,7 +635,12 @@ export function init() {
       // (periodRate): its grades' rates weighted by their days, UNROUNDED. The field shows it to the
       // penny, and pricing a payslip that spans a promotion at the field's rounding would leave the
       // contracted pay pennies short of 35 hours at one rate plus 105 at the other (paycalc-grade.js).
-      const rate = Math.max(0, periodRate(_ty, _curP).rate) || GRADES.cea.rate;
+      // NO rate is a payslip worked under a role with no confirmed rates (the page admits by the role
+      // AT THE TIME): it gets no figure — never CEA's rate in its place (invariant 13).
+      const _rate = periodRate(_ty, _curP).rate;
+      renderUnpricedPayslip(_rate == null ? unpricedLineFor(_curP) : '');
+      if (_rate == null) { calcHPP(); renderYtdLine(null); return; }
+      const rate = Math.max(0, _rate);
       updateBadges(rate);
       const r125 = rate * RATE_125;
       const r150 = rate * RATE_150;
@@ -815,7 +784,7 @@ export function init() {
         { ytdPay: ytdP, ytdTax: ytdT, periodN, otherDeductions: ni + sl },
       );
       paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
-      _updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed, !!taxYtdMisfit);   // "in use" is what computeTax did
+      updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed, !!taxYtdMisfit);   // "in use" is what computeTax did
 
       // The take-home is the summary's rows subtracted, each to the penny as shown (takeHomePay).
       const { afterPension: _shownAfterPension, net } = takeHomePay({ gross: grossWithBp, pension, tax, ni, sl });
@@ -833,38 +802,12 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(net);
       /** @type {HTMLElement} */ (document.getElementById('pensionRef')).textContent = pension.toFixed(2);
 
-      // Check against the real payslip: shown from the payslip's CUT-OFF (it arrives before payday),
-      // and a big gap names this estimate's tax code and pension first (buildActualCheck). The figure
-      // autosaves in this payslip's own entries (actualNet).
+      // Check against the real payslip (paycalc-result-headline.js → renderActualCheck): the pension
+      // the estimate DEDUCTED (sacGross floors at zero), and the payslip its Year to Date figures came from.
       const _srcP = _ytdSrc ? getPeriods().find(/** @param {any} x */ x => x.num === _ytdSrc) : null;
-      const _caWrap = document.getElementById('checkActualWrap');
-      if (_caWrap) {
-        const _caInHand = payslipMayBeInHand(_curP);
-        _caWrap.hidden = !_caInHand;
-        const _caEl = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
-        const _caActual = _caInHand ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
-        const _caV = document.getElementById('actualVerdict');
-        // The pension the estimate DEDUCTED: sacGross floors at zero, so a pension above the gross is
-        // only taken up to it, and the check must name the figure it used.
-        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net, { taxCode: taxCodeUsed, recognised: taxCodeKnown, pension: Math.min(pension, Math.max(0, grossWithBp)),
-          ytdFrom: usingCumulative && _srcP ? fdShort(_srcP.payday) : '' });
-        // The other payslip lines, compared with the SAME figures the summary rows display; the
-        // comparison never guesses a cause (buildActualComparison). The payslip's pay figure is its
-        // Taxable Pay, after the pension, so it is set against "Pay after pension deduction".
-        const _cmpEl = document.getElementById('actualCompare');
-        if (_cmpEl) {
-          const _av = /** @param {string} id */ (id) => {
-            const _e = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
-            return (_e && _e.value.trim() !== '') ? parseSmartFloat(_e.value) : null;
-          };
-          _cmpEl.innerHTML = _caInHand ? buildActualComparison({
-            actual: { gross: _av('actualGrossInput'), pension: _av('actualPensionInput'),
-                      tax: _av('actualTaxInput'), ni: _av('actualNiInput'),
-                      net: _caActual > 0 ? _caActual : null },
-            estimate: { gross: _shownAfterPension, pension, tax, ni, net },
-          }) : '';
-        }
-      }
+      renderActualCheck({ inHand: payslipMayBeInHand(_curP), net, taxCode: taxCodeUsed, recognised: taxCodeKnown,
+        deducted: Math.min(pension, Math.max(0, grossWithBp)), ytdFrom: usingCumulative && _srcP ? fdShort(_srcP.payday) : '',
+        estimate: { gross: _shownAfterPension, pension, tax, ni, net } });
 
       // Provenance chips under the take-home £ — what fed THIS number; none on a normal payslip.
       const _chipsEl = document.getElementById('provChips');
@@ -1023,66 +966,9 @@ export function init() {
       // Max-height from the actual rendered height so a long back-pay breakdown (many periods,
       // large text/zoom) is never clipped by the fixed CSS `.bd-body.open` cap; cleared on close
       // so the CSS collapse animates shut. (Arrow rotation is CSS — .bd-btn.open .bd-arrow.)
-      _toggleDisclosure('bpBreakdownBtn', 'backPayRows', {
+      toggleDisclosure('bpBreakdownBtn', 'backPayRows', {
         onToggle: (open, body) => { body.style.maxHeight = open ? `${body.scrollHeight}px` : ''; },
       });
-    }
-
-    // ── DISCLOSURE TOGGLES — ONE open/close core ──────────────────────────────────
-    // The page's button + panel disclosures share it; their differences (arrow glyph, label swap,
-    // measured max-height) ride the options. The disclaimer's More/Less keeps its own three lines —
-    // it has no panel and no arrow, so the helper would fit it worse than it helps.
-    /**
-     * Set a disclosure button + body to a SPECIFIC open state, keeping `aria-expanded` + the arrow
-     * glyph in step — for the click AND for loadPeriodData's programmatic open, where a class alone
-     * once told a screen reader "collapsed" about an open panel. Idempotent.
-     * @param {string} btnId @param {string} bodyId @param {boolean} open
-     * @param {{ arrowSel?: string, onToggle?: (open: boolean, body: HTMLElement) => void }} [opts]
-     */
-    function _setDisclosure(btnId, bodyId, open, opts = {}) {
-      const btn  = /** @type {HTMLElement|null} */ (document.getElementById(btnId));
-      const body = /** @type {HTMLElement|null} */ (document.getElementById(bodyId));
-      if (!btn || !body) return;
-      body.classList.toggle('open', open);
-      btn.classList.toggle('open', open);
-      btn.setAttribute('aria-expanded', String(open));
-      if (opts.arrowSel) {
-        const a = btn.querySelector(opts.arrowSel);
-        if (a) a.textContent = open ? '▲' : '▼';
-      }
-      opts.onToggle?.(open, body);
-    }
-    /**
-     * Toggle a disclosure to the OPPOSITE of its current open state (the click path).
-     * @param {string} btnId @param {string} bodyId
-     * @param {{ arrowSel?: string, onToggle?: (open: boolean, body: HTMLElement) => void }} [opts]
-     */
-    function _toggleDisclosure(btnId, bodyId, opts = {}) {
-      const body = /** @type {HTMLElement|null} */ (document.getElementById(bodyId));
-      if (!body) return;
-      _setDisclosure(btnId, bodyId, !body.classList.contains('open'), opts);
-    }
-
-    // Hours show-more: the label is CONSTANT — only the arrow flips.
-    function toggleHoursExtra() { _toggleDisclosure('hoursShowMore', 'hoursExtra', { arrowSel: '.show-more-arrow' }); }
-
-    function toggleHppNote() {
-      _toggleDisclosure('hppToggleBtn', 'hppNoteBody', {
-        arrowSel: '.hpp-toggle-arrow',
-        onToggle: open => {
-          const l = document.getElementById('hppToggleBtnLabel');
-          if (l) l.textContent = open ? 'Hide calculation details ' : 'How is this calculated? ';
-        },
-      });
-    }
-
-    // ── DISCLAIMER TOGGLE ─────────────────────────────────────────────────────────
-    function toggleDisclaimer() {
-      const extra  = /** @type {HTMLElement} */ (document.getElementById('disclaimerExtra'));
-      const toggle = /** @type {HTMLElement} */ (document.getElementById('disclaimerToggle'));
-      const open   = extra.classList.toggle('open');
-      toggle.textContent = open ? 'Less ▲' : 'More ▼';
-      toggle.setAttribute('aria-expanded', String(open));
     }
 
     // ── PEER STEPPER ──────────────────────────────────────────────────────────────
@@ -1092,9 +978,6 @@ export function init() {
       el.textContent = String(Math.max(0, Math.min(10, +el.textContent + delta)));
       autosave();
     }
-
-    // ── BREAKDOWN TOGGLE ──────────────────────────────────────────────────────────
-    function toggleBD() { _toggleDisclosure('bdBtn', 'bdBody'); }   // arrow rotation is CSS
 
     // ── INIT ──────────────────────────────────────────────────────────────────────
     runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
@@ -1408,12 +1291,12 @@ export function init() {
       const _raw = lsGet(ytdSrcKey(_ty2));
       const _moved = _ytdOver && !_ytdKeep.has(_ty2.label) ? ytdSourceAfterRetype(_raw, { p: _p2, ty: _ty2 }) : null;
       if (_moved != null) lsSet(ytdSrcKey(_ty2), String(_moved));
-      if (_moved != null || !_raw) _refreshYtdSrc(_ty2);
+      if (_moved != null || !_raw) refreshYtdSrc(_ty2);
       calculate();
     };
     for (const id of ['ytdPay', 'ytdTax']) {
       const el = /** @type {HTMLElement} */ (document.getElementById(id));
-      el.addEventListener('focus', e => { if (!['ytdPay', 'ytdTax'].includes(/** @type {any} */ (e).relatedTarget?.id)) _ytdOver = _ytdHasFigures(); });
+      el.addEventListener('focus', e => { if (!['ytdPay', 'ytdTax'].includes(/** @type {any} */ (e).relatedTarget?.id)) _ytdOver = ytdHasFigures(); });
       el.addEventListener('input', _ytdFigureInput);
     }
     /** @type {HTMLElement} */ (document.getElementById('ytdSrcSelect')).addEventListener('change', () => {

@@ -20,7 +20,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices, entitlementFor, entitlementNote, isWorkingDate } from './al-entitlement.js';
-import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement, getBankHolidays, dispatcherBaseAL } from './roster-data.js';
+import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getBankHolidays, CONFIG } from './roster-data.js';
+import { getALEntitlement, dispatcherBaseAL, allowanceRole, countDispatcherBankHolidaysWorked, countsAsDispatcherBankHoliday } from './al-contract.js';
+import { allowanceForBoxingDay, boxingDayLieuDays, isChristmasLeaveDay } from './christmas-leave.js';
 import { isRestShift, nextReplacedType, nextLeaveYear, buildOverrideCacheRecord } from './override-utils.js';
 import { rangeWriteDates, swapDecisionDates } from './al-swapped-days.js';
 
@@ -931,5 +933,128 @@ describe('a Mon–Sat booking across a rest day that holds rest-day working', ()
         for (const [type, value] of [['other', 'TRG'], ['spare_shift', 'SPARE']]) {
             assert.equal(book(on(worked, type, value)).counted.has(worked), true, `${type} on a rostered day`);
         }
+    });
+});
+
+// ── THE GRADE AT THE TIME (owner, 16 Nov 2026) ──────────────────────────────────────────────────
+//
+// A year's allowance is judged by the grade on 31 December; where that grade has no leave figure, by
+// the most recent grade held DURING the year that has one (al-contract.js → `allowanceRole`). Every
+// person here is INVENTED. `fixedRoster[2]` works every weekday bank holiday, so a Dispatcher on it
+// in 2026 works 1 Jan, 3 and 6 Apr, 4 and 25 May (before July) and 31 Aug and 28 Dec (after); 25 Dec
+// is a rest day in every base roster.
+describe('the grade at the time decides a year\'s allowance', () => {
+    /** @param {string} role @param {Array<{role: string, until: Date}>|null} history @param {object} [extra] */
+    const mk = (role, history, extra = {}) => ({ name: 'Q. Invented', role, rosterType: 'fixed', currentWeek: 2,
+        ...(history ? { roleHistory: history } : {}), ...extra });
+    const until = (/** @type {number} */ y, /** @type {number} */ m, /** @type {number} */ d) => new Date(y, m - 1, d);
+
+    test('promoted from a graded post into Management late in a year: that year is the graded post\'s', () => {
+        const m = mk('Management', [{ role: 'CES', until: until(2026, 11, 21) }]);
+        assert.equal(allowanceRole(m, 2026), 'CES', 'Management on 31 Dec has no figure — the year falls back to CES');
+        assert.equal(getALEntitlement(m, 2026, []), 34, 'eleven months a CES — not null');
+        assert.equal(getALEntitlement(m, 2025, []), 34, 'a whole year as a CES');
+        assert.equal(getALEntitlement(m, 2027, []), null, 'a whole year in Management is still no figure on record');
+        assert.equal(entitlementFor(m, 2027, []), null);
+    });
+
+    test('promoted between two graded posts: the grade on 31 December decides, both ways', () => {
+        const up = mk('CES', [{ role: 'CEA', until: until(2026, 11, 21) }]);
+        assert.equal(getALEntitlement(up, 2026, []), 34, 'a CES on 31 Dec 2026');
+        assert.equal(getALEntitlement(up, 2025, []), 32, 'a CEA throughout 2025 — not the CES figure read back');
+        const bilingual = mk('CES', [{ role: 'CEA', until: until(2026, 11, 21) }], { bilingualContract: true });
+        assert.equal(getALEntitlement(bilingual, 2025, []), 34, 'a CEA year still reads the contract');
+        const down = mk('CEA', [{ role: 'CES', until: until(2026, 2, 28) }]);
+        assert.equal(getALEntitlement(down, 2026, []), 32);
+        assert.equal(getALEntitlement(down, 2025, []), 34);
+    });
+
+    test('without a roleHistory the grade is `role`, for every year — nothing changes for anyone else', () => {
+        for (const role of ['CEA', 'CES', 'Dispatcher', 'Management']) {
+            for (const y of [2024, 2026, 2030]) assert.equal(allowanceRole(mk(role, null), y), role);
+        }
+    });
+
+    test('a Dispatcher year counts only the bank holidays worked AS a Dispatcher', () => {
+        const joined = mk('Dispatcher', [{ role: 'CEA', until: until(2026, 6, 30) }]);
+        assert.equal(countDispatcherBankHolidaysWorked(joined, 2026, []), 2, '31 Aug and 28 Dec only');
+        assert.equal(getALEntitlement(joined, 2026, []), 24);
+        assert.equal(getALEntitlement(joined, 2025, []), 32, 'a CEA year');
+        // Dispatcher until June, then Management: the year is the Dispatcher's, and its lieu days are
+        // the five bank holidays worked while a Dispatcher.
+        const left = mk('Management', [{ role: 'Dispatcher', until: until(2026, 6, 30) }]);
+        assert.equal(getALEntitlement(left, 2026, []), 27);
+        // Dispatcher until June, then a CEA: a CEA on 31 Dec, so 32 and no caption split.
+        const moved = mk('CEA', [{ role: 'Dispatcher', until: until(2026, 6, 30) }]);
+        assert.equal(getALEntitlement(moved, 2026, []), 32);
+        assert.equal(dispatcherBreakdown({ member: moved, year: 2026, overrides: [] }), null);
+        assert.ok(dispatcherBreakdown({ member: moved, year: 2025, overrides: [] }), 'a Dispatcher year splits');
+        assert.deepEqual(dispatcherBreakdown({ member: joined, year: 2026, overrides: [] }),
+            { base: 22, lieu: 2, boxingDay: 0, proRated: false });
+    });
+
+    test('a Boxing Day is counted ONCE across a change of grade', () => {
+        // 26 Dec 2028 is a bank holiday. A Dispatcher on it: the bank-holiday rule counts it in 2028.
+        const disp = mk('Dispatcher', [{ role: 'CEA', until: until(2027, 12, 31) }]);
+        assert.equal(allowanceForBoxingDay(disp, 2028), 2028);
+        // A CEA on 26 Dec who is a Dispatcher by 31 Dec: the bank-holiday rule does NOT count it (not a
+        // Dispatcher on the day), so the Boxing Day rule puts it in 2029 — never both, never neither.
+        const late = mk('Dispatcher', [{ role: 'CEA', until: until(2028, 12, 26) }]);
+        assert.equal(countsAsDispatcherBankHoliday(late, new Date(2028, 11, 26)), false);
+        assert.equal(allowanceForBoxingDay(late, 2028), 2029);
+        const onDuty = { memberName: late.name, date: '2028-12-26', type: 'rdw', value: '09:00-16:00', source: 'manual' };
+        assert.equal(countDispatcherBankHolidaysWorked(late, 2028, [onDuty]), countDispatcherBankHolidaysWorked(late, 2028, []));
+    });
+});
+
+// ── A DAY BEFORE THE MEMBER STARTED EARNS NO DAY IN LIEU (review, 16 Nov 2026) ──────────────────
+describe('a day before the start date earns no lieu day', () => {
+    test('a Dispatcher\'s bank holiday recorded as worked before they joined is not counted', () => {
+        const m = { name: 'R. Invented', role: 'Dispatcher', rosterType: 'fixed', currentWeek: 2, startDate: new Date(2026, 5, 1) };
+        const may4 = { memberName: m.name, date: '2026-05-04', type: 'shift', value: '09:00-16:00', source: 'manual' };
+        assert.equal(countDispatcherBankHolidaysWorked(m, 2026, []), 2, '31 Aug and 28 Dec');
+        assert.equal(countDispatcherBankHolidaysWorked(m, 2026, [may4]), 2, 'the record before the start earns nothing');
+        assert.equal(countsAsDispatcherBankHoliday(m, new Date(2026, 4, 4)), false);
+        assert.equal(countsAsDispatcherBankHoliday(m, new Date(2026, 7, 31)), true);
+    });
+
+    test('a Boxing Day before the start date earns nothing, worked or not', () => {
+        // A main-link line due at work on Sat 26 Dec 2026, so the only thing that changes is the start.
+        const line = Array.from({ length: 20 }, (_, i) => i + 1)
+            .find(w => isChristmasLeaveDay({ name: 'S. Invented', role: 'CEA', rosterType: 'main', currentWeek: w }, new Date(2026, 11, 26)));
+        assert.ok(line, 'precondition: some main line works Boxing Day 2026');
+        const base = { name: 'S. Invented', role: 'CEA', rosterType: 'main', currentWeek: line };
+        const worked = [{ memberName: base.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual' }];
+        assert.equal(boxingDayLieuDays(base, 2027, worked), 1, 'the control: due at work and worked');
+        assert.equal(boxingDayLieuDays({ ...base, startDate: new Date(2026, 11, 28) }, 2027, worked), 0);
+    });
+});
+
+// ── A TRAINEE'S ROSTERED TRAINING ON A BANK HOLIDAY EARNS THE DAY (owner, 16 Nov 2026) ──────────
+describe('a Dispatcher trainee on fixedRoster[3]', () => {
+    test('TRG on a bank holiday is worked, and earns the day in lieu — deliberate', () => {
+        const m = { name: 'T. Invented', role: 'Dispatcher', rosterType: 'fixed', currentWeek: 3 };
+        assert.equal(getBaseShift(m, new Date(2026, 3, 6)), 'TRG', 'Easter Monday 2026 is a training day');
+        assert.equal(countDispatcherBankHolidaysWorked(m, 2026, []), 7, 'every weekday bank holiday but Christmas Day');
+        assert.equal(getALEntitlement(m, 2026, []), 29);
+    });
+});
+
+// ── THE LAST NAVIGABLE YEAR'S BOXING DAY (review, 16 Nov 2026) ──────────────────────────────────
+// A Boxing Day worked in MAX_YEAR earns a day in MAX_YEAR + 1's allowance — a year no screen can open
+// until MAX_YEAR is raised (roster-data.js → CONFIG.MAX_YEAR says so). The wording that names the year
+// stays true (it IS that year's allowance), and the figure is already right for the day the range
+// grows. Pinned so raising MAX_YEAR needs nothing else here.
+describe('a Boxing Day worked in the last navigable year', () => {
+    test('goes into the year after MAX_YEAR, and that allowance counts it', () => {
+        const last = CONFIG.MAX_YEAR;
+        const line = Array.from({ length: 20 }, (_, i) => i + 1)
+            .find(w => isChristmasLeaveDay({ name: 'U. Invented', role: 'CEA', rosterType: 'main', currentWeek: w }, new Date(last, 11, 26)));
+        assert.ok(line, `precondition: some main line works Boxing Day ${last}`);
+        const m = { name: 'U. Invented', role: 'CEA', rosterType: 'main', currentWeek: line };
+        const worked = [{ memberName: m.name, date: `${last}-12-26`, type: 'rdw', value: '06:00-14:00', source: 'manual' }];
+        assert.equal(allowanceForBoxingDay(m, last), last + 1);
+        assert.equal(entitlementFor(m, last + 1, worked), 33);
+        assert.equal(entitlementFor(m, last, worked), 32, 'never folded back into the last navigable year');
     });
 });

@@ -196,7 +196,18 @@ export function getCurrentMember() {
     return member;
 }
 
-/** @returns {string[]} */
+/** A Date at local midnight — what every member date must be (a time component breaks the pro-rata
+ *  and the day comparisons; .claude/rules/roster-data.md). @param {any} d @returns {boolean} */
+const isMidnightDate = (d) => d instanceof Date && !isNaN(+d) && d.getHours() === 0 && d.getMinutes() === 0
+    && d.getSeconds() === 0 && d.getMilliseconds() === 0;
+
+/**
+ * Shape checks on the roster table, logged on the Calendar's start-up (calendar-app.js). Cheap and
+ * structural — the field reference is .claude/rules/roster-data.md — and since Nov 2026 they read the
+ * optional fields too: a `rosterChanges` entry, a `roleHistory` entry or a `proRatedAL` figure in the
+ * wrong shape was accepted in silence, and answered for the wrong days or the wrong allowance.
+ * @returns {string[]}
+ */
 export function validateTeamMembers() {
     /** @type {string[]} */
     const errors = [];
@@ -204,17 +215,45 @@ export function validateTeamMembers() {
         errors.push('No team members defined');
         return errors;
     }
+    /** @type {Record<string, number|undefined>} */
+    const cycle = { main: CONFIG.MAIN_ROSTER_WEEKS, bilingual: CONFIG.BILINGUAL_ROSTER_WEEKS, ces: CONFIG.CES_ROSTER_WEEKS,
+                    dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS, fixed: undefined };
+    const grades = /** @type {string[]|undefined} */ (CONFIG.GRADE_ORDER);
+    const knownType = (/** @type {any} */ t) => Object.prototype.hasOwnProperty.call(cycle, t);
     teamMembers.forEach((member, index) => {
+        const who = member.name || `Index ${index}`;
         if (!member.name) errors.push(`Team member at index ${index} has no name`);
-        if (!member.currentWeek || member.currentWeek < 1) errors.push(`${member.name || `Index ${index}`}: Invalid currentWeek`);
-        if (!member.role) errors.push(`${member.name || `Index ${index}`}: Missing role field (expected "CEA", "CES" etc.)`);
-        if (member.rosterType !== 'main' && member.rosterType !== 'bilingual' && member.rosterType !== 'fixed' && member.rosterType !== 'ces' && member.rosterType !== 'dispatcher') {
-            errors.push(`${member.name || `Index ${index}`}: Unknown rosterType "${member.rosterType}" (expected "main", "bilingual", "fixed", "ces" or "dispatcher")`);
+        if (!member.currentWeek || member.currentWeek < 1) errors.push(`${who}: Invalid currentWeek`);
+        if (!member.role) errors.push(`${who}: Missing role field (expected "CEA", "CES" etc.)`);
+        else if (grades && !grades.includes(member.role)) errors.push(`${who}: Unknown role "${member.role}"`);
+        if (!knownType(member.rosterType)) {
+            errors.push(`${who}: Unknown rosterType "${member.rosterType}" (expected "main", "bilingual", "fixed", "ces" or "dispatcher")`);
         }
-        if (member.rosterType === 'bilingual'  && member.currentWeek > CONFIG.BILINGUAL_ROSTER_WEEKS)   errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds bilingual roster weeks (${CONFIG.BILINGUAL_ROSTER_WEEKS})`);
-        if (member.rosterType === 'main'       && member.currentWeek > CONFIG.MAIN_ROSTER_WEEKS)        errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds main roster weeks (${CONFIG.MAIN_ROSTER_WEEKS})`);
-        if (member.rosterType === 'ces'        && member.currentWeek > CONFIG.CES_ROSTER_WEEKS)         errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds CES roster weeks (${CONFIG.CES_ROSTER_WEEKS})`);
-        if (member.rosterType === 'dispatcher' && member.currentWeek > CONFIG.DISPATCHER_ROSTER_WEEKS)  errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds dispatcher roster weeks (${CONFIG.DISPATCHER_ROSTER_WEEKS})`);
+        const weeks = cycle[member.rosterType];
+        if (weeks && member.currentWeek > weeks) errors.push(`${who}: currentWeek ${member.currentWeek} exceeds ${member.rosterType} roster weeks (${weeks})`);
+        if (member.startDate !== undefined && !isMidnightDate(member.startDate)) errors.push(`${who}: startDate must be a Date at midnight`);
+        if (member.proRatedAL !== undefined) {
+            const entries = member.proRatedAL && typeof member.proRatedAL === 'object' ? Object.entries(member.proRatedAL) : null;
+            if (!entries || entries.some(([y, n]) => !/^\d{4}$/.test(y) || !Number.isInteger(n) || n < 0)) {
+                errors.push(`${who}: proRatedAL must map a year to a whole number of days`);
+            }
+        }
+        // `rosterChanges` and `roleHistory` share a shape: dated entries, ascending, each naming something known.
+        const dated = (/** @type {string} */ field, /** @type {string} */ dateKey, /** @type {(e: any) => string|null} */ check) => {
+            const list = /** @type {any} */ (member)[field];
+            if (list === undefined) return;
+            if (!Array.isArray(list)) { errors.push(`${who}: ${field} must be an array`); return; }
+            list.forEach((/** @type {any} */ e, /** @type {number} */ i) => {
+                if (!e || !isMidnightDate(e[dateKey])) errors.push(`${who}: ${field}[${i}].${dateKey} must be a Date at midnight`);
+                else if (i > 0 && isMidnightDate(list[i - 1]?.[dateKey]) && +e[dateKey] <= +list[i - 1][dateKey]) errors.push(`${who}: ${field} must be sorted ascending by ${dateKey}`);
+                const wrong = e ? check(e) : 'is empty';
+                if (wrong) errors.push(`${who}: ${field}[${i}] ${wrong}`);
+            });
+        };
+        dated('rosterChanges', 'from', (c) => !knownType(c.rosterType) ? `has an unknown rosterType "${c.rosterType}"`
+            : (!Number.isInteger(c.currentWeek) || c.currentWeek < 1 || (cycle[c.rosterType] && c.currentWeek > /** @type {number} */ (cycle[c.rosterType])))
+                ? `has an invalid currentWeek ${c.currentWeek}` : null);
+        dated('roleHistory', 'until', (h) => (!h.role || (grades && !grades.includes(h.role))) ? `has an unknown role "${h.role}"` : null);
     });
     return errors;
 }

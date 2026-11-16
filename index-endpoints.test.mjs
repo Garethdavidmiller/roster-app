@@ -275,6 +275,12 @@ function makeAuth({ token = { admin: true, name: 'G. Miller' }, viewerExists = f
             ops.push({ op: 'setCustomUserClaims', uid, claims });
             if (authFail.setCustomUserClaims) throw new Error(authFail.setCustomUserClaims);
         },
+        // The station-wide block's notice asks for the admin's account (pin-lockout.js). None is found
+        // here, so nothing is sent: what the handler does with a notice is pin-lockout.test.mjs's.
+        getUserByEmail: async (email) => {
+            ops.push({ op: 'getUserByEmail', email });
+            throw Object.assign(new Error('no such user'), { code: 'auth/user-not-found' });
+        },
         createCustomToken: async (uid, claims) => {
             // `claims` is recorded EXACTLY as passed — `undefined` included, because that is the
             // whole of mutation 4: `createCustomToken(uid)` mints a perfectly valid token with no
@@ -879,6 +885,82 @@ describe('both ceilings hold, and the all-sources one is the backstop', () => {
         const outs = await Promise.all(Array.from({ length: 5 }, () => call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))));
         const codes = outs.map((o) => o.code).sort();
         assert.deepEqual(codes, [401, 429, 429, 429, 429], `five concurrent guesses were answered ${codes}`);
+    });
+});
+
+// ── THE STATION-WIDE BLOCK IS RECORDED, AND THE ADMIN ASKED FOR (owner, Nov 2026) ───────────────
+// The wiring, through the real handler: only the wrong PIN whose charge TRIPPED the all-sources
+// ceiling writes the lockout record and looks for the admin — never a right PIN (its charge, block
+// and all, is refunded), never an ordinary failure, never the sweep's victim — and the answer is the
+// same 401 either way. What the notice says and who gets it: pin-lockout.test.mjs.
+describe('the wrong PIN that shuts the door for everyone is recorded, and the admin looked for', () => {
+    const { LOCKOUT_RECORD_KEY, GLOBAL_THROTTLE } = VIEWER;
+    const nearlyFull = () => ({ failures: GLOBAL_THROTTLE.maxFailures - 1, windowStart: Date.now() - 1000, blockedUntil: 0 });
+    const askedForAdmin = (ops) => ops.some((o) => o.op === 'getUserByEmail');
+
+    test('the failure that trips the ceiling: the same 401, a record of the block, the admin asked for', async () => {
+        const before = Date.now();
+        const { store, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: nearlyFull() } });
+        const out = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
+
+        assert.equal(out.code, 401, 'a guesser learns nothing from tripping it');
+        assert.deepEqual(out.body, { error: 'PIN not recognised' });
+        assert.ok(store.get(GLOBAL_SOURCE_KEY).blockedUntil > before, 'premise: this attempt tripped the ceiling');
+        const rec = store.get(LOCKOUT_RECORD_KEY);
+        assert.ok(rec, 'the block is recorded');
+        assert.equal(rec.blocks.length, 1);
+        assert.equal(rec.blockedUntil, store.get(GLOBAL_SOURCE_KEY).blockedUntil);
+        assert.ok(rec.alertedAt >= before, 'and a notice was due');
+        assert.ok(!JSON.stringify(rec).includes(STATION_KEY), 'the record never names the source');
+        assert.ok(askedForAdmin(ops), 'the admin\'s account was looked for');
+        assert.equal(minted(ops), undefined);
+    });
+
+    test('a RIGHT PIN whose charge reached the ceiling records nothing and tells nobody', async () => {
+        const { store, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: nearlyFull() } });
+        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+        assert.equal(out.code, 200);
+        assert.equal(store.has(LOCKOUT_RECORD_KEY), false);
+        assert.equal(askedForAdmin(ops), false);
+    });
+
+    test('an ordinary wrong PIN records nothing and tells nobody', async () => {
+        const { store, ops } = build();
+        assert.equal((await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))).code, 401);
+        assert.equal(store.has(LOCKOUT_RECORD_KEY), false);
+        assert.equal(askedForAdmin(ops), false);
+    });
+
+    test('a second trip inside the day is recorded but asks for nobody', async () => {
+        const { store, ops } = build({ seed: {
+            [GLOBAL_SOURCE_KEY]: nearlyFull(),
+            [LOCKOUT_RECORD_KEY]: { blocks: [Date.now() - 2 * HOUR], blockedUntil: Date.now() - HOUR, alertedAt: Date.now() - 2 * HOUR },
+        } });
+        assert.equal((await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))).code, 401);
+        assert.equal(store.get(LOCKOUT_RECORD_KEY).blocks.length, 2);
+        assert.equal(askedForAdmin(ops), false, 'at most one notice a day');
+    });
+
+    test('the sweep never takes the lockout record, however old', async () => {
+        const stale = { failures: 1, windowStart: Date.now() - 48 * HOUR, blockedUntil: 0 };
+        const { deletes, store } = build({ seed: {
+            [sourceKeyFor('198.51.100.7')]: stale,
+            [LOCKOUT_RECORD_KEY]: { blocks: [Date.now() - 48 * HOUR], blockedUntil: Date.now() - 47 * HOUR, alertedAt: Date.now() - 48 * HOUR },
+        } });
+        assert.equal((await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))).code, 401);
+        assert.deepEqual(deletes, [sourceKeyFor('198.51.100.7')], 'the stale throttle row went, and only it');
+        assert.ok(store.has(LOCKOUT_RECORD_KEY));
+    });
+
+    test('a record that cannot be written still answers the same 401', async () => {
+        const { db, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: nearlyFull() } });
+        const plain = db.runTransaction.bind(db);
+        let n = 0;
+        db.runTransaction = (fn) => (++n === 2 ? Promise.reject(Object.assign(new Error('x'), { code: 'unavailable' })) : plain(fn));
+        const out = await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN));
+        assert.equal(out.code, 401);
+        assert.deepEqual(out.body, { error: 'PIN not recognised' });
+        assert.equal(askedForAdmin(ops), false, 'no record, no notice');
     });
 });
 

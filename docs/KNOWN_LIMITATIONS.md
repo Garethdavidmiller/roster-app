@@ -222,7 +222,7 @@ in `client-errors.js`), so the Operations strip leaves them out. The admin's Err
 noticed (OPERATIONS_REFERENCE.md → "The Error Log notification"). Read the entries from iPhones
 before choosing a fix.
 
-## Anybody can hold the staff PIN shut — an owner decision, not yet taken
+## Anybody can hold the staff PIN shut — the limit is kept, and the admin is told
 
 `unlockCalendarViewer` throttles failed PINs twice — per source, and under an all-sources ceiling
 with a fixed key (`DEFAULT_THROTTLE` and `GLOBAL_THROTTLE` in `functions/calendar-viewer-auth.js`,
@@ -231,8 +231,13 @@ it is also the weakness: a stranger sending wrong PINs from enough addresses kee
 while it is reached **every member of staff is refused the PIN**, correct or not. Nothing leaks; the
 Calendar is simply closed to anyone not signed in by name, and the block clears itself. Raising or
 removing the ceiling makes guessing cheaper, so it is a trade-off for the owner rather than a fix.
-The two cheap mitigations, if it is ever seen in the logs: rotate the PIN to a longer one (the limit
-then protects far more), or let a correct PIN through the ceiling while still counting it.
+**Owner decision (Nov 2026): keep the limit, and tell the admin.** When the ceiling trips, the admin's
+own devices get one push — at most once a day, a count and a time, never the PIN or an address — and
+Operations' "Needs attention" strip and Staff Login Accounts say so while a block runs or one began in
+the last day (OPERATIONS_REFERENCE.md → "When the PIN is blocked for everyone"). What the alert does NOT
+do is stop it: somebody repeating it is told about, not prevented. The two cheap mitigations, if it
+recurs: rotate the PIN to a longer one (the limit then protects far more), or let a correct PIN through
+the ceiling while still counting it.
 
 ## The iPhone status bar is solid — and was changed without a device to test on
 

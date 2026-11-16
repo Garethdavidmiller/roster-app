@@ -69,9 +69,11 @@
   <link rel="modulepreload" href="./fetch-timeout.js">
   <link rel="modulepreload" href="./firebase-client.js">
   <link rel="modulepreload" href="./own-password.js">
+  <link rel="modulepreload" href="./account-calls.js">
   <link rel="modulepreload" href="./storage-utils.js">
     <link rel="modulepreload" href="./document-url.js">
   <link rel="modulepreload" href="./login-overlay.js">
+  <link rel="modulepreload" href="./login-core.js">
   <link rel="modulepreload" href="./ls.js">
   <link rel="modulepreload" href="./nav-panel.js">
   <link rel="modulepreload" href="./newsletter-recency.js">
@@ -106,6 +108,8 @@
   <link rel="modulepreload" href="./paycalc-lightboxes.js">
   <link rel="modulepreload" href="./paycalc-result-headline.js">
   <link rel="modulepreload" href="./paycalc-money-banner.js">
+  <link rel="modulepreload" href="./paycalc-ytd-card.js">
+  <link rel="modulepreload" href="./paycalc-disclosures.js">
   <link rel="modulepreload" href="./paycalc-fill-year.js">
   <link rel="modulepreload" href="./paycalc-migrations.js">
   <link rel="modulepreload" href="./paycalc-year-card.js">
@@ -121,10 +125,12 @@
   <link rel="modulepreload" href="./roster-cycle-data.js">
   <link rel="modulepreload" href="./roster-member-data.js">
   <link rel="modulepreload" href="./roster-roles.js">
+  <link rel="modulepreload" href="./pay-audience.js">
   <link rel="modulepreload" href="./roster-data.js">
   <link rel="modulepreload" href="./date-format.js">
   <link rel="modulepreload" href="./session.js">
   <link rel="modulepreload" href="./silent-sign-in.js">
+  <link rel="modulepreload" href="./viewer-shed.js">
   <link rel="modulepreload" href="./staff-pin-ended.js">
   <link rel="modulepreload" href="./sw-register.js">
   <link rel="modulepreload" href="./usage-reporter.js">
@@ -699,6 +705,11 @@
       <div class="net-label" id="netLabel">💷 Estimated Take-Home Pay</div>
       <div class="net-amount" id="netDisplay" aria-live="polite">£–</div>
       <div class="net-period" id="netPeriod">Select a pay period above</div>
+      <!-- A payslip worked under a role with no confirmed rates (owner, 16 Nov 2026): the member is
+           admitted by the role AT THE TIME, and THIS payslip says why it has no figure instead of
+           one. Written on every calculate() run (renderUnpricedPayslip); body.payslip-unpriced
+           hides what a figure would have fed (paycalc.css). -->
+      <p class="net-unpriced" id="unpricedPayslipNote" hidden></p>
       <!-- Provenance chips (v18.44 — review item 1): what fed THIS number — cumulative-tax source,
            ticked back-pay/HPP adds, calendar-filled hours. Written by calculate() via
            buildProvChips; EMPTY (and so invisible) on a normal payslip. -->

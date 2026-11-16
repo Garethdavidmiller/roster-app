@@ -20,13 +20,13 @@
  */
 
 import {
-  computeGross, computeTax, computeNI, computeSL, getThresholds,
+  computeGross, computeTax, computeNI, computeSL, getThresholds, takeHomePay,
   getLondonAllowanceForPeriod, TAX_YEARS,
 } from './paycalc-calc.js';
 import { getPeriods } from './paycalc-periods.js';
 import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import {
-  periodRate, getEffectiveContr, getProRateFactor,
+  periodRate, getEffectiveContr, getProRateFactor, isPeriodPriced,
 } from './paycalc-settings.js';
 import { readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js';
@@ -47,14 +47,20 @@ import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js'
  *   without a deduction, 0/absent = still repaying — item 9). `now` is injectable for tests.
  * @returns {{ entered: number, paid: number, total: number, employed: number, taxable: number, tax: number,
  *             ni: number, sl: number, net: number, projectedNet: number, skipped: number,
- *             missing: Date[] }}
+ *             missing: Date[], unpriced: number }}
  *   entered — paid payslips with saved hours; paid — payslips whose payday has passed AND that the
  *   member was employed for (a mid-year joiner's pre-start periods are excluded — v18.84);
  *   total — the year's payslip count; employed — those of them the member works, which is what the
  *   projection extrapolates over (nothing is left to project once `entered` reaches it);
  *   money fields — sums over `entered`;
  *   projectedNet — (recurring net ÷ entered) × employed periods + lumps, 0 when nothing is entered;
- *   skipped — corrupt periods; missing — paydays of PAID payslips with no saved hours (item 2).
+ *   skipped — corrupt periods; missing — paydays of PAID payslips with no saved hours (item 2);
+ *   unpriced — the year's payslips worked under a role with no rates (pay-audience.js), which are in
+ *   none of the counts above: the page has no figure for them, so neither has the year.
+ *
+ * Each payslip's money is ROUNDED AS THE RESULT CARD SHOWS IT (`takeHomePay`): pay after pension to
+ * the penny, the take-home that less the deductions — so the year's figures are the sum of the
+ * figures a member reads payslip by payslip, not of unrounded ones a penny or two apart.
  */
 export function computeYearSoFar(ty, opts) {
   const now         = opts.now || new Date();
@@ -68,11 +74,12 @@ export function computeYearSoFar(ty, opts) {
   // v18.54 fixed for the HPP and back-pay cards, missed on this one (v18.84). getProRateFactor is 0
   // ONLY for a fully pre-start period (1 for long-servers and noProRate secondment returns), so this
   // is a no-op for everyone else; employedPeriods below already applied it, so the two now agree.
-  const paidPeriods = yearPeriods.filter(/** @param {any} p */ p => p.payday <= now && getProRateFactor(p) > 0);
+  const priced = yearPeriods.filter(/** @param {any} p */ p => isPeriodPriced(p));
+  const paidPeriods = priced.filter(/** @param {any} p */ p => p.payday <= now && getProRateFactor(p) > 0);
   // Periods the member is actually EMPLOYED for this tax year — the annual projection extrapolates
   // over these, not all 13. Same pre-start test as paidPeriods above: without it a joiner's
   // full-year take-home was over-projected by multiplying the per-payslip average by 13.
-  const employedPeriods = yearPeriods.filter(/** @param {any} p */ p => getProRateFactor(p) > 0).length;
+  const employedPeriods = priced.filter(/** @param {any} p */ p => getProRateFactor(p) > 0).length;
 
   // Which payslip inside this tax year carries an HPP lump. ASK paycalc-hpp-schedule.js — do not
   // re-derive it here (v18.91). v18.84 fixed this line in place by deleting a broken year test
@@ -107,7 +114,7 @@ export function computeYearSoFar(ty, opts) {
       // period). _decodeHours names → computeGross names (ot→o, rdw→r, sun→s, box→b).
       const g = computeGross({
         // The rate the payslip was PAID at, by the grades of its days — calculate()'s one source.
-        rate:     periodRate(ty, p).rate,
+        rate:     /** @type {number} */ (periodRate(ty, p).rate),   // priced: isPeriodPriced, above
         effContr: getEffectiveContr(p),
         satHrs: h.satHrs, bhHrs: h.bhHrs, bhOtHrs: h.bhOtHrs,
         oHrs: h.otHrs, rHrs: h.rdwHrs, sHrs: h.sunHrs, bHrs: h.boxHrs,
@@ -137,7 +144,9 @@ export function computeYearSoFar(ty, opts) {
         const pSl = paidOff ? 0
           : computeSL(sacGross, opts.plan, T.sl, !!d.slSkip)
           + (opts.pgLoan ? computeSL(sacGross, 'postgrad', T.sl, !!d.slSkip) : 0);
-        return { sacGross, pTax, pNi, pSl, pNet: sacGross - pTax - pNi - pSl };
+        // As the result card rounds them (takeHomePay) — tax and NI are worked out on the unrounded pay.
+        const shown = takeHomePay({ gross: grossBeforePension, pension, tax: pTax, ni: pNi, sl: pSl });
+        return { sacGross: shown.afterPension, pTax, pNi, pSl, pNet: shown.net };
       };
 
       const base = netFor(g.gross);
@@ -164,6 +173,6 @@ export function computeYearSoFar(ty, opts) {
     taxable, tax, ni, sl, net,
     // Recurring pay extrapolated over employed periods + the one-off lumps added ONCE.
     projectedNet: entered > 0 ? (netRecurring / entered) * employedPeriods + lumpNet : 0,
-    skipped, missing,
+    skipped, missing, unpriced: yearPeriods.length - priced.length,
   };
 }

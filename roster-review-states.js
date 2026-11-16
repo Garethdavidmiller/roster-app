@@ -49,7 +49,7 @@
  */
 
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { shouldReplaceOverride, isContractedWorkOverride, contractEvidence } from './override-utils.js';
+import { shouldReplaceOverride, isContractedWorkOverride, contractEvidence, isBeforeMemberStart } from './override-utils.js';
 import { normaliseCellValue, RDW_PREFIX, isRdwEncoded, stripRdw, UNKNOWN_PREFIX, isUnknownEncoded, stripUnknown } from './roster-cell-rules.js';
 import { assessRosterAlignment } from './roster-alignment.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
@@ -72,7 +72,8 @@ export { RDW_PREFIX, isRdwEncoded, stripRdw, UNKNOWN_PREFIX, isUnknownEncoded, s
  *   MATCH    — PDF matches base roster, no override → nothing to do
  *   GUARDED  — PDF said something the app's rules refuse to record on that day (leave or an
  *              absence on a base rest day or a rest Sunday; a training or meeting day on ANY
- *              Sunday, whatever is saved there — owner, 7 Nov 2026). Writes nothing unless a rest-day
+ *              Sunday, whatever is saved there — owner, 7 Nov 2026; anything but a rest day before
+ *              the member's start date — 16 Nov 2026). Writes nothing unless a rest-day
  *              row is answered "swapped" (`guardedWrites`) — and it is shown and explained, because
  *              the app decided rather than agreed
  *   DIFF     — PDF differs from base roster, no manual override → propose change
@@ -155,6 +156,25 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // and leave there asked the swapped-day question of a day nobody is rostered to work.
             // Nothing is pre-ticked and nothing is asked; a manager can still tick a day on purpose.
             const christmas    = isChristmasClosureDate(date);
+
+            // A DAY BEFORE THE MEMBER STARTED IS NOT THEIRS TO RECORD (review, 16 Nov 2026). The base
+            // reads it as a rest day (`getPatternShift`), so anything else the sheet printed there — a
+            // starter's row filled in early, a misread, an absence — was a pre-ticked DIFF or a question
+            // whose answer wrote over a day before they joined, which the allowance and the lieu counts
+            // then had to be taught to ignore. It is SHOWN, as a GUARDED row naming the reason, and
+            // writes nothing; a rest day with nothing saved there is nothing to say (MATCH, not drawn).
+            if (isBeforeMemberStart(member, parseISODate(date))) {
+                const nothingToSay = (parsedShift === 'RD' || parsedShift === 'OFF') && !existing;
+                states.set(key, {
+                    state: nothingToSay ? 'MATCH' : 'GUARDED', guarded: 'before-start',
+                    date, christmas, parsedShift, displayShift: parsedShift, baseShift,
+                    manualValue: existing?.value ?? null, manualId: existing?.id ?? null,
+                    manualType: existing?.type ?? null, manualReplacedType: existing?.replacedType ?? null,
+                    manualLeaveYear: existing?.leaveYear ?? null, otherRecordIds: otherRecordIds(key),
+                    chosen: null, drift, rosterBlocked: alignment.blocked,
+                });
+                continue;
+            }
 
             // Unreadable PDF value (normaliseShift couldn't parse it — see UNKNOWN_PREFIX). Surface
             // it as an UNREADABLE row so a garbled real shift isn't silently dropped, but NEVER write
@@ -416,7 +436,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * read like an error: nothing has gone wrong, a rule has been applied, and the row exists so the
  * admin can decide whether that rule fits this particular day.
  *
- * @param {'sunday'|'sunday-other'|'rest-day'|null} guard
+ * @param {'sunday'|'sunday-other'|'rest-day'|'before-start'|null} guard
  * @param {boolean} [asks] the row asks the swapped-day question
  * @param {boolean} [christmas] 25 or 26 December from 2026, which the app's Christmas leave decides
  * @returns {string}
@@ -431,6 +451,10 @@ export function guardCopy(guard, asks = false, christmas = false) {
     // days, and the app shows them on leave there without anything being recorded (owner, 10 Nov 2026).
     if (guard === 'rest-day' && christmas) {
         return 'The app’s Christmas leave decides 25 and 26 December, so nothing is recorded.';
+    }
+    // A day before the member's start date (16 Nov 2026): the reason, whatever the roster printed.
+    if (guard === 'before-start') {
+        return 'Before this member\u2019s start date, so nothing is recorded.';
     }
     if (guard === 'sunday-other') {
         // Owner, 7 Nov 2026. "Stays as it is" covers all three cases: a rest Sunday, a rostered

@@ -17,7 +17,7 @@ import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorLog } from './operations-errors.js';
-import { createAttentionStrip } from './operations-attention.js';
+import { createAttentionStrip, reportLoginAccounts, withdrawLoginAccounts } from './operations-attention.js';
 import { initUsageCard } from './operations-usage.js';
 import { initPageSpeedCard } from './operations-speed.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -282,11 +282,8 @@ export function init() {
     // one that answered WITHDRAWS what that one reported, so the strip goes back to unknown with it.
     initAuthSetup({
         currentIsAdmin: true,
-        onAttention: ({ setUp, leavers }) => {
-            attention.report('accountSetup', setUp);
-            attention.report('accountLeavers', leavers);
-        },
-        onWithdraw: () => { attention.withdraw('accountSetup'); attention.withdraw('accountLeavers'); },
+        onAttention: (counts) => reportLoginAccounts(attention, counts),   // with the PIN lockout's (operations-attention.js)
+        onWithdraw: () => withdrawLoginAccounts(attention),
     });
 
     // ============================================

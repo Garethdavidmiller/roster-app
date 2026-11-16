@@ -268,27 +268,47 @@ export function recordsAfter(records, plan, now = new Date()) {
  *   · A copy saved BEFORE the newest one logged for its year is refused by name. The same copy again
  *     is allowed: what its last Save wrote shows as already right, so a Save that stopped half way is
  *     finished by uploading it again.
- *   · `protectedKeys`: every day any log calls in line, less what that log's undo took back.
+ *   · `protectedKeys`: every day any log calls in line, less what an undo took back AFTER that log was
+ *     written — its own, or a later one's (below).
+ *   · `undoable`: the Save whose Undo is offered, or null (below).
+ *
+ * ── THE UNDO ON OFFER IS THE LATEST SAVE THAT ADDED LEAVE (review of v26.22) ─────────────────────
+ *
+ * A Save where only rewrites landed (swaps) is logged, for its days in line and its copy of the
+ * workbook, with nothing `added` — so it has no Undo of its own, and as the newest log it took the
+ * earlier Save's Undo off the screen. A log that added nothing is now passed over; nothing further
+ * back is: one Undo, of the latest Save that added leave, and none once that is undone (the rules let
+ * a log be undone once). Taking it back past a later Save is safe because an Undo removes only a record
+ * still carrying its Save's mark (`planUndo`), and a later swap rewrites the record without it.
+ *
+ * And the later log still calls the undone days in line, which protected them as "removed in the app
+ * since" — so an undo takes a day out of every log written BEFORE it, as it always took it out of its
+ * own: the Undo removed the day, not somebody in the app. A log written after the undo keeps its claim.
  * @param {{ logs: UploadLog[], file: any }} a
- * @returns {{ newest: UploadLog|null, older: boolean, sameFile: boolean, protectedKeys: Set<string> }}
+ * @returns {{ newest: UploadLog|null, undoable: UploadLog|null, older: boolean, sameFile: boolean, protectedKeys: Set<string> }}
  */
 export function judgeUploads({ logs, file }) {
     const all = (logs || []).filter(l => l && typeof l.clerksLastSaved === 'string');
-    const ofYear = all.filter(l => l.year === file.year);
-    /** @type {UploadLog|null} */ let newest = null;
-    for (const l of ofYear) {
-        if (!newest || l.clerksLastSaved > newest.clerksLastSaved
-            || (l.clerksLastSaved === newest.clerksLastSaved && tsToMillis(l.savedAt) > tsToMillis(newest.savedAt))) newest = l;
-    }
+    /** Newest first: by the workbook copy, then by when it was saved here. @param {UploadLog} a @param {UploadLog} b */
+    const newerFirst = (a, b) => (a.clerksLastSaved === b.clerksLastSaved ? tsToMillis(b.savedAt) - tsToMillis(a.savedAt)
+        : a.clerksLastSaved > b.clerksLastSaved ? -1 : 1);
+    const ofYear = all.filter(l => l.year === file.year).sort(newerFirst);
+    const newest = ofYear[0] ?? null;
+    const lastAdding = ofYear.find(l => Array.isArray(l.added) && l.added.length > 0) ?? null;
     const saved = file?.source?.clerksLastSaved;
     const older = !!newest && typeof saved === 'string' && saved < newest.clerksLastSaved;
+    const undos = all.filter(l => Array.isArray(l.undone) && l.undone.length)
+        .map(u => ({ log: u, at: tsToMillis(u.undoneAt), keys: new Set(u.undone) }));
     /** @type {Set<string>} */ const protectedKeys = new Set();
     // Every log given, last year's included (header): its next-January days are this file's first ones.
     for (const l of all) {
-        const undone = new Set(Array.isArray(l.undone) ? l.undone : []);
-        for (const k of Array.isArray(l.inLine) ? l.inLine : []) if (!undone.has(k)) protectedKeys.add(k);
+        const savedAt = tsToMillis(l.savedAt);
+        /** @param {string} k */
+        const undoneSince = k => undos.some(u => u.keys.has(k) && (u.log === l || (u.at > 0 && savedAt > 0 && u.at > savedAt)));
+        for (const k of Array.isArray(l.inLine) ? l.inLine : []) if (!undoneSince(k)) protectedKeys.add(k);
     }
-    return { newest, older, sameFile: ofYear.some(l => l.fileDigest === file?.digest), protectedKeys };
+    return { newest, undoable: lastAdding && !('undoneAt' in lastAdding) ? lastAdding : null,
+        older, sameFile: ofYear.some(l => l.fileDigest === file?.digest), protectedKeys };
 }
 
 /**

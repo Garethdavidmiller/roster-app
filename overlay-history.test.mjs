@@ -356,6 +356,39 @@ describe('createLightbox — close() resolves when the close has LANDED, both ha
         await first;
     });
 
+    // A CLOSE THAT A RE-OPEN OVERTOOK (16 Nov 2026). `open()` during the fade finished the fade at once, but the
+    // old landing still waited for the history echo and then ran `afterClose` — and cleared `_settling` — AFTER
+    // the re-open, against an overlay that was open again. calendar-doc-viewer.js's afterClose resets the
+    // viewer's z-index, so a re-opened viewer slid back under the Huddle.
+    test('re-opened DURING the fade: the overtaken close runs no afterClose, though its promise still resolves', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        let resolved = false;
+        lb.close().then(() => { resolved = true; });
+        lb.open();                              // re-open mid-fade: the fade is finished at once
+        pressBack(); await microtasks();        // the old close's history echo lands after the re-open
+        assert.equal(resolved, true, 'a caller awaiting the old close is still told it is over');
+        assert.equal(landedCount(), 0, 'afterClose ran against an overlay that is open again');
+        assert.equal(overlay.classList.contains('visible'), true, 'premise: it is open');
+        const second = lb.close(); overlay.fade(); pressBack(); await microtasks(); await second;
+        assert.equal(landedCount(), 1, 'the re-opened overlay\'s own close lands, once');
+    });
+
+    test('re-opened AFTER the fade but before the echo: the same — the close is overtaken, not landed', async () => {
+        const { lb, overlay, landedCount } = await openOne();
+        lb.close();
+        overlay.fade(); await microtasks();     // faded out: not visible, but the echo is still outstanding
+        lb.open();
+        pressBack(); await microtasks();
+        assert.equal(landedCount(), 0);
+        let secondResolved = false;
+        lb.close().then(() => { secondResolved = true; });
+        await microtasks();
+        assert.equal(secondResolved, false, 'the new close waits for its own landing, not the overtaken one');
+        overlay.fade(); pressBack(); await microtasks();
+        assert.equal(secondResolved, true);
+        assert.equal(landedCount(), 1);
+    });
+
     test('close() on an overlay that is not open resolves at once and lands nothing', async () => {
         const { lb, overlay, landedCount } = await openOne();
         lb.close(); overlay.fade(); pressBack(); await microtasks();

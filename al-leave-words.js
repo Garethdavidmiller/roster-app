@@ -471,11 +471,17 @@ export function leftFreeWords(name, days) {
 }
 
 /**
- * The last Save of this year's sheet, as the summary names it, with its Undo beside it.
- * @param {{ savedAt: Date|null, savedBy: string, added: number }} a
+ * The Save whose Undo the summary offers, named beside it: the last Save of this year's sheet — or,
+ * when a later Save added no leave (`latest` false), the last one that did (al-leave-plan.js →
+ * `judgeUploads`), so the line never calls an earlier Save the last.
+ * @param {{ savedAt: Date|null, savedBy: string, added: number, latest?: boolean }} a
  */
-export const lastSaveWords = ({ savedAt, savedBy, added }) => `This sheet was last saved here${savedAt ? ` on ${dateOf(savedAt)}` : ''} by ${savedBy}, `
-    + `adding ${added} ${plural(added, 'day', 'days')} of leave.`;
+export const lastSaveWords = ({ savedAt, savedBy, added, latest = true }) => {
+    const on = savedAt ? ` on ${dateOf(savedAt)}` : '';
+    const days = `${added} ${plural(added, 'day', 'days')} of leave`;
+    return latest ? `This sheet was last saved here${on} by ${savedBy}, adding ${days}.`
+        : `The last Save here that added leave was${on} by ${savedBy}, adding ${days}. Later Saves added none.`;
+};
 
 /** The Undo's question. @param {number} n days the Save added */
 export const undoConfirmWords = n => `This takes back the ${n} ${plural(n, 'day', 'days')} of leave the Save added — except any that somebody has changed since.`;

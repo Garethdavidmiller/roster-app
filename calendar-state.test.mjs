@@ -521,6 +521,36 @@ describe('watchLocalDate', () => {
             'the first absence was still counted when the second ended: two short trips took the member off June');
     });
 
+    // TEAM VIEW (16 Nov 2026): its week is not this module's, so the listener is told what changed and
+    // the watcher is told when Team View is off this week — or a long absence on today's month redrew
+    // nothing, and a Team View left on a browsed week stayed there.
+    test('the listener is told the date it last saw, the date now, and whether the page was away', () => {
+        const r = rig('2026-11-14T22:00:00');
+        setDisplayMonth(10); setDisplayYear(2026);
+        /** @type {any[]} */ const seen = [];
+        watchLocalDate((change) => { seen.push(change); }, r.env);
+        r.set('2026-11-15T07:30:00'); r.resume();
+        assert.equal(seen.length, 1);
+        assert.equal(seen[0].was.getDate(), 14);
+        assert.equal(seen[0].now.getDate(), 15);
+        assert.equal(seen[0].away, false);
+        r.hide(); r.set('2026-11-15T09:00:00'); r.show();
+        assert.equal(seen.length, 1, 'premise: on today\'s month with nothing off today, a long absence redraws nothing');
+    });
+
+    test('long away on today\'s month, with Team View OFF this week, repaints — and says it was away', () => {
+        const r = rig('2026-11-15T12:00:00');
+        setDisplayMonth(10); setDisplayYear(2026);
+        /** @type {any[]} */ const seen = [];
+        let off = true;
+        watchLocalDate((change) => { seen.push(change); off = false; }, { ...r.env, offToday: () => off });
+        r.hide(); r.set('2026-11-15T12:20:00'); r.show();
+        assert.equal(seen.length, 0, 'twenty minutes away: the browsed week stays');
+        r.hide(); r.set('2026-11-15T13:00:00'); r.show();
+        assert.equal(seen.length, 1, 'forty minutes away on a browsed week, and nothing redrew it');
+        assert.equal(seen[0].away, true);
+    });
+
     test('long away on TODAY\'s month, on the same day, redraws nothing', () => {
         const r = rig('2026-11-15T12:00:00');
         setDisplayMonth(10); setDisplayYear(2026);  // November — today's month

@@ -16,6 +16,7 @@ import { escapeHtml } from './roster-data.js';
 import { auth, getAccountSetupGaps } from './firebase-client.js';
 import { sessionReady, getFirebaseAuthError, restoreFirstAuthUser } from './session.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
+import { readLockout, renderLockoutLine, lockoutCount } from './operations-pin-lockout.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -23,7 +24,7 @@ const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setup
  * Initialises the Staff Login Accounts setup card (admin only). Call once after
  * authentication resolves.
  * @param {{ currentIsAdmin: boolean,
- *           onAttention?: (counts: { setUp: number, leavers: number }) => void,
+ *           onAttention?: (counts: { setUp: number, leavers: number, pinLockout: number|null }) => void,
  *           onWithdraw?: () => void }} cfg
  *        `onAttention` is called ONLY when the audit actually answered — a failed or refused check
  *        reports nothing, because the strip it feeds treats an unreported item as UNKNOWN and an
@@ -173,8 +174,12 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                     ['Tick the leavers box below, then press Set up accounts.']));
             }
         }
+        // The staff PIN shut for everyone rides on this answer (operations-pin-lockout.js): absent is
+        // unknown, never "none", so the strip withdraws its item rather than reporting a zero.
+        const now = Date.now(), lockout = readLockout(gaps.pinLockout, now);
+        renderLockoutLine(gapsEl, lockout, now);
         gapsEl.hidden = false;
-        onAttention?.({ setUp: setUp.length, leavers: leavers.length });
+        onAttention?.({ setUp: setUp.length, leavers: leavers.length, pinLockout: lockoutCount(lockout) });
     }
 
     /** Neither "gaps" nor "clean" — and it must not be mistaken for either, here or on the strip. */

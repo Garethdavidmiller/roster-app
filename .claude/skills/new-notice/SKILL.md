@@ -204,9 +204,17 @@ Notices on other pages need no audience: those pages already require a session.
 `ytd-figures-2026` added both, and the next notice can reuse them as they are:
 
 - **After another notice:** declare `const FOLLOWS = '<that notice's DONE_KEY>'` in the IIFE and
-  `if (!lsGet(FOLLOWS)) return;` after the expiry check. It is read at WIRING time, so the notice
-  never comes on the load where the other one is dismissed. `calendar-notices.test.mjs` pins
-  `FOLLOWS` equal to the other IIFE's `DONE_KEY` and gives followers matrix rows of their own.
+  `if (!followedDone(FOLLOWS)) return;` after the expiry check — never a bare `lsGet(FOLLOWS)`. It is
+  read at WIRING time, so the notice never comes on the load where the other one is dismissed.
+  `calendar-notices.test.mjs` pins `FOLLOWS` equal to the other IIFE's `DONE_KEY` and gives
+  followers matrix rows of their own.
+- **And record the followed notice's END in `FOLLOWED_ENDS`** (16 Nov 2026): its done key → the
+  `[day, days]` its own `isNoticeExpired` call takes. `followedDone` passes once the flag is set OR
+  that end has passed, because only the followed notice's own IIFE sets the flag, and the monthly
+  cleanup deletes that IIFE: a bare flag check would leave every device that never answered it
+  waiting for ever. **When you retire a notice, keep its `FOLLOWED_ENDS` entry while anything
+  follows it**; block 12 of the test fails on a followed key with no end, or an end that differs from
+  the live notice's own.
 - **For a reader known only once access is decided** (e.g. "would the Pay Calculator price this
   member?"): pass a third argument, `_openWhenAudienceAllows(lb, 'members', () => …)`. It is read
   after the audience check, at open time, because a front-door sign-in has no session at wiring
@@ -218,7 +226,7 @@ Notices on other pages need no audience: those pages already require a session.
 `install-app-2026` (v24.91) added three more:
 
 - **After a notice only some members get:** `const FOLLOWS_PAY = '<its DONE_KEY>'`, read at wiring
-  time beside `FOLLOWS`, and `alsoWhen` accepts it OR the member not being that notice's reader
+  time beside `FOLLOWS` (through `followedDone`, with its end in `FOLLOWED_ENDS`), and `alsoWhen` accepts it OR the member not being that notice's reader
   (`payCalcIsTheirs`, now module-level). Waiting on a flag a member can never set would hold the
   notice back until that one expires. The test matrix reads `FOLLOWS_PAY` like `FOLLOWS`.
 - **Copy that depends on the device:** put every variant in the markup, `hidden`, and choose in
@@ -231,7 +239,7 @@ Notices on other pages need no audience: those pages already require a session.
 `newlink-2026` (v25.61) added three more:
 
 - **After the install notice, only where that one is this DEVICE's:** `const FOLLOWS_INSTALL =
-  '<its DONE_KEY>'`, read at wiring time, and `alsoWhen` accepts it OR `!installRoute()` — a desktop
+  '<its DONE_KEY>'`, read at wiring time through `followedDone`, and `alsoWhen` accepts it OR `!installRoute()` — a desktop
   or the installed app never gets the install notice, so waiting on its flag there reaches nobody at
   a desk. The test matrix reads `FOLLOWS_INSTALL` like `FOLLOWS_PAY`.
 - **A notice about a page goes only where the page would let them in — ask the page's OWN question**
@@ -400,7 +408,9 @@ Three habits from it:
 **Remove a notice when `(today − Posted) > 180 days`:**
 
 1. Delete the `<div id="[Name]NoticeLb">` HTML block from the page file
-2. Delete the JS IIFE (the `NOTICE_DATE`/keys block, `createLightbox()` call, and event listeners)
+2. Delete the JS IIFE (the `NOTICE_DATE`/keys block, `createLightbox()` call, and event listeners) —
+   but KEEP its `FOLLOWED_ENDS` entry in `calendar-notices.js` while any live notice still follows it:
+   that entry is what lets a device that never answered it stop waiting (block 12 of the test)
 3. Remove the row from the "Current notices" table above
 4. Bump the version (HTML and JS files are being modified)
 

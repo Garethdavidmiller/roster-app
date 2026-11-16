@@ -72,7 +72,7 @@ import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthState
 import { getSession, reconcileExpiredIdentity, ensureNamedSession, authGeneration, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
-import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.js';
+import { lockCardId, armSkeleton, showBootSkeleton, setWorkspaceHidden } from './calendar-lock-slot.js';
 // The three cards this gate can put where the Calendar goes. They DRAW; this file DECIDES —
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.
@@ -494,37 +494,11 @@ export async function lockCalendar() {
     window.location.reload();
 }
 
-// ── The workspace gate ──────────────────────────────────────────────────────────────────────────
-
-/** The Calendar workspace: everything that implies usable roster data. The header and the nav
- *  drawer are deliberately NOT in this list — the guides are reachable without Calendar access, and
- *  locking the whole app to read the Railcard guide would be absurd. The Huddle and the documents
- *  used to be reachable too; since v23.17 their reads sit behind `calendar-doc-access.js`, which
- *  opens with the full grant (`grant`, above) — so the drawer still SHOWS them, and a tap while
- *  locked is answered with what to do rather than with the document. */
-const WORKSPACE_IDS = ['calendarControls', 'installPrompt', 'notifPrompt', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
-
-/** @param {boolean} hidden */
-function setWorkspaceHidden(hidden) {
-    for (const id of WORKSPACE_IDS) {
-        const el = document.getElementById(id);
-        if (!el) continue;
-        // The `hidden` ATTRIBUTE, not a CSS class or opacity: it removes the element from the
-        // accessibility tree as well as the page, so a screen reader cannot read out a Calendar the
-        // eye cannot see. But only where the stylesheet lets it: a `display` of the element's own
-        // outranks the attribute, so each element here needs a `[hidden]` rule beside that `display`
-        // (cal-docs-11 found the two prompt strips without one). And it is load-bearing: before the
-        // first grant these nodes are empty, but a re-lock (`handleAccessLost`) does not reload, so
-        // after one they hold the roster the grant drew.
-        if (hidden) el.setAttribute('hidden', '');
-        else el.removeAttribute('hidden');
-    }
-}
-
 // ── The cards ───────────────────────────────────────────────────────────────────────────────────
 //
-// Wired at module scope, so a card can never be shown before its collaborators exist. All four are
-// function declarations or an exported function in this file, so hoisting makes this safe here.
+// Wired at module scope, so a card can never be shown before its collaborators exist. Each is a
+// function declaration here or an import (the workspace switch is calendar-lock-slot.js's), so
+// hoisting and import binding make this safe here.
 initLockCards({ unlockWithPin, getAccessType, setWorkspaceHidden, unlockUrl: UNLOCK_URL, onAwaitingInput: () => _onAwaitingInput?.() });
 
 /** How long the decision may take before the page has to say something. Long enough that a normal

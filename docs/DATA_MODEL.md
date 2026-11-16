@@ -245,6 +245,11 @@ before its PIN is compared and a correct PIN is refunded (a refund to zero delet
 collection can say who is guessing and never who is using the app. The rules and the thresholds are
 argued in `functions/calendar-viewer-auth.js`; the operational view is OPERATIONS_REFERENCE.md → the
 Calendar PIN.
+One document in it is not a throttle row (Nov 2026): **`_lockout-record`**, the station-wide block told
+to the admin (`functions/pin-lockout.js`) — `blocks` (each block's start, epoch ms, the last day only),
+`blockedUntil` (the latest block's end) and `alertedAt` (the admin's last notice: at most one a day).
+Times and counts only, never a source key; the sweep never deletes it. Read by `getAccountSetupGaps`,
+which hands Operations a summary of it.
 
 **clientErrors**
 ```
@@ -327,7 +332,9 @@ from a read of what the server then holds — so `added` names only days the rea
 and a Save whose answer was lost on the way back is still recorded. Where that read cannot be made, the
 next check of the same file in the same visit writes it — and so does it when the log itself could not be
 written; a closed page loses it (KNOWN_LIMITATIONS.md). A Save the read shows landed nothing writes no log, so
-the last Save keeps its Undo. A day the Save was refused on is never in `added`, even when it holds leave
+the last Save keeps its Undo. A Save where only rewrites (swaps) landed IS logged, with nothing `added`; the Undo on
+offer passes over it to the latest Save that added leave, and an undo takes its days out of every log written
+before it as well as its own (`judgeUploads`, al-leave-plan.js). A day the Save was refused on is never in `added`, even when it holds leave
 exactly like the Save's: that is the admin's own booking. An Undo sets the three undo fields once; it records
 nothing only when every added day was changed by somebody since. The rules shipped
 first, in a release with no writer (CLAUDE.md → backend-first).

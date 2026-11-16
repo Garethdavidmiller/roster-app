@@ -72,6 +72,9 @@ let _accessType = 'none';
 /** @type {any[]} */                 let _openedViaHelper = [];
 let _directOpens = 0;
 /** @type {string[]} */              let _closed = [];
+/** Every expiry question's answer: one flag for all of them, or — for a case that needs a notice past its end
+ *  while another is not (block 12) — a function of the arguments the module passes `isNoticeExpired`.
+ *  @type {boolean | ((day: string, days: number) => boolean)} */
 let _expired = false;
 
 mock.module('./ls.js', {
@@ -83,7 +86,7 @@ mock.module('./ls.js', {
 mock.module('./nav-panel.js', {
     namedExports: {
         archiveNotice: (/** @type {any} */ n) => { _archived.push(n); },
-        isNoticeExpired: () => _expired,
+        isNoticeExpired: (/** @type {string} */ day, /** @type {number} */ days) => typeof _expired === 'function' ? _expired(day, days) : _expired,
     },
 });
 mock.module('./overlay.js', {
@@ -127,7 +130,7 @@ let _n = 0;
 /** Wire the notices with the timers under test control, then let the access decision land.
  *  A named access carries a member's session — a CEA, whom the Pay Calculator prices — and the PIN
  *  and a locked page carry none, which is what each of those really holds. */
-async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = false,
+async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = /** @type {typeof _expired} */ (false),
                       session = accessType === 'named' ? { name: 'G. Miller' } : null,
                       route = /** @type {typeof _route} */ ({ how: 'menu', mirror: false }) } = {}) {
     _present = new Set(present);
@@ -237,10 +240,12 @@ function FINAL_WEEK_OF(/** @type {string} */ overlay) {
 /** Has this notice reached the week in which it waits for nobody? */
 const inFinalWeek = (/** @type {{ finalWeek: number|null }} */ n) => n.finalWeek !== null && Date.now() >= n.finalWeek;
 
-/** Would the Pay Calculator price this session's member? The real test, from the real roster. */
-const { teamMembers, gradeForRole, CONFIG } = await import('./roster-data.js');
+/** Would the Pay Calculator price this session's member? The real test (pay-audience.js, by the role
+ *  at the time — today's, as the notices ask it), from the real roster. */
+const { teamMembers, CONFIG } = await import('./roster-data.js');
+const { payCalculatorPrices } = await import('./pay-audience.js');
 function payCalcFor(/** @type {{ name: string } | null} */ session) {
-    return !!gradeForRole(teamMembers.find(m => m.name === session?.name)?.role);
+    return payCalculatorPrices(teamMembers.find(m => m.name === session?.name) ?? null);
 }
 /** The role of the REAL roster row a case leans on. The cases below name real people because the
  *  rule under test reads the real roster, so each one first asserts the person is still the kind of
@@ -921,7 +926,7 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
     });
 
     test('never to a member the Pay Calculator turns away — and never flagged for them', async () => {
-        // Its own refusal is `gradeForRole`; the same function decides here. A refused member is left
+        // Its own refusal is `payCalculatorPrices` (pay-audience.js); the same function decides here. A refused member is left
         // unflagged, like an out-of-audience device: the notice is not theirs to have seen.
         // A CURRENT manager (48-hour review): S. Stewart left the roster at v25.05, which quietly turned
         // the manager case into a second "not on the roster" one — green whatever the manager rule did.
@@ -1489,5 +1494,66 @@ describe('11 · the New link notice: only where the page would let them in, afte
         assert.ok(block.includes(`href="${pill[2]}"`), `the link goes where the pill goes: ${pill[2]}`);
         assert.ok(block.includes(`<div class="notice-badge notice-badge--newlink">${pill[1]}</div>`), 'the badge is the pill, word for word');
         assert.doesNotMatch(text, /\bvote|ballot|decide which|admin\b/i, 'it says nothing about how the choice is made, nor who builds the page');
+    });
+});
+
+describe('12 · a follower never waits on a retired notice\'s code (16 Nov 2026)', () => {
+    // A follower waited for the followed notice's done flag ALONE, and only that notice's own IIFE sets it — on
+    // a dismissal, or as it reaches its expiry branch. The monthly cleanup deletes a notice's markup and code 180
+    // days after posting; from then a device that had never answered it would never get the flag, and the
+    // notice behind it would wait for ever. The followed notice's END now stands in for its flag
+    // (`FOLLOWED_ENDS`), and outlives its code.
+    const ENDS = Object.fromEntries([...(/const FOLLOWED_ENDS = \{([\s\S]*?)\n\};/.exec(SOURCE)?.[1] ?? '')
+        .matchAll(/(myb_\w+_done):\s*\[([^,\]]+),\s*(\d+)\]/g)].map(m => [m[1], [m[2].trim(), Number(m[3])]]));
+    /** A constant's string value, read from the notice's own IIFE first and the module second. @param {string} scope @param {string} expr */
+    const value = (scope, expr) => {
+        if (/^'[^']*'$/.test(expr)) return expr.slice(1, -1);
+        const re = new RegExp(`const ${expr}\\s*=\\s*'([^']+)'`);
+        return re.exec(scope)?.[1] ?? re.exec(SOURCE)?.[1] ?? null;
+    };
+    const INST = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
+    const TT   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
+    const YTD  = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
+    const LINES = [...SOURCE.matchAll(/^\s+(installNotice\w+):\s/gm)].map(m => m[1]);
+    /** Past the end of 31 October, and nothing else: the two October notices are over, the install notice is not. */
+    const PAST_OCTOBER = (/** @type {string} */ day, /** @type {number} */ days) => day === '31 Oct 2026' && days === 1;
+    const opened = () => _openedViaHelper.some(lb => lb._cfg.overlay.id === INST.overlay);
+
+    test('every key a live notice follows has an end recorded', () => {
+        const followed = new Set(NOTICES.flatMap(n => [n.follows, n.followsPay, n.followsInstall, n.followsNewlink]).filter(Boolean));
+        assert.ok(followed.size > 0, 'guard: some notice follows another');
+        for (const key of followed) assert.ok(ENDS[/** @type {string} */ (key)], `${key} is followed and has no end in FOLLOWED_ENDS`);
+    });
+
+    test('each recorded end is the one the live notice itself expires on', () => {
+        let checked = 0;
+        for (const n of NOTICES) {
+            const end = ENDS[DONE_KEY_OF(n)];
+            if (!end) continue;
+            const scope = IIFE_OF(n.overlay);
+            const own = /isNoticeExpired\((\w+|'[^']*'),\s*(\d+)\)/.exec(scope);
+            assert.ok(own, `${n.overlay} declares no expiry`);
+            assert.deepEqual([value(scope, own[1]), Number(own[2])], [value(scope, end[0]), end[1]],
+                `${n.overlay}: FOLLOWED_ENDS says a follower may stop waiting on a different day from the one the notice ends`);
+            checked++;
+        }
+        assert.ok(checked >= 2, `guard: only ${checked} live notices were held to their end`);
+    });
+
+    test('with the two October notices RETIRED — markup and code gone, flags never set — the install notice still comes', async () => {
+        await wire({ accessType: 'named', present: [INST.overlay, ...LINES, 'installNoticeLater'], expired: PAST_OCTOBER });
+        await settleAccess();
+        assert.ok(opened(), 'the install notice waited for a flag only a deleted notice could set');
+        assert.deepEqual(_writes, [], 'nothing flagged on the retired notices\' behalf, and nothing on its own until answered');
+    });
+
+    test('…but while the followed notice could still be offered, its flag is still what the follower waits for', async () => {
+        await wire({ accessType: 'named', present: [INST.overlay, ...LINES, 'installNoticeLater'], expired: false });
+        await settleAccess();
+        assert.equal(opened(), false);
+        await wire({ accessType: 'named', present: [INST.overlay, ...LINES, 'installNoticeLater'], expired: false,
+                     store: { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' } });
+        await settleAccess();
+        assert.ok(opened(), 'premise: with both flags it opens');
     });
 });

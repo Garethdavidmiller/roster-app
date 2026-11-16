@@ -60,6 +60,7 @@ const PUSH_TTL_BY_TAG = Object.freeze({
     'password-reset':  7 * 24 * 3600,   // tells the member something lasting about their account
     'timetable':      30 * 3600,   // "from Sunday": sent at 18:00 on the Saturday — 30 h reaches a phone that is off until Sunday night (24 h expired at 18:00 Sunday)
     'error-log':      24 * 3600,   // "N new" in the admin's Error Log: still worth reading tomorrow, and the next notice counts what came after
+    'pin-lockout':    24 * 3600,   // the staff PIN's station-wide block: sent at most once a day, so a day is how long it stays news
 });
 const PUSH_TTL_DEFAULT = 24 * 3600;
 

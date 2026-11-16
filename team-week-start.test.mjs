@@ -23,7 +23,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { weekStartForMonth } from './calendar-team-view.js';
+import { weekStartForMonth, weekAfterDateChange } from './calendar-team-view.js';
 
 /** Local midnight, so an assertion can compare against what the rule returns. */
 const at = (y, m, d) => { const x = new Date(y, m, d); x.setHours(0, 0, 0, 0); return x; };
@@ -82,5 +82,35 @@ describe('refusing to move', () => {
             assert.deepEqual(weekStartForMonth(/** @type {any} */ (bad), today), at(2026, 8, 6),
                 `${JSON.stringify(bad)} must fall back to today's week`);
         }
+    });
+});
+
+// ── AFTER THE DATE TURNS, OR A LONG ABSENCE (16 Nov 2026) ──────────────────────────────────────────
+// The month grid followed the date (calendar-state.js, `watchLocalDate`) and Team View did not: a phone
+// resumed on Sunday morning showed last week, no today in it, while a reload opened on this week.
+describe('which week after the date turns — the month grid\'s rule, applied to a week', () => {
+    const t = (/** @type {number} */ d, h = 9) => new Date(2026, 10, d, h, 0);   // November 2026; the 15th is a Sunday
+
+    test('a grid on the week that held the old today moves to the week that holds the new one', () => {
+        // Sat 14 → Sun 15: a new week starts.
+        assert.deepEqual(weekAfterDateChange(at(2026, 10, 8), { was: t(14, 23), now: t(15, 7), away: false }), at(2026, 10, 15));
+    });
+
+    test('inside one week the date turning moves nothing — the Sunday is the same', () => {
+        assert.deepEqual(weekAfterDateChange(at(2026, 10, 15), { was: t(16, 23), now: t(17, 7), away: false }), at(2026, 10, 15));
+    });
+
+    test('a week the reader browsed to stays when the date turns', () => {
+        const browsed = at(2026, 11, 6);
+        assert.equal(weekAfterDateChange(browsed, { was: t(14, 23), now: t(15, 7), away: false }), browsed);
+    });
+
+    test('…unless they were away for longer than the kept half hour: then this week, browsed or not', () => {
+        assert.deepEqual(weekAfterDateChange(at(2026, 11, 6), { was: t(15, 9), now: t(15, 13), away: true }), at(2026, 10, 15));
+        assert.deepEqual(weekAfterDateChange(at(2026, 9, 4), { was: t(14, 9), now: t(16, 9), away: true }), at(2026, 10, 15));
+    });
+
+    test('a resume several days later on the old today\'s week still lands on the week holding the new today', () => {
+        assert.deepEqual(weekAfterDateChange(at(2026, 10, 8), { was: t(10, 9), now: t(25, 9), away: false }), at(2026, 10, 22));
     });
 });

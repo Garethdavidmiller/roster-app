@@ -18,7 +18,10 @@
 //   name           {string}  Display name
 //   currentWeek    {number}  Week number this member is on as of the reference date for their rosterType
 //   rosterType     {string}  'main' | 'bilingual' | 'fixed' | 'ces' | 'dispatcher'
-//   role           {string}  'CEA' | 'CES' | 'Dispatcher' | 'Management' — controls dropdown grouping
+//   role           {string}  'CEA' | 'CES' | 'Dispatcher' | 'Management' — the grade NOW; controls dropdown grouping
+//   roleHistory    {Array}   Optional. Earlier grades, oldest first: { role, until: Date } — `until` is the
+//                            LAST day (midnight, inclusive). Read through roleOn/rolesInRange
+//                            (roster-roles.js); a year's leave through allowanceRole (al-contract.js).
 //   hidden         {boolean} Optional. true = vacancy/removed; excluded from dropdown, data preserved
 //   managerOnly    {boolean} Optional. true = management/clerk login; hidden from staff selector; appears in login dropdown under "Management" group
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
@@ -53,8 +56,8 @@ export const teamMembers = [
     // Moves off the main link on Sun 28 Jun 2026, through rosterChanges, onto the placeholder line
     // `fixedRoster[4]`: 09:00–16:00 Mon–Fri, weekends RD, and every bank holiday a rest day (owner,
     // 13 Nov 2026). The base stays main wk10 until then (the slot after O. Mylla: K. Jedlinski's from
-    // 28 Jun, M. Campbell's from 22 Nov 2026). AL stays the standard CEA 32 (her contract decides it,
-    // not the line). To END the move, ADD a `rosterChanges` entry dated from the day it ends, onto
+    // 28 Jun, M. Campbell's from 22 Nov 2026). Leave follows the contract, not the line, so the move
+    // changes none of it. To END the move, ADD a `rosterChanges` entry dated from the day it ends, onto
     // whichever line she takes. Never delete this one: that redraws every date since 28 Jun 2026 as wk10.
     // Until v26.01 the entry pointed at `fixedRoster[2]`: the same hours, but a pattern that WORKS bank
     // holidays. Pointing it at 4 redrew only the bank holidays since 28 Jun, as the rest days they were.
@@ -64,9 +67,9 @@ export const teamMembers = [
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
     { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true },
-    // M. Okeke — 24, NOT the 23 a day-count gives: prior AGENCY service counts, so his startDate is
-    // when he joined the payroll and not when entitlement began (owner, 6 Sep 2026). Agreed, not
-    // derived — do not "correct" it back to the formula. Pinned in roster-data.test.mjs.
+    // The next row's `proRatedAL` is AGREED (owner, 6 Sep 2026), not derived from `startDate`: it
+    // differs from a day-count for a reason this public file does not record. Do not "correct" it
+    // back to the formula. Pinned in roster-data.test.mjs.
     { name: 'M. Okeke',                currentWeek: 13, rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 24 } },
     { name: 'N. Tuck',                 currentWeek: 14, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main',       role: 'CEA' },
@@ -82,15 +85,15 @@ export const teamMembers = [
 
     // I. Melikian — started Mon 10 Aug 2026, in two phases. Phase 1 (to 12 Sep): initial training,
     // which is `fixedRoster[2]` (Mon–Fri 09:00–16:00) as the BASE roster rather than overrides — the
-    // B. Toth pattern, and the 7-hour day is what makes the 35 hours the pay calculator reads.
+    // pattern a Dispatcher starter used before him, and its 7-hour day is what the pay calculator reads.
     // Phase 2 (from Sun 13 Sep): the BILINGUAL link on line 3, one above T. Gherbi.
     // Two things here are easy to "correct" and must not be:
     //   · `currentWeek: 5` is REFERENCE-ANCHORED, not a line number — BL week 5 at the 15 Feb 2026
     //     bilingual reference Sunday is what resolves to line 3 on 13 Sep. Writing 3 shifts him two.
-    //   · NO `bilingualContract` flag, deliberately: a CEA CONTRACT on a bilingual LINE is 32 days,
-    //     not 34. That is the case the field's own comment describes.
-    // `proRatedAL: 13` is TRANSCRIBED from the clerk's workbook (`New Marylebone Totals` → `AL
-    // allowance`, read 8 Sep 2026). A day-count agrees here by luck; re-read the book, never recompute.
+    //   · NO `bilingualContract` flag, deliberately: a CEA CONTRACT on a bilingual LINE has the CEA
+    //     allowance. That is the case the field's own comment describes.
+    // `proRatedAL` is TRANSCRIBED from the clerk's workbook (read 8 Sep 2026); re-read the book, never
+    // recompute.
     // LEFT by 6 Nov 2026 (owner) — his bilingual line, one above T. Gherbi, is a vacancy. Row kept,
     // `hidden`, so his past shifts and everything recorded on them still resolve (the /leaver skill).
     { name: 'I. Melikian',             currentWeek: 2,  rosterType: 'fixed',      role: 'CEA', hidden: true,
@@ -106,16 +109,14 @@ export const teamMembers = [
     // 09:00–16:00, which drew every training day as a timed shift. Phase 2
     // (from Sun 8 Nov): the BILINGUAL link one line BELOW T. Gherbi — `currentWeek: 7` is
     // REFERENCE-ANCHORED (T. Gherbi's 6, plus one), not the line she is on that week.
-    // A CEA contract on a bilingual line, so no `bilingualContract` flag: 32 days, not 34.
-    // `proRatedAL: 9` is TRANSCRIBED from the clerks' workbook (`New Marylebone Totals`, read 8 Nov
-    // 2026) — and NOT from its `AL allowance` column, which the clerks leave at the full 32 for a
-    // joiner. They carry the reduction in the next column, whose note reads "9 DAYS LEAVE ALLOWANCE"
-    // (AL_WORKBOOK.md §5). It agrees with the day-count entered provisionally on 6 Nov; re-read the
-    // book, never recompute.
+    // A CEA contract on a bilingual line, so no `bilingualContract` flag: the CEA allowance.
+    // `proRatedAL` is TRANSCRIBED from the clerks' workbook (read 8 Nov 2026) — and NOT from its
+    // `AL allowance` column, which the clerks leave at the full grade figure for a joiner; they carry
+    // the reduction in the next column (AL_WORKBOOK.md §5). Re-read the book, never recompute.
     // Phase 3 (from Sun 22 Nov 2026, owner, 13 Nov): the MAIN CEA link on the line K. Jedlinski leaves
     // that day to become a CES. `currentWeek: 10` is REFERENCE-ANCHORED — the anchor K. Jedlinski held
     // from 28 Jun, the slot after O. Mylla. The bilingual line M. Campbell leaves is a vacancy from then.
-    // The contract does not change, so neither does the leave: 32 a year, 9 for 2026.
+    // The contract does not change, so neither does the leave.
     { name: 'M. Campbell',             currentWeek: 3,  rosterType: 'fixed',      role: 'CEA',
       startDate: new Date(2026, 8, 20), proRatedAL: { 2026: 9 },
       rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'bilingual', currentWeek: 7 },
@@ -125,7 +126,7 @@ export const teamMembers = [
     // currentWeek reflects each person's row in the base roster on that date
     { name: 'D. Minto',                currentWeek: 1,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Targanov',             currentWeek: 2,  rosterType: 'dispatcher', role: 'Dispatcher' },
-    { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher', hidden: true }, // left 10 Sep 2026 — Dispatcher week-3 line is a vacancy. Row kept so his past shifts, overrides and any frozen Overtime week still resolve
+    { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher', hidden: true }, // left 10 Sep 2026 — the Dispatcher week-3 line was a vacancy until J. Bangi took it on 8 Nov 2026 (below). Row kept so his past shifts, overrides and any frozen Overtime week still resolve
     // S. Faure — moves off the rotating Dispatcher link on Mon 29 Jun 2026, through rosterChanges, onto
     // a placeholder line of her own: `fixedRoster[4]`, 09:00–16:00 Mon–Fri, weekends RD, and every bank
     // holiday a rest day (owner, 13 Nov 2026). B. Toth took her line 4. The base fields describe her line
@@ -160,10 +161,9 @@ export const teamMembers = [
     // training days are ever recorded, and recording them only adds the 🏷️ Train badge on top.
     // He joins the link on Mon 20 Jul 2026. `currentWeek: 4` there is REFERENCE-ANCHORED (see
     // .claude/rules/roster-data.md) — the same value S. Faure carries, i.e. her line.
-    // `proRatedAL` is 11 — TRANSCRIBED from the roster clerk's workbook, the authority for it (owner,
-    // 6 Sep 2026); a day-count rounded up gives 12, which this file used to carry. It replaces only
-    // the 22-day BASE: lieu days for bank holidays worked are still added on top by getALEntitlement
-    // (v22.50).
+    // `proRatedAL` is TRANSCRIBED from the roster clerk's workbook, the authority for it (owner,
+    // 6 Sep 2026), not a day-count. It replaces only the Dispatcher BASE: lieu days for bank holidays
+    // worked are still added on top by getALEntitlement (al-contract.js, v22.50).
     { name: 'B. Toth',                 currentWeek: 2,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 11 },
       rosterChanges: [{ from: new Date(2026, 6, 20), rosterType: 'dispatcher', currentWeek: 4 }] },
@@ -177,13 +177,13 @@ export const teamMembers = [
     // The owner gave the start as "Monday 4th of October"; 4 Oct 2026 is a Sunday, so the Monday,
     // 5 Oct, is used. Were it the 4th, only that Sunday would read differently (a rest day rather
     // than before her start), and the figure below would be the same.
-    // ⚠️ `proRatedAL: 5` is PROVISIONAL — a day-count (88 of 365 days × 22 = 5.3), entered on the
+    // ⚠️ `proRatedAL` is PROVISIONAL — a day-count of the Dispatcher base, entered on the
     // owner's word ("pro-rata her leave until I get it from the workbook", 8 Nov 2026). REPLACE it
     // with the workbook's `AL allowance` before the year ends, reading docs/AL_WORKBOOK.md §5 first:
     // for a joiner that column can hold the full grade figure. The January carry-back already caps a
     // day moved back by 2026's remaining days. Booked as a dated row in docs/MAINTENANCE_CALENDAR.md,
-    // because a comment reminds nobody. It replaces only the 22-day BASE: lieu days for bank holidays
-    // worked are still added on top by getALEntitlement.
+    // because a comment reminds nobody. It replaces only the Dispatcher BASE: lieu days for bank
+    // holidays worked are still added on top by getALEntitlement (al-contract.js).
     { name: 'J. Bangi',                currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
       rosterChanges: [{ from: new Date(2026, 10, 8), rosterType: 'dispatcher', currentWeek: 3 }] },
@@ -194,12 +194,10 @@ export const teamMembers = [
     // 14th November"). Phase 2 (from Sun 15 Nov): the DISPATCHER link on A. Atkins's line, which he
     // leaves that day. `currentWeek: 9` there is REFERENCE-ANCHORED — A. Atkins's own base value, the
     // line at the 1 Feb 2026 reference Sunday — not the line he is on that week.
-    // `proRatedAL: 5` is TRANSCRIBED from the clerks' workbook (`New Marylebone Totals`, read 14 Nov
-    // 2026) — and NOT from its `AL allowance` column, which the clerks leave at the full 22 for a
-    // joiner. They carry the reduction in the next column, whose note gives only the start date
-    // (AL_WORKBOOK.md §5). It agrees with the figure entered provisionally on 12 Nov, J. Bangi's
-    // day-count; re-read the book, never recompute. It replaces only the 22-day BASE: lieu days for
-    // bank holidays worked are still added on top.
+    // `proRatedAL` is TRANSCRIBED from the clerks' workbook (read 14 Nov 2026) — and NOT from its
+    // `AL allowance` column, which the clerks leave at the full grade figure for a joiner; they carry
+    // the reduction in the next column (AL_WORKBOOK.md §5). Re-read the book, never recompute. It
+    // replaces only the Dispatcher BASE: lieu days for bank holidays worked are still added on top.
     { name: 'A. Guinea',               currentWeek: 3,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 9, 5), proRatedAL: { 2026: 5 },
       rosterChanges: [{ from: new Date(2026, 10, 15), rosterType: 'dispatcher', currentWeek: 9 }] },
@@ -212,8 +210,8 @@ export const teamMembers = [
     // `currentWeek: 4` the vacant row carried, REFERENCE-ANCHORED (.claude/rules/roster-data.md). It
     // was 5 until 10 Nov 2026, chosen because 5 DISPLAYED week 4 on 1 Jul; but 5 is G. Rotaru's
     // anchor, so the two rows drew the same turns every week while the real vacancy stayed empty.
-    // noProRate: pay and AL are full-year (CES 34) despite the mid-year startDate.
-    { name: 'B. Khalil',               currentWeek: 4,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; his line (currentWeek 4) is the CES vacancy. Row kept so his past shifts and overrides still resolve
+    // noProRate: pay and AL are full-year despite the mid-year startDate.
+    { name: 'B. Khalil',               currentWeek: 4,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true, hidden: true }, // left Sep 2026; his line (currentWeek 4) is a CES vacancy, as Z. Lewis's week 7 is (below). Row kept so his past shifts and overrides still resolve
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES', hidden: true }, // left by 11 Nov 2026 (owner); the CES week-7 line is a vacancy. Row kept so their past shifts and overrides still resolve
@@ -232,15 +230,12 @@ export const teamMembers = [
     // (OPERATIONS_REFERENCE.md → "A member changes grade"). `roleHistory` dates the grade BEFORE it — CEA
     // up to and including Sat 21 Nov — for anything that must know the grade on a day, the Pay Calculator
     // among them, through `roleOn` (roster-roles.js).
-    // `proRatedAL: 18` is TRANSCRIBED from the clerk's workbook, not derived; 34 a year from 2027 as a CES
-    // (it would have been 32 as a CEA). 2026 stays 18 through the promotion unless the workbook changes it.
-    // DO NOT recompute it from `startDate`. This comment used to state the old formula
-    // (`CEA 32 → ⌈212/365×32⌉ = 19`) directly above the number 18, which read as an arithmetic
-    // slip and invited exactly the "correction" that would have been wrong: 19 is the FORMULA's
-    // answer and 18 is the clerk's. Measured 6 Sep 2026, that formula missed every mid-year
-    // starter in the roster — Toth 12 vs 11, Jedlinski 19 vs 18, Davies 22 vs 20, Okeke 23 vs 24 —
-    // and two of them are not reachable by any formula from the fields this file holds. See
-    // `.claude/skills/new-starter/SKILL.md`, which is why the step now says ASK AND TRANSCRIBE.
+    // `proRatedAL` is TRANSCRIBED from the clerk's workbook, not derived, and the joining year keeps it
+    // through the promotion unless the workbook changes it; from the next year the allowance is the grade
+    // held on 31 December (al-contract.js → `allowanceRole`). DO NOT recompute it from `startDate`: a
+    // day-count formula, measured 6 Sep 2026, missed every mid-year starter's transcribed figure, some
+    // in ways no formula from this file's fields can reach. See `.claude/skills/new-starter/SKILL.md`,
+    // which is why the step now says ASK AND TRANSCRIBE.
     { name: 'K. Jedlinski',            currentWeek: 2,  rosterType: 'fixed',      role: 'CES',
       startDate: new Date(2026, 5, 3), proRatedAL: { 2026: 18 },
       roleHistory: [{ role: 'CEA', until: new Date(2026, 10, 21) }],

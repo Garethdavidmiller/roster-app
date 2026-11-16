@@ -264,9 +264,9 @@ function makeStorage(existingObjects = [], keys = {}) {
 
 /**
  * Build the domain against fresh fakes.
- * @param {{seed?: Record<string, any>, objects?: string[], keys?: Record<string, string>, maxFileBytes?: number}} [opts]
+ * @param {{seed?: Record<string, any>, objects?: string[], keys?: Record<string, string>, maxFileBytes?: number, huddleSecret?: any}} [opts]
  */
-function build({ seed = {}, objects = [], keys = {}, maxFileBytes = 20 * 1024 * 1024 } = {}) {
+function build({ seed = {}, objects = [], keys = {}, maxFileBytes = 20 * 1024 * 1024, huddleSecret = 'huddle-secret' } = {}) {
     const fsFake = makeDb(seed);
     const stFake = makeStorage(objects, keys);
     const sends = /** @type {{payload: any, tag: string}[]} */ ([]);
@@ -314,7 +314,7 @@ function build({ seed = {}, objects = [], keys = {}, maxFileBytes = 20 * 1024 * 
     /** @type {{year: number, month: number, day: number}} */
     let now = { year: 2026, month: 7, day: 30 };   // 30 Aug 2026
     const eps = buildDocumentEndpoints({
-        HUDDLE_SECRET: { value: () => 'huddle-secret' },
+        HUDDLE_SECRET: { value: () => huddleSecret },
         VAPID_PRIVATE_KEY: { value: () => 'vapid-private' },
         VAPID_PUBLIC_KEY: 'vapid-public',
         STAFF_SITE_URL: 'https://myb-roster.web.app',
@@ -393,6 +393,28 @@ describe('ingestHuddle — the refusals, and that a refusal writes NOTHING', () 
         assert.equal(b.saved.length, 0);
         assert.equal(b.store.size, 0);
         assert.equal(b.sends.length, 0);
+    });
+
+    // A BLANK SECRET IS A DEPLOYMENT FAULT, NEVER AN OPEN DOOR (Nov 2026 review). The expected header
+    // was `Bearer ${secret}`, so an empty secret was matched by a caller sending the bare "Bearer " —
+    // and ingestHuddle broadcasts to every subscribed device. Each blank shape is refused 503 before
+    // any compare, and the request that would have matched it writes and sends nothing.
+    test('a blank or malformed secret is a 503 — even to the bare "Bearer " that would have matched it', async () => {
+        for (const huddleSecret of ['', '   ', '\n', null, 'abc\u0000def']) {
+            for (const auth of ['Bearer ', 'Bearer', 'Bearer huddle-secret']) {
+                const b = build({ huddleSecret });
+                const out = await ingest(b.eps, { auth });
+                assert.equal(out.code, 503, `secret ${JSON.stringify(huddleSecret)} + "${auth}"`);
+                assert.equal(b.saved.length + b.store.size + b.sends.length, 0, 'nothing written, nothing sent');
+            }
+        }
+    });
+
+    test('a secret stored with a trailing newline still admits its real caller (it is trimmed, as the PIN is)', async () => {
+        const b = build({ huddleSecret: 'huddle-secret\n' });
+        const out = await ingest(b.eps, {});
+        assert.equal(out.code, 200);
+        assert.equal((await ingest(build({ huddleSecret: 'huddle-secret\n' }).eps, { auth: 'Bearer ' })).code, 401);
     });
 
     test('a missing Authorization header is a 401, not a crash (timingSafeEqual length trap)', async () => {

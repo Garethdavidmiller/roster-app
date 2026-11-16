@@ -737,6 +737,26 @@ describe('a member who started after the award\'s window is told so, not "your p
     });
 });
 
+// ── THE ROLE AT THE TIME (owner, 16 Nov 2026) ─────────────────────────────────────────────────────
+// The page admits a member by the grade held on the days it shows, so a member can reach this card
+// whose award months were all under a role with no rates. `awardRatesFor` answers CEA's for a grade it
+// does not know, so the card used to price a manager's "back pay" at the CEA award — a guess.
+describe('an award whose months were all under a role with no rates is refused, never priced as CEA\'s', () => {
+    test('no lump, nothing offered for the take-home, and the card says why', () => {
+        openCard();
+        _members.push({ name: 'Z. Member', role: 'Management' });   // even with CEA chosen by hand (openCard)
+        const out = calcBackPay();
+        assert.deepEqual(out, { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded: false });
+        assert.equal(els.backPayTotal.style.display, 'none', 'no total shown');
+        assert.match(els.backPayNotice.textContent, /No back pay estimate: in the months the 2026\/27 award covers, the roster lists you in a grade this calculator has no rates for\./);
+    });
+    test('the control: the same card for a CEA prices the lump', () => {
+        openCard();
+        _members.push({ name: 'Z. Member', role: 'CEA' });
+        assert.ok(calcBackPay().bpAmount > 100);
+    });
+});
+
 // ── BACK PAY NEVER REACHES THE HOLIDAY PREMIUM (invariant 5; contracts-b-6 part b) ──────────────
 // The premium estimate prices every payslip of the year at the SETTLED rate, which already carries
 // the award; the lump's premium share is that same uplift, so feeding it in as well would count it

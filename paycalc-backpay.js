@@ -197,6 +197,7 @@ export function prefillBackPay() {
   // depends on the mutable GRADES default. null = not on record (e.g. CES 2025/26) → the old-rate box
   // stays blank for manual entry.
   const _grade = awardGrade(ty);
+  if (!_grade) return calcBackPay();   // no grade with rates in the award's months: it refuses, nothing to fill
   const award = awardRatesFor(_grade, ty.label);
   if (!oldRateEl.value && award && award.pre != null) oldRateEl.value = award.pre.toFixed(2);
 
@@ -351,8 +352,8 @@ export function restoreBpState() {
   // grade's, so it comes back blank rather than priced (paycalc-2-9). Recorded boxes need nothing —
   // calcBackPay writes the record into them.
   const _grade = awardGrade(awardTy);
-  const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(_grade, awardTy.label));
-  if (!blobFitsGrade(s, _grade, _auth)) {
+  const _auth = resolveAuthoritativeRates(awardTy, _grade ? awardRatesFor(_grade, awardTy.label) : null);
+  if (_grade && !blobFitsGrade(s, _grade, _auth)) {
     for (const [id, v] of Object.entries(_auth)) {
       const _el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
       if (v == null && _el) _el.value = '';
@@ -505,6 +506,18 @@ export function calcBackPay() {
   // the fragment), and a locked box is WRITTEN with the recorded figure (review F2 — otherwise a
   // stale restored value sits behind a padlock and reads as confirmed).
   const _grade = awardGrade(awardTy);
+  // The award's months worked under a role with no rates (pay-audience.js admits by the role AT THE
+  // TIME): no lump — awardRatesFor would hand back CEA's, a guess (invariant 13).
+  if (!_grade) {
+    rowsEl.innerHTML = '';
+    _resetBreakdown(rowsEl, breakdownBtn);
+    totalEl.style.display = 'none';
+    const _wrap = document.getElementById('backPayPeriodWrap');
+    if (_wrap) _wrap.style.display = 'none';
+    noticeEl.style.display = 'block';
+    setStatus(noticeEl, `ℹ️ No back pay estimate: in the months the ${awardTy?.label ?? ''} award covers, the roster lists you in a grade this calculator has no rates for.`);
+    return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded: false };
+  }
   const _auth = resolveAuthoritativeRates(awardTy, awardRatesFor(_grade, awardTy?.label ?? ''));
   // The GRADE changed since these boxes were filled: a box the new grade has no record for still
   // holds the old grade's figure (often the record it was locked to a moment ago). Blank it — the

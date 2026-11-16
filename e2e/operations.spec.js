@@ -3853,6 +3853,43 @@ test('operations: account gaps reach the card BY NAME and the strip by group', a
     await expect(gaps).toContainText('Tick the leavers box below');
 });
 
+// THE STAFF PIN SHUT FOR EVERYONE (owner, Nov 2026). It rides on the same account check: an object while
+// a block runs (or began in the last day) puts an item on the strip and a line on the card it opens; an
+// answer WITHOUT the field — an older server, or a record the server could not read — must show neither,
+// and above all must not read as "the PIN is fine". The rules are operations-pin-lockout.test.mjs's.
+test('operations: a staff PIN blocked for everyone reaches the strip and Staff Login Accounts', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: [], pinLockout: {
+            active: true, blockedUntil: Date.now() + 10 * 60_000, lastBlockedAt: Date.now() - 5 * 60_000, blocks: 2 } }),
+    }));
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip.getByRole('link', { name: 'Staff PIN blocked: 2 times in the last day' })).toBeVisible();
+    await strip.locator('a[href="#login-accounts"]').first().click();
+    await expect(page.locator('#authSetupBody')).toHaveClass(/open/);
+    const line = page.locator('#authSetupGaps .auth-gap-line--pin');
+    await expect(line).toContainText(/The staff PIN is blocked for everyone until \d{2}:\d{2}/);
+    await expect(line).toContainText('members can still sign in with their password');
+    await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
+});
+
+test('operations: an account check that says nothing about the PIN shows nothing about it', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: ['Z. Example'] }),
+    }));
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip.getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
+    await expect(strip.locator('text=Staff PIN')).toHaveCount(0);
+    await expect(page.locator('#authSetupGaps .auth-gap-line--pin')).toHaveCount(0);
+});
+
 // WHAT PRESSING WILL DO, SAID BEFORE IT IS PRESSED (sign-in audit E6, 13 Nov 2026). Set up accounts takes back an account
 // with no permissions at all and re-enables a disabled one, each on the surname default with every device signed out —
 // and both were listed with "Press Set up accounts below." alone. The card, its ? panel and the reset queue's ? panel
@@ -4972,6 +5009,32 @@ test('operations annual leave sheet: the Save adds a confirmed person’s missin
     expect(marks[0].data).toMatchObject({ undoneBy: 'G. Miller', undone: added });
     await expect(page.locator('.al-sheet-undo'), 'an undone Save is not offered again').toHaveCount(0);
     await expect(page.locator('#alSheetSaveBtn'), 'and its days are offered again').toHaveText(SAVE_WORDS.confirmFirst);
+    expect(errors).toEqual([]);
+});
+
+// A SAVE WHERE ONLY SWAPS LANDED IS LOGGED WITH NOTHING ADDED, and as the newest log it hid the Undo of
+// the Save before it (review of v26.22). The Undo on offer is the latest Save that ADDED leave
+// (al-leave-plan.js → judgeUploads' `undoable`), and its line does not call it the last Save.
+test('operations annual leave sheet: a later Save that added no leave does not take the earlier Save’s Undo away (review of v26.22)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const fx = await alSheetFixture();
+    const key = `${fx.A.name}|${fx.dates.match}`;
+    const log = (/** @type {string} */ id, /** @type {number} */ hoursAgo, /** @type {string[]} */ added) => ({ id, year: fx.year,
+        fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256, clerksLastSaved: fx.file.source.clerksLastSaved,
+        lastSavedByClerk: true, savedAt: { seconds: Math.floor(Date.now() / 1000) - hoursAgo * 3600 }, savedBy: 'A. Clerkson',
+        appVersion: 'e2e', inLine: [key], added, writesMarked: true });
+    await openAlSheet(page, fx.records, { docsByQuery: { overrides: fx.records,
+        alUploads: [log('log-added', 2, [key]), log('log-swaps-only', 1, [])] } });
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+    const last = page.locator('.al-sheet-last');
+    await expect(last).toContainText('The last Save here that added leave was');
+    await expect(last).toContainText('adding 1 day of leave. Later Saves added none.');
+    await expect(last.locator('.al-sheet-undo'), 'the earlier Save can still be undone').toHaveCount(1);
+    await last.locator('.al-sheet-undo').click();
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText(undoConfirmWords(1));
+    await page.locator('.lb-overlay.open .dialog-btn-cancel').click();
     expect(errors).toEqual([]);
 });
 

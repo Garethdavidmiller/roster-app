@@ -57,6 +57,7 @@ const { storedMilestones, toMillis, publicHead } = OT;
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
+const { bearerToken } = require('./request-helpers');
 const { isViewerAccount } = require('./calendar-viewer-auth');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
@@ -264,7 +265,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             res.status(405).json({ error: 'Method not allowed' });
             return null;
         }
-        const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+        // The one bearer parser (request-helpers.js) — the scheme in any case, as this always read it.
+        const bearer = bearerToken(req);
         let decoded;
         try {
             decoded = await getAuth().verifyIdToken(bearer, true);

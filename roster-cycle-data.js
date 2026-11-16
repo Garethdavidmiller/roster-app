@@ -62,6 +62,8 @@ export const bilingualRoster = {
 //                 `validateRosterPatterns` refuses all three in a pattern.
 //                 Pay is unchanged by it: contracted hours come from the grade, never the pattern,
 //                 and a weekday contributes nothing to the roster-assist either way.
+//                 A 'TRG' day is WORKED (`isWorkedShift`), so a Dispatcher trainee's bank holiday on
+//                 this pattern earns the day in lieu — deliberate (owner, 16 Nov 2026; al-contract.js).
 //   4 — 09:00–16:00 Mon–Fri, RD weekends, and a REST DAY ON EVERY BANK HOLIDAY (v25.97, owner 13 Nov
 //                 2026): a placeholder line for somebody off a rotating link for the time being, who
 //                 does not work bank holidays while on it. Pattern 2's hours; the bank holidays are the
