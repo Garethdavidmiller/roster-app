@@ -2119,6 +2119,66 @@ test('on a phone, the New link notice comes the load after the install notice �
     expect(errors).toHaveLength(0);
 });
 
+// ── The timetable notice: from 16 November after the install and New link notices, first in its final week (v26.21) ──
+//
+// What calendar-notices.test.mjs cannot see: the order holding on a real page across real reloads, each flag surviving a
+// reload exactly as a dismissal leaves it. Who waits for what, and every date, are pinned there. Both sessions are seeded
+// WITHOUT the seeders' notice flags, as in the order tests above: here the flags are the subject.
+const TIMETABLE_NOTICE_DAY = new Date('2026-11-17T09:00:00Z');   // the day after its posting; offered to 12 December
+const TIMETABLE_FINAL_WEEK = new Date('2026-12-07T09:00:00Z');   // inside its final week, from Sunday 6 December
+
+/** Sign the New link colleague in on this device and open the Calendar, with no notice answered yet. */
+async function colleagueWithNoNoticesAnswered(page, day) {
+    await page.clock.setFixedTime(day);
+    await page.addInitScript((n) => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: n, ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
+        }));
+        localStorage.setItem('myb_roster_selected_member', n);
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true });
+    }, NEWLINK_COLLEAGUE);
+    await page.goto('/');
+}
+
+/** Answer each notice in turn, one a load, and show nothing follows any of them on its own load or after the last. */
+async function answerInOrder(page, order) {
+    for (const [lb, answer] of order) {
+        await expect(page.locator(lb)).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await page.locator(answer).click();
+        await expect(page.locator(lb)).not.toHaveClass(/\bopen\b/);
+        await page.waitForTimeout(2500);                      // past the defer: nothing follows on this load
+        await expect(page.locator('.notice-lb-content:visible'), `nothing after ${lb} on its own load`).toHaveCount(0);
+        await page.reload();
+    }
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    await page.waitForTimeout(2500);
+    await expect(page.locator('.notice-lb-content:visible'), 'every one answered: nothing more').toHaveCount(0);
+}
+
+test('from 16 November the timetable notice comes after the install and New link notices — one a load (v26.21)', async ({ page }, info) => {
+    // By the 17th the October notices have ended and flag themselves. The install notice is offered on a touch screen
+    // only, so a desk starts at the New link notice.
+    test.setTimeout(90_000);
+    const errors = collectFatalErrors(page);
+    await colleagueWithNoNoticesAnswered(page, TIMETABLE_NOTICE_DAY);
+    await answerInOrder(page, [...(isTouchProject(info) ? [['#installNoticeLb', '#installNoticeClose']] : []),
+                               ['#newlinkNoticeLb', '#newlinkNoticeLater'],
+                               ['#timetableSoonNoticeLb', '#timetableSoonNoticeLater']]);
+    expect(errors).toHaveLength(0);
+});
+
+test('in its final week the timetable notice goes first — the install notice, still running, comes the load after (v26.21)', async ({ page }, info) => {
+    // A week before the change, the reminder cannot wait behind a notice that runs to January. The New link notice ended
+    // on 5 December and flags itself, so it never appears.
+    test.skip(!isTouchProject(info), 'the install notice is offered only on a touch screen');
+    test.setTimeout(60_000);
+    const errors = collectFatalErrors(page);
+    await colleagueWithNoNoticesAnswered(page, TIMETABLE_FINAL_WEEK);
+    await answerInOrder(page, [['#timetableSoonNoticeLb', '#timetableSoonNoticeLater'],
+                               ['#installNoticeLb', '#installNoticeClose']]);
+    expect(errors).toHaveLength(0);
+});
+
 // ─── 360px: THE WIDTH NOTHING RENDERED ────────────────────────────────────────────────────────
 // A staff report from a 360px Samsung A-series, v22.62: the quick-action row — 📍 · Team · AL ·
 // Admin · Pay — measured 366px against 322px of usable width, so it overflowed by 6px at the

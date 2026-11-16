@@ -34,8 +34,8 @@
  *
  * That left `al-booking-2026` alone until v24.82 added `timetable-2026`, v24.86 the Year to Date
  * notice that follows it and v24.91 the install notice — the same release that retired the leave
- * reminder early, by owner decision (22 Oct 2026) — then v24.94 the final-week timetable notice and
- * v25.61 the New link one. Every one of them is `'members'` —
+ * reminder early, by owner decision (22 Oct 2026) — then v24.94 the second timetable notice (up from
+ * 16 November since v26.21) and v25.61 the New link one. Every one of them is `'members'` —
  * so **no live notice addresses the signed-out audience**, and the positive direction of the
  * audience gate has nothing to exercise it. `calendar-notices.test.mjs` can still prove a notice is REFUSED to the wrong audience and
  * that every notice is gated at all; what it can no longer prove behaviourally is that a
@@ -261,38 +261,56 @@ export function initCalendarNotices({ after } = {}) {
         _openWhenAudienceAllows(lb, 'members', payCalcIsTheirs);
     }());
 
-    // WIRED BEFORE THE INSTALL NOTICE (v24.96, the 72-hour review). Two notices can be due on one load
-    // during 6–12 December — this one and, on a phone that never answered it, the install notice — and
-    // the first to ask for the screen takes it (openNoticeIfClear refuses a second, leaving it unflagged
-    // for the next load). The time-critical reminder goes first; the install notice, which keeps for
-    // 90 days, comes back the load after.
-    // ── The new timetable starts on Sunday 13 December: the final week's reminder (v24.94; owner, 23 Oct 2026) ──
+    // WIRED BEFORE THE INSTALL NOTICE (v24.96, the 72-hour review). In the final week, 6–12 December,
+    // this one waits for nobody, so two notices can be due on one load — this one and, on a phone that
+    // never answered it, the install notice — and the first to ask for the screen takes it
+    // (openNoticeIfClear refuses a second, leaving it unflagged for the next load). The time-critical
+    // reminder goes first; the install notice, which keeps for 90 days, comes back the load after.
+    // ── The new timetable starts on Sunday 13 December (v24.94; owner, 23 Oct 2026; brought forward, v26.21) ──
     //
     // The first timetable notice ended with October (OCTOBER_LAST_DAY), six weeks before the change,
-    // and from then nothing in the app said the day was coming. This is offered from Sunday 6 December
-    // to the end of Saturday the 12th, members only, a ONE-OFF on the same rule as the first — every
-    // dismissal marks it done. Its words NAME THE DATE, on every line (whole-app review, 10 Nov 2026):
-    // they named the weekend ("starts on Sunday", "This weekend"), and on Sunday the 6th — its first
-    // day — both meant the wrong one. A push goes out on the Saturday evening too
-    // (functions/documents.js, sendTimetableReminder) — to the phones that have notifications on;
-    // this reaches the Calendar, which everyone opens.
+    // and from then nothing in the app said the day was coming. This was to be offered in the final
+    // week only, from Sunday 6 December; the owner brought it forward to its posting day, Monday
+    // 16 November (owner, 16 Nov 2026), so it now runs to the end of Saturday the 12th. Members only,
+    // a ONE-OFF on the same rule as the first — every dismissal marks it done. Its words NAME THE DATE,
+    // on every line (whole-app review, 10 Nov 2026): they named the weekend ("starts on Sunday",
+    // "This weekend"), which on a Sunday in its run reads as today and names the wrong weekend.
+    // A push goes out on the Saturday evening too (functions/documents.js, sendTimetableReminder) —
+    // to the phones that have notifications on; this reaches the Calendar, which everyone opens.
     //
-    // A NOTICE THAT STARTS ON A DATE is new here. The start is read from the clock at wiring time, and
+    // AFTER THE OTHERS UNTIL ITS FINAL WEEK, then FIRST (owner, 16 Nov 2026). Until 6 December it
+    // waits for the install notice where that one is this device's to get (`installRoute()`: a phone
+    // or tablet in a browser), and for the New link notice where that one is the member's
+    // (`canOpenNewlink`, asked as that notice asks it): a desk, the installed app, or somebody the New
+    // link page turns away waits for neither, which would otherwise hold this back until they had both
+    // ended. Their flags are read at WIRING time, as every follower's are, so it never comes on the
+    // load another is answered; who the member is, and the route, are asked at OPEN time, because a
+    // front-door sign-in has no session at wiring time. From Sunday 6 December (`FINAL_WEEK`) it waits
+    // for nobody: the change is a week away, the New link notice has ended, and the install notice
+    // keeps until January — which is why this is wired before it.
+    //
+    // A NOTICE THAT STARTS ON A DATE (v24.94). The start is read from the clock at wiring time, and
     // a device that arrives early is left UNFLAGGED, exactly as an out-of-audience device is: it gets
-    // the notice when its week comes. calendar-notices.test.mjs reads `STARTS` and keeps a notice out
+    // the notice when its day comes. calendar-notices.test.mjs reads `STARTS` and keeps a notice out
     // of the matrix until it is due.
     (function () {
-        const NOTICE_ID   = 'timetable-soon-2026';
-        const NOTICE_DATE = '6 Dec 2026';
-        const DONE_KEY    = 'myb_notice_timetable_soon_2026_done';
-        const STARTS      = new Date(2026, 11, 6);      // local midnight, Sunday 6 December
-        const CHANGE_EVE  = '12 Dec 2026';              // offered through the whole of the Saturday; gone on the day itself
+        const NOTICE_ID       = 'timetable-soon-2026';
+        const NOTICE_DATE     = '16 Nov 2026';
+        const DONE_KEY        = 'myb_notice_timetable_soon_2026_done';
+        const STARTS          = new Date(2026, 10, 16);    // local midnight, Monday 16 November — its posting day
+        const FINAL_WEEK      = new Date(2026, 11, 6);     // local midnight, Sunday 6 December — from then it waits for nobody
+        const CHANGE_EVE      = '12 Dec 2026';             // offered through the whole of the Saturday; gone on the day itself
+        const FOLLOWS_INSTALL = 'myb_notice_install_app_2026_done';   // …where that notice is this device's
+        const FOLLOWS_NEWLINK = 'myb_notice_newlink_2026_done';       // …where that notice is the member's
 
         const overlay = document.getElementById('timetableSoonNoticeLb');
         if (!overlay) return;
         if (lsGet(DONE_KEY)) return;
         if (isNoticeExpired(CHANGE_EVE, 1)) { lsSet(DONE_KEY, '1'); return; }
         if (Date.now() < STARTS.getTime()) return;
+        const finalWeek         = Date.now() >= FINAL_WEEK.getTime();
+        const installNoticeDone = !!lsGet(FOLLOWS_INSTALL);
+        const newlinkNoticeDone = !!lsGet(FOLLOWS_NEWLINK);
 
         const markDone = () => lsSet(DONE_KEY, '1');
 
@@ -305,7 +323,7 @@ export function initCalendarNotices({ after } = {}) {
                     id: NOTICE_ID, title: 'The new timetable starts on Sunday 13 December', section: 'Trains',
                     date: NOTICE_DATE,
                     body: 'Chiltern’s new timetable starts on Sunday 13 December. The Trains page shows what '
-                        + 'changes at every station, and the last trains — open it from the menu: ☰ then 🚆 Trains.',
+                        + 'changes at every station, and the last trains — open it from the menu: ☰\u00a0then 🚆\u00a0Trains.',   // the route never breaks
                 });
             },
             onClose() { markDone(); },
@@ -315,8 +333,11 @@ export function initCalendarNotices({ after } = {}) {
         document.getElementById('timetableSoonNoticeLater')?.addEventListener('click', () => lb.close());
 
         // 'members', as the October notice was: whether the station PC should be told too is still the
-        // owner's open question. A PIN unlock is left unflagged, so a signed-in load still gets it.
-        _openWhenAudienceAllows(lb, 'members');
+        // owner's open question. A PIN unlock is left unflagged, so a signed-in load still gets it, and
+        // so is a device still waiting for the install or New link notice.
+        _openWhenAudienceAllows(lb, 'members',
+            () => finalWeek || ((installNoticeDone || !installRoute())
+                && (newlinkNoticeDone || !canOpenNewlink(getSession()?.name))));
     }());
 
     // ── Put the roster on your home screen (v24.91; owner, 22 Oct 2026) ────────────────────────────
@@ -443,10 +464,10 @@ export function initCalendarNotices({ after } = {}) {
     // screen and this one comes back next time (openNoticeIfClear).
     //
     // From its posting day (`STARTS` — before it, a device is left unflagged, not dismissed) to the end
-    // of Saturday 5 December (`LAST_DAY`), so it is gone before the final-week timetable reminder takes
-    // the 6th. Its words say what the page says and no more: the month the page gives, no person
-    // (the page names who leads the change), and nothing about how the choice is made. Archived on
-    // OPEN, because the link leaves the page.
+    // of Saturday 5 December (`LAST_DAY`), so it is gone before the timetable notice's final week, when
+    // that one stops waiting for it (v26.21). Its words say what the page says and no more: the month
+    // the page gives, no person (the page names who leads the change), and nothing about how the
+    // choice is made. Archived on OPEN, because the link leaves the page.
     (function () {
         const NOTICE_ID       = 'newlink-2026';
         const NOTICE_DATE     = '9 Nov 2026';

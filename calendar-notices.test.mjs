@@ -172,10 +172,13 @@ const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's post
  *  notice's done flag was set on an earlier load, and the matrix has to know which those are. It may
  *  also wait for the Year to Date notice only where that one is the member's to get (`followsPay`,
  *  v24.91) — the Pay Calculator's own test decides, as it does for that notice itself — or for the
- *  install notice only where that one is this DEVICE's to get (`followsInstall`, v25.61). */
+ *  install notice only where that one is this DEVICE's to get (`followsInstall`, v25.61), or for the
+ *  New link notice only where that one is the MEMBER's (`followsNewlink`, v26.21). A notice may also
+ *  have a final week from which it waits for none of them (`finalWeek`, v26.21). */
 const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'[,)]/g)]
     .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]), followsPay: FOLLOWS_PAY_OF(m[1]),
-                 followsInstall: FOLLOWS_INSTALL_OF(m[1]), starts: STARTS_OF(m[1]) }));
+                 followsInstall: FOLLOWS_INSTALL_OF(m[1]), followsNewlink: FOLLOWS_NEWLINK_OF(m[1]),
+                 starts: STARTS_OF(m[1]), finalWeek: FINAL_WEEK_OF(m[1]) }));
 
 /** The IIFE that declares a notice's overlay — its own scope, so a key read from it is that notice's.
  *  (This was an 800-character window before the overlay line, which is right until a notice with a
@@ -209,15 +212,30 @@ function FOLLOWS_INSTALL_OF(/** @type {string} */ overlay) {
     return /const FOLLOWS_INSTALL\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
 }
 
+/** The done key of the New link notice, which this one waits for only where that notice is the member's —
+ *  somebody the New link page lets in (`canOpenNewlink`, v26.21). */
+function FOLLOWS_NEWLINK_OF(/** @type {string} */ overlay) {
+    return /const FOLLOWS_NEWLINK\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
+}
+
 /** The local midnight a notice starts on (`const STARTS = new Date(y, m, d)`), as a time, or null for one
- *  that starts when it ships (v24.94 — the final-week timetable notice). A notice not yet due is left
- *  out of the rows below and gets rows of its own with the clock moved to its week. */
+ *  that starts when it ships (v24.94 — the second timetable notice was the first to have one). A notice
+ *  not yet due is left out of the rows below and gets rows of its own with the clock moved to its week. */
 function STARTS_OF(/** @type {string} */ overlay) {
     const m = /const STARTS\s*=\s*new Date\((\d+),\s*(\d+),\s*(\d+)\)/.exec(IIFE_OF(overlay));
     return m ? new Date(+m[1], +m[2], +m[3]).getTime() : null;
 }
 /** Is this notice's start behind the (mocked) clock? */
 const due = (/** @type {{ starts: number|null }} */ n) => n.starts === null || Date.now() >= n.starts;
+
+/** The local midnight from which a notice waits for neither the install nor the New link notice
+ *  (`const FINAL_WEEK = new Date(y, m, d)` — v26.21, the timetable notice's last week), or null. */
+function FINAL_WEEK_OF(/** @type {string} */ overlay) {
+    const m = /const FINAL_WEEK\s*=\s*new Date\((\d+),\s*(\d+),\s*(\d+)\)/.exec(IIFE_OF(overlay));
+    return m ? new Date(+m[1], +m[2], +m[3]).getTime() : null;
+}
+/** Has this notice reached the week in which it waits for nobody? */
+const inFinalWeek = (/** @type {{ finalWeek: number|null }} */ n) => n.finalWeek !== null && Date.now() >= n.finalWeek;
 
 /** Would the Pay Calculator price this session's member? The real test, from the real roster. */
 const { teamMembers, gradeForRole, CONFIG } = await import('./roster-data.js');
@@ -232,6 +250,8 @@ const rosterRole = (/** @type {string} */ name) => teamMembers.find(m => m.name 
 
 /** The real rule — pure, so mocking it would only test the mock. */
 const { noticeAudienceAllows } = await import('./calendar-access-core.js');
+/** The New link page's own door — real, as the module under test uses it, so a case that leans on it asks it. */
+const { canOpenNewlink } = await import('./auth-policy.js');
 
 /**
  * An access type at least one live notice is addressed to, DERIVED rather than written down.
@@ -264,10 +284,13 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
         const session = accessType === 'named' ? { name: 'G. Miller' } : null;
         // `followsInstall`: every row here runs on wire()'s default route, a phone browser, where the install notice
         // IS this device's to get — so the wait always applies; block 11 has the desk and the installed app.
+        // `followsNewlink` waits only where the New link page would let this member in; `finalWeek` ends both waits.
         return NOTICES.filter(n => noticeAudienceAllows(n.audience, accessType)
             && due(n) && !store[DONE_KEY_OF(n)] && (!n.follows || !!store[n.follows])
             && (!n.followsPay || !!store[n.followsPay] || !payCalcFor(session))
-            && (!n.followsInstall || !!store[n.followsInstall])).map(n => n.overlay).sort();
+            && (inFinalWeek(n) || ((!n.followsInstall || !!store[n.followsInstall])
+                && (!n.followsNewlink || !!store[n.followsNewlink] || !canOpenNewlink(session?.name)))))
+            .map(n => n.overlay).sort();
     }
 
     test('the matrix has notices to be about, and says what it can prove with them', () => {
@@ -303,10 +326,10 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
     test('at least one live notice follows another — or the rows below prove nothing', () => {
         assert.ok(NOTICES.some(n => n.follows), 'no live notice follows another');
     });
-    for (const f of NOTICES.filter(n => n.follows || n.followsInstall)) {
+    for (const f of NOTICES.filter(n => n.follows || n.followsInstall || n.followsNewlink)) {
         for (const accessType of /** @type {const} */ (['named', 'viewer', 'none'])) {
             test(`${accessType}: ${f.overlay}, once the notices it waits for are done`, async () => {
-                const store = Object.fromEntries([f.follows, f.followsPay, f.followsInstall].filter(Boolean)
+                const store = Object.fromEntries([f.follows, f.followsPay, f.followsInstall, f.followsNewlink].filter(Boolean)
                     .map(k => [/** @type {string} */ (k), '1']));
                 const shown = await shownTo(accessType, store);
                 assert.deepEqual(shown, expectedFor(accessType, store));
@@ -972,34 +995,72 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
 });
 
 
-describe('8 · the final-week timetable notice: due on 6 December, gone on the 13th, members only (v24.94)', () => {
-    // Owner, 23 Oct 2026: the October notice ended six weeks before the change, and from then nothing
-    // in the app said the day was coming. This one is offered 6–12 December. Organised by what a wrong
-    // answer costs: early, and it nags for seven weeks beside the October notice; late, and it tells
-    // people about a Sunday that has passed; flagged on a device that arrives early, and that device
-    // never sees it; shown to the PIN station, and a shared PC is told about "your" page.
-    const SOON = /** @type {{ overlay: string, audience: string, starts: number|null }} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb'));
+describe('8 · the timetable notice: from 16 November behind the install and New link notices, first from 6 December, gone on the 13th, members only (v24.94; v26.21)', () => {
+    // Owner, 23 Oct 2026: the October notice ended six weeks before the change, and from then nothing in the app said
+    // the day was coming. It was to be offered 6–12 December; on 16 Nov 2026 the owner brought it forward to that day,
+    // after the two notices already running, and first again in its final week (v26.21). Organised by what a wrong
+    // answer costs: early, and it opens before it was posted; late, and it tells people about a Sunday that has passed;
+    // flagged on a device that arrives early or is still waiting its turn, and that device never sees it; shown to the
+    // PIN station, and a shared PC is told about "your" page; on the load another notice is answered, and two asks
+    // share one visit, which the owner has ruled out; waiting for a notice that is never coming, and it is held back
+    // until that one ends; and still waiting in its final week, and a phone that never answers the install notice is
+    // not told about the Sunday until after it.
+    const SOON = /** @type {{ overlay: string, audience: string, follows: string|null, followsInstall: string|null, followsNewlink: string|null, starts: number|null, finalWeek: number|null }} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb'));
+    const INST = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
+    const NL   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'newlinkNoticeLb'));
+    const TT   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
+    const YTD  = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
     const DONE = DONE_KEY_OF(SOON);
     const IIFE = IIFE_OF('timetableSoonNoticeLb');
-    const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === SOON.overlay));
-    const DEC_6 = new Date(2026, 11, 6, 9, 0).getTime(), DEC_5 = new Date(2026, 11, 5, 21, 0).getTime(), DEC_12 = new Date(2026, 11, 12, 23, 0).getTime();
+    /** The notice for this overlay, if it asked for the screen on this load. @param {string} overlay */
+    const asked = (overlay) => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === overlay));
+    const opened = () => asked(SOON.overlay);
+    /** Every notice that asked for the screen on this load, in the order it asked. The first one takes it:
+     *  openNoticeIfClear refuses a second while one is up, leaving that one unflagged for the next load. */
+    const askedInOrder = () => _openedViaHelper.map(lb => lb._cfg.overlay.id);
+    const NOV_15 = new Date(2026, 10, 15, 21, 0).getTime(), NOV_17 = new Date(2026, 10, 17, 9, 0).getTime();
+    const DEC_5  = new Date(2026, 11, 5, 21, 0).getTime(),  DEC_6  = new Date(2026, 11, 6, 9, 0).getTime();
+    const DEC_12 = new Date(2026, 11, 12, 23, 0).getTime();
 
-    test('it is in the matrix, addressed to members, with its own key, no snooze, starting on 6 December and ending with the 12th', () => {
+    /** A device after October: the two October notices ended on the 31st and flagged themselves as they did. The
+     *  harness answers every expiry question with one flag, so a case later in the year carries their flags instead. */
+    const AFTER_OCTOBER = { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' };
+    /** A member the New link page lets in (the e2e admin seed), and one it turns away — FOUND, so a leaver cannot
+     *  quietly turn one case into the other (the test audit's lesson, 7 Nov 2026). Asked of the page's real door. */
+    const FOR_NEWLINK = 'G. Miller';
+    const NOT_NEWLINK = /** @type {string} */ (teamMembers.find(m => !m.hidden && !canOpenNewlink(m.name))?.name);
+    /** A desk, where there is nothing to install — the installed app is the same — and a phone in a browser. */
+    const DESK  = { accessType: /** @type {const} */ ('named'), route: null, store: AFTER_OCTOBER };
+    const PHONE = { accessType: /** @type {const} */ ('named'), route: /** @type {typeof _route} */ ({ how: 'menu', mirror: false }), store: AFTER_OCTOBER };
+
+    test('in the matrix, members only, its own key, no snooze, 16 November to the end of 12 December, behind the REAL install and New link keys, wired before the install notice', () => {
         assert.ok(SOON, 'found by the same pattern as every other notice');
         assert.equal(SOON.audience, 'members');
         assert.equal(DONE, 'myb_notice_timetable_soon_2026_done');
         assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
-        assert.equal(SOON.starts, new Date(2026, 11, 6).getTime(), 'STARTS is read from the source');
+        assert.equal(SOON.starts, new Date(2026, 10, 16).getTime(), 'STARTS is its posting day, read from the source');
+        assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
         assert.match(IIFE, /isNoticeExpired\(CHANGE_EVE, 1\)/, 'offered through the whole of the Saturday, gone on the day');
         assert.match(IIFE, /const CHANGE_EVE\s*=\s*'12 Dec 2026'/);
-        assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
+        assert.equal(SOON.finalWeek, new Date(2026, 11, 6).getTime(), 'its final week starts on Sunday 6 December, read from the source');
+        assert.equal(SOON.follows, null, 'it waits for nothing unconditionally — a desk never gets the install notice');
+        // Restated keys: a rename on either side would leave this notice waiting for a flag nothing writes.
+        assert.equal(SOON.followsInstall, DONE_KEY_OF(INST));
+        assert.equal(SOON.followsNewlink, DONE_KEY_OF(NL));
+        // The New link notice's own question, asked of whoever is signed in when it OPENS — never a list of its own.
+        assert.match(IIFE, /canOpenNewlink\(getSession\(\)\?\.name\)/);
+        // FIRST in its final week: where it and the install notice are both due, the first to ask takes the screen.
+        assert.ok(NOTICES.indexOf(/** @type {any} */ (SOON)) < NOTICES.indexOf(/** @type {any} */ (INST)),
+            'wired before the install notice (v24.96)');
+        assert.equal(rosterRole(FOR_NEWLINK) !== undefined && canOpenNewlink(FOR_NEWLINK), true, `precondition: the New link page lets ${FOR_NEWLINK} in`);
+        assert.ok(NOT_NEWLINK, 'precondition: the roster has somebody the New link page turns away');
     });
 
     test('every day it is offered, its words are true: they name the date, never "Sunday" or "this weekend" alone (whole-app review, 10 Nov 2026)', () => {
-        // Its first day is Sunday 6 December. "The new timetable starts on Sunday" read, that day, as
-        // TODAY, and "This weekend Chiltern’s trains move…" named the wrong weekend; "Sunday 13 December"
-        // is true on all seven days it runs. Read from the page and the module, so the dialog's name,
-        // the title on screen and the App Notices record are held together.
+        // Its run holds three Sundays, 22 and 29 November and 6 December. "The new timetable starts on Sunday" read, on
+        // each of them, as TODAY, and "This weekend Chiltern’s trains move…" named the wrong weekend on all but its last
+        // days; "Sunday 13 December" is true on every day it runs. Read from the page and the module, so the dialog's
+        // name, the title on screen and the App Notices record are held together.
         const HTML = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
         const at = HTML.indexOf(`id="${SOON.overlay}"`);
         const block = HTML.slice(at, HTML.indexOf('<!-- One-time notice', at));
@@ -1012,29 +1073,130 @@ describe('8 · the final-week timetable notice: due on 6 December, gone on the 1
             assert.match(words, /Sunday 13 December/, `${where} must name the date: "${words}"`);
         }
         assert.equal(archived, title, 'the App Notices record keeps the title the member was shown');
-        assert.doesNotMatch(text(block), /this weekend/i, 'on Sunday 6 December "this weekend" is the wrong one');
-        assert.doesNotMatch(text(block), /\b(?:on|this|next) Sunday\b(?! 13 December)/i, 'a Sunday with no date reads as today on the 6th');
+        assert.doesNotMatch(text(block), /this weekend/i, 'on any day but its last six "this weekend" is the wrong one');
+        assert.doesNotMatch(text(block), /\b(?:on|this|next) Sunday\b(?! 13 December)/i, 'a Sunday with no date reads as today on a Sunday');
     });
 
-    test('on a member\'s device in its week it opens, and nothing is flagged', async () => {
-        mock.timers.setTime(DEC_6);
-        await wire({ accessType: 'named' });
+    test('posted on one date, everywhere — and its button names where it goes, the drawer\'s own route, unbroken (v26.21)', async () => {
+        // The polish the owner asked for with the move. The date is the day it went up, in the module, on screen and in
+        // App Notices. The button names its destination, as the New link notice's "Open the New link page →" does. And
+        // the menu route never wraps between its two halves, on screen or in App Notices.
+        const here = new URL('.', import.meta.url);
+        const HTML = readFileSync(new URL('./index.html', here), 'utf8');
+        const at = HTML.indexOf(`id="${SOON.overlay}"`);
+        const block = HTML.slice(at, HTML.indexOf('<!-- One-time notice', at));
+        assert.match(IIFE, /const NOTICE_DATE\s*=\s*'16 Nov 2026'/);
+        assert.match(block, /<div class="notice-date">Posted 16 Nov 2026<\/div>/);
+        const nav = readFileSync(new URL('./nav-panel.js', here), 'utf8');
+        const pill = /\{\s*id:\s*'trains',\s*label:\s*'([^']+)',\s*url:\s*'([^']+)'/.exec(nav);
+        assert.ok(pill, 'the drawer still has a Trains pill');
+        const cta = /<a href="([^"]+)" id="timetableSoonNoticeGo" class="notice-cta">([^<]+)<\/a>/.exec(block);
+        assert.ok(cta, 'the button is still a link');
+        assert.equal(cta[1], pill[2], 'the link goes where the pill goes');
+        assert.equal(cta[2], 'Open the Trains page &rarr;', 'a destination, like the New link notice\'s button');
+        assert.ok(block.includes(`<div class="notice-badge notice-badge--trains">${pill[1]}</div>`), 'the badge is the pill, word for word');
+        assert.ok(block.includes(`☰&nbsp;then ${pill[1].replace(' ', '&nbsp;')}.`), 'the body names the pill, unbroken');
+        mock.timers.setTime(NOV_17);
+        await wire({ ...DESK, session: { name: NOT_NEWLINK } });
         await settleAccess();
-        assert.ok(opened());
+        opened()._cfg.onOpen();                               // the harness records an open; the lightbox would run this itself
+        const filed = _archived.find(n => n.id === 'timetable-soon-2026');
+        assert.ok(filed, 'archived on OPEN');
+        assert.equal(filed.date, '16 Nov 2026', 'App Notices dates it as the card does');
+        assert.ok(filed.body.includes(`☰\u00a0then ${pill[1].replace(' ', '\u00a0')}.`), 'and keeps the route unbroken too');
+    });
+
+    test('from 16 November, on a desk, for a member the New link page turns away: it opens at once — nothing flagged yet', async () => {
+        mock.timers.setTime(NOV_17);
+        await wire({ ...DESK, session: { name: NOT_NEWLINK } });
+        await settleAccess();
+        assert.deepEqual(askedInOrder(), [SOON.overlay], 'nothing else is theirs to wait for');
         assert.deepEqual(_writes, []);
     });
 
-    test('the evening before it is due: not opened, and NOT flagged, so the same device sees it on Sunday', async () => {
-        mock.timers.setTime(DEC_5);
-        await wire({ accessType: 'named' });
+    test('for a member the New link page lets in, the New link notice first — this one is NOT opened and NOT flagged', async () => {
+        mock.timers.setTime(NOV_17);
+        await wire({ ...DESK, session: { name: FOR_NEWLINK } });
+        await settleAccess();
+        assert.deepEqual(askedInOrder(), [NL.overlay]);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('NOT on the load the New link notice is answered — that flag is read at wiring time — and the load after, it opens', async () => {
+        mock.timers.setTime(NOV_17);
+        await wire({ ...DESK, session: { name: FOR_NEWLINK } });
+        await settleAccess();
+        asked(NL.overlay)._cfg.onClose();                     // answered: its flag is written now…
+        mock.timers.tick(10_000);                             // …and nothing follows it up this visit
+        await drain();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, [[DONE_KEY_OF(NL), '1']], 'this notice is not flagged — it comes next time');
+        await wire({ ...DESK, session: { name: FOR_NEWLINK }, store: { ..._store } });
+        await settleAccess();
+        assert.deepEqual(askedInOrder(), [SOON.overlay]);
+    });
+
+    /** @type {Array<[string, string, string[]]>} */
+    const PHONE_ORDERS = [
+        ['lets in', FOR_NEWLINK, [INST.overlay, NL.overlay, SOON.overlay]],
+        ['turns away', NOT_NEWLINK, [INST.overlay, SOON.overlay]],
+    ];
+    for (const [page, name, order] of PHONE_ORDERS) {
+        test(`on a phone, for a member the New link page ${page}: ${order.join(', then ')} — one a load, each the load after the last`, async () => {
+            mock.timers.setTime(NOV_17);
+            /** @type {Record<string, string>} */ let store = { ...AFTER_OCTOBER };
+            for (const next of order) {
+                await wire({ ...PHONE, session: { name }, store });
+                await settleAccess();
+                assert.deepEqual(askedInOrder(), [next], `only ${next} asks for the screen on its load`);
+                asked(next)._cfg.onClose();
+                store = { ..._store };
+            }
+            await wire({ ...PHONE, session: { name }, store });
+            await settleAccess();
+            assert.deepEqual(askedInOrder(), [], 'every one answered: nothing more');
+        });
+    }
+
+    test('the evening before its posting day: not opened, and NOT flagged, so the same device sees it on the 16th', async () => {
+        mock.timers.setTime(NOV_15);
+        await wire({ ...DESK, session: { name: NOT_NEWLINK } });
         await settleAccess();
         assert.equal(opened(), undefined);
         assert.deepEqual(_writes.filter(([k]) => k === DONE), []);
     });
 
-    test('late on the Saturday it is still offered', async () => {
+    test('the evening before its final week it still waits for the install notice', async () => {
+        mock.timers.setTime(DEC_5);
+        await wire({ ...PHONE, session: { name: NOT_NEWLINK } });
+        await settleAccess();
+        assert.deepEqual(askedInOrder(), [INST.overlay]);
+    });
+
+    test('from Sunday 6 December it waits for nobody: on a phone that never answered the install notice it asks FIRST, and that one comes the load after', async () => {
+        mock.timers.setTime(DEC_6);
+        await wire({ ...PHONE, session: { name: NOT_NEWLINK } });
+        await settleAccess();
+        assert.deepEqual(askedInOrder(), [SOON.overlay, INST.overlay], 'both due, and the time-critical one asks first');
+        assert.deepEqual(_writes, []);
+        opened()._cfg.onClose();
+        await wire({ ...PHONE, session: { name: NOT_NEWLINK }, store: { ..._store } });
+        await settleAccess();
+        assert.deepEqual(askedInOrder(), [INST.overlay], 'the install notice keeps until January, and comes back now');
+    });
+
+    test('nor for the New link notice — which has ended by then, and would come second if it had not', async () => {
+        // The harness answers every expiry question with one flag, so the New link notice is still wired here. On a real
+        // device it was flagged on the 6th; this is the half of the final week that a wrong date would show first.
+        mock.timers.setTime(DEC_6);
+        await wire({ ...DESK, session: { name: FOR_NEWLINK } });
+        await settleAccess();
+        assert.equal(askedInOrder()[0], SOON.overlay, 'it no longer waits for the New link notice to be answered');
+    });
+
+    test('late on Saturday 12 December it is still offered', async () => {
         mock.timers.setTime(DEC_12);
-        await wire({ accessType: 'named' });
+        await wire({ ...PHONE, session: { name: FOR_NEWLINK } });
         await settleAccess();
         assert.ok(opened());
     });
@@ -1049,17 +1211,19 @@ describe('8 · the final-week timetable notice: due on 6 December, gone on the 1
         assert.ok(_writes.some(([k, v]) => k === DONE && v === '1'), 'flagged done without being shown');
     });
 
-    test('not on the shared PIN station in its week — and not flagged there', async () => {
-        mock.timers.setTime(DEC_6);
-        await wire({ accessType: 'viewer', session: null });
-        await settleAccess();
-        assert.equal(opened(), undefined);
-        assert.deepEqual(_writes, []);
+    test('not on the shared PIN station, in either part of its run — and not flagged there', async () => {
+        for (const day of [NOV_17, DEC_6]) {
+            mock.timers.setTime(day);
+            await wire({ ...DESK, accessType: 'viewer', session: null });
+            await settleAccess();
+            assert.equal(opened(), undefined);
+            assert.deepEqual(_writes, []);
+        }
     });
 
     test('every dismissal marks it done: the link, Not now, and the close', async () => {
-        mock.timers.setTime(DEC_6);
-        await wire({ accessType: 'named', present: [SOON.overlay, 'timetableSoonNoticeGo', 'timetableSoonNoticeLater'] });
+        mock.timers.setTime(NOV_17);
+        await wire({ ...DESK, session: { name: NOT_NEWLINK }, present: [SOON.overlay, 'timetableSoonNoticeGo', 'timetableSoonNoticeLater'] });
         await settleAccess();
         const lb = opened();
         assert.ok(lb);
@@ -1166,7 +1330,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
         assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
         assert.equal(NL.starts, new Date(2026, 10, 9).getTime(), 'STARTS is its posting day, read from the source');
         assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
-        assert.match(IIFE, /const LAST_DAY\s*=\s*'5 Dec 2026'/, 'gone before the final-week timetable notice takes the 6th');
+        assert.match(IIFE, /const LAST_DAY\s*=\s*'5 Dec 2026'/, 'gone before the timetable notice\'s final week, when that one stops waiting for it');
         assert.match(IIFE, /isNoticeExpired\(LAST_DAY, 1\)/, 'offered through the whole of the Saturday, gone on the Sunday');
         assert.equal(NL.follows, null, 'it waits for nothing unconditionally — a desk never gets the install notice');
         // Restated key: a rename on either side would leave this notice waiting for a flag nothing writes.

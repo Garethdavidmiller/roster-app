@@ -953,6 +953,38 @@ renderer's day flag, and Admin's two save checks, where leave over the worked Bo
 over. `al-entitlement.test.mjs` pins the leave panel's read range, which the browser tests' stub
 cannot see.
 
+## The timetable notice goes up now, after the other notices, and first in its final week (owner, 16 Nov 2026)
+
+**Decided (owner, 16 Nov 2026):** the Calendar's notice about the new timetable (`timetable-soon-2026`)
+goes up on 16 November instead of waiting for 6 December, and still ends with Saturday 12 December.
+Until its final week it comes after the notices already running: the install notice where that one is
+this device's (a phone or tablet in a browser), and the New link notice where that one is the member's
+(somebody the New link page lets in). From Sunday 6 December it waits for nobody and goes first. It was
+posted for 6–12 December only (owner, 23 Oct 2026), because the October notice ended six weeks before
+the change; asked whether it could go up now, the owner said yes, in that order.
+
+**Why the order, and why it changes on the 6th.** One notice a load is the rule the owner set in
+October, and the two notices already running were there first. Waiting for a notice that is never
+coming would hold this one back until both had ended, so it waits only where each is due: a desk or the
+installed app has no install notice, and a member the New link page turns away has no New link notice.
+In the final week the change is days away, the New link notice has ended, and the install notice keeps
+until January. Waiting for it then could keep a phone from hearing about the Sunday until after it. The
+notice was already wired before the install notice for that week (v24.96).
+
+**With it, two pieces of polish:** the card is dated the day it went up ("Posted 16 Nov 2026"), its button
+says where it goes ("Open the Trains page →", as the New link notice's does), and its App Notices entry
+keeps "☰ then 🚆 Trains" from breaking across lines.
+
+**What it costs:** a member sees the reminder up to three weeks before the change. The October notice
+ended because six weeks early was too soon to be worth a screen. A member who answers it now is not
+shown it again in the final week; the Saturday evening push still reaches the phones with
+notifications on.
+
+**What holds it:** `calendar-notices.test.mjs` block 8 drives the order on a desk and on a phone, for a
+member the New link page lets in and for one it turns away, across loads; the evening before the final
+week; the final week's first load; and the start and end dates. `e2e/calendar.spec.js` runs the order
+across real reloads, and the final week on a touch screen.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

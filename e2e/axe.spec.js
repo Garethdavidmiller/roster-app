@@ -1209,12 +1209,12 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
-    test('the timetable\'s final-week notice open (calendar) — live from 6 December (v24.96)', async ({ page }) => {
-        // NEVER SCANNED until the test audit (7 Nov 2026 — UI-23): `timetable-soon-2026` is the one
-        // live notice with a START date, so on the real clock it has not opened yet, and nothing here
-        // pinned a clock inside its life. Members only, 6–12 December; the clock is pinned to the
-        // Monday of that week. The seeders mark every notice done, so clearing this one's flag alone
-        // is the setup — the install notice, still live in December, stays answered and out of the way.
+    test('the timetable notice open (calendar) — in its final week (v24.96; up from 16 November since v26.21)', async ({ page }) => {
+        // NEVER SCANNED until the test audit (7 Nov 2026 — UI-23): `timetable-soon-2026` was then the
+        // one notice with a START date, still to open on the real clock, and nothing here pinned a clock
+        // inside its life. Members only, 16 November to 12 December; the clock is pinned to the Monday of
+        // its final week. The seeders mark every notice done, so clearing this one's flag alone is the
+        // setup — the install notice, still live in December, stays answered and out of the way.
         await page.clock.setFixedTime(new Date('2026-12-07T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await seedMemberSession(page, 'G. Miller');
