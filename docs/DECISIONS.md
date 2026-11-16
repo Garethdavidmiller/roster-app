@@ -1055,8 +1055,29 @@ main, found the rest). The table's middle column may now break a long word, whic
 changes nothing at any width, measured; and the tips stack as the badge key above them already did,
 under one rule for both grids. A 320px phone therefore shows the tips in one column at any size, as
 it did the badge key. After the fix the Staff Guide runs past no width in the sweep, where main ran
-21px past a 320px phone at 1.5×; the Rangers guide's pills and FIP's 2px at 320px were there before
-and are unchanged.
+21px past a 320px phone at 1.5×; the Rangers guide's pills and FIP's 2px at 320px were there before,
+and v26.26 fixed them too (below).
+
+**The rest of the large-text sweep, fixed in v26.26 (owner, 16 Nov 2026: "Fix all").** The same sweep
+— all five guides at 320–412px under 1, 1.3 and 1.5× text — found two more things running past a
+phone's edge, both older than v26.24:
+- **The Rangers guide's status badges** ("✓ National Rail checked · Aug 2026") were `nowrap`, so a
+  badge wider than the card ran 43px past a 320px phone at 1.5×, 3px past a 360px one and 2px past
+  320px at 1.3×. A badge may now wrap its own words, which it does only when it alone is wider than the
+  column: at the ordinary size every badge is still one line at every width, and the page renders
+  byte-identical to v26.25 at 320, 360, 390, 768 and 1,280px. Three details make the wrapped badge
+  read right: a 1em corner (identical on one line, a rounded rectangle on two — 999px made a bubble),
+  `&nbsp;` keeping a month with its year and the "·" with the word before it, and the key's badges never
+  shrinking — a key row is a flex row, and without that the short "✓ checked" broke onto two lines at
+  the ordinary size.
+- **FIP's "Amsterdam/Rotterdam/Antwerp"** is one 292px word, and the Eurostar box had 260px for it at
+  1.5× on 320px. It takes one `<wbr>`, after "Rotterdam/". Five `<wbr>`s (after every slash) were tried
+  first and re-broke the sentence at the ORDINARY size on a 320px phone, because line-wrapping uses a
+  `<wbr>` wherever it helps, not only where a word cannot fit; with one, every default line is as it was.
+  A `<wbr>` also splits the line into two shaping runs, so the glyphs after it move by a fraction of a
+  pixel — invisible, and below the 6,200px the FIP screenshot baseline covers.
+
+After both, the sweep finds nothing past the edge on any guide at any of its 4 widths and 3 sizes.
 
 **Checked and left as they are, so not re-raised:**
 - **The Calendar's header on a phone** differs from the other pages' — kept (owner, 8 Nov 2026); from
@@ -1075,7 +1096,11 @@ and are unchanged.
 sizes, with the exceptions named (`KEEPS_ITS_OWN_SIZE`); reads a sample of each guide on paper; compares
 a guide's sub-heading with the app's card title; measures the top gap at 390 and 1,280px; and reads the
 Staff Guide at 375, 360 and 320px under 1.5× text ("enlarged text does not widen the column past a
-phone"). `e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths
+phone"); since v26.26 it reads every element and every run of text on all five guides at 375, 360 and
+320px under 1.5× and 320px under 1.3× ("enlarged text runs nothing past a phone's edge"), and holds the
+Rangers badges to one line at the ordinary size and a clean wrap under large text (five mutations, each
+caught by its own assertion: the key's no-shrink rule removed, `nowrap` back, the 999px corner back,
+FIP's `<wbr>` removed, a month's `&nbsp;` removed). `e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths
 and checks that its longer label never clips. `e2e/trains.spec.js` and `e2e/paycalc.spec.js` read the
 show-more corners; `card-header-parity.test.mjs` requires the canvas group labels to be `h2`s on both
 pages. Thirteen mutations — an off-scale sub-line, the sizes reaching paper, the sub-heading's weight, a

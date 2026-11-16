@@ -1628,6 +1628,108 @@ test('staff guide: enlarged text does not widen the column past a phone @layout'
     }
 });
 
+// ENLARGED TEXT RUNS NOTHING PAST A PHONE'S EDGE, ON ANY GUIDE (v26.26, owner: "Fix all"). The test above holds the
+// Staff Guide's columns; this one reads every element AND every run of text on every guide, because a word wider than
+// its box overflows it without moving the box, so a test of boxes alone cannot see it. What it found on main: the
+// Rangers guide's status badges, which were `nowrap` — 43px past a 320px phone at 1.5×, 3px past a 360px one, 2px past
+// 320px at 1.3× — and FIP's "Amsterdam/Rotterdam/Antwerp", one 292px word in a 260px box. What scrolls sideways on
+// purpose (the chip bar, FIP's fare table) holds its own overflow, so text inside one is its business; the page's own
+// wrappers never count as holding it, or a clip on <body> would hide exactly what this looks for. Every <details> is open.
+for (const { file } of GUIDE_PAGES) {
+    test(`${file}: enlarged text runs nothing past a phone's edge, not a box and not a word @layout`, async ({ page }) => {
+        for (const [width, k] of [[375, 1.5], [360, 1.5], [320, 1.5], [320, 1.3]]) {
+            await page.setViewportSize({ width, height: 800 });
+            await page.goto(`/${file}`);
+            await page.evaluate(() => document.fonts.ready);
+            await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+            await scaleText(page, k);
+            const m = await page.evaluate(() => {
+                const vw = document.documentElement.clientWidth;
+                /** @param {Element} e */
+                const held = e => {
+                    for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+                        if (getComputedStyle(p).overflowX !== 'visible') return true;
+                    }
+                    return false;
+                };
+                /** @param {Element} e */
+                const name = e => `${e.tagName.toLowerCase()}${[...e.classList].map(c => `.${c}`).join('')}`;
+                const past = new Set();
+                let texts = 0;
+                for (const e of document.querySelectorAll('body *')) {
+                    const r = e.getBoundingClientRect();
+                    if (r.width > 0 && r.right > vw + 0.5 && !held(e)) past.add(`${name(e)} «${(e.textContent ?? '').trim().slice(0, 40)}»`);
+                }
+                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+                    const el = n.parentElement;
+                    if (!el || !(n.textContent ?? '').trim() || held(el)) continue;
+                    const range = document.createRange();
+                    range.selectNodeContents(n);
+                    const rects = [...range.getClientRects()].filter(r => r.width > 0);
+                    if (rects.length) texts++;
+                    if (rects.some(r => r.right > vw + 0.5)) past.add(`text in ${name(el)} «${(n.textContent ?? '').trim().slice(0, 40)}»`);
+                }
+                return { past: [...past], texts, scroll: document.documentElement.scrollWidth - vw };
+            });
+            expect(m.texts, `premise: ${file}'s text is read at all`).toBeGreaterThan(50);
+            expect(m.past, `${file} at ${width}px, ${k}× text: what runs past the screen's edge`).toEqual([]);
+            expect(m.scroll, `${file} at ${width}px, ${k}× text: the page scrolls sideways`).toBeLessThanOrEqual(0);
+        }
+    });
+}
+
+// A RANGERS STATUS BADGE WRAPS ITS OWN WORDS ONLY WHEN IT MUST, AND WRAPS CLEANLY (v26.26). At the ordinary size every
+// badge is one line at every width — including the key's, which sit in flex rows that shrink their items when short of
+// room, so they must not shrink (`.key-item .pill`). Under large text on a narrow phone the long ones wrap: never with a
+// line starting on the "·", never with a month parted from its year (the `&nbsp;`s in the markup), and as a rounded
+// rectangle, not a bubble — the 1em corner, where 999px rounds a two-line badge's ends into half-circles.
+test('rangers: a status badge keeps to one line at the ordinary size, and wraps cleanly under large text', async ({ page }) => {
+    const read = () => page.evaluate(() => [...document.querySelectorAll('.pill')].map(p => {
+        const s = getComputedStyle(p);
+        const lh = parseFloat(s.lineHeight);
+        /** @type {string[]} */
+        const lines = [];
+        let top = NaN;
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            const t = n.textContent ?? '';
+            for (let i = 0; i < t.length; i++) {
+                const r = document.createRange();
+                r.setStart(n, i);
+                r.setEnd(n, i + 1);
+                const b = r.getClientRects()[0];
+                if (!b) continue;
+                if (!(Math.abs(b.top - top) < lh / 2)) { lines.push(''); top = b.top; }
+                lines[lines.length - 1] += t[i];
+            }
+        }
+        const h = p.getBoundingClientRect().height;
+        return { text: (p.textContent ?? '').replace(/\u00a0/g, ' ').trim(),
+            lines: lines.map(l => l.replace(/\u00a0/g, ' ').trim()),
+            bubble: parseFloat(s.borderTopLeftRadius) >= h / 2 };
+    }));
+    await page.goto('/rangers-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    for (const width of [320, 390, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        const pills = await read();
+        expect(pills.length, 'premise: the badges are where this test reads them').toBeGreaterThan(10);
+        expect(pills.filter(p => p.lines.length !== 1).map(p => p.text),
+            `${width}px at the ordinary size: badges on more than one line`).toEqual([]);
+    }
+    await page.setViewportSize({ width: 320, height: 800 });
+    await scaleText(page, 1.5);
+    const wrapped = (await read()).filter(p => p.lines.length > 1);
+    expect(wrapped.length, 'premise: at 1.5× on a 320px phone the long badges wrap').toBeGreaterThan(5);
+    for (const p of wrapped) {
+        expect(p.lines.filter(l => l.startsWith('·')), `"${p.text}": a line that starts on the "·"`).toEqual([]);
+        expect(p.lines.filter(l => /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/.test(l)),
+            `"${p.text}": a month parted from its year`).toEqual([]);
+        expect(p.bubble, `"${p.text}" wraps to ${p.lines.length} lines with fully round ends — a bubble`).toBe(false);
+    }
+});
+
 // The ← had no hover on four guides, and on the Railcard guide that page's `a:hover` (amber, meant for
 // links in the text) reached it — amber on navy, ~3.3:1 (desktop audit, Nov 2026). One hover now, the
 // shell's, read off the rendered arrow under a real mouse.

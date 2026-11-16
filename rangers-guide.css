@@ -112,14 +112,27 @@ h2.section:first-of-type { margin-top: 4px; }
 .tok-ok { color: var(--green); }
 .tok-no { color: var(--red); }
 
+/* A BADGE MAY WRAP ITS OWN WORDS, BUT ONLY WHEN IT CANNOT FIT A LINE OF ITS OWN (v26.26). It was `nowrap`,
+   and "✓ National Rail checked · Aug 2026" is about 300px at 1.5× text, so on a 320px phone it ran 43px past
+   the screen, and the conflict badge 3px past a 360px one. A badge is an inline block, or an item in a row
+   that wraps: either way it first moves to a line of its own, whole, as before, and breaks inside itself only
+   when it is wider than the whole column, which needs larger text on a narrow phone. At the ordinary size
+   every badge is on one line at every width. The markup keeps a month with its year and the "·" with the word
+   before it (`&nbsp;`), so a wrapped badge reads "✓ National Rail checked ·" / "Aug 2026".
+   THE CORNER IS 1em, NOT 999px: one line is the same pill either way, because the badge is 1.5em plus 4px
+   tall and 1em is past half of that at any size, while a wrapped badge becomes a rounded rectangle and not
+   a bubble. */
 .pill {
     display: inline-block;
     padding: 1px 7px;
-    border-radius: 999px;
+    border-radius: 1em;
     font-size: 11px;
     font-weight: 700;
-    white-space: nowrap;
 }
+/* A KEY'S BADGE NEVER SHRINKS (v26.26). A key row is a flex row, and a flex row that is short of room shrinks
+   every item in it, so once a badge could wrap, "✓ checked" broke onto two lines on a 390px phone at the
+   ordinary size. The description beside it takes all of the squeeze. */
+.key-item .pill { flex-shrink: 0; }
 .pill-draft {
     background: var(--amber-bg);
     color: var(--amber);
@@ -131,7 +144,8 @@ h2.section:first-of-type { margin-top: 4px; }
    otherwise this page's "not valid on us" token (`.tok-no`, the near-miss stripe), so it is already
    read as *stop*. That is exactly right for a conflict — stop and check — and wrong for a draft,
    which means only "nobody has looked yet". Amber stays with Draft for the same reason.
-   `.pill` sets `white-space: nowrap`; these strings are long, so `.rr-top` wraps instead (below). */
+   These strings are long, so `.rr-top` wraps first (below), and a badge wraps its own words only when it is
+   wider than the column (the `.pill` note above). */
 .pill-checked {
     background: color-mix(in srgb, var(--green) 10%, white);
     /* DARKER THAN `--green`, and measured rather than eyeballed. The token on its own 10% tint comes
