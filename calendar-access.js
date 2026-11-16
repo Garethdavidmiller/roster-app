@@ -9,7 +9,7 @@
  *   (calendar-overrides.js), any rendering (calendar-renderer.js / calendar-app.js), or named
  *   member authentication (session.js, which remains the sole authority on who the member is).
  *   Nor the ANSWER once decided: whether access is held is kept ONCE, in calendar-access-state.js,
- *   which this module WRITES (`grant`, `handleAccessLost`) and the two gates read (v25.74).
+ *   which this module WRITES (`grant`, `handleAccessLost`) and the two gates read.
  * Edit here for: unlock UI wiring, the exchange call, the access bootstrap order.
  *
  * ── THE POINT OF THE WHOLE MODULE ───────────────────────────────────────────────────────────────
@@ -47,20 +47,16 @@
  *     Firebase auth state IS the authority, so there is exactly one thing to get right and no
  *     second copy that can disagree with it.
  *
- * ── THE FRONT DOOR IS SIGN-IN FIRST; THE PIN IS THE FALLBACK (v23.19, owner decision) ────────────
+ * ── THE FRONT DOOR IS SIGN-IN FIRST; THE PIN IS THE FALLBACK (owner decision) ────────────────────
  *
  * A browser holding nothing is shown the member SIGN-IN card (`showSignInPanel` — the shared
- * `login-overlay.js` card, mounted inline), with "Use the staff PIN instead" beneath it. Until
- * v23.18 it was the other way round: the PIN card first and "Sign in instead" as the link. The
- * order was inherited from the PIN's origin as the low-friction answer for shared office PCs, and
- * it had the front door optimised for the minority: most people opening the app are staff with a
- * password of their own, and signing in is what ends the code for them for 60 days. The PIN is for
- * the shared PC, and for visiting or agency staff who need the roster, the Huddle and the guides
- * without an account — a real audience, and one tap away, not the default.
+ * `login-overlay.js` card, mounted inline), with "Use the staff PIN instead" beneath it: most people
+ * opening the app are staff with a password of their own. The PIN is for the shared PC, and for
+ * visiting or agency staff who need the roster, the Huddle and the guides without an account — a
+ * real audience, one tap away, not the default.
  *
- * Three things the reorder does NOT change, because they are the security model and this is only
- * the order of two cards: what each route GRANTS (`decideAccess` is untouched), that a member is
- * never sent to the PIN (`showMemberPanel` still answers a held session), and that nothing is on
+ * The order of the two cards is NOT the security model: what each route GRANTS is `decideAccess`'s,
+ * a member is never sent to the PIN (`showMemberPanel` answers a held session), and nothing is on
  * screen before access is granted. The PIN card comes first only when asked (`takePinFirst`, read
  * once at boot): `#staff-pin`, which a "Use the staff PIN instead" sign-out reloads with and a
  * station PC can bookmark, or the one-tab mark left by a page in this tab that ended the PIN.
@@ -86,7 +82,7 @@ const UNLOCK_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/unlockCal
 /** How long to wait on the exchange before calling it a network failure. Generous — a cold start of
  *  a rarely-called function is a real several seconds — and ABOVE the endpoint's own 20s ceiling
  *  (`timeoutSeconds`, functions/index.js; fetch-timeout.js): a client that gives up first calls a
- *  working server broken. It was 15s until v25.77. */
+ *  working server broken. */
 const UNLOCK_TIMEOUT_MS = 25000;
 
 /** How long an unlock waits for the boot's persistence choice (`unlockWithPin`), and the wait. */
@@ -97,10 +93,9 @@ function bootSettledWithin(/** @type {number} */ ms) {
     return Promise.race([authBootstrap.then(() => true), late]).finally(() => clearTimeout(timer));
 }
 
-// ACCESS_DECISION_BUDGET_MS — session.js's since v24.96, one constant for this decision and
-// holdsStaffPin's — is the WHOLE decision's deadline, not a per-step one (v21.29): everything
-// `resolveAccess` waits for shares it, so a wedged auth layer costs it once. Past it the answer is
-// `none`, a card, which is recoverable — and the late-identity watcher corrects it when an identity lands.
+// ACCESS_DECISION_BUDGET_MS (session.js — shared with holdsStaffPin) is the WHOLE decision's deadline,
+// not a per-step one. Past it the answer is `none`, a card, which is recoverable — and the
+// late-identity watcher corrects it when an identity lands.
 
 /**
  * WHICH access the grant in force is: the kind, and only the kind.
@@ -139,20 +134,13 @@ export const calendarAccessReady = /** @type {Promise<void>} */ (new Promise(res
 /**
  * Resolves when this browser holds a Firebase identity the app's best-effort WRITES can use.
  *
- * **Two promises, because v20.18 split what used to be one thing.** `calendarAccessReady` answers
- * "may this browser SEE the roster", and the whole point of that release was to stop it waiting on
- * a network round trip — the Calendar draws from a local roster and needs no identity to do it.
- * But the error reporter, the usage counters, the latency sampler, the document-open counters and
- * the push-subscription renewal all write to Firestore, and every one of those rules requires
- * `request.auth != null`.
- *
- * Today the two are the same instant: access is only ever granted (`named` or `viewer`) once a real
- * user exists. They were not while a third mode existed — `open`, the anonymous no-PIN Calendar of
- * the `CALENDAR_PIN_ACCESS` switch (retired v24.34), which left its sign-in in flight so the
- * grid could paint. The split is kept because the contract is still the right one: anything that
- * writes awaits THIS, and anything that renders awaits the other. Getting it backwards is silent in
- * both directions: a render that waits costs latency nobody attributes, and a write that does not
- * is simply rejected.
+ * **Two promises.** `calendarAccessReady` answers "may this browser SEE the roster"; the error
+ * reporter, the usage counters, the latency sampler, the document-open counters and the
+ * push-subscription renewal WRITE to Firestore, which needs an identity. Today the two are the same
+ * instant (a grant always holds a real user), and the split is kept because the contract is still the
+ * right one: anything that writes awaits THIS, and anything that renders awaits the other. Getting it
+ * backwards is silent in both directions: a render that waits costs latency nobody attributes, and a
+ * write that does not is simply rejected.
  *
  * Like its sibling it never rejects, and while the Calendar is locked it never resolves — a browser
  * that was never shown the roster has nothing worth recording.
@@ -172,26 +160,17 @@ export function isViewerMode() { return getAccessType() === 'viewer'; }
  * Resolve what access this browser has, tearing down anything stale first.
  *
  * `preserveCalendarViewer` is the one non-obvious argument. `reconcileExpiredIdentity` exists to
- * sign out a NON-ANONYMOUS Firebase identity that has outlived its local session (Finding #9) — and
- * the viewer is non-anonymous with no local session by construction, so the default behaviour would
- * sign it out on every single page load and the PIN would be required on every navigation. The flag
- * is scoped to the pages that admit the PIN — this one, and Trains through `holdsStaffPin` (v24.84):
- * other protected pages keep the default, so a viewer walking to Admin or Settings is still torn down
- * and cannot masquerade as a member.
+ * sign out a NON-ANONYMOUS Firebase identity that has outlived its local session — and the viewer is
+ * non-anonymous with no local session by construction, so the default would sign it out on every
+ * page load. The flag is scoped to the pages that admit the PIN — this one, and Trains through
+ * `holdsStaffPin`: elsewhere a viewer is still torn down and cannot masquerade as a member.
  *
  * @returns {Promise<'named'|'viewer'|'none'>}
  */
 async function resolveAccess() {
-    // ── ONE BUDGET FOR THE WHOLE DECISION (v21.29, external latency review) ─────────────────────
-    //
-    // These used to be two SEQUENTIAL bounds — 6.5s for the reconcile, then a further 6s for the
-    // restore — and because both were waiting on the same first auth emission, a wedged auth layer
-    // could hold the access decision for ~12.5s while each of them waited out its own ceiling in
-    // turn. Neither number was wrong; adding them was.
-    //
-    // Now the deadline belongs to the DECISION, and each step gets what is left of it. The worst
-    // case is the budget, not the sum of its parts, and the normal path is unchanged: both steps
-    // resolve promptly and nothing waits at all.
+    // ── ONE BUDGET FOR THE WHOLE DECISION ───────────────────────────────────────────────────────
+    // The deadline belongs to the DECISION, and each step gets what is left of it: two sequential
+    // bounds waiting on the same first auth emission would ADD. The worst case is the budget.
     const started   = Date.now();
     const remaining = () => Math.max(0, ACCESS_DECISION_BUDGET_MS - (Date.now() - started));
     /** @type {ReturnType<typeof setTimeout>|undefined} */ let reconcileBound;
@@ -204,15 +183,11 @@ async function resolveAccess() {
         ]);
     } catch { /* best effort — the decision below is made from ground truth either way */ }
     finally {
-        // Settled: the losing bound has nothing left to decide (test audit, 7 Nov 2026 — it ran on
-        // for 6.5s after every prompt reconcile, holding this module's suite open).
+        // Settled: the losing bound has nothing left to decide.
         clearTimeout(reconcileBound);
     }
-    // `auth.currentUser` alone MISSES a cold restore: persistence being configured does not mean the
-    // persisted user has loaded, and the boot restore is what delivers it. Reading too early would
-    // report `none` for a member who is signed in and put the PIN in front of them — the exact
-    // "distracting flash" this has to avoid. `currentUserAfterBoot` is the SHARED wait on that one
-    // restore (firebase-client.js), so this no longer opens a third subscription of its own.
+    // `auth.currentUser` alone MISSES a cold restore, and would put the PIN in front of a signed-in
+    // member. `currentUserAfterBoot` is the SHARED wait on the boot restore (firebase-client.js).
     const user = await currentUserAfterBoot(remaining());
     return decideAccess({ session: getSession(), firebaseUser: user });
 }
@@ -223,26 +198,16 @@ async function resolveAccess() {
  * ── THE DECISION WAS MADE ONCE, AND THAT WAS THE BUG ────────────────────────────────────────────
  *
  * `resolveAccess` gives the restore a bounded wait — it has to, or a wedged auth layer holds the
- * Calendar at a blank screen for ever. But the bound was a CLIFF: a restore landing a millisecond
- * late was ignored for the rest of the page load, so a signed-in member sat in front of the staff
- * PIN with no recovery but a reload. Reproduced in a browser: with the identity arriving at 14s,
- * the body was still `calendar-locked` six seconds later.
+ * Calendar at a blank screen for ever. But a bound alone is a CLIFF: a restore landing a millisecond
+ * late would leave a signed-in member in front of the staff PIN until a reload. This turns the cliff
+ * into a window: the bound decides what to SHOW promptly, and a late identity corrects it. A grant
+ * still requires exactly what `decideAccess` required, and the listener is dropped the moment it
+ * fires or access is granted by any other route. Deliberately NOT time-limited.
  *
- * This turns the cliff into a window. The bound still decides what to SHOW promptly; a late
- * identity now simply corrects it. Nothing about the security model changes — a grant still
- * requires exactly what `decideAccess` required — and the listener is dropped the moment it fires
- * or the Calendar is granted access by any other route.
- *
- * Deliberately NOT time-limited. There is no instant after which a member's own restored identity
- * should stop being honoured, and the listener costs one closure.
- *
- * A STAFF-PIN SESSION THAT RESTORES LATE IS HONOURED TOO (cal-data-10, 10 Nov 2026) — a station PC
- * reloading on a bad connection was shown the sign-in card for good, although the browser held a
- * valid PIN session the boot decision would have granted. It is granted as what `decideAccess` says
- * it is, the viewer, never as a member — and only once its token is seen to carry the claim, the
- * check the unlock itself makes; and never during the PIN card's own exchange, which checks the
- * claim and grants for itself (`_unlocking`). NOR while a member's session is held (sign-in check,
- * 11 Nov 2026): that member's own way back owns the page (CALENDAR_DATA.md 11).
+ * A STAFF-PIN SESSION THAT RESTORES LATE IS HONOURED TOO (cal-data-10) — as the viewer, never as a
+ * member, and only once its token is seen to carry the claim; never during the PIN card's own
+ * exchange, which grants for itself (`_unlocking`); NOR while a member's session is held, whose own
+ * way back owns the page (CALENDAR_DATA.md 11).
  */
 function watchForLateNamedIdentity() {
     const gen = authGeneration();   // a sign-in or sign-out begun after this owns the page (grantLateViewer)
@@ -275,7 +240,7 @@ const memberSessionHeld = () => !!getSession()?.name;
 /**
  * Grant a staff-PIN session that restored after the decision — see `watchForLateNamedIdentity`.
  * Asked again after the token read, because the page may have moved on while it was out.
- * NOR once a sign-in has begun since the watcher was armed (review, 11 Nov 2026): a typed one saves
+ * NOR once a sign-in has begun since the watcher was armed: a typed one saves
  * its session only when it succeeds, so the session check alone granted the PIN underneath it.
  * @param {any} u the restored viewer @param {() => void} stop the watcher's own stop @param {number} gen
  */
@@ -293,10 +258,8 @@ async function grantLateViewer(u, stop, gen) {
 
 /** Commit an access decision exactly once, and let the Calendar start. */
 function grant(/** @type {'named'|'viewer'} */ type) {
-    // A fresh session starts with a clean slate on the CLIENT backoff too. Without this, a member
-    // who fumbled three times at boot, unlocked, and is re-locked hours later (PIN rotation) begins
-    // their next attempt already one failure from the delay — punished for a mistake from a
-    // different sitting. The server's window is authoritative and is not touched by this.
+    // A fresh session starts with a clean slate on the CLIENT backoff too, or a re-lock hours later
+    // begins one failure from the delay. The server's window is authoritative and is not touched.
     resetUnlockFailures();
     document.body.classList.remove('calendar-locked');
     document.body.classList.add('calendar-unlocked');
@@ -308,22 +271,16 @@ function grant(/** @type {'named'|'viewer'} */ type) {
     // together, because both read the state this writes (calendar-access-state.js). Neither is
     // opened from a hook, where the two could be a line apart, or one forgotten.
     //
-    // HERE, AND NOT A LINE EARLIER OR LATER. After the card has gone and the workspace is back: the
-    // write tells the documents, and a document a locked tap was waiting for opens from inside it —
-    // over the Calendar, not over a card about to be taken away. And BEFORE both hooks: the first
-    // render's month read (`_onGranted`) and a re-unlock's repaint (`_onEveryGrant`) must find the
-    // gate open and the old grant's month claims cleared. Against a shut gate the render claims
-    // nothing, and the month sits on "Checking this month" for the session (v20.41: it shipped).
+    // HERE, AND NOT A LINE EARLIER OR LATER. After the card has gone and the workspace is back: a
+    // document a locked tap was waiting for opens from inside the write, over the Calendar. And
+    // BEFORE both hooks: the first render's month read and a re-unlock's repaint must find the gate
+    // open, or the month sits on "Checking this month" for the session.
     _grantedAs = type;
     setCalendarAccess(true);
-    // TWO hooks, because a grant is two different things (v20.41). Building the workspace must happen
-    // ONCE — running it twice would re-wire the swipe handler and re-launch the initial fetch. But
-    // what a re-lock takes away must come back on EVERY grant, and bundling the two into one
-    // one-shot callback was a real dead end: after `handleAccessLost` re-locked, a viewer who entered
-    // the new PIN got the workspace back with the roster reads still shut. That is not a corner —
-    // revoking the viewer's tokens is a documented step of rotating the PIN, so it is the NORMAL
-    // path, and it is the one place the user has already done everything right. The gates are the
-    // write's to reopen (above), not this hook's; the repaint a re-unlock needs is the hook's.
+    // TWO hooks, because a grant is two different things. Building the workspace must happen ONCE
+    // (twice would re-wire the swipe and re-launch the initial fetch); what a re-lock takes away must
+    // come back on EVERY grant — a re-lock is the NORMAL path of rotating the PIN. The gates are the
+    // write's to reopen (above); the repaint a re-unlock needs is the hook's.
     if (_onEveryGrant) { try { _onEveryGrant(); } catch (e) { console.error('[CalendarAccess] the every-grant hook failed', e); } }
     if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] start failed', e); } }
     if (_resolveAccess) { const r = _resolveAccess; _resolveAccess = null; r(); }
@@ -342,7 +299,7 @@ function grant(/** @type {'named'|'viewer'} */ type) {
  * that the error's stack keeps alive.
  *
  * @param {string} pin
- * @param {() => boolean} [stillWanted]  is the card that asked still on screen? (review, 11 Nov 2026)
+ * @param {() => boolean} [stillWanted]  is the card that asked still on screen?
  * @returns {Promise<{ ok: true }|{ ok: false, kind: string, message: string }>}
  */
 export async function unlockWithPin(pin, stillWanted = () => true) {
@@ -360,8 +317,7 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
     /** @type {Response} */
     let res;
     try {
-        // fetchWithTimeout, not a hand-rolled abort: its deadline also covers reading the BODY
-        // (`res.json()` below), which the old one cleared the moment the headers arrived.
+        // fetchWithTimeout: its deadline also covers reading the BODY (`res.json()` below).
         res = await fetchWithTimeout(UNLOCK_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -390,10 +346,9 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
         return { ok: false, kind: f.kind, message: f.message };
     }
 
-    // THE BOOT'S OWN PERSISTENCE CHOICE LANDS FIRST (sign-in check, 11 Nov 2026). On a start-up slow enough
-    // that this card was used first, `authBootstrap`'s member chain landed AFTER the switch below and
-    // MIGRATED the viewer into IndexedDB: the PIN outlived the browser (real SDK, both engines). A boot
-    // that never settles fails closed: still locked, try again.
+    // THE BOOT'S OWN PERSISTENCE CHOICE LANDS FIRST: landing AFTER the switch below, `authBootstrap`'s
+    // member chain MIGRATED the viewer into IndexedDB, and the PIN outlived the browser. A boot that
+    // never settles fails closed: still locked, try again.
     if (!(await bootSettledWithin(BOOT_SETTLE_FOR_UNLOCK_MS))) {
         const f = classifyUnlockFailure({ code: 'boot-pending' });
         return { ok: false, kind: f.kind, message: f.message };
@@ -401,7 +356,7 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
     // A staff-PIN session restored late and was granted while this exchange was out (cal-data-10):
     // there is nothing left to unlock, and signing it out to sign in again would rebuild a working gate.
     if (getAccessType() !== 'none') return { ok: true };
-    // Asked again after the waits, which can run to 45 s (review, 11 Nov 2026): if the card that asked has
+    // Asked again after the waits, which can run to 45 s: if the card that asked has
     // gone, or a member signed in meanwhile, nothing here may sign anybody out or change persistence.
     if (!stillWanted()) return { ok: false, kind: 'superseded', message: '' };
     if (memberSessionHeld()) { window.location.reload(); return { ok: true }; }
@@ -413,12 +368,9 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
         // that identity instead of preparing for ours. There should be nobody here (we are locked),
         // but "should be" is not a guarantee worth betting the boundary on.
         //
-        // **And a failed sign-out ABORTS — it used to be swallowed (v20.35).** The `catch {}` here
-        // said "best effort", which meant the very next line changed persistence with an unexpected
-        // identity still live: the exact move the paragraph above and the module header both say
-        // must never happen. It is the mirror of the fail-open in `shedCalendarViewer`, found in
-        // the same review. Refusing to unlock is the safe failure — the member sees the PIN card
-        // again and retries, and no identity has been moved between persistence modes.
+        // **And a failed sign-out ABORTS** — never swallowed, or the next line changes persistence
+        // with an unexpected identity live. Refusing to unlock is the safe failure: the member sees
+        // the PIN card again and retries, and no identity has moved between persistence modes.
         if (auth.currentUser) {
             try {
                 await signOut(auth);
@@ -470,12 +422,9 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
  */
 export async function lockCalendar() {
     if (getAccessType() !== 'viewer') return;
-    // FAIL CLOSED, BECAUSE THE ALTERNATIVE IS A CONTROL THAT LIES (v20.39, audit §13).
-    // This used to swallow a failed sign-out and reload anyway, on the reasoning that the reload
-    // re-decides from ground truth. It does — and if the sign-out did not take, that ground truth is
-    // "still a viewer", so the Calendar comes back UNLOCKED. Somebody walks away from a shared
-    // machine having pressed Lock and watched the page reload. A button that reports success it did
-    // not achieve is worse than one that fails visibly.
+    // FAIL CLOSED, BECAUSE THE ALTERNATIVE IS A CONTROL THAT LIES. Reloading after a failed sign-out
+    // re-decides "still a viewer", and the Calendar comes back UNLOCKED behind somebody who pressed
+    // Lock and walked away. A button that reports success it did not achieve is worse than a failure.
     await signOut(auth);
     if (isViewerUser(auth.currentUser)) {
         throw new Error('viewer still current after sign-out — Calendar not locked');
@@ -483,13 +432,10 @@ export async function lockCalendar() {
     // Back to the PIN card, not the sign-in card: whoever pressed Lock got in with the PIN, so this
     // is a machine the PIN is used on, and the next person is most likely to want the same route.
     //
-    // A RELOAD, NOT A NAVIGATION TO './#staff-pin' (v24.89). That navigation loads a page only when
-    // the path it starts from differs. From `/index.html` it does — where every test began — but `/`
-    // is how the station opens the Calendar (the start_url, the drawer's Calendar pill), and from
-    // there the target differs by its fragment alone, so the browser only scrolled. The viewer was
-    // signed out, the drawer closed as if locked, and the roster stayed on screen to be browsed:
-    // reproduced in a browser on 22 Oct 2026, and live from late September. Rewriting the address in
-    // place and reloading is the same from every path, and leaves no extra history entry behind.
+    // A RELOAD, NOT A NAVIGATION TO './#staff-pin': from `/` (the start_url, the Calendar pill) the
+    // target differs by its fragment alone, so the browser only scrolls and the roster stays on
+    // screen. Rewriting the address in place and reloading is the same from every path, and leaves no
+    // extra history entry behind.
     history.replaceState(null, '', './' + PIN_FIRST_HASH);
     window.location.reload();
 }
@@ -507,13 +453,10 @@ initLockCards({ unlockWithPin, getAccessType, setWorkspaceHidden, unlockUrl: UNL
 const SKELETON_AFTER_MS = 400;
 
 /** How long the member's silent re-establishment may keep the skeleton up before the sign-in card
- *  goes up anyway (v21.62 — see the boot path). The bound exists for the HANGING attempt, not the
- *  failing one: a wrong-password rejection resolves in well under a second and shows the card at
- *  once, so this only decides how long a stalled network holds the skeleton over a card the member
- *  will probably need. Shorter than `trySilentReauth`'s own 8s ceiling on purpose — the attempt
- *  keeps running behind the card and a late success still grants. */
+ *  goes up anyway (see the boot path) — the bound is for a HANGING attempt (a rejection shows the
+ *  card at once). Shorter than `trySilentReauth`'s own 8s ceiling on purpose: the attempt keeps
+ *  running behind the card and a late success still grants. */
 const SILENT_BEFORE_CARD_MS = 4000;
-
 
 /**
  * Re-establish the member's own Firebase identity with nothing typed, if that is possible.
@@ -524,10 +467,8 @@ const SILENT_BEFORE_CARD_MS = 4000;
  * chose. It is the same page-load re-establishment every other coordinator already performs — the
  * Calendar simply never had a reason to until access depended on it.
  *
- * The RESULT is read from `decideAccess`, never from the boolean. The boolean could once report
- * success on an anonymous fallback (the `ENFORCE_NAMED_SESSION` switch, retired v24.34), and the
- * ground truth is the live user either way: an anonymous identity must never be granted `named`
- * access here — that is the whole substance of v20.12.
+ * The RESULT is read from `decideAccess`, never from the boolean: the ground truth is the live user,
+ * and an anonymous identity must never be granted `named` access here.
  *
  * @param {string} name
  * @returns {Promise<boolean>}
@@ -542,7 +483,7 @@ async function trySilentReauth(name) {
             new Promise(resolve => { bound = setTimeout(resolve, 8000); }),
         ]);
     } catch { /* a failed re-auth is the expected outcome for a migrated member */ }
-    finally { clearTimeout(bound); }   // settled — the 8s bound must not outlive the answer (test audit, 7 Nov 2026)
+    finally { clearTimeout(bound); }   // settled — the 8s bound must not outlive the answer
     try {
         return decideAccess({ session: getSession(), firebaseUser: auth.currentUser }) === 'named';
     } catch { return false; }
@@ -562,12 +503,9 @@ async function trySilentReauth(name) {
  * does a card go up.
  */
 export function handleAccessLost() {
-    // SHUT FIRST, and before anything below can run. The roster reads and the documents both read
-    // this state, so from this line neither can serve this device's saved copy behind the card that
-    // is about to appear — and everything that must follow a loss (what each month was known to be,
-    // the Huddle's subscription, the member's stored copy) is told from inside the write. So a
-    // caller passes this function bare. Nothing has to be closed first, and a route that had to
-    // remember a wrapper could re-lock with the local-cache read still open behind the card.
+    // SHUT FIRST, and before anything below can run: from this line neither the roster reads nor the
+    // documents can serve this device's saved copy behind the card, and everything that must follow
+    // a loss is told from inside the write. So a caller passes this function bare.
     if (hasCalendarAccess()) setCalendarAccess(false);
     // Already locked: the card is up and the reason has been said. (`_grantedAs`, not the state —
     // a refused month read shuts the state before it calls here, and its card is still owed.)
@@ -576,8 +514,7 @@ export function handleAccessLost() {
     _grantedAs = null;
     document.body.classList.remove('calendar-unlocked');
     // The way back in is the way they came in. A MEMBER whose session has gone gets their own
-    // card, never the PIN (CALENDAR_DATA.md 11 — this path sent everyone to the PIN card until
-    // v23.19); a viewer gets the PIN card with the reason written into its message channel.
+    // card, never the PIN (CALENDAR_DATA.md 11); a viewer gets the PIN card with the reason.
     if (wasNamed) {
         const why = 'Calendar access has expired. Sign in again to carry on.';
         const held = getSession();
@@ -606,11 +543,11 @@ export function handleAccessLost() {
  *   Anything of the PAGE's that a re-lock takes away comes back here rather than in `onGranted`, or
  *   it stays away for the rest of the session — see the note in `grant`. The roster reads and the
  *   documents are not among them: `grant` opens both itself, before either hook runs.
- *   paintBeforeDecision (v24.59) puts the member's OWN stored roster in the lock slot while the
+ *   paintBeforeDecision puts the member's OWN stored roster in the lock slot while the
  *   decision runs, and says whether it did. It is NOT a grant: no override read opens, `onGranted`
  *   is not spent, and any card the decision puts up replaces it (the slot never stacks). Not called
  *   on a `#staff-pin` open, which has asked for the PIN.
- *   onAwaitingInput (Oct 2026) is told when a card that needs somebody to TYPE goes up — the PIN
+ *   onAwaitingInput is told when a card that needs somebody to TYPE goes up — the PIN
  *   card or the member's come-back card — so the page's speed sample stops there. Telemetry stays
  *   in calendar-app.js; this module only says when.
  * @returns {Promise<'named'|'viewer'|'none'>}
@@ -629,10 +566,10 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     // Was the PIN card asked for first? Read ONCE and removed whatever the decision (`takePinFirst`).
     const pinFirst = takePinFirst();
 
-    // Say something if the decision is slow (v20.80). Scheduled BEFORE the await, cleared by every
+    // Say something if the decision is slow. Scheduled BEFORE the await, cleared by every
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
     armSkeleton(SKELETON_AFTER_MS);
-    // The member's own roster instead of a skeleton, when this device holds one (v24.59). Mounting it
+    // The member's own roster instead of a skeleton, when this device holds one. Mounting it
     // disarms the skeleton timer, and the skeleton will not replace it (calendar-lock-slot.js).
     if (!pinFirst && paintBeforeDecision) {
         try { paintBeforeDecision(); } catch (e) { console.warn('[CalendarAccess] early paint failed', e); }
@@ -643,15 +580,12 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     try { type = await resolveAccess(); }
     catch (e) { console.error('[CalendarAccess] decision failed', e); type = 'none'; }
 
-    // There is no third, "open" outcome any more. Until v24.34 a `CALENDAR_PIN_ACCESS` switch could
-    // turn `none` into an anonymous, ungated Calendar; it was retired because the rules it relied
-    // on are gone — override and document reads need a member claim or the PIN's `calendarViewer`
-    // (v20.12, v23.18), so the anonymous session it started could read nothing, and flipping it
-    // would have shown the base roster as though it were current. Rollback is reverting a release.
+    // There is no third, anonymous "open" outcome: override and document reads need a member claim or
+    // the PIN's `calendarViewer`, so it could read nothing. Rollback is reverting a release.
     if (type === 'named' || type === 'viewer') { grant(type); return type; }
 
     // Locked. Two things happen before the card goes up, and both exist because the decision above
-    // is a SNAPSHOT of a restore that is not always finished (v20.79).
+    // is a SNAPSHOT of a restore that is not always finished.
     //
     //   · Keep listening. A named identity that lands after the bound now grants instead of being
     //     ignored until the member thinks to reload.
@@ -661,7 +595,7 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     watchForLateNamedIdentity();
     const held = getSession();
     if (!held?.name) {
-        // Nothing held: the front door. Sign-in first (owner decision, v23.19); the PIN card first
+        // Nothing held: the front door. Sign-in first (owner decision); the PIN card first
         // ONLY when asked for by the hash — a "Use the staff PIN instead" sign-out, or a station
         // PC's bookmark (consumed above).
         if (pinFirst) showLockPanel();
@@ -669,37 +603,23 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
         return 'none';
     }
 
-    // ── THE SILENT ATTEMPT RUNS BEHIND THE SKELETON, NOT BEHIND A SIGN-IN CARD (v21.62) ────────
+    // ── THE SILENT ATTEMPT RUNS BEHIND THE SKELETON, NOT BEHIND A SIGN-IN CARD ─────────────────
     //
-    // It used to run behind the member card's disabled "Signing you in…" state — so every member
-    // whose identity restore merely missed the boot budget SAW A SIGN-IN SCREEN, even on the loads
-    // that recovered themselves moments later. The first live month of the start ladder showed 56%
-    // of Calendar opens taking over a second just to restore the identity (LATENCY.md → First
-    // reading), which made that flash a routine experience rather than an edge case — and it is
-    // what staff meant by "the app keeps asking for my password". Behind the skeleton, the loads
-    // that recover (a slow restore, a surname-default member) never show a sign-in surface at all.
-    //
-    // The card is DEFERRED, not withheld: it appears the moment silence definitively fails (a
-    // wrong-password rejection returns in well under a second — and instantly for a member this
-    // device already knows is migrated, see silent-sign-in.js's memory), or at the defer bound if
-    // the attempt is merely hanging — whichever is first. And when it appears it is immediately
-    // actionable, because the waiting it used to represent has already happened.
+    // Behind a card, every member whose restore merely missed the boot budget SAW A SIGN-IN SCREEN —
+    // routine, not an edge case (LATENCY.md → First reading), and what staff meant by "the app keeps
+    // asking for my password". The card is DEFERRED, not withheld: it appears the moment silence
+    // definitively fails (a rejection returns in well under a second — instantly for a member this
+    // device knows is migrated, silent-sign-in.js), or at the defer bound if the attempt is hanging.
     // Put the skeleton up NOW unless it already is — the timer may not have fired when the decision
     // was quick, and whatever else the slot might hold is stale for this boot. `showBootSkeleton`
     // replaces rather than stacks, and its `hideLockPanel` disarms the pending timer.
     if (lockCardId() !== 'calendarBooting') showBootSkeleton();
     const silent = trySilentReauth(held.name);
     /** @type {any} */ let deferTimer = null;
-    // ── THE WAIT MAY NOT BE ABLE TO STRAND THE MEMBER (v21.63, self-review) ─────────────────────
-    //
-    // Before v21.62 the silent attempt was DETACHED — `showMemberPanel` fired it and returned — so
-    // nothing it did could stop the card appearing. Moving it onto the await path to hide the flash
-    // gave away that property: `trySilentReauth` catches everything today, so this cannot reject in
-    // practice, but if a later edit let one through, `initCalendarAccess` would reject, no card
-    // would be built, and the member would sit on the skeleton until `splash-watchdog` fired at 20s.
-    // Restored by catching here rather than by trusting a function three screens away to keep a
-    // promise it never advertised. `false` is the safe answer: it shows the sign-in card, which is
-    // the recoverable state.
+    // ── THE WAIT MAY NOT BE ABLE TO STRAND THE MEMBER ───────────────────────────────────────────
+    // `trySilentReauth` catches everything today, but a rejection let through here would build no
+    // card and leave the member on the skeleton. So it is caught here: `false` shows the sign-in
+    // card, which is the recoverable state.
     const ok = await Promise.race([
         // `finally` clears the defer timer whenever the attempt settles — before the bound (the
         // normal case, where the pending timer would otherwise just linger) or after it (harmless:

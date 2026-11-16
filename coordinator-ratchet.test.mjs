@@ -259,7 +259,9 @@ const CAPS = {
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same
     // kind of rule, pure and shared by every save path that wants it; admin-overrides.js, the caller,
     // is at its own cap. A pure DOMAIN module like links-design.js, so capped where it stands.
-    'override-utils.js':        928,
+    // 928 → 900 (16 Nov 2026, at 928 of 928): changelog narrative in its comments cut to the rule and
+    // its reason (git log keeps the history), 928 lines down to 847 — the ceiling comes down with them.
+    'override-utils.js':        900,
     // 1350 → 1100 at v21.90. The three date-keyed document collections left for
     // documents-client.js — 1,308 measured lines down to 1,033 — taking the upload SEQUENCE with
     // them: signature check, versioned path, and what a failed or ambiguous commit does to the
@@ -399,7 +401,9 @@ const CAPS = {
     // filter cannot fold into another line without hiding the gate from the check that keeps it honest.
     // 1352 → 1300 (Nov 2026, at 1,248) — the extraction named above, done: the App Notices archive's rules left for
     // notice-archive.js (re-exported, so no page's import moved), and the drawer's thrice-told history became one telling.
-    'nav-panel.js':            1300,
+    // 1300 → 1250 (16 Nov 2026, at 1,299): comments that had become a changelog cut to their reasons — the header's
+    // four rules and their measurements kept — 1,299 lines down to 1,153.
+    'nav-panel.js':            1250,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
@@ -537,7 +541,10 @@ const CAPS = {
     // `roster-import-save.js`, the weekly import's Save, which left admin-roster-upload.js for a module
     // of its own. Every module the app serves must be in CORE_ASSETS, one entry per line, and nothing
     // else in the worker grew.
-    'service-worker.js':       1095,
+    // 1095 → 1050 (16 Nov 2026, at 1095 of 1095): comments only — version-by-version history cut to each
+    // rule and its reason, every do-not-revert warning kept, no code and no precache line touched —
+    // 1,095 lines down to 973.
+    'service-worker.js':       1050,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The
@@ -569,7 +576,8 @@ const CAPS = {
     // the two halves of "a card OR the Calendar" now sit together. 746 lines down to 720. The ceiling
     // comes down with the code, less ten lines kept as room for a fix, because a file at its cap fails on
     // a one-line comment (this file's header) and the gate's next fix should not have to extract first.
-    'calendar-access.js':      730,
+    // 730 → 700 (16 Nov 2026): comments that had become a changelog cut to their reasons, 720 lines down to 640.
+    'calendar-access.js':      700,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;
