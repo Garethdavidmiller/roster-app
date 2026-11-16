@@ -734,7 +734,7 @@ test('About panel: one order, one corner, and the tips line up with the keyboard
     test.skip(isTouchProject(info), 'the keyboard rows are a fine pointer\'s');
     await page.setViewportSize({ width: 1366, height: 900 });
     await seedMemberSession(page, 'G. Miller');
-    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); });
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); localStorage.setItem('myb_pc_hpp_notice_2526_shown', '1'); });
     /** Top-to-bottom order of the panel's actions, and each one's corner. */
     const layout = () => page.evaluate(() => [...document.querySelectorAll('#iconLightbox .lightbox-print-btn, #iconLightbox .lightbox-bug-link')]
         .filter(el => /** @type {HTMLElement} */ (el).getClientRects().length)

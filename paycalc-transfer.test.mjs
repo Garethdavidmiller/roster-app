@@ -109,7 +109,7 @@ describe('the export filter and the import filter are one rule', () => {
         'myb_pc_p16', 'myb_pc_grade', 'myb_pc_hpp_est_2026_27', 'myb_pc_snap_16', 'myb_pc_actuals',
         'myb_pc_some_future_thing_2028_29',
         // device flags, active and retired
-        'myb_pc_ns_migrated', 'myb_pc_cea_migrated', 'myb_pc_ytd_notice_2_shown',
+        'myb_pc_ns_migrated', 'myb_pc_cea_migrated', 'myb_pc_ytd_notice_2_shown', 'myb_pc_hpp_notice_2526_shown',
         'myb_pc_pay_welcome_shown', 'myb_pc_ytd_notice_shown',
         // shapes the app does not write today — a key type added later could
         'myb_pc_snap_2026-07-03', 'myb_pc_a.b', 'myb_pc_a b', 'myb_pc_',
@@ -347,7 +347,7 @@ describe('the trust boundary — a backup must not write arbitrary storage', () 
         // `myb_pc_ns_migrated` re-keys it into the member's namespace, where it stops being a browser
         // flag and becomes an unrecognised entry counted by the card whose whole job is to say what
         // the member is carrying, and copied into every backup they take afterwards.
-        for (const flag of ['myb_pc_ns_migrated', 'myb_pc_cea_migrated', 'myb_pc_ytd_notice_2_shown']) {
+        for (const flag of ['myb_pc_ns_migrated', 'myb_pc_cea_migrated', 'myb_pc_ytd_notice_2_shown', 'myb_pc_hpp_notice_2526_shown']) {
             const legacy = JSON.stringify(buildBackup({
                 entries: { 'myb_pc_p16': '{}', [flag]: '1' },
                 member: '', slug: '', appVersion: '19.16',

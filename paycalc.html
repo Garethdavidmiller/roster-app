@@ -1224,6 +1224,30 @@
   </div>
 </div>
 
+<!-- Holiday Pay Premium notice (hpp_2526, 16 Nov 2026 – 8 Jan 2027, v26.22) — second in line, the load
+     after the Year to Date notice above; for a member with a 2025/26 payslip and no figure of their own
+     for that year's premium (paycalc-lightboxes.js). Its link opens the LAST 2025/26 payslip with the
+     Year to Date card open: that payslip's Year to Date box holds the whole year. -->
+<div id="noticeHppLightbox" class="lb-overlay" role="dialog" aria-label="Estimate your January Holiday Pay Premium" aria-modal="true">
+  <div id="noticeHppContent" class="lb-content notice-lb-content">
+    <button id="noticeHppClose" class="lb-close" type="button" aria-label="Close">✕</button>
+    <div class="notice-head">
+      <div class="notice-badge notice-badge--pay">💷 Pay</div>
+      <div class="lightbox-app-name">Estimate your January Holiday Pay Premium</div>
+      <div class="notice-date">Posted 16 Nov 2026</div>
+    </div>
+    <div class="notice-main">
+      <p class="notice-body">Every January, Chiltern pay a <strong>Holiday Pay Premium</strong> to make up for annual leave being paid at your basic rate. This January&rsquo;s is for the <strong>2025/26</strong> tax year.</p>
+      <p class="notice-body">The Pay Calculator wasn&rsquo;t here then, so it has no hours to work yours out from. Your last payslip of that year, paid <strong>13 Mar 2026</strong>, gives a rough figure instead.</p>
+      <p class="notice-body">Copy the <strong>Taxable Pay</strong> from its Year to Date box (bottom left) into <strong>📊 Year to Date Figures</strong>, then in <strong>🏖️ Holiday Pay Premium</strong> choose <strong>Rough estimate from your Year to Date pay</strong>.</p>
+    </div>
+    <div class="notice-actions">
+      <a href="./paycalc.html?payday=2026-03-13#payslipCard" id="noticeHppGo" class="notice-cta">Open your 13 Mar 2026 payslip &rarr;</a>
+      <button id="noticeHppLater" class="notice-later" type="button">Not now</button>
+    </div>
+  </div>
+</div>
+
 <!-- Shared-device data ownership prompt (one-time; v14.25). ✕ = decide later. -->
 <div id="dataOwnerLightbox" class="lb-overlay" role="dialog" aria-label="Is this your pay data?" aria-modal="true">
   <div id="dataOwnerContent" class="lb-content notice-lb-content">

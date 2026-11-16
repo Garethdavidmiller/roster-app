@@ -1244,6 +1244,23 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('the Holiday Pay Premium notice open (pay) — the Pay page\'s own notice, on its own page (v26.22)', async ({ page }) => {
+        // Every Pay page notice is suppressed in this suite, so none had been scanned on the page it opens
+        // over: the green Pay badge was measured on the Calendar's glass (the Year to Date scan above), never
+        // over the calculator. Members with a 2025/26 payslip, 16 November to 8 January, the load after the
+        // Year to Date notice: the seeders mark both answered, so clearing this flag alone is the setup.
+        await page.clock.setFixedTime(new Date('2026-11-20T09:00:00Z'));
+        await seedSession(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            localStorage.removeItem('myb_pc_hpp_notice_2526_shown');
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible({ timeout: 15_000 });
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // The install strip carries the app's only text colours composited over a TRANSLUCENT white
     // overlay on the navy canvas — `--on-navy-raised` under an rgba white body and a fainter rgba
     // white steps line. Contrast there is decided by what is behind it, so no other page's scan

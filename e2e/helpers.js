@@ -74,6 +74,7 @@ export function seedSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 16 Nov – 12 Dec 2026 (v26.21): left out until the 72-hour review (v24.96)
         localStorage.setItem('myb_notice_newlink_2026_done', '1');   // the New link notice, 9 Nov – 5 Dec 2026 (v25.61)
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_hpp_notice_2526_shown', '1');   // the Pay page's premium notice, 16 Nov 2026 – 8 Jan 2027 (v26.22)
         // The Links first-visit panel ("How Links works") joined them at the 1.63 upgrade, for the
         // reason above: it opens after load and covers the burger, and Overtime's every-page sweep
         // dismissed it only if it was ALREADY up — under WebKit 2359 it opened a moment later, every
