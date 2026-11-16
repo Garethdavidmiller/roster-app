@@ -49,6 +49,19 @@
                                 guide-colour-parity.test.mjs does, against every guide field fill (bug and regression check, 13 Nov 2026) */
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
     --rule:      #d6dce5;   /* the section headings' hairline (v25.84) — it shows on both guide grounds */
+
+    /* THE GUIDES' THREE TEXT SIZES (v26.24, owner, 16 Nov 2026) — the app's own body, label and small
+       steps (shared.css `--type-body` / `--type-label` / `--type-small`), under the same names because
+       they ARE the same scale: a guide is read by the people who use the app, minutes apart. Before,
+       each guide had its own sizes, 10.5px to 15px, and four of the five read smaller than the app.
+       Each page's stylesheet applies them ON SCREEN ONLY, in one block at its end, so every printed
+       sheet keeps the sizes it was composed at (the Staff Guide prints one sheet with a few pixels to
+       spare). What keeps its own size: labels, pills and tags, the app's controls drawn on the page,
+       card titles and figures — e2e/guides.spec.js names them, and fails on any other size. */
+    --type-body:  14px;   /* reading — paragraphs, lists and steps */
+    --type-label: 13px;   /* dense — boxes and callouts, card rows, tables, keys */
+    --type-small: 12px;   /* sources, sub-lines, dates and footers */
+    --guide-top:  20px;   /* from the bottom of the header and chips to a guide's first line, on every guide */
 }
 
 /* Force-dark opt-out — the guides don't import shared.css, so this is their belt-and-braces
@@ -97,6 +110,15 @@ h2 {
 }
 h2::before { content: ""; flex: 0 0 14px; border-top: 3px solid var(--gold); border-radius: 2px; }
 h2::after  { content: ""; flex: 1 0 24px; border-top: 1px solid var(--rule); }
+
+/* ── ONE sub-heading, on screen (v26.24) ─────────────────────────────────────────────────────────
+   Two guides have an <h3>: the Rangers guide's notes (13px at 800) and the FIP guide's "What you get"
+   cards (14px at 700, in the text colour). On screen both are the app's card title (shared.css
+   `.card-header h2`): the body size, 700, navy, a hair tight. A page rule sets only an h3's layout; its
+   paper sizes live in that page's print block, so a printed sheet is unchanged. */
+@media screen {
+    h3 { font-size: var(--type-body); font-weight: 700; letter-spacing: -0.01em; line-height: 1.3; color: var(--navy); }
+}
 
 /* ── ONE link, on all five guides (v25.84) ───────────────────────────────────────────────────────
    A link in the text reads as the app's do (css-tokens.md → "A link in prose"): navy at 600, its

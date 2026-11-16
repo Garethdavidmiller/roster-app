@@ -151,6 +151,25 @@ not redefine them.
 - **One link on all five guides** (v25.84): navy at 600 with an underline tinted from the link's own
   colour, gold under a mouse — the app's prose link. guide-doc.css and FIP each kept a copy, the Railcard
   guide turned a link amber under a mouse (amber there means a morning rule), and Rangers had none.
+- **Three text sizes, on screen only** (v26.24, owner, 16 Nov 2026 — 14px picked over 13px). The app's
+  own steps under the app's own names, declared in guide-shell.css's `:root`: `--type-body` 14px for
+  reading (paragraphs, lists, steps), `--type-label` 13px for anything dense (boxes and callouts, card
+  rows, tables, keys), `--type-small` 12px for sources, sub-lines and footers. Before, the guides ran
+  from 10.5px to 15px, and four of the five read smaller than the app. Reading text is in the text
+  colour, not the grey. **Each page applies them in ONE `@media screen` block at the end of its own
+  CSS**, so a printed sheet keeps the sizes it was composed at — the Staff Guide still prints on one
+  sheet. A new rule that sets a size goes in that block, never in the base rule above the print block.
+  Labels, pills and tags, card names and figures, the app's drawn badges (`.sb`, `.pay-rate`) and the
+  controls keep their own sizes; `KEEPS_ITS_OWN_SIZE` in `e2e/guides.spec.js` names them, and
+  "every word on … is in one of the app's three sizes on screen" fails on anything else.
+  "every printed sheet keeps its own" reads a sample on paper.
+- **One sub-heading** (v26.24): on screen an `<h3>` is the app's card title — the body size, 700, navy,
+  `-0.01em`. Its paper size stays in the page's print block. The Railcard's and Rangers' card names are
+  headings by ARIA, not `<h3>`s, so the rule does not reach them. Pinned by "a sub-heading on screen is
+  the app's card title", which builds the app's card title on the Pay page and compares.
+- **One top gap** (v26.24): `--guide-top` (20px) from the bottom of the header and chips to a guide's
+  first line, on all five, at every width. It was 14 to 22px. Pinned by "every guide starts its first
+  line the same space below the header and chips", at 390 and 1280px.
 - **The two document guides' bar** (v25.80): their sections sit in two columns from 641px, where two
   share a line and no scroll position says which is being read, so there a chip is lit only by a jump
   or a link to it, until the reader moves ON — what the jump or link put in place moving, not the
@@ -187,6 +206,9 @@ not redefine them.
   hair apart.
 - **Card corner:** 12px on every guide's cards (v25.84 — the Railcard's were 10px, the Rangers' 8px); a
   box nested in a card keeps a smaller one.
+- **The Pay Calculator Guide's rate cards are one column on screen** (v26.24) and two on paper. Two to
+  a row left each card about 120px of text at the new sizes, on a phone and in the desktop's half-page
+  column alike, so a description ran to nine lines. A4 has the width for two.
 - **Content width:** `max-width: 760px`, centred. For `staff-guide.html`/`paycalc-guide.html` the
   760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not
   the page's own file); `railcard-guide.html`/`fip-guide.html`/`rangers-guide.html` set their own 760px

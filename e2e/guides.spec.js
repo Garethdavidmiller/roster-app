@@ -1989,3 +1989,143 @@ test('staff guide: the badge grid stacks when its pair no longer fits, so larger
         if (k === 1) expect(m.columns, 'a phone keeps the pair at the default size').toBe(2);
     }
 });
+
+// ── THE GUIDES' THREE TEXT SIZES (v26.24, owner, 16 Nov 2026) ───────────────────────────────────────────
+// Each guide had its own sizes, 10.5px to 15px: the Railcard guide's working text was 11.5–12px, the Staff
+// and Pay guides' 12–12.5px and grey, the Rangers guide's 12.5–13px and FIP's 13–15px — four of the five
+// smaller than the app's 14px body. Now every guide sets its words in the app's own three steps, declared
+// once in guide-shell.css: 14px to read, 13px for boxes, rows and tables, 12px for sources and sub-lines.
+// What keeps a size of its own is named here with its reason, so a new size is one of the three or is argued
+// for in this list. Read on screen at a phone's width, with every FIP country open.
+const KEEPS_ITS_OWN_SIZE = {
+    'h1, h2': 'the header title and the section headings — one shared recipe, tested above',
+    '.page-header, .chip-bar, .guide-header': 'the shell\'s header and chips, and the document guides\' printed banner',
+    'button, summary, .btn-primary, .btn-secondary': 'controls — FIP\'s country toggles and its buttons',
+    '.pill, .tag, .tl-tag, .gotcha-tag, .sub-label, .cf-popular-label, th': 'pills, tags and small labels',
+    '.rc-lbl, .rr-lbl, .rr-status-lbl, .rc-layer-lbl, .detail-key, .check-num': 'the labels beside a card\'s rows',
+    '.sb, .pay-rate': 'the app\'s own shift and rate badges, drawn at the app\'s size',
+    '.rc-name, .rr-name, .not-fip-name': 'card names',
+    '.fare-price, .qc-tok': 'a fare, and the quick check\'s symbols',
+    '.pay-emoji, .nav-tip-icon': 'emoji',
+};
+for (const { file } of GUIDE_PAGES) {
+    test(`guides: every word on ${file} is in one of the app's three sizes on screen, labels aside`, async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto(`/${file}`);
+        await page.evaluate(() => document.fonts.ready);
+        const found = await page.evaluate((own) => {
+            document.querySelectorAll('details').forEach(d => { d.open = true; });
+            const root = getComputedStyle(document.documentElement);
+            const steps = ['--type-body', '--type-label', '--type-small'].map(t => root.getPropertyValue(t).trim());
+            /** @param {Element} e */
+            const shown = e => { const r = e.getBoundingClientRect(), s = getComputedStyle(e);
+                return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+            /** @type {Map<string, string>} */
+            const off = new Map();
+            let read = 0;
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+                const words = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
+                const el = n.parentElement;
+                if (words.length < 2 || !el || el.closest(own) || !shown(el)) continue;
+                read += words.length;
+                const size = getComputedStyle(el).fontSize;
+                if (steps.includes(size)) continue;
+                const cls = (el.getAttribute('class') ?? '').trim().split(/\s+/).filter(Boolean).map(c => `.${c}`).join('');
+                const key = `${size} ${el.tagName.toLowerCase()}${cls}`;
+                if (!off.has(key)) off.set(key, words.slice(0, 40));
+            }
+            return { steps, read, off: [...off].map(([k, v]) => `${k} «${v}»`) };
+        }, Object.keys(KEEPS_ITS_OWN_SIZE).join(', '));
+        expect(found.steps, 'the three sizes are the app\'s body, label and small (owner, 16 Nov 2026)').toEqual(['14px', '13px', '12px']);
+        expect(found.read, 'premise: the walk reads the page\'s words').toBeGreaterThan(2000);
+        expect(found.off, `${file}: words in none of the three sizes`).toEqual([]);
+    });
+}
+
+// SCREEN ONLY. A printed sheet keeps the sizes it was composed at — the Staff Guide prints one sheet with a few
+// pixels to spare — so each guide's new sizes sit in a `@media screen` block. One element per guide, read on
+// screen and on paper; and the Pay guide's rate cards, one column on screen and the pair on paper.
+test('guides: the three sizes are the screen\'s, and every printed sheet keeps its own', async ({ page }) => {
+    const CASES = /** @type {Array<[string, string, string, string]>} */ ([
+        ['staff-guide.html', '.page p:not(.lede)', '14px', '10px'],
+        ['paycalc-guide.html', '.pay-desc', '13px', '10.5px'],
+        ['railcard-guide.html', '.rc-row', '13px', '12px'],
+        ['rangers-guide.html', '.rr-notes p', '14px', '13px'],
+        ['fip-guide.html', '.two-up .card p', '14px', '12px'],
+        ['rangers-guide.html', '.rr-notes h3', '14px', '13px'],
+    ]);
+    for (const [file, sel, screen, paper] of CASES) {
+        await page.emulateMedia({ media: 'screen' });
+        await page.goto(`/${file}`);
+        const size = () => page.locator(sel).first().evaluate(el => getComputedStyle(el).fontSize);
+        expect(await size(), `${file} ${sel} on screen`).toBe(screen);
+        await page.emulateMedia({ media: 'print' });
+        expect(await size(), `${file} ${sel} on paper`).toBe(paper);
+    }
+    const columns = () => page.locator('.pay-grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
+    await page.emulateMedia({ media: 'screen' });
+    await page.goto('/paycalc-guide.html');
+    expect(await columns(), 'the rate cards: one column on screen').toBe(1);
+    await page.emulateMedia({ media: 'print' });
+    expect(await columns(), 'the rate cards: the pair on paper').toBe(2);
+});
+
+// ONE SUB-HEADING. The Rangers guide's notes were headed at 13px and 800, the FIP guide's "What you get" cards at
+// 14px and 700 in the text colour. On screen both are now the app's card title, read off an app page's own
+// recipe (a `.card-header h2` built on the Pay page) — compared by colour value, since the app names its navy in
+// oklch and the guides in hex.
+test('guides: a sub-heading on screen is the app\'s card title', async ({ page }) => {
+    await page.goto('/paycalc.html');
+    const app = await page.evaluate(() => {
+        const head = document.body.appendChild(document.createElement('div'));
+        head.className = 'card-header';
+        const h = head.appendChild(document.createElement('h2'));
+        h.textContent = 'Title';
+        const s = getComputedStyle(h);
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+        ctx.fillStyle = s.color; ctx.fillRect(0, 0, 1, 1);
+        return { size: s.fontSize, weight: s.fontWeight, tracking: s.letterSpacing, colour: [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3) };
+    });
+    for (const file of ['rangers-guide.html', 'fip-guide.html']) {
+        await page.goto(`/${file}`);
+        const heads = await page.locator('h3').evaluateAll(els => els.map(el => {
+            const s = getComputedStyle(el);
+            const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d', { willReadFrequently: true }));
+            ctx.fillStyle = s.color; ctx.fillRect(0, 0, 1, 1);
+            return { size: s.fontSize, weight: s.fontWeight, tracking: s.letterSpacing, colour: [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3) };
+        }));
+        expect(heads.length, `premise: ${file} has sub-headings`).toBeGreaterThan(0);
+        const { colour: want, ...wantRest } = app;
+        for (const { colour, ...rest } of heads) {
+            expect(rest, `${file}: a sub-heading's size, weight and tracking`).toEqual(wantRest);
+            expect(Math.max(...colour.map((v, i) => Math.abs(v - want[i]))), `${file}: a sub-heading is the card title's navy`).toBeLessThanOrEqual(2);
+        }
+    }
+});
+
+// ONE TOP GAP. The first line sat 14px under the chips on the Railcard guide, 16px on the document guides on a
+// phone and 22px on a desktop, 20px on FIP and 22px on Rangers. Every guide now starts it `--guide-top` below.
+test('guides: every guide starts its first line the same space below the header and chips', async ({ page }) => {
+    for (const width of [390, 1280]) {
+        await page.setViewportSize({ width, height: 844 });
+        for (const { file } of GUIDE_PAGES) {
+            await page.goto(`/${file}`);
+            await page.evaluate(() => document.fonts.ready);
+            const g = await page.evaluate(() => {
+                const bar = /** @type {Element} */ (document.querySelector('.chip-bar'));
+                const stack = bar.getBoundingClientRect().bottom;
+                /** @param {Element} e */
+                const shown = e => { const b = e.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+                const first = [...document.body.querySelectorAll('*')].find(e => !bar.contains(e)
+                    && (bar.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING) && shown(e)
+                    && e.children.length === 0 && (e.textContent ?? '').trim() && e.getBoundingClientRect().top >= stack - 1);
+                const block = /** @type {Element} */ (first?.closest('p, li, div, h2, h3, table') ?? first);
+                const want = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--guide-top'));
+                return { gap: block.getBoundingClientRect().top - stack, want, what: block.textContent?.trim().slice(0, 30) };
+            });
+            expect(g.want, 'the shared top gap').toBe(20);
+            expect(Math.abs(g.gap - g.want), `${file} at ${width}px: "${g.what}" starts ${g.gap.toFixed(1)}px below the chips`).toBeLessThanOrEqual(1);
+        }
+    }
+});

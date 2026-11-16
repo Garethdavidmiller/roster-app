@@ -392,7 +392,7 @@ h2.section:first-of-type { margin-top: 4px; }
     box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
     padding: 12px 14px;
 }
-.rr-notes h3 { font-size: 13px; font-weight: 800; color: var(--navy); margin-bottom: 8px; }
+.rr-notes h3 { margin-bottom: 8px; }   /* its size and colour on screen: guide-shell.css → "ONE sub-heading" */
 .rr-notes p { font-size: 13px; margin-bottom: 8px; }
 .rr-notes p:last-child { margin-bottom: 0; }
 
@@ -448,6 +448,22 @@ h2.section:first-of-type { margin-top: 4px; }
        tint on paper would read as confirmed. The pill carries it instead, which is text. */
     .rr-card--draft, .rr-card--conflict { background: #fff; }
     h2.section { break-after: avoid; }
+    .rr-notes h3 { font-size: 13px; font-weight: 800; color: var(--navy); }   /* paper keeps its sub-heading; screen: guide-shell.css */
     /* A shadow is a screen's edge; on paper the stripe is the card's, as on the Railcard guide's print. */
     .rr-card, .rr-no-item, .check-item, .rr-notes, .key { box-shadow: none; }
+}
+
+/* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
+   guide-shell.css → "THE GUIDES' THREE TEXT SIZES". The Railcard guide's dialect, in its sizes: the
+   Marylebone note and the key take the label size (they were 12.5px and 12px), the line under a status
+   the small size (11.5px), and the notes at the foot are reading text (13px). Labels, pills and card
+   names keep their own, and so does the quick answer's larger desktop size. Screen only — the print
+   block keeps the composed sheet. */
+@media screen {
+    .key, .rr-chiltern { font-size: var(--type-label); }
+    .rr-status-note { font-size: var(--type-small); }
+    .rr-notes p { font-size: var(--type-body); }
+    /* The first line sits --guide-top under the chips, as on every guide (it was 22px here). */
+    main { padding-top: var(--guide-top); }
+    main > h2.section:first-of-type { margin-top: 0; }
 }

@@ -3278,6 +3278,42 @@ test('paycalc: Replace clears stale hours even when the calendar has nothing els
     expect(errors, 'Uncaught JS exceptions clearing stale hours').toHaveLength(0);
 });
 
+// THE CALENDAR BUTTON IS A MAIN BUTTON AT EVERY WIDTH (v26.24, the aesthetic check of 16 Nov 2026). Fill from
+// calendar — the obvious first action on the page — was 12px below 1024px, the one main button here smaller than
+// Save. It is the family's size everywhere now; its longer label, "Replace with calendar values", fits one line
+// from 360px and takes two balanced lines at 320px rather than clip. The show-more button under Hours wears the
+// button corner with it (it was 8px under 12px fields and buttons). Read against the page's own main-button
+// recipe (`.btn-action`), not a number.
+test('paycalc: Fill from calendar is a main button at every width, and its longer label never clips', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page, 'C. Reen');
+    await seedMember(page, 'C. Reen');
+    await page.goto('/paycalc.html');
+    await page.locator('#periodSelect').selectOption('56');
+    await page.locator('#bhH').fill('7');
+    const btn = page.locator('#fillFromRosterBtn');
+    await expect(btn, 'premise: the longer label is showing').toHaveText('Replace with calendar values');
+    for (const width of [320, 360, 390, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        const m = await btn.evaluate(el => {
+            const main = /** @type {Element} */ (document.querySelector('.btn-action'));
+            const more = /** @type {Element} */ (document.getElementById('hoursShowMore'));
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return {
+                size: getComputedStyle(el).fontSize, mainSize: getComputedStyle(main).fontSize,
+                lines: new Set([...range.getClientRects()].map(r => Math.round(r.top))).size,
+                clipped: el.scrollWidth > el.clientWidth,
+                corner: getComputedStyle(more).borderTopLeftRadius, mainCorner: getComputedStyle(main).borderTopLeftRadius,
+            };
+        });
+        expect(m.size, `${width}px: the calendar button is the size of the page's main buttons`).toBe(m.mainSize);
+        expect(m.clipped, `${width}px: the label is never cut off`).toBe(false);
+        if (width >= 360) expect(m.lines, `${width}px: the longer label fits one line`).toBe(1);
+        expect(m.corner, 'the show-more button under Hours wears the button corner').toBe(m.mainCorner);
+    }
+});
+
 test('paycalc: Replace never clears on incomplete calendar data (base-only)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));

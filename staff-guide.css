@@ -207,3 +207,12 @@
 /* One margin on paper, not two (polish round 2 — see the print block above). Declared after
    guide-doc.css's `@page`, which the Pay Calculator Guide still uses unchanged. */
 @page { size: A4; margin: 7mm 9mm; }
+
+/* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
+   guide-shell.css → "THE GUIDES' THREE TEXT SIZES"; the shared prose is in guide-doc.css. The button,
+   badge, navigation and install descriptions were 11–11.5px. Screen only — the print block keeps the
+   one-sheet layout. */
+@media screen {
+    .feature-desc, .badge-desc, .nav-tip, .install-steps, .marker { font-size: var(--type-label); }
+    .install-os { font-size: var(--type-small); }
+}

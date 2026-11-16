@@ -1018,6 +1018,58 @@ So it stays in — 7.69% of it lands in the estimate — and the card says the f
 high", the rule the back-pay lump already follows (owner, 10 Nov 2026): named, never guessed. A box for
 last January's premium would take it out exactly; that is a separate decision, not made here.
 
+## The guides read at the app's sizes, on screen only — and the rest of the 16 November consistency check (owner, 16 Nov 2026)
+
+**Decided (owner, 16 Nov 2026, "Do all", v26.24):** all four fixes from a whole-app consistency check,
+with the guides at 14px (offered 14px or 13px). The check captured all 14 pages at 390px and 1,280px,
+measured what the browser drew, and dropped every difference already decided on record.
+
+**What changed.**
+1. **The five guides read on the app's three steps**, on screen: 14px for reading, 13px for anything
+   dense (boxes, card rows, tables, keys), 12px for sources and sub-lines, under the app's own token
+   names in `guide-shell.css`. They had run from 10.5px to 15px, and four of the five read smaller than
+   the app. Reading text moved from grey to the text colour; Rangers' and FIP's sub-headings became the
+   app's card title; every guide starts its first line 20px below the chips (it was 14 to 22px). Nothing
+   on record had chosen the old sizes: the guides load none of `shared.css`, so each was typed by hand
+   and nothing compared one guide with another — the gap v25.84 closed for the section headings.
+2. **Pay's "Fill from calendar" is 15px on a phone**, the size of every main button on the page. It was
+   12px there and 15px on a desktop, where it had been raised on purpose as "the obvious first action".
+3. **Operations' group labels are `h2` headings**, as Settings' are. They looked the same and read
+   differently: a screen reader's list of headings named Settings' groups and none of Operations'.
+4. **The show-more buttons on Pay and Trains wear the button corner** (12px, `--radius-button`), not 8px.
+
+**Why screen only.** Every printed sheet was composed at its own sizes — the Staff Guide prints on one
+with a few pixels to spare — and the check found nothing wrong on paper. So the sizes live in one
+`@media screen` block at the end of each guide's stylesheet, and a test reads a sample of each guide on
+paper as well as on screen.
+
+**What it costs.** The Railcard, Staff and Pay guides are longer to scroll. The Pay guide's rate cards
+went to one column on screen, because two to a row left each about 120px of text at the new sizes and a
+description ran to nine lines; paper keeps two.
+
+**Checked and left as they are, so not re-raised:**
+- **The Calendar's header on a phone** differs from the other pages' — kept (owner, 8 Nov 2026); from
+  768px it is the same header, and a test holds that.
+- **The guides' two background greys** — kept apart in v25.84, or the Railcard's Marylebone panel and
+  the Rangers quick answer would vanish into the page.
+- **Two overlay styles** — dark glass for About and the notices, white for sign-in and Tips — by design;
+  and Pay's 10px small print is deliberate.
+- **The Links generator's boxes** measure 13px on a desktop and 16px on a touch screen, which a test holds.
+- **Trains' "Change station" and the grid's "Show every station" stay pills** — they act rather than
+  reveal (`trains.css`), so the show-more corner does not reach them.
+- **Labels, pills and tags, card names and figures, the app's badges drawn in a guide, and controls**
+  keep their own sizes; the three steps are for reading.
+
+**What holds it:** `e2e/guides.spec.js` reads every word of every guide on screen against the three
+sizes, with the exceptions named (`KEEPS_ITS_OWN_SIZE`); reads a sample of each guide on paper; compares
+a guide's sub-heading with the app's card title; and measures the top gap at 390 and 1,280px.
+`e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths and
+checks that its longer label never clips. `e2e/trains.spec.js` and `e2e/paycalc.spec.js` read the
+show-more corners; `card-header-parity.test.mjs` requires the canvas group labels to be `h2`s on both
+pages. Ten mutations — an off-scale sub-line, the sizes reaching paper, the sub-heading's weight, a
+guide's own top margin, two pay columns, a print size removed, the button at 12px, both 8px corners and
+a `<p>` label — each failed its test.
+
 ## No build step — the trade, and the two things that would reopen it
 
 **Status:** Standing (the architecture table's "no bundler" rule) · **Triggers named below; neither

@@ -86,7 +86,7 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 /* NO TILE BEHIND THE EMOJI (v25.84). It sat in a sunken tile "the way the app tiles its badges" — and the
    app took its tiles away (owner, v25.16: css-tokens.md → "No tile behind the emoji"). The emoji now leads
    its title as it does on every app card, and a title that wraps hangs from it. */
-.two-up .card h3 { display: flex; align-items: baseline; gap: 0.25em; font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.two-up .card h3 { display: flex; align-items: baseline; gap: 0.25em; margin-bottom: 4px; }   /* size and colour on screen: guide-shell.css → "ONE sub-heading" */
 .two-up .card p { font-size: 12px; color: var(--mid); line-height: 1.45; }
 /* One column on a phone (polish round 2). Side by side at 390 each card was 174px wide — about 22
    characters of 12px text a line, and 506px tall — so "What you get", the page's teaching opener,
@@ -580,6 +580,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        always stated it; these had not. */
     @page { size: A4 portrait; margin: 13mm 12mm; }
     * { orphans: 2; widows: 2; }
+    .two-up .card h3 { font-size: 14px; font-weight: 700; }   /* paper keeps its card titles; screen: guide-shell.css */
 
     /* The shell prints .page-header as the title banner and hides its
        buttons; here we just drop the remaining screen-only chrome. */
@@ -698,3 +699,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     cursor: pointer;
 }
 .btn-print-country:hover { border-color: var(--navy); }
+
+/* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
+   guide-shell.css → "THE GUIDES' THREE TEXT SIZES". This page was the closest to the scale already —
+   14px detail text, 13px boxes, 12px sources — but its page size was 15px, so the booking steps read
+   larger than everything else, and the "What you get" cards and the section introductions were set
+   smaller (12px and 13px, in grey) under a 14px opening. Labels, tags, country names, buttons and the
+   fare keep their own. Screen only — the print block keeps the composed sheet. */
+@media screen {
+    body { font-size: var(--type-body); }
+    .two-up .card p, .section-intro { font-size: var(--type-body); color: var(--text); }
+    .foot-disclaimer { font-size: var(--type-small); }
+    .content { padding-top: var(--guide-top); }
+}
