@@ -1434,6 +1434,9 @@ The pure co-editing rules for the Links workspace: is this save about to overwri
 - `canAdvanceBaseline(preTs, ourBaseline, preReadOk = true)` — a rename may move our baseline only when nothing changed underneath it; with a revision on both sides it compares those instead.
 - Tested by `links-concurrency.test.mjs`, one case per historical bug; the read-back window end to end in `links-design-store.test.mjs`.
 
+### `admin-tips.js`
+`CARD_TIPS` — the content of every `?` panel on `admin.html`, one entry per card, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins; `adminOnly` lines show to the admin and managers, `staffOnly` to a self-service member. Pure data; `admin-app.js` passes it to `initTipsLightbox`. `al-copy-parity.test.mjs` reads its Annual Leave entry.
+
 ### `admin-boot.js` / `links-boot.js` / `operations-boot.js` / `paycalc-boot.js` / `settings-boot.js`
 The page bootstraps: each imports `init` from its coordinator and calls it, and does nothing else. Both reasons are needed — CSP `script-src 'self'` blocks an inline `init()` in the page, and keeping the call out of the coordinator lets a test import `init` without running the page. The Overtime, Trains and New link boot files are the same shape and sit in their own pages' entries.
 

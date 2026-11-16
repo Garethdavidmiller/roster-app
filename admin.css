@@ -12,37 +12,18 @@
             color: var(--text-dark);
         }
 
-        /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
-        /* overflow-x: clip clips any child that overflows the container at the container
-           boundary — prevents overflow from bleeding into body's 16px right padding
-           (which would hide the blue edge). clip is safe: no scroll container created. */
-        /* v15.90: admin caps at --content-max-width (1100), not the wide --page-max-width. Its
-           week grid is now vertical day-CARDS (not the old wide table), so it no longer needs the
-           extra width — and 1100 both stops the day-cards stretching on a wide monitor AND makes
-           admin consistent with the other tool pages. The calendar is now the only page that keeps
-           the wide cap (its 7-column month grid + Team Week View genuinely earn it). */
+        /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails.
+           overflow-x: clip keeps overflow out of the body's padding without creating a scroll
+           container. Capped at --content-max-width, as every page but the Calendar. */
         .container { max-width: var(--content-max-width); width: 100%; margin: 0 auto; display: none; gap: 12px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
-        /* ── THE TRACK MUST BE ALLOWED TO SHRINK (v23.28) ──────────────────────────────────────
-           Same trap `.selectors` documents below, one level up and far more visible. With no
-           `grid-template-columns`, this grid gets ONE `auto` track, whose automatic minimum is
-           min-content — so a single child that refuses to shrink drags the TRACK wider than the
-           container, and every sibling in it (the header, the member bar, every card) stretches
-           to that width and is then cut off by the `overflow-x: clip` above. The page does not
-           scroll; it is simply clipped, which is why the symptom is the whole screen shaved down
-           its right edge rather than a scrollbar.
-           What made it reachable: at the default text size everything fits, so the track's minimum
-           never bites. Turn Android's font or display size up and the week grid's shift chip
-           ("14:30-23:25") needs ~121px, the grid's min-content passes the viewport, and the whole
-           page goes with it. It appears only AFTER a manager picks a staff member, because that is
-           when the week grid first paints real shifts — which is exactly how it was reported.
-           `minmax(0, …)` lets the track shrink; each card then clips its own overflow, as
-           `.card { overflow: hidden }` already intends, instead of the page doing it for them. */
+        /* ── THE TRACK MUST BE ALLOWED TO SHRINK ──────────────────────────────────────────────
+           With no `grid-template-columns` this grid's one `auto` track has a min-content minimum,
+           so one child that will not shrink widens every sibling, and `overflow-x: clip` then shaves
+           the whole page down its right edge. Unreachable at the default text size; with Android's
+           font size up, the week grid's shift chips reach it. `minmax(0, …)` lets the track shrink,
+           and each card clips its own overflow (css-tokens.md → "A grid track is only as narrow…"). */
         .container { grid-template-columns: minmax(0, 1fr); }
-        /* The items get it too — the pair is the documented idiom (a grid item's own `min-width:
-           auto` is min-content, so a track allowed to shrink can still be held open by its item).
-           Measured honestly: against TODAY's content either line alone is enough, so neither is
-           individually load-bearing and the e2e test's teeth are against removing both. They are
-           kept as a pair because which one binds depends on the content, and the content changes. */
+        /* The items get it too — the pair is the documented idiom: which one binds depends on the content. */
         .container > *, .col-main > *, .col-side > * { min-width: 0; }
         /* The header is <main>'s sibling (inside it, it was not the banner landmark), so it takes here what
            the grid gave it: the page's band, 4px above the first card at every width as on Settings, and
@@ -50,9 +31,7 @@
         .app-header { max-width: var(--content-max-width); margin: 0 auto 4px; }
         body:not(.auth-ready) .app-header { display: none; }
         body.auth-ready .container { display: grid; }
-        /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
-        /* Gap matches the container gap so cards stack with one even rhythm when the
-           layout collapses to a single column on mobile. Overridden per breakpoint below. */
+        /* Column wrappers — flex-column stacks at mobile, grid items at desktop; the container's gap. */
         .col-main, .col-side { display: flex; flex-direction: column; gap: 12px; }
 
 
@@ -96,13 +75,8 @@
         .member-context-bar .fieldpick {
             flex: 1;
             min-width: 0; /* allow shrink so a long name (e.g. "C. Francisco-Charles") can't push the bar past the canvas edge */
-            /* White field (dark text) on the navy bar — matches the desktop col-side variant
-               and every other <select> in the app. The previous navy-translucent field with
-               white text hit an Android bug: with appearance:none the CLOSED control derives
-               its text colour from the selected <option> (dark, for the white dropdown list),
-               so after changing the name it rendered invisible dark-on-navy ("whitespace").
-               A white field keeps closed + open states dark-on-white, always legible. (v12.95)
-               Custom dark chevron (the white one would be invisible on a white field). */
+            /* A WHITE field on the navy bar: with appearance:none Android takes a closed select's
+               text colour from its option, so a navy field went dark-on-navy. Dark chevron to match. */
             -webkit-appearance: none;
             appearance: none;
             background-color: white;
@@ -121,23 +95,14 @@
         .member-context-bar .fieldpick:focus-visible { border-color: var(--accent-gold); }
         .member-context-bar select option { background: white; color: var(--text-dark); }
 
-        /* Sticky member bar on the single-column (mobile/tablet) layout — but ONLY when
-           it's an active selector. Admins/managers switch between staff and lose the
-           "who am I editing?" context as they scroll to Absence / Saved Changes; pinning
-           the bar keeps it in view. Self-service staff are locked to their own name
-           (body.member-locked, set in applyPermissions), so their bar never changes —
-           pinning it would only waste screen. Desktop (>=1024px) pins the col-side copy
-           instead, so this is scoped below that breakpoint. `.container` uses overflow:clip
-           (no scroll container), so sticky is not broken here. */
+        /* Sticky member bar below 1024px, ONLY where it is a selector: an admin or manager keeps
+           "who am I editing?" in view; a self-service member (body.member-locked) has one name, and
+           pinning it would waste screen. `.container`'s overflow: clip leaves sticky working. */
         @media (max-width: 1023px) {
             body:not(.member-locked) .member-context-bar {
                 position: sticky;
-                /* BELOW THE STATUS BAR, NOT UNDER IT (v24.61, iOS audit). A sticky `top: 0` pins to the
-                   scrollport, not to the body's inset padding, so in a home-screen install whose page
-                   runs up under the status bar (viewport-fit=cover on an install that still has
-                   black-translucent) the bar pinned beneath the clock and Dynamic Island once a manager
-                   scrolled — the member's name and the picker trigger in the status-bar touch zone. The
-                   inset is 0 everywhere else, so nothing moves on Android, desktop or a Safari tab. */
+                /* BELOW THE STATUS BAR, NOT UNDER IT: a sticky `top: 0` pins to the scrollport, so an
+                   iOS install running under the status bar pinned it beneath the clock. 0 elsewhere. */
                 top: env(safe-area-inset-top, 0px);
                 z-index: 30; /* above cards (0-1); the fixed bottom bars live at 7400+ */
                 box-shadow: 0 3px 10px -3px rgba(0, 0, 0, 0.4);
@@ -152,32 +117,20 @@
                 height: env(safe-area-inset-top, 0px);
                 background: var(--primary-blue);
             }
-            /* The bar is navy here, and a field's navy ring vanished into it, 1:1 (Nov 2026): the gold ring of
-               the navy Unsaved bar. From 1024px the bar is a white card and the field keeps the navy one. */
+            /* The bar is navy here, so the field takes the gold ring (a navy one is 1:1); from 1024px, navy. */
             .member-context-bar select:focus-visible,
             .member-context-bar .fieldpick:focus-visible { outline: var(--focus-outline-gold); }
         }
 
-        /* The bar's own bottom padding is part of the gap the EYE sees. Below 1024px the bar is a
-           navy strip on a navy canvas, so its 6px of padding is invisible as padding and simply
-           reads as more space: 6px + `.container`'s 12px row gap = 18px between the name field and
-           the card below it — the widest gap on the page, and the one the toggles used to fill.
-           This subtracts the bar's own padding from the row gap, leaving the 12px the container
-           asked for. Same idiom (and same reasoning) as `.app-header { margin-bottom: -8px }` above.
-           A negative margin in a GRID shrinks the item's margin box and the gap is measured from
-           there, so the next row moves up WITHOUT the sticky bar overlapping the card's rounded
-           top corner — measured on mobile-chrome, not assumed. Scoped below 1024px because on
-           desktop the bar is a white card in `.col-side`, where that padding is card padding and
-           reads correctly. (v21.43) */
+        /* Below 1024px the navy bar's 6px bottom padding reads as gap on the navy canvas (18px, not
+           the container's 12), so it is taken back. A negative margin in a GRID shrinks the margin box,
+           so the next row moves up WITHOUT the sticky bar overlapping the card (measured). */
         @media (max-width: 1023px) {
             .member-context-bar { margin-bottom: -6px; }
         }
 
-        /* Phone (<=768px, where the body side padding is a flat 10px): the member bar runs
-           edge-to-edge as a full-bleed top strip instead of a rounded floating chip — it's
-           navy like the canvas, so the rounded corners barely showed and read as a chip.
-           Negative margins cancel the body's side padding; the padding is restored (+12px) so
-           the field stays aligned with the cards. Tablet/desktop keep the rounded card. */
+        /* Phone: the member bar runs edge to edge (its rounded corners on the navy canvas read as a
+           chip); the padding is restored so the field stays aligned with the cards. */
         @media (max-width: 768px) {
             .member-context-bar {
                 border-radius: 0;
@@ -191,41 +144,23 @@
         /* ---- Selectors row (week nav only) ---- */
         .selectors {
             display: grid;
-            /* minmax(0, 1fr) — NOT plain 1fr. A 1fr track has an implicit min
-               of min-content, so the grid item (the week-nav field-group) refuses
-               to shrink below its content width; the date label then can't
-               ellipsise and the 📍 pin button overruns the card, getting clipped
-               by .card { overflow: hidden }. minmax(0, …) lets the track shrink. */
+            /* minmax(0, 1fr), NOT 1fr, whose min-content minimum stops the date label ellipsising
+               and pushes the 📍 button off the card. */
             grid-template-columns: minmax(0, 1fr);
             gap: 10px;
             align-items: end;
             margin-bottom: 12px;
         }
-        /* Grid item must also be allowed to shrink below its content for the
-           track's min:0 to actually take effect (pairs with the date-wrap's
-           own min-width:0 and the label's overflow:hidden + ellipsis). */
+        /* …and the item too, for the track's min:0 to take effect. */
         .selectors .field-group { min-width: 0; }
 
-        /* ---- "Recording for <name>" — the AL and Absence cards' owner line (v22.45) ----
-           Shown ONLY to a manager or admin, because only they can change the selected member; a
-           self-service member has one possible answer and a row stating it would be noise. Both
-           cards use this one component: they ask the same question, so they must not answer it in
-           two shapes.
-
-           `display: flex` out-specifies the `hidden` attribute's UA rule, so the `[hidden]` line
-           below is load-bearing — without it the row renders empty for every self-service member
-           and nothing throws. That is the trap page-visibility-parity.test.mjs exists for, and the
-           .al-banner rule directly beneath hit it first.
-
-           Gold, not the AL or absence colour: it is a statement about WHO, shared by two cards with
-           different palettes, and it must not read as part of the banner it sits above. The name
-           wraps rather than truncating (`overflow-wrap: anywhere`) — the longest roster name is 23
-           characters and an ellipsised person is not identified. That length is also why the row is
-           NOT in the `.card-header-actions` cluster: beside the AL-left chip, the `?` and the chevron
-           it would either wrap the title or ellipsise to something that no longer names a person.
-           And it sits OUTSIDE `#alBanner` deliberately — the banner hides itself when the entitlement
-           is unknown, and the state where a manager most needs the name must not be the state that
-           removes it. Both cards share this ONE component on purpose: they ask the same question. */
+        /* ---- "Recording for <name>" — the AL and Absence cards' owner line ----
+           ONLY for a manager or admin, who can change the member; both cards share this ONE component.
+           Gold, not AL or absence: it says WHO, and must not read as part of the banner. The name
+           WRAPS — an ellipsised person is not identified — which is also why it is NOT in the
+           `.card-header-actions` cluster, where it would wrap the title or lose the name. And it sits
+           OUTSIDE `#alBanner`, which hides when the entitlement is unknown: the state where a manager
+           most needs the name must not remove it. The `[hidden]` rule below is load-bearing. */
         .card-member-for {
             display: flex;
             align-items: baseline;
@@ -253,13 +188,8 @@
         .al-banner {
             display: flex;
             align-items: center;
-            /* THE OVER-LIMIT MESSAGE NEEDS A LINE, NOT A GAP (v23.78). It is a third flex item on a
-               row whose four stats already refuse to shrink below their content (see the v23.45 note
-               below), so on a phone there was nothing left to give it: at 390px it collapsed to a
-               ~10px sliver and `#book-annual-leave`'s `overflow-x: hidden` cut it, rendering
-               "1 over limit" as one character per line, clipped. Wrapping lets it take its own line
-               under the figures — which is where it belongs anyway, since it qualifies REMAINING
-               rather than sitting beside it. Owner-reported on J. Haque's −1, 14 Sep 2026. */
+            /* THE OVER-LIMIT MESSAGE NEEDS A LINE, NOT A GAP: beside four stats that will not shrink
+               it collapsed to a sliver on a phone. It wraps to its own line under the figures. */
             flex-wrap: wrap;
             gap: 10px;
             background: var(--al-light);
@@ -270,9 +200,8 @@
             font-size: var(--type-label);
             color: var(--primary-blue);
         }
-        /* `display: flex` out-specifies the `hidden` attribute's UA `display: none`, so without this
-           the AL entitlement banner rendered EMPTY above the booking form before any member was
-           selected. Found by page-visibility-parity.test.mjs; same trap as #calendarControls. */
+        /* `display: flex` out-specifies the `hidden` attribute: without this the banner draws empty
+           (page-visibility-parity.test.mjs). */
         .al-banner[hidden] { display: none !important; }
         .al-banner .al-banner-icon { font-size: var(--type-medium); flex-shrink: 0; }
         /* Four stats on one row — flex with dividers, matching the index lightbox layout */
@@ -286,31 +215,14 @@
             /* --al-text on --al-light: the AA pair the paycalc BH badge was fixed with (A11Y_BASELINE.md). */
             color: var(--al-text);
         }
-        /* Weight 600→700 and letter-spacing 0.4→0.5px (v18.86) to match `.field-eyebrow` in
-           shared.css — the app's uppercase micro-label convention, and what `.week-grid-header`
-           a few hundred pixels down this same page already uses. Two micro-labels that close
-           together should not be set differently; the difference here was drift, not intent. */
-        /* `text-align: center` since the entitlement label carries its year ("2026 entitlement", Nov 2026):
-           it wraps at a phone's width, and the stat's `align-items: center` centres the BOX, not the lines
-           inside it, so "2026" sat at the left of a column whose figure is centred. */
+        /* The app's micro-label (`.field-eyebrow`). Centred text: the year-bearing label wraps on a phone,
+           and `align-items: center` centres the box, not its lines. */
         .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
-        /* WRAPS, as the Calendar's twin does (Nov 2026): `nowrap` made it as wide as the Boxing Day sentence
-           and the card cut the banner off. Quieter by size and colour, never a fade (3.47:1 at 0.75). */
+        /* WRAPS, as the Calendar's twin does, or the card cuts the banner. Quieter by size and colour, never a fade. */
         .al-banner-stat .stat-breakdown { font-size: 9px; line-height: 1.25; text-align: center; color: var(--text-mid); }
-        /* FOUR STATS ON ONE ROW STOP FITTING BELOW 360px, AND THE CARD CLIPS THEM (v23.45).
-           `.al-banner-stat` is `flex: 1`, whose default `min-width: auto` will not shrink a box
-           below its content — and "ENTITLEMENT" is one unbreakable word, the widest label of the
-           four. So the row needs a fixed 304px whatever the viewport, `#book-annual-leave` is
-           `overflow-x: hidden`, and the surplus is CUT rather than scrolled: measured 38px lost at
-           320, 28 at 330, 3 at 355, and none from ~356 up. The figure itself survives (it is centred in its
-           stat); the label reads "ENTITLEM". Unchanged since v20.96 — this is not a regression, it
-           is a width nobody measured.
-           Wrapping to 2x2 rather than shrinking, because every alternative loses information: an
-           ellipsis makes it "ENTITLEME…", `overflow-wrap` breaks it mid-word, and a smaller type
-           size on a micro-label is unreadable. The dividers go with the single row — they separate
-           columns, and there are no longer four of those. Bounded at 359px: the measured break is
-           ~356, and the extra three pixels sit under the common 360 breakpoint rather than inside
-           it, so every width that already worked keeps the row it had. */
+        /* FOUR STATS ON ONE ROW STOP FITTING BELOW ~356px: "ENTITLEMENT" will not shrink, and the card
+           CUTS the surplus. So 2×2 there — an ellipsis, a mid-word break or a smaller micro-label all
+           lose information — and the dividers go with the single row. 359px keeps every working width. */
         @media (max-width: 359px) {
             .al-banner-numbers { flex-wrap: wrap; row-gap: 6px; }
             .al-banner-stat    { flex: 1 1 45%; }
@@ -325,8 +237,7 @@
             background: var(--al-warning-bg);
             border-radius: 4px;
             padding: 2px 7px;
-            /* Its own full-width line beneath the figures. `margin-left: auto` pushed it to the right
-               of a row that had no room to give — the mechanism of the defect above. */
+            /* Its own full-width line beneath the figures. */
             flex-basis: 100%;
             text-align: center;
         }
@@ -383,23 +294,12 @@
             cursor: not-allowed;
         }
 
-        /* The member select in the context bar is locked for non-admins (they can only view
-           their own data), but it should look like a normal display box — not a greyed-out
-           disabled input. Higher specificity (0,2,1) beats select:disabled (0,1,1).
-
-           `#fieldMemberTrigger` IS the control the reader sees (select-sheet.js, v23.33): the
-           select itself is 1px and invisible, and the trigger button carries the value. A class
-           travels to the trigger for free — it is built from `select.className` — but an ID cannot,
-           so from v23.33 until this release the rule un-greyed a control nobody can see while the visible
-           one took the generic `select:disabled, .fieldpick:disabled` grey plus shared.css's
-           `opacity: .55`. Every non-admin's member field read as broken rather than as locked, and
-           nothing threw: `:disabled` is a state no screenshot baseline captures.
-           Enforced now by select-sheet-parity.test.mjs contract 4. */
+        /* The member field is locked for non-admins, but must read as a normal field — the enabled
+           sunken fill, not the disabled grey. `#fieldMemberTrigger` is the control the reader sees (the
+           select is 1px): an ID does not travel to the trigger as a class does, so both are named
+           (select-sheet-parity.test.mjs contract 4). */
         #fieldMember:disabled,
         #fieldMemberTrigger:disabled {
-            /* Locked for non-admins but must read as a normal field, not
-               disabled — so it matches the enabled sunken fill, not the
-               darker --field-bg-disabled grey. */
             background-color: var(--field-bg);
             color: var(--text-dark);
             cursor: default;
@@ -407,18 +307,13 @@
         }
 
         /* ---- Week navigation ---- */
-        /* Spacing is ONE gap (v18.89). It used to be assembled from three different mechanisms —
-           gap:0 on the row, `padding: 0 4px` on the date wrap, and `margin-left: 4px` on the today
-           button — so the four controls sat at uneven distances that no single value governed.
-           (The COLOUR differences are deliberate and stay: navy for the two steppers, gold for
-           jump-to-today, matching the calendar's gold Today button, and a white field between.) */
+        /* Spacing is ONE gap. The colours are deliberate: navy steppers, gold jump-to-today (as the
+           Calendar's Today button), a white field between. */
         .week-nav {
             display: flex;
             align-items: center;
-            /* 4px, not the 6px v18.89 set (v18.91). Three gaps take 3× whatever this is straight out
-               of the flexible date-wrap, and 6px left the longest cross-month labels ~5px short at
-               375px. Measure this row at 375px before raising it — the label is the first thing to
-               lose, and it loses the 📅 affordance first. */
+            /* 4px: three gaps come out of the date label, the first thing to lose width at 375px.
+               Measure this row at 375px before raising it. */
             gap: 4px;
             min-width: 0; /* allow the flex row to shrink so the date-wrap can ellipsise rather than push the 📍 pin off the card edge */
         }
@@ -454,13 +349,8 @@
             font-size: var(--type-micro);
             gap: 4px;
         }
-        /* AN ICON THAT NEEDS THE GUIDE IS A WEAKER CONTROL THAN A WORD (v22.23, external review).
-           The pin was icon-only everywhere, and "📍" does not say "jump to the current week" to
-           anyone who has not been told. It says it now wherever there is room — and there is only
-           room on the wide layout, where the nav spans the column: at 390px the four controls share
-           a 338px row whose date label is already the first thing to lose (see the `gap: 4px` note
-           on `.week-nav`), so a word here would be paid for by the label that names the week.
-           `aria-label` carried the meaning to screen readers all along; this is for everyone else. */
+        /* AN ICON THAT NEEDS THE GUIDE IS A WEAKER CONTROL THAN A WORD: "Today" wherever there is
+           room — the wide layout only, since on a phone it would be paid for by the week's label. */
         .week-today-word { display: none; }
         @media (min-width: 1024px) {
             .week-today-word { display: inline; }
@@ -474,11 +364,8 @@
             position: relative;
             min-width: 0; /* allow flex shrink below min-content so the ● button always has room */
         }
-        /* A <button> since v23.38 (was a <span> under an invisible <input type="date">). It is the
-           TRIGGER for the app's own calendar now, so it has to be focusable and clickable — but the
-           box must stay byte-identical, because the 375px fit of all 57 week labels is a measured
-           property (responsive.spec.js) and a UA button font would change every one of them. Hence
-           `font-family: inherit` and `appearance: none`: a button inherits neither. */
+        /* A <button>, the app's date picker's trigger, whose box must match the measured 375px fit
+           of every week label (responsive.spec.js) — hence `font-family: inherit` and `appearance: none`. */
         .week-nav-label {
             display: block;
             width: 100%;
@@ -503,12 +390,8 @@
         @media (hover: hover) and (pointer: fine) {
             .week-nav-label:hover { border-color: var(--border-mid); }
         }
-        /* The affordance that the week is tappable — the label itself is the trigger. A CHEVRON
-           since v23.69, not the 📅 it carried before: Team View's week label is the same control
-           (this file and index.css have both said so), it gained an affordance in the same release,
-           and two identical controls wearing different marks is the drift worth spending a line to
-           avoid. The chevron is also what `.fieldpick` puts on every picker trigger, and what opens
-           here is a picker. `--caret-chevron` is declared once in shared.css. */
+        /* The affordance that the week label opens a picker: the CHEVRON every picker trigger wears,
+           as Team View's identical week label does (`--caret-chevron`, shared.css). */
         .week-nav-label::after {
             content: '';
             display: inline-block;

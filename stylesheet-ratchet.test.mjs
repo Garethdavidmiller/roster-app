@@ -61,14 +61,16 @@ const CAPS = {
     'shared.css':     3849,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).
-    'admin.css':      2650,
+    // 2650 → 2600 (16 Nov 2026 (tidy-up), at 2,506): comments that had become a changelog cut to their reasons.
+    'admin.css':      2600,
     'links.css':      2650,
     // 2150 → 2300 (14 Nov 2026, at 2,244), a deliberate RAISE: the Annual leave sheet card is a new
     // surface and this page's alone — a summary, a fold per person, chips and day rows, in 112 compact
     // lines; the Save's questions, boxes and receipt brought it to 2,288 (v26.13). A dead-rule sweep
     // found nothing to delete first: every class the sheet styles is emitted, the speed-* and al-sheet-*
     // modifiers by template.
-    'operations.css': 2300,
+    // 2300 → 2250 (16 Nov 2026 (tidy-up), at 2,159): comments that had become a changelog cut to their reasons.
+    'operations.css': 2250,
     // 2100 → 1950 on 8 Nov 2026, brought DOWN (2,099 measured lines to 1,891): changelog comments cut
     // to their reasons, and rules that shared.css's `.hidden` or an identical twin already set.
     'paycalc.css':    1950,
