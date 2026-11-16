@@ -526,3 +526,73 @@ describe('the shared viewer account — tamper and identity', () => {
         assert.equal(isViewerAccount(null), false);
     });
 });
+
+// ── THE STATION-WIDE BLOCK, TOLD (owner, Nov 2026) ──────────────────────────────────────────────
+// The rules behind the admin's notice and Operations' strip. The record holds times and counts and
+// nothing else; the notice goes at most once a day; and the words carry no PIN and no address.
+describe('the station-wide block: the record, the once-a-day notice, and what Operations sees', () => {
+    const { LOCKOUT_RECORD_KEY, LOCKOUT_ALERT_GAP_MS, LOCKOUT_RECENT_MS, noteGlobalBlock, lockoutSummary, lockoutNoticeWords } =
+        require('./functions/calendar-viewer-auth.js');
+    const T0 = Date.UTC(2026, 10, 16, 14, 5);
+    const until = (/** @type {number} */ t) => t + GLOBAL_THROTTLE.blockMs;
+
+    test('the record key cannot collide with a source key, and is not the all-sources one', () => {
+        assert.doesNotMatch(LOCKOUT_RECORD_KEY, /^[0-9a-f]{32}$/);
+        assert.notEqual(LOCKOUT_RECORD_KEY, GLOBAL_SOURCE_KEY);
+    });
+
+    test('the first block ever: recorded, and the admin is told', () => {
+        const { next, alert } = noteGlobalBlock(null, T0, until(T0));
+        assert.equal(alert, true);
+        assert.deepEqual(next, { blocks: [T0], blockedUntil: until(T0), alertedAt: T0 });
+    });
+
+    test('inside the gap: recorded, not told; at the gap: told again', () => {
+        const first = noteGlobalBlock(null, T0, until(T0)).next;
+        const soon = noteGlobalBlock(first, T0 + LOCKOUT_ALERT_GAP_MS - 1, until(T0 + LOCKOUT_ALERT_GAP_MS - 1));
+        assert.equal(soon.alert, false);
+        assert.equal(soon.next.alertedAt, T0, 'the stamp is not moved by a block that was not told');
+        assert.equal(soon.next.blocks.length, 2);
+        assert.equal(noteGlobalBlock(first, T0 + LOCKOUT_ALERT_GAP_MS, until(T0 + LOCKOUT_ALERT_GAP_MS)).alert, true);
+    });
+
+    test('a stamp from a clock far AHEAD cannot hold the notices off for ever', () => {
+        assert.equal(noteGlobalBlock({ blocks: [], alertedAt: T0 + 30 * LOCKOUT_ALERT_GAP_MS }, T0, until(T0)).alert, true);
+    });
+
+    test('blocks older than a day are dropped, and the list is bounded', () => {
+        const old = noteGlobalBlock(/** @type {any} */ ({ blocks: [T0 - LOCKOUT_RECENT_MS, T0 - 1000, 'x', NaN] }), T0, until(T0)).next;
+        assert.deepEqual(old.blocks, [T0 - 1000, T0]);
+        const many = noteGlobalBlock({ blocks: Array.from({ length: 500 }, (_, i) => T0 - 500 + i) }, T0, until(T0)).next;
+        assert.ok(many.blocks.length <= 100);
+        assert.equal(many.blocks.at(-1), T0);
+    });
+
+    test('a corrupt record is read as none, never thrown on', () => {
+        for (const bad of [null, undefined, 'x', 42, { blocks: 'nope', alertedAt: 'yesterday', blockedUntil: {} }]) {
+            const { next, alert } = noteGlobalBlock(/** @type {any} */ (bad), T0, until(T0));
+            assert.equal(alert, true);
+            assert.deepEqual(next.blocks, [T0]);
+        }
+    });
+
+    test('Operations: running, recently ended, or nothing to say', () => {
+        const rec = noteGlobalBlock(null, T0, until(T0)).next;
+        assert.deepEqual(lockoutSummary(rec, T0 + 60_000), { active: true, blockedUntil: until(T0), lastBlockedAt: T0, blocks: 1 });
+        assert.equal(lockoutSummary(rec, until(T0) + 60_000)?.active, false, 'ended, and still news');
+        assert.equal(lockoutSummary(rec, T0 + LOCKOUT_RECENT_MS), null, 'a day on, nothing to say');
+        assert.equal(lockoutSummary(null, T0), null);
+        assert.deepEqual(Object.keys(lockoutSummary(rec, T0) || {}).sort(), ['active', 'blockedUntil', 'blocks', 'lastBlockedAt'],
+            'times and counts: no alert stamp, no source');
+    });
+
+    test('the notice: one event headline, a count and a London time — no PIN, no exclamation', () => {
+        const winter = lockoutNoticeWords({ blockedUntil: Date.UTC(2026, 10, 16, 14, 20) });
+        assert.deepEqual(winter, {
+            headline: 'Staff PIN — blocked station-wide',
+            body: `${GLOBAL_THROTTLE.maxFailures} wrong entries in 15 minutes. It reopens by itself at 14:20.`,
+        });
+        assert.match(lockoutNoticeWords({ blockedUntil: Date.UTC(2026, 6, 16, 14, 20) }).body, /at 15:20\.$/, 'BST');
+        assert.doesNotMatch(JSON.stringify(winter), /!/);
+    });
+});

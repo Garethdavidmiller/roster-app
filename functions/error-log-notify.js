@@ -18,9 +18,8 @@
  *
  * The ADMIN only: roster-members.json `roles.admin`, today the owner alone ("only for my login the
  * master admin", 13 Nov 2026). Never a manager, who cannot open the Error Log. Each name is resolved to
- * its account, and the account must be enabled and carry the `admin` claim or it is dropped: an account
- * Set up accounts has not made an admin is not told about a log it cannot read. No account left sends
- * nothing — `sendTargetedPush` never widens.
+ * its account, and the account must be enabled and carry the `admin` claim or it is dropped — the one
+ * rule every admin notice shares, ./admin-recipients.js. No account left sends nothing.
  *
  * ── THE RECORD: errorLogNotice/state ─────────────────────────────────────────────────────────────
  *
@@ -39,9 +38,8 @@
  * Server only: firestore.rules refuses every client read and write of `errorLogNotice`.
  */
 
-const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
-const { nameToEmail } = require('./roster-parse-helpers');
+const { enabledAdminUids } = require('./admin-recipients');
 const { buildPushPayload } = require('./push-notices');
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { noticeDue, summariseNewEntries, noticeWords, NOTICE_SCAN_LIMIT } = require('./error-log-notice');
@@ -50,25 +48,6 @@ const { noticeDue, summariseNewEntries, noticeWords, NOTICE_SCAN_LIMIT } = requi
 const toMs = (t) => (t && typeof t.toMillis === 'function' ? t.toMillis() : null);
 /** The record as the pure rule reads it. @param {any} data */
 const asState = (data) => (data ? { announcedThroughMs: toMs(data.announcedThrough), lastAttemptMs: toMs(data.lastAttemptAt) } : null);
-
-/**
- * The accounts that may be told: an admin name's own account, enabled, carrying the `admin` claim.
- * @param {string[]|undefined} names  roster-members.json roles.admin
- * @returns {Promise<string[]>} uids
- */
-async function adminUids(names) {
-    const uids = [];
-    for (const name of names || []) {
-        try {
-            const user = await getAuth().getUserByEmail(nameToEmail(name));
-            if (user && user.uid && !user.disabled && user.customClaims && user.customClaims.admin === true) uids.push(user.uid);
-            else console.warn('[errorLog] not an enabled admin account, so not told:', name);
-        } catch (e) {
-            console.warn('[errorLog] could not resolve the admin account for', name, e && e.code);
-        }
-    }
-    return uids;
-}
 
 /**
  * One check: seed the record, wait out the hour, or count what is new and tell the admin.
@@ -115,7 +94,7 @@ async function notifyAdminOfErrorLog({ vapidPrivate, vapidPublic, STAFF_SITE_URL
     });
     if (!claimed) return { outcome: 'claimed elsewhere' };
 
-    const uids = await adminUids(roster && roster.roles && roster.roles.admin);
+    const uids = await enabledAdminUids(roster && roster.roles && roster.roles.admin, '[errorLog]');
     let accepted = 0;
     if (uids.length > 0) {
         setupWebPush(vapidPrivate, vapidPublic);

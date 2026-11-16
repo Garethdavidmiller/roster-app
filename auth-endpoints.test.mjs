@@ -225,6 +225,7 @@ function makeDb(seed = {}) {
  *
  * @param {object}  o
  * @param {boolean} o.adminResolves  can the admin NAME be resolved to a uid at all
+ * @param {object}  o.adminAccount   the admin's account record when it resolves (merged over its uid)
  * @param {number}  o.pushAccepts    how many subscriptions accept each targeted push (0 = nobody)
  * @param {number}  o.claimTxFail    the error code the reset request's CLAIM transaction (its second)
  *                                  rejects with — ABORTED (10), NOT_FOUND (5), or anything else
@@ -253,6 +254,9 @@ function makeDb(seed = {}) {
  */
 function build({
     adminResolves = true,
+    // What the admin's account looks like when it does resolve: enabled and carrying the `admin`
+    // claim, as Set up accounts stamps it. A test of the strict recipient rule overrides it.
+    adminAccount = { customClaims: { admin: true, name: ADMIN, member: ADMIN } },
     pushAccepts = 1,
     pushFail = null,
     pushHangs = false,
@@ -353,7 +357,7 @@ function build({
             if (users.has(email)) return users.get(email);
             if (email === emailFor(ADMIN)) {
                 if (!adminResolves) return notFound();
-                return { uid: ADMIN_UID, email };
+                return { uid: ADMIN_UID, email, ...adminAccount };
             }
             // Any other roster member resolves — these endpoints only ever ask about names they
             // have already checked against the server-owned list.
@@ -522,6 +526,23 @@ describe('the reset request tells the ADMIN, and only the admin', () => {
         assert.equal(sends.length, 0);
         // ...and the REQUEST still succeeds. The row in Firestore is the doorbell; the push is a
         // courtesy on top, and losing the courtesy must never lose the request.
+        assert.equal(out.code, 200);
+    });
+
+    // ONE RULE FOR EVERY ADMIN NOTICE (Nov 2026 review). This lookup took whatever account held the
+    // admin's derived address, while the Error Log's required it to be enabled and carry the claim —
+    // the loose one was the notice that names a locked-out colleague. Both now ask enabledAdminUids.
+    test('an account at the admin\'s address WITHOUT the admin claim is not told — and nothing widens', async () => {
+        const { eps, sends } = build({ adminAccount: { customClaims: { name: ADMIN, member: ADMIN } } });
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(sends.length, 0, 'an account Set up accounts never made an admin is not the admin');
+        assert.equal(out.code, 200, 'and the request is still recorded');
+    });
+
+    test('a DISABLED admin account is not told either', async () => {
+        const { eps, sends } = build({ adminAccount: { disabled: true, customClaims: { admin: true } } });
+        const out = await call(eps.requestPasswordReset, reqFor(MEMBER));
+        assert.equal(sends.length, 0);
         assert.equal(out.code, 200);
     });
 
@@ -1939,7 +1960,7 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
         const { eps } = build({ existingUsers: fullyProvisioned() });
         const out = await call(eps.getAccountSetupGaps, getReq());
         assert.equal(out.code, 200);
-        assert.deepEqual(out.body, { setUp: [], leavers: [] });
+        assert.deepEqual(out.body, { setUp: [], leavers: [], pinLockout: null });
     });
 
     test('a member with no account comes back BY NAME', async () => {
@@ -2020,6 +2041,50 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
             const { eps } = build({ existingUsers: fullyProvisioned() });
             const out = await call(eps.getAccountSetupGaps, asAdmin({}));
             assert.equal(out.code, 405);
+        });
+    });
+
+    // ── THE STAFF PIN'S STATION-WIDE BLOCK, ON THE SAME ANSWER (owner, Nov 2026) ─────────────────
+    // Three states, and the client tells them apart: an object (a block running or begun in the last
+    // day), null (none), and ABSENT (the record could not be read). A read failure must cost only the
+    // field — never the audit — and must never come back as null, which would read as "the door is fine".
+    describe('and it says whether the staff PIN is blocked for everyone', () => {
+        const NOW = Date.now();
+        const MIN = 60_000;
+        const record = (o) => ({ viewerAttempts: { '_lockout-record': o } });
+
+        test('a block running now comes back as times and a count — and nothing else', async () => {
+            const { eps } = build({ existingUsers: fullyProvisioned(),
+                seed: record({ blocks: [NOW - 2 * MIN], blockedUntil: NOW + 13 * MIN, alertedAt: NOW - 2 * MIN }) });
+            const out = await call(eps.getAccountSetupGaps, getReq());
+            assert.equal(out.code, 200);
+            assert.deepEqual(out.body.pinLockout, { active: true, blockedUntil: NOW + 13 * MIN, lastBlockedAt: NOW - 2 * MIN, blocks: 1 });
+            assert.deepEqual(Object.keys(out.body.pinLockout).sort(), ['active', 'blockedUntil', 'blocks', 'lastBlockedAt'],
+                'no alert stamp, no source, no address');
+        });
+
+        test('one that ended an hour ago is still news; one from yesterday is not', async () => {
+            const recent = build({ existingUsers: fullyProvisioned(),
+                seed: record({ blocks: [NOW - 75 * MIN], blockedUntil: NOW - 60 * MIN }) });
+            const body = (await call(recent.eps.getAccountSetupGaps, getReq())).body;
+            assert.equal(body.pinLockout.active, false);
+            assert.equal(body.pinLockout.blocks, 1);
+            const old = build({ existingUsers: fullyProvisioned(),
+                seed: record({ blocks: [NOW - 25 * 60 * MIN], blockedUntil: NOW - 24.5 * 60 * MIN }) });
+            assert.equal((await call(old.eps.getAccountSetupGaps, getReq())).body.pinLockout, null);
+        });
+
+        test('a record that cannot be read leaves the field ABSENT — and the audit still answers', async () => {
+            const victim = rosterCfg.processMembers.find((n) => !SETS.adminSet.has(n));
+            const { eps, db } = build({ existingUsers: fullyProvisioned().filter((u) => u.displayName !== victim) });
+            const plain = db.collection.bind(db);
+            db.collection = (name) => (name === 'viewerAttempts'
+                ? { doc: () => ({ get: async () => { throw Object.assign(new Error('unavailable'), { code: 14 }); } }) }
+                : plain(name));
+            const out = await call(eps.getAccountSetupGaps, getReq());
+            assert.equal(out.code, 200);
+            assert.equal('pinLockout' in out.body, false, 'unknown is not "no block"');
+            assert.deepEqual(out.body.setUp, [{ name: victim, why: 'no-account' }]);
         });
     });
 
@@ -2137,6 +2202,17 @@ describe('getSignInStats — the exact sign-in count', () => {
         const out = await call(eps.getSignInStats, getReq());
         assert.equal(out.code, 500);
         assert.equal(out.body.total, undefined);
+    });
+
+    test('a roster entry that is not a name is the endpoint\'s own JSON 500, not an unhandled throw', async () => {
+        // `nameToEmail` ran OUTSIDE the try (Nov 2026 review), so a malformed roster-members.json entry
+        // threw past the handler and the platform answered in place of it.
+        const roster = require('./functions/roster-members.json');
+        const { eps } = build({ existingUsers: members.map((n) => account(n, ago(1))),
+            rosterJson: { ...roster, activeMembers: [...roster.activeMembers, 42] } });
+        const out = await call(eps.getSignInStats, getReq());
+        assert.equal(out.code, 500);
+        assert.deepEqual(out.body, { error: 'Could not read sign-in stats' });
     });
 
     describe('and it is admin-only', () => {

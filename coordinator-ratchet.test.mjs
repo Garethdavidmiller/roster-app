@@ -86,7 +86,8 @@ const LARGE_THRESHOLD = 900;
  * `readdirSync` was handed this file's own directory, so the whole of `functions/` sat outside the
  * ratchet with nothing saying so: not a documented exclusion, not a decision anybody recorded, just
  * the shape of the first implementation. Four Cloud Functions modules were over the threshold and
- * uncapped, the largest of them `roster-parse-helpers.js` — 1,351 lines, thirty-five exports, and
+ * uncapped, the largest of them `roster-parse-helpers.js` — 1,351 lines then (1,312 by Nov 2026, after
+ * the push design language left for push-notices.js), thirty-five exports, and
  * named "helpers", which is the exact condition the rule at the top of this file describes.
  *
  * That gap mattered more than a root one would: `functions/` is where the roster parser's day-drift
@@ -260,7 +261,10 @@ const CAPS = {
     // 900 → 851 in Nov 2026 (sign-in audit, track C), an EXTRACT at 899 of 900: re-authentication and the
     // password change — the member's OWN credential, with the rule that a password change acts only on the
     // page member's account coming next — left for own-password.js, the same injected-handles shape.
-    'firebase-client.js':       851,
+    // 851 → 810 in Nov 2026 (review fixes), an EXTRACT at 851 of 851: the callers of three account
+    // endpoints — the admin's Reset and provisioning audit, the locked-out member's reset request — left
+    // for account-calls.js, the same injected-handle shape, 851 measured lines down to 760.
+    'firebase-client.js':       810,
     // NEW at v24.84, a decision rather than a discovery: the station PIN reads the Trains page, and
     // the two viewer transitions that took (`holdsStaffPin`, `signOutStaffPin`) carried session.js
     // from 874 lines to 925. They sit beside `reconcileExpiredIdentity` and `shedCalendarViewer` on
@@ -274,7 +278,10 @@ const CAPS = {
     // surname memory, its six-hourly reset recheck and the unanswered-recheck guard — left for the pure
     // silent-sign-in.js, 1,002 lines down to 966. The four above that are the room the same track's next
     // two fixes take (the session's start on the server's clock, the PIN's push record), not headroom.
-    'session.js':               970,
+    // 970 → 960 in Nov 2026 (review fixes), an EXTRACT at 970 of 970: the viewer → member hand-over's
+    // ordering, `shedCalendarViewer`, left whole for viewer-shed.js (session.js re-exports it), 970
+    // measured lines down to 909 with the reset refusal's own error code added.
+    'session.js':               960,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four
@@ -559,7 +566,7 @@ const CAPS = {
     // See SCANNED_DIRS above for why they were never here. Each is the size it was on the day the
     // scan first reached it, plus the usual room; none is an accusation, and the two domain files
     // are large because the domains are.
-    'functions/roster-parse-helpers.js': 1400,   // ← 1,351 and named "helpers": 35 exports, and the
+    'functions/roster-parse-helpers.js': 1400,   // ← 1,351 when capped (1,312 in Nov 2026), named "helpers", and the
                                                  //   day-drift defence is among them. The clearest
                                                  //   candidate in this block for a rule to leave.
     'functions/overtime.js':             1400,   // the Overtime endpoints + Firestore orchestration
@@ -578,6 +585,9 @@ const CAPS = {
     // It was the headroom, which goes from 0 to 74 — back inside the 50–99 band this file's header
     // says every capped module is owed, so the next one-line Overtime fix no longer fails here.
     'functions/overtime-core.js':        1150,   // every Overtime RULE, already pure and tested
+    // Stays at 1100 in Nov 2026 (review fixes), measured 1,048 from 1,097: the throttle sweep left for
+    // functions/pin-lockout.js with the PIN lockout's alert, and the streamed body reader for
+    // request-helpers.js, so the alert's hook landed with headroom to spare rather than a raise.
     'functions/index.js':                1100,   // the composition root; its exports ARE the deploy surface
     // NEW at the v24.28 review, three lines under LARGE_THRESHOLD (897): the auth endpoints — the
     // PIN exchange, the password reset, account set-up — are the security-sensitive half of the
@@ -588,7 +598,10 @@ const CAPS = {
     // functions/reset-request.js (659 measured after). A SPLIT: the file did two jobs, and the
     // doorbell shared nothing with the account handlers but the roster and the transport. The
     // ceiling comes down with the code, measured + 50 rounded to the next 50.
-    'functions/auth-endpoints.js':        750,
+    // 750 → 660 in Nov 2026 (review fixes), a SPLIT at 743 of 750 with a field still to add: the two
+    // admin READS — getSignInStats and getAccountSetupGaps, which change nothing — left for
+    // functions/account-reads.js with the account-list loop the file wrote out three times. 607 after.
+    'functions/auth-endpoints.js':        660,
     // NEW at v25.88, when the document-link rotation's door joined (885 → 937). Its RULES left for
     // functions/doc-link-rotation.js before they arrived — pure, and tested in the no-install lane —
     // so what crossed the line is an endpoint: method, admin check, body, the 503, one log line. The

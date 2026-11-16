@@ -1706,6 +1706,11 @@ describe('shedCalendarViewer — fail closed, or the shared viewer goes long-liv
     });
     afterEach(() => { _signOutBehavior = 'ok'; });
 
+    test('it is viewer-shed.js\'s, re-exported unchanged — the same function every test here drives', async () => {
+        // Moved out whole in Nov 2026 (session.js's cap); session.js's sign-in is still its one caller.
+        assert.equal((await import('./viewer-shed.js')).shedCalendarViewer, shedCalendarViewer);
+    });
+
     test('the happy path still signs out THEN restores member persistence', async () => {
         mockAuth.currentUser = viewer;
         await shedCalendarViewer();
@@ -2006,6 +2011,11 @@ describe('a silent re-sign-in after an admin reset', () => {
         assert.equal(_signInCalls, 0, 'and the app never signed in — nothing was announced or stored');
         assert.equal(store.has(AUTH_KEY), false, 'the local session survived — the next load would try again');
         assert.equal(getFirebaseIdentity(), 'none');
+        // NAMED (Nov 2026 review): this refusal recorded no code, so it read as a sign-in that ended for
+        // no reason. Its own code, and not a transient one — the session is gone; nothing may retry it.
+        assert.equal(getFirebaseAuthError(), 'auth/session-predates-reset');
+        assert.equal(isTransientAuthError('auth/session-predates-reset'), false);
+        assert.equal(terminalAuthEvent({ named: false, stalled: false, error: getFirebaseAuthError() }).type, 'NONE');
         // The device the reset was meant to sign out stops receiving that member's notices too.
         // Fire-and-forget behind a dynamic import, so give it a few turns of the loop to land.
         for (let i = 0; i < 50 && _pushReleases.length === releasedBefore; i++) await new Promise(r => setTimeout(r, 5));

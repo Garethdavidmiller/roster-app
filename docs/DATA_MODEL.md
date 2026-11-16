@@ -245,6 +245,11 @@ before its PIN is compared and a correct PIN is refunded (a refund to zero delet
 collection can say who is guessing and never who is using the app. The rules and the thresholds are
 argued in `functions/calendar-viewer-auth.js`; the operational view is OPERATIONS_REFERENCE.md → the
 Calendar PIN.
+One document in it is not a throttle row (Nov 2026): **`_lockout-record`**, the station-wide block told
+to the admin (`functions/pin-lockout.js`) — `blocks` (each block's start, epoch ms, the last day only),
+`blockedUntil` (the latest block's end) and `alertedAt` (the admin's last notice: at most one a day).
+Times and counts only, never a source key; the sweep never deletes it. Read by `getAccountSetupGaps`,
+which hands Operations a summary of it.
 
 **clientErrors**
 ```

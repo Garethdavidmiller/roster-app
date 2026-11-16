@@ -3853,6 +3853,43 @@ test('operations: account gaps reach the card BY NAME and the strip by group', a
     await expect(gaps).toContainText('Tick the leavers box below');
 });
 
+// THE STAFF PIN SHUT FOR EVERYONE (owner, Nov 2026). It rides on the same account check: an object while
+// a block runs (or began in the last day) puts an item on the strip and a line on the card it opens; an
+// answer WITHOUT the field — an older server, or a record the server could not read — must show neither,
+// and above all must not read as "the PIN is fine". The rules are operations-pin-lockout.test.mjs's.
+test('operations: a staff PIN blocked for everyone reaches the strip and Staff Login Accounts', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: [], pinLockout: {
+            active: true, blockedUntil: Date.now() + 10 * 60_000, lastBlockedAt: Date.now() - 5 * 60_000, blocks: 2 } }),
+    }));
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip.getByRole('link', { name: 'Staff PIN blocked: 2 times in the last day' })).toBeVisible();
+    await strip.locator('a[href="#login-accounts"]').first().click();
+    await expect(page.locator('#authSetupBody')).toHaveClass(/open/);
+    const line = page.locator('#authSetupGaps .auth-gap-line--pin');
+    await expect(line).toContainText(/The staff PIN is blocked for everyone until \d{2}:\d{2}/);
+    await expect(line).toContainText('members can still sign in with their password');
+    await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
+});
+
+test('operations: an account check that says nothing about the PIN shows nothing about it', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: ['Z. Example'] }),
+    }));
+    await page.goto('/operations.html');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip.getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
+    await expect(strip.locator('text=Staff PIN')).toHaveCount(0);
+    await expect(page.locator('#authSetupGaps .auth-gap-line--pin')).toHaveCount(0);
+});
+
 // WHAT PRESSING WILL DO, SAID BEFORE IT IS PRESSED (sign-in audit E6, 13 Nov 2026). Set up accounts takes back an account
 // with no permissions at all and re-enables a disabled one, each on the surname default with every device signed out —
 // and both were listed with "Press Set up accounts below." alone. The card, its ? panel and the reset queue's ? panel

@@ -105,7 +105,7 @@ export const COLLECTIONS = {
 // internally by the upload paths. The .docx wrap (officeViewerUrl) is no longer re-exported: since
 // v24.19 the openers call resolveDocumentOpenUrl, which applies it, and nothing imported it from here.
 import { isSafeStorageUrl, isDocxUpload, resolveDocumentOpenUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
-import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
+import { fetchWithTimeout } from './fetch-timeout.js';
 import { requestSignedDocumentUrl } from './document-url.js';
 export { isSafeStorageUrl, resolveDocumentOpenUrl };
 
@@ -395,6 +395,7 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 // source-equivalence check now read auth-identity.js.
 import { normaliseSurname, nameToEmail, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled } from './auth-identity.js';
 import { buildPasswordClient } from './own-password.js';
+import { buildAccountCalls } from './account-calls.js';
 import { resolveUploadCommit } from './upload-commit.js';
 import { pruneOldDocs } from './doc-retention.js';
 import { buildDocumentClient } from './documents-client.js';
@@ -658,40 +659,13 @@ const _ownPassword = buildPasswordClient({ auth, reauthenticateWithCredential, E
 export const reauthenticateWithPassword = _ownPassword.reauthenticateWithPassword;
 export const changeOwnPassword          = _ownPassword.changeOwnPassword;
 
-/** Admin-only Cloud Function that resets a member's Firebase password back to their surname default
- *  and stamps `passwordStatus.resetAt` (server-side). Mirrors admin-auth.js's setupRosterAuth caller:
- *  a FRESH admin ID token as a Bearer header on every call. */
-const RESET_PASSWORD_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/resetMemberPassword';
-
-/**
- * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
- * claim (enforced server-side). A reset always signs the member out of their other devices.
- * @param {string} memberName @param {{ lostDevice?: boolean }} [opts] a lost phone: no notice, every push record released — sent only for `true` itself
- * @returns {Promise<any>} the function's JSON response
- */
-export async function resetMemberPassword(memberName, { lostDevice = false } = {}) {
-    const user = auth.currentUser;
-    if (!user) throw new Error('Not signed in');
-    const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
-    // 65s: above the endpoint's own 60s ceiling (see fetch-timeout.js — a client that gives up
-    // first reports a working server as broken).
-    let r;
-    try {
-        r = await fetchWithTimeout(RESET_PASSWORD_URL, {
-            method:  'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body:    JSON.stringify(lostDevice === true ? { member: memberName, lostDevice: true } : { member: memberName }),
-        }, 65_000);
-        // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
-        if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
-        return await r.json();
-    } catch (err) {
-        // A WRITE. The abort stopped us waiting, not the server working, so this must not claim the
-        // reset did not happen — the admin needs to go and look rather than reset a second time.
-        if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — the reset may still have gone through. Check Account status before trying again.', { cause: err });
-        throw err;
-    }
-}
+// ---- Three account endpoints' callers (account-calls.js) ----
+// The admin's Reset and provisioning audit, and the locked-out member's reset request: built once with
+// the one handle they need, and re-exported here under their old names, so no caller changed.
+const _accountCalls = buildAccountCalls({ auth });
+export const resetMemberPassword  = _accountCalls.resetMemberPassword;
+export const getAccountSetupGaps  = _accountCalls.getAccountSetupGaps;
+export const requestPasswordReset = _accountCalls.requestPasswordReset;
 
 /**
  * A SHORT-LIVED url for the latest Huddle / Circular / Newsletter, or `null` to use the stored one.
@@ -736,71 +710,6 @@ export async function getSignInStats() {
     }, 65_000);
     if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
     return r.json();
-}
-
-/** Admin-only Cloud Function returning who is not properly provisioned (v22.53). */
-const ACCOUNT_GAPS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getAccountSetupGaps';
-
-/**
- * Which roster members are not properly set up, and which leavers still can sign in (admin only —
- * enforced server-side). A pure read: nothing is created, disabled or re-claimed by asking.
- *
- * Unlike `getSignInStats` this one returns NAMES, deliberately — a count of provisioning gaps the
- * admin cannot act on is worse than no count at all. Both groups are named after the button that
- * fixes them rather than after what went wrong: everything in `setUp` is fixed by Set up accounts,
- * `leavers` needs the separate confirmed disable sweep.
- *
- * `refused` present means the server could not see the roster's accounts at all and declined to
- * answer — **which is not the same as "no gaps"** and must never be rendered as one.
- *
- * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'disabled'|'claims'}[], leavers: string[] }>}
- */
-export async function getAccountSetupGaps() {
-    const user = auth.currentUser;
-    if (!user) throw new Error('Not signed in');
-    const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
-    // A READ, so a timeout may say plainly that it failed. 65s clears the 60s server ceiling.
-    const r = await fetchWithTimeout(ACCOUNT_GAPS_URL, {
-        method:  'GET',
-        headers: { 'Authorization': `Bearer ${token}` },
-    }, 65_000);
-    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
-    return r.json();
-}
-
-/** The public `requestPasswordReset` endpoint (PASSWORD_DESIGN.md — the request queue). */
-const REQUEST_RESET_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/requestPasswordReset';
-
-/**
- * Ask the admin to reset a member's password. Called from the LOGIN OVERLAY, by someone who is
- * therefore NOT signed in — so unlike every other function caller here it sends **no auth token**.
- * That is the whole reason this route exists as a server endpoint: a locked-out member has no Firebase
- * identity, so they cannot write to Firestore at all (the `resetRequests` rules deny every client
- * write). The endpoint validates the name against the server-owned roster and records a request; it
- * never resets anything.
- * @param {string} memberName  the name the member picked in the login dropdown (never free-typed)
- * @returns {Promise<any>}
- */
-export async function requestPasswordReset(memberName) {
-    // 35s: above the endpoint's own 30s ceiling. This is the call the review named — a stalled
-    // transport left the login card's button on "Sending…" indefinitely, with no way back.
-    let r;
-    try {
-        r = await fetchWithTimeout(REQUEST_RESET_URL, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ member: memberName }),
-        }, 35_000);
-        // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
-        if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
-        return await r.json();
-    } catch (err) {
-        // The request MAY have been recorded — the server writes the row before responding. So the
-        // login overlay's copy for this case says "couldn't confirm", never "not sent"; a member
-        // told it failed would ask again, and the throttle would then silently drop the repeat.
-        if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — your request may still have been sent.', { cause: err });
-        throw err;
-    }
 }
 
 /**

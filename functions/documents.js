@@ -147,8 +147,20 @@ const ingestHuddle = onRequest(
         }
 
         // ---- Authentication ----
+        // A BLANK OR MALFORMED SECRET IS A DEPLOYMENT FAULT, answered 503 before any compare (Nov 2026
+        // review — as `unlockCalendarViewer` treats its PIN). Unchecked, an empty secret made the
+        // expected header the bare "Bearer ", which a caller sending exactly that would match: the door
+        // to the staff-wide Huddle broadcast open to anybody with the URL. Trimmed, as the PIN is: a
+        // newline picked up when the secret was piped in can never arrive in a header, so it could only
+        // ever refuse the real caller. A control character left inside it cannot arrive in one either.
+        const secret = String(HUDDLE_SECRET.value() || '').trim();
+        if (!secret || [...secret].some(c => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f)) {
+            console.error(`[ingestHuddle] HUDDLE_SECRET is ${secret ? 'malformed' : 'not configured'}`);
+            res.status(503).json({ error: 'Huddle ingest is not configured' });
+            return;
+        }
         const authHeader = req.headers['authorization'] || '';
-        const expected   = `Bearer ${HUDDLE_SECRET.value()}`;
+        const expected   = `Bearer ${secret}`;
         // Compare byte-length buffers, not string character lengths — a multi-byte
         // UTF-8 char can match character count but differ in byte count, causing
         // timingSafeEqual to throw ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH.

@@ -12,7 +12,7 @@
  * Edit here for: session expiry, Firebase Auth strategy.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, probeResetAtMs } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, probeResetAtMs } from './firebase-client.js';
 // `onAuthStateChanged` is read from the namespace AT CALL TIME (`watchForLateViewer`): a page's test that
 // stands in for this module without it still loads, and the watcher then simply does not start.
 import * as firebaseClient from './firebase-client.js';
@@ -22,6 +22,10 @@ import * as firebaseClient from './firebase-client.js';
 // auth-identity.js, so this adds no cycle (asserted by import-graph.test.mjs).
 import { isViewerUser, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { noteStaffPinEnded } from './staff-pin-ended.js';
+// The viewer → member hand-over's one ordering (sign the viewer out, THEN re-arm the member chain) is
+// viewer-shed.js's, re-exported so its callers and tests keep importing it from here.
+import { shedCalendarViewer } from './viewer-shed.js';
+export { shedCalendarViewer };
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
 import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal, sessionStartMs } from './silent-sign-in.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -112,13 +116,14 @@ let _sessionResolve;
  * import sessionReady and await it instead of reading window._mybSession.
  *
  * Resolves to true (session active), false (session failed or non-auth path),
- * or the boolean returned by ensureFirebaseSession().
+ * or the boolean returned by ensureNamedSession().
  * @type {Promise<boolean>}
  */
 export const sessionReady = /** @type {Promise<boolean>} */ (new Promise(r => (_sessionResolve = r)));
 /**
- * Call once per page-load from the page coordinator after ensureFirebaseSession().
- * @param {boolean | Promise<boolean>} result - pass the return value of ensureFirebaseSession()
+ * Call once per page-load from the page coordinator, with what its sign-in answered. Pages call
+ * ensureNamedSession(), never ensureFirebaseSession() — that is the sign-in inside it.
+ * @param {boolean | Promise<boolean>} result - pass the return value of ensureNamedSession()
  *   directly (Promise<boolean>) or a plain boolean (false) on the non-auth path.
  *   JS Promise resolution procedure follows the inner Promise, so awaiting sessionReady
  *   always yields the final boolean regardless of which form is passed.
@@ -458,6 +463,10 @@ export async function ensureFirebaseSession(name, _gen, password) {
                 return commit('none', false);
             }
             if (resetAt !== 'credential' && sessionPredatesReset(_sessionCreatedMs(), resetAt)) {
+                // NAMED, as every other refusal here is (Nov 2026 review): without a code this read as a
+                // sign-in that ended for no reason, which getFirebaseAuthError() and Operations' banner
+                // could not tell from any other. Not transient — the session is gone, so nothing retries.
+                recordError('auth/session-predates-reset');
                 lsDel(AUTH_KEY);
                 lsDel(CALENDAR_SNAPSHOT);
                 // The device the reset was meant to sign out stops receiving that member's notices too.
@@ -735,76 +744,6 @@ export function clearSession() {
     lsDel(CALENDAR_SNAPSHOT);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
     _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut
-}
-
-/**
- * Drop the shared Calendar viewer, if this browser holds one, before a MEMBER signs in (v20.12).
- *
- * Called from `ensureFirebaseSession`, which is the single choke point every member sign-in in the
- * app passes through — so there is no second path that could reach Firebase with the viewer still
- * current. A no-op for every other identity, which is why it is safe to run unconditionally there.
- *
- * Why a member sign-in cannot simply overwrite the viewer: Firebase holds one current user, so
- * signing in DOES replace it — the problem is the PERSISTENCE, not the user. The viewer runs under
- * session-only persistence and the member needs the long-lived chain, and the order in which those
- * two facts are reconciled decides whether the shared viewer ends up in IndexedDB.
- *
- * If the member sign-in then FAILS, this browser is left with no identity and the long-lived chain
- * armed. That is the correct resting state, not a leak: the Calendar re-locks (there is no viewer to
- * find), and the next unlock explicitly asks for session persistence again.
- *
- * ── IT FAILED OPEN UNTIL v20.35, WHICH DEFEATED ITS OWN ORDERING ────────────────────────────────
- *
- * The sign-out was wrapped in a `try/catch` that only warned, and the persistence restore then ran
- * regardless. So on the one path that matters — sign-out rejects, the viewer is STILL the current
- * user — the code went on to do precisely what the paragraph above says must never happen: migrate
- * the shared viewer into IndexedDB, where it survives the browser closing. An external review
- * caught it. The ordering was right and documented; the error handling quietly undid it.
- *
- * **A failed sign-out now ABORTS the transition and throws.** The caller
- * (`ensureFirebaseSession`) is the single choke point every member sign-in passes through, so a
- * throw there fails the sign-in — the member sees a sign-in failure and can retry, which is a far
- * better outcome than a shared viewer silently promoted to a long-lived session on an office PC.
- * Refusing to cross a security boundary beats degrading it quietly.
- * @returns {Promise<void>}
- * @throws {Error} if the viewer could not be signed out — persistence is then left untouched
- */
-export async function shedCalendarViewer() {
-    const u = auth.currentUser;
-    // NOBODY current still needs the member chain re-armed (Sep 2026 review): the viewer may already
-    // have been signed out (reconcile does it when its session lapses) while the SESSION-only
-    // persistence its unlock set is still in force — and the member about to sign in would inherit
-    // it, and be signed out when the browser closed. With no current user there is nothing for
-    // `setPersistence` to migrate, so this is safe; a member already current is left alone.
-    if (!u) {
-        try { await restoreMemberPersistence(); }
-        catch (err) { console.warn('[Auth] member persistence restore failed:', /** @type {any} */ (err)?.message); }
-        return;
-    }
-    if (!isViewerUser(u)) return;
-    // Sign out BEFORE restoring the member persistence chain. `setPersistence` migrates the CURRENT
-    // user into the new persistence, so doing these two the other way round would move the shared
-    // viewer into IndexedDB — where it outlives the browser session, which is the one property that
-    // makes unlocking a shared office PC safe in the first place. This is the ONLY ordering that is
-    // correct here and it is not obvious from either call on its own.
-    try {
-        await firebaseSignOut(auth);
-    } catch (err) {
-        console.warn('[Auth] viewer signOut failed — aborting member transition, persistence left as-is:',
-            /** @type {any} */ (err)?.message);
-        throw err instanceof Error ? err : new Error('viewer sign-out failed');
-    }
-    // Belt-and-braces: `signOut` resolving is the contract, but the invariant this function exists
-    // to hold is that the viewer is GONE before persistence changes — so assert the state rather
-    // than trust the call. Cheap, synchronous, and the only check that survives an SDK that resolves
-    // without clearing.
-    if (isViewerUser(auth.currentUser)) {
-        throw new Error('viewer still current after sign-out — persistence not changed');
-    }
-    // The restore may still fail open: at this point the viewer is definitely gone, so the worst
-    // case is a member session on a shorter-lived persistence — an inconvenience, not a leak.
-    try { await restoreMemberPersistence(); }
-    catch (err) { console.warn('[Auth] member persistence restore failed:', /** @type {any} */ (err)?.message); }
 }
 
 /**

@@ -72,6 +72,15 @@ mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {}
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
 const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay, resetRequestFailureLine } = await import('./login-overlay.js');
+
+// The card's DOM-free rules live in login-core.js (Nov 2026) and are re-exported here: the SAME
+// functions, so every test below that reaches them through login-overlay.js tests the real ones.
+test('login-core.js\'s three rules are what login-overlay.js exports', async () => {
+    const core = await import('./login-core.js');
+    assert.equal(runNamedSignIn, core.runNamedSignIn);
+    assert.equal(isAboutLinkAllowed, core.isAboutLinkAllowed);
+    assert.equal(resetRequestFailureLine, core.resetRequestFailureLine);
+});
 const { CALENDAR_VIEWER_UID } = await import('./calendar-access-core.js');
 // The REAL teardown and the same staff-pin-ended.js instance the card listens to (audit B2/C2, below).
 const { reconcileExpiredIdentity } = await import('./session.js');

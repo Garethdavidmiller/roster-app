@@ -373,6 +373,20 @@ describe('admin endpoints are called with a FORCE-REFRESHED token', () => {
     });
 });
 
+// The three callers are account-calls.js's (Nov 2026, moved out at firebase-client.js's cap), built
+// once against THIS module's `auth`. Every test above drives them through the re-export; this pins
+// that the factory reads the handle it is given, at call time, rather than one of its own.
+describe('account-calls.js — built with the auth it is handed', () => {
+    test('an auth with nobody signed in sends nothing, whichever caller', async () => {
+        const { buildAccountCalls } = await import('./account-calls.js');
+        const calls = buildAccountCalls({ auth: { currentUser: null } });
+        await assert.rejects(calls.getAccountSetupGaps(), /Not signed in/);
+        await assert.rejects(calls.resetMemberPassword(MEMBER), /Not signed in/);
+        assert.equal(fetches.length, 0);
+        assert.deepEqual(Object.keys(calls).sort(), ['getAccountSetupGaps', 'requestPasswordReset', 'resetMemberPassword']);
+    });
+});
+
 describe('the public reset request sends NO token', () => {
     test('even when a session exists, no Authorization header leaves the device', async () => {
         // The endpoint is unauthenticated by design; attaching a token would hand the one public

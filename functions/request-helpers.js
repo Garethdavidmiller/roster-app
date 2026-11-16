@@ -86,4 +86,54 @@ async function requireAdmin(req, res, logTag) {
     return decoded;
 }
 
-module.exports = { jsonBodyOf, readJsonBody, bearerToken, requireAdmin };
+/**
+ * Read the raw base64 plain-text request body (bypasses the JSON body-size limit), capped at
+ * `maxBytes` so an oversized upload is rejected DURING streaming rather than after buffering and
+ * decoding the whole thing (which could OOM the 512 MiB instance). Shared by ingestHuddle and
+ * parseRosterPDF (extracted v16.39 — the block was byte-identical bar the log tag; moved here from
+ * index.js in Nov 2026, with the cap handed in, since index.js names the cap beside the others).
+ * On any failure it sends the HTTP error response itself and returns null; otherwise the trimmed
+ * text. The caller does its own whitespace-strip / charset-validate / decode.
+ * @param {any} req
+ * @param {any} res
+ * @param {string} logTag  console prefix (the calling function's name)
+ * @param {number} maxBytes  the most the body may hold
+ * @returns {Promise<string|null>} trimmed body, or null if a response was already sent
+ */
+async function readRawBody(req, res, logTag, maxBytes) {
+    try {
+        if (req.rawBody) {
+            if (req.rawBody.length > maxBytes) {
+                res.status(413).json({ error: 'File exceeds the size limit' });
+                return null;
+            }
+            return req.rawBody.toString('utf8').trim();
+        }
+        /** @type {Buffer[]} */ const chunks = [];
+        let total = 0;
+        await new Promise((resolve, reject) => {
+            req.on('data', (/** @type {Buffer} */ chunk) => {
+                total += chunk.length;
+                if (total > maxBytes) {
+                    req.destroy();
+                    reject(new Error('BODY_TOO_LARGE'));
+                    return;
+                }
+                chunks.push(chunk);
+            });
+            req.on('end', resolve);
+            req.on('error', reject);
+        });
+        return Buffer.concat(chunks).toString('utf8').trim();
+    } catch (err) {
+        if (err && /** @type {any} */ (err).message === 'BODY_TOO_LARGE') {
+            res.status(413).json({ error: 'File exceeds the size limit' });
+            return null;
+        }
+        console.error(`[${logTag}] Failed to read body:`, err && /** @type {any} */ (err).message);
+        res.status(400).json({ error: 'Could not read request body' });
+        return null;
+    }
+}
+
+module.exports = { jsonBodyOf, readJsonBody, bearerToken, requireAdmin, readRawBody };

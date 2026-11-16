@@ -1238,6 +1238,26 @@ control that anyone can drive into a permanent state is a denial-of-service hand
 **If the all-sources ceiling ever trips during normal use, the code in circulation is wrong — reissue
 it rather than raising the number.**
 
+#### When the PIN is blocked for everyone — what the admin is told (owner, Nov 2026)
+
+Anybody can reach the all-sources ceiling on purpose, and do it again; the limit stays, so the admin is
+TOLD instead (`functions/pin-lockout.js`; the trade-off is `functions/calendar-viewer-auth.js`'s header):
+
+- **A push to the admin's own devices** — "🔢 Staff PIN — blocked station-wide", "200 wrong entries in 15
+  minutes. It reopens by itself at 14:20." — at most ONCE A DAY however often it trips. Only an admin
+  account that is enabled and carries the `admin` claim (`enabledAdminUids`, the rule the Error Log and
+  reset-request notices share); never a broadcast. A count and a time only: never the PIN, never an
+  address. The tap opens Operations → Staff Login Accounts.
+- **Operations**: a "Staff PIN blocked" item on the "Needs attention" strip, and a line on Staff Login
+  Accounts, while a block runs or one began in the last day. It rides on that card's account check
+  (`getAccountSetupGaps`), so it appears when the card's check answers; a check that could not read the
+  record shows nothing about the PIN rather than an all-clear.
+- **What to do**: nothing, if it was once — the block clears itself, and members can still sign in with
+  their password. If it keeps happening, somebody is guessing: rotate the PIN (below).
+- **The record** is one document in `viewerAttempts` (`_lockout-record`: the block times of the last day,
+  when the latest ends, when the admin was last told). Server-only, like the rest of the collection; the
+  sweep never removes it. Deleting it by hand in the console only makes the next block notify again.
+
 **If the throttle store itself is unreachable, the endpoint refuses (503) rather than guessing
 unthrottled.** The refusal costs nothing real: the overrides live in the same Firestore the throttle
 read just failed against, so a token minted during that outage could not have loaded a single shift

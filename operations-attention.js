@@ -66,6 +66,16 @@ export const ATTENTION_CATALOGUE = /** @type {const} */ ({
     // is a different shape from an exception — a count that is normally non-zero becomes furniture,
     // and furniture in an exceptions index is how the index stops being read. Its home is the
     // Account status card's own summary line ("38/51 work email"), where a coverage figure belongs.
+    // The staff PIN shut for EVERYONE by too many wrong entries (owner, Nov 2026): a block running, or
+    // one begun in the last day — the count is how many began in that day. Its fact rides on the Staff
+    // Login Accounts card's audit (operations-pin-lockout.js), so it opens that card; 🔢 is also the
+    // emoji of the admin's push about it, which lands there too.
+    pinLockout: {
+        emoji: '🔢',
+        hash: '#login-accounts',
+        short: 'Staff PIN blocked',
+        after: (/** @type {number} */ n) => `${n === 1 ? 'time' : 'times'} in the last day`,
+    },
     errors: {
         emoji: '🐛',
         hash: '#error-log',
@@ -125,6 +135,25 @@ export function buildAttentionItems(reports) {
         });
     }
     return out;
+}
+
+/**
+ * The Staff Login Accounts card's three items, reported from ONE answer of its audit — or withdrawn
+ * together when a check could not answer. The PIN lockout's `null` count is UNKNOWN (an older server,
+ * or a record it could not read), so that item is withdrawn rather than reported as none.
+ * @param {{ report: (id: string, count: number) => void, withdraw: (id: string) => void }} strip
+ * @param {{ setUp: number, leavers: number, pinLockout?: number|null }} counts
+ */
+export function reportLoginAccounts(strip, { setUp, leavers, pinLockout = null }) {
+    strip.report('accountSetup', setUp);
+    strip.report('accountLeavers', leavers);
+    if (pinLockout === null) strip.withdraw('pinLockout');
+    else strip.report('pinLockout', pinLockout);
+}
+
+/** Every item the Staff Login Accounts card feeds, back to unknown. @param {{ withdraw: (id: string) => void }} strip */
+export function withdrawLoginAccounts(strip) {
+    for (const id of ['accountSetup', 'accountLeavers', 'pinLockout']) strip.withdraw(id);
 }
 
 /** What a failed check says in place of a count — in the pill and in its accessible name alike. */

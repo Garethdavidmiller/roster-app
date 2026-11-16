@@ -693,6 +693,8 @@ when it runs, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`
 - `requireAdmin(req, res, logTag?)` — no token is a 401 before anything is verified; otherwise
   `verifyIdToken(token, true)` (checkRevoked) and a strict `admin === true`. Answers 401/403 itself and
   returns null. Used by parseRosterPDF, the four admin account endpoints and `rotateDocumentLinks`.
+- `readRawBody(req, res, logTag, maxBytes)` — the raw base64 upload body, capped WHILE it streams (413), for
+  ingestHuddle and parseRosterPDF; on a failure it has answered and returns null. `index.js` hands the cap in.
 
 ### `functions/london-clock.js`
 An ISO calendar date, and the instant it names in London — machinery, not Overtime policy. **It requires
@@ -994,6 +996,10 @@ The shared per-card Tips panel (`#tipsLightbox`); each page keeps only its `CARD
   `staffOnly` entries at open time, names the dialog after the card, and runs the canonical lifecycle.
   The content shape is in the module header, pinned by `tips-content.test.mjs`.
 
+### `login-core.js`
+The sign-in card's DOM-FREE rules, moved out of `login-overlay.js` (Nov 2026, three lines under the size at which a module must be capped). `login-overlay.js` imports and re-exports all three, so callers and `login-overlay.test.mjs` reach them there; their descriptions are that entry's.
+- `runNamedSignIn(deps)` · `isAboutLinkAllowed(href)` · `resetRequestFailureLine(err, timedOut)`.
+
 ### `login-overlay.js`
 The one sign-in card for every protected page: every page signs in on the spot and none redirects
 elsewhere to authenticate. It injects its own markup. Per-page ACCESS (admin-only Operations,
@@ -1135,13 +1141,17 @@ The shared session and sign-in module: the local session, the Firebase Auth sign
 - `restoreFirstAuthUser(timeoutMs?)` — ground truth once the boot restore has had its turn; `null`, not a rejection, past `AUTH_RESTORE_TIMEOUT_MS`. Use `auth.currentUser || await restoreFirstAuthUser()`. `primeAuth()` — the login overlay starts that restore while the member types; latency only.
 - `sessionReady` / `resolveSession(result)` — the page's one-shot "session settled" promise. The coordinator resolves it exactly once; feature modules await it.
 - `refreshClaimsIfStale(epoch)` — one forced ID-token refresh per device per claim-epoch bump.
-- `shedCalendarViewer()` — drops the shared PIN viewer before a member signs in. **Signing out BEFORE restoring member persistence is the security property** (`setPersistence` would move the viewer into IndexedDB; proven both ways in `experiments/viewer-persistence-proof/`); throws when it cannot confirm the viewer has gone (AUTH_AND_SESSIONS.md invariant 8).
+- `shedCalendarViewer()` — re-exported from `viewer-shed.js`, whose entry says what it holds.
 - `reconcileExpiredIdentity({ preserveCalendarViewer? })` — signs out a named Firebase identity whose local session has gone. Every protected coordinator calls it at init. Only the pages that admit the PIN keep the viewer (the Calendar's `resolveAccess`, and `holdsStaffPin` elsewhere) — never make preserving it the default.
 - `holdsStaffPin(budgetMs?, onLateViewer?)` — does this browser hold the station PIN, and keep it? For a page other than the Calendar whose policy admits the PIN (`admitsStaffPin`); a local member session answers `false`. Its budget, `ACCESS_DECISION_BUDGET_MS`, is shared with calendar-access.js's `resolveAccess`. `onLateViewer` runs once for a PIN session that restores after a `false` — never once a sign-in or sign-out has begun since.
 - `authGeneration()` — the sign-in/sign-out generation every attempt bumps: a watcher armed at one value stands down once it moves (the Calendar's late PIN grant, `holdsStaffPin`'s).
 - `signOutStaffPin()` — the drawer's Lock on such a page; throws if the viewer is still current, and never touches a member.
 - `releasePushForEndingHold()` — releases this device's push record when a member's hold ends without a sign-out (never the staff PIN's: it owns none); `page-session.js` and `login-overlay.js` call it too. Bounded, never throws.
 - Imported by every protected coordinator and many feature modules; grep for the import rather than trusting a list. Tested by `session.test.mjs`.
+
+### `viewer-shed.js`
+The shared Calendar viewer signed out BEFORE a member signs in, in the one order that keeps it out of long-lived storage. Moved whole from `session.js` (Nov 2026, at that file's size cap); `session.js` imports it — its sign-in is the one caller — and re-exports it.
+- `shedCalendarViewer()` — drops the shared PIN viewer before a member signs in. **Signing out BEFORE restoring member persistence is the security property** (`setPersistence` would move the viewer into IndexedDB; proven both ways in `experiments/viewer-persistence-proof/`); throws when it cannot confirm the viewer has gone (AUTH_AND_SESSIONS.md invariant 8). Tested through `session.js` by `session.test.mjs`.
 
 ### `staff-pin-ended.js`
 Whether arriving on THIS page ended the shared staff PIN, and who is waiting to hear it — so the page can say why the roster is locked again, on its sign-in card or, with no card (paused Overtime), in its body (AUTH_AND_SESSIONS 24). A module of its own because session.js was at its size cap (coordinator-ratchet.test.mjs), and this is one subject a Node test can hold.
@@ -2178,7 +2188,13 @@ The "Needs attention" strip on `operations.html`: an index of exceptional card s
 - `attentionBadge(count, truncated)` — pure: the ONE spelling of a count, worn by the strip's badge and the Error Log's header chip alike, so the two cannot disagree. A truncated count is a floor ("2+", "0+" when no error was among the entries loaded); empty means known clean.
 - `buildAttentionItems(reports)` — pure: the items to render, in catalogue order, each with `short` and `badge` (the visual pill, whose count is the same `.card-year-chip` the target card wears, spelled by `attentionBadge`) and `text`, the accessible name BUILT FROM them so it contains the visible label (WCAG 2.5.3). A count of 0 renders nothing; an id never reported is ABSENT, because unknown is not clean.
 - `createAttentionStrip({ container, onJump })` → `{ report(id, count, {truncated}), withdraw(id), unchecked(id) }`. `report` and `unchecked` THROW on an unknown id; `withdraw` takes a count back to unknown when the card's reload fails; `unchecked` keeps the item and says "couldn’t check" in a neutral colour (`.attn-count--unchecked`), for the reset queue only.
+- `reportLoginAccounts(strip, { setUp, leavers, pinLockout })` · `withdrawLoginAccounts(strip)` — the Staff Login Accounts card's three items (`accountSetup`, `accountLeavers`, `pinLockout` — the staff PIN shut for everyone) from ONE answer of its audit; a `null` PIN count is unknown, so that item is WITHDRAWN, never reported as zero.
 - Fed by the reset-request refresh and the account-setup audit (`operations-app.js`) and the Error Log (`operations-errors.js`), at the moments the card header chips update, so the strip and the chips cannot disagree. A failed card load reports nothing — except the reset queue's, which says "couldn’t check" (owner, 10 Nov 2026: its card stays closed, so an absent item read as nothing outstanding).
+
+### `operations-pin-lockout.js`
+The staff PIN's station-wide block on Operations (owner, Nov 2026): a line on Staff Login Accounts and the strip's `pinLockout` count, while a block runs or one began in the last day. **It runs no read**: the fact rides on the audit's answer (`pinLockout`, `getAccountSetupGaps`). Times and counts only. The three states and why ABSENT is unknown: its header.
+- `readLockout(raw, now)` → the lockout, `null` (none) or `undefined` (unknown) · `lockoutWords(lockout, now)` → `{ text, fix }`, London times · `renderLockoutLine(host, lockout, now)` · `lockoutCount(lockout)` → blocks, `0`, or `null` for unknown.
+- Wired by `admin-auth.js`. Tested by `operations-pin-lockout.test.mjs` and `admin-auth.test.mjs`.
 
 ### `operations-doc-links.js`
 The Document links card on `operations.html` (owner, 12 Nov 2026 — `ARCHITECTURE.md` EXC-007). The server does the work (`functions/doc-link-rotation.js`); this card asks for it in a safe order and reports it honestly. Pure apart from `initDocLinksCard` and the count it keeps: the wording and the request are `operations-doc-links.test.mjs`, the wiring `e2e/operations.spec.js`.
@@ -2387,6 +2403,11 @@ Re-authenticating with, and changing, the signed-in member's OWN password — th
 - `changeOwnPassword(memberName, newPassword)` → `{ stamp }` — resolves once the password HAS changed (the half to time); the `passwordSetAt` stamp settles `false` rather than rejecting, and is counted until it lands (`trackBackgroundWrite`).
 - Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
 
+### `account-calls.js`
+The browser's side of three ACCOUNT endpoints, moved out of `firebase-client.js` at its size cap: a factory with `auth` injected, as `own-password.js` is, so it makes no import cycle. `firebase-client.js` builds it once and re-exports the three under their old names.
+- `buildAccountCalls({ auth })` → `{ resetMemberPassword, getAccountSetupGaps, requestPasswordReset }`. Each waits longer than its endpoint may run; a WRITE that times out says it may still have happened. `getAccountSetupGaps`' answer carries `pinLockout` — an object, `null` (none) or ABSENT (unknown: an older server, or a record it could not read).
+- Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
+
 ### `documents-client.js`
 The three date-keyed document collections — Daily Huddle, Weekly Retail Circular, Marylebone Newsletter — and the upload sequence behind them. A factory with every Firebase handle injected, so it loads in Node and its failure orderings can be forced against fakes (`documents-client.test.mjs`); `firebase-client.js` builds it and re-exports each function. It owns the sequence; the decisions are `upload-commit.js` and `doc-retention.js`.
 - `buildDocumentClient(deps)` → `{ uploadHuddle, uploadCircular, uploadNewsletter, getLatestCircular, getLatestNewsletter, subscribeToLatestHuddle }`. `deps`: `db`, `collections`, the Firestore functions (`fs`), `getStorageSdk`, `uploadBytesWithClaimRetry`, the path and type `utils` (`storage-utils.js`), `resolveUploadCommit`, `pruneOldDocs`, `guardCommit` (`abandonOnSignOut`: a commit abandoned at sign-out keeps `SIGNED_OUT_CODE` — never a failure and never a rollback; a retriable final error is reported `upload/unconfirmed`) and a test `sleep`.
@@ -2501,8 +2522,19 @@ The account-and-credential domain. `buildAuthEndpoints(deps)` — the same facto
 - `setupRosterAuth` — creates the roster's Firebase Auth accounts and sets each tier's claims (`{admin,name,member}`, `{manager,name,member}` or `{name,member}`, plus `linksDesigner`; admin outranks manager). **The member and role lists are SERVER-OWNED** — `roster-members.json`, generated from `roster-data.js` and CI-locked — and never the request body, which carries only action flags. It fails closed on an empty config, unions the role-holders into the processed set so a leaver sweep can never disable one, and previews leavers by default (`removeOrphans`); `confirmOrphanRemoval` disables them, revokes their tokens and releases their push records — and, on every confirmed run, releases those of the leavers already disabled (`disabledLeaverPushRemoved` counts them; they are not listed as newly disabled). An account claimed for ANOTHER member is never adopted (reported in `failed`). A NEW account is stamped (`resetAt`) before it is created, and only one the account list (`getUsers`) does not hold; no answer or no stamp creates nothing for that name. A DISABLED account is re-enabled only after the reset an admin reset does (stamp, surname default, sessions revoked; the previous holder's push records released, best effort), and is named in `reclaimed`. Re-run it after adding a manager or designer, so their claim lands. An account it takes admin, manager or linksDesigner from is signed out of every device at once and named in `demoted` (a failed sign-out is in `failed`); the same tier or a higher one never is.
 - `resetMemberPassword` — the admin break-glass: stamps `passwordStatus.resetAt` FIRST (no stamp, no reset: a 503 with nothing changed; a password write Auth REFUSES puts the stamp back, one whose outcome is unknown keeps it — `functions/account-lifecycle.js`), resets the member to their surname default (`nameToPassword`), revokes their refresh tokens on every reset, refuses (409) an account claimed for another member or linked to the PIN account, and tells the MEMBER on their own devices (`sendTargetedPush`, to the uid the handler already holds; the payload never carries the password). `revoked` and `notified` are reported separately; `stamped` is always true. The credential has already changed by then, so a later stage failing never reports the reset as failed. `lostDevice: true` (strictly the boolean) is the lost-or-stolen-phone reset: no notice, and every push record the account owns is deleted (`releasePushForOwner`) as a fourth stage, answered as `pushReleased: <count>` or `pushReleaseFailed: true`.
 - `requestPasswordReset` — built by `functions/reset-request.js` and returned with the rest. Its server-side kill switch, `RESET_REQUESTS_ENABLED`, stays in this file and is handed in.
+- The two READS below are built by `functions/account-reads.js` and returned with the rest.
 - `getSignInStats` — admin-only: the exact unique sign-in counts from Firebase Auth's `lastSignInTime`, over the server-owned roster; four integers, no identity.
-- `getAccountSetupGaps` — admin-only READ: who has no account (`no-account`), no claim at all (`unstamped` — an account Set up accounts will TAKE BACK), a disabled one (`disabled`) or the wrong claims (`claims`), and which roster-domain account is still enabled for a leaver. **It returns NAMES**, grouped by remedy (`setUp`, `leavers`); `summariseAccountGaps` makes every judgement, including the refusal when no roster account is visible at all.
+- `getAccountSetupGaps` — admin-only READ: who has no account (`no-account`), no claim at all (`unstamped` — an account Set up accounts will TAKE BACK), a disabled one (`disabled`) or the wrong claims (`claims`), and which roster-domain account is still enabled for a leaver. **It returns NAMES**, grouped by remedy (`setUp`, `leavers`); `summariseAccountGaps` makes every judgement, including the refusal when no roster account is visible at all. It also carries `pinLockout` (the staff PIN shut for everyone): an object, `null`, or ABSENT when its record could not be read — which costs only the field.
+
+### `functions/account-reads.js`
+The account domain's two admin READS, SPLIT out of `auth-endpoints.js` (Nov 2026, at its cap): they change nothing. `buildAccountReadEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, now? })` → `{ getSignInStats, getAccountSetupGaps }` (described under `auth-endpoints.js`), built by `buildAuthEndpoints`. The roster is handed in and `firebase-admin/auth` required at call time, so a test's fake is the one asked.
+- `listAllUsers()` — every account, page by page: the loop both reads and the leaver sweep used to write out.
+- Tested through the handlers by `auth-endpoints.test.mjs`.
+
+### `functions/admin-recipients.js`
+WHO a notice for the admin may reach — one rule for the reset-request doorbell, the Error Log notice and the PIN lockout notice (Nov 2026; the doorbell had taken whatever account held the admin's address).
+- `enabledAdminUids(names, logTag)` → uids: each admin name's OWN account, enabled, carrying `admin === true`; anything else is dropped and logged, never replaced, and an empty answer sends nothing.
+- Tested through its three senders (`auth-endpoints.test.mjs`, `error-log-notify.test.mjs`, `pin-lockout.test.mjs`).
 
 ### `functions/account-lifecycle.js`
 The pure rules Set up accounts and the admin reset apply at the edges of an account's life (sign-in audit, Nov 2026). Requires only `roster-parse-helpers.js`; tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`. `auth-endpoints.js` is the orchestration; the reasoning is the header.
@@ -2518,9 +2550,17 @@ The public reset-request doorbell, split out of `auth-endpoints.js` whole; its h
 
 ### `functions/calendar-viewer-auth.js`
 The PURE server rules behind the staff Calendar PIN — CommonJS, kept apart from `req`/`res` so they are testable (`calendar-viewer-auth.test.mjs`); the uid and claim agreement across the browser, CommonJS and `firestore.rules` is `calendar-viewer-parity.test.mjs`.
-- Exports: `isValidPinShape` · `pinMatches(a, b)` · `sourceKeyFor` / `clientIpOf` · `throttleDecision` / `recordFailure` / `isThrottleStateStale` · `reserveAttempt` / `refundAttempt` · `viewerAccountTamper` / `isViewerAccount` · `viewerClaims()` (the one claim set the minted token carries) · `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` / `GLOBAL_THROTTLE`.
+- Exports: `isValidPinShape` · `pinMatches(a, b)` · `sourceKeyFor` / `clientIpOf` · `throttleDecision` / `recordFailure` / `isThrottleStateStale` · `reserveAttempt` / `refundAttempt` · `viewerAccountTamper` / `isViewerAccount` · `viewerClaims()` (the one claim set the minted token carries) · `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` / `GLOBAL_THROTTLE` · the station-wide block, TOLD (owner, Nov 2026): `LOCKOUT_RECORD_KEY` · `LOCKOUT_ALERT_GAP_MS` · `LOCKOUT_RECENT_MS` · `noteGlobalBlock(record, now, blockedUntil)` → `{ next, alert }` (at most one notice a day) · `lockoutSummary(record, now)` (what Operations is shown: times and counts, or null) · `lockoutNoticeWords({ blockedUntil })` (a count and a London time — never the PIN or an address).
 - **The PIN is never learnt, stored, logged or returned** — no "which digit was wrong" and no input echo. **The throttle is sized against a real tension**: 10,000 combinations on one side, the whole station behind one corporate address on the other; read `DEFAULT_THROTTLE`'s comment before changing a number in either direction. The source key comes from the END of `x-forwarded-for`, which a caller can only prepend to.
 - **Every attempt is charged BEFORE its compare**, in the transaction that checks the block (`reserveAttempt`), and a right PIN is refunded afterwards (`refundAttempt`), so concurrent guesses cannot all be compared uncounted; a refund to zero deletes the row, so the store cannot count usage. `viewerAccountTamper` names a shared account somebody linked a way in to (the unlock rebuilds it); `isViewerAccount` keeps Set up accounts and the leaver sweep off it.
+
+### `functions/pin-lockout.js`
+The PIN throttle store's upkeep, and telling the admin when the station-wide block trips. `unlockCalendarViewer` (index.js) calls it on the FAILURE path only; every rule it asks is `calendar-viewer-auth.js`'s. Nothing here may change the 401: each function is best-effort and never throws.
+- `sweepExpiredThrottleRows(now)` — the opportunistic sweep, moved from index.js; never the lockout record.
+- `noteStationBlock({ now, blockedUntil, notify, budgetMs? })` — the record and the once-a-day decision in ONE transaction (two instances ring once), then the notice, time-boxed (`LOCKOUT_NOTICE_BUDGET_MS`).
+- `buildPinLockoutNotifier({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, adminNames })` — the notice: `enabledAdminUids` → `sendTargetedPush`, never `fanOutPush`; feature `pinLockout` (🔢), deep link `operations.html#login-accounts`.
+- `readPinLockout(now)` — `lockoutSummary` of the stored record, for `getAccountSetupGaps`.
+- The record is `viewerAttempts/_lockout-record` (`blocks`, `blockedUntil`, `alertedAt`): closed to every client by the collection's existing rule. Tested by `pin-lockout.test.mjs`, and through the handler by `index-endpoints.test.mjs`.
 
 ### `functions/push.js`
 The web-push TRANSPORT: how a payload reaches a phone, never what it says or when — that is `buildPushPayload` (`functions/push-notices.js`) and `.claude/rules/notifications.md`.
