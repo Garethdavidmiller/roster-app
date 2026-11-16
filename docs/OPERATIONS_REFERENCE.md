@@ -1538,9 +1538,9 @@ Every signed-in member can open it, and so can the staff PIN.
   pick-up-only and set-down-only stops, "arrives 8 minutes earlier", buses, weekday versions that
   stop differently: the tooling README → "What each step knows".
 
-### The one-off timetable push, and the final week's notice
+### The one-off timetable push, and the Calendar's timetable notice
 
-Two reminders run themselves in the week before the change, and nobody presses anything:
+Two reminders run themselves before the change, and nobody presses anything:
 
 - **Saturday 12 December 2026, 18:00 London** — `sendTimetableReminder` (functions/documents.js) sends
   ONE broadcast push to every subscribed device: "🚆 New timetable from Sunday", landing on the Trains
@@ -1553,8 +1553,10 @@ Two reminders run themselves in the week before the change, and nobody presses a
   `functions-surface.test.mjs`, and deploy. The next timetable change moves `TIMETABLE_CHANGE` there —
   the body's date follows it, and the headline's "from Sunday" is held to a Sunday by the test; until
   then the function is harmless.
-- **6 to 12 December** — the Calendar notice `timetable-soon-2026` (calendar-notices.js) is offered to
-  signed-in members, once each, and retires itself on the 13th. A member who sees the push and the
+- **16 November to 12 December** — the Calendar notice `timetable-soon-2026` (calendar-notices.js) is
+  offered to signed-in members, once each, and retires itself on the 13th. Until 6 December it comes
+  after the install notice on a phone or tablet in a browser, and after the New link notice for the
+  members that page lets in; from Sunday 6 December it goes first (owner, 16 Nov 2026 — DECISIONS.md). A member who sees the push and the
   notice sees the same message twice, which is the intent: the push reaches the phones with
   notifications on, the notice reaches everyone who opens the Calendar.
 

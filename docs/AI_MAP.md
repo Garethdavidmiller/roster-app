@@ -742,7 +742,7 @@ notice HTML stays in `index.html`; which notices are wired and live: the new-not
   adds a condition only knowable then (whose Pay Calculator this is — `gradeForRole`; whether the New link page would let them in — `canOpenNewlink`, auth-policy.js); `whenDecided` stands
   a competing strip down (`yieldToInstallNotice`).
 - Each notice is its own IIFE: an early `return` in a plain block would leave the function and silence
-  every later notice. The order comes from `FOLLOWS` flags read at wiring time, so two notices never open on one load; `FOLLOWS_PAY` and `FOLLOWS_INSTALL` wait only where that earlier notice is this member's or this device's to get. A notice
+  every later notice. The order comes from `FOLLOWS` flags read at wiring time, so two notices never open on one load; `FOLLOWS_PAY`, `FOLLOWS_INSTALL` and `FOLLOWS_NEWLINK` wait only where that earlier notice is this member's or this device's to get, and a `FINAL_WEEK` date ends a notice's waits (the timetable notice from 6 Dec, wired before the install notice so it asks first). A notice
   with a `STARTS` date is left unflagged before it, and an end is a DATE (`isNoticeExpired(day, 1)`), not a
   count from posting.
 - No live notice declares `'signed-out'`, so the positive direction of the audience gate rests on a

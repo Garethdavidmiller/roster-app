@@ -856,14 +856,14 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await expect(page.locator('#trStation .tr-verdict')).toBeVisible();
     });
 
-    test('the final week\'s Calendar notice opens from 6 December, and its link opens this page', async ({ page }) => {
+    test('the Calendar\'s timetable notice opens in its final week, and its link opens this page', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await page.clock.setFixedTime(new Date('2026-12-07T09:00:00Z'));
         await seedSession(page, 'C. Reen');
         await seedMemberSession(page, 'C. Reen');
         await seedMember(page, 'C. Reen');
         await clearNoticeFlags(page);
-        // The install notice is still live in December and would take the load; this device answered it.
+        // The install notice is still live in December; this device answered it, so the timetable notice is the only one due.
         await page.addInitScript(() => localStorage.setItem('myb_notice_install_app_2026_done', '1'));
         await page.goto('/');
         const notice = page.locator('#timetableSoonNoticeLb');
