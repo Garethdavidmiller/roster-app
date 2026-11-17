@@ -191,6 +191,31 @@ describe('a write the rules refused stays a refusal when the token refresh signs
     });
 });
 
+// ── …AND A RETRY IS NEVER MADE AS ANOTHER ACCOUNT (17 Nov 2026) ─────────────────────────────────────
+// A shared browser: another tab signs a different member in while the forced refresh is on its way. The
+// retry went out as THEM — the SDK attaches whoever is signed in when a request is made — and was then
+// reported "not confirmed", which also refused every later write on the page. The first attempt was
+// refused, so nothing was written: the refusal stands, and the next write is let through.
+describe('a retry is never sent as an account that signed in during the token refresh', () => {
+    test('the refusal is passed on, nothing is sent as the other account, and the page can still write', async () => {
+        const who = 'A. Person';
+        _resetUnconfirmedWrites();
+        try {
+            signIn({ uid: 'uid_first', refreshSwitchesTo: 'uid_second' });
+            state.failNext.set('staffContact/', 'permission-denied');
+            await assert.rejects(fc.saveStaffContact(who, 'a.person@chilternrailways.co.uk'), (e) => e.code === 'permission-denied');
+            assert.equal(writes('staffContact/').length, 1, 'a second write went out — as the account that signed in meanwhile');
+            assert.equal(state.currentUser?.uid, 'uid_second', 'premise: another account is signed in now');
+            assert.equal(hasUnconfirmedWrite(), false, 'a refused write that was never retried is not one of unknown outcome');
+            signIn();
+            await fc.saveStaffContact(who, 'a.person@chilternrailways.co.uk');
+            assert.equal(writes('staffContact/').length, 2, 'the page\'s next write is let through');
+        } finally {
+            _resetUnconfirmedWrites();
+        }
+    });
+});
+
 describe('the password stamp', () => {
     test('writes ONLY passwordSetAt, on the server clock, merged so a server resetAt survives', async () => {
         signIn();

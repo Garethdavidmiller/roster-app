@@ -170,7 +170,9 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing. **A tap's jump is
   judged when it ENDS** — at `scrollend` where the browser has it; the 1.5 s timer judges only where it
   does not (run everywhere, it judged a slow jump in flight and let the chip go, Nov 2026).
-  `page-contract-parity.test.mjs` keeps the two scripts in step.
+  `page-contract-parity.test.mjs` keeps the two scripts in step, and `e2e/guides.spec.js` proves each
+  in a browser: "a jump is judged when it ends…" pauses the shared script's clock mid-jump, and the FIP
+  test waits out a slow jump. A test that taps a chip waits for `scrollend` (`jumpTo`), never a set time.
 - **A bar too long for its window WRAPS** from 641px in a window at least 600px tall, and from 1024px at
   any height — a desktop bar hides its scrollbar, so a chip past the edge would never be found, and a
   window snapped to half a laptop screen is 683–768px wide (`guide-shell.css` has the figures). The page

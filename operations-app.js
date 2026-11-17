@@ -510,7 +510,10 @@ export function init() {
                 const at = document.activeElement;
                 if (!at || at === document.body || at.closest('.dialog-overlay:not(.visible)')) resetBtnOf(name)?.focus();
             })
-            .catch(() => {});
+            // Fire-and-forget: nobody awaits a report, and the reset it describes has already happened, so a
+            // failure here (the dialog, or handing focus back) is logged and nothing else — never a rejection
+            // left unhandled in the console with no line to say what it was.
+            .catch((/** @type {any} */ err) => console.warn('[Operations] The reset report could not be shown or closed:', err?.message));
 
         async function doReset(/** @type {string} */ name, /** @type {HTMLButtonElement} */ btn) {
             // Every word the admin reads about a reset — the question, its lost-phone box, each failure and

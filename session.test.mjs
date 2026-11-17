@@ -743,12 +743,73 @@ describe('reconcileExpiredIdentity', () => {
             assert.deepEqual(region.kids, [], 'the region said something before the PIN had ended');
             auth.currentUser = /** @type {any} */ (viewerUser);
             await reconcileExpiredIdentity();
+            await new Promise(r => setTimeout(r, 0));   // the words go in once the region has been drawn (below)
             const [line] = region.kids;
             assert.equal(line?.kids[0], STAFF_PIN_ENDED_NOTICE + ' ', 'the page did not say the PIN ended');
             assert.equal(line.kids[1].href, BACK_TO_PIN);
             assert.equal(BACK_TO_PIN, './#staff-pin', 'the way back is not the Calendar\'s PIN box');
             assert.equal(sayStaffPinEndedIn(null)(), undefined, 'a page with nowhere to say it draws nothing and throws nothing');
         } finally { delete /** @type {any} */ (globalThis).document; }
+    });
+
+    // …AND IS HEARD WHEN THE PIN ENDED FIRST (17 Nov 2026). The usual order is region, then teardown, and a
+    // write then is a change. But a page drawn AFTER the teardown — paused Overtime reached a second time,
+    // or drawn late — met a listener that ran on a microtask of the very task that put the region there:
+    // the same task, so a region created with its words, which nobody hears. The words now wait for the
+    // browser to draw the region empty (`speakAfterMount`, status-text.js): a frame, and then a task.
+    test('sayStaffPinEndedIn: when the PIN has ALREADY ended, the words wait for the region to be drawn — and stop() cancels them', async () => {
+        const { sayStaffPinEndedIn, STAFF_PIN_ENDED_NOTICE, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+        forgetStaffPinEnded();
+        const made = (/** @type {string} */ tag) => {
+            /** @type {any} */ const el = { tag, kids: /** @type {any[]} */ ([]), attrs: /** @type {Record<string,string>} */ ({}), isConnected: true,
+                setAttribute(/** @type {string} */ k, /** @type {string} */ v) { el.attrs[k] = v; },
+                appendChild(/** @type {any} */ c) { el.kids.push(c); return c; },
+                append(/** @type {any[]} */ ...xs) { el.kids.push(...xs); } };
+            return el;
+        };
+        /** @type {Array<(t: number) => void>} */ const frames = [];
+        /** @type {any} */ (globalThis).document = { createElement: made };
+        /** @type {any} */ (globalThis).requestAnimationFrame = (/** @type {(t: number) => void} */ cb) => { frames.push(cb); return frames.length; };
+        const drawFrame = () => { for (const cb of frames.splice(0)) cb(0); };
+        const settle = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };   // every microtask of this task
+        try {
+            auth.currentUser = /** @type {any} */ (viewerUser);
+            await reconcileExpiredIdentity();   // the PIN ends BEFORE the page draws its region
+
+            const host = made('div');
+            sayStaffPinEndedIn(host);
+            const region = host.kids[0];
+            await settle();
+            assert.deepEqual(region.kids, [],
+                'written in the task that put the region on the page — a live region created with its words is read by nobody');
+            assert.equal(frames.length, 1, 'nothing waited for the browser to draw the region');
+            drawFrame();
+            assert.deepEqual(region.kids, [], 'written inside the frame, before the region it fills has been drawn');
+            await new Promise(r => setTimeout(r, 0));
+            assert.equal(region.kids[0]?.kids[0], STAFF_PIN_ENDED_NOTICE + ' ', 'the page never said the PIN ended');
+
+            // stop() between the listener and the frame: nothing is written (the page has moved on).
+            const host2 = made('div');
+            const stop = sayStaffPinEndedIn(host2);
+            await settle();
+            stop();
+            drawFrame();
+            await new Promise(r => setTimeout(r, 0));
+            assert.deepEqual(host2.kids[0].kids, [], 'a line was written after the page stopped listening');
+
+            // The region taken off the page before it is drawn: nothing is written into a detached box.
+            const host3 = made('div');
+            sayStaffPinEndedIn(host3);
+            await settle();
+            host3.kids[0].isConnected = false;
+            drawFrame();
+            await new Promise(r => setTimeout(r, 0));
+            assert.deepEqual(host3.kids[0].kids, [], 'a line was written into a region no longer on the page');
+        } finally {
+            delete /** @type {any} */ (globalThis).document;
+            delete /** @type {any} */ (globalThis).requestAnimationFrame;
+            forgetStaffPinEnded();
+        }
     });
 
     test('an explicit opts object with the flag ABSENT is still a teardown', async () => {
@@ -1089,6 +1150,22 @@ describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
         for (const odd of [null, undefined, {}, { email: me }, { email: me, metadata: { lastSignInTime: 'not a date' } }]) {
             assert.equal(sessionStartMs(odd, me, NOW), NOW, JSON.stringify(odd));
         }
+    });
+
+    // THE ALLOWANCE IS THREE DAYS — PINNED IN DAYS, NOT IN THE CONSTANT (17 Nov 2026). Every line above is
+    // written in SIGN_IN_CLOCK_SKEW_MS, so the allowance could become two days or four with all of them
+    // still green. Two would hand a phone whose clock is between two and three days out back to its own
+    // clock — the reset-dodge this exists to close (silent-sign-in.js, sign-in audit A2); four would trust
+    // a record further from the device than the module accepts as this sign-in's own.
+    test('the clock allowance is three days, either side, to the minute', () => {
+        const { sessionStartMs } = silentRules;
+        const DAY = 86_400_000, MINUTE = 60_000;
+        const me = 'g.miller@myb-roster.local';
+        const user = (/** @type {number} */ at) => ({ email: me, metadata: { lastSignInTime: new Date(at).toUTCString() } });
+        assert.equal(sessionStartMs(user(NOW - 3 * DAY), me, NOW), NOW - 3 * DAY, 'a record three days behind the device still dates the session');
+        assert.equal(sessionStartMs(user(NOW + 3 * DAY), me, NOW), NOW + 3 * DAY, 'and three days ahead');
+        assert.equal(sessionStartMs(user(NOW - 3 * DAY - MINUTE), me, NOW), NOW, 'a minute more than three days behind does not');
+        assert.equal(sessionStartMs(user(NOW + 3 * DAY + MINUTE), me, NOW), NOW, 'nor a minute more than three days ahead');
     });
 
     test('only a definitive refusal of an account that EXISTS is remembered', () => {

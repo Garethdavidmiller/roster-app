@@ -18,10 +18,15 @@
  * And one block for the property the whole migration rests on: that a converted call site reads
  * back identically, because if it does not, ~50 assertions elsewhere start failing for a reason
  * that has nothing to do with what they test.
+ *
+ * The last block is the module's second job, `speakAfterMount`: WHEN a line in a new live region is
+ * written. Its callers' own tests drive it through real cards (calendar-access.test.mjs,
+ * session.test.mjs, e2e/calendar-pin.spec.js); this pins the timing rule itself — after a frame AND
+ * a task, never inside the task that mounted the region, and never into a region off the page.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { splitStatusGlyph, setStatus, STATUS_GLYPHS } from './status-text.js';
+import { splitStatusGlyph, setStatus, STATUS_GLYPHS, speakAfterMount } from './status-text.js';
 
 /** The smallest DOM these functions touch: createElement, createTextNode, appendChild, textContent. */
 function makeEl() {
@@ -142,5 +147,55 @@ describe('it never throws where the old assignment could not', () => {
         const el = makeEl();
         setStatus(el, /** @type {any} */ (42));
         assert.equal(el.textContent, '42');
+    });
+});
+
+describe('speakAfterMount — a new live region is written once the browser has drawn it', () => {
+    /** A fake frame clock: `requestAnimationFrame` queues, `draw()` runs the queue as a frame would. */
+    function withFrames(fn) {
+        /** @type {Array<(t: number) => void>} */ const frames = [];
+        const had = Object.prototype.hasOwnProperty.call(globalThis, 'requestAnimationFrame');
+        const before = /** @type {any} */ (globalThis).requestAnimationFrame;
+        /** @type {any} */ (globalThis).requestAnimationFrame = (cb) => { frames.push(cb); return frames.length; };
+        const draw = () => { for (const cb of frames.splice(0)) cb(0); };
+        return Promise.resolve(fn({ frames, draw })).finally(() => {
+            if (had) /** @type {any} */ (globalThis).requestAnimationFrame = before;
+            else delete /** @type {any} */ (globalThis).requestAnimationFrame;
+        });
+    }
+    const aTask = () => new Promise((r) => setTimeout(r, 0));
+    const microtasks = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+
+    test('not in the mounting task, not inside the frame: after the frame, in a task of its own', () => withFrames(async ({ frames, draw }) => {
+        const region = { isConnected: true, said: '' };
+        speakAfterMount(/** @type {any} */ (region), () => { region.said = 'Loading the roster…'; });
+        await microtasks();
+        assert.equal(region.said, '', 'written in the task that mounted the region — a region created with its words is read by nobody');
+        assert.equal(frames.length, 1, 'it did not wait for the next frame');
+        draw();
+        assert.equal(region.said, '', 'written inside the frame callback, before the frame that draws the region empty');
+        await aTask();
+        assert.equal(region.said, 'Loading the roster…', 'never written');
+    }));
+
+    test('a region taken off the page before then is left alone — whatever replaced it says its own words', () => withFrames(async ({ draw }) => {
+        const region = { isConnected: true, said: '' };
+        speakAfterMount(/** @type {any} */ (region), () => { region.said = 'stale'; });
+        region.isConnected = false;
+        draw();
+        await aTask();
+        assert.equal(region.said, '', 'written into a region no longer on the page');
+    }));
+
+    test('no region is a no-op, and with no frame clock (a Node test, an old engine) a task alone', async () => {
+        assert.doesNotThrow(() => speakAfterMount(null, () => { throw new Error('called'); }));
+        assert.doesNotThrow(() => speakAfterMount(undefined, () => { throw new Error('called'); }));
+        assert.equal(typeof (/** @type {any} */ (globalThis).requestAnimationFrame), 'undefined', 'premise: Node has no frame clock');
+        const region = { said: '' };   // no isConnected at all: a fake, or an older engine — treated as on the page
+        speakAfterMount(/** @type {any} */ (region), () => { region.said = 'yes'; });
+        await microtasks();
+        assert.equal(region.said, '', 'still written in the same task without a frame clock');
+        await aTask();
+        assert.equal(region.said, 'yes');
     });
 });

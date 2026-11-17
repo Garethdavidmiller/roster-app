@@ -415,6 +415,40 @@ export function seedViewerAccess(page) {
 }
 
 /**
+ * Record what each new live region matching `selector` said at the FIRST FRAME after it was put on
+ * the page — read back with `firstFrameText(page, selector)`, one entry per region, in order.
+ *
+ * WHY (17 Nov 2026): a live region announces what CHANGES while it is in the accessibility tree,
+ * and the tree catches up between tasks. A region filled in the task that mounted it — on the next
+ * line, or in a microtask — arrives with its words already in it, and nobody hears them. A
+ * retrying `toHaveText` cannot see that: the words are right, only their moment is wrong. This can:
+ * the region is noticed by a MutationObserver (a microtask of the mounting task) and read in the next
+ * frame's callbacks. A write that waits for the frame and a task (`speakAfterMount`, status-text.js)
+ * is not there yet, so it reads `''`; a same-task write is, so it reads the words.
+ *
+ * An init script, so call it BEFORE the navigation; it records in every document the page loads.
+ */
+export function recordFirstFrameText(page, selector) {
+    return page.addInitScript((sel) => {
+        const w = /** @type {any} */ (window);
+        w.__firstFrame = w.__firstFrame || {};
+        const seen = new WeakSet();
+        new MutationObserver(() => {
+            for (const el of document.querySelectorAll(sel)) {
+                if (seen.has(el)) continue;
+                seen.add(el);
+                requestAnimationFrame(() => { (w.__firstFrame[sel] ||= []).push(el.textContent); });
+            }
+        }).observe(document, { childList: true, subtree: true });
+    }, selector);
+}
+
+/** What `recordFirstFrameText` saw, one entry per region (an empty list: none appeared). */
+export function firstFrameText(page, selector) {
+    return page.evaluate((sel) => /** @type {any} */ (window).__firstFrame?.[sel] ?? [], selector);
+}
+
+/**
  * Seed the generator's target table with one that pays the CONTRACTED WEEK exactly.
  *
  * Needed since v20.98, when the generator began refusing targets that cannot pay 35h a week

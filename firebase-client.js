@@ -354,6 +354,7 @@ export async function withClaimRetry(fn) {
         hasUser: () => !!auth.currentUser,
         refresh: () => /** @type {any} */ (auth.currentUser).getIdToken(true),
         uid: auth.currentUser?.uid,
+        currentUid: () => auth.currentUser?.uid,   // the retry only as the account that asked (claim-retry.js)
         watch: cb => onAuthStateChanged(auth, cb),
     });
 }
@@ -390,6 +391,8 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
         retryCode: 'storage/unauthorized',
         hasUser: () => !!auth.currentUser,
         refresh: () => /** @type {any} */ (auth.currentUser).getIdToken(true),
+        uid: auth.currentUser?.uid,
+        currentUid: () => auth.currentUser?.uid,   // never retried as another account (claim-retry.js)
     });
 }
 

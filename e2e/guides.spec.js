@@ -67,6 +67,26 @@ async function holdGuideMeasurement(page) {
 async function settleFrames(page) {
     await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200)))));
 }
+/**
+ * Tap a chip and wait for its jump to END — never a set time (17 Nov 2026). A smooth scroll takes as long as the
+ * engine takes: CI's Safari engine outlasted the 1.8 s these tests used to sleep, and a sleep that a slow engine
+ * outruns fails a test about something else. The page judges a jump at scrollend (guide-chips.js), and its own
+ * listener was added at load, so it has run by the time this one resolves. `between` runs after the tap and
+ * before the wait — an interruption. Resolves 'scrollend', or says none came in 10 s; callers assert it.
+ * @param {import('@playwright/test').Page} page @param {import('@playwright/test').Locator} chip
+ * @param {() => Promise<unknown>} [between]
+ */
+async function jumpTo(page, chip, between) {
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__jumpEnded = new Promise(done => {
+            addEventListener('scrollend', () => done('scrollend'), { once: true });
+            setTimeout(() => done('no scrollend in 10 s'), 10000);
+        });
+    });
+    await chip.click();
+    if (between) await between();
+    return page.evaluate(() => /** @type {any} */ (window).__jumpEnded);
+}
 /** Open a guide at a fragment with its measurement held, and wait for the browser's own landing. */
 async function landHeld(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ url) {
     await page.goto(url);   // resolves on `load` — after which the browser no longer re-lands the fragment
@@ -526,10 +546,9 @@ test('guides: on two columns no chip claims the section, and a chip jumped with 
     await expect(current, 'two columns: nothing is current before a jump').toHaveCount(0);
 
     const hpp = page.locator('.chip-bar .chip[data-target="pg-holiday-pay-premium-hpp"]');
-    await hpp.click();
-    await expect(hpp).toHaveAttribute('aria-current', 'true');
-    // Past the smooth scroll and the spy's resumption (scrollend, or its 1.5s ceiling where there is none).
-    await page.waitForTimeout(1800);
+    // Lit by the tap itself; then past the smooth scroll and the spy's resumption, which the page does at scrollend.
+    expect(await jumpTo(page, hpp, () => expect(hpp, 'the tap lights its chip at once').toHaveAttribute('aria-current', 'true')),
+        'premise: the jump ended').toBe('scrollend');
     await expect(hpp, 'once the jump has settled, the chip chosen is still the one lit').toHaveAttribute('aria-current', 'true');
     await expect(current).toHaveCount(1);
 
@@ -550,12 +569,12 @@ test('guides: a jump the reader interrupts does not hold its chip where the read
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/paycalc-guide.html');
     await page.waitForFunction(() => document.fonts.status === 'loaded');
-    await page.locator('.chip-bar .chip[data-target="pg-year-to-date-figures"]').click();
-    await page.evaluate(() => new Promise(done => requestAnimationFrame(() => {
-        window.scrollTo({ top: 200, behavior: 'instant' });
-        done(undefined);
-    })));
-    await page.waitForTimeout(1800);
+    const ended = await jumpTo(page, page.locator('.chip-bar .chip[data-target="pg-year-to-date-figures"]'),
+        () => page.evaluate(() => new Promise(done => requestAnimationFrame(() => {
+            window.scrollTo({ top: 200, behavior: 'instant' });
+            done(undefined);
+        }))));
+    expect(ended, 'premise: the interrupted jump ended').toBe('scrollend');
     const at = await page.evaluate(() => Math.round(/** @type {HTMLElement} */ (document.getElementById('pg-year-to-date-figures')).getBoundingClientRect().top));
     expect(at, 'premise: the jump was stopped well short of its section').toBeGreaterThan(400);
     await expect(page.locator('.chip-bar .chip[aria-current]'), 'nothing is claimed where the reader stopped').toHaveCount(0);
@@ -581,8 +600,7 @@ test('guides: a chip near the end of a page stays lit after its jump, though its
     expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
     await page.setViewportSize({ width: 375, height });
     const backPay = page.locator('.chip-bar .chip[data-target="pg-pay-rise-back-pay"]');
-    await backPay.click();
-    await page.waitForTimeout(1800);
+    expect(await jumpTo(page, backPay), 'premise: the jump ended').toBe('scrollend');
     const geo = await page.evaluate(() => ({
         bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
         top: Math.round(/** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top),
@@ -595,6 +613,49 @@ test('guides: a chip near the end of a page stays lit after its jump, though its
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again')
         .toHaveAttribute('aria-current', 'true');
+});
+
+// …AND THE SHARED SCRIPT JUDGES A JUMP WHEN IT ENDS, NOT WHEN 1.5 s HAVE PASSED (17 Nov 2026). The FIP guide's
+// test below proves it for that page's own script; this proves it for guide-chips.js, which the other four guides
+// share. Its 1.5 s timer used to judge every jump, so one that outlasted it — CI's Safari engine drew a tall window
+// that slowly — was judged in flight, as though the reader had stopped it, and its chip let go. A slow machine
+// cannot be ordered up, so the timer is made to fire mid-jump instead: the page's clock is paused, the chip tapped,
+// and 1.6 s of the page's time passed at once while the real scroll is still moving. Where scrollend exists the
+// timer is now only a net, so nothing is judged until the jump ends.
+test('guides: a jump is judged when it ends, not when 1.5 s of the page\'s time have passed', async ({ page }) => {
+    await page.clock.install();   // runs with real time until paused below
+    await page.setViewportSize({ width: 375, height: 800 });
+    await page.goto('/paycalc-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const room = await page.evaluate(() => {
+        const doc = document.documentElement.scrollHeight;
+        const top = /** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top + scrollY;
+        return { doc, below: Math.ceil(doc - top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+    });
+    const height = room.below + room.bar + 200;
+    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+    await page.setViewportSize({ width: 375, height });
+    await settleFrames(page);
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__ended = false;
+        addEventListener('scrollend', () => { /** @type {any} */ (window).__ended = true; }, { once: true });
+    });
+    const backPay = page.locator('.chip-bar .chip[data-target="pg-pay-rise-back-pay"]');
+    await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 100);
+    await backPay.click();
+    await page.clock.runFor(1600);   // the old 1.5 s timer would fire here, with the jump still moving
+    expect(await page.evaluate(() => /** @type {any} */ (window).__ended), 'premise: the jump was still moving at 1.6 s of page time').toBe(false);
+    await page.clock.resume();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__ended), { message: 'the jump never ended', timeout: 10_000 }).toBe(true);
+    const geo = await page.evaluate(() => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }));
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(backPay, 'judged in flight, the chip let go and the last one was lit').toHaveAttribute('aria-current', 'true');
 });
 
 // THE CHOSEN CHIP IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy, the app's
@@ -961,8 +1022,7 @@ test('guides: a window made taller, so the bar wraps, still lands a jump below t
         expect(await rows(), `premise: ${guide} at ${width}×700 has wrapped`).toBeGreaterThan(1);
         const chip = page.locator('.chip-bar .chip').nth(2);
         const id = /** @type {string} */ (await chip.getAttribute('data-target'));
-        await chip.click();
-        await page.waitForTimeout(1800);
+        expect(await jumpTo(page, chip), `premise: ${guide}'s jump ended`).toBe('scrollend');
         const at = await page.evaluate((id) => ({
             top: Math.round(/** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().top),
             bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
@@ -981,8 +1041,7 @@ test('guides: after a jump, a resize that moves the section hands the bar back t
         await page.goto(`/${guide}.html`);
         await page.waitForFunction(() => document.fonts.status === 'loaded');
         const chip = page.locator(`.chip-bar .chip[data-target="${id}"]`);
-        await chip.click();
-        await page.waitForTimeout(1800);
+        expect(await jumpTo(page, chip), `premise: the jump to ${id} ended`).toBe('scrollend');
         await expect(chip, `premise: the jump to ${id} holds its chip`).toHaveAttribute('aria-current', 'true');
         await page.setViewportSize({ width: 375, height: 740 });
         await settleFrames(page);

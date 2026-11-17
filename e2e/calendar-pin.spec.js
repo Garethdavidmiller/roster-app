@@ -15,7 +15,7 @@
  */
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
-import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags, isTouchProject } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags, isTouchProject, recordFirstFrameText, firstFrameText } from './helpers.js';
 import { forcePasswordSet } from './fixtures.js';
 
 // (Until v24.34 every test here pinned `CONFIG.CALENDAR_PIN_ACCESS` on, and four more proved the
@@ -933,6 +933,7 @@ for (const [label, pill, url, way] of [['Admin', 'admin', /admin\.html/, 'link']
     test(`a viewer who opens ${label} from the menu is told the PIN has ended, and the way back (${way}) opens the PIN box`, async ({ page }) => {
         const errors = collectFatalErrors(page);
         await stubPinExchange(page);
+        await recordFirstFrameText(page, '#loginNotice');
         await page.goto('/index.html');
         await enterPin(page, '1234');
         await expect(page.locator('#calendarDisplay')).toBeVisible();
@@ -942,6 +943,12 @@ for (const [label, pill, url, way] of [['Admin', 'admin', /admin\.html/, 'link']
         await expect(page).toHaveURL(url);
         await expect(page.locator('#loginNotice')).toHaveText(
             'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.');
+        // …and it was SPOKEN: the line was empty when the card was first drawn, so the words arrived as
+        // a change. Written in the task that mounted the card, it is text the live region was created
+        // with, and a screen reader says nothing (`speakAfterMount`, status-text.js — 17 Nov 2026).
+        const atFirstFrame = await firstFrameText(page, '#loginNotice');
+        expect(atFirstFrame.length, 'premise: the card\'s notice line was seen arriving').toBeGreaterThan(0);
+        expect(atFirstFrame.filter(Boolean), 'the notice was already in the card at its first frame, so it was never announced').toEqual([]);
         await expect(page.locator('#loginCard a.login-back')).toHaveAttribute('href', './#staff-pin');
 
         if (way === 'link') await page.locator('#loginCard a.login-back').click();
@@ -992,6 +999,7 @@ test('a viewer who opens paused Overtime is told the PIN has ended, and its link
     await expect(page.locator('#otMineContent [role="status"]')).toBeEmpty();
 
     await stubPinExchange(page);
+    await recordFirstFrameText(page, '#otMineContent [role="status"]');
     await page.goto('/index.html');
     await enterPin(page, '1234');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
@@ -1000,6 +1008,10 @@ test('a viewer who opens paused Overtime is told the PIN has ended, and its link
     const said = page.locator('#otMineContent [role="status"]');
     await expect(said).toContainText(
         'The staff PIN only opens the Calendar and Trains, so the roster is locked again. Sign in as yourself, or go back and enter the PIN.');
+    // Spoken, not just shown: the region was drawn empty first (`speakAfterMount`, status-text.js).
+    const atFirstFrame = await firstFrameText(page, '#otMineContent [role="status"]');
+    expect(atFirstFrame.length, 'premise: the page\'s status region was seen arriving').toBeGreaterThan(0);
+    expect(atFirstFrame.filter(Boolean), 'the line was already in the region at its first frame, so it was never announced').toEqual([]);
     await expect(said.locator('a')).toHaveAttribute('href', './#staff-pin');
     await said.locator('a').click();
     await expect(page.locator('#calLockPin')).toBeVisible();
@@ -1551,6 +1563,37 @@ test('a member who loses access mid-session keeps NO stored copy — and is offe
     // ONE-SHOT, read as the card arrives: the copy goes inside the write that shuts the state, which
     // is before the card. A retrying assertion would also pass on a copy deleted later, by anything.
     expect(await readSnapshotKey(page), 'the copy outlived the access it was saved under').toBeNull();
+});
+
+// …AND WHEN THE SESSION ITSELF HAS GONE, THE FRONT DOOR SAYS WHY — ALOUD (17 Nov 2026). With no session
+// left to name, the way back in is the sign-in card, carrying the reason (`handleAccessLost` →
+// `showSignInPanel(why)`). That line was written on the line after the card was mounted: the same task,
+// so the live region arrived with its words already in it and a screen reader said nothing. It now waits
+// for the card to be drawn (`speakAfterMount`, status-text.js); `toHaveText` alone cannot see the
+// difference, which is why the first frame is read.
+test('a member whose session has gone when access lapses gets the sign-in card with the reason — announced, not only shown', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    await recordFirstFrameText(page, '#loginNotice');
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay .calendar-day').first()).toBeVisible({ timeout: 20_000 });
+    expect(await firstFrameText(page, '#loginNotice'), 'premise: no notice line before access is lost').toEqual([]);
+
+    await page.evaluate(() => {
+        localStorage.removeItem('myb_admin_session');   // the session has gone: no member card to offer
+        /** @type {any} */ (window).__E2E.failGetDocs = 'permission-denied';
+    });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#loginNotice')).toHaveText('Calendar access has expired. Sign in again to carry on.');
+    await expect(page.locator('#calLockWhy'), 'premise: the front door, not the member\'s own card').toHaveCount(0);
+    const atFirstFrame = await firstFrameText(page, '#loginNotice');
+    expect(atFirstFrame.length, 'premise: the card\'s notice line was seen arriving').toBeGreaterThan(0);
+    expect(atFirstFrame.filter(Boolean), 'the reason was already in the card at its first frame, so it was never announced').toEqual([]);
 });
 
 // THE SET-PASSWORD STEP RUNS ON THE ONE GRANT. It hangs off the one-shot `onGranted`, which now
