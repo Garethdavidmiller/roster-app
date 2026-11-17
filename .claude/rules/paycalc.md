@@ -696,8 +696,8 @@ exact payslip line name first and quote it.
 | Bank Holiday worked (rostered) | `Bank Holiday Rostered 1.25` | 1.25× |
 | Bank Holiday overtime | `Bank Holiday Overtime 1.25` | 1.25× |
 | Overtime | `Overtime 1.25` | 1.25× |
-| Rest Day Worked | `RDW 1.25` | 1.25× |
-| Rest Day Worked — Sunday | `RDW Sun 1.5` | 1.5× |
+| Rest Day Working | `RDW 1.25` | 1.25× |
+| Rest Day Working — Sunday | `RDW Sun 1.5` | 1.5× |
 | Boxing Day | `Bank Holiday Overtime 3.0` | 3.0× |
 | Holiday Pay Premium (annual January lump) | `Holiday Pay Premium` | 7.69% (4/52) of variable pay |
 | Peer training | shows as **extra basic pay** (no distinct line) | basic |

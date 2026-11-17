@@ -701,7 +701,7 @@ export function shiftBadgeParts(timeStr) {
     if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return { cls: 'badge-rest',  emoji: '🏠', word: 'Rest' };
     if (timeStr === 'SPARE') return { cls: 'badge-spare', emoji: '📋', word: 'Spare' };
     if (timeStr === 'RDW')   return { cls: 'badge-rdw',   emoji: '💼', word: 'RDW',
-        title: 'Rest day worked — extra shift on your rostered day off' };
+        title: 'Rest Day Working — extra shift on your rostered day off' };
     if (timeStr === 'AL')    return { cls: 'badge-al',    emoji: '🏖️', word: 'AL' };
     if (timeStr === 'SICK')  return { cls: 'badge-sick',  emoji: '🪑', word: 'Absent' };
     // Other family — 🏷️ + the SHORT flavour word (Train/Ind/Assess); the FULL word

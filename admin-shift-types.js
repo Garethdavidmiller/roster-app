@@ -23,7 +23,7 @@
 export const TYPES = {
     spare_shift:  { label: 'Spare shift',      pill: 'Spare',    fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',            pill: 'Shift',    fixed: false },
-    rdw:          { label: 'Rest Day Worked',  pill: 'RDW',      fixed: false },
+    rdw:          { label: 'Rest Day Working', pill: 'RDW',      fixed: false },
     annual_leave: { label: 'Annual Leave',     pill: 'AL',       fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day',  pill: 'Rest Day', fixed: true,  fixedValue: 'RD' },
     sick:         { label: 'Absent',           pill: 'Absent',   fixed: true,  fixedValue: 'SICK' },

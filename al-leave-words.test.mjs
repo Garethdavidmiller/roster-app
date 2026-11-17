@@ -69,7 +69,7 @@ test('a pattern shift in words', () => {
     // An Other day reads as the Calendar's word for it, never as its code (review, 15 Nov 2026).
     assert.equal(patternWords('TRG'), 'Training');
     assert.equal(patternWords('MEET 09:00-12:00'), 'Meeting 09:00–12:00');
-    assert.equal(patternWords('IND RDW'), 'Induction (rest day worked)');
+    assert.equal(patternWords('IND RDW'), 'Induction (Rest Day Working)');
     assert.equal(drawnWords(day({ pattern: 'TRG' })), 'Training on their pattern');
     assert.equal(patternWords('XYZ'), 'XYZ', 'a value the app cannot read is shown as it is, not guessed');
 });

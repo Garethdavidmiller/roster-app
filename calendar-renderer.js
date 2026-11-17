@@ -84,11 +84,11 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
     if (shift === 'SPARE') return 'Spare day';
     if (shift === 'AL')    return 'Annual leave';
     if (shift === 'SICK')  return 'Absent';
-    if (shift === 'RDW')   return 'Rest day worked';
+    if (shift === 'RDW')   return 'Rest day working';
     const other = parseOtherValue(shift);
     if (other) {
         return OTHER_FLAVOURS[other.flavour].full
-            + ((other.rdw || derivedRdw) ? ' — Rest Day Worked' : '')
+            + ((other.rdw || derivedRdw) ? ' — Rest Day Working' : '')
             + (other.time ? ` ${other.time}` : '');
     }
     // A VALUE THE APP ITSELF CANNOT READ IS NOT A LATE SHIFT (v22.89).
@@ -118,7 +118,7 @@ export function shiftWords(shift, member, derivedRdw, alwaysTime = false) {
  *
  * Splitting here rather than in the panel keeps it pure and testable, and keeps the ONE regex that
  * knows what a time looks like out of a view module. The words keep any trailing clause the Other
- * grammar adds ("Training — Rest Day Worked"), because only the final `HH:MM-HH:MM` is atomic.
+ * grammar adds ("Training — Rest Day Working"), because only the final `HH:MM-HH:MM` is atomic.
  *
  * @param {string} text a rendered shift line from `shiftWords` (+ any RDW time the caller appended)
  * @returns {{ words: string, time: string }} `time` is '' when the line carries none

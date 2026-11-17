@@ -40,7 +40,7 @@ export const CARD_TIPS = {
             { heading: 'What each type means', items: [
                 { icon: '🏖️', html: '<strong>AL</strong> — annual leave. <strong>Absent</strong> — away for any reason; only the dates are saved, never the reason.' },
                 { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift. Use it to confirm a spare week, change shift times, or record a swap with a colleague.' },
-                { icon: '💼', html: '<strong>RDW</strong> — rest day worked. Use it when somebody works a full shift on their rest day.' },
+                { icon: '💼', html: '<strong>RDW</strong> — Rest Day Working. Use it when somebody works a full shift on their rest day.' },
                 { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
                 // All six flavours and Spare: a flavour left out of this list is one nobody knows exists.
                 { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (on standby, shift not yet known).' },

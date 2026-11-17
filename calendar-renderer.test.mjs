@@ -657,7 +657,7 @@ describe('buildCalendarContainer — a day cell\'s name contains what it shows (
         assert.equal(byDay[2],  'Friday 2 — Early 06:20-14:00 — January 2026');
         assert.equal(byDay[6],  'Tuesday 6 — Rest day — January 2026');
         assert.equal(byDay[12], 'Monday 12 — AL, Annual leave — January 2026');
-        assert.equal(byDay[14], 'Wednesday 14 — RDW 09:00-17:00, Rest day worked — January 2026');
+        assert.equal(byDay[14], 'Wednesday 14 — RDW 09:00-17:00, Rest day working — January 2026');
         assert.equal(byDay[15], 'Thursday 15 — Train 09:00-17:00, Training — January 2026');
         assert.equal(byDay[23], 'Friday 23 — Early 07:15-15:45 — Payday — January 2026');
     });

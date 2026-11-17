@@ -387,7 +387,7 @@ never-infer policy: `.claude/rules/paycalc.md` → "Paydays, cut-offs and the ro
 | `'RD'` | 🏠 Rest | Rest day |
 | `'OFF'` | 🏠 Rest | Off day — bilingual roster only, treated identically to RD |
 | `'SPARE'` | 📋 Spare | On standby, shift not yet assigned. Type `spare_shift`. Recorded via the **Other** pill's submenu, but stays its own type/badge |
-| `'RDW'` | 💼 RDW | Rest day worked — overtime |
+| `'RDW'` | 💼 RDW | Rest Day Working — overtime |
 | `'AL'` | 🏖️ AL | Annual leave |
 | `'SICK'` | 🪑 Absent | Sick/absent day — recorded via override |
 | `'HH:MM-HH:MM'` | ☀️/🌙/🦉 | Worked shift |

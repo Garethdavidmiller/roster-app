@@ -69,7 +69,7 @@ export function patternWords(shift) {
     const other = parseOtherValue(shift ?? '');
     if (other) {
         const t = other.time ? /^(\d\d:\d\d)-(\d\d:\d\d)$/.exec(other.time) : null;
-        return `${OTHER_FLAVOURS[other.flavour].full}${other.rdw ? ' (rest day worked)' : ''}${t ? ` ${t[1]}–${t[2]}` : ''}`;
+        return `${OTHER_FLAVOURS[other.flavour].full}${other.rdw ? ' (Rest Day Working)' : ''}${t ? ` ${t[1]}–${t[2]}` : ''}`;
     }
     return String(shift ?? '');
 }

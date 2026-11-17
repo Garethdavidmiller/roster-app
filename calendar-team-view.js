@@ -220,7 +220,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             // rdw override → shift 'RDW' + its time in rdwTime (a base 'RDW' never exists, so this
             // one path covers every RDW cell — it absorbs the old separate 'RDW|time' branch).
             const t = rdwTime || '';
-            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day worked${t ? ' ' + t : ''}` };
+            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day working${t ? ' ' + t : ''}` };
         }
         const _trg = parseOtherValue(shift);
         if (_trg) {
@@ -229,7 +229,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             const f = OTHER_FLAVOURS[_trg.flavour];
             // Derived RDW-ness comes from the shared resolver (explicit flag OR rest-day base) so it
             // matches the calendar + pay engine exactly.
-            const label = f.full + (derivedRdw ? ' — Rest Day Worked' : '')
+            const label = f.full + (derivedRdw ? ' — Rest Day Working' : '')
                 + (_trg.time ? ` ${_trg.time}` : '');
             return { text: `🏷️ ${f.badge}`, cls: 'tv-other', label };
         }
