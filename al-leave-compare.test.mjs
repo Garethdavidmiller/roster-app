@@ -460,7 +460,7 @@ describe('the figures are the app’s own', () => {
         assert.deepEqual([res.app.taken, res.app.booked], [1, 1]);
         // A Dispatcher's figure carries the app's own breakdown — the words Admin's banner uses.
         assert.equal(compare(DISP, []).app.note, entitlementNote({ member: DISP, year: YEAR, overrides: [] }));
-        assert.match(String(compare(DISP, []).app.note), /base/);
+        assert.match(String(compare(DISP, []).app.note), /for bank holidays worked/);
     });
 
     test('an allowance difference reads the sheet as the clerks write it: carried forward on, a joiner’s reduction off', () => {

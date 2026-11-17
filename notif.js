@@ -344,7 +344,7 @@ async function _disableNotifications() {
  *
  * UNLESS THE RECORD CANNOT BE DELETED (48-hour review). The rule lets only its owner delete it, and
  * the Calendar's member card is shown precisely when a local session has OUTLIVED its Firebase
- * identity — so "Use the staff PIN instead" and the drawer's Sign out there ran a delete that was
+ * identity — so its sign-out to the staff PIN and the drawer's Sign out there ran a delete that was
  * always refused, and the departed member's personal notices kept arriving on a shared PC. When the
  * delete fails, the browser subscription is dropped instead: the next send to that endpoint gets a
  * 410, and the server deletes the record itself (`sendTargetedPush`/`fanOutPush`). The cost is that

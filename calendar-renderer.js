@@ -2,8 +2,10 @@
 /**
  * calendar-renderer.js — Calendar cell and container building for index.html.
  *
- * Owns: createCalendarHeader, createDayCell, getSwipeDirection,
- *   buildCalendarContainer.
+ * Owns: buildCalendarContainer (the month grid, or the panel that stands in for it) and its parts —
+ *   createCalendarHeader, createDayCell, dayCellParts, dayCellName, shiftWords, splitShiftLine,
+ *   dayMarkers, weekContext, changeProvenance — getSwipeDirection, and setSnapshotSource (where the
+ *   member's own stored copy is read from).
  * Does NOT own: display state (calendar-app.js), override fetching (calendar-overrides.js),
  *   member selection (calendar-member.js).
  * Edit here for: day cell HTML, calendar grid structure, month header, swipe maths.
@@ -201,8 +203,10 @@ export function weekContext(member, date) {
 /**
  * Builds the HTML string for the calendar's month/week header.
  * Pure — takes explicit params, reads no global state.
+ * `cycleWeeks` — the rotation's length, so a month that runs off the end of the cycle and starts it
+ * again can say so; omitted, a range is written as it comes.
  */
-export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type {any} */ lastWeekNum, /** @type {any} */ weekPrefix, /** @type {any} */ month, /** @type {any} */ year) {
+export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type {any} */ lastWeekNum, /** @type {any} */ weekPrefix, /** @type {any} */ month, /** @type {any} */ year, cycleWeeks = 0) {
     let weekDisplay = '';
     if (weekPrefix !== '') {
         if (firstWeekNum === lastWeekNum) {
@@ -212,7 +216,13 @@ export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type 
             const pluralPrefix = weekPrefix + 's';
             // En-dash for the range (v18.19) — matches the Team Week View's "19–25 July" strip;
             // the ASCII hyphen was the app's one range rendered with the wrong dash.
-            weekDisplay = `${pluralPrefix} ${firstWeekNum}–${lastWeekNum}`;
+            const span = (/** @type {number} */ a, /** @type {number} */ b) => (a === b ? `${a}` : `${a}–${b}`);
+            // A MONTH THAT WRAPS THE CYCLE (17 Nov 2026): one that starts in week 19 of 20 ends in week
+            // 3, and "CEA Weeks 19–3" reads as a range run backwards — a third of member-months over a
+            // winter. It is the end of one cycle and the start of the next, so it says both.
+            weekDisplay = firstWeekNum > lastWeekNum && cycleWeeks >= firstWeekNum
+                ? `${pluralPrefix} ${span(firstWeekNum, cycleWeeks)}, ${span(1, lastWeekNum)}`
+                : `${pluralPrefix} ${span(firstWeekNum, lastWeekNum)}`;
         }
     }
     // No "·" between the month and the week note (v22.87): the note's smaller grey type already
@@ -336,14 +346,17 @@ function buildGridPlaceholder(display, onRetry) {
     // status vs alert: a wait is a passing condition and must not interrupt, a failure is the end of
     // the road for this month and should be spoken when it happens.
     panel.setAttribute('role', failed ? 'alert' : 'status');
+    // NEUTRAL WORDS, NOT "YOUR" (17 Nov 2026): this panel stands over a colleague's calendar and the
+    // staff PIN's as often as the reader's own. And the failure says WHY the month is held back in a
+    // sentence that parses — it ended "the rota underneath it may be out of date".
     panel.innerHTML = failed
         ? '<div class="calendar-pending-emoji" aria-hidden="true">⚠️</div>'
           + '<h2>Couldn\'t check this month</h2>'
-          + '<p>Your annual leave, absences and shift changes couldn\'t be loaded, so this month '
-          + 'isn\'t being shown — the rota underneath it may be out of date.</p>'
+          + '<p>Annual leave, absences and shift changes couldn\'t be loaded, so this month isn\'t '
+          + 'shown: without them it could show the wrong shifts.</p>'
         : '<div class="calendar-pending-emoji" aria-hidden="true">⏳</div>'
           + '<h2>Checking this month</h2>'
-          + '<p>Loading your annual leave, absences and shift changes.</p>';
+          + '<p>Loading annual leave, absences and shift changes.</p>';
     if (failed && onRetry) {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -414,7 +427,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
 
     const header = document.createElement('div');
     header.className = 'calendar-header';
-    header.innerHTML = createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year);
+    header.innerHTML = createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year, roster.cycleLength);
     calendarContainer.appendChild(header);
 
     // ── May this month's shifts be drawn at all? (v20.40) ───────────────────────────────────────
@@ -626,6 +639,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // to be the one state the panel rendered in monochrome, which made the colour look like a
         // property of "something happened" rather than of the shift.
         dayCell.dataset.detailShiftValue = shift;
+        // A member whose worked turns all wear one kind (`permanentShift`): the cell's badge says that
+        // kind whatever the time, so the panel is told too, or its glyph and pair would name the time's.
+        if (member.permanentShift === 'early' || member.permanentShift === 'late') dayCell.dataset.detailPermanentShift = member.permanentShift;
         // Split so the panel can hold the TIME together across a wrap — see `splitShiftLine`.
         // Christmas leave heads the panel as plain "Annual leave": the line under it says why, and
         // the "(Christmas, not counted)" the tooltip and the cell's name need would say it twice.

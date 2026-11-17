@@ -309,6 +309,58 @@ describe('admin.html never offers somebody who has left', () => {
 });
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────
+// …AND THE ROW IT MARKS AS THE READER'S OWN IS THE MEMBER SIGNED IN (17 Nov 2026)
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+//
+// Executed through the same harness, because it is the same grid. The mark followed the PICKER: on a
+// colleague's calendar it called the colleague "you", and on the staff PIN it marked whoever was
+// chosen last on that machine. Two current CEAs are taken from the roster by position, so no name is
+// written down here.
+
+describe('the row marked as the reader\'s own is the member signed in — never the picker\'s choice', () => {
+    const monthKey = (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`;
+    // Names an HTML escape would leave alone, so the drawn heading can be compared with the name.
+    const [first, second] = VISIBLE.filter(m => m.role === 'CEA' && /^[A-Za-z. -]+$/.test(m.name));
+    const indexOf = m => teamMembers.indexOf(m);
+
+    /** Draw the CEA week with the picker on `shown` and `own` signed in; return the names marked as "mine". */
+    function markedRows(shown, own) {
+        const now = new Date();
+        for (let i = -2; i <= 2; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+            noteKnowledge([monthKey(d.getFullYear(), d.getMonth())], 'authoritative');
+        }
+        _display.innerHTML = '';
+        const tv = initTeamView({
+            rosterOverridesCache: new Map(), ensureOverridesCached() {}, monthKey, clearFetchedMonth() {},
+            getSelectedMemberIndex: () => indexOf(shown), isFirstRun: () => false, ownName: () => own,
+            renderCalendar() {}, _pushOverlayState() {}, _clearOverlayHistory() {},
+        });
+        tv.restoreTeamView();
+        assert.ok(tv.isGridShown(), 'the CEA grid withheld its rows — the harness, not the rule, is wrong');
+        return [..._display.innerHTML.matchAll(/<tr class="tv-my-row"><th scope="row" class="tv-name-col">([^<]*)</g)].map(m => m[1]);
+    }
+
+    test('premise: two current CEAs to tell apart', () => {
+        assert.ok(first && second, 'the roster no longer has two CEAs with plain names — pick the pair another way');
+    });
+
+    test('signed in and reading their own calendar: their row is marked', () => {
+        assert.deepEqual(markedRows(first, first.name), [first.name]);
+    });
+
+    test('signed in and reading a COLLEAGUE\'s calendar: still their own row, never the colleague\'s', () => {
+        assert.deepEqual(markedRows(second, first.name), [first.name],
+            'the picker\'s member was marked as the reader\'s own row');
+    });
+
+    test('the staff PIN, or nobody signed in: no row is marked, whoever was chosen last', () => {
+        assert.deepEqual(markedRows(second, null), [],
+            'a station PC marked the last-chosen colleague as the reader');
+    });
+});
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
 // THE FOUR COPIES SAY THE SAME THING
 // ───────────────────────────────────────────────────────────────────────────────────────────────
 

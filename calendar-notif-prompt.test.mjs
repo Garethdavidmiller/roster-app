@@ -144,6 +144,26 @@ describe('Enable is answered, not just acted on (cal-docs-5, whole-app review 10
         assert.equal(els.ariaAnnouncer.textContent, FAILED_LINE, 'and the Calendar\'s announcer speaks it');
     });
 
+    // WHO RECORDS THE ANSWER (17 Nov 2026 — the rule file said "both Enable and × set it", and this
+    // module sets it only on a no). Enable answers it for good in two places: here when the system
+    // says no, and in notif.js once the subscription is SAVED (notif.test.mjs pins that half). Never
+    // in between: a granted permission whose subscription failed must leave the strip free to return.
+    test('asked and declined: the answer is recorded here, so the strip is never offered again', async () => {
+        initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => 'named' });
+        await settle();
+        permissionAnswer = 'denied';
+        await els.notifPromptEnable.on.click();
+        assert.equal(store[NOTIF_PROMPT_DONE], '1', 'a member who said no would be asked again on every visit');
+        assert.equal(enables, 0, 'a declined permission must not try to subscribe');
+    });
+
+    test('granted but the subscription failed: nothing here records the answer', async () => {
+        enableResult = 'off-lapsed';
+        await tapEnable();
+        assert.equal(store[NOTIF_PROMPT_DONE], undefined,
+            'the answer was recorded before the subscription was saved — a failed one could not come back');
+    });
+
     test('granted and switched on: the strip stays gone, and nothing is announced', async () => {
         enableResult = 'on';
         await tapEnable();

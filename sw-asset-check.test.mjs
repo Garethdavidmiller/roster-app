@@ -763,6 +763,10 @@ for (const [page, entry, preloadsEntry] of PRELOAD_PAGES) {
         // The local modules the page declares as preloads.
         const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
             .map(x => x[1]).sort();
+        // A preload listed twice passes the comparison below (it checks membership, not count) and
+        // is a second hint for a file already asked for — index.html carried one for months.
+        const twice = preloaded.filter((f, i) => i > 0 && preloaded[i - 1] === f);
+        assert.deepEqual(twice, [], `${page} preloads these more than once: ${twice.join(', ')}`);
 
         const missing = expected.filter(f => !preloaded.includes(f));
         const stale   = preloaded.filter(f => !expected.includes(f));

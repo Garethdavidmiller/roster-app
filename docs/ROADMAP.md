@@ -535,7 +535,7 @@ each of them another way:
 
 - **It rebuilds what the page built from the old session.** The drawer, its page pills and the name
   picker are set up as the page loads, before access is decided, so that a locked visitor still has
-  the drawer. "Use the staff PIN instead" on a member's own sign-in card signs them out and reloads
+  the drawer. "Sign out and use the staff PIN" on a member's own sign-in card signs them out and reloads
   for the same reason (`calendar-lock-cards.js`).
 - **It runs the forced set-password step**, which runs on the page's first grant (`_runPasswordForce`,
   `calendar-app.js`).

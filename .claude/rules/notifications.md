@@ -133,7 +133,7 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 **The `owner` must never outlive the member's hold on the device:**
 
 - **Sign-out.** The drawer's Sign out — once the page has committed to it (a `beforeSignOut` cancel
-  keeps the record) — and the Calendar's "Use the staff PIN instead" hand-over call
+  keeps the record) — and the Calendar member card's "Sign out and use the staff PIN" hand-over call
   `releaseDevicePush` (`notif.js`), which deletes this device's record, so a targeted notice never
   follows a member onto a shared device they have left. Only a signed-in CALENDAR load re-saves it
   (`getNotifState`'s only caller), so until then another page shows notifications as on with no

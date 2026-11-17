@@ -145,8 +145,9 @@ every base-shift, date and shift-classification helper. Rules: `.claude/rules/ro
   `getPaydaysAndCutoffs(year)` · `isPayday` · `isCutoffDate` · `paydayForCutoff(cutoffIso)` (or null).
 - **Shifts.** `getShiftKind(timeStr, member)` (honours `permanentShift`, so not interchangeable with
   `getShiftClass(timeStr)`) · `isEarlyShift` · `isNightShift` · `isWorkedShift(shift)` (false for
-  RD/OFF/SPARE/AL/SICK, true for everything else, RDW included) · `shiftBadgeParts(timeStr)` →
-  `{ cls, emoji, word, title?, timed? }`, the one source of a badge's colour and words ·
+  RD/OFF/SPARE/AL/SICK, true for everything else, RDW included) · `shiftBadgeParts(timeStr, member?)` →
+  `{ cls, emoji, word, title?, timed? }`, the one source of a badge's colour and words (a member's
+  `permanentShift` wins for a timed shift, as in `getShiftKind`) ·
   `getShiftBadge(timeStr, { showTime? })` (`showTime` shows a timed shift's time — Admin's week grid and
   Overtime's `rosterBadge`; the default stays byte-identical) · `SHIFT_TIME_REGEX` · `TIME_RE` ·
   `validateRosterPatterns(rosters?)` (a load-time self-check on localhost or `?debug`).
@@ -239,19 +240,23 @@ day is. The reasoning sits beside each step, in `index.css` (layout) and in `ind
 - `initCalendarLightboxes({ navigateToPaycalc })` → `{ openDayDetail, closeALLightbox }`.
 - **Leave panel.** Reads all of the member's own overrides, of every type, from last year's Boxing
   Day (working it when due adds a day to this year's allowance) to the end of next January, and counts
-  them with `countedAlDates`, `entitlementFor` and `entitlementNote`
+  them with `alPosition` (the Admin banner's taken/booked/entitlement), `countedAlDates` and `entitlementNote`
   (`al-entitlement.js`), adding the carry line (`leave-year.js`) and the Christmas line
   (`christmas-leave.js`). A last-known-good memo per member and year paints at once, labelled as the
   saved copy until a read confirms it; a refresh that fails, or that the offline cache answered, keeps it
   under "Saved copy — couldn't check for changes". On a first run (no name chosen) it shows nobody's
-  figures and asks for a name. A `null` entitlement shows the em-dash state. The panel
-  has its own year (‹ ›), opening on the Calendar's, and names whose leave it is (`#alLbWho`, and the
+  figures and asks for a name. A `null` entitlement shows the em-dash state and says why. Whether a
+  balance is kept on the device is asked again as the read LANDS — signed in by name, on their own
+  panel — because a sign-out, a lost grant or another member can come between. The panel
+  has its own year (‹ › — ‹ stops at the member's start year), opening on the Calendar's, and names whose leave it is (`#alLbWho`, and the
   dialog's own name) from the same member its figures are counted for — on every open, because the
   member picker moves under a page that is never reloaded.
 - **Day panel.** Filled from the cell's `data-detail-*` attributes (`calendar-renderer.js` writes them):
   the date and roster week, the shift with its kind glyph, the change as two badges built from
-  `shiftBadgeParts` with `textContent` (never markup from an attribute), who last saved it, "As rostered"
-  only where the renderer earned it, the day markers as chips, and the leave-year and Christmas lines.
+  `shiftBadgeParts` with `textContent` (never markup from an attribute) — honouring a `permanentShift` as
+  the cell does — read as ONE visually hidden sentence, who last saved it, "As rostered"
+  only where the renderer earned it, the day markers as chips, the leave-year and Christmas lines, and on
+  a cut-off what a pay cut-off is and the payday it feeds.
   Closing it after the grid was rebuilt behind it returns focus to the same day.
 - **Its two actions are personal.** "Pay estimate" and "Leave dates" show only when
   `personalActionsAllowed` says the calendar on screen is the signed-in member's own; the leave link
@@ -276,7 +281,7 @@ Firebase Auth initialises — `CALENDAR_DATA.md` 10); phase 2 waits for `authRea
   a moment for the cache paint; `dismissSyncError()` withdraws a recorded failure (never a running
   "Updating…") when the month panel's Try again takes over; the chip also withdraws a failure itself
   once the month on screen has been confirmed since.
-- Chip: hidden → "↻ Updating your shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
+- Chip: hidden → "↻ Updating shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
   timeout. A press says "↻ Retrying…" for at most `RETRY_TIMEOUT_MS`, then gives the control back. The owed state is `_chipState`, not the DOM, and a `MutationObserver` puts the chip back
   whenever a header rebuild takes it away (beside `setChipState`).
 - **Whose outcome is it** (`standing`, internal). The boot's read and each retry are ATTEMPTS, each
@@ -355,8 +360,9 @@ things an edit can silently break.
   comparing a PIN. Warms the cold exchange with one GET as it appears; a failure clears the field,
   returns focus to it and applies `attemptBackoffMs`.
 - `showMemberPanel(name, why?)` — the come-back card for a session that outlived its Firebase identity.
-  Its "use the staff PIN instead" is a sign-out (`releaseDevicePush`, `clearSession`, reload), never a
-  panel swap, because the drawer still carries that member's name and role pills.
+  Its "Sign out and use the staff PIN" is a sign-out (`releaseDevicePush`, `clearSession`, reload), never a
+  panel swap, because the drawer still carries that member's name and role pills — and the line under it
+  says so, notifications included, before the tap.
 - `hideLockPanel()` (takes whatever is up off the page, and the backoff timer with it) ·
   `dismissSignInForm()` (on a grant: the come-back card's full-screen form, which is not in the slot —
   never the inline card, nor a form whose own sign-in is in flight) ·
@@ -375,6 +381,9 @@ The one place on the Calendar page where a card stands in for the grid — at mo
   never replaces the member's stored roster (`calendarSnapshot`).
 - `setWorkspaceHidden(hidden)` — hides or shows the workspace a card stands in for, by the `hidden`
   attribute (moved from `calendar-access.js`, 16 Nov 2026); the gate decides when.
+- `speakAfterMount(region, write)` — writes into a live region a card mounted in this task once the
+  browser has drawn it (the next frame, then a task). Filled in the mounting task, a region is read by
+  nobody; the skeleton's line, the member card's reason and the PIN card's "expired" line all go through it.
 
 ### `calendar-snapshot.js`
 The member's own roster, kept on the device so the Calendar shows it, labelled, while the sign-in
@@ -784,7 +793,9 @@ the tooltip share. The reasoning is beside each function.
   Callers pass no `onRetryMonth` during that read. One delegated click opens the day panel on every
   pointer type.
 - `setSnapshotSource(fn)` — where a loading month's stored copy comes from (set by `calendar-app.js`).
-- `createCalendarHeader(...)` · `createDayCell(...)` · `dayCellParts(...)` → `{ forced, badgeWord,
+- `createCalendarHeader(first, last, prefix, month, year, cycleWeeks?)` — a range that runs off the end of
+  the cycle says both ends ("CEA Weeks 19–20, 1–3"), never one run backwards ·
+  `createDayCell(...)` · `dayCellParts(...)` → `{ forced, badgeWord,
   timeShown }` · `dayCellName({...})` — the cell and its accessible name come from one answer, and the
   name contains what the cell shows (WCAG 2.5.3) · `getSwipeDirection(...)`.
 - For the day panel: `shiftWords(shift, member, derivedRdw, alwaysTime?)` (one ladder for the shift and
@@ -845,7 +856,8 @@ Team Week View — the grade-wide week grid toggled from the Calendar header.
 - `initTeamView({...deps})` → `{ toggleTeamView, isTeamViewMode, restoreTeamView, jumpToCurrentWeek,
   refreshFromCache, refetchShownWeek, followDate, isOffThisWeek, isGridShown }`. The coordinator
   injects the override cache, the shared `ensureOverridesCached` and the shared repaint a month read lands with (`onMonthRead`), member
-  and render callbacks, and the history hooks.
+  and render callbacks, and the history hooks. The row marked as the reader's own is `ownName()`'s — the
+  member signed in by name, never the picker's choice; nobody's on the staff PIN.
 - **Its overrides come from the SHARED month fetch**, never a fetcher of its own: a second authoritative
   reconciler racing the first evicts what it loaded (`CALENDAR_DATA.md` 6; `ensureTeamWeekCached` says
   why). `refreshFromCache` repaints from the cache with no read; `refetchShownWeek` re-reads released
