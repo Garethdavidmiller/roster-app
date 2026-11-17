@@ -753,7 +753,7 @@ export function init() {
     function _createRefused(id) {
         const name = designs.find(x => x.id === id)?.name ?? '', open = activeDesignId === id && !!design;
         designs = designs.filter(x => x.id !== id);
-        if (!open) queuedSaves.refused(id);   // a first save's copy, where there is one, stays kept and marked (rule 4)
+        if (!open || !design) queuedSaves.refused(id);   // a first save's copy, where there is one, stays kept and marked (rule 4)
         else {
             queuedSaves.acked(id);   // forgotten: the work is on screen, unsaved, and a hide keeps that copy
             activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, ''); activation++;   // an old save in flight lands elsewhere
@@ -804,7 +804,7 @@ export function init() {
         // picker and the same Compare chips, where two of one name cannot be told apart. The import
         // refused one (links-design-library.js); New, Save as…, Save a copy as… and Rename decide here.
         const asDesign = checkName(name, { existing: designs, exceptId, noun: 'design' });
-        const v = asDesign.ok ? checkName(name, { existing: PROPOSAL_NAMES, noun: 'shortlisted proposal' }) : asDesign;
+        const v = asDesign.ok ? checkName(name, { existing: [...PROPOSAL_NAMES], noun: 'shortlisted proposal' }) : asDesign;
         if (!v.ok) _designActionStatus(v.message || 'That name cannot be used.');
         return !v.ok;
     }
