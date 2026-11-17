@@ -459,55 +459,29 @@ const LIVE_DOCS = ['./CLAUDE.md', './docs/AI_MAP.md', './docs/ROADMAP.md', './do
     './.claude/rules/calendar.md', './.claude/rules/admin.md', './.claude/rules/nav-drawer.md',
     './.claude/rules/pwa.md', './.claude/rules/sessions.md'];
 
-// ── CONTRACT 1c: AI_MAP KNOWS every export — the other direction of 1b ─────────────────────────
+// ── CONTRACT 1c: AI_MAP's export lines ARE the code's exports — generated, never hand-kept ──────
 //
-// 1b catches a doc naming a symbol the code does not have. This catches the opposite and commoner
-// failure: code gaining an export the map never hears about. At v21.62 that was **70 exports, 8.6%
-// of the surface**, and the distribution was the tell — not one documented export had been deleted,
-// so the gap was not carelessness, it was structural. `githooks/pre-commit` computed only REMOVED
-// exports, so ADDING one — the common case — passed cleanly every time. The hook now checks both
-// directions; this is the backstop for anything that lands without passing through it.
-//
-// The bar is deliberately LOW: a mention anywhere in AI_MAP.md, not a well-formed entry. A stricter
-// test would need to know what a good description looks like, would argue with judgement calls, and
-// would be waived. "Can a reader find this name in the map at all?" is mechanical and is the
-// question that actually failed.
-//
-// EXEMPT are the test seams and internal markers that a map SHOULD not carry — each named, so the
-// list stays a decision rather than a drift.
-const EXPORT_COVERAGE_EXEMPT = new Set([
-    '_resetForTest',            // sw-register.js — test seam
-    '_triggerAutoOpen',         // calendar-huddle-viewer.js — test seam
-    '_setSelectPeriod',         // paycalc-periods.js — test seam
-    '_hasStagedEdits',          // admin-week-editor.js — test seam
-    '_saveOverrideBatches',     // admin-roster-upload.js — internal, documented by behaviour
-]);
-test('every root export is findable in AI_MAP', () => {
-    const files = readdirSync(new URL('.', import.meta.url))
-        .filter(f => /\.js$/.test(f) && !f.includes('.test.') && f !== 'service-worker.js');
-    const missing = [];
-    for (const f of files) {
-        const src = read('./' + f);
-        const names = new Set();
-        for (const m of src.matchAll(/^export\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+([A-Za-z0-9_$]+)/gm))
-            names.add(m[1]);
-        for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm))
-            for (const part of m[1].split(',')) {
-                const seg = part.trim();
-                if (!seg || seg.startsWith('//')) continue;
-                const as = seg.match(/\bas\s+([A-Za-z0-9_$]+)/);
-                const name = as ? as[1] : seg.split(/\s+/)[0];
-                if (name && name !== 'default' && /^[A-Za-z_$]/.test(name)) names.add(name);
-            }
-        for (const n of names) {
-            if (EXPORT_COVERAGE_EXEMPT.has(n)) continue;
-            if (!AI_MAP.includes(n)) missing.push(`${f}: ${n}`);
-        }
+// At v21.62 70 exports (8.6% of the surface) had no mention in the map, because the pre-commit hook
+// checked only REMOVED exports; this contract was then a backstop asking that every root export be
+// named somewhere. On 17 Nov 2026 the map's export lists stopped being prose: `npm run
+// generate:ai-map` writes one `- **Exports:**` line per module from the code (scripts/ai-map-lib.mjs
+// owns the format), so a list can no longer be missing a name, carry a deleted one, or disagree with
+// the module. What is left to check is that somebody RAN it, which is this test — the same shape as
+// guide-index-parity for the search index. It covers the Functions modules too, which the old
+// contract never read.
+test('AI_MAP\'s export lines match the code (npm run generate:ai-map)', async () => {
+    const { renderAiMap, EXPORT_LINE } = await import('./scripts/ai-map-lib.mjs');
+    const expected = renderAiMap(AI_MAP, p => read('./' + p));
+    const have = AI_MAP.split('\n'), want = expected.split('\n');
+    const diff = [];
+    for (let i = 0; i < Math.max(have.length, want.length) && diff.length < 8; i++) {
+        if (have[i] !== want[i]) diff.push(`line ${i + 1}:\n    map:  ${(have[i] ?? '(none)').slice(0, 140)}\n    code: ${(want[i] ?? '(none)').slice(0, 140)}`);
     }
-    assert.deepEqual(missing, [],
-        `these exports exist and AI_MAP.md has never heard of them:\n  ${missing.join('\n  ')}\n\n`
-        + 'Add each to its module\'s entry. If a symbol is genuinely internal (a test seam), name it\n'
-        + 'in EXPORT_COVERAGE_EXEMPT with the reason, so the exclusion is a decision and not a gap.');
+    assert.deepEqual(diff, [],
+        'docs/AI_MAP.md\'s export lines are stale — run `npm run generate:ai-map` and commit the result:\n  '
+        + diff.join('\n  '));
+    // Guard the guard: the lines must exist, or a renderer that silently wrote nothing would pass.
+    assert.ok(have.filter(l => EXPORT_LINE.test(l)).length > 250, 'AI_MAP has almost no generated export lines');
 });
 
 // ── CONTRACT 1b: no live doc NAMES a symbol the code does not have ─────────────────────────────
