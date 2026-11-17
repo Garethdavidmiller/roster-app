@@ -130,7 +130,9 @@ export function setStatus(el, text) {
  * then: whatever replaced it says its own words. Where there is no `requestAnimationFrame` (a Node
  * test), a task alone. Writing on the line after the mount, or in a microtask, is the SAME task, and
  * silent: that is how the Calendar's skeleton, member-card and PIN-card lines, and the sign-in card's
- * notice, all went unheard until 17 Nov 2026.
+ * notice, all went unheard until 17 Nov 2026. The timing is pinned by status-text.test.mjs; each
+ * caller's moment by session.test.mjs, calendar-access.test.mjs and e2e/calendar-pin.spec.js, where
+ * `recordFirstFrameText` reads what a region said at its first frame.
  * @param {Element|null|undefined} region  the live region, or the box inside it that is written
  * @param {() => void} write
  */

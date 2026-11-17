@@ -1,6 +1,7 @@
 // @ts-check
 // Override priority, member-start, and shift-classification helpers.
 // Shared by calendar-app.js, calendar-team-view.js, and the admin modules.
+// Pure: no DOM, no Firestore — each export's JSDoc carries its own reasoning.
 
 import { isClockTime } from './clock-input.js';   // the entry control's boxes are text (v23.37)
 import { isValidLeaveYear } from './leave-year.js';   // which year's allowance a January leave day is (v25.18)
