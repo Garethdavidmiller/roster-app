@@ -9,7 +9,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readLockout, lockoutWords, lockoutCount } from './operations-pin-lockout.js';
+import { readLockout, lockoutWords, lockoutCount, lockoutChangesAt } from './operations-pin-lockout.js';
 import { reportLoginAccounts, withdrawLoginAccounts, buildAttentionItems } from './operations-attention.js';
 
 const MIN = 60_000;
@@ -47,18 +47,78 @@ describe('lockoutWords — what happened, and what the admin can do', () => {
         assert.equal(text, 'The staff PIN was blocked for everyone 3 times in the last day, most recently from 13:25 — too many wrong entries.');
     });
 
+    test('ONE block that has ended is given its start and its end — "most recently" is for several', () => {
+        const { text } = lockoutWords({ active: false, blockedUntil: NOW - 30 * MIN, lastBlockedAt: NOW - 45 * MIN, blocks: 1 }, NOW);
+        assert.equal(text, 'The staff PIN was blocked for everyone from 13:25 to 13:40 — too many wrong entries.');
+    });
+
     test('a block begun yesterday says so', () => {
-        const { text } = lockoutWords({ active: false, blockedUntil: NOW - 15 * 60 * MIN, lastBlockedAt: NOW - 16 * 60 * MIN, blocks: 1 }, NOW);
-        assert.match(text, /most recently from yesterday at 22:10/);
+        const began = NOW - 16 * 60 * MIN;                       // 22:10 yesterday, for fifteen minutes
+        const { text } = lockoutWords({ active: false, blockedUntil: began + 15 * MIN, lastBlockedAt: began, blocks: 1 }, NOW);
+        assert.match(text, /from yesterday at 22:10 to yesterday at 22:25/);
+        const several = lockoutWords({ active: false, blockedUntil: began + 15 * MIN, lastBlockedAt: began, blocks: 2 }, NOW);
+        assert.match(several.text, /most recently from yesterday at 22:10/);
+    });
+
+    // A BLOCK THAT RUNS PAST MIDNIGHT (whole-app check, 17 Nov 2026). It lasts fifteen minutes, so one that
+    // starts at 23:50 ends at 00:05 — and only the past had words: the end read "yesterday at 00:05".
+    test('a running block that ends after midnight ends TOMORROW — in winter and in summer time', () => {
+        const winter = Date.UTC(2026, 10, 17, 23, 50);           // 23:50 GMT
+        assert.equal(lockoutWords({ active: true, blockedUntil: winter + 15 * MIN, lastBlockedAt: winter, blocks: 1 }, winter + MIN).text,
+            'The staff PIN is blocked for everyone until tomorrow at 00:05 — too many wrong entries.');
+        const summer = Date.UTC(2026, 6, 1, 22, 50);             // 23:50 BST
+        assert.match(lockoutWords({ active: true, blockedUntil: summer + 15 * MIN, lastBlockedAt: summer, blocks: 2 }, summer + MIN).text,
+            /until tomorrow at 00:05 — too many wrong entries, 2 times in the last day\.$/);
+        assert.match(lockoutWords({ active: false, blockedUntil: winter + 15 * MIN, lastBlockedAt: winter, blocks: 1 }, winter + 60 * MIN).text,
+            /from yesterday at 23:50 to 00:05/, 'read after midnight, the start is yesterday and the end today');
     });
 
     test('calm: no exclamation mark, and no PIN-shaped number', () => {
         const all = JSON.stringify([
             lockoutWords({ active: true, blockedUntil: NOW + MIN, lastBlockedAt: NOW, blocks: 1 }, NOW),
             lockoutWords({ active: false, blockedUntil: NOW - MIN, lastBlockedAt: NOW - 20 * MIN, blocks: 4 }, NOW),
+            lockoutWords({ active: false, blockedUntil: NOW - MIN, lastBlockedAt: NOW - 16 * MIN, blocks: 1 }, NOW),
+            lockoutWords({ active: true, blockedUntil: Date.UTC(2026, 10, 17, 0, 5), lastBlockedAt: Date.UTC(2026, 10, 16, 23, 50), blocks: 1 }, Date.UTC(2026, 10, 16, 23, 51)),
         ]);
         assert.doesNotMatch(all, /!/);
         assert.doesNotMatch(all.replace(/\d{2}:\d{2}/g, ''), /\b\d{4}\b/);
+    });
+});
+
+// ── WHEN THE WORDS CHANGE BY THE CLOCK ALONE (whole-app check, 17 Nov 2026) ─────────────────────────
+// The card judged the block once, as the answer came, so a line drawn during a block went on saying
+// "blocked until 14:20" at 15:00. `lockoutChangesAt` is when the card must draw it again.
+describe('lockoutChangesAt — the next moment the line would say something else', () => {
+    test('a running block: when it ends', () => {
+        const l = readLockout({ active: true, blockedUntil: NOW + 10 * MIN, lastBlockedAt: NOW - 5 * MIN, blocks: 1 }, NOW);
+        assert.equal(lockoutChangesAt(l, NOW), NOW + 10 * MIN);
+        // …after which it reads as ENDED, still counted for the day.
+        const after = readLockout({ active: true, blockedUntil: NOW + 10 * MIN, lastBlockedAt: NOW - 5 * MIN, blocks: 1 }, NOW + 10 * MIN);
+        assert.equal(after?.active, false);
+        assert.equal(lockoutCount(after), 1);
+    });
+
+    test('an ended block: London midnight (its times become "yesterday"), then a day after it began', () => {
+        const ended = readLockout({ active: false, blockedUntil: NOW - 30 * MIN, lastBlockedAt: NOW - 45 * MIN, blocks: 1 }, NOW);
+        assert.equal(lockoutChangesAt(ended, NOW), Date.UTC(2026, 10, 17), 'midnight GMT comes first');
+        const tomorrow = Date.UTC(2026, 10, 17, 9);
+        const later = readLockout({ active: false, blockedUntil: NOW - 30 * MIN, lastBlockedAt: NOW - 45 * MIN, blocks: 1 }, tomorrow);
+        assert.equal(lockoutChangesAt(later, tomorrow), NOW - 45 * MIN + 24 * 60 * MIN, 'then the day runs out');
+        assert.equal(readLockout({ active: false, blockedUntil: NOW - 30 * MIN, lastBlockedAt: NOW - 45 * MIN, blocks: 1 }, NOW - 45 * MIN + 24 * 60 * MIN), null,
+            '— and the line goes');
+    });
+
+    test('in summer time, midnight is the hour before midnight UTC', () => {
+        const at = Date.UTC(2026, 6, 1, 12);
+        const l = readLockout({ active: false, blockedUntil: at - 30 * MIN, lastBlockedAt: at - 45 * MIN, blocks: 1 }, at);
+        assert.equal(lockoutChangesAt(l, at), Date.UTC(2026, 6, 1, 23));
+    });
+
+    test('none and unknown: nothing to wait for — and a time is always after now', () => {
+        assert.equal(lockoutChangesAt(null, NOW), null);
+        assert.equal(lockoutChangesAt(undefined, NOW), null);
+        const l = readLockout({ active: true, blockedUntil: NOW + MIN, lastBlockedAt: NOW, blocks: 1 }, NOW);
+        assert.ok(/** @type {number} */ (lockoutChangesAt(l, NOW)) > NOW);
     });
 });
 

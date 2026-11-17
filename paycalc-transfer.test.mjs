@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import {
     BACKUP_FORMAT, BACKUP_VERSION,
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
-    applyRestore,
+    applyRestore, restoredLine,
 } from './paycalc-transfer.js';
 import { PAY_DATA_GENERATION, keyOwnerSlug } from './paycalc-migrations.js';
 
@@ -406,6 +406,26 @@ describe('the trust boundary — a backup must not write arbitrary storage', () 
         assert.equal(res.ok, false);
         assert.match(res.error, /inconsistent/);
     });
+
+    // A KEY QUOTED BACK IS THE FILE'S OWN TEXT (17 Nov 2026). Each refusal names the key so the member can
+    // find it, and the owner's name was already capped — the four keys a refusal quotes were not, so a
+    // 5,000-character key stretched the card by 5,000 characters. Every quoting refusal, one by one.
+    test('a pathological KEY is capped before any refusal quotes it', () => {
+        const long = (/** @type {string} */ c) => c.repeat(5000);
+        const cases = [
+            ['not pay data', makeBlob({ data: { [`myb_pc_${long('a')}-`]: '1' } }), /isn't pay data/],
+            ['damaged', makeBlob({ data: { [`${PREFIX}${long('b')}`]: /** @type {any} */ ({ nested: true }) } }), /damaged/],
+            ['not under the slug', makeBlob({ data: { [`myb_pc_${long('c')}`]: '1' } }), /inconsistent/],
+            ['the importer\'s own keys, slug stripped', makeBlob({ slug: '', member: '', data: { [`${PREFIX}${long('d')}`]: '1' } }), /inconsistent/],
+        ];
+        for (const [name, blob, refusal] of cases) {
+            const res = validateBackup(/** @type {string} */ (blob), { currentSlug: SLUG });
+            assert.equal(res.ok, false, `${name}: premise — refused`);
+            assert.match(res.error, /** @type {RegExp} */ (refusal), `${name}: premise — refused by the rule that quotes the key`);
+            assert.ok(res.error.length < 160, `${name}: the refusal was ${res.error.length} characters`);
+            assert.match(res.error, /…\)/, `${name}: the cut is marked`);
+        }
+    });
 });
 
 describe('the identity rule (option A — refuse a different member)', () => {
@@ -698,5 +718,23 @@ describe('applyRestore', () => {
         const r = applyRestore({ ...st, existing: ['constructor'], entries: { 'p1': 'a' } });
         assert.equal(r.ok, true);
         assert.equal(st.map.has('constructor'), false);
+    });
+});
+
+// ── THE LINE A RESTORE ENDS ON (17 Nov 2026) ──────────────────────────────────────────────────────
+// A backup can hold no payslips at all — settings and Year to Date figures only — and the card said
+// "Restored 0 payslips", which reads as a restore that did nothing. The card's use of it is driven in a
+// browser (e2e/paycalc.spec.js → "a backup with no payslips").
+describe('the line a restore ends on', () => {
+    test('a backup with no payslips says it was restored, not "Restored 0 payslips"', () => {
+        const settingsOnly = makeBlob({ data: { [`${PREFIX}code`]: '1257L', [`${PREFIX}ytd_pay_2026_27`]: '21758.94' } });
+        const res = validateBackup(settingsOnly, { currentSlug: SLUG });
+        assert.equal(res.ok, true, 'premise: a settings-only backup restores');
+        assert.equal(restoredLine(/** @type {any} */ (res).counts), 'Restored your backup — it held no payslips. Reloading…');
+    });
+
+    test('payslips are counted, one and many', () => {
+        assert.equal(restoredLine({ periods: 1 }), 'Restored 1 payslip. Reloading…');
+        assert.equal(restoredLine({ periods: 12 }), 'Restored 12 payslips. Reloading…');
     });
 });

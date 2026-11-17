@@ -114,6 +114,12 @@ let _offer = null;
 
 /** Set once the install notice has taken this visit's ask: the strip then stays off screen. */
 let _yielded = false;
+/** What that yield took off the screen, each with the display it had — given back if the notice
+ *  cannot open after all (`releaseInstallNoticeYield`). @type {Array<[HTMLElement, string]>} */
+let _yieldTook = [];
+/** The strip's own show, asked for while the notice held the visit — run if it gives the visit back.
+ *  @type {(() => void)|null} */
+let _showOnRelease = null;
 
 /** True when running as an installed Home Screen PWA. Mirrors notif.js's private copy. */
 function isStandalone() {
@@ -182,10 +188,32 @@ export function promptInstall() {
  *  leave the screen for this visit — unflagged, so neither is lost. */
 export function yieldToInstallNotice() {
     _yielded = true;
+    _yieldTook = [];
     for (const id of ['installPrompt', 'notifPrompt']) {
         const el = /** @type {HTMLElement|null} */ (document.getElementById(id));
-        if (el) el.style.display = 'none';
+        if (!el) continue;
+        _yieldTook.push([el, el.style.display]);
+        el.style.display = 'none';
     }
+}
+
+/**
+ * The install notice could not open after all — another notice or overlay had the screen at its
+ * moment (`openNoticeIfClear` refused it), or access went in the wait — so the visit's ask is given
+ * back: what the yield took down returns as it was, and a strip that asked to show meanwhile shows
+ * now. Without it the visit had no ask at all: from 6 December the timetable notice is wired first
+ * and waits for nobody, so on a phone browser still owed the install notice it took the screen, the
+ * install notice was refused, and the strip and the notification ask had already gone for the visit
+ * (whole-app check, 17 Nov 2026). A no-op unless the notice yielded.
+ */
+export function releaseInstallNoticeYield() {
+    if (!_yielded) return;
+    _yielded = false;
+    for (const [el, display] of _yieldTook) el.style.display = display;
+    _yieldTook = [];
+    const show = _showOnRelease;
+    _showOnRelease = null;
+    show?.();
 }
 
 /** The member has answered the install notice, so the strip does not ask again on this device. */
@@ -229,7 +257,7 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
 
     /** Hide the notification ask for THIS visit only — it returns next time. See the header. */
     function show() {
-        if (_yielded) return;        // the install notice has this visit's ask
+        if (_yielded) { _showOnRelease = show; return; }   // the install notice has this visit's ask — unless it gives it back
         if (_answered) return;       // the member has answered the strip — above
         const notif = document.getElementById('notifPrompt');
         if (notif) /** @type {HTMLElement} */ (notif).style.display = 'none';

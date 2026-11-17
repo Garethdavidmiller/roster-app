@@ -143,6 +143,39 @@ function leaveFigureOffences(text, names) {
     return out;
 }
 
+/**
+ * THE SHAPE A COMMENT TAKES (full check, 17 Nov 2026). A comment that explains a bug by the person it
+ * happened to put the NAME and the FIGURES on one line and the leave words on the lines around it —
+ * "<name>'s chips summed to 33 against a banner reading 32 of 32", with "AL banner" and
+ * `consumesEntitlement` a line away — and `statesLeaveFigure`, which wants a leave term and a number on
+ * the SAME line, never saw it: it was served from both origins for two months. So a TALLY ("32 of 32",
+ * "summed to 33", "totalled 12") on a line that names somebody is an offence when leave words sit
+ * within NEARBY lines. `LEAVE_CONTEXT` has no `\b` on the long words on purpose: a leave word inside a
+ * code name (`consumesEntitlement`) is still a leave word. The seeded owner is not exempt here — a
+ * tally on the SAME line as a name is a statement about that person, whoever they are.
+ */
+const TALLY = /\b\d{1,3} of \d{1,3}\b|\bsumm(?:ed|ing) to \d{1,3}\b|\btotall?(?:ed|ing) \d{1,3}\b/i;
+const LEAVE_CONTEXT = /entitlement|allowance|lieu|annual leave|\bAL\b/i;
+
+/**
+ * Every named-tally offence in one file's text. Names are a parameter, as for `leaveFigureOffences`.
+ * @param {string} text @param {(line: string) => string[]} names
+ * @returns {{ line: number, named: string[], text: string }[]}
+ */
+function nameTallyOffences(text, names) {
+    const lines = text.split('\n');
+    /** @type {{ line: number, named: string[], text: string }[]} */
+    const out = [];
+    lines.forEach((l, i) => {
+        if (!TALLY.test(DATES.reduce((x, re) => x.replace(re, ' '), l))) return;
+        const here = names(l);
+        if (!here.length) return;
+        const around = lines.slice(Math.max(0, i - NEARBY), i + NEARBY + 1).join('\n');
+        if (LEAVE_CONTEXT.test(around)) out.push({ line: i + 1, named: here, text: l });
+    });
+    return out;
+}
+
 /** Every name the roster publishes, INCLUDING hidden rows — a leaver is still a person. */
 const NAMES = teamMembers.map(m => m.name).filter(Boolean);
 
@@ -351,6 +384,24 @@ describe('no roster name sits beside a LEAVE FIGURE — an allowance, a joining 
         assert.equal(leaveFigureOffences(`'✓ Deleted 1 AL day for ${SEEDED_OWNER}'`, Q).length, 1);
     });
 
+    test('a name on a line that states a TALLY, with leave words on the lines around it', () => {
+        // The shape that was served for two months, with an invented name.
+        const comment = [
+            '// AL override — was listed and counted, while `consumesEntitlement` (which the AL banner',
+            '// above it uses) correctly ignored it. One card, two disagreeing counts of the same thing:',
+            "// Q. Example's chips summed to 33 against a banner reading 32 of 32, and their December period",
+            '// began a day before their leave did.',
+        ].join('\n');
+        assert.equal(leaveFigureOffences(comment, Q).length, 0, 'premise: the same-line rule cannot see it');
+        assert.deepEqual(nameTallyOffences(comment, Q).map(o => o.line), [3]);
+        // A tally beside a name with no leave words near is not about leave…
+        assert.deepEqual(nameTallyOffences("// Q. Example's grid: 3 of 7 shifts were earlies", Q), []);
+        // …and the same paragraph with the name taken out is no offence at all.
+        assert.deepEqual(nameTallyOffences(comment.replace("Q. Example's", "one member's"), Q), []);
+        // A date is not a tally.
+        assert.deepEqual(nameTallyOffences('// Q. Example — AL booked from 1 of Jan', Q).length, 0);
+    });
+
     test('every tracked text file', () => {
         /** @type {string[]} */
         const offences = [];
@@ -360,6 +411,9 @@ describe('no roster name sits beside a LEAVE FIGURE — an allowance, a joining 
             try { text = readFileSync(file, 'utf8'); } catch { continue; }
             for (const o of leaveFigureOffences(text, namesOn)) {
                 offences.push(`${file}:${o.line}  [${o.named.join(', ')}]${o.nearby ? ' (nearby)' : ''}  ${o.text.trim().slice(0, 120)}`);
+            }
+            for (const o of nameTallyOffences(text, namesOn)) {
+                offences.push(`${file}:${o.line}  [${o.named.join(', ')}] (tally)  ${o.text.trim().slice(0, 120)}`);
             }
         }
         assert.deepEqual(offences, [],

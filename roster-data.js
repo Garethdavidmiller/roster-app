@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.26';
+export const APP_VERSION = '26.27';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -215,8 +215,8 @@ export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDa
 // ROSTER PATTERNS
 // ============================================
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
-// Imported here for getRosterForMember() and re-exported so consumers
-// (app.js etc.) can continue to import them from roster-data.js unchanged.
+// Imported here for getRosterForMember() and re-exported, so a module that already
+// imports from roster-data.js (the Links workspace does) need not import both files.
 import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS } from './roster-cycle-data.js';
 import { isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS };
@@ -695,13 +695,16 @@ export function getShiftClass(timeStr) {
  * Two builders would eventually give the same shift two different colours on the same screen.
  *
  * @param {string} timeStr
+ * @param {any} [member]  A member whose `permanentShift` forces the kind of every worked, timed shift,
+ *   as `getShiftKind` and the Calendar's cells already honour it; the day panel passes it so it cannot
+ *   call a day another kind than the cell it opened from. Omitted, the time decides, as before.
  * @returns {{cls: string, emoji: string, word: string, title?: string, timed?: boolean}}
  */
-export function shiftBadgeParts(timeStr) {
+export function shiftBadgeParts(timeStr, member) {
     if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return { cls: 'badge-rest',  emoji: '🏠', word: 'Rest' };
     if (timeStr === 'SPARE') return { cls: 'badge-spare', emoji: '📋', word: 'Spare' };
     if (timeStr === 'RDW')   return { cls: 'badge-rdw',   emoji: '💼', word: 'RDW',
-        title: 'Rest day worked — extra shift on your rostered day off' };
+        title: 'Rest Day Working — extra shift on your rostered day off' };
     if (timeStr === 'AL')    return { cls: 'badge-al',    emoji: '🏖️', word: 'AL' };
     if (timeStr === 'SICK')  return { cls: 'badge-sick',  emoji: '🪑', word: 'Absent' };
     // Other family — 🏷️ + the SHORT flavour word (Train/Ind/Assess); the FULL word
@@ -711,8 +714,10 @@ export function shiftBadgeParts(timeStr) {
     if (!SHIFT_TIME_REGEX.test(timeStr)) return { cls: 'badge-unknown', emoji: '❓', word: 'Unknown' };
     // `timed` = this badge's word is a CLASSIFICATION of a time, so a caller may trade the word
     // for the time itself. Declared here rather than re-derived from the class by each consumer.
-    if (isNightShift(timeStr)) return { cls: 'badge-night', emoji: '🦉', word: 'Night', timed: true };
-    return isEarlyShift(timeStr)
+    // The kind is `getShiftKind`'s, so a member's `permanentShift` wins here exactly as it does there.
+    const kind = getShiftKind(timeStr, member);
+    if (kind === 'night') return { cls: 'badge-night', emoji: '🦉', word: 'Night', timed: true };
+    return kind === 'early'
         ? { cls: 'badge-early', emoji: '☀️', word: 'Early', timed: true }
         : { cls: 'badge-late',  emoji: '🌙', word: 'Late',  timed: true };
 }
@@ -825,7 +830,6 @@ export function getWeekNumberForDate(date, member) {
 /**
  * Returns the full roster descriptor for a member.
  * Returns an object with: type, data (the roster map), cycleLength, weekPrefix.
- * admin.html's simple getRosterData can be replaced by `.data` on this result.
  * @param {any} member  teamMembers entry
  * @param {Date}   [date]  Optional — when supplied, applies any scheduled
  *                         `rosterChanges` so the descriptor matches that date.

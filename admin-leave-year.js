@@ -102,6 +102,8 @@ export function initLeaveYearPanel(given) {
     };
     /** @type {string|null} the day being saved — its two buttons stay disabled until it lands */
     let busyDate = null;
+    /** @type {string|null} whose day that is: another member's panel drawn meanwhile disables nothing */
+    let busyFor = null;
     /** @type {string|null} whose panel is drawn — a member switch clears the last save's line */
     let shownFor = null;
 
@@ -119,7 +121,7 @@ export function initLeaveYearPanel(given) {
             ? leaveYearChoices({ overrides: deps.getOverrides(), member, todayStr: deps.todayStr() })
             : [];
         deps.root.hidden = groups.length === 0;
-        deps.body.innerHTML = groups.length ? leaveYearPanelHtml(groups, { busyDate }) : '';
+        deps.body.innerHTML = groups.length ? leaveYearPanelHtml(groups, { busyDate: busyFor === name ? busyDate : null }) : '';
     }
 
     deps.body.addEventListener('click', async (e) => {
@@ -132,18 +134,24 @@ export function initLeaveYearPanel(given) {
         // The earlier year is the one recorded; the day's own year is the default, recorded as nothing.
         const leaveYear = year === Number(date.slice(0, 4)) ? null : year;
         busyDate = date;
+        busyFor = member.name;
         say('Saving…', '');
         refresh();
+        // THE LINE SAYS WHOSE DAY IT WAS when the panel now shows somebody else (review, Nov 2026): a
+        // manager who picks another member while the save is out had "Saved — Mon 4 Jan …" drawn under
+        // that member's panel, about a day that is not theirs.
+        const whose = () => (deps.getMember()?.name === member.name ? '' : `${member.name}’s `);
         try {
             // The save hands back the day when a change staged on it in Change a Shift was cleared (admin-own-write.js).
             const cleared = await deps.save({ memberName: member.name, date, leaveYear });
-            busyDate = null;
-            say(withClearedDays(`Saved — ${fmtPeriodDate(date)} now comes out of ${year}’s allowance.`, cleared || []), 'success');
+            busyDate = busyFor = null;
+            say(withClearedDays(`Saved — ${whose()}${fmtPeriodDate(date)} now comes out of ${year}’s allowance.`, cleared || []), 'success');
             deps.onSaved();
         } catch (err) {
-            busyDate = null;
+            busyDate = busyFor = null;
             console.error('[Admin] Leave-year save failed:', err);
-            say(deps.failureMessage(err), 'error');
+            const who = whose();
+            say(`${who ? `${who}${fmtPeriodDate(date)}: ` : ''}${deps.failureMessage(err)}`, 'error');
         }
         refresh();
     });

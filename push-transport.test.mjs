@@ -331,7 +331,7 @@ test('both senders bound every send with a timeout', async () => {
 });
 
 // ── EVERY NOTICE SAYS HOW LONG IT STAYS TRUE (Oct 2026 production review) ──────────────────────────
-// web-push's default TTL is four weeks. A phone off over a deadline showed "hours cutoff today" days
+// web-push's default TTL is four weeks. A phone off over a deadline showed "hours cut-off today" days
 // late. Both senders now pass a per-feature TTL; an unknown tag gets a day, never the default.
 test('both senders pass a finite TTL — never web-push\'s four-week default', async () => {
     const { mod, sent } = build([sub('a', 'uid_admin'), sub('b', 'uid_other')]);
@@ -341,7 +341,7 @@ test('both senders pass a finite TTL — never web-push\'s four-week default', a
     assert.equal(sent.length, 5);
     for (const s of sent) assert.ok(Number.isFinite(s.options.TTL) && s.options.TTL > 0 && s.options.TTL < 2419200, JSON.stringify(s.options));
     assert.equal(sent[0].options.TTL, 6 * 3600, 'a reset-request queue depth is stale within hours');
-    assert.ok(sent.slice(1, 3).every(s => s.options.TTL <= 12 * 3600), '"cutoff today" must not outlive the day');
+    assert.ok(sent.slice(1, 3).every(s => s.options.TTL <= 12 * 3600), '"cut-off today" must not outlive the day');
     assert.ok(sent.slice(3).every(s => s.options.TTL === 24 * 3600), 'an unknown tag gets a day');
 });
 

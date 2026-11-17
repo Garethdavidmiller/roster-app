@@ -13,7 +13,7 @@
  */
 import { test, expect, withLinksDesigners } from './fixtures.js';
 import { seedSession, designOptions, proposalOptions, activeDesignName, openDesignSheet, sheetAction, clickDialogConfirm } from './helpers.js';
-import { PROPOSALS } from '../links-proposals.js';
+import { PROPOSALS, proposalDisplayName } from '../links-proposals.js';
 
 const OLD = 1_750_000_000_000;   // June 2025 — long before the shortlist
 
@@ -67,7 +67,7 @@ test('links: the admin keeps only the shortlist — the older designs go to Rece
     // The options left are the built-in shortlist, and the open design gave way to the first of them, read-only.
     await expect(designOptions(page)).toHaveCount(0);
     await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);
-    await expect(activeDesignName(page)).toHaveText(PROPOSALS[0].name);
+    await expect(activeDesignName(page)).toHaveText(proposalDisplayName(PROPOSALS[0]));
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
 
     await openDesignSheet(page);

@@ -27,9 +27,10 @@
  * never approaches the limit, and a refund that brings a bucket to zero deletes it, so the throttle
  * state still cannot be used to count how many people used the app. Charging first costs a correct
  * unlock one transaction; recording only failures after the compare let concurrent guesses all be
- * compared before any of them was counted. The trade is CONTENTION: every unlock, right or wrong,
- * writes the one all-sources document twice (charge, then refund), and writes to one document
- * serialise — nothing at a handful of unlocks a day, and the thing to revisit if that ever grows. Expired
+ * compared before any of them was counted. The trade is CONTENTION: every attempt writes the one
+ * all-sources document — a right PIN twice (charge, then refund), a wrong one once (its charge stays)
+ * — and writes to one document serialise: nothing at a handful of unlocks a day, and the thing to
+ * revisit if that ever grows. Expired
  * rows are swept opportunistically on the failure path — see `isThrottleStateStale`, which was
  * written here at v20.12 and NOT actually called until v20.15, so for three versions this comment
  * described a sweep that did not happen and the collection only ever grew.

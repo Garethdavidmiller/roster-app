@@ -167,7 +167,10 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   does**: a `#fragment` link lights the chip of the section it lands in (a card's or sub-heading's
   section too) from the first paint, through the landing, until the reader moves on. A reload,
   Back/Forward or a hash changed in place holds nothing. A section headed inside a navy banner (the
-  Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing.
+  Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing. **A tap's jump is
+  judged when it ENDS** — at `scrollend` where the browser has it; the 1.5 s timer judges only where it
+  does not (run everywhere, it judged a slow jump in flight and let the chip go, Nov 2026).
+  `page-contract-parity.test.mjs` keeps the two scripts in step.
 - **A bar too long for its window WRAPS** from 641px in a window at least 600px tall, and from 1024px at
   any height — a desktop bar hides its scrollbar, so a chip past the edge would never be found, and a
   window snapped to half a laptop screen is 683–768px wide (`guide-shell.css` has the figures). The page
@@ -395,8 +398,9 @@ factual accuracy, source links, mobile layout, and the navy/gold palette.
 **Evidence is PER CARD, and there is deliberately no page-wide "last checked" date** — one date for
 thirty-odd claims is either stale or, once one card is re-verified, an over-claim for every other.
 Each country and ferry card shows its own `✓ Checked <Mon> <Year> against Rail Staff Travel` line and
-cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces that the date shown equals its
-row's `Reviewed`, that **every** country/ferry card carries a line *and* an anchor, and that the finder
+cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces that the date shown is the
+oldest `Reviewed` of the rows the card cites (as it does for the Railcard and Rangers guides' pills —
+a newer one claims a review nobody did), that **every** country/ferry card carries a line *and* an anchor, and that the finder
 note makes no page-wide claim. **Absence of a marker is a statement** (the page says an undated card
 is not re-verified), so it must never be an accident — which is why the invariant is structural.
 

@@ -104,6 +104,7 @@ export function detectShiftedRow(member, shifts, dates) {
     // Row slid LEFT → each parsed value is really the NEXT day's → matches base at offset +1.
     const sLeft  = score(1);
     const sRight = score(-1);
+    // A tie between the two goes LEFT: the slide a skipped blank Sunday produces (assessRosterAlignment).
     if (sLeft  - s0 >= 3 && sLeft  >= 5 && sLeft  >= sRight) return 'left';
     if (sRight - s0 >= 3 && sRight >= 5) return 'right';
     return null;
@@ -174,7 +175,9 @@ export function assessRosterAlignment(parsedResult) {
     for (const name of geometryRefused) if (!byMember.has(name)) byMember.set(name, 'geometry');
     // Count by DIRECTION, not by total. A parser that drops a leading blank moves every row the
     // same way; two members drifting in opposite directions is noise, not a systematic misread.
-    // A geometry refusal is not noise — it counts whichever way the others lean.
+    // A geometry refusal is not noise — it counts whichever way the others lean. An even split is
+    // read as the LEFT slide, the one a skipped blank Sunday column produces — the failure this
+    // breaker was built for — so a tie joins that side, and the banner names its likely cause.
     /** @type {Record<string, string[]>} */
     const byDirection = { left: [], right: [], geometry: [] };
     for (const [name, dir] of byMember) byDirection[dir].push(name);

@@ -917,6 +917,21 @@ describe('7 · an ordinary save is checked too, whenever the server can be asked
         assert.equal(_server.get(FIXED)?.changedBy, 'S. Silva');
     });
 
+    test('"already done" needs EVERY day of the save on the server — one of two matching is somebody else\'s write', async () => {
+        // An invented member's save of two days, and the server holds a record exactly like ONE of them that no
+        // row showed. A transaction lands whole or not at all, so that is not this save: refused. Called done
+        // (one day matching), the other day would never have been written, with the save reported a success.
+        const store = await seed([]);
+        const day = (/** @type {string} */ date) => ({ id: `m_${date}_Q.%20Example`, data: { memberName: 'Q. Example', date,
+            type: 'shift', value: '07:00-15:00', note: '', source: 'manual', changedBy: 'A. Manager' } });
+        const a = day('2026-06-16'), b = day('2026-06-17');
+        serverWrite(a.id, { ...a.data, createdAt: null });
+        const write = (/** @type {any} */ w) => { for (const d of [a, b]) w.set({ id: d.id }, { ...d.data, createdAt: null }); };
+        await assert.rejects(store.commitChecked(write, { shownFor: () => null, line }), refused(store));
+        assert.equal(_server.has(b.id), false, 'nothing was written');
+        assert.deepEqual(named, [['2026-06-16']]);
+    });
+
     test('a save that writes no day is never "done" — an empty comparison would call every refusal success', async () => {
         const shown = { id: 'k1', ...rec({ date: '2026-06-17', type: 'annual_leave', value: 'AL' }), createdAt: { toMillis: () => 1_000 } };
         const store = await seed([shown]);

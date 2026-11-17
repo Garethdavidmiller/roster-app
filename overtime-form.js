@@ -205,7 +205,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             ${closed ? `
                 <div class="ot-closed-note">
                     <strong>Final availability recorded.</strong>
-                    This form is now closed. If your circumstances have changed, speak to a Manager.
+                    This form is now closed. If your circumstances have changed, speak to your manager.
                 </div>` : `
                 <div class="ot-submit-bar">
                     <div class="ot-feedback" aria-live="polite"></div>
@@ -872,7 +872,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         say('This form closed before your answers reached the server, so '
             + (win.submission ? 'this change was not saved — what you submitted earlier stands. '
                 : 'nothing was submitted for this week. ')
-            + 'If your circumstances have changed, speak to a Manager.', 'warn');
+            + 'If your circumstances have changed, speak to your manager.', 'warn');
     }
 
     /**

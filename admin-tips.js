@@ -21,8 +21,9 @@ export const CARD_TIPS = {
                 // GOLD, the app's word for that colour — a reader compares it with the screen, and admin.css draws it.
                 { icon: '2️⃣', html: 'Choose a type on any day. The row turns <strong>gold</strong>, with a gold edge, to show it is ready to save; select <strong>Save changes</strong> when you have finished.' },
                 { icon: '☑️', html: 'A ticked day with no type yet has the gold edge only, and saves nothing until it has one.' },
-                // Four of the six pills are disabled on a Sunday (SUNDAY_FORBIDDEN_TYPES), so "any day" needs this.
-                { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong> and <strong>Rest Day</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW.' },
+                // Three of the six pills are off on a Sunday, and Other offers Spare alone there and on Boxing Day
+                // (admin-day-pills.js), so "any day" needs this. admin-day-pills.test.mjs holds these words to the row.
+                { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong>, <strong>Rest Day</strong> and, under <strong>Other</strong>, <strong>Spare</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW. <strong>Boxing Day</strong> can’t be an Other day either (training, meetings and the rest), but it can take a Spare turn.' },
                 { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
                 // Owner, 10 Nov 2026: a tick chooses a day for Apply, and never removes anything.
                 { icon: '🗑️', html: 'To remove a saved change, select its type again — the day reads <strong>⚠ Removing</strong> — then <strong>Save changes</strong>. A tick only chooses a day for <strong>Apply</strong>.' },
@@ -40,7 +41,7 @@ export const CARD_TIPS = {
             { heading: 'What each type means', items: [
                 { icon: '🏖️', html: '<strong>AL</strong> — annual leave. <strong>Absent</strong> — away for any reason; only the dates are saved, never the reason.' },
                 { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift. Use it to confirm a spare week, change shift times, or record a swap with a colleague.' },
-                { icon: '💼', html: '<strong>RDW</strong> — rest day worked. Use it when somebody works a full shift on their rest day.' },
+                { icon: '💼', html: '<strong>RDW</strong> — Rest Day Working. Use it when somebody works a full shift on their rest day.' },
                 { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
                 // All six flavours and Spare: a flavour left out of this list is one nobody knows exists.
                 { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (on standby, shift not yet known).' },

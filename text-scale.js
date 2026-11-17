@@ -55,14 +55,6 @@ export const COMPACT_VALUE = 'compact';
 const PROBE_PX = 16;
 
 /**
- * Whether a measured scale calls for the compact action row.
- * @param {number} scale
- */
-export function isCompact(scale) {
-    return Number.isFinite(scale) && scale >= COMPACT_FROM;
-}
-
-/**
  * Which tier a measured scale falls in — null (untouched), 'large' or 'compact'.
  * @param {number} scale
  */

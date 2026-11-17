@@ -121,6 +121,7 @@ import { readXlsx, serialToIso, splitRef, colNumber } from './xlsx-read.mjs';
 import { LEAVE_FILE_FORMAT, LEAVE_FILE_VERSION, validateLeaveFile, sealLeaveFile, readLeaveFile, describeRefusal,
     isSundayIso, isChristmasIso, isRealIsoDate } from '../al-leave-file.js';
 import { leaveRecordability } from '../al-leave-compare.js';
+import { allowanceRole } from '../al-contract.js';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -168,24 +169,27 @@ function tagParts(key) {
     return null;
 }
 /**
- * May a member be matched into a grade block? Only their own (§3) — except a member with no block, a
- * manager, whose leave is never imported (`leaveRecordability`): matching one cannot file a day under
- * the wrong person, it only names whose row was left out.
- * @param {any} m a teamMembers entry @param {string} grade
+ * May a member be matched into a grade block? Only their own for the year (§3, `memberGrade`) — except
+ * a member with no block, a manager with no graded post that year, whose leave is never imported
+ * (`leaveRecordability`): matching one cannot file a day under the wrong person, it only names whose
+ * row was left out. A manager who DID hold a graded post that year has that post's block, because
+ * their leave for it is imported.
+ * @param {any} m a teamMembers entry @param {string} grade @param {number} year
  */
-const fitsBlock = (m, grade) => { const g = memberGrade(m); return g === null || g === grade; };
+const fitsBlock = (m, grade, year) => { const g = memberGrade(m, year); return g === null || g === grade; };
 /**
  * Every member whose initial and surname match, in that grade block — the names, so a caller can tell
  * nobody from more than one. A ONE-word tag (no initial) matches nobody: §7 measured first names
  * among them, and a surname match filed `N/A Grace` under a member whose SURNAME is Grace.
  * @param {{ initial: string|null, surname: string }|null} parts @param {any[]} members @param {string} grade
+ * @param {number} year
  * @returns {string[]}
  */
-function mechanicalHits(parts, members, grade) {
+function mechanicalHits(parts, members, grade, year) {
     if (!parts || parts.initial === null) return [];
     return members.filter(m => {
         const p = appParts(m.name);
-        return p && p.surname === parts.surname && p.initial === parts.initial && fitsBlock(m, grade);
+        return p && p.surname === parts.surname && p.initial === parts.initial && fitsBlock(m, grade, year);
     }).map(m => m.name);
 }
 /** Members a person might mean, for a question — never used to answer one. */
@@ -243,8 +247,15 @@ const COUNTIF = /^COUNTIF\(\s*'?([^'!]+)'?!\$?([A-Z]{1,3})\$?(\d+):\$?([A-Z]{1,3
 const ROLE_GRADE = /** @type {Record<string, string>} */ ({ CEA: 'CEA', BLCEA: 'CEA', CES: 'CES', DISP: 'DISP' });
 /** The sheet's grade block for an app role. Management has none (`fitsBlock` says what that means for a match). */
 const MEMBER_GRADE = /** @type {Record<string, string>} */ ({ CEA: 'CEA', CES: 'CES', Dispatcher: 'DISP' });
-/** @param {any} m a teamMembers entry @returns {string|null} */
-const memberGrade = m => (typeof m?.role === 'string' && Object.hasOwn(MEMBER_GRADE, m.role) ? MEMBER_GRADE[m.role] : null);
+/** @param {unknown} role @returns {string|null} */
+const gradeBlock = role => (typeof role === 'string' && Object.hasOwn(MEMBER_GRADE, role) ? MEMBER_GRADE[role] : null);
+/**
+ * A member's block on the sheet for `year`: their grade's — or, for a member now in Management, the
+ * block of the graded post that decides that year's allowance (`allowanceRole`), where the sheet still
+ * holds them. null: no block, a manager with no graded post that year.
+ * @param {any} m a teamMembers entry @param {number} year @returns {string|null}
+ */
+const memberGrade = (m, year) => gradeBlock(m?.role) ?? (m ? gradeBlock(allowanceRole(m, year)) : null);
 
 /**
  * Order by UTF-16 code unit, never by locale: `localeCompare` sorts by the SESSION's collation, so
@@ -566,7 +577,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
         // One key for every row with this spelling, in any block, so one answer covers them all; the
         // question lists them, so a spelling that is two people in two blocks shows as such.
         const sharing = wbr.totals.filter(o => o.grade && normaliseKey(o.criterion) === key);
-        const name = resolveName('rows', key, () => mechanicalHits(sheetParts(t.criterion), members, t.grade), () => ({
+        const name = resolveName('rows', key, () => mechanicalHits(sheetParts(t.criterion), members, t.grade, year), () => ({
             kind: 'row-name', key, spelt: t.criterion, row: t.row, grade: t.grade,
             ...(sharing.length > 1 ? { rows: sharing.map(o => ({ row: o.row, grade: o.grade, printed: o.printed })) } : {}),
             suggestions: suggestions(/** @type {any} */ (sheetParts(t.criterion)).surname, members) }));
@@ -623,7 +634,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
         /** @type {any} */ let used;
         /** @type {string} */ let why = 'duplicate-chosen';
         const live = list.filter(r => r.printed.used > 0);
-        const own = memberGrade(members.find(m => m.name === name));
+        const own = memberGrade(members.find(m => m.name === name), year);
         if (list.every(r => same(r, list[0]))) { used = list[0]; why = 'duplicate-identical'; }
         // A row per grade, one of them in use: the others abandoned when the person moved grade (§8
         // defect 1) — settled by rule only when the live row is in the member's own block and the
@@ -702,7 +713,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
             const key = `${b.grade}|${trimmed}`;
             speltOf.set(key, text.trim());
             const near = wbr.totals.find(t => t.grade === b.grade && t.name && normaliseKey(t.criterion) === trimmed);
-            const name = near ? /** @type {string} */ (near.name) : resolveName('cells', key, () => mechanicalHits(sheetParts(text), members, b.grade), () => ({
+            const name = near ? /** @type {string} */ (near.name) : resolveName('cells', key, () => mechanicalHits(sheetParts(text), members, b.grade, year), () => ({
                 kind: 'cell-name', key, spelt: text.trim(), grade: b.grade, dates: [date],
                 suggestions: suggestions(sheetParts(text)?.surname ?? trimmed, members) }));
             if (near) nameMap.cells[key] = near.name;
@@ -743,7 +754,7 @@ export function buildLeaveFile({ workbook, sha256, year, members, previousMap = 
         // eight tags), and read as a surname `N/A Grace` went to a member whose surname is Grace. It is
         // asked, and the answer is carried, so the next copy does not ask it again.
         const parts = tagParts(t.key);
-        const name = resolveName('tags', key, () => mechanicalHits(parts, members, t.grade), () => ({
+        const name = resolveName('tags', key, () => mechanicalHits(parts, members, t.grade, year), () => ({
             kind: 'tag-name', key, grade: t.grade, dates: [], neighbours: [], suggestions: suggestions(parts?.surname ?? t.key, members) }));
         if (name === undefined) {
             const q = questions.find(x => x.kind === 'tag-name' && x.key === key);

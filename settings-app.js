@@ -7,7 +7,8 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom } from './roster-data.js';
+import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom, teamMembers } from './roster-data.js';
+import { payCalculatorPrices } from './pay-audience.js';
 import { formatDayMonthYear } from './date-format.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword } from './firebase-client.js';
 import { isPasswordMigrated, validateNewPassword, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
@@ -314,11 +315,11 @@ export function init() {
         // Password card (PASSWORD_DESIGN.md — chosen password + migration status)
         initPasswordCard();
 
-        // Notifications card. It reports its own state — the words in huddle.js are already the
-        // authority on what each one means, and a second read of `peekNotifState` here could
-        // disagree with the sentence on screen.
+        // Notifications card. It reports its own state — huddle.js's words are the authority, and a second `peekNotifState`
+        // read here could disagree with the screen. It names the pay reminder only to CEA and CES (functions/pay-reminder.js).
         _cardHandles['notifications'] = initHuddleNotifications({
             onState: (state, chip, tone) => reportSetting('notifications', state, chip, tone),
+            payReminders: payCalculatorPrices(teamMembers.find(m => m.name === currentUser) ?? null),
         });
         // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has. Read
         // BEFORE the Install card (Nov 2026): on an iPhone its first step copies the figures across

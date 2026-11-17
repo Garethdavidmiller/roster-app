@@ -117,6 +117,8 @@ function makeEl(/** @type {string} */ id) {
         },
         /** setStatus reaches for this to build its nodes. */
         ownerDocument: null,
+        /** Where focus goes after a delete is part of what a control does (block 17's "Save anyway" moves it). */
+        focus() { /** @type {any} */ (fakeDocument).activeElement = node; },
     };
     node.ownerDocument = /** @type {any} */ (fakeDocument);
     return node;
@@ -243,6 +245,17 @@ mock.module('./admin-override-store.js', {
     },
 });
 
+/** What the over-allowance planner answers a delete, and every question it was asked (block 17). The
+ *  RULE is the week grid's own (`planAlDelete`, admin-al-week-save.test.mjs drives it with invented
+ *  members); what only this file can see is that both controls ASK it, and what they do with the answer. */
+/** @type {any} */ let _overage = null;
+/** @type {any[]} */ let _planned = [];
+mock.module('./admin-al-week-save.js', {
+    namedExports: { planAlDelete: (/** @type {any} */ args) => { _planned.push(args); return _overage; } },
+});
+/** Every over-allowance bar raised, RECORDED: its words and what "Save anyway" runs. @type {any[]} */
+let _bars = [];
+
 const { initSavedChanges, renderTable, resetTableMemberFilter } = await import('./admin-saved-changes.js');
 
 const PAGE_IDS = ['overrideTableBody', 'bulkDeleteBtn', 'listFeedback', 'selectAllOverrides',
@@ -296,12 +309,15 @@ function setup(roles = {}) {
     // rather than rebuilt.
     _wiredOnce = true;
     _ownWrites = []; _order = []; _clears = () => [];
+    _overage = null; _planned = []; _bars = []; /** @type {any} */ (fakeDocument).activeElement = null;
     initSavedChanges({
         currentIsAdmin: roles.isAdmin ?? true, currentIsManager: roles.isManager ?? false,
         showError: () => {}, onEditRow: () => {}, onAfterSave: () => { _order.push('afterSave'); },
         // RECORDED, not discarded: what a delete hands the week grid is the claim block 16 checks.
         onOwnWrite: (/** @type {any[]} */ rows) => { _ownWrites.push(rows); _order.push('week'); return _clears(rows); },
         formatDate: (/** @type {string} */ s) => s,
+        showALConfirm: (/** @type {string} */ msg, /** @type {string} */ sub, /** @type {any} */ pendingSave,
+            /** @type {string[]} */ pendingDelete, /** @type {() => void} */ resume) => { _bars.push({ msg, sub, pendingSave, pendingDelete, resume }); },
     });
     // `_tableShowAllOverrides` is module state and survives a test. Put it back through the
     // module's own reset, or one test's toggle decides the next test's answer.
@@ -974,6 +990,20 @@ describe('15. a stored date is escaped where the row prints it', () => {
     });
 });
 
+describe('15b. an Other day is listed by its word, as the save receipt names it', () => {
+    test('"Training RDW 09:00-17:00" and "Meeting 10:00-14:00", never TRG or MEET', () => {
+        setup({ isAdmin: false, isManager: false });
+        selectMember('Q. Example');
+        _rows = [
+            { id: 'a', memberName: 'Q. Example', date: '2026-09-02', type: 'other', value: 'TRG RDW 09:00-17:00', source: 'manual' },
+            { id: 'b', memberName: 'Q. Example', date: '2026-09-01', type: 'other', value: 'MEET 10:00-14:00', source: 'roster_import' },
+        ];
+        renderTable();
+        const values = el('overrideTableBody')._kids.map((/** @type {any} */ c) => /<span class="oc-value">([^<]*)<\/span>/.exec(c.innerHTML)?.[1]);
+        assert.deepEqual(values, ['Training RDW 09:00-17:00', 'Meeting 10:00-14:00']);
+    });
+});
+
 // ── 16 · THE WEEK GRID FOLLOWS THE PAGE'S OWN DELETE (Nov 2026, review) ────────────────────────────────
 // Both controls used to leave the week grid alone whenever a change was staged there, so a row went on
 // comparing with a record this page had just deleted, and the week's next Save refused the admin's own
@@ -1026,5 +1056,49 @@ describe('16. the week grid follows the page\'s own delete, and a cleared change
         _refuseDelete = 'Someone else has changed this since your list loaded, so nothing was deleted.';
         try { await rowDelete('G. Miller-2026-09-01'); await bulkDelete(['G. Miller-2026-09-01']); } finally { _refuseDelete = null; }
         assert.deepEqual(_ownWrites, []);
+    });
+});
+
+// ── 17 · A DELETE THAT LOWERS AN ALLOWANCE ASKS FIRST (review, Nov 2026) ─────────────────────────────
+// Deleting a worked Boxing Day here took back its day in lieu and left the balance below zero without a
+// word, where the week grid asks. Both controls now ask the grid's planner BEFORE deleting anything, raise
+// its bar in its words, and delete only on "Save anyway". Invented member: the planner is the mock above.
+describe('17. a delete that would leave somebody over their allowance raises the bar first', () => {
+    const worked = { id: 'bx', memberName: 'Q. Example', date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual' };
+    const OVER = { headline: 'Q. Example will be 1 day over their 2027 AL entitlement', detail: '33 days used of 32 allowed in 2027' };
+
+    test('the ✕ asks the planner about the row as SHOWN, raises its bar, and deletes nothing until "Save anyway"', async () => {
+        _rows = [worked];
+        _overage = OVER;
+        await rowDelete('bx');
+        assert.equal(_handed.length, 0, 'nothing reached the store');
+        assert.deepEqual(_planned.map(p => p.rows), [[worked]], 'the planner was asked about the row as shown');
+        assert.equal(_planned[0].overrides, _rows, 'against every record the page holds');
+        assert.ok(_planned[0].members.some((/** @type {any} */ m) => m.name) && typeof _planned[0].isRead === 'function');
+        assert.deepEqual(_bars.map(b => [b.msg, b.sub, b.pendingSave]), [[OVER.headline, OVER.detail, null]]);
+        await _bars[0].resume();   // "Save anyway"
+        assert.deepEqual(_deleted, ['bx'], 'the answer deletes it, without asking again');
+        assert.equal(_bars.length, 1);
+        assert.match(el('listFeedback').textContent, /^✓ Deleted: Q\. Example — 2026-12-26/);
+    });
+
+    test('Delete selected asks the same, about every ticked row, before deleting any', async () => {
+        _rows = [worked, change('Q. Example', '2027-03-02')];
+        _overage = OVER;
+        await bulkDelete(['bx', 'Q. Example-2027-03-02']);
+        assert.equal(_handed.length, 0, 'nothing reached the store');
+        assert.deepEqual(_planned.map(p => p.rows.map((/** @type {any} */ r) => r.id)), [['bx', 'Q. Example-2027-03-02']]);
+        assert.equal(_bars.length, 1);
+        await _bars[0].resume();
+        assert.deepEqual(_deleted, ['bx', 'Q. Example-2027-03-02']);
+        assert.match(el('listFeedback').textContent, /^✓ Deleted 2 saved changes/);
+    });
+
+    test('CONTROL: a delete the planner finds no question in goes ahead as before, with no bar', async () => {
+        _rows = [worked];
+        await rowDelete('bx');
+        assert.equal(_planned.length, 1, 'it was asked');
+        assert.deepEqual(_bars, []);
+        assert.deepEqual(_deleted, ['bx']);
     });
 });

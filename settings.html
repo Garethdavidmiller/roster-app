@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -137,8 +137,7 @@
         <div class="card-collapsible-body" id="contactBody">
             <div class="card-body">
                 <p class="card-explainer">Self-service recovery isn’t available yet. For now, ask
-                the admin if you forget your password — saving your email means it will be ready when
-                it is. Only you and the admin can see it.</p>
+                the admin if you forget your password. Only you and the admin can see it.</p>
                 <label class="contact-label" for="workEmailInput">Work email address</label>
                 <!-- The domain is SHOWN rather than silently appended (v22.37, owner review). Every
                      valid address is on the one domain, so the field asked a question it already
@@ -245,8 +244,9 @@
                 <h2><span aria-hidden="true">🔔</span> Notifications</h2>
                 <!-- The old subtitle named two of the four things it sends. The `?` panel had the
                      full list, so the card under-described what the member was agreeing to receive
-                     — and the fix is shorter as well as truer (v22.37, owner review). -->
-                <span class="hint">Get alerts for staff updates and pay reminders</span>
+                     — and the fix is shorter as well as truer (v22.37, owner review). The pay reminder
+                     is named only to a member it is sent to, CEA and CES (huddle.js shows it). -->
+                <span class="hint">Get alerts for staff updates<span id="notifHintPay" hidden> and pay reminders</span></span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip" id="notifStatusChip"></span>
@@ -258,8 +258,9 @@
             <div class="card-body">
                 <!-- One unbreakable run per kind, its separator inside it (desktop audit, 7 Nov 2026):
                      wrapped freely, a line could end "· Pay" and the next start "reminder ·". Now a
-                     line breaks only after a "·", the way it would after a comma. -->
-                <p class="card-explainer">You’ll get: <span class="notif-kind">Daily Huddle ·</span> <span class="notif-kind">Retail Circular ·</span> <span class="notif-kind">Newsletter ·</span> <span class="notif-kind">Pay reminder ·</span> <span class="notif-kind">Timetable changes</span></p>
+                     line breaks only after a "·", the way it would after a comma. The pay reminder is
+                     sent to CEA and CES only, so huddle.js shows its kind to them alone (17 Nov 2026). -->
+                <p class="card-explainer">You’ll get: <span class="notif-kind">Daily Huddle ·</span> <span class="notif-kind">Weekly Retail Circular ·</span> <span class="notif-kind">Marylebone Newsletter ·</span> <span class="notif-kind" id="notifKindPay" hidden>Pay reminder ·</span> <span class="notif-kind">Timetable changes</span></p>
                 <div id="notifStatusMsg" aria-live="polite"></div>
                 <button type="button" class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
                 <button type="button" class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>

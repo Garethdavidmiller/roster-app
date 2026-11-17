@@ -637,4 +637,20 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
         d.confirm.fire('click');
         assert.equal(await d.result(), true);
     });
+
+    // ── A REPORT HAS NOTHING TO CANCEL (whole-app check, 17 Nov 2026) ──────────────────────────────────────────────
+    // Operations told the admin what became of a password reset in this dialog, with "Cancel" beside "OK" — and beside a
+    // reset that had already happened, Cancel read as a way to undo it. `cancelLabel: null` draws no Cancel at all.
+    test('cancelLabel: null draws no Cancel — one answer, which takes the focus — and a dismissal still resolves false', async () => {
+        const report = await open({ cancelLabel: null, confirmLabel: 'OK' });
+        assert.equal(report.cancel, null, 'a Cancel was drawn beside an outcome that has already happened');
+        assert.equal(find(report.overlay, 'dialog-actions').children.length, 1, 'one button, the answer');
+        assert.equal(/** @type {any} */ (global.document).activeElement, report.confirm);
+        report.confirm.fire('click');
+        assert.equal(await report.result(), true);
+        const dismissed = await open({ cancelLabel: null });
+        dismissed.escape();
+        assert.equal(await dismissed.result(), false);
+        assert.ok((await open({})).cancel, 'every other confirmDialog keeps its Cancel');
+    });
 });

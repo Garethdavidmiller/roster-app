@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -95,7 +95,7 @@
                 <div class="badge-item"><span class="sb sb-late">🌙 Late</span><span class="badge-desc">Starts 11:00–20:59</span></div>
                 <div class="badge-item"><span class="sb sb-night">🦉 Night</span><span class="badge-desc">Starts 21:00–03:59</span></div>
                 <div class="badge-item"><span class="sb sb-rest">🏠 Rest</span><span class="badge-desc">Rest or off day</span></div>
-                <div class="badge-item"><span class="sb sb-rdw">💼 RDW</span><span class="badge-desc">Rest day worked (overtime)</span></div>
+                <div class="badge-item"><span class="sb sb-rdw">💼 RDW</span><span class="badge-desc">Rest day working (overtime)</span></div>
                 <div class="badge-item"><span class="sb sb-al">🏖️ AL</span><span class="badge-desc">Annual leave</span></div>
                 <div class="badge-item"><span class="sb sb-absent">🪑 Absent</span><span class="badge-desc">Away from work, any reason</span></div>
                 <div class="badge-item"><span class="sb sb-spare">📋 Spare</span><span class="badge-desc">On standby — shift not yet set</span></div>
@@ -110,7 +110,7 @@
                 <div class="marker">🐣 Easter Sunday</div>
                 <div class="marker">🎄 Christmas Day</div>
             </div>
-            <p>The key under the calendar lists only what is actually in the month you are looking at, so it changes as you move around.</p>
+            <p data-calendar-key>The key under the calendar shows AL, Absent, Spare, RDW, Other, Easter and Christmas only in a month that has them.</p>
             <!-- CHRISTMAS LEAVE (christmas-leave.js, owner 5 Nov 2026). The 🎄 marks Christmas Day, as the
                  calendar's own key says; the day itself is no longer simply Rest. SCREEN-ONLY because this
                  sheet has about 7px to spare on paper (e2e/print.spec.js), the same reason as the mirror
@@ -124,7 +124,7 @@
             <ol class="steps">
                 <li>The <strong>date</strong>, and which <strong>roster week</strong> it falls in</li>
                 <li>What the day <strong>is</strong>, written out in full — &ldquo;Rest day&rdquo;, &ldquo;Annual leave&rdquo;, or the shift times</li>
-                <li>Whether anything has <strong>changed</strong> — <strong>✓ As rostered</strong> if it still matches your pattern, or what your manager recorded instead</li>
+                <li>Whether anything has <strong>changed</strong> — <strong>✓ As rostered</strong> if it still matches your pattern, or what was recorded instead</li>
                 <li>What else the date <strong>carries</strong> — a 💷 Payday or ✂️ cut-off chip — and a button where one applies: <strong>Pay estimate</strong> on a pay day, <strong>Leave dates</strong> on an annual-leave day</li>
             </ol>
             <div class="info">On a computer, <strong>hovering over a day</strong> shows a quick preview; clicking opens the same panel. To go to the Pay Calculator from a pay day, use the panel&rsquo;s <strong>Pay estimate</strong> button.</div>
@@ -202,14 +202,14 @@
                  signal" was too broad as well: the roster does, the Huddle and shift changes do not. -->
                 <p>Installed, it opens full-screen from your home screen, and your saved roster is still there without a signal.</p>
             <div class="info">
-                <strong>Notifications</strong> for a new Huddle, Circular, Newsletter or pay reminder are switched on in <strong>☰ → Settings</strong>.
+                <strong>Notifications</strong> for a new Huddle, Circular or Newsletter — and the pay reminder, for CEA and CES — are switched on in <strong>☰ → Settings</strong>.
                 On iPhone you must <em>Add to Home Screen first</em> and open it from there — notifications don't work from a browser tab.
             </div>
 
             <h2 id="sg-your-account">Your Account</h2>
-            <p><strong>☰ Menu → ⚙ Settings</strong> is a checklist, not a form. It opens with a short <strong>&ldquo;things to finish&rdquo;</strong> summary, and each card below carries its own status — <em>Not saved</em>, <em>Using surname</em>, <em>Blocked</em> — so you can see at a glance what is left.</p>
+            <p><strong>☰ Menu → ⚙ Settings</strong> is a checklist, not a form. It opens with a short <strong>&ldquo;things to finish&rdquo;</strong> summary, and each card carries its own status — <em>Not saved</em>, <em>Using surname</em>, <em>Blocked</em> — so you can see at a glance what is left.</p>
             <div class="info tip"><strong>🔑 Set your own password.</strong> Enter your current one, then a new one of <strong>at least 8 characters</strong>, twice. Until you do, your password is your surname — which anyone who knows your name could guess.</div>
-            <div class="info"><strong>📧 Work email.</strong> Type just the <strong>firstname.surname</strong> part — the <code>@chilternrailways.co.uk</code> is already there. It is for account recovery. Self-service recovery isn't available yet, so it is worth adding now, ready for when it is. Only you and the admin can see it, and it doesn't change how you sign in.</div>
+            <div class="info"><strong>📧 Work email.</strong> Type just the <strong>firstname.surname</strong> part — the <code>@chilternrailways.co.uk</code> is already there. It is for account recovery. Self-service recovery isn't available yet: for now, ask the admin if you forget your password. Only you and the admin can see it, and it doesn't change how you sign in.</div>
         </div>
     </div>
 
@@ -246,7 +246,7 @@
             </ol>
             <div class="info"><strong>Example:</strong> "D. Smith" → the default password is <code>smith</code></div>
             <div class="info"><strong>On a shared screen?</strong> Sign out from the menu (<strong>☰</strong>, at the bottom) when you finish.</div>
-            <div class="info tip"><strong>Set your own password</strong> in <strong>☰ Settings → 🔑 Password</strong> — it replaces the surname default with one only you know. You'll be asked to choose one the next time you sign in, so the surname default is on its way out. Forgotten it? The admin can reset it — <strong>speak to the admin</strong>, or use the link on the sign-in card.</div>
+            <div class="info tip"><strong>Set your own password</strong> in <strong>☰ Settings → 🔑 Password</strong> — it replaces the surname default with one only you know. You'll be asked to choose one the next time you sign in. Forgotten it? The admin can reset it — <strong>speak to the admin</strong>, or use the link on the sign-in card.</div>
             <p>You can record leave and absence for <strong>yourself</strong>. Managers and the admin can also record changes for other staff, and see whose name the card is pointed at written across the top of it.</p>
 
             <h2 id="sg-every-card-explains-itself">Every Card Explains Itself</h2>
@@ -292,7 +292,7 @@
                 <tbody>
                     <tr><td><strong>🏖️ AL</strong></td><td>Annual leave (not on Sundays)</td><td>No</td></tr>
                     <tr><td><strong>☀️ Shift</strong></td><td>A confirmed working shift — changed times, a spare-week confirmation, or a swap</td><td>Yes</td></tr>
-                    <tr><td><strong>💼 RDW</strong></td><td>Rest day worked — a full shift on a rest day</td><td>Yes</td></tr>
+                    <tr><td><strong>💼 RDW</strong></td><td>Rest day working — a full shift on a rest day</td><td>Yes</td></tr>
                     <tr><td><strong>🪑 Absent</strong></td><td>Away from work, any reason (not on Sundays)</td><td>No</td></tr>
                     <tr><td><strong>🏠 Rest Day</strong></td><td>Correct a working day back to a rest day</td><td>No</td></tr>
                     <tr><td><strong>🏷️ Other</strong></td><td>Training / Induction / Assessment / Team Day / Union / Meeting — and 📋 Spare</td><td>Optional</td></tr>
@@ -300,7 +300,7 @@
             </table>
 
             <h2 id="sg-sundays">Sundays</h2>
-            <div class="info">Sundays are <strong>not contracted</strong> for any grade, so a Sunday offers only <strong>RDW</strong> and <strong>Rest Day</strong> &mdash; no leave, absence, Shift or Other. A worked Sunday is always <strong>RDW</strong> (1.5×).</div>
+            <div class="info">Sundays are <strong>not contracted</strong> for any grade, so a Sunday offers only <strong>RDW</strong>, <strong>Rest Day</strong> and <strong>Spare</strong> (under Other) &mdash; no leave, absence or Shift. A worked Sunday is always <strong>RDW</strong> (1.5×).</div>
 
             <h2 id="sg-the-other-family">The "Other" Family</h2>
             <p>Tap <strong>Other</strong> and a small menu appears — pick <strong>Training, Induction, Assessment, Team Day, Union</strong> or <strong>Meeting</strong>. These <em>pay as the day underneath</em> (the shift they replace), so times are optional. On a rest day <strong>Rest day (RDW)</strong> is ticked and locked for you. On a working day, tick it only if the day was worked as a rest day — it then pays as RDW, not as the rostered shift.</p>

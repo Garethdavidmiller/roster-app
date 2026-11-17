@@ -96,6 +96,23 @@ export function isValidWindowRow(row) {
 }
 
 /**
+ * Why a typed row cannot be the window, in the editor's words — or null when it can (17 Nov 2026). Every refusal
+ * said "A finish must be after its start", so "2500", shaped to 25:00 as it is typed and no time of day, was blamed
+ * on its order, and an emptied box on the same. Not a time, missing and out of order are three answers, asked in
+ * that order. Takes what is in the boxes once `finaliseClockInput` has settled it.
+ * @param {string} start @param {string} end
+ * @returns {string|null}
+ */
+export function windowEditRefusal(start, end) {
+    const typed = [String(start ?? '').trim(), String(end ?? '').trim()];
+    const notATime = typed.find(t => t && !canonicaliseWindowTime(t));
+    if (notATime) return `“${notATime}” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.`;
+    if (!typed[0] || !typed[1]) return 'A start and a finish are both needed — that change wasn’t applied.';
+    return isValidWindowRow({ start: canonicaliseWindowTime(typed[0]), end: canonicaliseWindowTime(typed[1]) }) ? null
+        : 'A finish must be after its start — that change wasn’t applied.';
+}
+
+/**
  * Read a stored window into the canonical shape, falling back to the default.
  *
  * Validated PER ROW. A design with a good Sunday and a corrupt Mon–Sat keeps the Sunday it was

@@ -818,6 +818,27 @@ test('every guide has a chip bar, driven by exactly one script, whose chips all 
     }
 });
 
+test('the two chip-bar scripts judge a tap\'s jump the same way: when it ends (Nov 2026)', () => {
+    /**
+     * fip-guide.js mirrors guide-chips.js's chip hold (.claude/rules/guide-pages.md). Only the FIP copy has a
+     * browser test that a slow jump keeps its chip (e2e/guides.spec.js, in Safari's engine, which draws a tall
+     * window slowly), so the shared copy is held to it here: a jump is judged at scrollend where the browser has
+     * it, the timer is the judge only where it does not, and a jump with nowhere to go stands at once. Both used
+     * to run a 1.5 s timer everywhere, which judged a long jump in flight and let its chip go.
+     */
+    const LINES = [
+        "var jumpCeilingMs = 'onscrollend' in window ? 5000 : 1500;",
+        'var settled = reduceMotion || jumpArrived(target);',
+        'spyTimer = setTimeout(resumeSpy, jumpCeilingMs);',
+        'if (settled) jumpTop = heldTop();',
+    ];
+    for (const file of ['./guide-chips.js', './fip-guide.js']) {
+        const src = read(file);
+        for (const line of LINES) assert.ok(src.includes(line), `${file} no longer has: ${line}`);
+        assert.doesNotMatch(src, /setTimeout\(resumeSpy,\s*\d/, `${file} judges a jump at a fixed time again`);
+    }
+});
+
 test('a legacy redirect page is a redirect, and points somewhere real', () => {
     /**
      * The category above is an EXEMPTION from the app contract, and an exemption nobody checks

@@ -346,8 +346,22 @@ describe('the summary shown before the save', () => {
         // first time the two disagreed nobody would know which to believe.
         const { patterns } = /** @type {any} */ (parseGrid([week('RD'), week('SP'), line(...Array(7).fill('06:20-14:20'))].join('\n')));
         const s = summariseImport(patterns);
-        assert.deepEqual(s, { filled: 3, lines: ROTATING_LINES, worked: 7, spare: 7, rest: 7 });
+        // Two filled, not three (17 Nov 2026): a week of rest days is a line not yet designed, as the Design
+        // checks call it, and the summary counts lines the way they do.
+        assert.deepEqual(s, { filled: 2, lines: ROTATING_LINES, worked: 7, spare: 7, rest: 7 });
         assert.deepEqual(Object.keys(s).sort(), ['filled', 'lines', 'rest', 'spare', 'worked'],
             'a verdict, an average or a score has been added — see the module header');
+    });
+
+    test('an empty row is a line kept in its place, never a FILLED one — the summary and the warning agree', () => {
+        // A full paste with line 5 blank said "26 of 26 lines" directly above "Line 5 is empty in the paste": the count
+        // read the line's KEY, which an empty week keeps so every later week stays in its place (invariant 6).
+        // A spreadsheet copies an empty row as its separators alone — six tabs between seven empty cells.
+        const rows = Array.from({ length: ROTATING_LINES }, (_, i) => (i === 4 ? '\t\t\t\t\t\t' : week('06:20-14:20')));
+        const r = /** @type {any} */ (parseGrid(rows.join('\n')));
+        assert.equal(r.ok, true);
+        assert.ok(r.warnings.some((/** @type {string} */ w) => /^Line 5 is empty in the paste/.test(w)), 'premise: the warning names line 5');
+        assert.equal(Object.keys(r.patterns).length, ROTATING_LINES, 'premise: the empty week is kept in its place');
+        assert.equal(summariseImport(r.patterns).filled, ROTATING_LINES - 1, 'the empty line is not counted as filled');
     });
 });

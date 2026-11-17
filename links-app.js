@@ -52,10 +52,10 @@ import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
 import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
-import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links-proposals.js';
-import { createTargetPanel } from './links-generator-targets.js';
+import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
+import { createTargetPanel, customShiftRefusal } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
-import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
+import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { assessFatigue } from './links-fatigue.js';
@@ -63,7 +63,7 @@ import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
-import { createQueuedSaves, stillUnsaved } from './links-queued-saves.js';
+import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
@@ -302,7 +302,7 @@ export function init() {
      *  proposal is opened with NO activeDesignId, so no write path can ever address it. */
     /** @type {string|null} */ let activeProposalId = null;
     let binnedOnLoad = 0;
-    const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: p.name, ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
+    const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: proposalDisplayName(p), ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
     /** The import panel and the Recently deleted bin (links-design-library.js), built once the store
      *  exists. Null until then, so anything that renders before it reads an empty bin. @type {any} */
     let library = null;
@@ -418,19 +418,19 @@ export function init() {
             if (!design) return;
             // Pad what was typed — "6:20" and "06:20" are the same instruction, and the stored
             // value must be the one canonical form the rest of the workspace reads.
-            const start = canonicaliseWindowTime(finaliseClockInput(els[row].start?.value ?? '')) || '';   // "240" left as typed is 02:40
-            const end   = canonicaliseWindowTime(finaliseClockInput(els[row].end?.value ?? '')) || '';
-            const candidate = { start, end };
-            if (!isValidWindowRow(candidate)) {
+            const typed = [els[row].start, els[row].end].map(el => finaliseClockInput(el?.value ?? ''));   // "240" left as typed is 02:40
+            const refused = windowEditRefusal(typed[0], typed[1]);   // the reason that applies, or null
+            if (refused) {
                 // Put the stored value back so the field never sits showing something that is not
                 // in force, and say why — a silently reverted input reads as the app losing input.
                 // ORDER MATTERS: paint() rewrites `status` from the stored window, so the message
                 // has to be written AFTER it or it is wiped in the same tick and the field appears
                 // to revert for no reason at all.
                 paint();
-                if (status) status.textContent = 'A finish must be after its start — that change wasn’t applied.';
+                if (status) status.textContent = refused;
                 return;
             }
+            const start = canonicaliseWindowTime(typed[0]) || '', end = canonicaliseWindowTime(typed[1]) || '', candidate = { start, end };
             const next = normaliseWindow(design.window);
             if (next[row].start === start && next[row].end === end) return;
             next[row] = candidate;
@@ -688,10 +688,11 @@ export function init() {
     /** Surface a design create/rename/duplicate outcome (or a client-side validation error) on the
      *  shared save-status line, so a rules rejection is never silent. `''` is the neutral voice: a write
      *  under way, or one queued in this browser — neither a success nor a failure.
-     *  @param {string} msg @param {'ok'|'err'|''} [kind] */
-    function _designActionStatus(msg, kind = 'err') {
-        const status = document.getElementById('linksSaveStatus');
-        if (status) { status.textContent = msg; status.className = 'links-save-status' + (kind ? ' ' + kind : ''); }
+     *  On the line ON SCREEN: with no design open the save row is hidden, so the empty state has its own (17 Nov 2026).
+     *  @param {string} msg @param {'ok'|'err'|''} [kind] @param {boolean} [onSaveRow]  a LOAD's outcome: the design it opens shows it */
+    function _designActionStatus(msg, kind = 'err', onSaveRow = !!design) {
+        const status = document.getElementById(onSaveRow ? 'linksSaveStatus' : 'linksEmptyStatus');
+        if (status) { status.textContent = msg; status.className = (onSaveRow ? 'links-save-status' : 'links-save-status links-empty-status') + (kind ? ' ' + kind : ''); }
     }
 
     /** What a write QUEUED in this browser says — a save, a new design or a copy alike (links-app-4): it is
@@ -715,13 +716,16 @@ export function init() {
      * Hear how a write QUEUED in this browser ENDED (store rule 6). `'acked'`: the line says "✓ Saved", the pill drops
      * "in this browser" and the kept copy goes. `'failed'`: the design is unsaved again, on its baseline from before
      * the save, and says so (again on reopening — `_activateDesign`). `'held'` (signed out with it queued): the page is
-     * going, and the copy stays. A new design, a copy or an import (no `seq`) is heard for the pill alone.
+     * going, and the copy stays. A new design, a copy or an import (no `seq`) is heard for the pill alone, unless refused.
      * @param {string} id @param {Promise<string>|undefined} settled @param {number} [seq]
+     * @param {boolean} [created]  the write MADE the design: a new design, a copy, an import or a first save
      */
-    function _whenQueuedEnds(id, settled, seq) {
+    function _whenQueuedEnds(id, settled, seq, created = seq === undefined) {
         settled?.then((how) => {
+            const unmade = queuedSaves.heard(id, how, created);   // asked first: it outlives a later save's answer
             if (!queuedSaves.counts(id, seq) || how === 'held') return;   // a later save of this design answers for it
             queuedIds.delete(id);
+            if (how === 'failed' && unmade) { _createRefused(id); return; }
             const open = activeDesignId === id;
             const status = document.getElementById('linksSaveStatus');
             const u = how === 'acked' ? null : queuedSaves.refused(id);
@@ -742,6 +746,22 @@ export function init() {
             }
             header?.render(_headerState());
         }).catch((err) => console.error('[Links] How a queued write ended could not be shown:', err));
+    }
+
+    /** The server REFUSED to make this design, so it holds no document (links-queued-saves.js rule 7): it leaves the list,
+     *  and open, it is an UNSAVED design again whose next Save makes it (links-design.md → Concurrency). @param {string} id */
+    function _createRefused(id) {
+        const name = designs.find(x => x.id === id)?.name ?? '', open = activeDesignId === id && !!design;
+        designs = designs.filter(x => x.id !== id);
+        if (!open || !design) queuedSaves.refused(id);   // a first save's copy, where there is one, stays kept and marked (rule 4)
+        else {
+            queuedSaves.acked(id);   // forgotten: the work is on screen, unsaved, and a hide keeps that copy
+            activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, ''); activation++;   // an old save in flight lands elsewhere
+            design = { ...design, id: null, name: '' }; dirty = true;   // no name until its first save (header rule 3)
+            updateLastSaved(null, null);
+        }
+        renderDesignPicker(); if (open) updateSaveBtn();   // before the line: it clears a dirty design's status
+        _designActionStatus(refusedMakeLine(name, open));
     }
 
     /** The open design's CONTENT, as one comparable string — so a write that lands late can tell whether
@@ -784,7 +804,7 @@ export function init() {
         // picker and the same Compare chips, where two of one name cannot be told apart. The import
         // refused one (links-design-library.js); New, Save as…, Save a copy as… and Rename decide here.
         const asDesign = checkName(name, { existing: designs, exceptId, noun: 'design' });
-        const v = asDesign.ok ? checkName(name, { existing: [...PROPOSALS], noun: 'shortlisted proposal' }) : asDesign;
+        const v = asDesign.ok ? checkName(name, { existing: [...PROPOSAL_NAMES], noun: 'shortlisted proposal' }) : asDesign;
         if (!v.ok) _designActionStatus(v.message || 'That name cannot be used.');
         return !v.ok;
     }
@@ -1293,18 +1313,14 @@ export function init() {
      * A REFUSED time says so (links-app-7). The prompt used to close on "1400-2230" exactly as it does on
      * Cancel, so a designer could not tell a refusal from a slip — and on a phone keyboard the colon is a
      * layer away. The window editor on this page holds the same standard: "a silently reverted input
-     * reads as the app losing input". The rules are `normaliseCustomShift`'s; the sentence names all
-     * three rather than working out which one failed, which would be its arithmetic copied here.
+     * reads as the app losing input". The words are `customShiftRefusal`'s, which the generator's Custom… shares.
      * @param {string} message @param {string} [defaultValue]
      */
     async function askCustomShift(message, defaultValue = '') {
         const raw = await promptDialog({ title: 'Custom shift', message, defaultValue, placeholder: '06:00-14:00', confirmLabel: 'Set' });
         if (raw === null || !raw.trim()) return null;   // cancelled, or nothing typed: nothing to explain
         const typed = normaliseCustomShift(raw);
-        if (!typed) {
-            _designActionStatus(`“${raw.trim()}” wasn’t used — write a shift as its start and finish in 24-hour time, like 06:00-14:00. `
-                + 'It has to start between 04:00 and 20:59 and finish later the same day.');
-        }
+        if (!typed) _designActionStatus(customShiftRefusal(raw));
         return typed;
     }
 
@@ -1433,6 +1449,7 @@ export function init() {
 
         if (emptyState) emptyState.style.display = 'none';
         if (saveRow)    saveRow.style.display    = '';
+        const emptyStatus = document.getElementById('linksEmptyStatus'); if (emptyStatus) emptyStatus.textContent = '';   // done with
         _setGridHint(true);
 
         // In compare mode the main grid is hidden on SCREEN ONLY (body class +
@@ -2175,7 +2192,7 @@ export function init() {
             if (queued) {
                 queuedIds.add(id);   // what the masthead's pill says (links-app-4)
                 queuedSaves.queued(id, seq, written, before);
-                _whenQueuedEnds(id, settled, seq);
+                _whenQueuedEnds(id, settled, seq, !savingId);   // a FIRST save made the design: refused, it made nothing
             } else { queuedIds.delete(id); queuedSaves.confirmed(id); }
             if (!here()) return;
             ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = base);
@@ -2308,6 +2325,7 @@ export function init() {
                 currentUser,
             });
 
+            if (res.status === 'deleted-elsewhere' && queuedSaves.neverMade(savingId)) return;   // never MADE, not deleted: already said
             // Nothing written, and another design is open now: the conversation below would act on
             // THAT one, so say so and stop.
             if (!here() && (res.status === 'conflict' || res.status === 'deleted-elsewhere')) {
@@ -2439,14 +2457,15 @@ export function init() {
 
     /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill) — never from
      *  a cached read, never queued offline. A restore or purge of one waits for its move (`trackBinMove`), or it would
-     *  meet a design not yet deleted and blame a colleague. Said AT ONCE: on release day the list is often empty. @param {string[]} ids */
+     *  meet a design not yet deleted and blame a colleague. Said AT ONCE, on the save row's line — on release day the list is
+     *  often empty, and then the empty state's own copy says it. @param {string[]} ids */
     function _binPre26(ids) {
         binnedOnLoad = ids.length;
         if (!ids.length) return;
         let failed = 0;
         const say = () => _designActionStatus(binnedOnLoad
             ? `${binnedOnLoad} design${binnedOnLoad === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${binnedOnLoad === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${binnedOnLoad === 1 ? 'it' : 'them'}.`
-            : failed ? `${failed === 1 ? 'A design' : `${failed} designs`} drawn for the ${PREVIOUS_LINK_LENGTH}-line link could not be moved to Recently deleted, so ${failed === 1 ? 'it is' : 'they are'} still in your list.` : '', binnedOnLoad || !failed ? 'ok' : 'err');
+            : failed ? `${failed === 1 ? 'A design' : `${failed} designs`} drawn for the ${PREVIOUS_LINK_LENGTH}-line link could not be moved to Recently deleted, so ${failed === 1 ? 'it is' : 'they are'} still in your list.` : '', binnedOnLoad || !failed ? 'ok' : 'err', true);
         say();
         // Settled OUTSIDE the bin (48-hour review): stop claiming it; an empty page opens it, as a load would.
         const backInList = () => { binnedOnLoad--; _refreshLists().then(() => { if (!design && !loadFailed) _activateDesign(designs[0]); say(); }); };

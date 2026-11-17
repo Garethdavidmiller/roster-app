@@ -15,7 +15,7 @@
  */
 import { escapeHtml } from './roster-data.js';
 import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
-import { assessFatigue } from './links-fatigue.js';
+import { assessFatigue, COVER_DUTY_WORDS } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 import { compareDesigns } from './links-compare-analysis.js';
 import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
@@ -320,7 +320,9 @@ export function initLinksCompare(deps) {
                 : 'No factor is present in both. '}` +
             `${f.unchanged} factor${f.unchanged === 1 ? '' : 's'} read the same in both.</p>` +
             (f.hoursAreFloor
-                ? `<p class="compare-an-note">Every hours figure here is a floor, not an estimate — a spare week counts as worked days but carries no hours.</p>`
+                // The Design checks card's caveat, in brief (17 Nov 2026): the 55-hour figure is a cover week's WORST
+                // case now, so "every hours figure here is a floor" stopped being true of the one hours figure there is.
+                ? `<p class="compare-an-note">A cover week carries no times: the runs count its days at their worst, the 55-hour figure counts each as ${COVER_DUTY_WORDS}, and a count of long duties is a floor.</p>`
                 : '');
 
         el.innerHTML =

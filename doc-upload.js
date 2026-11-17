@@ -41,6 +41,38 @@ import { runGatedWrite, unconfirmedWriteLine } from './claim-retry.js';
  *  step by upload-cap-parity.test.mjs, whose header says why a client cap above the rules' costs most. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
+/** How long a receipt waits, after its upload, for the read that says whether a newer document hides it. */
+const NEWEST_WAIT_MS = 3000;
+
+/**
+ * The receipt for an upload a NEWER document of its kind hides. Staff are only ever shown the newest of
+ * each kind — every viewer reads the latest `date`, and the server announces nothing older — so a
+ * back-dated upload is filed and never offered; its receipt said staff would see it (whole-app check,
+ * 17 Nov 2026). @param {string} noun 'Huddle' | 'Circular' | 'Newsletter' @param {string} date
+ * @param {string} newest  both dates as app copy spells them
+ * @returns {string}
+ */
+export function hiddenByNewerLine(noun, date, newest) {
+  return `${noun} uploaded for ${date} — but staff are shown the newest one, dated ${newest}, so they won’t see this one.`;
+}
+
+/**
+ * The date of a document of this kind filed NEWER than `date`, if the read answers within
+ * `NEWEST_WAIT_MS` — otherwise null, and the card's own receipt is given. The same day is not newer:
+ * an upload for a date already filed replaces it (the cards' `?` panels say so).
+ * @param {string} date  'YYYY-MM-DD', just uploaded
+ * @param {Promise<any>|null} newestP  `cfg.newest`'s answer, or null when the card asks nothing
+ * @returns {Promise<string|null>}
+ */
+async function _newerThan(date, newestP) {
+  if (!newestP) return null;
+  /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+  const newest = await Promise.race([newestP, new Promise(r => { timer = setTimeout(() => r(null), NEWEST_WAIT_MS); })]);
+  clearTimeout(timer);
+  const d = newest?.date;
+  return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && d > date ? d : null;
+}
+
 /** Default accept predicate — PDF. @param {File} f */
 export function isPdfFile(f) {
   return f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
@@ -70,6 +102,8 @@ export function isDocxFile(f) {
  *   onUploaded?: (iso: string) => void,       // told the ISO date once the upload has landed (the Newsletter's ☰ button)
  *   transform?: (file: File, ctx: { setBtnText: (t: string) => void })
  *               => Promise<{ extraArgs?: any[], abortMsg?: string }>,  // e.g. DOCX→HTML → [htmlContent]
+ *   noun?: string,                            // the kind, as the receipt names it ('Circular') — with `newest`
+ *   newest?: () => Promise<{ date?: string }|null>,  // the newest of this kind; one dated after the upload hides it
  * }} cfg
  */
 export function initDocUploadCard(cfg) {
@@ -176,6 +210,9 @@ export function initDocUploadCard(cfg) {
     uploadBtn.disabled = true;
     // In flight until the answer below — every return path, and the finally, opens the card again.
     _setUploading(true);
+    // Is a NEWER one of this kind already filed? Asked now, beside the upload, so the receipt need not
+    // wait for it; a read that fails or is slow is no answer, and the card's own receipt stands.
+    const newestP = cfg.newest ? sessionReady.then(() => cfg.newest?.()).catch(() => null) : null;
     /** @type {HTMLElement} */ (feedback).textContent = '';
     /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback';
 
@@ -219,7 +256,11 @@ export function initDocUploadCard(cfg) {
       await runGatedWrite(() => cfg.uploadFn(date, file, cfg.currentUser || '', ...extraArgs));
       // The date in app copy's own spelling ("10 Nov 2026", the one the date field shows), never
       // the ISO key it was filed under (whole-app review, 10 Nov 2026).
-      /** @type {HTMLElement} */ (feedback).textContent = cfg.successMsg(formatDayMonthYear(parseISODate(date)), date);
+      const shown = formatDayMonthYear(parseISODate(date));
+      const newer = await _newerThan(date, newestP);
+      /** @type {HTMLElement} */ (feedback).textContent = newer && cfg.noun
+        ? hiddenByNewerLine(cfg.noun, shown, formatDayMonthYear(parseISODate(newer)))
+        : cfg.successMsg(shown, date);
       cfg.onUploaded?.(date);
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--ok';
       fileInput.value = '';

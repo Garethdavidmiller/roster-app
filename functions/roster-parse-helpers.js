@@ -183,11 +183,13 @@ function normaliseShift(raw, { quiet = false } = {}) {
         // worked OVERTIME with a depot annotation. The anchored rdwMatch above ($-terminated) rejects
         // the trailing token, so without this the RDW was dropped and the day saved as a plain `shift`
         // (normal pay) — the exact pay-loss rdwMatch guards, leaking through the annotated-time path (v16.19).
+        // The lines below name the TIME, never the cell (review, Nov 2026): the trailing text can be an
+        // absence written as a word, and beside the member a nearby line names, that is its reason.
         if (/\bRDW\b/.test(s)) {   // word-boundaried so a stray substring (e.g. "…hARDWare…") can't force an RDW encode (v16.22)
-            warn(`[parseRosterPDF] Extracted leading RDW time from "${raw}" (trailing content ignored) — review table will show it`);
+            warn(`[parseRosterPDF] Extracted the leading RDW time ${time} from a cell with more text (the rest ignored) — review table will show it`);
             return `RDW|${time}`;
         }
-        warn(`[parseRosterPDF] Extracted leading time from "${raw}" (trailing content ignored) — review table will show it`);
+        warn(`[parseRosterPDF] Extracted the leading time ${time} from a cell with more text (the rest ignored) — review table will show it`);
         return time;
     }
 
@@ -217,7 +219,8 @@ function normaliseShift(raw, { quiet = false } = {}) {
     // "PREFIX|value" decoding; capped so a pathological value can't bloat the payload.
     const cleaned = s.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40);
     if (cleaned === '') return 'RD';   // was only pipes/whitespace — treat as blank
-    warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — flagged UNKNOWN for review`);
+    // Its length, never its text (as above): the review row carries the text to the admin, who holds the PDF.
+    warn(`[parseRosterPDF] Unrecognised shift value (${s.length} characters) — flagged UNKNOWN for review`);
     return `UNKNOWN|${cleaned}`;
 }
 

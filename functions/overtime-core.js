@@ -959,9 +959,9 @@ function reminderDue(milestones, reminderSentAtMs, nowMs) {
 /**
  * A deadline as staff-facing words, in LONDON time — "Tue 18 Aug · 12:00".
  *
- * The client's `deadlineLabel` renders in the DEVICE's zone, which is right for a page someone is
- * looking at. A push body is composed on a server in UTC about a deadline defined in London, so it
- * must say London out loud rather than inherit the server's clock.
+ * The client's `deadlineLabel` (overtime-phase.js) formats in London time too, so a page and a push
+ * name the same deadline; this is the server's own copy because functions/ cannot import a browser
+ * module. A push is composed on a server in UTC, so London is stated, never the server's clock.
  * @param {number} ms @returns {string}
  */
 function londonDeadlineLabel(ms) {

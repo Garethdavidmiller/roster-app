@@ -431,6 +431,34 @@ describe('the Trains tips hold on both sides of the change', () => {
         assert.equal(CARD_TIPS.changes.title, `🔔 ${changesTitle(false)}`);
         assert.notEqual(changesTitle(true), changesTitle(false), 'and the view has another name from the change');
     });
+
+    // TWO LINES DESCRIBE WEEKS THAT END (whole-app check, Nov 2026). The Christmas line ("Chiltern is
+    // changing times again between 13 December and 10 January") and the leaf-fall one ("until 10 January,
+    // trains to London on that line leave up to 3 minutes earlier") were built once, at import, and read in
+    // the present tense from 11 January to the end of the books. `tipsOn` gives each panel as it reads on a
+    // railway day: each line goes the day the page's own note for those weeks goes.
+    test('a line about weeks that have ended goes when the page\'s own note for them does', async () => {
+        const { CARD_TIPS, tipsOn } = await import('./trains-tips.js');
+        const { changesTitle } = await import('./trains-render.js');
+        const words = (/** @type {Date} */ day) => tipsOn(day).overview.sections.flatMap(s => s.items.map(i => i.html)).join(' ');
+        const on = (/** @type {string} */ iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+        const all = CARD_TIPS.overview.sections.flatMap(s => s.items).length;
+        for (const iso of ['2026-11-17', CHANGE_DATE, '2026-12-25', '2027-01-10', '2027-01-11', '2027-03-01', DEC_VALID_UNTIL, '2027-05-16']) {
+            const day = on(iso);
+            const festive = timetablePhase(day, { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL }).festive;
+            const leafFall = daysUntil(day, LEAF_FALL.until) >= 0;   // the station card's own test (trains-cards.js)
+            assert.equal(/Christmas and New Year are not on this page/.test(words(day)), festive, `${iso}: the Christmas line and the overview's note disagree`);
+            assert.equal(/leaf-fall/.test(words(day)), leafFall, `${iso}: the leaf-fall line and the station card's note disagree`);
+            assert.equal(tipsOn(day).overview.sections.flatMap(s => s.items).length, all - (festive ? 0 : 1) - (leafFall ? 0 : 1), `${iso}: another line went too`);
+            assert.ok(Object.values(tipsOn(day)).every(p => p.sections.every(s => s.items.length)), `${iso}: a heading is left over an empty section`);
+            assert.equal(tipsOn(day).changes.title, `🔔 ${changesTitle(daysUntil(day, CHANGE_DATE) <= 0)}`, `${iso}: the changes panel is titled for the other side of the change`);
+        }
+        // The last day of both still has both; the next has neither.
+        assert.match(words(on('2027-01-10')), /Christmas and New Year are not on this page[\s\S]*leaf-fall/);
+        assert.doesNotMatch(words(on('2027-01-11')), /Christmas|leaf-fall|changing times again/);
+        // And it is the railway day: 02:00 on 11 January is still the 10th.
+        assert.match(words(railwayToday(new Date(2027, 0, 11, 2, 0))), /leaf-fall/);
+    });
 });
 
 // The note for the weeks of Chiltern's further changes named Christmas in typed words (whole-app fix,

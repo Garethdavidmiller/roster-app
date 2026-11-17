@@ -22,6 +22,8 @@ let _circularImpl = () => Promise.resolve(null);
 // The stub must honour onClose — that callback is what invalidates an in-flight open (v19.13),
 // so a stub that swallows it would make the close tests below pass against broken code.
 let _lbClose = () => {};
+/** How many times the viewer was opened — a re-open nobody asked for is the thing counted (17 Nov 2026). */
+let _lbOpens = 0;
 /** Every history step the viewer took, and the pop interceptors it registered (cal-docs-8). */
 let _historyCalls = [];
 let _interceptors = [];
@@ -31,7 +33,7 @@ mock.module('./overlay.js', {
         // once a close has landed — the paint-order raise (cal-docs-6) lives in that pair.
         createLightbox: (cfg) => {
             _lbClose = () => { cfg?.onClose?.(); cfg?.afterClose?.(); };
-            return { open() { cfg?.onOpen?.(); }, close() { _lbClose(); } };
+            return { open() { _lbOpens++; cfg?.onOpen?.(); }, close() { _lbClose(); } };
         },
         registerPopInterceptor: (fn) => { _interceptors.push(fn); },
         suppressNextPop: () => { _historyCalls.push('suppress'); },
@@ -41,11 +43,13 @@ mock.module('./overlay.js', {
 // The short-lived-url fetch (v24.19). Swapped per test; `null` is the state the app SHIPS in
 // (no IAM grant yet), so it is the default here too.
 let _signedImpl = () => Promise.resolve(null);
+/** Whether the stored link passes the app's allowlist — a document with one that does not is not "none uploaded". */
+let _safeLink = true;
 mock.module('./firebase-client.js', {
     namedExports: {
         getLatestCircular:   (...a) => _circularImpl(...a),
         getLatestNewsletter: () => Promise.resolve(null),
-        isSafeStorageUrl:    () => true,
+        isSafeStorageUrl:    () => _safeLink,
         officeViewerUrl:     (u) => u,
         fetchSignedDocumentUrl: (...a) => _signedImpl(...a),
         // THE REAL ONE, deliberately. Stubbing the decision would leave this file testing that the
@@ -119,7 +123,7 @@ const bodyText = () => _els.docViewerBody._children.map(c => c.textContent).filt
 
 beforeEach(() => {
     _circularImpl = () => Promise.resolve(null); _signedImpl = () => Promise.resolve(null);
-    _historyCalls = []; _interceptors = [];
+    _historyCalls = []; _interceptors = []; _lbOpens = 0; _safeLink = true;
     setupDOM();
 });
 
@@ -254,6 +258,48 @@ describe('doc viewer — a COLD deep link waits for the access decision before c
         _els.docViewerStatus.textContent = '';
         decide(); await flush();
         assert.equal(bodyText(), '', 'the decision wrote into a viewer the reader had closed');
+    });
+
+    // CLOSED WHILE IT SAID "Loading…", THE TAP IS GIVEN UP (whole-app check, 17 Nov 2026). The held key
+    // survives a close so that the PIN the LOCKED message asks for can finish the tap — but a reader who
+    // closed "Loading…" had been asked for nothing, and the grant a moment later (a signed-in member's
+    // identity restoring) opened the viewer again by itself, over whatever they had gone back to.
+    test('a waiting tap the reader CLOSED is given up — the grant that follows opens nothing and reads nothing', async () => {
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        let open = false, decide = () => {};
+        const subs = [];
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), accessDecided: new Promise(r => { decide = r; }),
+            docAccess: { has: () => open, onChange: fn => { subs.push(fn); return () => {}; } } });
+        await flush();
+        assert.match(bodyText(), /Loading/, 'premise: undecided, so it waits');
+        assert.equal(_lbOpens, 1);
+        _lbClose();                                            // "not now"
+        open = true; subs.forEach(fn => fn(true)); decide();   // the member's identity restores
+        await flush();
+        assert.equal(_lbOpens, 1, 'the viewer opened again by itself after the reader had closed it');
+        assert.equal(fetched, 0);
+    });
+});
+
+describe('doc viewer — a document whose stored link the app will not open is not "none uploaded"', () => {
+    test('it says the document can\'t be opened and to tell the admin — not that there is nothing to read', async () => {
+        _safeLink = false;
+        _circularImpl = () => Promise.resolve({ storageUrl: 'https://example.invalid/x.pdf', date: '2026-11-13', fileType: 'pdf' });
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.doesNotMatch(bodyText(), /uploaded yet/, 'an uploaded document was reported as never uploaded');
+        assert.match(bodyText(), /The latest Weekly Retail Circular can’t be opened — please tell the admin\./);
+        assert.doesNotMatch(bodyText(), /Open/, 'and nothing offers the link it refused');
+    });
+
+    test('none at all is still "not uploaded yet"', async () => {
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.match(bodyText(), /No Weekly Retail Circular has been uploaded yet/);
     });
 });
 

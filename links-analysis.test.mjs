@@ -91,16 +91,17 @@ test('designed state renders the coverage heat map + the checks panel', () => {
     assert.match(els.checksContent.innerHTML, /Shift balance/);
 });
 
-test('the panel states that its hours figures are a FLOOR — when a spare week makes them one', () => {
+test('the panel says what a cover week does to its hours figures — when there is a cover week', () => {
     // `assessFatigue` has returned `hoursAreFloor` since v19.46 with a comment saying it exists "so
-    // the UI can say so" — and for thirteen versions the UI did not. It matters more since v19.58
-    // made spare a whole WEEK: a spare line carries no times, so it contributes seven worked days
-    // and ZERO hours, and every hours figure understates by a standby week per spare line.
-    // Under-reporting hours is the FLATTERING direction, which is the one thing this panel exists
+    // the UI can say so" — and for thirteen versions the UI did not. A spare line carries no times,
+    // and under-reporting hours is the FLATTERING direction, which is the one thing this panel exists
     // not to do quietly.
     //
     // …and only then (whole-app review, Nov 2026). The flag was the constant `true`, so a design
     // with no spare day was told its "real totals are higher" when they are exact.
+    //
+    // …and the 55-hour row is no longer a floor (17 Nov 2026): it takes a cover week at its worst,
+    // and says both figures. The caveat says so rather than calling every hours figure a floor.
     const withSpare = fullPatterns();
     withSpare['4'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
     for (const [label, patterns, floor] of /** @type {[string, any, boolean][]} */ ([
@@ -110,8 +111,12 @@ test('the panel states that its hours figures are a FLOOR — when a spare week 
         resetDom();
         initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
         const html = els.checksContent.innerHTML;
-        assert.equal(/floor, not an estimate/.test(html), floor, `${label}: the panel's floor line`);
-        assert.equal(/this figure is a floor/.test(html), floor, `${label}: the 55-hour row's floor line`);
+        assert.equal(/A cover week carries <strong>no times<\/strong>/.test(html), floor, `${label}: the panel's caveat`);
+        assert.equal(/the 55-hour row counts each as a quarter of the contracted week \(8h 45m\)/.test(html), floor,
+            `${label}: the caveat names what the 55-hour row counts a cover day as`);
+        assert.doesNotMatch(html, /Every hours figure here is a/, `${label}: the 55-hour figure is not a floor any more`);
+        assert.equal(/51\.8 hours in the worst case, and 40 on the duties the rota fixes/.test(html), floor,
+            `${label}: the 55-hour row gives the worst case and the floor`);
         assert.equal(assessFatigue(patterns, ROTATING_LINES).hoursAreFloor, floor, `${label}: the flag itself`);
     }
 });
@@ -400,6 +405,9 @@ test('an unmeasurable working line downgrades the hours figure in BOTH places it
         assert.equal(/sum-chip--ok(?![\w-])/.test(chipHtml.slice(chipHtml.lastIndexOf('<span class="sum-chip'))), expectOk,
             `${label}: the summary chip's on-target state is wrong — it is the copy most edits ever ` +
             'see, so a partial average wearing ✓ here outlives the row that says "partial"');
+        // …and it says so in the row's own word (17 Nov 2026): a bare "*" pointed at a footnote the strip does not have.
+        assert.equal(/a week \(partial\)/.test(strip), !expectOk, `${label}: the chip says "(partial)" exactly when the figure is`);
+        assert.doesNotMatch(strip, /\*/, `${label}: no unexplained asterisk`);
     }
 });
 
@@ -1019,9 +1027,39 @@ describe('sentences at the edges', () => {
         resetDom();
         initLinksAnalysis({ getDesign: () => ({ patterns: p }) }).renderDesignChecks();
         const t = text(els.checksContent.innerHTML);
-        assert.match(t, /Line 1 mon \(ends 02:30\) → Line 1 tue \(starts 01:00\) — overlapping by 1h 30m/);
+        assert.match(t, /Line 1 Monday \(ends 02:30\) → Line 1 Tuesday \(starts 01:00\) — overlapping by 1h 30m/);
         assert.match(t, /Two consecutive duties overlap: the second starts 1h 30m before the first ends\./);
         assert.doesNotMatch(t, /-\d+h/);
+    });
+
+    test('a short turnaround names its days as a reader does, and its rest in the card\'s one minute shape', () => {
+        // The row printed the stored keys — "Line 3 sat (ends 23:55) → Line 4 sun (starts 06:20)" — on screen and on
+        // the sheet, where FF8b already named the day; and "11h 5m rest" beside the hours row's "34h 05m" (17 Nov 2026).
+        const p = fullPatterns();
+        p['1'].sat = '15:25-23:55';
+        p['2'].sun = '06:20-14:20';            // across the week boundary: 6h 25m
+        p['3'].mon = '15:25-23:55';
+        p['3'].tue = '11:00-19:30';            // 11h 05m
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: p }) }).renderDesignChecks();
+        const t = text(els.checksContent.innerHTML);
+        assert.match(t, /Line 1 Saturday \(ends 23:55\) → Line 2 Sunday \(starts 06:20\) — 6h 25m rest/);
+        assert.match(t, /Line 3 Monday \(ends 23:55\) → Line 3 Tuesday \(starts 11:00\) — 11h 05m rest/);
+        assert.doesNotMatch(t, /Line \d+ (sun|mon|tue|wed|thu|fri|sat)\b/, 'a stored day key in the sentence');
+    });
+
+    test('the shift balance says what the rest of a hundred is — the spare share — when there is one', () => {
+        const withSpare = fullPatterns();
+        withSpare['4'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: withSpare }) }).renderDesignChecks();
+        const shares = /Shift balance[^(]*\((\d+)% early, (\d+)% late, (\d+)% spare\)/.exec(text(els.checksContent.innerHTML));
+        assert.ok(shares, 'the spare share is stated');
+        const sum = Number(shares[1]) + Number(shares[2]) + Number(shares[3]);
+        assert.ok(Math.abs(sum - 100) <= 1, `the three shares come to a hundred, give or take rounding: ${shares.slice(1).join(' + ')}`);
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
+        assert.match(text(els.checksContent.innerHTML), /Shift balance[^(]*\(\d+% early, \d+% late\)/, 'no spare day, no spare share');
     });
 });
 

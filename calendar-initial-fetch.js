@@ -149,12 +149,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     return answerStillWanted(attempt, err) ? 'current' : 'superseded';
   }
 
-  // Show "↻ Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
+  // Show "↻ Updating shifts…" chip after 800 ms if Firestore hasn't responded yet. NEUTRAL, NOT
+  // "your" (17 Nov 2026): the same chip stands over a colleague's calendar and the staff PIN's.
   // Through setChipState like every other chip state (v25.06): a hand-built chip was the one state a
   // header rebuild could take away for good, and with it went the only label on a cached grid — the
   // renderer withholds its own while this check runs, so a swipe left the grid saying nothing at all.
   const loadingTimer = setTimeout(() => {
-    if (!syncResolved) setChipState({ text: '↻ Updating your shifts…', className: 'sync-chip', announce: 'Updating your shifts', disabled: true });
+    if (!syncResolved) setChipState({ text: '↻ Updating shifts…', className: 'sync-chip', announce: 'Updating shifts', disabled: true });
     if (calGrid) calGrid.classList.add('calendar-fetching');
   }, 800);
 
@@ -286,7 +287,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     setChipState({
       text: '⚠ Couldn\'t update — try again',
       className: 'sync-chip sync-chip-error',
-      announce: 'Couldn\'t update your shifts. Activate to retry.',
+      announce: 'Couldn\'t update shifts. Activate to retry.',
     });
     // Say the same thing in both places (v20.40). This is the moment the sync DECLARES failure, so
     // a withheld grid must stop saying "Checking this month" beside a chip offering a retry. The
@@ -325,7 +326,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       setChipState({
         text: '⚠ Couldn\'t update — try again',
         className: 'sync-chip sync-chip-error',
-        announce: 'Still couldn\'t update your shifts. Activate to retry.',
+        announce: 'Still couldn\'t update shifts. Activate to retry.',
       });
       const chip = currentChip();
       const focused = document.activeElement;
@@ -400,7 +401,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       setChipState({
         text: '⚠ Couldn\'t update — try again',
         className: 'sync-chip sync-chip-error',
-        announce: 'Still couldn\'t update your shifts. Activate to retry.',
+        announce: 'Still couldn\'t update shifts. Activate to retry.',
       });
       // Only a RETRY moves focus: the user pressed something, so the result belongs under their
       // cursor. The initial fetch's failure is unsolicited and must not steal focus.
@@ -523,7 +524,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       setChipState({
         text: '⚠ Couldn\'t update — try again',
         className: 'sync-chip sync-chip-error',
-        announce: 'Couldn\'t update your shifts. Activate to retry.',
+        announce: 'Couldn\'t update shifts. Activate to retry.',
       });
       // Release the in-progress flag BEFORE the failure render — the same ordering, and the same
       // reason, as the success path above. The withheld grid's "Try again" is only drawn when a

@@ -60,9 +60,11 @@ export function isAccessFailure(err) {
 
 /**
  * Run `fn`; if it rejects with `err.code === retryCode` and a user is present, force a token refresh
- * then retry ONCE. If the refresh itself throws (offline/flaky), re-throw the ORIGINAL error — never
- * let a connectivity error REPLACE a genuine authorisation denial, because callers key their
- * user-facing message on `err.code`. Any non-retryable error re-throws immediately; at most one
+ * then retry ONCE. If the refresh itself throws (offline/flaky, or refused because the account was
+ * disabled or revoked), re-throw the ORIGINAL error, as itself — never let a connectivity error
+ * REPLACE a genuine authorisation denial, because callers key their user-facing message on
+ * `err.code`, and a refusal re-thrown with its own code is one every caller already reads as
+ * "nothing was written". Any non-retryable error re-throws immediately; at most one
  * retry, so a truly forbidden operation still surfaces to the caller's catch.
  *
  * `fn` MUST be re-runnable: a Firestore write thunk must build a FRESH `WriteBatch` each call — a
@@ -287,6 +289,34 @@ export function abandonOnSignOut(request, { uid, watch }) {
     request.then(settle, settle);
     lost.catch(settle);
     return Promise.race([request, lost]);
+}
+
+/**
+ * The whole of `withClaimRetry` (firebase-client.js), made here so Node can run it: runWithClaimRetry,
+ * with EACH ATTEMPT bounded by abandonOnSignOut — and never the token refresh between the two.
+ *
+ * ── WHY EACH ATTEMPT, AND NOT THE WHOLE RUN (review, 17 Nov 2026) ───────────────────────────────
+ *
+ * A sign-out leaves a write's outcome unknown only while the write is on its way (abandonOnSignOut
+ * says why). The refresh between the two attempts sends nothing — and a REFUSED refresh is exactly
+ * how Firebase Auth signs an account out: `_logoutIfInvalidated` awaits the sign-out before it
+ * re-throws (an account disabled, or its sessions revoked, since its token was minted). With the
+ * watch around the whole run, that sign-out ended the wait first, so a write the rules had REFUSED —
+ * nothing written — was reported as "not confirmed", and runGatedWrite then refused every later
+ * write on the page until a reload. Watched per attempt, the refusal stands: runWithClaimRetry
+ * re-throws it, and the caller's words for it ("sign in again") are the true ones.
+ *
+ * `uid` is the account when the call STARTS, and the retry is watched for that same account: one
+ * that changed during the refresh is a loss as soon as the retry begins. A retry still on its way
+ * when the account goes is as unknown as a first attempt, and is reported so.
+ * @template T
+ * @param {() => Promise<T>} fn  re-runnable, as runWithClaimRetry requires
+ * @param {{ retryCode: string, hasUser: () => boolean, refresh: () => Promise<any>, uid: string|null|undefined,
+ *           watch: (cb: (user: { uid: string }|null) => void) => () => void }} deps
+ * @returns {Promise<T>}
+ */
+export function runWatchedClaimRetry(fn, { retryCode, hasUser, refresh, uid, watch }) {
+    return runWithClaimRetry(() => abandonOnSignOut(fn(), { uid, watch }), { retryCode, hasUser, refresh });
 }
 
 /**

@@ -26,7 +26,7 @@ import { comparePerson } from './al-leave-compare.js';
 import { planPerson, logFields, logLists, dayKey } from './al-leave-plan.js';
 import { manualOverrideId } from './override-id.js';
 import { buildOverrideWrite } from './override-utils.js';
-import { SIGNED_OUT_CODE } from './claim-retry.js';
+import { SIGNED_OUT_CODE, UNCONFIRMED_CODE } from './claim-retry.js';
 
 // ── THE FAKE SERVER ─────────────────────────────────────────────────────────────────────────────
 /** @type {Map<string, any>} "collection/id" → data */ const server = new Map();
@@ -362,6 +362,18 @@ describe('the Save', () => {
         const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
         assert.equal(out.stopped, 'unconfirmed');
         assert.equal(out.partial, true);
+    });
+
+    test('an earlier write still unconfirmed refuses this one BEFORE it starts — unconfirmed, and nothing of it landed', async () => {
+        // claim-retry.js's gate: the part was never sent, so the read after the Save has nothing of it to find.
+        // Called partial, the card would send the admin to look for days the Save never wrote.
+        const a = await planFor(CEA, [WORK]);
+        writeFails = Object.assign(new Error('an earlier write is unconfirmed'), { code: UNCONFIRMED_CODE });
+        const out = await saveLeavePlans([a], { uploadId: SAVE_ID });
+        assert.equal(out.stopped, 'unconfirmed');
+        assert.equal(out.code, UNCONFIRMED_CODE);
+        assert.equal(out.partial, false);
+        assert.equal(atFixed(CEA, WORK), undefined);
     });
 
     /** One person with 460 days, built by hand: no sheet year holds 451 days of one person's leave, and the parts are this module's. */

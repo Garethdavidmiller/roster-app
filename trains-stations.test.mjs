@@ -330,6 +330,21 @@ describe('headlineChanges — what you will be asked about', () => {
         assert.equal(out[0].crs, 'AYS', 'the line opens the destination, where the trains are going');
     });
 
+    // The same story told the other way: trains that GO. Its clause read "they also stopped at", which on a
+    // list read before the change too said trains still running had gone (whole-app check, Nov 2026). The
+    // station is named losing them, which holds on either side of the change.
+    test('one story, one line, for trains that go: the station is named losing them, in no tense', () => {
+        const amersham = ['HOH', 'AMR', 'GMN', 'AYS'];
+        const base = hourly(27, 'AYS', amersham);
+        const now = [...base, row('06:01', 'AYS', '', '', 'HOH0615 AMR0640 GMN0650 AYS0705'),
+            row('07:01', 'AYS', '', '', 'AMR0740 GMN0750 AYS0805'), row('22:27', 'AYS', '', '', 'HOH2240 AMR2305 GMN2315 AYS2330')];
+        const out = headlineChanges(now, base, STATIONS);
+        assert.equal(out.length, 1, 'four stations, one story');
+        assert.equal(out[0].text, '3 fewer trains a day to Aylesbury (6, was 9); Amersham and Great Missenden lose them too; '
+            + 'Harrow-on-the-Hill loses 2 of them too; earlier last train, 15:27 (was 22:27)');
+        assert.doesNotMatch(out[0].text, /stopped|will stop|no longer/, 'a tense the list cannot keep on both sides of the change');
+    });
+
     test('one story, one line — but never at the cost of a fact', () => {
         // Weekday Warwick: its change is some of Moor Street's trains, but ONE GOES as others come.
         // "2 of them" would count against "3 more", which is new trains less a withdrawn one.
@@ -724,6 +739,21 @@ describe('the station card, the lookup and the totals as a member reads them (v2
         assert.match(look('SX', '10:36', true), /Until 12 December this was the 10:36 to Banbury\./);
         assert.match(look('SX', '10:36', true), /<h3 class="tr-near-head">Until 12 Dec<\/h3>/);
     });
+    // A train run on to Aylesbury Vale Parkway carries no route code, while its Aylesbury self is "via
+    // Amersham" — one line, two codes. The stops it dropped went unsaid, because the lookup compared the
+    // codes, not the route (whole-app check, Nov 2026; no such train drops a stop in today's books).
+    test('the lookup names the stops a train drops when it is run on to the Parkway, on either side of the change', () => {
+        const nowRows = [row('07:57', 'AYS', 'A', '', 'HOH0810 AMR0835 GMN0845 WND0852 SKM0858 AYS0905')];
+        const decRows = [row('07:57', 'AVP', '', '', 'HOH0810 AMR0835 WND0852 SKM0858 AYS0905 AVP0911')];
+        for (const started of [false, true]) {
+            const html = renderLookup({ at: '07:57', day: 'SX', nowRows, decRows, started, labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS });
+            assert.match(html, /From 13 December it does not stop at Great Missenden\./, started ? 'after the change' : 'before the change');
+        }
+        // Across Aylesbury's two routes the route is still the story, and no stops are compared.
+        const viaWycombe = [row('07:57', 'AYS', 'H', '', 'HWY0830 PRR0845 AYS0905')];
+        assert.doesNotMatch(renderLookup({ at: '07:57', day: 'SX', nowRows, decRows: viaWycombe, started: false,
+            labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS }), /does not stop at|also stops at/);
+    });
     test('the totals count one real day of each kind, a cell each under one label', () => {
         const html = renderTotals(TIMETABLES);
         assert.match(html, /<p class="field-eyebrow tr-totals-h">Trains a day leaving Marylebone<\/p>/);
@@ -890,6 +920,21 @@ describe('the eight improvements (v24.94): Last trains, the remembered station, 
         const hatton = /** @type {string} */ (Object.keys(STATIONS).find(k => STATIONS[k] === 'Hatton'));
         const sat = lastTrains(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep).find(r => r.crs === hatton);
         assert.deepEqual(sat, { crs: hatton, now: '20:32', dec: '21:02', shift: 30, kind: 'later' });
+    });
+
+    // The Last trains ? panel said the Monday-and-Friday trains are left out "as they are on a station's
+    // card" — but the card's own list shows them, with their days (whole-app check, Nov 2026). They are
+    // left out of the card's FIGURES, which is where its "Last train" comes from, and the panel says so.
+    test('the Last trains panel says where else the Monday-and-Friday trains are left out: a card\'s figures, not its list', () => {
+        const panel = CARD_TIPS.last.sections.flatMap(s => s.items.map(i => i.html)).join(' ');
+        assert.match(panel, /Mondays and Fridays are left out, as they are from the figures on a station's card/);
+        const mfo = /** @type {any} */ (TIMETABLES.now.SX.dep.find(r => r[3] === 'MFO'));
+        assert.ok(mfo, 'premise: a weekday train runs on Mondays and Fridays only');
+        const crs = mfo[1];
+        const view = stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, crs, 'dep', { change: CHANGE_DATE, started: false });
+        assert.equal(view.now.total, aRealDay(TIMETABLES.now.SX.dep).filter(r => callsOf(r).includes(crs)).length, 'the figures count one real day');
+        assert.match(renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: true, allTrains: true }), /Mon and Fri only/,
+            'and the list under them names the Monday-and-Friday train, with its days');
     });
 
     test('renderLastTrains — banded by line, the moved time bold with a chip, a kept time quiet', () => {

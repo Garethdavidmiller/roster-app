@@ -460,7 +460,7 @@ describe('the figures are the app’s own', () => {
         assert.deepEqual([res.app.taken, res.app.booked], [1, 1]);
         // A Dispatcher's figure carries the app's own breakdown — the words Admin's banner uses.
         assert.equal(compare(DISP, []).app.note, entitlementNote({ member: DISP, year: YEAR, overrides: [] }));
-        assert.match(String(compare(DISP, []).app.note), /base/);
+        assert.match(String(compare(DISP, []).app.note), /for bank holidays worked/);
     });
 
     test('an allowance difference reads the sheet as the clerks write it: carried forward on, a joiner’s reduction off', () => {
@@ -572,6 +572,24 @@ describe('"agree" means the figures agree', () => {
         assert.deepEqual(compare(CEA, [], [AL(CEA, d)]).beyond, []);
     });
 
+    test('ONE of any reason is a reason: a single app-only day, a single undated day, an allowance alone — never the fallback', () => {
+        // Each of these used to be caught only by the safety net below when there was exactly one of it, so a
+        // threshold of "more than one" read as "figures differ, nothing shows why" over a reason the card names.
+        const d = find(CEA, '2026-07-01', timed);
+        const e = find(CEA, '2026-07-01', timed, [d]);
+        const appOnly = compare(CEA, [leave(CEA, d)], [AL(CEA, d), AL(CEA, e)], { sheet: { used: 1 } });
+        const undated = compare(CEA, [], [], { sheet: { columnE: 1, unexplained: 1 } });
+        const allowance = compare(CEA, [], [], { sheet: { allowance: 33 } });
+        for (const [what, res, key] of /** @type {Array<[string, any, string|null]>} */ ([
+            ['one app-only day', appOnly, 'app-only'], ['one undated day', undated, 'undated'], ['the allowance alone', allowance, null]])) {
+            if (key) assert.equal(res.counts[key], 1, `${what}: premise`);
+            else assert.equal(res.allowanceDiffers, true, `${what}: premise`);
+            assert.notEqual(res.figuresGap, 0, `${what}: premise — the figures part by it`);
+            assert.equal(res.needsALook, true, what);
+            assert.equal(res.counts.figures, 0, `${what} is a named reason, not "nothing shows why"`);
+        }
+    });
+
     test('the safety net: figures that differ for no reason the card names still need a look, and say so', () => {
         // Unreachable through a sealed file whose sums hold — so it is built by hand.
         const res = compare(CEA, [], [], { sheet: { corrected: 31 } });
@@ -645,7 +663,20 @@ describe('who can be checked at all (leaveRecordability)', () => {
     test('a manager is a manager, never a leaver — though Management is hidden too', () => {
         assert.equal(leaveRecordability(MANAGER, YEAR), 'manager');
         assert.equal(leaveRecordability({ ...MANAGER, managerOnly: false }, YEAR), 'manager');
-        assert.equal(leaveRecordability({ ...CEA, hidden: true, managerOnly: true }, YEAR), 'manager');
+        // A login-only account with no figure on record that year: hidden like a leaver, and still a manager.
+        assert.equal(leaveRecordability({ ...CEA, hidden: true, managerOnly: true, startDate: new Date(YEAR + 1, 0, 4) }, YEAR), 'manager');
+    });
+    test('the YEAR decides, not today’s grade: a member who moved into Management is checked for the year they moved in', () => {
+        // Invented: a CES up to and including Saturday 21 November 2026, a manager from the Sunday — and
+        // so hidden and managerOnly now, as every manager is. 2026 is judged by the graded post held in it.
+        /** @type {any} */ const PROMOTED = { name: 'G. Example', role: 'Management', rosterType: 'ces', currentWeek: 2,
+            hidden: true, managerOnly: true, roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] };
+        assert.equal(entitlementFor(PROMOTED, 2026), 34, 'the case: the app holds a 2026 allowance for them');
+        assert.equal(leaveRecordability(PROMOTED, 2026), null, 'their 2026 leave is checked — not "a manager", not "a leaver"');
+        assert.equal(entitlementFor(PROMOTED, 2027), null, 'the case: no graded post in 2027');
+        assert.equal(leaveRecordability(PROMOTED, 2027), 'manager');
+        // The flag is today's too: a login-only account the app holds an allowance for is checked, never a leaver.
+        assert.equal(leaveRecordability({ ...CEA, hidden: true, managerOnly: true }, YEAR), null);
     });
     test('a leaver, somebody not on the roster, and somebody with no allowance that year', () => {
         assert.equal(leaveRecordability(LEAVER, YEAR), 'leaver');

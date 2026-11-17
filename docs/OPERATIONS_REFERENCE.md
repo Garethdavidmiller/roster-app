@@ -725,10 +725,11 @@ branch build needs, so it stays either way.
 
 ## Removing a staff member
 
-Five steps, and **the order matters** — step 2 changes what the roster parser can read. Referred to
-from CLAUDE.md, the `/leaver` and `/new-starter` skills and the Overtime section below, all of which
-carry the tick-list; **this is the long form and the only home of the reasoning** — `/leaver` is the
-executable checklist and routes here rather than restating any of it.
+Six steps, and **the order matters** — step 2 changes what the roster parser can read, and steps 5
+and 6 read only what step 3 has DEPLOYED. Referred to from CLAUDE.md, the `/leaver` and `/new-starter`
+skills and the Overtime section below, all of which carry the tick-list; **this is the long form and
+the only home of the reasoning** — `/leaver` is the executable checklist, numbered as here, and
+routes here rather than restating any of it.
 
 **1. Upload the final roster PDF that still contains them.**
 
@@ -741,38 +742,58 @@ It does not fail loudly: the run reports them under `missingMembers` — "the AI
 this member" — which is the same advisory a genuine absence produces. So the week imports, looks
 complete, and quietly has nobody rostered on their line.
 
-**2. Set `hidden: true`, regenerate, ship.**
+**2. Set `hidden: true`.**
 
-Edit the `teamMembers` entry in `roster-member-data.js`, then `npm run generate:roster-members` **in the same
-commit** — `sw-asset-check.test.mjs` fails if the two drift. Bump and deploy as usual.
+Edit the `teamMembers` entry in `roster-member-data.js`; step 3 regenerates the server's copy and
+ships both.
 
 There is no end-date field — `startDate` has no counterpart — so until this lands their base roster keeps producing
 shifts: they appear in the calendar and in Team Week View as though still working. Nothing breaks,
 but a manager planning a week is reading a line nobody is on. Do it promptly once step 1 is done.
+
+**A manager or clerk (`managerOnly`) is the exception: remove their ROW from `teamMembers`.**
+Every active Management row already carries `hidden: true` (it keeps them off the Calendar's member
+selector), so `getMembersForGrade('Management')` does not filter on it — hiding one changes nothing,
+they stay in `activeMembers`, step 5 never disables them and step 6 reads clean. A row that has
+only ever been a manager's holds no roster to resolve; one moved off a line keeps that line, which
+`roster-data.test.mjs` reads ("A member changes grade", below). Take them out of
+`CONFIG.MANAGER_NAMES` in the same commit (step 2b).
 
 **2b. If they held a role, take them out of it as well.**
 
 `CONFIG.ADMIN_NAMES`, `CONFIG.MANAGER_NAMES` and `CONFIG.LINKS_DESIGNERS` are plain name lists and
 are **not filtered by `hidden`**. `resolveRosterAuthConfig` unions every role-holder into
 `processMembers` — deliberately, so a leaver sweep can never disable the admin — with the
-consequence that **a manager or designer left in one of those lists is immune to step 3**. They stay
+consequence that **a manager or designer left in one of those lists is immune to step 5**. They stay
 in the server's active set, the orphan filter never sees them, and their login goes on working.
 
-It is also the one failure in this sequence that **step 4 cannot catch**: the audit compares Firebase
-Auth against the server's active set, and as far as the server is concerned they are still active. So
-it reads as a clean bill. Check the three lists by hand when the leaver held a role.
+It is also the one way to keep a working login that **step 6 cannot catch**: the audit compares
+Firebase Auth against the server's active set, and as far as the server is concerned they are still
+active. So it reads as a clean bill. Check the three lists by hand when the leaver held a role.
 
-**3. Operations → Staff Login Accounts: tick "Disable accounts for anyone no longer on the roster
+**3. Regenerate in the same commit, ship it, and wait for the Functions deploy.**
+
+`npm run generate:roster-members` **in the same commit** as step 2 — `sw-asset-check.test.mjs` fails
+if the two drift. Bump and push as usual; once it is on `main`, **wait for Deploy Firebase Functions to
+finish green before step 5.** Set up accounts and the step-6 audit never read the roster the page
+holds: both work from the server's own copy, `functions/roster-members.json` as last DEPLOYED.
+Pressed before that deploy has finished, both still see the leaver on the roster — the sweep reports
+"No leaver accounts to disable" and the audit "Everyone on the roster has a login, and no leaver still
+has one", each true of the old list — and the leaver's login goes on working. The leaver gone from
+the app's own pages proves nothing here: Hosting and Functions deploy in parallel from the one push,
+in no fixed order.
+
+**4. Overtime: every already-open week.**
+
+A week's participant population is frozen when the week opens, so hiding somebody only affects weeks
+created afterwards. They stay outstanding in every already-open week until the horizon rolls past.
+Use **Stop asking** on their row in *Who is being asked*, once per open week — see "Somebody who has
+left, and is being chased every week" below. A closed week refuses it by design. Nothing to do here
+while Overtime is paused (`OVERTIME_AVAILABILITY.md` → Paused): no week asks anyone.
+
+**5. Operations → Staff Login Accounts: tick "Disable accounts for anyone no longer on the roster
 (leavers)", press Set up accounts, read the dry-run preview, then press Confirm.** Nothing is disabled
 until Confirm.
-
-**A manager or clerk (`managerOnly`) is the exception to step 2: remove their ROW from `teamMembers`.**
-Every active Management row already carries `hidden: true` (it keeps them off the Calendar's member
-selector), so `getMembersForGrade('Management')` does not filter on it — hiding one changes nothing,
-they stay in `activeMembers`, this step never disables them and step 4 reads clean. A row that has
-only ever been a manager's holds no roster to resolve; one moved off a line keeps that line, which
-`roster-data.test.mjs` reads ("A member changes grade", below). Take them out of
-`CONFIG.MANAGER_NAMES` in the same commit (step 2b).
 
 Hiding them removes them from `activeMembers`, which is the server-owned list `setupRosterAuth`
 trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
@@ -786,7 +807,7 @@ not one of them: it is targeted from the current roster, so it never reaches a l
 disabled account owns (`releasePushForOwner`, `functions/push.js`). A record older than v17.76 has no
 owner and cannot be attributed; it goes when the push service retires it.
 
-**4. Check it actually took.**
+**6. Check it actually took.**
 
 The Staff Login Accounts card states its own condition, above the button: a read-only audit
 (`getAccountSetupGaps`) comparing the server-owned roster against Firebase Auth. Done properly it
@@ -794,9 +815,10 @@ reads *"Everyone on the roster has a login, and no leaver still has one."* A lea
 enabled is named there ("1 leaver can still sign in"), and the **Needs attention** strip at the top of
 the page carries a *Leavers still active* item until it is fixed.
 
-This step exists because **every failure in steps 1–3 is silent**. A skipped step 3 leaves a working
+This step exists because **every failure before it is silent**. A skipped step 5 leaves a working
 login, and the dry-run preview inside Set up accounts is otherwise the only place it shows — a check
-you have to already suspect you need.
+you have to already suspect you need. It checks logins and nothing else, so 2b's lists and step 4's
+open weeks are still checked where those steps say.
 
 If the block says it **couldn't check** — the connection, an account list the server could not see
 (it declines to name the whole roster as missing rather than guess), or an answer it could not read —
@@ -828,13 +850,7 @@ entry under failures means nothing was done for that name: no account created (a
 must land first) and no claims stamped — run Set up accounts again. A confirmed leaver run also switches off the notifications of leavers
 disabled on an earlier run whose phones had saved them again, and counts them when there were any.
 
-### What this does NOT do, and has to be done per week
-
-**Overtime.** A week's participant population is frozen when the week opens, so hiding somebody only
-affects weeks created afterwards. They stay outstanding in every already-open week until the horizon
-rolls past. Use **Stop asking** on their row in *Who is being asked*, once per open week — see
-"Somebody who has left, and is being chased every week" below. A closed week refuses it by design.
-Nothing to do here while Overtime is paused (`OVERTIME_AVAILABILITY.md` → Paused): no week asks anyone.
+### What this does NOT do
 
 **Their data stays, and that is deliberate.** Overrides are keyed by name, so their past shifts, AL
 and absences remain an accurate record of what happened. Their `staffContact` work email also
@@ -1038,7 +1054,8 @@ would be lost: a confirmation or a "Swapped — counts" answer not yet saved, or
 still running.
 
 **Who is left out, and why:** leavers, managers, anybody the app has no allowance on record for, and
-anybody the app does not hold. The summary names each one with the reason **as the roster stands
+anybody the app does not hold. A member who has moved into Management is left out only for a year
+with no graded post in it: a year in which they held one keeps that post's allowance, so it is checked. The summary names each one with the reason **as the roster stands
 today** — somebody who could be compared now, but whose days the file does not carry, says a new
 leave file would include them. A member in the app and not on the sheet is listed too. Leave the app
 holds on a Sunday, before a member's start date, or on Christmas Day or Boxing Day is not counted as

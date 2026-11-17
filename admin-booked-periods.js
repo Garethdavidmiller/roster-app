@@ -53,6 +53,34 @@
  */
 
 import { carriedFrom } from './leave-year.js';
+import { computePeriodDeleteIds } from './override-utils.js';
+import { isChristmasClosureDate } from './christmas-leave.js';
+
+/**
+ * What a row's ✕ deletes, and the line that then says so (review, Nov 2026). The records are
+ * `computePeriodDeleteIds`' — less a leave record STORED ON CHRISTMAS DAY OR BOXING DAY unless the row
+ * is the Christmas row: that record has a row and a ✕ of its own, and a December period spanning it
+ * took it unsaid. The line counts the days the row LISTED, and names the uncounted days of the same
+ * type the delete takes with them (leave on a rest day, which costs nothing and so is not listed; a
+ * Sunday's), which it used to leave out.
+ * @param {{ overrides: any[], type: string, memberName: string, start: string, end: string,
+ *           isRestGap: (d: string) => boolean, listedCount?: number }} args
+ * @returns {{ ids: string[], said: string }}
+ */
+export function periodDelete({ overrides, type, memberName, start, end, isRestGap, listedCount }) {
+    const christmasRow = isChristmasClosureDate(start) && isChristmasClosureDate(end);
+    const byId = new Map(overrides.map(o => [o.id, o]));
+    const ids = computePeriodDeleteIds(overrides, { type, memberName, start, end, isRestGap }).filter(id => {
+        const o = byId.get(id);
+        return christmasRow || !(o?.type === type && isChristmasClosureDate(o.date));
+    });
+    const days = new Set(ids.map(id => byId.get(id)).filter(o => o?.type === type).map(o => o.date)).size;
+    const listed = listedCount ?? days;
+    const more = days - listed;
+    const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
+    return { ids, said: `✓ Deleted ${listed} ${noun}${listed !== 1 ? 's' : ''} for ${memberName}`
+        + (more > 0 ? `, and ${more} more day${more === 1 ? ' that was' : 's that were'} not counted` : '') };
+}
 
 /**
  * Arm a two-tap destructive control: its label, class and accessible name change together. A
@@ -292,8 +320,8 @@ export function createBookedPeriods(deps) {
         // and nothing else, so a day the member was not contracted to work — a REST DAY carrying an
         // AL override — was listed and counted, while `consumesEntitlement` (which the AL banner
         // above it uses) correctly ignored it. One card, two disagreeing counts of the same thing:
-        // M. Robson's chips summed to 33 against a banner reading 32 of 32, and his December period
-        // began a day before his leave did. Reported by the owner from the roster office's own
+        // one member's chips summed to 33 against a banner reading 32 of 32, and their December period
+        // began a day before their leave did. Reported by the owner from the roster office's own
         // spreadsheet, which agreed with the banner.
         //
         // `cfg.consumes` is the ENTITLEMENT rule itself, injected rather than re-derived, so the two
@@ -319,13 +347,14 @@ export function createBookedPeriods(deps) {
         // pre-v23.88 week-grid booking of Mon–Thu plus the Friday and Saturday rest days deleted as
         // "4 AL days" and kept 🏖️ on the Friday and Saturday, with no row left to remove them from.
         // The reach walks out through rest days only, and stops at a Sunday and at the year end, so a
-        // delete never widens past the week or the year its row is in.
+        // delete never widens past the week or the year its row is in — and at Christmas Day and Boxing
+        // Day, whose stored leave is the Christmas row's to delete (`periodDelete`, review Nov 2026).
         const counted   = new Set(dateList);
         const uncounted = new Set(entries.map(e => e.date).filter(d => !counted.has(d)));
         const reach = (/** @param {string} edge @param {number} dir */ (edge, dir) => {
             let out = edge;
             for (let d = deps.addDays(edge, dir), i = 0; i < 6 && d.slice(0, 4) === edge.slice(0, 4)
-                && !deps.isSunday(d) && deps.isRestGap(d, memberObj); d = deps.addDays(d, dir), i++) {
+                && !deps.isSunday(d) && !isChristmasClosureDate(d) && deps.isRestGap(d, memberObj); d = deps.addDays(d, dir), i++) {
                 if (uncounted.has(d)) out = d;
             }
             return out;

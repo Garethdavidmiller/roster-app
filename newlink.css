@@ -647,6 +647,11 @@ body {
     .app-header h1 { color: var(--primary-blue); }
     .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .btn-burger, .nl-tiles, .nl-tabs, .nl-back-row { display: none !important; }
+    /* Paper has no tap-to-expand, so a folded card prints OPEN, as on Links (17 Nov 2026): "What's changed" and "How
+       the figures are worked out" — the method notes among them — printed as their headers alone. Its chevron is a
+       control, and goes. */
+    .card-collapsible-body { display: block !important; }
+    .collapse-chevron { display: none !important; }
     /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
     .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
     /* A proposal's two panels stay with its name: a page break between them would leave "Worse" under nobody's name. */

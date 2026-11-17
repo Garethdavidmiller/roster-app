@@ -131,7 +131,7 @@ describe('a refusal that must not be raised', () => {
         assert.deepEqual(errors, []);
     });
 
-    test('…and a Rest Day Worked IS, like any shift', () => {
+    test('…and a Rest Day Working day IS, like any shift', () => {
         const { errors } = check([{ date: '2026-06-13', value: '06:00-19:00', type: 'rdw' }]);
         assert.equal(errors.length, 1, 'a 13-hour RDW went unchecked');
         assert.match(errors[0], /13h — max is 12h/);

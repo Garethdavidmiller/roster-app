@@ -313,7 +313,7 @@ already; they are simply rendered as advisory ORR rows:
 | Max consecutive days (13) | `assessHardLimits` | **hard limit** |
 | Min rest between turns | the short-turnaround check (12h) | FF13, advisory |
 | Max length of a turn | duty length (12h) | FF5, advisory |
-| Max hours in a rolling week | `maxHoursInAny7Days` | MRSF row at 55h, advisory |
+| Max hours in a rolling week | `worstHoursInAny7Days` (a cover week at its worst; `maxHoursInAny7Days` is the floor) | MRSF row at 55h, advisory |
 
 Worth settling before a proposal is frozen, because it changes how a reader weighs those rows: a
 figure in the advisory half invites a justify/minimise/control conversation, while the same figure in
@@ -784,7 +784,7 @@ Ordered by how much they change if the answer is unexpected.
    **The panel row now reads from that measurement** (v19.69; it reported a hardcoded `standing`
    from v19.46, breaking the module's own "never hardcode a status" rule for the second time after
    FF13 at v19.48). It states the typical weekly move, the largest, and how many boundaries exceed
-   two hours. **On the live main roster: typically 4h 0m a week, largest 8h 46m, 9 of 20 boundaries
+   two hours. **On the live main roster: typically 4h 00m a week, largest 8h 46m, 9 of 20 boundaries
    over 2h** — the baseline to read any proposal's figure against, and the number to take into the
    conversation below. For comparison the workspace's December default, generated with every
    line-order objective on, measures typically 4h 16m, largest 8h 37m, 8 of 24 over 2h
@@ -867,7 +867,7 @@ Read as **the size of the step** — how far your working day jumps week to week
 choice, and a measurable one.
 
 *The measurements, and quote them with the switches named:* the live main roster moves **typically
-4h 0m a week, largest 8h 46m, with 9 of 20 boundaries over two hours**. The workspace's December
+4h 00m a week, largest 8h 46m, with 9 of 20 boundaries over two hours**. The workspace's December
 default measures **typically 4h 16m, largest 8h 37m, 8 of 24 over two hours**. A step of ~9 min is reachable but only by turning the variety
 constraint off, which produces blocks of 8+ weeks on the same shift — judged "excessive and would be
 unpopular" by the owner, so it is not an answer to offer.

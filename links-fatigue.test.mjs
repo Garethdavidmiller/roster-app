@@ -17,9 +17,10 @@ import assert from 'node:assert/strict';
 import {
     isRest, isWorked, dutyMinutes, isEarlyStart, isVeryEarlyStart, coversNightWindow,
     toSequence, longestRunBetween48hBreaks, longestWorkedRun, longestRunOf,
-    earlyBlocksWithShortRecovery, maxHoursInAny7Days, startTimeJumps, rotationDirection,
+    earlyBlocksWithShortRecovery, maxHoursInAny7Days, worstHoursInAny7Days, COVER_DUTY_MINUTES, startTimeJumps, rotationDirection,
     assessFatigue,
 } from './links-fatigue.js';
+import { CONTRACTED_HOURS_PER_WEEK, SPARE_WORKED_DAYS } from './links-design.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 /** Build patterns from an array of 7-day arrays. */
@@ -162,19 +163,78 @@ describe('earlyBlocksWithShortRecovery (FF8b)', () => {
     });
 });
 
-describe('maxHoursInAny7Days (MRSF 55h)', () => {
-    test('sums duty lengths across a rolling week', () => {
+// THE 55-HOUR ROW TAKES ITS VERDICT ON A COVER WEEK'S WORST CASE (17 Nov 2026), as every run rule does.
+// It took it on the FLOOR — a cover week as no hours — and so read CLEAR for a design that crosses 55
+// the moment a cover week falls badly: Links said Balanced V6 had 3 factors present where the New link
+// page, from the pack's worst case, said 4. The floor is still computed, and still stated: it is what
+// the rota itself fixes.
+describe('the 55-hour week (MRSF): the floor the rota fixes, and a cover week at its worst', () => {
+    const H = (/** @type {any} */ p, /** @type {number} */ lines) => ({ floor: maxHoursInAny7Days(toSequence(p, lines)), worst: worstHoursInAny7Days(toSequence(p, lines)) });
+    test('sums duty lengths across a rolling week, and with no spare day the two figures are one', () => {
         const d = design([EARLY, EARLY, EARLY, EARLY, EARLY, EARLY, EARLY]);   // 7 x 8h
-        assert.equal(maxHoursInAny7Days(toSequence(d, 1)), 56);
+        assert.deepEqual(H(d, 1), { floor: 56, worst: 56 });
     });
-    test('SPARE contributes zero, so the figure is a FLOOR not an estimate', () => {
-        const d = design([EARLY, EARLY, EARLY, 'SPARE', 'SPARE', 'SPARE', 'SPARE']);
-        assert.equal(maxHoursInAny7Days(toSequence(d, 1)), 24,
-            'four standby days count as zero hours — the real total is higher');
+    test('the FLOOR counts a spare day as no hours; the WORST CASE counts it as a duty', () => {
+        // The design the floor once read as 24 hours and clear: three duties, then a spare Wednesday to
+        // Saturday. Four spare duties at a quarter of the contracted week each are 35 hours more.
+        const d = design([EARLY, EARLY, EARLY, SPARE, SPARE, SPARE, SPARE]);
+        assert.deepEqual(H(d, 1), { floor: 24, worst: 59 });
+        const row = assessFatigue(d, 1).results.find(r => r.title.includes('55 hours'));
+        assert.equal(row?.status, 'present', 'over 55 when the spare days are worked, so present');
+        assert.equal(row?.value, 59, 'the figure shown is the one the verdict was taken on');
+        assert.match(String(row?.detail), /^59 hours in the worst case, and 24 on the duties the rota fixes\./);
+    });
+    test('a cover day counts as a quarter of the contracted week — the app\'s own reading of a cover week', () => {
+        assert.equal(COVER_DUTY_MINUTES, CONTRACTED_HOURS_PER_WEEK * 60 / SPARE_WORKED_DAYS);
+        assert.equal(COVER_DUTY_MINUTES, 8 * 60 + 45);
+    });
+    test('a cover week works FOUR of Monday to Saturday, never six, and its Sunday on top', () => {
+        // Between two rest weeks, so no window can reach anything else: its Sunday and four duties are
+        // five days at 8h 45m, 43h 45m. Counting all six of Monday to Saturday would be 61h 15m — the
+        // seven-day reading this module refuses for runs.
+        const ALL_RD = [RD, RD, RD, RD, RD, RD, RD];
+        assert.deepEqual(H(design(ALL_RD, [SPARE, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE], ALL_RD), 3), { floor: 0, worst: 43.8 });
+        // …and with a rest day on its Sunday (still a cover week, `isCoverWeek`), the four alone.
+        assert.equal(H(design(ALL_RD, [RD, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE], ALL_RD), 3).worst, 35);
+    });
+    test('the four fall where the window can reach them — the worst placement, the same as the pack\'s blocks', () => {
+        // Six early duties, then a cover week. The heaviest seven days are line 1's Friday and Saturday,
+        // then the cover week's Sunday and four duties from its Monday: 16h + 5 x 8h 45m = 59h 45m.
+        const d = design([RD, EARLY, EARLY, EARLY, EARLY, EARLY, EARLY], [SPARE, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE]);
+        assert.deepEqual(H(d, 2), { floor: 48, worst: 59.8 });
+        // The same answer the pack reaches by placing each block of four and measuring (docs/links-26):
+        // the cover week worked Monday to Thursday with its Sunday, at 8h 45m a duty.
+        const D = '09:00-17:45';
+        const placed = design([RD, EARLY, EARLY, EARLY, EARLY, EARLY, EARLY], [D, D, D, D, D, RD, RD]);
+        assert.equal(maxHoursInAny7Days(toSequence(placed, 2)), 59.8);
+    });
+    test('each week has four duties of its own — side by side, and where a window laps the rotation', () => {
+        // Two cover weeks side by side: the first's four at its end, the second's Sunday and two of its
+        // four — seven duties in seven days, 61h 15m, as two adjacent cover weeks chain for a run.
+        const ALL_RD = [RD, RD, RD, RD, RD, RD, RD];
+        const COVER = [SPARE, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE];
+        assert.equal(H(design(ALL_RD, COVER, COVER, ALL_RD), 4).worst, 61.3);
+        // A window that laps a one-line rotation meets NEXT week's cover week, which has four duties of
+        // its own: Wednesday to Saturday, the next Sunday, Monday and Tuesday — seven again. A budget
+        // keyed on the line rather than on the week would stop it at the 43h 45m of a single week.
+        assert.equal(H(design(COVER), 1).worst, 61.3);
+    });
+    test('where a cover week makes no week longer, the row says so rather than quoting the floor twice', () => {
+        const TEN = '06:00-16:00';
+        const d = design([TEN, TEN, TEN, TEN, TEN, TEN, TEN], [SPARE, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE], [RD, RD, RD, RD, RD, RD, RD]);
+        assert.deepEqual(H(d, 3), { floor: 70, worst: 70 });
+        const row = assessFatigue(d, 3).results.find(r => r.title.includes('55 hours'));
+        assert.equal(row?.value, 70);
+        assert.match(String(row?.detail), /it makes no seven days longer than this\.$/);
+    });
+    test('with no spare day there is nothing to qualify, and nothing is said', () => {
+        const row = assessFatigue(design([EARLY, EARLY, EARLY, EARLY, EARLY, EARLY, RD]), 1).results.find(r => r.title.includes('55 hours'));
+        assert.equal(row?.detail, undefined);
+        assert.equal(row?.status, 'clear');
     });
     test('rest days contribute zero', () => {
         const d = design([EARLY, RD, RD, RD, RD, RD, RD]);
-        assert.equal(maxHoursInAny7Days(toSequence(d, 1)), 8);
+        assert.deepEqual(H(d, 1), { floor: 8, worst: 8 });
     });
 });
 
@@ -659,12 +719,14 @@ describe('FF18 — the week-to-week step', () => {
             [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD],
         ));
         assert.notEqual(flat.value, swinging.value, 'a hardcoded row would report the same for both');
-        assert.match(String(flat.value), /0h 0m/);
+        // Hours and minutes in the workspace's one shape, `hmFromHours` (17 Nov 2026: this row read "6h 3m" beside
+        // the hours row's "34h 05m" on the same card).
+        assert.match(String(flat.value), /0h 00m/);
         // The rotation LAPS — line 3 → line 1 is a boundary like any other — so the three steps are
         // 9h05, 9h05 and 0, giving a mean of 6h03 and a worst of 9h05. Asserting the mean alone
         // would have hidden the lap; the first draft of this test expected 9h05 and was wrong.
-        assert.match(String(swinging.value), /typically 6h 3m/);
-        assert.match(String(swinging.detail), /largest is 9h 5m/);
+        assert.match(String(swinging.value), /typically 6h 03m/);
+        assert.match(String(swinging.detail), /largest is 9h 05m/);
         assert.match(String(swinging.detail), /2 of 3 line boundaries move by more than 2 hours/);
     });
 
@@ -727,7 +789,7 @@ describe('FF18 — the week-to-week step', () => {
         const flat = [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD];
         const legacy = design(flat, flat, flat, [RD, LATE, LATE, LATE, LATE, LATE, RD]);
         const r = assessFatigue(legacy, 3).results.find(x => x.code === 'FF18');
-        assert.match(String(r.value), /3-line rotation · typically 0h 0m/,
+        assert.match(String(r.value), /3-line rotation · typically 0h 00m/,
             'line 4 is not in a 3-line rotation, so no step reaches it');
         assert.match(String(r.detail), /0 of 3 line boundaries/);
     });

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -129,9 +129,8 @@
     <link rel="modulepreload" href="./roster-member-data.js">
     <link rel="modulepreload" href="./roster-roles.js">
     <link rel="modulepreload" href="./roster-data.js">
-    <link rel="modulepreload" href="./roster-roles.js">
     <link rel="modulepreload" href="./pay-audience.js">
-  <link rel="modulepreload" href="./date-format.js">
+    <link rel="modulepreload" href="./date-format.js">
     <link rel="modulepreload" href="./session.js">
     <link rel="modulepreload" href="./silent-sign-in.js">
     <link rel="modulepreload" href="./viewer-shed.js">
@@ -434,12 +433,18 @@
                  state a change which never happened, quietly and plausibly. Naming the base roster
                  is also the more useful fact, and "base roster" is vocabulary the Team view note
                  already teaches. -->
+            <!-- ONE SENTENCE FOR A SCREEN READER, in visually hidden TEXT (17 Nov 2026). Read part by
+                 part the block is "Changed from base roster, Spare, Early, changed by…" — fragments of
+                 one fact, the arrow not a word — so the parts are aria-hidden and the sentence says
+                 it whole. It used to be an aria-label on this div, which a screen reader may ignore:
+                 a plain div has no role a label can name, and axe only marks that "needs review". -->
             <div class="day-detail-change" id="dayDetailChange" hidden>
-                <span class="ddc-eyebrow">Changed from base roster</span>
-                <span class="ddc-pair" id="dayDetailChangePair"></span>
+                <span class="visually-hidden" id="dayDetailChangeSaid"></span>
+                <span class="ddc-eyebrow" aria-hidden="true">Changed from base roster</span>
+                <span class="ddc-pair" id="dayDetailChangePair" aria-hidden="true"></span>
                 <!-- Who made the change, or that it came in with the weekly roster. Absent when the
                      document cannot say, which is honest — the alternative names a colleague. -->
-                <span class="ddc-by" id="dayDetailBy" hidden></span>
+                <span class="ddc-by" id="dayDetailBy" aria-hidden="true" hidden></span>
             </div>
             <!-- THE OTHER HALF OF THE CHANGE BLOCK, IN THE SAME SLOT — a day was either changed
                  or it was not, so the two never appear together. An unchanged day used to render
@@ -456,6 +461,11 @@
                  used to answer without the ⭐. Built in JS from `dayMarkers`, the one authority
                  the hover tooltip's sentence also comes from. -->
             <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
+            <!-- WHAT A PAY CUT-OFF IS (17 Nov 2026), on the day that carries the ✂️. The key calls it
+                 "Pay cut-off" and the chip above "Cut-off date", and nothing on the Calendar said what
+                 one is: the last day of shifts paid on the coming payday. The same quiet line as the
+                 leave-year and Christmas lines further up; absent on every other day. -->
+            <div class="day-detail-leaveyear" id="dayDetailCutoff" hidden></div>
             <!-- No 💷 here: the chip above carries it, and the two sat ten pixels apart saying the
                  same thing twice. The green already IS the app's Pay identity (the nav Pay pill). -->
             <!-- ANNUAL LEAVE DAYS ONLY (v22.91, owner request). The same rule as the pay button
@@ -516,13 +526,13 @@
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--late"></span><span aria-hidden="true">🌙</span> Late</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--night"></span><span aria-hidden="true">🦉</span> Night</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--al"></span><span aria-hidden="true">🏖️</span> Annual leave</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rdw"></span><span aria-hidden="true">💼</span> Rest day worked</div>
+                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rdw"></span><span aria-hidden="true">💼</span> Rest day working</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--spare"></span><span aria-hidden="true">📋</span> Spare</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--absent"></span><span aria-hidden="true">🪑</span> Absent</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--other"></span><span aria-hidden="true">🏷️</span> Other</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rest"></span><span aria-hidden="true">🏠</span> Rest day</div>
             </div>
-            <p class="team-info-note">Shifts shown are your base roster plus any recorded changes. Changes saved on the Admin page appear here the next time this page loads — for example, when you open the Calendar again from the menu.</p>
+            <p class="team-info-note">Shifts shown are each person’s base roster plus any recorded changes. A change saved on the Admin page shows here when the Calendar next opens, or within 20 minutes while it stays open.</p>
         </div>
     </div>
 
@@ -623,9 +633,11 @@
 
         <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled. Both of its
              lines live here, as the install strip's do: the offer, and what it says when the system
-             said yes but notifications still could not be switched on (calendar-notif-prompt.js). -->
+             said yes but notifications still could not be switched on (calendar-notif-prompt.js). The
+             offer names the pay reminder only to a member it is sent to, CEA and CES; everyone else is
+             offered the documents (17 Nov 2026) — the module shows one ending as it shows the strip. -->
         <div id="notifPrompt" class="top-prompt" role="region" aria-label="Notifications" style="display:none">
-            <span class="top-prompt-text" id="notifPromptOffer"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle, documents and pay reminders</span>
+            <span class="top-prompt-text" id="notifPromptOffer"><span aria-hidden="true">🔔</span> Get notified about the Daily Huddle<span id="notifPromptOfferDocs"> and other documents</span><span id="notifPromptOfferPay" hidden>, documents and pay reminders</span></span>
             <span class="top-prompt-text" id="notifPromptFailed" hidden><span aria-hidden="true">🔔</span> <span id="notifPromptFailedLine">Couldn’t turn notifications on. Check your connection and tap Enable to try again, or later in <span class="nav-path">☰ → Settings</span>.</span></span>
             <button type="button" class="top-prompt-action" id="notifPromptEnable">Enable</button>
             <button type="button" class="top-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
@@ -648,7 +660,7 @@
             </div>
             <div class="legend-row" id="legend-row-2">
                 <div class="legend-item" id="legend-spare"><div class="legend-color spare"></div><span class="legend-text">Spare</span></div>
-                <div class="legend-item" id="legend-rdw"><div class="legend-color rdw"></div><span class="legend-text">Rest Day Worked</span></div>
+                <div class="legend-item" id="legend-rdw"><div class="legend-color rdw"></div><span class="legend-text">Rest Day Working</span></div>
                 <div class="legend-item" id="legend-al"><div class="legend-color al"></div><span class="legend-text">Annual Leave</span></div>
                 <div class="legend-item" id="legend-sick"><div class="legend-color sick"></div><span class="legend-text">Absent</span></div>
                 <div class="legend-item" id="legend-other"><div class="legend-color other"></div><span class="legend-text">Other</span></div>

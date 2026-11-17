@@ -483,17 +483,20 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
      *  person's may stay (sessions-3, Nov 2026; until then only the first two went): their error,
      *  their reset-request line or emphasis (see `resetResetRequest`), and a password they chose to
      *  show, or the next person types theirs in clear. Their failure streak is not reset here but
-     *  counted per person (`_failFor`), because a `change` can fire for the same name re-picked. */
+     *  counted per person (`_failFor`), because a `change` can fire for the same name re-picked — and
+     *  the 30-second lock is theirs alone (`showLockFor`): it outlived a change of person until the
+     *  review of Nov 2026, locking the next colleague at a shared PC out for the last one's mistakes. */
     function personChanged() {
         errorEl.classList.remove('visible');
         resetResetRequest();
         setPasswordShown(false);
+        showLockFor();
     }
 
     gradeSelect.addEventListener('change', () => {
-        personChanged();
         passwordInput.value = '';
         nameSelect.value = '';
+        personChanged();                  // after the name is cleared: the lock is judged for who is in the card
         populateNames(gradeSelect.value);
         syncName();                       // enable the trigger BEFORE trying to focus it
         if (gradeSelect.value) nameTrigger()?.focus();
@@ -512,12 +515,27 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
     let _failCount   = 0;       // credential failures in a row by `_failFor`, the person they are counted for
     let _failFor     = '';
-    let _lockedUntil = 0;
-    let _attempting  = false;
+    let _lockedUntil = 0;       // the 30-second lock after a third failure…
+    let _lockedFor   = '';      // …and the person who earned it: the lock is theirs, and nobody else's
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let _lockTimer;
+    let _attempting  = false;   // true while an attempt runs, and only then — the lock is `lockHolds`'s
     let _signingIn   = false;   // true ONLY while Firebase auth is genuinely in flight (not lockout)
     let _resetSeq    = 0;       // reset-request sends and changes of person — see the request's click
     // This client-side lockout is a UX measure only — it resets on page reload. Real rate
     // limiting is enforced server-side by Firebase Auth.
+
+    /** Is the person in the card the one locked out, inside the lock's 30 seconds? */
+    function lockHolds() { return Date.now() < _lockedUntil && nameSelect.value === _lockedFor; }
+
+    /** The button as the person now in the card stands: "Try again in 30s" for the lock's holder alone.
+     *  An attempt in flight owns the button until it settles; with no lock running there is nothing to do. */
+    function showLockFor() {
+        if (_signingIn || !_lockedUntil) return;
+        const held = lockHolds();
+        submitBtn.disabled = held;
+        submitBtn.textContent = held ? 'Try again in 30s' : 'Sign in →';
+    }
 
     /** @param {string} msg */
     function showError(msg) {
@@ -632,7 +650,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setLoginStatus(''); }
 
     async function attempt() {
-        if (_attempting || Date.now() < _lockedUntil) return;
+        if (_attempting || lockHolds()) return;
         _attempting = true;
         try {
             const name = nameSelect.value;
@@ -687,14 +705,18 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                     if (_failCount >= 2) promptResetRequest();
                     if (_failCount >= 3) {
                         _lockedUntil = Date.now() + 30_000;
+                        _lockedFor = name;
                         submitBtn.disabled = true;
                         submitBtn.textContent = 'Try again in 30s';
-                        setTimeout(() => {
-                            submitBtn.disabled = false;
-                            submitBtn.textContent = 'Sign in →';
-                            _failCount = 0;
+                        clearTimeout(_lockTimer);
+                        _lockTimer = setTimeout(() => {
+                            if (_failFor === _lockedFor) _failCount = 0;   // the holder starts afresh; a newcomer keeps their own streak
                             _lockedUntil = 0;
-                            _attempting = false;   // release the mutex the inner finally kept latched
+                            _lockedFor = '';
+                            if (!_signingIn) {                             // somebody else's attempt owns the button
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = 'Sign in →';
+                            }
                         }, 30_000);
                         showError(/** @type {string} */ (_result.error));
                         passwordInput.value = '';
@@ -740,23 +762,21 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 showError('Signed in, but the page couldn’t open — try again.');
             }
         } finally {
-            // Release the in-flight mutex on completion — EXCEPT during the 30s lockout, whose own
-            // timer (above) releases it when it expires. Keyed on `_lockedUntil` (not the button's
-            // disabled state, which is also true during the "Signing in…" success window) so a real
-            // attempt is serialised end-to-end. The handlers below must NOT also reset `_attempting`:
-            // an early-returned (mutex-held) call would otherwise clear the flag mid-flight and let a
-            // concurrent attempt start. `_attempting` is owned solely here + in the lockout timer.
-            if (Date.now() >= _lockedUntil) {
-                _attempting = false;
-                // Belt-and-braces: an UNEXPECTED throw after the button was set to "Signing in…"
-                // (above) but before any normal branch restored it would leave it stuck disabled
-                // (a soft-lock). Every intended exit already restores the button — success left the
-                // page, failure/lockout branches reset it — so acting ONLY on the still-"Signing in…"
-                // text touches nothing but the genuinely-stuck case, and never the success/lockout label.
-                if (submitBtn.textContent === 'Signing in…') {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Sign in →';
-                }
+            // Release the in-flight mutex on completion, every time. It used to stay latched for the
+            // 30-second lock, its timer releasing it — which kept the NEXT person out as well, the lock
+            // being the last person's (review, Nov 2026). The lock is `lockHolds`'s to enforce now, for
+            // its holder alone. The handlers below must NOT also reset `_attempting`: an early-returned
+            // call would otherwise clear the flag mid-flight and let a concurrent attempt start.
+            // `_attempting` is owned solely here and at the top of this function.
+            _attempting = false;
+            // Belt-and-braces: an UNEXPECTED throw after the button was set to "Signing in…"
+            // (above) but before any normal branch restored it would leave it stuck disabled
+            // (a soft-lock). Every intended exit already restores the button — success left the
+            // page, failure/lockout branches reset it — so acting ONLY on the still-"Signing in…"
+            // text touches nothing but the genuinely-stuck case, and never the success/lockout label.
+            if (submitBtn.textContent === 'Signing in…') {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign in →';
             }
             // Auth is no longer in flight once attempt() settles (the success path has already left
             // the page, so re-enabling Back here is moot for it but correct for every other exit).

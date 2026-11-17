@@ -66,6 +66,17 @@ import { isOfflineFailure } from './links-design-store.js';
 import { checkName } from './links-design-naming.js';
 
 /**
+ * What a Custom… prompt says when `normaliseCustomShift` refuses what was typed. Two prompts ask for a shift time —
+ * the grid's (links-app.js) and this table's — and this one dropped a refused time as it did a Cancel (17 Nov 2026).
+ * It names all three of the rule's conditions rather than work out which failed, which would copy its arithmetic.
+ * @param {string} raw  what was typed, shown back as typed
+ */
+export function customShiftRefusal(raw) {
+    return `“${String(raw ?? '').trim()}” wasn’t used — write a shift as its start and finish in 24-hour time, like 06:00-14:00. `
+        + 'It has to start between 04:00 and 20:59 and finish later the same day.';
+}
+
+/**
  * Build the generator's target-table panel and wire it to the card.
  *
  * `getActiveDesignId` is a function because the id MOVES (see rule 4); `currentUser` and `isAdmin`
@@ -88,6 +99,8 @@ export function createTargetPanel(deps) {
     /** @type {Array<any>} */
     let genSlots = [];
     let genSpareLines = 0;      // whole LINES that are spare weeks (v19.58) — not a per-day count
+    /** The refusal a Custom… time last wrote on the card's error line, so an accepted one clears only that. */
+    let _customRefusal = '';
 
     function renderGenTable() {
         const tbody = document.getElementById('genSlotRows');
@@ -393,9 +406,19 @@ export function createTargetPanel(deps) {
             const slot = genSlots[+(select.dataset.slot ?? '')];
             if (!slot) return;
             if (select.value === '__custom__') {
-                const typed = normaliseCustomShift(
-                    await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' }));
-                if (typed) { slot.time = typed; saveGenTargets(); }
+                const raw = await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' });
+                const typed = normaliseCustomShift(raw);
+                // A REFUSED time says why, as the grid's Custom… does (17 Nov 2026): it closed exactly as Cancel did, so a
+                // refusal could not be told from a slip. The sentence is `customShiftRefusal`'s, written once; it goes on the
+                // card's own error line, and a time that is then accepted takes it away. Cancel stays silent.
+                const errEl = document.getElementById('genError');
+                if (typed) {
+                    slot.time = typed; saveGenTargets();
+                    if (errEl && errEl.textContent === _customRefusal) errEl.textContent = '';
+                } else if (raw !== null && raw.trim() && errEl) {
+                    _customRefusal = customShiftRefusal(raw);
+                    errEl.textContent = _customRefusal;
+                }
                 renderGenTable();
                 return;
             }

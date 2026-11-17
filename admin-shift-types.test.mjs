@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { TYPES, PILL_TYPES, rowValueText } from './admin-shift-types.js';
+import { OTHER_FLAVOURS } from './override-utils.js';
 
 test('a fixed type prints nothing — its value only repeats the badge', () => {
     for (const [type, meta] of Object.entries(TYPES)) {
@@ -25,7 +26,17 @@ test('a value that CARRIES something is always kept', () => {
     // Times and Other-family flavours are the whole reason the column exists.
     assert.equal(rowValueText('shift', '08:00-16:30'), '08:00-16:30');
     assert.equal(rowValueText('rdw', '09:00-17:00'), '09:00-17:00');
-    assert.equal(rowValueText('other', 'TRG RDW 09:00-17:00'), 'TRG RDW 09:00-17:00');
+});
+
+test('an Other day prints its WORD, never its code — as the save receipt does', () => {
+    // This pinned the raw code ("TRG RDW 09:00-17:00") until Nov 2026, while the receipt, the week grid
+    // and the leave sheet check all said "Training". The words are OTHER_FLAVOURS', every one of them.
+    assert.equal(rowValueText('other', 'TRG RDW 09:00-17:00'), 'Training RDW 09:00-17:00');
+    assert.equal(rowValueText('other', 'MEET 10:00-14:00'), 'Meeting 10:00-14:00');
+    assert.equal(rowValueText('other', 'IND RDW'), 'Induction RDW');
+    for (const [code, f] of Object.entries(OTHER_FLAVOURS)) assert.equal(rowValueText('other', code), f.full, code);
+    // A value the grammar cannot read is printed as stored: the fail-toward-showing rule below.
+    assert.equal(rowValueText('other', 'TRG 25:00-26:00'), 'TRG 25:00-26:00');
 });
 
 test('it fails toward SHOWING — a row that contradicts its own type stays visible', () => {

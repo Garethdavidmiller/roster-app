@@ -617,7 +617,7 @@ let _dialogSeq = 0;
  * @param {string}  o.message
  * @param {string} [o.title]
  * @param {string}  o.confirmLabel
- * @param {string}  o.cancelLabel
+ * @param {string|null} o.cancelLabel     - null: no Cancel button — a report of something already done
  * @param {boolean} o.danger
  * @param {boolean} o.withInput            - render a text input (prompt) vs none (confirm)
  * @param {string} [o.defaultValue]        - initial input value (prompt)
@@ -709,13 +709,15 @@ function _openDialog(o) {
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
         cancelBtn.className = 'dialog-btn dialog-btn-cancel';
-        cancelBtn.textContent = o.cancelLabel;
+        cancelBtn.textContent = o.cancelLabel ?? '';
         const confirmBtn = document.createElement('button');
         confirmBtn.type = 'button';
         confirmBtn.className = 'dialog-btn dialog-btn-confirm' + (o.danger ? ' danger' : '');
         confirmBtn.textContent = o.confirmLabel;
-        // Cancel first, confirm last — matches the app's primary-action-on-the-right convention.
-        actions.appendChild(cancelBtn);
+        // Cancel first, confirm last — matches the app's primary-action-on-the-right convention. A REPORT
+        // has nothing to cancel, so `cancelLabel: null` draws no Cancel at all (whole-app check, 17 Nov
+        // 2026): beside an outcome that has already happened, "Cancel" read as a way to undo it.
+        if (o.cancelLabel !== null) actions.appendChild(cancelBtn);
         actions.appendChild(confirmBtn);
         content.appendChild(actions);
 
@@ -803,7 +805,8 @@ function _openDialog(o) {
  * @param {string}  opts.message
  * @param {string} [opts.title]
  * @param {string} [opts.confirmLabel='OK']
- * @param {string} [opts.cancelLabel='Cancel']
+ * @param {string|null} [opts.cancelLabel='Cancel'] - null draws NO Cancel: a report of something already
+ *                                         done, whose one answer is the confirm button ("OK")
  * @param {boolean} [opts.danger=false]  - style the confirm button as destructive (e.g. Delete)
  * @param {() => void} [opts.onConfirm]  - run synchronously INSIDE the confirm tap, for work that
  *                                         needs the user gesture (window.open)

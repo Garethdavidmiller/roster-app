@@ -85,8 +85,13 @@ test('day detail: names the roster it was changed from, and opens at full size',
     const pills = await change.locator('.ddc-badge').allTextContents();
     expect(new Set(pills).size, `both pills read the same: ${pills.join(' / ')}`).toBe(pills.length);
     // One sentence for a screen reader — the badges read individually would be three fragments of
-    // one fact, and the arrow is not a word.
-    await expect(change).toHaveAttribute('aria-label', /^Base roster Spare day, changed to /);
+    // one fact, and the arrow is not a word. Visually hidden TEXT, not an aria-label: a label on a
+    // plain <div> names nothing, so a screen reader may skip it and read the fragments (17 Nov 2026).
+    // Asserted on the accessibility tree itself, which is what a screen reader is given.
+    await expect(change.locator('#dayDetailChangeSaid')).toHaveText(/^Base roster Spare day, changed to /);
+    const said = (await change.locator('#dayDetailChangeSaid').textContent()) ?? '';
+    expect(await change.ariaSnapshot(), 'the block is read as its parts as well as, or instead of, its one sentence')
+        .toBe(`- text: ${said}`);
 
     // Full size, not the 85% fossil. The transform is the only observable: the text renders either
     // way, which is exactly why this went unnoticed.
@@ -396,7 +401,7 @@ test('calendar: after the panel retry succeeds, no "couldn\'t update" chip is le
 });
 
 // ONE MESSAGE AT A TIME (polish round 2). The withheld-grid panel and the header sync chip used to say
-// the same thing together — "Checking this month" beside "Updating your shifts…", "Couldn't check
+// the same thing together — "Checking this month" beside "Updating shifts…", "Couldn't check
 // this month" + Try again beside "Couldn't update — try again". The chip now steps back while a
 // panel speaks, and ONLY then: over a painted grid it is the only thing saying a sync is running.
 //
@@ -802,6 +807,32 @@ test('calendar: the Today highlight moves when the local date turns', async ({ p
     await page.clock.runFor('02:00');   // past local midnight
     await expect(today).toHaveCount(1);
     await expect.poll(async () => (await today.textContent())?.trim()).not.toBe(before);
+});
+
+// THE ROW TEAM VIEW MARKS AS THE READER'S OWN IS THE MEMBER SIGNED IN (17 Nov 2026) — through the page's
+// own wiring (`ownName`), which the unit test cannot reach. It was the picker's member: a colleague's
+// row on a colleague's calendar, and on the staff PIN whoever was chosen last. Two current CEAs are
+// taken from the roster by position, so no name is written here.
+test('team view: the row marked as the reader\'s own is the member signed in, never the picker\'s', async ({ page }) => {
+    const [me, colleague] = teamMembers.filter(m => !m.hidden && m.role === 'CEA');
+    await seedMemberSession(page, me.name);
+    await page.addInitScript((n) => localStorage.setItem('myb_roster_selected_member', n), colleague.name);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    const mine = page.locator('tr.tv-my-row th.tv-name-col');
+    await expect(mine).toHaveCount(1);
+    await expect(mine, 'the colleague the picker shows was marked as the reader').toHaveText(me.name);
+});
+
+test('team view on the staff PIN marks nobody\'s row as the reader\'s own', async ({ page }) => {
+    const [someone] = teamMembers.filter(m => !m.hidden && m.role === 'CEA');
+    await seedMember(page, someone.name);   // the picker's last choice on a station PC
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('tr th.tv-name-col').first()).toBeVisible();
+    await expect(page.locator('tr.tv-my-row'), 'a station PC marked the last-chosen member as the reader').toHaveCount(0);
 });
 
 // …AND TEAM VIEW'S WEEK FOLLOWS THE SAME RULE AS THE MONTH (16 Nov 2026). It kept the week it was on, so
@@ -1352,6 +1383,34 @@ test('calendar: a removed saved member falls back to the calendar + stale banner
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.first-run-prompt')).toHaveCount(0);
     await expect(page.locator('#errorBanner')).toContainText('no longer in the roster');
+});
+
+test('calendar: the removed-member line sits beside the banner\'s warning, and its timer takes only itself away (17 Nov 2026)', async ({ page }) => {
+    // The banner is shared with the start-up roster check, whose warning stays until a reload. The
+    // removed-member line REPLACED it, and its 30-second timer then hid the banner — warning and all.
+    // A warning already in the banner stands in for the check's (the roster cannot be made to fail it).
+    await page.clock.install({ time: new Date(2026, 8, 16, 9, 0, 0) });
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent');
+        // As the banner is parsed — before any module runs, as the check's own warning comes first.
+        const seen = new MutationObserver(() => {
+            const b = document.getElementById('errorBanner');
+            if (!b) return;
+            seen.disconnect();
+            b.textContent = 'Roster check warning';
+            b.classList.add('visible');
+        });
+        seen.observe(document, { childList: true, subtree: true });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const banner = page.locator('#errorBanner');
+    await expect(banner).toContainText('no longer in the roster');
+    await expect(banner, 'the removed-member line replaced the warning already there').toContainText('Roster check warning');
+    await page.clock.fastForward('00:31');
+    await expect(banner).not.toContainText('no longer in the roster');
+    await expect(banner, 'the 30-second timer hid the warning with its own line').toBeVisible();
+    await expect(banner).toContainText('Roster check warning');
 });
 
 test('calendar: member dropdown is populated by JS from teamMembers', async ({ page }) => {
@@ -3047,7 +3106,7 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(line).toBeVisible();   // the text alone is no proof: a hidden line still holds it
     await expect(line).toHaveText('Christmas Day: due at work, so this is annual leave. It does not come off the allowance.');
     // The pair names the turn the member was ROSTERED — never "Rest day", which `getBaseShift` makes the day.
-    await expect(page.locator('#dayDetailChange')).toHaveAttribute('aria-label', /^Base roster Late shift 14:00-22:30, changed to /);
+    await expect(page.locator('#dayDetailChangeSaid')).toHaveText(/^Base roster Late shift 14:00-22:30, changed to /);
     await page.locator('#dayDetailClose').click();
 
     await expect(cell('Saturday 26 December 2026')).toHaveAttribute('data-detail-shift-value', 'RDW');

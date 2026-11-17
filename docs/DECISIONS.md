@@ -793,8 +793,12 @@ had, and the payslip that spanned it was right for neither side. The roster now 
 3. **The grade history is published in the staff file**, which is world-readable: "a CEA until
    21 Nov 2026" can already be worked out from the line moves, and a private store would be a second
    copy of the roster to keep in step.
-4. **A member who moves into management keeps the refusal card.** The page prices nobody whose role
-   NOW has no confirmed rates; the payslips worked under the old grade are not offered.
+4. ~~**A member who moves into management keeps the refusal card.** The page prices nobody whose role
+   NOW has no confirmed rates; the payslips worked under the old grade are not offered.~~ **SUPERSEDED
+   16 Nov 2026 (owner, "role at the time"; v26.23).** The page now admits a member who held a priced
+   grade on any day of the payslips it shows, or today, and refuses each PAYSLIP with a day under a
+   role with no rates instead (`.claude/rules/paycalc.md` invariant 13; the header of `pay-audience.js`).
+   The same decision dates the leave allowance (`allowanceRole`, `al-contract.js`).
 
 **Considered and not done.** Asking "switch?" on each promotion — the v25.99 behaviour, which applies
 one answer to the whole history. Pricing by shifts — hours are stored per payslip, so nothing records
@@ -1107,6 +1111,44 @@ pages. Thirteen mutations — an off-scale sub-line, the sizes reaching paper, t
 guide's own top margin, two pay columns, a print size removed, the button at 12px, both 8px corners, a
 `<p>` label, the table's word-break rule removed, the tips' grid taken out of the stacking rule, and the
 Railcard guide's screen sizes reaching paper — each failed its test.
+
+## The 55-hour row takes a cover week at its worst, as every run does (17 Nov 2026)
+
+**Decided (17 Nov 2026, under the owner's "do all" on a whole-app review):** the Links fatigue row "More
+than 55 hours worked in any 7-day period" takes its verdict on a cover week's WORST case, as every run
+rule in the panel already does ("A cover week is an unknown, not a no", `.claude/rules/links-design.md`).
+It took it on the FLOOR — a cover week counted as no hours — so Balanced V6 read CLEAR at 50.9 hours
+while one of its cover weeks falling badly comes to over 60, and Links' Design checks counted 3 factors
+present where the New link page, built from the pack's worst case, counted 4. Members can read both
+during the consultation.
+
+**What the worst case is.** Each worked day of a cover week counts as a quarter of the contracted week,
+8h 45m (`COVER_DUTY_MINUTES`, links-fatigue.js): the app already counts a cover week as the contracted
+week (the hours row, owner), and it is worked as four duties. The four fall on Monday to Saturday,
+placed as badly as each seven days allows, and the Sunday is worked as overtime on top — the bounds the
+run rules keep. The Sunday counts the same 8h 45m: one stated assumption rather than two.
+
+**What the row shows.** The worst case is the figure, and the sentence gives both — "61.2 hours in the
+worst case, and 50.9 on the duties the rota fixes" — with the assumption. It is never CLEAR while the
+worst case crosses 55. With no cover week the two figures are one, and nothing is said.
+
+**The New link page and the pack.** The page's counts now match the Design checks for all three
+shortlisted designs (Balanced V6 4, Level Crossing 0, Middle Ground 1). The pack's own worst case takes
+a cover duty as 8 hours (with 8h 45m and an 8-hour Sunday beside it), so its printed figures are a
+little lower than the app's — 58h 35m and 60h 30m where Links says 61.2 for Balanced V6 — and the two
+agree on every verdict. The pack was NOT regenerated: its tables keep their own split, the duties the
+rota fixes and then "up to", so `report-data.mjs` reads the row at its floor for them, and every sheet,
+deck and figure on the page is what it was.
+
+**What it costs:** a design with a cover week shows one more factor present wherever its worst case
+crosses 55 — Balanced V6 and Middle Ground on the shortlist. The "today's link" row is unchanged: today's
+main cycle is over 55 on its fixed duties already.
+
+**What holds it:** `links-fatigue.test.mjs` (four of Monday to Saturday and never six, the Sunday on top,
+the placement the pack's blocks reach, each week's own four across a lap, both figures in the
+sentence) and `newlink-data.test.mjs` (every count the page states is the Design checks' count for the
+same rota). Taking the verdict on the floor again fails both; dropping the pack's floor reading makes
+the generator count the week twice, which the same file's first test catches.
 
 ## No build step — the trade, and the two things that would reopen it
 

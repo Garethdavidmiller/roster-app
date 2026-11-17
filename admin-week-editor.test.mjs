@@ -314,6 +314,19 @@ describe('a member whose saved changes have not arrived', () => {
         assert.match(g.innerHTML, /Select a staff member and date above/);
         assert.doesNotMatch(g.innerHTML, /Loading/);
     });
+
+    test('a member who cannot pick one, with none selected, is a leaver still signed in — told so, never "Select a date"', () => {
+        // admin-app.js clears a leaver's selects; the week said "Select a date above" with a date showing.
+        const deps = { showSuccess: () => {}, markChanged: () => { _changed.push(1); }, memberDateMap: () => _dateMap };
+        initWeekEditor({ ...deps, canPickMember: false });
+        try {
+            const g = renderFor('');
+            assert.match(g.innerHTML, /Your account is no longer on the roster — please contact the admin\./);
+            assert.doesNotMatch(g.innerHTML, /Select a date above/);
+        } finally {
+            initWeekEditor({ ...deps, canPickMember: true });
+        }
+    });
 });
 
 // ───────────────────────────────────────────────────────────────────────────────────────────────

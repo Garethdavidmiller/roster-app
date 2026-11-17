@@ -700,11 +700,10 @@
         }
         .calendar-day.bank-holiday::before { content: '⭐'; right: 3px; }
 
-        /* Payday and cutoff cells navigate to the pay calculator on click */
-        .calendar-day.payday,
-        .calendar-day.cutoff {
-            cursor: pointer;
-        }
+        /* No cursor rule of their own for payday and cut-off cells (17 Nov 2026). One said they
+           "navigate to the pay calculator on click", untrue since v23.59: every day opens the day
+           panel, which holds the pay route, and every real day cell takes the pointer cursor on a
+           fine pointer (the hover block above). */
 
         /* Payday anchors top-left, bank holiday top-right. Cutoff also anchors top-left, which cannot
            meet payday (Saturday vs Friday/Thursday) — revisit if the pay cycle changes. */

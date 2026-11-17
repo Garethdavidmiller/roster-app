@@ -20,46 +20,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
-    #
-    # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
-    # QUEUES rather than cancels — but GitHub keeps only ONE pending run per group, so a newer
-    # pending run displaces the previous one. That is safe for consecutive pushes to main, where
-    # the later tree contains the earlier one. It is NOT safe across branches:
-    #
-    #     main A deploying → main B pending → someone dispatches branch C → B is displaced
-    #                                       → production finishes on C, not on B
-    #
-    # Production would then be running a branch while `main` holds the newer tree, and nothing
-    # would say so. It takes a deliberate act by someone with write access, which is why this is
-    # hardening rather than a defect, and the guard costs one line. It stops C deploying. It does
-    # NOT stop C displacing B (10 Nov 2026 review): the run joins the queue before this condition
-    # is read, so B still never deploys and production stays on A. The `not-main` job below makes
-    # such a run fail and say so. Keeping branch runs out of the queue altogether would key the
-    # group on the ref, which deploy-hosting.yml's concurrency comment decides against.
-    #
-    # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
-    # explicit input and widen this condition to name it. Do not simply delete the check.
+  # ── THE TESTS RUN WHERE NO GOOGLE CREDENTIAL CAN BE MINTED (review, 17 Nov 2026) ───────────────
+  #
+  # The tests and the deploy were one job, and that job held `id-token: write` — which GitHub turns
+  # into a token-request address and bearer in the environment of EVERY step, and Workload Identity
+  # Federation accepts any run from main. So every dependency's install script and every test ran
+  # where it could mint the deploy account's credential. deploy-hosting.yml has had this shape since
+  # 10 Nov 2026, and this is the same: `check` installs and tests with a read-only token, and
+  # `deploy` — which needs it, so a red, cancelled or skipped `check` uploads nothing — is the one job
+  # that can sign in. It installs with `npm ci --ignore-scripts` and runs no test.
+  #
+  # Without install scripts the deploy tool and the functions still load: measured on 17 Nov 2026 in
+  # a copy installed that way, `firebase --version` ran, a deploy dry run reached sign-in, and the
+  # Functions emulator's discovery — the step a deploy runs to read what index.js exports — loaded
+  # every function. The lockfiles hold three install scripts: @firebase/util's writes defaults its
+  # package already ships, protobufjs's prints a warning, and re2 builds an optional native matcher
+  # that only the Hosting emulator reads, falling back without it.
+  check:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
-      actions: read     # the re-run check below lists this workflow's runs
-      id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      # No token left on disk: nothing here needs git credentials (deploy-hosting.yml says why).
+      # No token left on disk: every dependency's install script runs in this job, and nothing here
+      # needs git credentials (deploy-hosting.yml says why).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      # A RE-RUN MUST NOT PUT OLDER FUNCTIONS LIVE (whole-app review, 10 Nov 2026) — the action's
-      # header has the account. A first attempt passes straight through.
-      - name: A re-run deploys only if no newer run has overtaken it
-        uses: ./.github/actions/refuse-overtaken-rerun
 
       - name: Install Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -68,8 +58,8 @@ jobs:
           # runtime. It ran on 22 from 3 Nov, and before that was held on 20 because Functions deploys
           # once failed with a bare "Failed to authenticate" on 22 while Hosting on 20 succeeded —
           # under the retired key file. Every deploy now signs in by Workload Identity Federation,
-          # proven on 22. IF A DEPLOY FAILS TO AUTHENTICATE, set this and the deploy-tool step below
-          # (and its twins in deploy-hosting.yml and deploy-rules.yml) back to '22' first. The
+          # proven on 22. IF A DEPLOY FAILS TO AUTHENTICATE, set the deploy job's Node steps below
+          # (and their twins in deploy-hosting.yml and deploy-rules.yml) back to '22' first. The
           # deployed function RUNTIME is Node 24 either way (functions/package.json `engines`); this
           # is only the Node that runs firebase-tools in CI.
           node-version: '24'
@@ -82,9 +72,7 @@ jobs:
 
       # Install root dev dependencies so the repo lint/typecheck gate can run here
       # (the Functions workflow previously skipped it, so a lint failure that blocks
-      # the app deploy could still ship functions/index.js — v14.11 review). Having
-      # the root toolchain installed also pins `npx firebase` to the locked version
-      # rather than letting npx fetch a current release at deploy time.
+      # the app deploy could still ship functions/index.js — v14.11 review).
       - name: Install root dependencies
         run: npm ci
 
@@ -107,7 +95,7 @@ jobs:
       # any dev machine that had ever installed — the classic works-here gap.
       # ── THE RUNTIME'S NODE ──────────────────────────────────────────────────────────────────
       # The deployed runtime IS Node 24 (functions/package.json, since v25.30; firebase-admin v14
-      # declares `engines: {"node": ">=22"}`). The deploy TOOL below once needed Node 20 (see the
+      # declares `engines: {"node": ">=22"}`). The deploy TOOL once needed Node 20 (see the
       # setup-node comment at the top of this job), so the two requirements are satisfied in
       # sequence rather than by choosing between them: install and TEST the handlers on the version
       # they actually run on. (firebase-tools then stepped back to 20 until 3 Nov 2026; it runs on
@@ -154,10 +142,79 @@ jobs:
           AUDIT_UNKNOWN_IS_FAILURE: '0'
         run: bash scripts/audit-functions-deps.sh
 
+  deploy:
+    # The gate above. The `if:` below names no status function, so GitHub adds `success()`: `check`
+    # red, cancelled or skipped, and this job does not run.
+    needs: [check]
+    # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
+    #
+    # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
+    # QUEUES rather than cancels — but GitHub keeps only ONE pending run per group, so a newer
+    # pending run displaces the previous one. That is safe for consecutive pushes to main, where
+    # the later tree contains the earlier one. It is NOT safe across branches:
+    #
+    #     main A deploying → main B pending → someone dispatches branch C → B is displaced
+    #                                       → production finishes on C, not on B
+    #
+    # Production would then be running a branch while `main` holds the newer tree, and nothing
+    # would say so. It takes a deliberate act by someone with write access, which is why this is
+    # hardening rather than a defect, and the guard costs one line. It stops C deploying. It does
+    # NOT stop C displacing B (10 Nov 2026 review): the run joins the queue before this condition
+    # is read, so B still never deploys and production stays on A. The `not-main` job below makes
+    # such a run fail and say so. Keeping branch runs out of the queue altogether would key the
+    # group on the ref, which deploy-hosting.yml's concurrency comment decides against.
+    #
+    # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
+    # explicit input and widen this condition to name it. Do not simply delete the check. The gate
+    # job above carries the same condition, so a branch run spends no time testing either.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # A functions deploy builds every function and is not atomic: a deploy cut off by its limit can
+    # leave the split surface described at the top of this file, so the limit is generous.
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read     # the re-run check below lists this workflow's runs
+      id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      # No token left on disk: nothing here needs git credentials (deploy-hosting.yml says why).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # A RE-RUN MUST NOT PUT OLDER FUNCTIONS LIVE (whole-app review, 10 Nov 2026) — the action's
+      # header has the account. A first attempt passes straight through. A re-run's gate job runs
+      # before this is reached, so a refused re-run still costs its time; never a deploy.
+      - name: A re-run deploys only if no newer run has overtaken it
+        uses: ./.github/actions/refuse-overtaken-rerun
+
+      # firebase-tools comes from the root lockfile: without it `npx firebase` would fetch whatever
+      # version is newest on the day. The functions' own packages are installed too, because a
+      # deploy LOADS index.js to read what it exports before it uploads anything.
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      # NO INSTALL SCRIPT RUNS IN THIS JOB: it can mint a Google credential (the comment at the top
+      # of `jobs:` says why, and what was measured).
+      - name: Install the deploy tool (no install scripts)
+        run: npm ci --ignore-scripts
+
+      - name: Install function dependencies (no install scripts)
+        run: npm ci --ignore-scripts
+        working-directory: functions
+
       # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
-      # Everything from here on is firebase-tools: Node 24 since v25.30, 22 from 3 Nov 2026 (the top
-      # of this job has why it was 20, and why that no longer held). Kept as its own step so that
-      # going back to 22, if a deploy ever fails to authenticate, is one line.
+      # Everything from here on is firebase-tools: Node 24 since v25.30, 22 from 3 Nov 2026 (the
+      # `check` job's first setup step has why it was 20, and why that no longer held). Kept as its
+      # own step so that going back to 22, if a deploy ever fails to authenticate, is one line.
       - name: Deploy-tool Node version
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -228,8 +285,13 @@ jobs:
   # the incident. A cancelled job is not a failed one, so `failure()` alone missed it, and nothing
   # else watches this deploy: one cut off mid-release can leave the split surface described at the
   # top of this file, and nobody would be told.
+  #
+  # …AND IT WAITS FOR THE GATE AS WELL AS THE DEPLOY (17 Nov 2026), as deploy-hosting.yml's does: a
+  # `check` that runs out of time ends cancelled and leaves `deploy` skipped, which neither `failure()`
+  # nor a cancelled check of `deploy` alone would see. The notice says "cut off part-way" only when
+  # `deploy` itself was cancelled; a cancelled `check` uploaded nothing.
   report-failure:
-    needs: deploy
+    needs: [check, deploy]
     if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -242,4 +304,4 @@ jobs:
         with:
           target: 'Cloud Functions'
           token: ${{ github.token }}
-          result: ${{ contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}
+          result: ${{ needs.deploy.result == 'cancelled' && 'cancelled' || 'failure' }}

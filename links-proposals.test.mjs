@@ -9,7 +9,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { PROPOSALS, PROPOSAL_PREFIX, isProposalId, proposalById, proposalCopyName } from './links-proposals.js';
+import { PROPOSALS, PROPOSAL_PREFIX, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
 import { ROTATING_LINES, DAYS, normalisePatterns, weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
 import { checkName } from './links-design-naming.js';
@@ -129,5 +129,30 @@ describe('a proposal can never be mistaken for a saved design', () => {
             assert.equal(offered, 'Balanced V6 — copy 2', `with ${JSON.stringify(taken)} saved`);
             assert.ok(checkName(offered, { existing }).ok, `${JSON.stringify(offered)} is refused beside ${JSON.stringify(taken)}`);
         }
+    });
+});
+
+// THE NAME KEPT, AND THE NAME SHOWN (17 Nov 2026). The printed names end " — Dec 2026" and the link starts in January
+// 2027, so every page shows them without the date; the stored names stay as the pack printed them.
+describe('a proposal is shown without the printed date, and stored with it', () => {
+    test('shown: the printed name less " — Dec 2026", for every proposal', () => {
+        assert.deepEqual(PROPOSALS.map(proposalDisplayName), ['Balanced V6', 'Level Crossing', 'Middle Ground']);
+        for (const p of PROPOSALS) assert.doesNotMatch(proposalDisplayName(p), /Dec 2026|—/, p.code);
+    });
+
+    test('stored: the names and ids are the pack’s, untouched', () => {
+        for (const p of PROPOSALS) assert.match(p.name, / — Dec 2026$/, `${p.code} keeps its printed name`);
+        assert.deepEqual(PROPOSALS.map(p => p.id), ['MB-26-V6', 'LC-26-T10', 'MG-26-T8'].map(c => PROPOSAL_PREFIX + c));
+    });
+
+    test('a design may take neither form, and the refusal quotes the shown name when that was typed', () => {
+        const noun = 'shortlisted proposal';
+        const shown = checkName('level  CROSSING', { existing: PROPOSAL_NAMES, noun });
+        assert.equal(shown.ok, false);
+        assert.match(String(shown.message), /There is already a shortlisted proposal called “Level Crossing”\./);
+        const printed = checkName('Level Crossing — Dec 2026', { existing: PROPOSAL_NAMES, noun });
+        assert.equal(printed.ok, false, 'the printed name, date and all');
+        assert.ok(checkName('Level Crossing — copy', { existing: PROPOSAL_NAMES, noun }).ok, 'a copy\'s name is still free');
+        assert.deepEqual(PROPOSAL_NAMES.map(e => e.id), [...PROPOSALS, ...PROPOSALS].map(p => p.id), 'each proposal twice, shown names first');
     });
 });
