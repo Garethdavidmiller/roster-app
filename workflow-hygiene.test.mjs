@@ -628,20 +628,23 @@ describe('the PR lane runs the Chromium suite exactly as the Hosting deploy\'s g
     });
 });
 
-// ── THE HOSTING DEPLOY WAITS FOR ITS WHOLE GATE (10 Nov 2026) ──────────────────────────────────────
+// ── EVERY DEPLOY WAITS FOR ITS WHOLE GATE, AND ONLY THE DEPLOY CAN SIGN IN (10 and 17 Nov 2026) ────
 //
-// The Hosting deploy's tests moved into jobs of their own (deploy-hosting.yml's comment at the top of
-// `jobs:` has the account), so what running in one job used to guarantee — every test before the
-// upload, every failure reported — is now wiring, and each wire is one word in a list. Drop a job
-// from `deploy`'s `needs` and a release stops waiting for it. Drop one from `report-failure`'s and a
-// gate job that runs out of time is cancelled in silence: it leaves `deploy` SKIPPED, and neither
-// `failure()` nor a cancelled check of `deploy` alone sees that. Give a test job `id-token: write` and
-// every test and install script runs where a Google credential can be minted.
-describe('the Hosting deploy waits for its whole gate', () => {
-    const src = readFileSync(join(WF_DIR, 'deploy-hosting.yml'), 'utf8');
+// The Hosting deploy's tests moved into jobs of their own on 10 Nov 2026 (deploy-hosting.yml's comment
+// at the top of `jobs:` has the account), and the Functions and Rules deploys took the same shape on
+// 17 Nov 2026, so what running in one job used to guarantee — every test before the upload, every
+// failure reported — is now wiring, and each wire is one word in a list. Drop a job from `deploy`'s
+// `needs` and a release stops waiting for it. Drop one from `report-failure`'s and a gate job that
+// runs out of time is cancelled in silence: it leaves `deploy` SKIPPED, and neither `failure()` nor a
+// cancelled check of `deploy` alone sees that. Give a test job `id-token: write` and every test and
+// install script runs where a Google credential can be minted — which is how the Functions and Rules
+// deploys ran until 17 Nov 2026, and the Hosting one's install until then, under a comment saying not.
+/** One deploy workflow's jobs, each block with its comment lines dropped. @param {string} file */
+function deployWorkflow(file) {
+    const src = readFileSync(join(WF_DIR, file), 'utf8');
     const body = src.slice(src.search(/^jobs:/m));
     const heads = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)];
-    /** Each job's block, its comment lines dropped. @type {Map<string, string>} */
+    /** @type {Map<string, string>} */
     const jobs = new Map(heads.map((h, i) => [h[1], body.slice(h.index, heads[i + 1]?.index ?? body.length)
         .split('\n').filter(l => !/^\s*#/.test(l)).join('\n')]));
     /** A job's `needs`, as a list or a single name. @param {string} name */
@@ -650,6 +653,11 @@ describe('the Hosting deploy waits for its whole gate', () => {
         return m ? (m[1] ?? m[2]).split(',').map(s => s.trim()).filter(Boolean) : [];
     };
     const gate = [...jobs.keys()].filter(n => !['deploy', 'not-main', 'report-failure'].includes(n));
+    return { jobs, needsOf, gate };
+}
+
+describe('the Hosting deploy waits for its whole gate', () => {
+    const { jobs, gate } = deployWorkflow('deploy-hosting.yml');
 
     test('the gate jobs were found', () => {
         // Every contract below passes on an empty list, so pin it to what is there.
@@ -678,59 +686,91 @@ describe('the Hosting deploy waits for its whole gate', () => {
             `${webkit.join(', ')} would run WebKit in the Hosting deploy's gate. WebKit stays OUT of it (owner, 8 Sep 2026): `
             + 'DECISIONS.md says what would reopen that, and reopening it is the owner\'s call.');
     });
-
-    test('the deploy needs every gate job', () => {
-        const missing = gate.filter(n => !needsOf('deploy').includes(n));
-        assert.deepEqual(missing, [],
-            `deploy does not wait for ${missing.join(', ')}, so a release would go out whatever that job found`);
-    });
-
-    test('the deploy names no status function, so a gate job that is not green stops it', () => {
-        // GitHub adds `success()` only to an `if:` without a status function. With `always()`,
-        // `!cancelled()` or `failure()` in it, the deploy would run after a red or cancelled gate job.
-        const cond = /^ {4}if:[ \t]*(.*?)[ \t]*$/m.exec(jobs.get('deploy') ?? '')?.[1];
-        assert.equal(cond, "github.ref == 'refs/heads/main'",
-            `deploy's condition is ${cond}: anything beyond the main-only check can let it run past the gate`);
-    });
-
-    test('the failure reporter waits for every gate job as well as the deploy', () => {
-        const missing = [...gate, 'deploy'].filter(n => !needsOf('report-failure').includes(n));
-        assert.deepEqual(missing, [],
-            `report-failure does not wait for ${missing.join(', ')}: that job running out of time would end `
-            + 'cancelled, leave deploy skipped, and nobody would be told');
-    });
-
-    test('the notice says "cut off part-way" only when the deploy job itself was', () => {
-        // A gate job cut off means nothing was uploaded, which is the plain "did not deploy" notice.
-        assert.match(jobs.get('report-failure') ?? '',
-            /^ {10}result: \$\{\{ needs\.deploy\.result == 'cancelled' && 'cancelled' \|\| 'failure' \}\}[ \t]*$/m,
-            "report-failure must pass the deploy job's own result: a cancelled gate job uploaded nothing");
-    });
-
-    test('every gate job runs only from main', () => {
-        const open = gate.filter(n => !/^ {4}if: github\.ref == 'refs\/heads\/main'[ \t]*$/m.test(jobs.get(n) ?? ''));
-        assert.deepEqual(open, [],
-            `${open.join(', ')} would run on a run started from a branch, which deploys nothing (not-main says why)`);
-    });
-
-    test('only the deploy job can mint a Google credential', () => {
-        const holders = [...jobs].filter(([, job]) => /^ {6}id-token:[ \t]*write\b/m.test(job)).map(([n]) => n);
-        assert.deepEqual(holders, ['deploy'],
-            `id-token: write is held by ${holders.join(', ') || 'no job'}; only the job that publishes may sign in to Google`);
-    });
-
-    test('no gate job leaves its git token on disk for an install script', () => {
-        const leaky = gate.filter(n => {
-            const job = jobs.get(n) ?? '';
-            const at = job.indexOf('uses: actions/checkout@');
-            if (at === -1) return false;
-            const tail = job.slice(at + 1);
-            const step = tail.slice(0, tail.search(/\n\s*- (name|uses):/));
-            return !/^\s+persist-credentials: false[ \t]*$/m.test(step);
-        });
-        assert.deepEqual(leaky, [], `${leaky.join(', ')} check out with the token kept on disk, where every npm install script can read it`);
-    });
 });
+
+for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
+    ['deploy-hosting.yml', ['check', 'smoke', 'csp', 'signed-in']],
+    ['deploy-functions.yml', ['check']],
+    ['deploy-rules.yml', ['check']],
+])) {
+    describe(`${file}: the deploy waits for its whole gate, and only it can sign in`, () => {
+        const { jobs, needsOf, gate } = deployWorkflow(file);
+
+        test('the gate jobs were found', () => {
+            // Every contract below passes on an empty list, so pin it to what is there.
+            const missing = wantGate.filter(n => !gate.includes(n));
+            assert.deepEqual(missing, [], `found the gate jobs ${gate.join(', ') || 'none'}; expected ${wantGate.join(', ')}`);
+        });
+
+        test('the deploy needs every gate job', () => {
+            const missing = gate.filter(n => !needsOf('deploy').includes(n));
+            assert.deepEqual(missing, [],
+                `deploy does not wait for ${missing.join(', ')}, so a release would go out whatever that job found`);
+        });
+
+        test('the deploy names no status function, so a gate job that is not green stops it', () => {
+            // GitHub adds `success()` only to an `if:` without a status function. With `always()`,
+            // `!cancelled()` or `failure()` in it, the deploy would run after a red or cancelled gate job.
+            const cond = /^ {4}if:[ \t]*(.*?)[ \t]*$/m.exec(jobs.get('deploy') ?? '')?.[1];
+            assert.equal(cond, "github.ref == 'refs/heads/main'",
+                `deploy's condition is ${cond}: anything beyond the main-only check can let it run past the gate`);
+        });
+
+        test('the failure reporter waits for every gate job as well as the deploy', () => {
+            const missing = [...gate, 'deploy'].filter(n => !needsOf('report-failure').includes(n));
+            assert.deepEqual(missing, [],
+                `report-failure does not wait for ${missing.join(', ')}: that job running out of time would end `
+                + 'cancelled, leave deploy skipped, and nobody would be told');
+        });
+
+        test('the notice says "cut off part-way" only when the deploy job itself was', () => {
+            // A gate job cut off means nothing was uploaded, which is the plain "did not deploy" notice.
+            assert.match(jobs.get('report-failure') ?? '',
+                /^ {10}result: \$\{\{ needs\.deploy\.result == 'cancelled' && 'cancelled' \|\| 'failure' \}\}[ \t]*$/m,
+                "report-failure must pass the deploy job's own result: a cancelled gate job uploaded nothing");
+        });
+
+        test('every gate job runs only from main', () => {
+            const open = gate.filter(n => !/^ {4}if: github\.ref == 'refs\/heads\/main'[ \t]*$/m.test(jobs.get(n) ?? ''));
+            assert.deepEqual(open, [],
+                `${open.join(', ')} would run on a run started from a branch, which deploys nothing (not-main says why)`);
+        });
+
+        test('only the deploy job can mint a Google credential', () => {
+            const holders = [...jobs].filter(([, job]) => /^ {6}id-token:[ \t]*write\b/m.test(job)).map(([n]) => n);
+            assert.deepEqual(holders, ['deploy'],
+                `id-token: write is held by ${holders.join(', ') || 'no job'}; only the job that publishes may sign in to Google`);
+        });
+
+        test('no gate job leaves its git token on disk for an install script', () => {
+            const leaky = gate.filter(n => {
+                const job = jobs.get(n) ?? '';
+                const at = job.indexOf('uses: actions/checkout@');
+                if (at === -1) return false;
+                const tail = job.slice(at + 1);
+                const step = tail.slice(0, tail.search(/\n\s*- (name|uses):/));
+                return !/^\s+persist-credentials: false[ \t]*$/m.test(step);
+            });
+            assert.deepEqual(leaky, [], `${leaky.join(', ')} check out with the token kept on disk, where every npm install script can read it`);
+        });
+
+        // THE JOB THAT CAN SIGN IN RUNS NO DEPENDENCY'S INSTALL SCRIPT AND NO TEST (17 Nov 2026). With
+        // `id-token: write`, GitHub puts the means to ask for the run's identity token in every step's
+        // environment, and Workload Identity Federation exchanges it for the deploy account. So in that
+        // job `npm ci` must skip install scripts (deploy-functions.yml records what was measured to show
+        // the deploy still works without them), and the tests belong to the gate jobs.
+        test('the deploy job installs without install scripts and runs no test', () => {
+            const deploy = jobs.get('deploy') ?? '';
+            const installs = [...deploy.matchAll(/^\s+run: (npm (?:ci|install)\b.*)$/gm)].map(m => m[1].trim());
+            assert.ok(installs.length > 0, 'the deploy job installs nothing — firebase-tools would be fetched by npx on the day');
+            const scripted = installs.filter(c => !/(^|\s)--ignore-scripts(\s|$)/.test(c));
+            assert.deepEqual(scripted, [],
+                `the deploy job runs \`${scripted.join('`, `')}\`, which runs every dependency's install script where a deploy credential can be minted`);
+            assert.doesNotMatch(deploy, /^\s+run: npm (?:test\b|run (?:check|lint|typecheck|test\S*)\b)/m,
+                'a test runs in the job that can sign in to Google — it belongs in a gate job');
+        });
+    });
+}
 
 // ── THE WEBKIT LANE RUNS EVERY PROJECT, AND EVERY SHARD OF EACH (3 Nov 2026) ─────────────────────
 //
@@ -2552,6 +2592,10 @@ describe('every CI lane runs the command it is there for', () => {
         ['deploy-hosting.yml', 'smoke', 'npm run test:e2e'],
         ['deploy-hosting.yml', 'csp', 'npm run test:csp'],
         ['deploy-hosting.yml', 'signed-in', 'npm run test:signed-in'],
+        ['deploy-functions.yml', 'check', 'npm run test:functions'],
+        ['deploy-functions.yml', 'check', 'npm test'],
+        ['deploy-rules.yml', 'check', 'npm run check'],
+        ['deploy-rules.yml', 'check', 'npm run test:rules'],
     ]);
     for (const [file, job, cmd] of LANES) {
         test(`${file} → ${job} runs ${cmd}`, () => {

@@ -127,9 +127,14 @@ jobs:
   #      CANCELLED and leaves `deploy` SKIPPED; `failure()` is false for both, and the cancelled check
   #      reads only the jobs it lists, so a reporter waiting on `deploy` alone would say nothing.
   #
-  # Only `deploy` can sign in to Google (`id-token: write`). The gate jobs hold a read-only token and
-  # keep it off the disk, so no test and no install script runs where a deploy credential could be
-  # minted. Every job runs only from main, for the reason given on `deploy`.
+  # Only `deploy` can sign in to Google (`id-token: write`), and GitHub hands every step of that job
+  # the means to ask for the credential, so it runs no test and no dependency's install script: it
+  # installs with `npm ci --ignore-scripts` (17 Nov 2026; until then a plain `npm ci` ran every install
+  # script there, and this comment said otherwise). What runs in it is the pinned actions, this
+  # repository's re-run, upload and live checks, and firebase-tools itself. The gate jobs hold a
+  # read-only token and keep it off the disk. deploy-functions.yml and deploy-rules.yml have the same
+  # shape, and the first of them records what was measured to show firebase-tools works without its
+  # dependencies' install scripts. Every job runs only from main, for the reason given on `deploy`.
   check:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -433,8 +438,8 @@ jobs:
       id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     steps:
       # No token left on disk for the job's lifetime (whole-app review, 10 Nov 2026): nothing here
-      # needs git credentials — the upload check only lists files — and every dependency's install
-      # script runs in this job. The mirror's deploy job does the same.
+      # needs git credentials — the upload check only lists files — and firebase-tools, a dependency,
+      # runs in this job. The mirror's deploy job does the same.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -455,8 +460,10 @@ jobs:
           node-version: '24'
           cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      # NO INSTALL SCRIPT RUNS IN THIS JOB: it can mint a Google credential (the comment at the top of
+      # `jobs:` says why; deploy-functions.yml records what was measured).
+      - name: Install the deploy tool (no install scripts)
+        run: npm ci --ignore-scripts
 
       # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
       # Everything from here on is firebase-tools. Node 24 since v25.30 (22 from 3 Nov 2026); it was
@@ -529,8 +536,10 @@ jobs:
           sub=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' https://myb-roster.web.app/paycalc.html || echo 000)
           if [ "$sub" != "200" ]; then echo "::error::paycalc.html returned $sub"; exit 1; fi
           echo "OK: paycalc.html deep-link 200"
-          # GitHub Pages staff mirror: liveness only. It builds independently of this workflow, so its
-          # version can briefly lag a Firebase deploy — a hard version-match would flake. Warn only.
+          # GitHub Pages staff mirror: liveness only. Since 10 Nov 2026 it is published by
+          # deploy-mirror.yml AFTER this run has finished, from the commit it released, so here it is
+          # still on the previous release and a version match would always fail. deploy-mirror.yml
+          # checks the version itself once it has published. Warn only.
           mcode=$(curl -sS --max-time 30 -o /dev/null -w '%{http_code}' https://garethdavidmiller.github.io/roster-app/ || echo 000)
           if [ "$mcode" = "200" ]; then echo "OK: Pages mirror live (200)"; else echo "::warning::Pages mirror returned $mcode — check the mirror build"; fi
 
