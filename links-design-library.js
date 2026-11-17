@@ -39,7 +39,7 @@ import { serverTimestamp } from './firebase-client.js';
 import { createLightbox, confirmDialog } from './overlay.js';
 import { checkName, nameConflict } from './links-design-naming.js';
 import { ROTATING_LINES } from './links-design.js';
-import { PROPOSALS } from './links-proposals.js';
+import { PROPOSAL_NAMES } from './links-proposals.js';
 import { docPayload, restoredEntryFrom, binEntryFromDoc, binEntryFrom } from './links-design-doc.js';
 import { isOlderDesign, olderDesigns, canKeepOnlyShortlist, keepOnlyShortlistMessage, keptOnlyShortlistLine } from './links-shortlist.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
@@ -190,7 +190,7 @@ export function createDesignLibrary(ctx) {
         // …and not a SHORTLISTED PROPOSAL's name either: the proposals sit in the same picker and the
         // same Compare chips, where two of one name cannot be told apart (whole-app fix, Nov 2026).
         const asDesign = checkName(name, { existing: ctx.getDesigns(), noun: 'design' });
-        const nameCheck = asDesign.ok ? checkName(name, { existing: [...PROPOSALS], noun: 'shortlisted proposal' }) : asDesign;
+        const nameCheck = asDesign.ok ? checkName(name, { existing: [...PROPOSAL_NAMES], noun: 'shortlisted proposal' }) : asDesign;
         if (!nameCheck.ok) { _importStatus(nameCheck.message || 'That name cannot be used.', 'bad'); return; }
         const btn = _importEl('linksImportSave');
         if (btn) btn.disabled = true;
@@ -295,7 +295,7 @@ export function createDesignLibrary(ctx) {
             // A SHORTLISTED PROPOSAL OF THE SAME NAME is a clash the rule above cannot refuse: a
             // proposal cannot be renamed, so "rename that one first" has no answer, and refusing would
             // leave this design in the bin for good. It comes back, and the line says what to do.
-            _binStatus(nameConflict(restored.name, [...PROPOSALS])
+            _binStatus(nameConflict(restored.name, [...PROPOSAL_NAMES])
                 ? `“${restored.name}” restored. A shortlisted proposal has the same name — rename this one, so the two can be told apart in the list.`
                 : `“${restored.name}” restored.`, 'ok');
         } catch (err) {

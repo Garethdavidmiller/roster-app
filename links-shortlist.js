@@ -45,7 +45,7 @@
  * opened is spared; the press is `links-design-library.js`.
  */
 
-import { PROPOSALS } from './links-proposals.js';
+import { PROPOSALS, proposalDisplayName } from './links-proposals.js';
 
 /** The start of 2 Nov 2026 (UTC): a design last saved before this is one of the "older ones". */
 export const OLDER_BEFORE = Date.UTC(2026, 10, 2);
@@ -104,7 +104,7 @@ export function keepOnlyShortlistMessage(older, { currentUser, dirty }) {
     const who = (/** @type {{ updatedBy?: string }} */ d) => d.updatedBy === currentUser ? 'you' : d.updatedBy || 'nobody named';
     const rows = older.slice(0, LISTED_IN_DIALOG).map(d => `• ${(d.name || '').trim() || 'Untitled design'} (last saved by ${who(d)})`);
     if (n > LISTED_IN_DIALOG) rows.push(`• and ${n - LISTED_IN_DIALOG} more`);
-    const kept = PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, ''));   // the shortlist, in the picker's order
+    const kept = PROPOSALS.map(proposalDisplayName);   // the shortlist, in the picker's order, as the picker names it
     const keptWords = kept.length > 1 ? `${kept.slice(0, -1).join(', ')} and ${kept[kept.length - 1]}` : kept.join('');
     const parts = [
         `${keptWords} stay in the list as they are now — built in and read-only.`,

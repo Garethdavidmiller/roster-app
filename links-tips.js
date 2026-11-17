@@ -116,8 +116,8 @@ export const CARD_TIPS = {
         title: 'Auto-generator',
         sections: [
             { heading: 'What it does', items: [
-                { icon: '⚡', html: `Builds a ${ROTATING_LINES}-line rotating pattern from a <strong>list of shifts</strong> — one row per start time, each with its own headcount for Mon–Fri, Saturday, and Sunday. The three are separate because the roster genuinely differs on those days.` },
-                { icon: '🌊', html: 'The station is staffed in <strong>waves</strong> — opens, mid-morning, middles, afternoons, closes — so add a row for every distinct start time, not just one early and one late. Each line is kept inside one wave, so a person\'s week stays on much the same sort of shift.' },
+                { icon: '⚡', html: `Builds a ${ROTATING_LINES}-line rotating pattern from a <strong>list of shifts</strong> — one row per shift time, its start and finish, each with its own headcount for Mon–Fri, Saturday, and Sunday. The three are separate because the roster genuinely differs on those days.` },
+                { icon: '🌊', html: 'The station is staffed in <strong>waves</strong> — opens, mid-morning, middles, afternoons, closes — so add a row for every shift time, not just one early and one late — two shifts that start together and finish at different times are two rows. Each line is kept inside one wave, so a person\'s week stays on much the same sort of shift.' },
                 // The rule from links-design.md → "The generator intro must not restate a
                 // guarantee": this item points at the checks and promises nothing about the result.
                 { icon: '🔍', html: 'It makes <strong>no promise about the result</strong>. The Design checks and the Coverage heat map below say what the pattern actually came to — the rest between shifts, the runs, the weekends, the shape of each day. Read them before saving.' },
@@ -132,7 +132,7 @@ export const CARD_TIPS = {
                 { icon: '💬', html: 'It is a <strong>starting point to argue with</strong>, not a proposal: change anything you like, and read the checks below before anyone takes a printout into a room.' },
             ]},
             { heading: 'How to use it', items: [
-                { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose <strong>Custom…</strong> to type one.' },
+                { icon: '➕', html: '<strong>+ Add another shift</strong> for a new shift time; ✕ removes a row. Pick times from the dropdown or choose <strong>Custom…</strong> to type one.' },
                 { icon: '⚠️', html: `Each day's total (all shifts + spare) can't exceed ${ROTATING_LINES} — watch the Total row.` },
                 { icon: '💾', html: '<strong>Saved staffing setups</strong> keep a table to come back to, shared with the other designers. Anyone can save one; only the person who created it, or the admin, can overwrite or delete it.' },
                 { icon: '3️⃣', html: 'Tap <strong>Build the link</strong>, then review the coverage and the design checks before saving.' },

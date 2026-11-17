@@ -12,7 +12,7 @@ import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedC
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES, CONTRACTED_HOURS_PER_WEEK } from '../links-design.js';
-import { PROPOSALS } from '../links-proposals.js';
+import { PROPOSALS, proposalDisplayName } from '../links-proposals.js';
 import { describeSetList } from '../links-target-sets.js';
 
 /**
@@ -294,12 +294,15 @@ test('links: duplicating a design with unsaved changes says where they will end 
 // A SHORTLISTED PROPOSAL'S NAME is not a design's (links-design-6). The proposals sit in the same picker
 // and the same Compare chips, where two of one name cannot be told apart. The import refused one; New,
 // Save as…, Save a copy as… and Rename decide through one check, which now asks as well — in any case.
+// Since 17 Nov 2026 a proposal is SHOWN without its printed " — Dec 2026", and neither form may be taken.
 test('links: a design cannot take a shortlisted proposal\'s name, new or renamed', async ({ page }) => {
     await openLinksWithDesigns(page);
     const open = await activeDesignName(page).textContent();
-    const taken = PROPOSALS[0].name.toUpperCase();
+    const shown = proposalDisplayName(PROPOSALS[0]);
+    expect(shown, 'premise: the shown name is not the printed one').not.toBe(PROPOSALS[0].name);
+    const taken = shown.toUpperCase();
     const status = page.locator('#linksSaveStatus');
-    const refusal = `There is already a shortlisted proposal called “${PROPOSALS[0].name}”`;
+    const refusal = `There is already a shortlisted proposal called “${shown}”`;
 
     await sheetAction(page, 'newDesignBtn');
     await page.locator('.dialog-overlay .dialog-input').fill(taken);
@@ -309,9 +312,9 @@ test('links: a design cannot take a shortlisted proposal\'s name, new or renamed
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length)).toBe(0);
 
     await sheetAction(page, 'designRenameMenuBtn');
-    await page.locator('.dialog-overlay .dialog-input').fill(taken);
+    await page.locator('.dialog-overlay .dialog-input').fill(PROPOSALS[0].name);   // the printed name, date and all
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-    await expect(status).toContainText(refusal);
+    await expect(status).toContainText(`There is already a shortlisted proposal called “${PROPOSALS[0].name}”`);
     await expect(activeDesignName(page), 'and the open design keeps its name').toHaveText(String(open));
 });
 
@@ -1306,7 +1309,7 @@ test('links: the only saved design can be deleted — it goes to the bin and a p
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('#linksSaveStatus')).toHaveText('“Only design” is in Recently deleted. No saved design is left, so a shortlisted proposal is open.');
     await expect(designOptions(page)).toHaveCount(0);
-    await expect(activeDesignName(page)).toHaveText(PROPOSALS[0].name);
+    await expect(activeDesignName(page)).toHaveText(proposalDisplayName(PROPOSALS[0]));
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await sheetAction(page, 'designBinBtn');
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
@@ -2800,9 +2803,11 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(page.locator('#designPickerLb.visible')).toBeVisible();
     await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (three since v25.04)
     await expect(designOptions(page)).toHaveCount(0);
+    // Shown without the printed " — Dec 2026": the link starts in January 2027 (links-proposals.js).
+    await expect(proposalOptions(page).filter({ hasText: 'Dec 2026' }), 'the picker names none by it').toHaveCount(0);
     await proposalOptions(page).filter({ hasText: 'Level Crossing' }).click();   // the middle of the three, A to Z
 
-    await expect(activeDesignName(page)).toHaveText('Level Crossing — Dec 2026');
+    await expect(activeDesignName(page)).toHaveText('Level Crossing');
     await expect(page.locator('#designWhoRole')).toHaveText('LC-26-T10 · 32241e32');   // the printed sheet's ref
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
@@ -3645,6 +3650,38 @@ test('links: the empty state never splits the "N-line" phrase across lines', asy
     }
 });
 
+// ── WHAT A PRESS FROM THE EMPTY STATE SAYS, IT SAYS WHERE IT CAN BE SEEN (17 Nov 2026) ──────────────────
+// With no design open the save row is hidden, and "Start with a blank grid" reported into it: a refused name, a
+// failed create and "Creating…" all went nowhere. The empty state carries its own line now.
+test('links: "Start with a blank grid" says what happened on the empty state, and the line goes once a design opens', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksEmptyNew')).toBeVisible();
+    await expect(page.locator('#linksSaveRow'), 'premise: no design open, so the save row is hidden').toBeHidden();
+    const status = page.locator('#linksEmptyStatus');
+
+    await page.locator('#linksEmptyNew').click();
+    await page.locator('.dialog-overlay .dialog-input').fill(PROPOSALS[0].name.toUpperCase());
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toBeVisible();
+    await expect(status).toContainText(`There is already a shortlisted proposal called “${PROPOSALS[0].name}”`);
+    await expect(page.locator('.dialog-overlay'), 'the name prompt has closed').toHaveCount(0);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });   // the server is slow to answer
+    await page.locator('#linksEmptyNew').click();
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('Creating “Option N”…');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseAddDoc());
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    await expect(page.locator('#linksEmptyState')).toBeHidden();
+    await expect(status, 'answered, so the empty state keeps no old line').toHaveText('');
+});
+
 // ── The generator card has ONE left edge on desktop (v19.67)─────────────────────────────────────
 // v19.66 centred `.generator-form` to split the 440px of dead space beside it, and left the intro
 // prose where it was — so the card ended up with TWO left edges: the intro ran 122→778 while the
@@ -4104,6 +4141,22 @@ test('links window: an invalid finish is refused, never coerced', async ({ page 
     // Coercing would hand the designer a window they did not choose and then print it as theirs.
     await expect(page.locator('#winMonSatEnd')).toHaveValue('23:55');
     await expect(page.locator('#winStatus')).toContainText('after its start');
+});
+
+// THE REFUSAL GIVES THE REASON THAT APPLIES (17 Nov 2026). Every refused window said "A finish must be after its
+// start", so "2500" — shaped to 25:00 as it is typed, which is no time of day — was blamed on its order.
+test('links window: a refusal says why — not a time, a box left empty, or the wrong way round', async ({ page }) => {
+    await openWindowDesign(page);
+    const end = page.locator('#winMonSatEnd');
+    const status = page.locator('#winStatus');
+    await end.fill('2500');
+    await end.dispatchEvent('change');
+    await expect(end, 'refused, never coerced').toHaveValue('23:55');
+    await expect(status).toHaveText('“25:00” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.');
+    await end.fill('');
+    await end.dispatchEvent('change');
+    await expect(end).toHaveValue('23:55');
+    await expect(status).toHaveText('A start and a finish are both needed — that change wasn’t applied.');
 });
 
 test('links window: a time typed without a colon is shaped into one, so a phone keypad can fill the box', async ({ page }) => {
@@ -5039,6 +5092,110 @@ test('links: a queued save the server REFUSES is unsaved again, says so, and is 
     await expect(status).toHaveText(/^Not saved — the server refused/);
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
     await askedAboutTheOtherVersion();
+});
+
+// A NEW DESIGN THE SERVER REFUSES MADE NOTHING (17 Nov 2026). Heard as a plain answer, a create queued in this browser
+// and refused on sync left the pill saying "Saved" over a design nobody else had, and the next Save met no document and
+// said "Someone removed this design for good". It is an unsaved design again now, and its next Save makes it.
+test('links: a new design the server refuses on sync is unsaved again, and the next Save makes it', async ({ page }) => {
+    await openWindowDesign(page);
+    await pageSignal(page, false);
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = 'permission-denied'; });
+    await pageSignal(page, true);
+    await expect(status).toHaveText('Not saved — the server refused “Option N”, so nobody else has it. It is still here: press Save as… to save it again. If that is refused too, contact the admin.');
+    await expect(status).toHaveClass(/\berr\b/);
+    await expect(page.locator('#designStatusLong'), 'never "Saved"').toHaveText('Not saved yet');
+    await expect(activeDesignName(page)).toHaveText('Untitled design');
+    await expect(designOptions(page).filter({ hasText: 'Option N' }), 'not in the list: the server has no such design').toHaveCount(0);
+    await expect(page.locator('#linksSaveBtn')).toHaveText('Save as…');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = undefined; });
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Name this design');
+    await dialog.locator('.dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('✓ Saved');
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    await expect(page.locator('.dialog-overlay'), 'no "This design was deleted" question').toHaveCount(0);
+    const made = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length);
+    expect(made, 'two creates: the refused one and the one that landed').toBe(2);
+});
+
+// …and a FIRST SAVE is a create too: a proposal's copy (or a generated design) saved offline and refused on sync made
+// nothing, though it travels the save path, with a save's number.
+test('links: a first save the server refuses on sync made nothing — the next Save makes it, never "removed for good"', async ({ page }) => {
+    await openWindowDesign(page);
+    await openDesignPicker(page);
+    await proposalOptions(page).first().click();
+    await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
+    await page.locator('#winMonSatEnd').fill('23:25');   // an edit, so it is a working copy to save
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await pageSignal(page, false);
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Name this design');
+    await dialog.locator('.dialog-input').fill('Proposal edit');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(activeDesignName(page)).toHaveText('Proposal edit');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = 'permission-denied'; });
+    await pageSignal(page, true);
+    await expect(status).toHaveText(/^Not saved — the server refused “Proposal edit”, so nobody else has it\./);
+    await expect(page.locator('#designStatusLong')).toHaveText('Not saved yet');
+    await expect(page.locator('#winMonSatEnd'), 'the work is still on screen').toHaveValue('23:25');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = undefined; });
+    await page.locator('#linksSaveBtn').click();
+    await expect(dialog).toContainText('Name this design');
+    await dialog.locator('.dialog-input').fill('Proposal edit');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay'), 'no "This design was deleted" question').toHaveCount(0);
+});
+
+// …and a Save pressed while that refusal is still on its way. Its transaction waits for this browser's own queued
+// writes (store rule 5), so it reads the server only after the refusal, and finds no document: that is the design
+// never made, already said, and not a delete to report over it.
+test('links: a Save pressed while a refused create is on its way adds nothing to what the refusal says', async ({ page }) => {
+    await openWindowDesign(page);
+    await pageSignal(page, false);
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.holdSetsWhenOnline = true; w.__E2E.queuedWrites = true; });
+    await pageSignal(page, true);   // the signal is back, and the create is not yet answered
+    await page.locator('#winMonSatEnd').fill('23:25');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    const waitsBefore = await page.evaluate(() => /** @type {any} */ (window).__E2E.queueWaits || 0);
+    await page.locator('#linksSaveBtn').click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.queueWaits || 0),
+        'premise: the save is waiting for the queued create, as store rule 5 has it').toBeGreaterThan(waitsBefore);
+
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.queuedSetRefusal = 'permission-denied'; w.__E2E.deliverQueuedSet(); });
+    const refused = 'Not saved — the server refused “Option N”, so nobody else has it. It is still here: press Save as… to save it again. If that is refused too, contact the admin.';
+    await expect(status).toHaveText(refused);
+    // The save's transaction runs now and meets no document. Everything from here to its end is promise work, so it
+    // is over once the page has run one more task.
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.sendQueuedWrites());
+    await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 50)));
+    await expect(status, 'never "deleted elsewhere while saving": nothing was there to delete').toHaveText(refused);
+    await expect(page.locator('.dialog-overlay'), 'no "This design was deleted" question').toHaveCount(0);
+    await expect(activeDesignName(page)).toHaveText('Untitled design');
+    await expect(page.locator('#winMonSatEnd'), 'the work is still on screen').toHaveValue('23:25');
 });
 
 test('links: a clean first tab does not throw away the copy a second tab kept of its queued save', async ({ page, context }) => {

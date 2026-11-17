@@ -67,7 +67,7 @@ list.
 |--------|------|
 | `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore write of its own — designs go through `links-design-store.js` — and one direct read remains, `loadDesigns`, which needs `metadata.fromCache` (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and the refresh's read (`createDesignStore`) |
-| `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, and whether an answer still counts (v26.03) |
+| `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, whether an answer still counts (v26.03), and whether the server ever made the design |
 | `links-design-library.js` | the import panel, the Recently deleted bin and its list, and Keep only the shortlist (`createDesignLibrary`). Rename, duplicate and delete stay in `links-app.js`, because they change the open design's baseline |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the picker sheet, the Save buttons' label and the ··· More sheet |
 | `links-design.js` | the design maths — classification, coverage, hours, the generator and its rest repair, `runDesignChecks`, `endMinutesAbs` |
@@ -626,7 +626,7 @@ of every rule — read it before changing one. What governs it:
   chip and the sentence cannot drift), from `scoreOrder` over lines 1…lines — never the keys a design
   happens to carry. **Do not turn it `present` above some figure**: the ORR gives no FF18 threshold, and
   inventing one is the pass/fail rendering this panel forbids. The live main roster's step — typically
-  4h 0m, largest 8h 46m, 9 of 20 boundaries over two hours — is the baseline to quote. Measure the
+  4h 00m, largest 8h 46m, 9 of 20 boundaries over two hours — is the baseline to quote. Measure the
   default with `docs/links-26/tooling/default-baseline.mjs`, and quote any step figure with the
   switches and target set it was measured on.
 - **Every rule laps the rotation** (invariant 3): a block straddling the last line → line 1 must be
@@ -634,9 +634,10 @@ of every rule — read it before changing one. What governs it:
 - **FF11 is not the consecutive-worked-days check it resembles.** It counts shifts between two-day
   breaks: a single rest day is not counted as a 48-hour break (two together always are), so FF11 can
   only overstate, and a rotation with no two-day break at all returns every worked day.
-- **Hours totals are a FLOOR when the design has a spare day**: SPARE carries no times, so a standby
-  day adds no hours (`hoursAreFloor`, true only then), and the panel says so. With no spare day the
-  totals are exact, and the panel does not call them a floor.
+- **A spare day carries no times** (`hoursAreFloor`, true only when the design has one), and the
+  panel says what each kind of figure does with it: the runs and the 55-hour row count it at its
+  worst, and a count of long duties cannot see it, so that count is a floor. With no spare day every
+  figure is exact, and the panel says nothing.
 
 **A cover week is an unknown, not a no.** Every rule that counts a RUN measures it with
 `runLengthsWhere` — `workedRunLengths`'s spare-week budget with the question as a parameter — and never
@@ -645,6 +646,17 @@ Two bounds keep that honest: **`SPARE_WORKED_DAYS` duties a week, never seven**,
 blocks either side; and **extend, never create** (`requireMatch`) — a cover week may lengthen a run of,
 say, 12-hour duties, and never make one out of unknowns. Where the worst case and the certain figure
 differ, the row states both.
+
+**The 55-hour row takes a cover week at its worst too** (17 Nov 2026; DECISIONS.md). It took its
+verdict on the floor — a cover week as no hours — so it read CLEAR on designs that cross 55 when a
+cover week falls badly, and Links' Design checks counted one factor fewer than the New link page.
+`worstHoursInAny7Days` counts each worked day of a cover week — its four on Monday to Saturday, placed
+as badly as the window allows, and its Sunday — as a quarter of the contracted week
+(`COVER_DUTY_MINUTES`, 8h 45m: the app's own reading of a cover week as the contracted week). The
+figure shown is that worst case, with the floor beside it in the sentence, and **the row is never
+CLEAR while the worst case crosses 55**. The Design checks and the New link page count the same
+factors for the same rota (`newlink-data.test.mjs`); the pack's own tables keep their split, the
+duties the rota fixes and then "up to", so the pack's `report-data.mjs` reads the row at its floor.
 
 **A spare week is four duties of seven, from Monday to Saturday** (owner; `SPARE_WORKED_DAYS`,
 `spareDrawsOnFour`). It is marked SPARE on all seven days because the person is cover; four is what
@@ -1110,7 +1122,10 @@ the rule is held by hand, as is this file, which the test does not read.
 - **The shortlist is built in, and read-only** (owner decision, 3 Oct 2026: read-only proposals, not
   saved documents). `PROPOSALS` in `links-proposals.js` holds the current shortlist, listed A to Z with
   no recommendation (owner, 5 Nov 2026). Copy a design cell for cell from the pack and keep its printed
-  name; `links-proposals.test.mjs` says whether the copy is faithful and meets the hard limits. A proposal
+  name; `links-proposals.test.mjs` says whether the copy is faithful and meets the hard limits. **The
+  printed name is KEPT and shown without its " — Dec 2026"** (17 Nov 2026, `proposalDisplayName`): the link
+  starts in January 2027, and the date read as when it begins. Every surface shows the shorter name, the
+  ref beside it still matches the paper, and a saved design may take neither form. A proposal
   opens from its own group at the top of the picker as an UNSAVED working copy (`activeDesignId` null,
   `activeProposalId` set), so save, rename and delete all treat it as new: the first save asks for a name
   (`proposalCopyName`, "<name> — copy") and creates a design, and a proposal id never reaches Firestore.
@@ -1213,7 +1228,10 @@ The workspace's own rules, in `saveChanges`:
   "in this browser" and the copy goes. Refused (`'failed'`), the design is unsaved again, on that earlier
   baseline, and says so — and again whenever it is reopened, because the list holds what the refused
   save wrote. A new design, a copy and an import clear the pill on their answer too, and keep no copy:
-  each is one press to make again.
+  each is one press to make again. **Refused, any of them — or a first save — made NOTHING** (17 Nov
+  2026, `_createRefused`; `links-queued-saves.js` rule 7): the server has no document, so the design
+  leaves the list, and if it is open it is an unsaved design again whose next Save makes it. Never
+  "Saved" over it, and never the "removed for good" a save meets when no document is there.
 - **`dirty` clears only if nothing was edited while the save was in flight**, and the payload recorded is
   the one actually WRITTEN, window and revision included.
 - **A save that finds its design deleted drops it from the live list even when the page has moved on**

@@ -360,11 +360,12 @@ export function currentRules(P, T, model = 'plan') {
 
 // The office model is TODAY'S for the live 20-line link and the PLAN'S for every 24-line proposal; nothing in this
 // folder is 20 lines except today's link, and a caller can say otherwise.
-// THE 55-HOUR ROW AT ITS WORST (accuracy check, 1 Oct 2026): the app counts a cover week's days as no hours, so its
-// figure is a floor. Filled in as four 8-hour duties in every block placement it can cross 55; fresh.mjs states the range
-// on the sheet, and the summary's "up to" adds the row when it would. One function, so the two cannot disagree — and
-// fresh.mjs calls it rather than keeping its own copy (31 Oct 2026). The top of the range works each cover week's Sunday
-// as an 8-hour overtime duty too, the bottom leaves it off (cover-placement.mjs says why that is exact).
+// THE 55-HOUR ROW AT ITS WORST (accuracy check, 1 Oct 2026): the app counted a cover week's days as no hours, so its
+// figure was a floor (until 17 Nov 2026 — see with55Minutes below, which reads it that way for the pack still).
+// Filled in as four 8-hour duties in every block placement it can cross 55; fresh.mjs states the range on the sheet,
+// and the summary's "up to" adds the row when it would. One function, so the two cannot disagree — and fresh.mjs calls
+// it rather than keeping its own copy (31 Oct 2026). The top of the range works each cover week's Sunday as an 8-hour
+// overtime duty too, the bottom leaves it off (cover-placement.mjs says why that is exact).
 // THE 55-HOUR ROW IN HOURS AND MINUTES (whole-pack review, 5 Nov 2026). The app gives the rolling week in hours to one
 // decimal, where every other duration on the sheets is hours and minutes — and to a railway eye "60.8" reads as 60h 08m.
 // So the sheets give the same rolling week counted in whole minutes. The app's minute count (maxMinutesInAny7Days) is not
@@ -377,10 +378,21 @@ export function max7Minutes(seq) {
   return best;
 }
 const is55 = r => r.code === 'MRSF' && /55 hours/.test(r.title);
+// THE APP TAKES THIS ROW'S VERDICT ON A COVER WEEK'S WORST CASE since 17 Nov 2026 (links-fatigue.js →
+// worstHoursInAny7Days: a cover week's worked days at 8h 45m each, its Sunday included), and its figure is that worst
+// case. The pack keeps its own split, as it does for every row: the tables give the duties the rota FIXES, and the
+// "up to" adds the cover week from h55Worst below. So the row is read here at its FLOOR — the figure and the verdict
+// the app gave until that day — and every sheet, deck and newlink-data.js figure is what it was. Checked against the
+// app's own floor (maxHoursInAny7Days), as the row's value was before. Without this the pack would count a design's
+// 55-hour week twice, once in the app's present count and again in the "up to".
 function with55Minutes(fatigue, p, lines) {
   const r = fatigue.results.find(is55); if (!r) return fatigue;
-  const m = max7Minutes(toSequence(p, lines));
-  if (Math.abs(m / 60 - r.value) > 0.05 + 1e-9) throw new Error(`the 55-hour row: ${m} minutes, against the app's ${r.value} hours`);
+  const seq = toSequence(p, lines), m = max7Minutes(seq), floor = maxHoursInAny7Days(seq);
+  if (Math.abs(m / 60 - floor) > 0.05 + 1e-9) throw new Error(`the 55-hour row: ${m} minutes, against the app's ${floor} hours`);
+  const over = m > 55 * 60;
+  if ((r.status === 'present') !== over) fatigue.present += over ? 1 : -1;
+  r.status = over ? 'present' : 'clear';
+  r.value = over && floor <= 55 ? Math.round(m / 0.6) / 100 : floor;
   r.minutes = m; return fatigue;
 }
 export function h55Worst(p, lines) {

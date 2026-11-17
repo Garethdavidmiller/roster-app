@@ -111,7 +111,7 @@ mock.module('./overlay.js', { namedExports: {
 } });
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => {} } });
 
-const { createTargetPanel } = await import('./links-generator-targets.js');
+const { createTargetPanel, customShiftRefusal } = await import('./links-generator-targets.js');
 
 /** A fresh card for M. Robson (not the admin), with the setups list read and on screen. */
 async function openCard() {
@@ -339,5 +339,45 @@ describe('a number box shows what the table holds once the typing is over', () =
             await fire('genSlotRows', 'change', { target: box });
             assert.equal(box.value, held, `${typed} is shown as ${held}`);
         }
+    });
+});
+
+// ── A CUSTOM… TIME THE PROMPT REFUSES SAYS WHY (17 Nov 2026) ─────────────────────────────────────────
+// The grid's Custom… explained a refused time from the start; the generator's closed exactly as Cancel did, so
+// "0930-1730" — a phone keypad has no colon — vanished with nothing said. One sentence serves both now.
+describe('a Custom… shift time in the table', () => {
+    /** The row's time select, as the delegated change listener receives it. */
+    const timeSelect = (/** @type {number} */ slot, /** @type {string} */ value) => ({
+        value, dataset: { slot: String(slot) },
+        closest(/** @type {string} */ sel) { return sel === '.gen-slot-time' ? this : null; },
+    });
+
+    test('a refused time says why on the card and changes nothing; an accepted one clears it; Cancel says nothing', async () => {
+        const panel = await openCard();
+        const before = JSON.stringify(panel.getTable().slots);
+        dialogs.prompt = '0930-1730';
+        await fire('genSlotRows', 'change', { target: timeSelect(0, '__custom__') });
+        assert.equal(el('genError').textContent, customShiftRefusal('0930-1730'));
+        assert.match(String(el('genError').textContent), /^“0930-1730” wasn’t used — /);
+        assert.equal(JSON.stringify(panel.getTable().slots), before, 'nothing was applied');
+
+        dialogs.prompt = '09:30-17:30';
+        await fire('genSlotRows', 'change', { target: timeSelect(0, '__custom__') });
+        assert.equal(panel.getTable().slots[0].time, '09:30-17:30');
+        assert.equal(el('genError').textContent, '', 'the refusal is answered, so it goes');
+
+        dialogs.prompt = null;   // Cancel
+        await fire('genSlotRows', 'change', { target: timeSelect(0, '__custom__') });
+        assert.equal(el('genError').textContent, '', 'a cancel explains nothing');
+        assert.equal(panel.getTable().slots[0].time, '09:30-17:30');
+    });
+
+    test('an accepted time clears only its own refusal, never a refusal from Build', async () => {
+        await openCard();
+        const built = 'Can\'t generate — these targets leave no room for rest days.';
+        el('genError').textContent = built;
+        dialogs.prompt = '07:00-15:00';
+        await fire('genSlotRows', 'change', { target: timeSelect(0, '__custom__') });
+        assert.equal(el('genError').textContent, built);
     });
 });

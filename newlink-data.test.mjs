@@ -21,6 +21,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { PROPOSALS } from './links-proposals.js';
+import { assessFatigue } from './links-fatigue.js';
+import { ROTATING_LINES } from './links-design.js';
 
 // fileURLToPath, never `.pathname`: a checkout whose path holds a space reads as %20 and the generator is not found
 const here = (/** @type {string} */ f) => fileURLToPath(new URL(f, import.meta.url));
@@ -140,6 +142,32 @@ test('where they differ: each of the three, with something better AND something 
     const rule = DIFFER_RULE.replace(/\u00a0/g, ' ');
     assert.match(rule, /more than \d+% better, or worse, than both of the others/, 'the rule names its margin');
     assert.match(rule, /not a score/, 'and says the number of points is not a score');
+});
+
+test('Links\' Design checks count what this page counts, for the same rotas (17 Nov 2026)', () => {
+    // This page states each proposal's avoidable fatigue warnings "if a cover week falls badly" — the pack's worst case,
+    // the 55-hour week among them. The Design checks read the 55-hour row on a cover week as no hours until 17 Nov 2026,
+    // so Links said Balanced V6 had 3 factors present while this page said 4: two counts for one rota, in the same
+    // consultation. The app now takes that row at a cover week's worst too, and every count stated here must be its count.
+    const nb = (/** @type {string} */ s) => s.replace(/\u00a0/g, ' ');
+    let stated = 0;
+    for (const d of DIFFERS) {
+        const p = PROPOSALS.find(x => x.name.replace(/ — Dec 2026$/, '') === d.design);
+        assert.ok(p, `${d.design} is a built-in proposal`);
+        const fat = assessFatigue(p.patterns, ROTATING_LINES);
+        const row55 = fat.results.find(r => r.title.includes('55 hours'));
+        for (const line of [...d.better, ...d.worse].map(nb)) {
+            const most = /avoidable fatigue warnings \((\d+)\)/.exec(line);
+            if (most) { stated++; assert.equal(fat.present, +most[1], `${d.design}: this page says ${most[1]}, Links' Design checks ${fat.present}`); }
+            if (/no avoidable fatigue warnings/.test(line) && /however a cover week falls/i.test(line)) {
+                stated++; assert.equal(fat.present, 0, `${d.design}: this page says none however a cover week falls, Links' Design checks ${fat.present}`);
+            }
+            if (/never more than 55 hours in any seven days/.test(line)) {
+                stated++; assert.equal(row55?.status, 'clear', `${d.design}: this page says never more than 55 hours, Links' row says ${row55?.value}`);
+            }
+        }
+    }
+    assert.ok(stated >= 2, `premise: this page states a cover week's worst for at least two designs (found ${stated})`);
 });
 
 test('every pack file is a PDF the repository holds, under docs/links-26', () => {

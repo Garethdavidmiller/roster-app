@@ -21,6 +21,7 @@
  * its long form says it to a screen reader in a visually hidden span instead.
  */
 import { escapeHtml as esc } from './roster-data.js';
+import { proposalDisplayName } from './links-proposals.js';
 
 /** @typedef {import('./newlink-data.js').Persona} Persona */
 /** @typedef {import('./newlink-data.js').Row} Row */
@@ -34,8 +35,8 @@ const DAY_LONG = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday
 /** Short on screen, whole to a screen reader. @param {string} shown @param {string} said */
 const short = (shown, said) => `<span aria-hidden="true">${esc(shown)}</span><span class="visually-hidden">${esc(said)}</span>`;
 
-/** A proposal's name without the built-in list's " — Dec 2026" suffix. @param {{ name: string }} p */
-export const designName = (p) => p.name.replace(/ — Dec 2026$/, '');
+/** A proposal's name as every page shows it — without the built-in list's " — Dec 2026" (links-proposals.js). */
+export const designName = proposalDisplayName;
 
 /**
  * The proposals in the order this page shows them — A TO Z by name, whatever order they arrive in (rule 1). The built-in
