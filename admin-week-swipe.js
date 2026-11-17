@@ -33,7 +33,8 @@
  * · `setPointerCapture` goes on the GRID, not the clip. Events dispatched to a capture target do
  *   not bubble down to its children, and capturing on the clip breaks the drag animation.
  *
- * Both are in CLAUDE.md's architecture table because both have been "simplified" before.
+ * The first is in CLAUDE.md's architecture table and the second in .claude/rules/admin.md (the range
+ * picker's, the same rule), because both have been "simplified" before.
  */
 
 import { SWIPE_THRESHOLD, SWIPE_VELOCITY, formatISO, parseISODate } from './roster-data.js';
