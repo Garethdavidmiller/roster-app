@@ -139,7 +139,8 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
  * ONE copy, because the copies were the bug (whole-app review, Nov 2026): five pages each carried
  * the same nine lines, and the two pages that arrived later — Trains and Overtime — shipped the
  * `#appIcon` labelled "Back to calendar" with nobody wiring it, so tapping it did nothing. Idempotent
- * (`data-wired`) because Overtime's start() re-runs on an in-place sign-in.
+ * (`data-wired`) because Overtime's start() re-runs on an in-place sign-in. The only module allowed to
+ * wire `#appIcon`: page-contract-parity.test.mjs refuses any other.
  * @param {() => void} [onActivate] - What a tap does. Default: go to the app root. A page with
  *   unsaved work passes its own confirm-then-go here, exactly as its other exits do.
  */

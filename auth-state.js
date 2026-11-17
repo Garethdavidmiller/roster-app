@@ -17,7 +17,8 @@
  * the policy layer: `guardNamedSession` (page-session.js), which every named page runs, and paycalc
  * call `requirePage(getAuthSnapshot(), …)` (auth-policy.js) for their B1 enforcement decision, and the
  * forced password overlay reads it. ONLY the session.js bridge dispatches, and everything else reads a
- * snapshot once — `subscribeAuth` has no production subscriber (see it, below).
+ * snapshot once — `subscribeAuth` has no production subscriber (see it, below). The store and
+ * `sessionReady` are both settled by the same `ensureNamedSession` resolution, so they cannot disagree.
  */
 import { reduceAuthState, INITIAL_STATE } from './auth-state-core.js';
 

@@ -36,7 +36,9 @@
                                             // slow load and then showed a false "stale copy" panel (v16.19)
     var RELOAD_KEY = 'myb_splash_reloaded'; // sessionStorage guard: AT MOST one auto-reload per launch (no loop)
 
-    /** Is there anything on screen the member can actually use or act on? */
+    /** Is there anything on screen the member can actually use or act on? Both halves of the banner and
+     *  Calendar checks matter: `#errorBanner` and `#calendarDisplay` are in index.html on every load, so
+     *  testing for their mere existence would read every stuck launch as usable and disable this watchdog. */
     function pageIsUsable() {
         // The unlock card, the member sign-in card, or the re-lock card — every one of them is a
         // working page with a next step on it.

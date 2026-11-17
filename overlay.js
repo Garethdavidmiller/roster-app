@@ -417,10 +417,18 @@ export function watchScrollFade(panel) {
 
 /**
  * Build a lightbox with the canonical open/close lifecycle (the rule is in CLAUDE.md's
- * architecture table; the full lifecycle and its three exceptions are AI_MAP → `overlay.js`). One factory so every lightbox gets the
+ * architecture table; the lifecycle and its three exceptions are here). One factory so every lightbox gets the
  * same behaviour and none can drift: focus save/restore, .visible → rAF →
  * .open + focus, body scroll lock, Android Back support, Escape to close,
  * a Tab trap and a guard for focus moves Tab never sees, and a text field focused in the tap.
+ *
+ * THREE EXCEPTIONS, AND THE FIRST TWO ARE ONE DECISION. The drawer's `#navComingSoonLightbox` and
+ * `#navNoticesLightbox` (App Notices) belong to nav-panel.js alone and hand-roll this lifecycle,
+ * because they share the drawer's history entry: never migrate either to createLightbox. Both are
+ * injected at runtime, so overlay-parity.test.mjs's scan of the served HTML cannot see them. The
+ * third is `#huddleViewer` (calendar-huddle-viewer.js), a full-bleed panel with no backdrop close.
+ * All three keep the first-frame rule by hand: the frame that fades one in, and the drawer panels'
+ * 60 ms focus, ask whether it is still open first.
  *
  * Default wiring added here: a tap on the backdrop (the overlay itself, not
  * the content card — `closeOnBackdropTap`) closes, and the close button closes. Callers add any
@@ -469,7 +477,8 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
     function onKey(e) {
         // Only the TOPMOST overlay reacts. Both halves matter: Escape used to close every open
         // overlay at once (see `_isTopOverlay`), and `trapFocus` on a BURIED overlay would drag Tab
-        // back into a dialog the user cannot see. Fails open — see `_isTopOverlay`.
+        // back into a dialog the user cannot see. Fails open — see `_isTopOverlay`. Only e2e/links.spec.js
+        // proves this wiring: delete the guard and every unit test stays green.
         if (!_isTopOverlay(close)) return;
         if (e.key === 'Escape') { close(); return; }
         trapFocus(content ?? overlay, e);
