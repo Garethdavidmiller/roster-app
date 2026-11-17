@@ -499,6 +499,51 @@ test('fip: the Lithuania and Latvia cards give one answer on the Vilnius–Riga 
     }
 });
 
+// A TAG'S WORDS DECIDE ITS COLOUR (whole-app check, Nov 2026). "Coupons: staff only" is amber — a limit:
+// no coupons for family — on sixteen cards, and was green on Lake Constance's, where it read as good news.
+test('fip: a tag that says the same thing wears the same colour on every card', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    /** @type {Map<string, Set<string>>} */
+    const colours = new Map();
+    for (const m of html.matchAll(/<span class="tag (tag-[a-z]+)">([^<]+)<\/span>/g)) {
+        colours.set(m[2].trim(), (colours.get(m[2].trim()) ?? new Set()).add(m[1]));
+    }
+    assert.ok(colours.size > 20, `found ${colours.size} distinct tags — re-anchor this test`);
+    const mixed = [...colours].filter(([, c]) => c.size > 1).map(([words, c]) => `"${words}": ${[...c].join(', ')}`);
+    assert.deepEqual(mixed, [], 'the same tag in two colours: one of them tells the reader the wrong thing');
+    assert.deepEqual([...(colours.get('Coupons: staff only') ?? [])], ['tag-warn'], 'coupons for the employee only is a limit, so amber');
+});
+
+// THE CZECH SUPPLEMENT IS NOT THE ONLY ONE (whole-app check, Nov 2026). Its box said "the one country where
+// a leisure coupon costs you money", on a page whose Austria, Italy, Spain, Greece and Poland cards all
+// charge coupon holders supplements. What is Czech, as fip-cz-supplement records, is that a LEISURE coupon
+// pays it while a DUTY coupon does not.
+test('fip: the Czech supplement box says what is Czech about it, and claims no "only country"', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    const cz = (html.match(/<details id="country-cz"[\s\S]*?<\/details>/) || [''])[0];
+    const box = cz.match(/<div class="box box-red[^"]*">\s*<strong>([\s\S]*?)<\/strong>/);
+    assert.ok(box, 'the Czech card no longer opens a red box with a heading — re-anchor this test');
+    const heading = box[1].replace(/<[^>]+>/g, '');
+    assert.match(heading, /leisure coupon/i, `the Czech box heading no longer says whose coupon pays: "${heading}"`);
+    assert.match(heading, /duty coupon does not/i, `the Czech box heading no longer says the duty coupon does not pay: "${heading}"`);
+    assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /the (?:one|only) country where/i, 'an "only country" claim is back on the FIP guide');
+});
+
+// The ferries' introduction offered them "whether you're travelling as a foot passenger or taking a car",
+// over the two routes it names (Ireland and Greece) whose sources give a vehicle no FIP discount at all
+// (fip-stena-irish-sea, fip-attica; whole-app check, Nov 2026). It now says so, and is held to the cards.
+test('fip: the ferries introduction promises nothing for a car that the cards do not give', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    const words = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const intro = words(html.match(/id="sec-ferries"[^>]*>[\s\S]*?<p class="section-intro">([\s\S]*?)<\/p>/)?.[1] ?? '');
+    assert.match(intro, /Ireland or Greece/, `the ferries introduction no longer names the routes it is about: "${intro}"`);
+    assert.doesNotMatch(intro, /taking a car|bring(?:ing)? a car|with (?:a|your) car/i, `the introduction offers FIP help for a car: "${intro}"`);
+    for (const [id, rule] of [['ferry-stena-irish-sea', /does not cover carriage of a car/i], ['ferry-superfast', /no reduction for a vehicle/i]]) {
+        const card = words(html.match(new RegExp(`<details id="${id}"[\\s\\S]*?</details>`))?.[0] ?? '');
+        assert.match(card, rule, `${id} no longer says a vehicle gets no FIP discount — re-read the ferries introduction against it`);
+    }
+});
+
 // guides-9 (whole-app review, 10 Nov 2026). The Heart of England and Thames cards said a 7-day ticket was
 // "self-validated" and had its box dated. The Rover ticket pages give that rule to the FLEXI Rover —
 // any few days within a longer period — and a ticket for consecutive days runs from the start date
@@ -1025,6 +1070,18 @@ test('railcard: the three kinds of morning rule stay distinguishable', () => {
             `${id} has re-acquired an invented "around HH:MM" Railcard cutoff. It has no Railcard ` +
             'time of its own — the ticket decides, and the direction decides the ticket.');
     }
+});
+
+// The quick check said "there are only three kinds of morning rule" over five boxes: four kinds, and a
+// concession with no blanket rule (whole-app check, Nov 2026). The number is held to the boxes.
+test('railcard: the quick check counts the kinds of morning rule it shows', () => {
+    const quick = RC_HTML.slice(RC_HTML.indexOf('id="rc-quick"'), RC_HTML.indexOf('id="rc-mornings"'));
+    const kinds = [...quick.matchAll(/class="qc-group (qc-[a-z]+)"/g)].map(m => m[1]);
+    assert.ok(kinds.length >= 4 && kinds.includes('qc-other'), `the quick check's boxes were read as ${kinds.join(', ')} — re-anchor this test`);
+    const said = quick.replace(/<[^>]+>/g, '').match(/There are (?:only )?(\w+) kinds of morning rule/)?.[1];
+    const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'];
+    assert.equal(WORDS.indexOf(said ?? ''), kinds.filter(k => k !== 'qc-other').length,
+        `the quick check says "${said}" kinds of morning rule over the boxes ${kinds.join(', ')} (the last, qc-other, has no blanket rule)`);
 });
 
 test('railcard: the Marylebone morning panel is directional and disclaims itself', () => {
