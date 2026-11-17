@@ -112,7 +112,7 @@ test('signing in from the front door SAVES the session and lands on the roster',
 });
 
 test('`#staff-pin` lands on the PIN card first, and the hash is consumed', async ({ page }) => {
-    // The one direct route to the PIN card: what a "Use the staff PIN instead" sign-out reloads
+    // The one direct route to the PIN card: what the member card's sign-out to the PIN reloads
     // with, and what a station PC can bookmark. It must not stay in the address bar.
     await page.goto('/index.html#staff-pin');
     await expect(page.locator('#calLockPin')).toBeVisible();

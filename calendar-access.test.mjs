@@ -869,7 +869,7 @@ describe('initCalendarAccess', () => {
     });
 
     test('`#staff-pin` asks for the PIN card FIRST, and the hash is consumed', async () => {
-        // The one way to land on the PIN card directly: a "Use the staff PIN instead" sign-out
+        // The one way to land on the PIN card directly: the member card's sign-out to the PIN
         // reloads with it, and a station PC can bookmark it. It must not survive the boot — a
         // member who then signs in would otherwise carry it in the address bar.
         globalThis.window.location.hash = '#staff-pin';
@@ -1025,7 +1025,7 @@ describe('initCalendarAccess', () => {
         });
     });
 
-    test('"Use the staff PIN instead" SIGNS THE MEMBER OUT — it is not a panel swap (v21.23)', async () => {
+    test('the member card\'s way to the staff PIN SIGNS THE MEMBER OUT — it is not a panel swap (v21.23)', async () => {
         // ── THE DEFECT (external review of v21.22) ──────────────────────────────────────────────
         //
         // This used to be `hideLockPanel(); showLockPanel();` — it changed the card and nothing more.
@@ -1593,7 +1593,7 @@ describe('the viewer↔member race', () => {
         }
     });
 
-    test('…and the member card\'s "Use the staff PIN instead" still UNLOCKS: it drops the session first', async () => {
+    test('…and the member card\'s way to the staff PIN still UNLOCKS: it drops the session first', async () => {
         // The hand-over is the deliberate way from a held session to the PIN. It clears the session
         // before its reload (the test above it in "initCalendarAccess"), so the PIN card it lands on
         // finds nothing held and the exchange goes ahead — a station PC is never stranded by the reload.
