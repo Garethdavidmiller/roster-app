@@ -65,10 +65,8 @@ export default defineConfig({
             // small element that relocates. Where the point of a change is WHERE something sits,
             // assert the geometry (e2e/overtime.spec.js does) and re-baseline with
             // `--update-snapshots=all`; do not read a green lane as agreement.
-            // TEMPORARY (17 Nov 2026): zero tolerance, to read CI's render of every baseline that has
-            // drifted INSIDE the usual tolerance. Reverted in the next commit; never merge this one alone.
-            threshold: 0,
-            maxDiffPixels: 0,
+            threshold: 0.15,
+            maxDiffPixelRatio: 0.001,
             animations: 'disabled',
             caret: 'hide',
             scale: 'css',

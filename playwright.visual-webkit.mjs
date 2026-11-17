@@ -68,10 +68,8 @@ export default defineConfig({
             // rendering environment changes, re-measure rather than loosening: `threshold` below
             // already absorbs sub-pixel anti-aliasing, and a raised ratio is how a baseline stops
             // locking composition.
-            // TEMPORARY (17 Nov 2026): zero tolerance, to read CI's render of every baseline that has
-            // drifted INSIDE the usual tolerance. Reverted in the next commit; never merge this one alone.
-            threshold: 0,
-            maxDiffPixels: 0,
+            threshold: 0.15,
+            maxDiffPixelRatio: 0.001,
         },
     },
     snapshotPathTemplate: 'e2e/visual-baselines/webkit/{arg}{ext}',
