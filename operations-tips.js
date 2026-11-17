@@ -13,8 +13,11 @@ import { isRecentIssue } from './newsletter-recency.js';
  * The Newsletter card's receipt words. The ☰ button offers an issue for six weeks from its date
  * (newsletter-recency.js, owner, 14 Nov 2026), so the receipt and the sign-out line ask THAT rule of
  * the date just uploaded: an older issue is filed, but no ☰ button will offer it, and the admin is
- * told so, with the one place it still opens (#newsletter). Both are given the ISO date (doc-upload.js).
- * The header hint (operations.html) and the `?` panel (below) state the same rule.
+ * told so. Both are given the ISO date (doc-upload.js). The header hint (operations.html) and the `?`
+ * panel (below) state the same rule. An old issue's sign-out line sent the admin to "the Calendar with
+ * #newsletter on the end of its address" — words for a developer, and a link that opens the NEWEST
+ * issue, not the one just filed (whole-app check, 17 Nov 2026); an upload for the same date replaces
+ * the first, so uploading again is the check that always works.
  */
 export const NEWSLETTER_CARD = {
     /** @param {string} iso */
@@ -22,7 +25,8 @@ export const NEWSLETTER_CARD = {
         ? 'staff can open it from ☰ → Marylebone Newsletter'
         : 'it is six weeks old or more by its date, so the ☰ menu won’t offer it'),
     /** @param {string} iso */
-    whereToCheck: iso => (isRecentIssue(iso) ? '☰ → Marylebone Newsletter' : 'the Calendar with #newsletter on the end of its address'),
+    whereToCheck: iso => (isRecentIssue(iso) ? '☰ → Marylebone Newsletter'
+        : 'whether it saved — the ☰ menu won’t offer an issue that old, so upload it again if you are not sure'),
 };
 
 /** @type {Record<string, { title: string, sections: Array<{ heading?: string, items: Array<{ icon: string, html: string }> }> }>} */
@@ -31,7 +35,7 @@ export const CARD_TIPS = {
         title: 'Daily Huddle',
         sections: [{ items: [
             { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff open it via ☰ → <strong>Daily Huddle</strong> on the main app' },
-            { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
+            { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — shown inside the app; one too large to convert, or uploaded while the converter could not be reached, opens in Microsoft’s Word viewer instead' },
             { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
             { icon: '🤖', html: 'The Huddle email uploads automatically each day — use this card if you need to upload it manually' },
         ]}],
@@ -120,7 +124,7 @@ export const CARD_TIPS = {
         ],
     },
     'reset-requests': {
-        title: '🙋 Password Reset Requests',
+        title: 'Password Reset Requests',   // no emoji: no other Operations panel's title wears one (the card's header does)
         sections: [{ items: [
             { icon: '🔑', html: 'Staff who tap <strong>“Can’t get in? Ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
             { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out of their other devices.' },

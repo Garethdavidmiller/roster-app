@@ -177,6 +177,9 @@ const DOC_AUTH_WAIT_MS = 2000;
 /** The most a drawer document tap waits, from the tap, before it gives its answer: the read and the
  *  short-lived link race this one budget, and past it the stored url (or the fallback) is used. */
 const DOC_FETCH_BUDGET_MS = 8000;
+/** What a tap on a BLOCKED bell says (its title and icon are the bell's `data-cs-*`). */
+const BLOCKED_BELL = 'Notifications are blocked for this app in your phone’s or browser’s settings, so the bell can’t switch '
+    + 'them on. ☰ → Settings → Notifications says how to allow them.';
 
 /**
  * Tear down an already-initialised nav panel so initNavPanel() can rebuild it from scratch with a
@@ -436,7 +439,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 }
             } else {
                 if (newTab) newTab.close();
-                _docFailureFallback(triggerEl);
+                // An uploaded document whose link this app will not open is not "none uploaded yet" —
+                // the in-app viewer says the same (calendar-doc-viewer.js, whole-app check 17 Nov 2026).
+                _docFailureFallback(triggerEl, data ? `The latest ${triggerEl.dataset.csTitle} can’t be opened — please tell the admin.` : undefined);
             }
         }).catch((/** @type {any} */ err) => {
             if (newTab) newTab.close();
@@ -695,9 +700,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     bell?.addEventListener('click', async () => {
         if (_bellBusy) return;
         const state = bell.dataset.notifState;
-        // Browser-blocked: nothing to do (the aria-label already says so). 'loading' is a no-op too:
+        // Browser-blocked: the browser will not ask again, so the tap SAYS where it is fixed — in the
+        // drawer's info panel, as a document that cannot open does. It did nothing at all, under a 🔕
+        // that looks exactly like "off" (whole-app check, 17 Nov 2026); the aria-label said "blocked"
+        // to a screen reader only. Settings' card has each phone's own steps. 'loading' is a no-op:
         // toggling then would re-subscribe a device that may already be subscribed.
-        if (state === 'denied' || state === 'loading') return;
+        if (state === 'denied') { _closePanelVisualOnly(); _openComingSoon(bell, BLOCKED_BELL); return; }
+        if (state === 'loading') return;
         _bellBusy = true;
         bell.dataset.notifState = 'loading';
         _paintBell('loading');   // repaint NOW — otherwise the old 🔔/"On" glyph shows through a slow toggle (up to 8s)
@@ -1024,7 +1033,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
     const bellHtml = (onSignOut && notifSupported()) ? `
                     <button class="nav-panel-bell" id="navNotifBell" type="button"
                             aria-pressed="false" aria-label="Checking notification status…"
-                            data-notif-state="loading">
+                            data-notif-state="loading" data-cs-title="Notifications blocked" data-cs-icon="🔕">
                         <span id="navNotifIcon" aria-hidden="true">🔄</span>
                     </button>` : '';
     // "Lock Calendar" — shown ONLY while the Calendar is open through the shared staff PIN.

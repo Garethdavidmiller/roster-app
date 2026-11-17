@@ -441,6 +441,7 @@ export const uploadCircular          = _docs.uploadCircular;
 export const uploadNewsletter        = _docs.uploadNewsletter;
 export const getLatestCircular       = _docs.getLatestCircular;
 export const getLatestNewsletter     = _docs.getLatestNewsletter;
+export const getLatestHuddle         = _docs.getLatestHuddle;
 export const subscribeToLatestHuddle = _docs.subscribeToLatestHuddle;
 
 // ---- Push Notification Subscriptions ----

@@ -473,6 +473,11 @@ export function buildDocumentClient({
          *  rejects when only an empty cache answered (`latestIn`) */
         getLatestNewsletter: () => latestIn(collections.newsletters),
 
+        /** @returns {Promise<any>} the latest Huddle, read ONCE — for Operations' upload receipt, which
+         *  asks whether a newer one hides the one just filed (doc-upload.js). The Calendar keeps its live
+         *  listener below; this does not replace it. Null, or a rejection, as `latestIn`. */
+        getLatestHuddle: () => latestIn(collections.huddles),
+
         /**
          * Subscribe to real-time updates for the latest Huddle document. Fires immediately with
          * cached data (IndexedDB) on repeat visits, then again when the network confirms — so the

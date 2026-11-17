@@ -6,6 +6,7 @@
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMemberSession, signInThroughOverlay, isTouchProject } from './helpers.js';
+import { teamMembers } from '../roster-data.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -1050,6 +1051,76 @@ test('settings: the notification kinds break between themselves, never inside on
             els => els.filter(e => e.getClientRects().length > 1).map(e => e.textContent));
         expect(split, `kinds split across lines at ${width}px`).toEqual([]);
     }
+});
+
+// ── THE PAY REMINDER IS PROMISED ONLY WHERE IT IS SENT (whole-app check, 17 Nov 2026) ───────────────
+// It goes to CEA and CES (functions/pay-reminder.js) and the card promised it to everybody: its subtitle,
+// its list, and the line that says what turning on brings. Members are chosen by grade from the roster
+// at run time — never named here.
+/** A current member of a grade, by name. @param {string} role */
+const aMemberOf = (role) => teamMembers.find(m => m.role === role && !m.hidden && !m.managerOnly)?.name;
+/** Settings for `name`, on an Android phone where push exists and has not been asked about yet.
+ *  @param {import('@playwright/test').Page} page @param {string} name @param {{ permission?: string, installed?: boolean }} [o] */
+async function settingsWithPush(page, name, { permission = 'default', installed = false } = {}) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedMemberSession(page, name);
+    await page.addInitScript(({ permission, installed }) => {
+        Object.defineProperty(navigator, 'userAgent', { configurable: true,
+            value: 'Mozilla/5.0 (Linux; Android 13; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36' });
+        if (!('PushManager' in window)) Object.defineProperty(window, 'PushManager', { value: function () {}, configurable: true });
+        Object.defineProperty(window, 'Notification', { value: { permission, requestPermission: async () => permission }, configurable: true });
+        if (installed) {
+            // The home screen app: `display-mode: standalone`, which a browser tab never matches.
+            const real = window.matchMedia.bind(window);
+            window.matchMedia = (q) => (q.includes('display-mode: standalone')
+                ? /** @type {any} */ ({ matches: true, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false })
+                : real(q));
+        }
+    }, { permission, installed });
+    await page.goto('/settings.html');
+    await expect(page.locator('#settingsSummary')).toBeVisible();
+    if (!(await cardOpen(page, 'notifBody'))) await page.locator('#notifChevron').click();
+}
+
+for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true], ['Dispatcher', false]])) {
+    test(`settings: a ${grade} member is ${gets ? 'promised' : 'not promised'} the pay reminder — subtitle, list and status line`, async ({ page }) => {
+        const name = aMemberOf(grade);
+        expect(name, `premise: the roster has a current ${grade} member`).toBeTruthy();
+        await settingsWithPush(page, /** @type {string} */ (name));
+        await expect(page.locator('#notifToggleHeader .hint')).toHaveText(
+            gets ? 'Get alerts for staff updates and pay reminders' : 'Get alerts for staff updates', { useInnerText: true });
+        await expect(page.locator('#notifKindPay')).toBeVisible({ visible: gets });
+        await expect(page.locator('#notifStatusMsg')).toHaveText(gets
+            ? 'Select “Enable notifications” to get an alert when a new document arrives and before the pay cut-off.'
+            : 'Select “Enable notifications” to get an alert when a new document arrives.');
+    });
+}
+
+// THE INSTALLED APP HAS NO PADLOCK (whole-app check, 17 Nov 2026). On Android the blocked route said "tap the padlock in
+// Chrome" — and the home screen app has no address bar to tap. There the permission is the app's own, in the phone's
+// settings, as an iPhone's is; a browser tab keeps the padlock.
+for (const [where, installed, says] of /** @type {const} */ ([
+    ['the home screen app', true, 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'],
+    ['a browser tab', false, 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.'],
+])) {
+    test(`settings: blocked on Android, ${where} is told the route that exists there`, async ({ page }) => {
+        await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied', installed });
+        await expect(page.locator('#notifDeniedMsg')).toHaveText(says);
+    });
+}
+
+// A BLOCKED BELL SAYS SO WHEN TAPPED (whole-app check, 17 Nov 2026). It wore 🔕 — the same as "off" — and a tap did
+// nothing: the browser will not ask again, and only a screen reader heard "blocked". It now says where it is fixed.
+test('settings: the drawer\'s bell, blocked, says where notifications are allowed again', async ({ page }) => {
+    await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied' });
+    await page.locator('#navMenuBtn').click();
+    const bell = page.locator('#navNotifBell');
+    await expect(bell).toHaveAttribute('data-notif-state', 'denied');
+    await bell.click();
+    const panel = page.locator('#navComingSoonLightbox');
+    await expect(panel).toHaveClass(/\bopen\b/);
+    await expect(page.locator('#navComingSoonTitle')).toHaveText('Notifications blocked');
+    await expect(page.locator('#navComingSoonBody')).toContainText('the bell can’t switch them on. ☰ → Settings → Notifications says how to allow them.');
 });
 
 // The blocked-notification route on a laptop (laptop polish, 13 Nov 2026): "Site settings → Notifications

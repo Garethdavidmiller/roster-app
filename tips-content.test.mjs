@@ -153,15 +153,60 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
     });
 });
 
+// ── WHAT OPERATIONS' DOCUMENT CARDS PROMISE (whole-app check, 17 Nov 2026) ──────────────────────
+// Three lines told the admin something the app does not do. The Huddle header said staff open "today's"
+// — the ☰ link opens the newest Huddle by its date, whichever day that is. The ? panel said a Word Huddle
+// is "displayed inside the app" — one whose converted page is over the cap, or uploaded while the
+// converter could not be reached, has no page to show, and opens in Microsoft's Word viewer. And an old
+// Newsletter's sign-out line sent the admin to "the Calendar with #newsletter on the end of its address":
+// a developer's words, for a link that opens the NEWEST issue, not the one just filed. The reset queue's
+// panel title also wore an emoji, the only Operations panel title that did.
+describe('operations — the document cards promise only what the app does', () => {
+    const tips = readCardTips('operations-tips.js');
+
+    test('the Huddle header says staff open the latest, not today\'s', () => {
+        const hint = /Daily Huddle<\/h2>\s*<span class="hint">(.*)<\/span>\s*<\/div>/.exec(readFileSync('operations.html', 'utf8'))?.[1];
+        assert.ok(hint, 'premise: the Daily Huddle card\'s header hint was found');
+        assert.match(hint, /the latest/);
+        assert.doesNotMatch(hint, /today|tomorrow/i);
+    });
+
+    test('the Word line says when a Word Huddle is not shown inside the app', () => {
+        const huddle = readFileSync('huddle.js', 'utf8');
+        assert.match(huddle, /html\.length <= MAX_HUDDLE_HTML_CHARS \? html : null/, 'premise: a converted page over the cap is dropped');
+        assert.match(huddle, /message === 'load'\) \{/, 'premise: a converter that cannot be reached uploads the file with no page');
+        assert.match(readFileSync('storage-utils.js', 'utf8'), /pick\.type === 'docx' \? officeViewerUrl\(pick\.url\)/,
+            'premise: a Word file with no page opens in the Office viewer');
+        const word = tips['daily-huddle'].sections.flatMap((/** @type {any} */ s) => s.items)
+            .map((/** @type {any} */ i) => i.html).find((/** @type {string} */ h) => /\.docx/.test(h)) ?? '';
+        assert.match(word, /too large to convert/);
+        assert.match(word, /converter could not be reached/);
+        assert.match(word, /Word viewer/);
+    });
+
+    test('an old Newsletter\'s sign-out line names no address to type', async () => {
+        const { NEWSLETTER_CARD } = await import('./operations-tips.js');
+        const old = NEWSLETTER_CARD.whereToCheck('2020-01-06');
+        assert.doesNotMatch(old, /#|address|Calendar/);
+        assert.match(old, /upload it again/);
+    });
+
+    test('no panel title wears an emoji — the card\'s header carries it', () => {
+        const worn = Object.entries(tips).filter(([, v]) => /\p{Extended_Pictographic}/u.test(v.title)).map(([k, v]) => `${k}: ${v.title}`);
+        assert.deepEqual(worn, []);
+    });
+});
+
 // ── WHAT SETTINGS SAYS YOU WILL GET (Nov 2026 review) ───────────────────────────────────────────
 // The Notifications card lists the kinds of notification a member agrees to; its ? panel lists them
 // again. The card gained "Timetable changes" at v24.97 and the panel did not, under a comment insisting
 // it named every kind. Each list is held to the other: every kind on the card is named in the panel's
-// "What you'll get", and the panel names nothing the card does not. The card uses the short form of a
-// name ("Retail Circular"), the panel the full one ("Weekly Retail Circular"), so the panel's name must
-// END with the card's.
+// "What you'll get", and the panel names nothing the card does not. The panel's name must END with the
+// card's, which allowed a short form on the card; since 17 Nov 2026 it gives the two documents their
+// whole names too ("Weekly Retail Circular", "Marylebone Newsletter" — CLAUDE.md's canonical terms).
+// A kind may carry an id and `hidden` (the pay reminder, shown only to those it is sent to).
 describe('settings — the ? panel names the notifications the card lists', () => {
-    const card = [...readFileSync('settings.html', 'utf8').matchAll(/<span class="notif-kind">([^<]+?)(?: ·)?<\/span>/g)]
+    const card = [...readFileSync('settings.html', 'utf8').matchAll(/<span class="notif-kind"[^>]*>([^<]+?)(?: ·)?<\/span>/g)]
         .map(m => m[1].trim());
     const got = readCardTips('settings-app.js').notifications.sections.find((/** @type {any} */ s) => /get/.test(s.heading ?? ''));
     const named = (got?.items ?? []).map((/** @type {any} */ i) => /<strong>([^<]+)<\/strong>/.exec(i.html)?.[1] ?? '');
@@ -197,6 +242,40 @@ describe('settings — the ? panel says who the pay reminder is for', () => {
     });
     test('the item names every grade the server sends it to', () => {
         for (const g of grades) assert.match(item, new RegExp(`\\b${g}\\b`), `the panel promises the reminder without saying it is for ${g} colleagues: ${item}`);
+    });
+});
+
+// ── …AND SO DOES EVERY OTHER PLACE THAT PROMISES IT (whole-app check, 17 Nov 2026) ──────────────────
+// The ? panel was put right on 10 Nov; the card's subtitle and list, its two status lines, the Calendar's
+// notification strip and the Staff Guide still promised the reminder to everybody. A page that knows the
+// member shows it only to a member it is sent to — the card's pay pieces start hidden, and huddle.js and
+// calendar-notif-prompt.js show them (each driven in its own tests: e2e/settings.spec.js and
+// calendar-notif-prompt.test.mjs) — and a page that cannot know, the guide, says who it is for.
+describe('the pay reminder is promised only to the grades it is sent to, everywhere', () => {
+    const settings = readFileSync('settings.html', 'utf8');
+    const huddle = readFileSync('huddle.js', 'utf8');
+    const guide = readFileSync('staff-guide.html', 'utf8').replace(/\s+/g, ' ');
+    const server = readFileSync('functions/pay-reminder.js', 'utf8');
+    const grades = [...(/PAY_REMINDER_GRADES\s*=\s*Object\.freeze\(\[([^\]]*)\]\)/.exec(server)?.[1] ?? '').matchAll(/'(\w+)'/g)].map(m => m[1].toUpperCase());
+
+    test('premise: the server still sends it to some grades and not all', () => {
+        assert.deepEqual(grades, ['CEA', 'CES']);
+    });
+    test('Settings: the subtitle\'s and the list\'s pay pieces start hidden — the page shows them to those it is sent to', () => {
+        assert.match(settings, /<span class="hint">Get alerts for staff updates<span id="notifHintPay" hidden> and pay reminders<\/span><\/span>/);
+        assert.match(settings, /<span class="notif-kind" id="notifKindPay" hidden>Pay reminder ·<\/span>/);
+    });
+    test('Settings: the status lines promise the pay cut-off only through the member\'s own answer', () => {
+        assert.doesNotMatch(huddle, /'[^'\n]*before the pay cut-off[^'\n]*'\s*;/, 'a fixed sentence promises the reminder to everybody');
+        assert.match(huddle, /payReminders \? 'when a new document arrives and before the pay cut-off' : 'when a new document arrives'/);
+    });
+    test('the Staff Guide, which cannot know who reads it, says whom the reminder is for', () => {
+        const line = /<strong>Notifications<\/strong>[^<]*(?:<[^>]+>[^<]*)*?Settings/.exec(guide)?.[0] ?? '';
+        assert.ok(line, 'premise: the guide\'s notifications line was found');
+        if (/pay reminder/i.test(line)) for (const g of grades) assert.match(line, new RegExp(`\\b${g}\\b`), `the guide promises it without saying it is for ${g}: ${line}`);
+    });
+    test('Settings names the two documents by their whole names', () => {
+        assert.match(settings, /<span class="notif-kind">Weekly Retail Circular ·<\/span> <span class="notif-kind">Marylebone Newsletter ·<\/span>/);
     });
 });
 

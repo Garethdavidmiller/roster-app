@@ -89,6 +89,11 @@ mock.module('./nav-panel.js', {
         isNoticeExpired: (/** @type {string} */ day, /** @type {number} */ days) => typeof _expired === 'function' ? _expired(day, days) : _expired,
     },
 });
+/** The screen is already taken when a notice's moment comes — `openNoticeIfClear` refuses, as the real one
+ *  does with another notice or overlay up. @type {boolean} */
+let _screenTaken = false;
+/** The first notice to open takes the screen, so every later one is refused — the real helper on one load. */
+let _oneScreen = false;
 mock.module('./overlay.js', {
     namedExports: {
         createLightbox: (/** @type {any} */ cfg) => ({
@@ -96,7 +101,13 @@ mock.module('./overlay.js', {
             open() { _directOpens += 1; },      // must never be reached — see the v19.53 rule
             close() { _closed.push(cfg.overlay.id); },
         }),
-        openNoticeIfClear: (/** @type {any} */ lb) => { _openedViaHelper.push(lb); },
+        // Its real contract: true when it opened the notice, false when the screen was not clear.
+        openNoticeIfClear: (/** @type {any} */ lb) => {
+            if (_screenTaken) return false;
+            _openedViaHelper.push(lb);
+            if (_oneScreen) _screenTaken = true;
+            return true;
+        },
     },
 });
 // The Year to Date notice asks whose Pay Calculator this is, through the session, when it OPENS.
@@ -116,6 +127,7 @@ mock.module('./install-prompt.js', {
         installRoute: () => _route,
         promptInstall: () => { _installCalls.push('prompt'); return true; },
         yieldToInstallNotice: () => { _installCalls.push('yield'); },
+        releaseInstallNoticeYield: () => { _installCalls.push('release'); },
         retireInstallStrip: () => { _installCalls.push('retire'); },
     },
 });
@@ -139,7 +151,7 @@ async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay)
     _route = route;
     _store = { ...store };
     _reads = []; _writes = []; _archived = []; _openedViaHelper = []; _directOpens = 0; _listeners = new Map();
-    _els = new Map(); _closed = []; _installCalls = [];
+    _els = new Map(); _closed = []; _installCalls = []; _screenTaken = false; _oneScreen = false;
     _expired = expired;
     _access = newAccessGate();
     const mod = await import(`./calendar-notices.js?n=${++_n}`);
@@ -600,6 +612,31 @@ describe('5 · the install notice: a phone browser, third in line, and the right
         assert.equal(opened(), undefined, 'while the notice itself is still on its defer');
         mock.timers.tick(1600);
         assert.ok(opened());
+        assert.deepEqual(_installCalls, ['yield'], 'opened, it keeps the visit: nothing is given back');
+    });
+
+    // REFUSED AT ITS OPEN, IT GIVES THE VISIT BACK (whole-app check, 17 Nov 2026). From 6 December the
+    // timetable notice is wired first and waits for nobody, so on a phone browser still owed this one it
+    // takes the screen and this one is refused (`openNoticeIfClear`) — after the strip and the
+    // notification ask had already left for the visit. Neither came back: no notice, no strip, no ask.
+    test('refused at its open — the screen already taken — the strip and the ask are given back, and nothing is flagged', async () => {
+        await wire(SHOWN);
+        _screenTaken = true;
+        await settleAccess();
+        assert.equal(opened(), undefined, 'premise: it did not open');
+        assert.deepEqual(_installCalls, ['yield', 'release'], 'the strip and the notification ask stayed gone for a visit this notice did not have');
+        assert.deepEqual(_writes, [], 'and it is not flagged: it comes back next load');
+    });
+
+    test('in the timetable notice\'s final week both are due: it takes the screen, and this one gives the visit back', async () => {
+        mock.timers.setTime(new Date(2026, 11, 7, 9, 0).getTime());   // Monday 7 December, its final week
+        const TT_SOON = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb'));
+        await wire({ ...SHOWN, present: [...SHOWN.present, TT_SOON.overlay] });
+        _oneScreen = true;                                    // the first to open has the screen, as on a phone
+        await settleAccess();
+        assert.deepEqual(_openedViaHelper.map((/** @type {any} */ lb) => lb._cfg.overlay.id), [TT_SOON.overlay],
+            'premise: the time-critical reminder goes first, and this one is refused');
+        assert.deepEqual(_installCalls, ['yield', 'release'], 'the visit was left with no notice of its own, no strip and no ask');
     });
 
     /** @type {Array<[NonNullable<typeof _route>, string[], string]>} */
