@@ -121,7 +121,12 @@ describe('every marker a CELL can wear, the panel names', () => {
         // because a chip row where one chip alone had none reads as a chip that failed to load.
         const today = dayMarkers({ isToday: true }).find(m => m.label === 'Today');
         assert.ok(today && today.icon, 'the Today chip must still carry a glyph of its own');
-        assert.ok(!cellEmoji.has(today.icon) || true, 'informational — Today needs no cell icon');
+        // This read `… || true`, so it could never fail. The title is the claim: of every marker the
+        // panel can name, Today alone is drawn in no cell. A cell that started wearing 📍, or a new
+        // panel-only chip, now has to be decided here rather than slipping past.
+        const all = dayMarkers({ isToday: true, isBH: true, isXmas: true, isEaster: true, isPay: true, isCutoff: true });
+        assert.deepEqual(all.filter(m => !cellEmoji.has(m.icon)).map(m => m.label), ['Today'],
+            'Today must be the one marker with no cell emoji — its cell tints the day number instead of adding an icon');
     });
 });
 
