@@ -3,7 +3,8 @@
  * usage-stats.js — pure date-bucketing + aggregation for anonymous usage analytics.
  *
  * No DOM, no Firebase: the "humble object" core shared by the usage helpers in
- * firebase-client.js (recordPageView / recordActiveAccount / getUsageStats) and the
+ * analytics-client.js (recordPageView / recordActiveAccount / getUsageStats, re-exported by
+ * firebase-client.js) and the
  * client-side dedup decisions in usage-reporter.js. Split out so the policy (which
  * day buckets count toward the rolling window, when an account should be re-counted,
  * how page counts order, which daily keys are stale) is unit-testable without the
