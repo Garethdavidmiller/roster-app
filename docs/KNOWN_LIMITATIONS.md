@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.30 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -78,8 +78,8 @@ to name the test. Staff stay on the previous release meanwhile.
 - **A failed deploy is announced, not repaired.** Every deploy workflow opens or comments on a
   `deploy-failure` issue through `.github/actions/report-deploy-failure`, whose header says why an
   issue, why repeated failures comment rather than open another, and why it never fails the job. The
-  reporter is a separate job that needs the deploy job and every job before it (Hosting's gate jobs,
-  the mirror's plan job), with a
+  reporter is a separate job that needs the deploy job and every job before it (each deploy's gate jobs —
+  Hosting's, and the `check` job of Functions and Rules — and the mirror's plan job), with a
   job-level `if: failure() || contains(needs.*.result, 'cancelled')`, so it fires whatever killed the
   deploy, setup included — and
   when the deploy runs out of time, which ends a job cancelled rather than failed (until 10 Nov 2026 a
@@ -518,7 +518,7 @@ classification in `AUTH_PLAN.md` §2. What still holds:
   and it is a different class of personal data about a third party.
 - **No guard CLASSIFIES what `docs/` publishes.** `public-data-classification.test.mjs` covers the
   world-readable roster files and not `docs/`. `payroll-anonymity.test.mjs` scans the whole tracked
-  tree, Markdown included, for a roster name sitting beside a payroll term or a leave balance — the
+  tree, Markdown included, for a roster name sitting beside a payroll term, a leave balance, or a leave figure or tally within three lines — the
   class that went wrong, a NAME next to a FIGURE. It is not a classification guard: a new personal
   field in a doc that never names anybody passes it, and so does a name beside something neither
   vocabulary lists.
@@ -543,7 +543,7 @@ now. What still holds:
   history, or that subject, is the owner's call and has not been taken.
 - **The guard that now exists reads only the member table.** `roster-data.test.mjs` fails on a
   comment there about a person's circumstances, wherever the name sits. `payroll-anonymity.test.mjs`
-  matches a name and a term on ONE line, which is how this one passed it.
+  matches a name and a payroll or balance term on ONE line (leave figures and tallies within three), which is how this one passed it.
 
 ### Admin/manager password is surname-derived (F-SEC-1) — the owner chose leave-as-is
 
@@ -1045,7 +1045,7 @@ open:
   next check of the same file, in the same visit.** Close the page first and that Save has no log: it cannot be undone from the card (its
   days are deleted in Admin instead), and its days are not protected against coming back until the
   next Save's log, which names every day in line, is written.
-- **The Undo is for the newest Save of the year, once.** An earlier Save is undone by hand in Admin.
+- **The Undo is for the latest Save of the year that added leave, once.** An earlier Save is undone by hand in Admin.
   It takes back only days the Save added: a rest day it counted as swapped stays counted.
 - **One spelling is one answer, in every grade block.** The session's script keys a row's name by its
   spelling, so two people spelt alike in two blocks (a trainee the app does not hold, and a member it
@@ -1083,7 +1083,7 @@ the same admin made to one of those days in another tab in that time passed both
 From v26.15 every record a Save writes carries the Save's log id (`uploadId`), which any other save of
 the day drops, and the Undo takes back only records still carrying it (AL_UPLOADER_PLAN.md §4.10). A log
 written before then (`writesMarked` absent) has no marked records, so its Undo is still judged by date.
-Only the newest Save of the year offers an Undo, so the next Save of a sheet ends this for good.
+Only the latest Save of the year that added leave offers an Undo, so the next Save that adds leave ends this for good.
 
 **Until then, for an older Save only:** if a day it added was changed in Admin while it ran, put the day
 right in Admin after an Undo, or skip the Undo and remove the Save's days in Admin.
@@ -1093,15 +1093,15 @@ right in Admin after an Undo, or skip the Undo and remove the Save's days in Adm
 ## Navigation / accessibility
 
 ### No `inert` behind dialogs (focus is trapped; the background is not inert)
-Every dialog traps Tab/Shift+Tab — the nav panel and every lightbox through `createLightbox` (`overlay.js`) — and each is declared `role="dialog" aria-modal="true"`. Screen-reader users can still reach page content behind the overlay via browse mode: `inert` on background content is deferred (its only uses are local, in `admin-roster-upload.js` and `admin-week-editor.js`). Android and iOS are both first class here, so this matters to TalkBack and VoiceOver alike.
+Every dialog traps Tab/Shift+Tab — the nav panel and every lightbox through `createLightbox` (`overlay.js`) — and each is declared `role="dialog" aria-modal="true"`. Screen-reader users can still reach page content behind the overlay via browse mode: `inert` on background content is deferred (its only uses are local, in `admin-roster-upload.js`, `admin-week-editor.js` and `operations-al-sheet.js`). Android and iOS are both first class here, so this matters to TalkBack and VoiceOver alike.
 
 ### The drawer does not pull back focus the iPhone keyboard's arrows move out of it
 The ‹ › arrows above the iPhone keyboard move focus to the previous or next text field in the document
 and fire no key event, so a Tab trap never sees them. Since 7 Nov 2026 every `createLightbox` dialog
 pulls such focus back (`_guardFocus`, `overlay.js`); the nav drawer, its two lightboxes and the Huddle
 viewer keep their own Tab traps and have no guard, so the arrows can leave the drawer's *Search the
-guides* box for a field behind it. Not built yet: `nav-panel.js` is at its line cap again since
-v26.14 (`coordinator-ratchet.test.mjs`), so something has to move out of it first. The device check
+guides* box for a field behind it. Not built yet; since v26.25 `nav-panel.js` has room under its cap
+(`coordinator-ratchet.test.mjs`). The device check
 is in `IPHONE_RELEASE_CHECKLIST.md` → B.
 
 ### On an iPhone, reloading a guide opened at a heading goes back to that heading
