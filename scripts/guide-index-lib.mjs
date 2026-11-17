@@ -25,20 +25,26 @@
  *    rather than only from the evidence scan, because a definition can still be an answer and an
  *    example of a search never is.
  *
- *  - PROVISIONAL MARKERS ARE READ, NEVER INFERRED. The marker vocabulary below mirrors what
- *    guide-sources.test.mjs pins (its per-class marker lists); the parity test asserts the two
- *    stay identical. A unit's evidence is the set of distinct states whose markers appear in its
- *    OWN slice — and a section's evidence excludes markers that live inside its child cards,
- *    because a section is not provisional merely for containing one provisional card.
+ *  - PROVISIONAL MARKERS ARE READ, NEVER INFERRED. The draft and conflict lists below are
+ *    guide-sources.test.mjs's own per-class marker lists (its `PROVISIONAL`), copied because
+ *    importing a test file would run its tests. Contract 3 of guide-index-parity.test.mjs reads
+ *    that list out of the file and holds the two equal in BOTH directions: a marker guide-sources
+ *    gains and this file lacks leaves a provisional claim unflagged in the drawer. While the check
+ *    ran one way only, the FIP guide's conflict callout went unflagged for exactly that reason.
+ *    `unconfirmed` has no list there: it is the Rangers guide's Marylebone badge, which
+ *    guide-sources polices as a badge, so contract 3 checks that the badge is real. A unit's
+ *    evidence is the set of distinct states whose markers appear in its OWN slice — and a
+ *    section's evidence excludes markers that live inside its child cards, because a section is
+ *    not provisional merely for containing one provisional card.
  */
 
 import { tokeniseText } from '../guide-search.js';
 import { GUIDE_PAGES as GUIDE_PAGE_ENTRIES } from './app-pages.mjs';
 
-/** Marker classes that make a provisional claim visible — MUST mirror guide-sources.test.mjs. */
+/** Marker classes that make a provisional claim visible — the same lists as guide-sources.test.mjs (header). */
 export const PROVISIONAL_MARKERS = {
     draft:       ['rr-card--draft', 'rc-unsourced'],
-    conflict:    ['rr-card--conflict', 'rr-unresolved'],
+    conflict:    ['rr-card--conflict', 'rr-unresolved', 'fip-unresolved'],
     unconfirmed: ['myb-status--unconfirmed'],
 };
 

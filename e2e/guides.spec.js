@@ -2241,3 +2241,27 @@ test('guides: every guide starts its first line the same space below the header 
         }
     }
 });
+
+// THE FIP GUIDE'S CONFLICT REACHES THE DRAWER, IN THE FIP GUIDE'S OWN WORDS (whole-app check, Nov 2026).
+// The index's marker list lacked the FIP guide's conflict callout, so a search for the Vilnius–Riga train,
+// or for either country, found both cards with no flag at all. And the flag's advice was the Railcard and
+// Rangers guides' ("check the retail system"), which a FIP traveller cannot follow: the page says to ask
+// Rail Staff Travel. A Rangers conflict keeps its own words.
+test('guide search: the FIP guide\'s Vilnius–Riga conflict is flagged on its cards, with that guide\'s advice', async ({ page }) => {
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    const input = page.locator('#navGuideSearchInput');
+    await expect(input).toBeVisible();
+    await input.click();     // the first focus loads the search
+    for (const [q, id] of [['riga', 'country-lt'], ['vilnius', 'country-lt'], ['lithuania', 'country-lt'], ['latvia', 'country-lv']]) {
+        await input.fill(q);
+        const row = page.locator(`#navGuideSearchResults a[href*="fip-guide.html#${id}"]`);
+        await expect(row, `"${q}" finds the card`).toBeVisible();
+        await expect(row.locator('.nav-gs-flag--conflict'), `"${q}" flags it`).toHaveText('⚠ Source conflict — ask Rail Staff Travel');
+    }
+    await input.fill('thames rover');
+    await expect(page.locator('#navGuideSearchResults a[href*="rangers-guide.html#rr-thames"] .nav-gs-flag--conflict'))
+        .toHaveText('⚠ Source conflict — check the retail system');
+});
