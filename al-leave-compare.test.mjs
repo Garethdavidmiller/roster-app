@@ -645,7 +645,20 @@ describe('who can be checked at all (leaveRecordability)', () => {
     test('a manager is a manager, never a leaver — though Management is hidden too', () => {
         assert.equal(leaveRecordability(MANAGER, YEAR), 'manager');
         assert.equal(leaveRecordability({ ...MANAGER, managerOnly: false }, YEAR), 'manager');
-        assert.equal(leaveRecordability({ ...CEA, hidden: true, managerOnly: true }, YEAR), 'manager');
+        // A login-only account with no figure on record that year: hidden like a leaver, and still a manager.
+        assert.equal(leaveRecordability({ ...CEA, hidden: true, managerOnly: true, startDate: new Date(YEAR + 1, 0, 4) }, YEAR), 'manager');
+    });
+    test('the YEAR decides, not today’s grade: a member who moved into Management is checked for the year they moved in', () => {
+        // Invented: a CES up to and including Saturday 21 November 2026, a manager from the Sunday — and
+        // so hidden and managerOnly now, as every manager is. 2026 is judged by the graded post held in it.
+        /** @type {any} */ const PROMOTED = { name: 'G. Example', role: 'Management', rosterType: 'ces', currentWeek: 2,
+            hidden: true, managerOnly: true, roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] };
+        assert.equal(entitlementFor(PROMOTED, 2026), 34, 'the case: the app holds a 2026 allowance for them');
+        assert.equal(leaveRecordability(PROMOTED, 2026), null, 'their 2026 leave is checked — not "a manager", not "a leaver"');
+        assert.equal(entitlementFor(PROMOTED, 2027), null, 'the case: no graded post in 2027');
+        assert.equal(leaveRecordability(PROMOTED, 2027), 'manager');
+        // The flag is today's too: a login-only account the app holds an allowance for is checked, never a leaver.
+        assert.equal(leaveRecordability({ ...CEA, hidden: true, managerOnly: true }, YEAR), null);
     });
     test('a leaver, somebody not on the roster, and somebody with no allowance that year', () => {
         assert.equal(leaveRecordability(LEAVER, YEAR), 'leaver');
