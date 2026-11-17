@@ -5,7 +5,7 @@
  * ── THE PROBLEM ─────────────────────────────────────────────────────────────────────────────────
  *
  * The app writes about fifty transient status lines that lead with a glyph — `✓ Settings saved`,
- * `⚠ No working days in that range`, `✗ Copy failed`, `↻ Updating your shifts…`. Most of them land
+ * `⚠ No working days in that range`, `✗ Copy failed`, `↻ Updating shifts…`. Most of them land
  * in an `aria-live` region, which is the whole point: a sighted user sees the line appear, and a
  * screen-reader user is told about it.
  *

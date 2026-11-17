@@ -119,7 +119,7 @@ describe('a converted call site reads back exactly as before', () => {
         '⚠ No working days in that range — nothing to record.',
         '⚠️ Some roster details couldn\'t load — please tell the admin.',
         '✗ Copy failed',
-        '↻ Updating your shifts…',
+        '↻ Updating shifts…',
         'no glyph at all',
     ]) {
         test(JSON.stringify(msg), () => {
