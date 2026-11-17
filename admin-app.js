@@ -23,7 +23,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays } from './admin-overrides.js';
-import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft } from './admin-week-row-state.js';
+import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
@@ -675,10 +675,17 @@ export function init() {
         });
         // The planner decides; this names the days. Ordinarily the per-row check above has already
         // refused and this never fires — it is reached when that check's input was stale, which the
-        // planner's own block explains. Marking the rows keeps the two refusals looking the same.
+        // planner's own block explains. Marking the rows keeps the two refusals looking the same, and
+        // the question is PUT on each (review, Nov 2026): the row was drawn before the record that
+        // settled it went, so it had never asked, and the refusal named a question nobody could see.
         if (alPlan.unanswered.length) {
-            alPlan.unanswered.forEach(d => document
-                .querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
+            alPlan.unanswered.forEach(d => {
+                const row = /** @type {HTMLElement|null} */ (document.querySelector(`.day-row[data-date="${d}"]`));
+                if (!row) return;
+                row.classList.add('row-error');
+                row.dataset.alSwapAsk = '1';
+                _syncAlSwap(row);
+            });
             return showError(alPlan.unanswered
                 .map(d => `${formatDisplay(d)}: say whether this rest day was a swapped working day`)
                 .join(' · '));
