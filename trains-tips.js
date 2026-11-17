@@ -17,9 +17,17 @@
  * These panels are built once, at import, with no phase — so a sentence true only before the change
  * ("December times can still change", "today's leaf-fall timetable", "Chiltern says it will…") went
  * on saying it for the four months after (whole-app review, Oct 2026). Name the columns and dates
- * rather than "today", and quote a chip in both of its tenses. The one thing here that turns is the
- * changes panel's title, the name of a view that turns with it: trains-app.js gives it
- * `changesTitle` as the panel opens.
+ * rather than "today", and quote a chip in both of its tenses.
+ *
+ * ── WHAT TURNS, AND WHEN ────────────────────────────────────────────────────────────────────────
+ *
+ * Two things cannot hold on both sides, so `tipsOn` gives the panels as they read on a railway day,
+ * and trains-app.js asks it as each panel opens — so a page left open across 03:00 opens it in that
+ * day's words. The changes panel's title is the name of a view that turns at the change. And an
+ * item dated `until` describes weeks that end on that day — Chiltern's further changes, the leaf-fall
+ * timetable — so it goes from the next railway day, as the page's own note for those weeks does (the
+ * overview's Christmas line, a station card's leaf-fall note). Without that, both went on in the
+ * present tense from 11 January to the end of the books.
  *
  * ── NOTHING HERE IS TYPED TWICE ─────────────────────────────────────────────────────────────────
  *
@@ -31,12 +39,17 @@
  */
 
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
-import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
-import { DAYTIME, renderFurtherChanges } from './trains-render.js';
+import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, daysUntil, JOURNEY_PLANNER_URL } from './trains-change.js';
+import { DAYTIME, renderFurtherChanges, changesTitle } from './trains-render.js';
+
+/** @typedef {{ icon: string, html: string, until?: string }} TipItem  until — the last railway day it holds, 'YYYY-MM-DD' */
+/** @typedef {{ heading?: string, items: TipItem[] }} TipSection */
+/** @typedef {{ title: string, sections: TipSection[] }} TipPanel */
 
 // The strings below name only what is imported here — tips-content.test.mjs evaluates them with the
 // real values, so a constant used without being imported fails there rather than reading "undefined".
 
+/** @type {Record<string, TipPanel>} */
 export const CARD_TIPS = {
     'overview': {
         title: '🗓️ New timetable',
@@ -47,7 +60,7 @@ export const CARD_TIPS = {
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
                     { icon: '🗓️', html: 'In the first column, a few weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Weekday counts are for a Tuesday to Thursday; the trains themselves are listed with their days.' },
                     { icon: '⚠️', html: `These are Chiltern's published timetables, not live running: on the day, a train can still be late, altered or cancelled. Before you tell a customer, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> or the live departure boards, linked from the About panel (the logo in the menu).` },
-                    { icon: '🎄', html: `${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)} Amersham-line times may change in those weeks too. For those dates, check the journey planner.` },
+                    { icon: '🎄', html: `${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)} Amersham-line times may change in those weeks too. For those dates, check the journey planner.`, until: FURTHER_CHANGES_UNTIL },
                 ],
             },
             {
@@ -55,7 +68,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📄', html: `First column: Chiltern's public timetables, valid until ${dateWords(CHANGE_DATE, -1, { weekday: true })}.` },
                     { icon: '📄', html: `From ${dateWords(CHANGE_DATE)}: Chiltern's new public timetables, valid until ${dateWords(DEC_VALID_UNTIL, 0, { weekday: true })} ${DEC_VALID_UNTIL.slice(0, 4)}.` },
-                    { icon: '🍂', html: `The first column's Amersham-line times are Chiltern's <strong>leaf-fall</strong> ones: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.` },
+                    { icon: '🍂', html: `The first column's Amersham-line times are Chiltern's <strong>leaf-fall</strong> ones: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.`, until: LEAF_FALL.until },
                 ],
             },
         ],
@@ -67,7 +80,7 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '🕛', html: 'The <strong>last train from Marylebone</strong> that calls at each station, on the kind of day chosen above — the time it leaves Marylebone, not the time it gets there.' },
-                    { icon: '🗓️', html: 'A typical day of that kind: the few weekday trains that run only on Mondays and Fridays are left out, as they are on a station\'s card.' },
+                    { icon: '🗓️', html: 'A typical day of that kind: the few weekday trains that run only on Mondays and Fridays are left out, as they are from the figures on a station\'s card.' },
                     { icon: '⚠️', html: 'Published times, not live running. For tonight\'s actual last train, check the live departure boards — linked from the About panel (the logo in the menu).' },
                 ],
             },
@@ -149,3 +162,22 @@ export const CARD_TIPS = {
         ],
     },
 };
+
+/**
+ * The panels as they read on `today`, the RAILWAY day (trains-change.js → `railwayToday`): the changes
+ * panel titled as its view is, and every item dated `until` gone once that day has passed — the
+ * header's "What turns, and when". Pure: the clock is the caller's.
+ * @param {Date} today
+ * @returns {Record<string, TipPanel>}
+ */
+export function tipsOn(today) {
+    const holds = (/** @type {TipItem} */ item) => !item.until || daysUntil(today, item.until) >= 0;
+    /** @type {Record<string, TipPanel>} */
+    const out = {};
+    for (const [key, panel] of Object.entries(CARD_TIPS)) {
+        const sections = panel.sections.map(s => ({ ...s, items: s.items.filter(holds) })).filter(s => s.items.length);
+        out[key] = { ...panel, sections };
+    }
+    out.changes = { ...out.changes, title: `🔔 ${changesTitle(daysUntil(today, CHANGE_DATE) <= 0)}` };
+    return out;
+}

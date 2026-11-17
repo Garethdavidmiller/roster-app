@@ -30,17 +30,18 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
   takes the next feature only by extracting something first; the ratchet's header says what a good
   response looks like, and raising a cap in passing is not one.
 - **One twin kept apart on purpose.** `fip-guide.js` carries the chip-bar blocks of
-  `guide-chips.js` — jump, scrollspy, sticky offsets (watching the bar's size as well as the
-  header's) and deep-link landing — woven into its country finder, where a jump also opens the
-  country's `<details>`; the other four guides share the one file. Three rules are in the shared file only: the two-column rule (the FIP
-  guide is one column), the hold that keeps a tapped or linked chip lit when its section cannot reach
-  the top (taps v25.80, links v25.81), and a banner section starting at its banner (the FIP guide has
-  no banners). Its last sections are long enough that nothing bottoms it out: a tap, measured at 375px
-  and 1280px, and every visible id opened fresh as a link, at 320, 375, 768 and 1280px, lights its own
-  section's chip. So none of the three has anything to do there yet.
-- **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the app sheets — nearly all one
-  navy shadow tint — are a ratchet that may only go down (`RGB_BASELINE` in
-  `css-hex-parity.test.mjs`). The guide sheets keep their own palette guard.
+  `guide-chips.js` — jump, scrollspy, the hold that keeps a tapped or linked chip lit when its
+  section cannot reach the top, sticky offsets (watching the bar's size as well as the header's) and
+  deep-link landing — woven into its country finder, where a jump also opens the country's
+  `<details>`; the other four guides share the one file. Two rules are in the shared file only: the
+  two-column rule (the FIP guide is one column) and a banner section starting at its banner (the FIP
+  guide has no banners), so neither has anything to do there yet. The hold was a third until Nov
+  2026: at 375px and 1280px wide nothing bottomed the page out, but a tall desktop window does, and
+  there a tap on Ferries or Mistakes lit Apply (`e2e/guides.spec.js` → "fip: a chip near the end of
+  the page stays lit after its jump").
+- **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the stylesheets, the app's and
+  the guides' alike — nearly all a navy shadow tint — are a ratchet that may only go down
+  (`RGB_BASELINE` in `css-hex-parity.test.mjs`).
 - **Overtime stays paused** (owner, 3 Nov 2026). Its page, Cloud Functions and tests are kept and keep
   running in CI, so it can be switched back on; removing it was offered and declined.
   `OVERTIME_AVAILABILITY.md` → Paused says what is switched off.

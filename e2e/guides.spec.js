@@ -346,9 +346,11 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await expect(page.locator('#country-es')).toBeVisible();
     await expect(page.locator('#country-no')).toBeHidden();
     // Counted from the DOM, never written down. The literal 25 outlived the guide by one release:
-    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour.
-    const totalCountries = await page.locator('[id^="country-"]').count();
-    await expect(page.locator('#countryCount')).toContainText(`of ${totalCountries} countries`);
+    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour. CARDS,
+    // not countries (whole-app check, Nov 2026): one of them is Lake Constance's ferries.
+    const totalCards = await page.locator('[id^="country-"]').count();
+    await expect(page.locator('#countryCount')).toContainText(`of ${totalCards} cards`);
+    await expect(page.locator('#countryCount')).not.toContainText('countries');
     await expect(page.locator('#countryClear')).toBeVisible();
     // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
     await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
@@ -2240,4 +2242,136 @@ test('guides: every guide starts its first line the same space below the header 
             expect(Math.abs(g.gap - g.want), `${file} at ${width}px: "${g.what}" starts ${g.gap.toFixed(1)}px below the chips`).toBeLessThanOrEqual(1);
         }
     }
+});
+
+// THE FIP GUIDE'S CONFLICT REACHES THE DRAWER, IN THE FIP GUIDE'S OWN WORDS (whole-app check, Nov 2026).
+// The index's marker list lacked the FIP guide's conflict callout, so a search for the Vilnius–Riga train,
+// or for either country, found both cards with no flag at all. And the flag's advice was the Railcard and
+// Rangers guides' ("check the retail system"), which a FIP traveller cannot follow: the page says to ask
+// Rail Staff Travel. A Rangers conflict keeps its own words.
+test('guide search: the FIP guide\'s Vilnius–Riga conflict is flagged on its cards, with that guide\'s advice', async ({ page }) => {
+    // The drawer is the same on every page; Trains admits any named member, so an invented one serves.
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/trains.html');
+    await expect(page.locator('#trControls')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    const input = page.locator('#navGuideSearchInput');
+    await expect(input).toBeVisible();
+    await input.click();     // the first focus loads the search
+    for (const [q, id] of [['riga', 'country-lt'], ['vilnius', 'country-lt'], ['lithuania', 'country-lt'], ['latvia', 'country-lv']]) {
+        await input.fill(q);
+        const row = page.locator(`#navGuideSearchResults a[href*="fip-guide.html#${id}"]`);
+        await expect(row, `"${q}" finds the card`).toBeVisible();
+        await expect(row.locator('.nav-gs-flag--conflict'), `"${q}" flags it`).toHaveText('⚠ Source conflict — ask Rail Staff Travel');
+    }
+    await input.fill('thames rover');
+    await expect(page.locator('#navGuideSearchResults a[href*="rangers-guide.html#rr-thames"] .nav-gs-flag--conflict'))
+        .toHaveText('⚠ Source conflict — check the retail system');
+});
+
+// A HOVER WAITS FOR A MOUSE ON EVERY GUIDE (whole-app check, Nov 2026). The FIP guide's "Print <country>"
+// button darkened its edge on any hover, so on a phone the tapped button kept the edge; every other hover
+// in these sheets waits for a mouse. Read from the stylesheets each page actually parsed, so a new rule is
+// held to it too.
+test('guides: every hover in a guide\'s stylesheets waits for a mouse', async ({ page }) => {
+    let total = 0;
+    for (const { file } of GUIDE_PAGES) {
+        await page.goto(`/${file}`);
+        const g = await page.evaluate(() => {
+            /** @type {string[]} */ const ungated = [];
+            let hovers = 0;
+            const walk = (/** @type {CSSRuleList} */ rules, /** @type {string[]} */ gates) => {
+                for (const r of rules) {
+                    if (r instanceof CSSMediaRule) walk(r.cssRules, [...gates, r.media.mediaText]);
+                    else if (r instanceof CSSStyleRule) {
+                        if (!r.selectorText.includes(':hover')) continue;
+                        hovers++;
+                        if (!gates.some(m => /\(hover:\s*hover\)/.test(m))) ungated.push(`${gates.join(' · ') || 'no gate'} → ${r.selectorText}`);
+                    } else if (r instanceof CSSGroupingRule) walk(r.cssRules, gates);
+                }
+            };
+            for (const s of document.styleSheets) if (s.href) walk(s.cssRules, []);
+            return { hovers, ungated };
+        });
+        total += g.hovers;
+        expect(g.ungated, `${file}: a hover not gated on (hover: hover)`).toEqual([]);
+    }
+    expect(total, 'premise: the guides\' hover rules were read').toBeGreaterThan(8);
+});
+
+// …and the same button had no ring of its own for the keyboard, where every other control on the page
+// draws the guide's navy one.
+test('fip: the "Print <country>" button wears the guide\'s focus ring', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard ring is a keyboard\'s');
+    await page.goto('/fip-guide.html');
+    await page.locator('#country-lc > summary').click();
+    const btn = page.locator('#country-lc .btn-print-country');
+    await expect(btn).toBeVisible();
+    for (let i = 0; i < 40 && !(await btn.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+    await expect(btn).toBeFocused();
+    const ring = await btn.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { style: cs.outlineStyle, width: cs.outlineWidth, colour: cs.outlineColor,
+            navy: getComputedStyle(document.documentElement).getPropertyValue('--navy').trim() };
+    });
+    expect(ring.style).toBe('solid');
+    expect(ring.width).toBe('2px');
+    const rgb = (/** @type {string} */ hex) => `rgb(${[1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+    expect(ring.colour, 'the guide\'s navy').toBe(rgb(ring.navy));
+});
+
+// THE FIP GUIDE'S CHIPS HOLD AS THE OTHER FOUR GUIDES' DO (whole-app check, Nov 2026). Its own chip-bar script
+// had only the scroll rule, so where the page ran out before a late section reached the line — measured at
+// 1920×2600 — a tap on Ferries or Mistakes lit Apply, the last chip. The window is SIZED FROM THE PAGE, as the
+// Pay Calculator Guide's test is: the page below "Ferry services", plus the header and bar, plus 200px.
+/** @param {import('@playwright/test').Page} page @param {string} id @returns {Promise<number>} */
+async function heightToStrand(page, id) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/fip-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const room = await page.evaluate((sec) => {
+        const doc = document.documentElement.scrollHeight;
+        const top = /** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top + scrollY;
+        return { doc, below: Math.ceil(doc - top), bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+    }, id);
+    const height = room.below + room.bar + 200;
+    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+    return height;
+}
+/** @param {import('@playwright/test').Page} page @param {string} id */
+async function stranded(page, id) {
+    return page.evaluate((sec) => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }), id);
+}
+
+test('fip: a chip near the end of the page stays lit after its jump, though its section never reaches the line', async ({ page }) => {
+    const height = await heightToStrand(page, 'sec-ferries');
+    await page.setViewportSize({ width: 1280, height });
+    const ferries = page.locator('.chip-bar .chip[data-target="sec-ferries"]');
+    await ferries.click();
+    await page.waitForTimeout(1800);
+    const geo = await stranded(page, 'sec-ferries');
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(ferries, 'the chip chosen, not the last one').toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again').toHaveAttribute('aria-current', 'true');
+});
+
+test('fip: a link to a card near the end lights its own section\'s chip, through the landing', async ({ page }) => {
+    const height = await heightToStrand(page, 'sec-ferries');
+    await page.setViewportSize({ width: 1280, height });
+    await page.goto('about:blank');
+    await page.goto('/fip-guide.html#ferry-superfast');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await page.waitForTimeout(400);
+    expect((await stranded(page, 'ferry-superfast')).bottom, 'premise: the page bottomed out under the linked card').toBe(true);
+    await expect(page.locator('.chip-bar .chip[data-target="sec-ferries"]'), 'the section the link named, not the last one')
+        .toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
 });

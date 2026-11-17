@@ -39,16 +39,37 @@ test('contract 2 — every drawer guide is represented, and the index names no p
         'GUIDE_PAGES (the generator) and NAV_GUIDES (the drawer) disagree about which guides exist');
 });
 
-test('contract 3 — the provisional-marker vocabulary mirrors guide-sources.test.mjs', () => {
-    // Restated by value, as tests pin constants: if guide-sources gains a marker dialect, the
-    // extractor must learn it in the same commit or a provisional claim becomes invisible here.
+test('contract 3 — the provisional-marker vocabulary is guide-sources.test.mjs\'s own, both ways', () => {
+    // READ, NOT RESTATED (whole-app check, Nov 2026). This contract checked one direction — every
+    // marker the extractor knows is named somewhere in guide-sources.test.mjs — and pinned its own
+    // lists by value. So when guide-sources gained the FIP guide's conflict callout, the extractor
+    // never learned it and nothing failed: the Lithuania and Latvia cards were indexed with no
+    // evidence, and the drawer showed no "Source conflict" on either while the Rangers guide's
+    // conflicts kept theirs. The list is now read out of that file, so a marker added there fails
+    // here until the extractor has it, and one dropped there fails here too.
     const src = read('guide-sources.test.mjs');
-    for (const cls of [...PROVISIONAL_MARKERS.draft, ...PROVISIONAL_MARKERS.conflict]) {
-        assert.ok(src.includes(`'${cls}'`), `guide-sources.test.mjs does not pin marker ${cls}`);
+    const block = src.match(/const PROVISIONAL = \{([\s\S]*?)\n\};/);
+    assert.ok(block, 'guide-sources.test.mjs: its PROVISIONAL marker list was not found — read it from wherever it went');
+    /** @type {Record<string, string[]>} */
+    const theirs = Object.fromEntries([...block[1].matchAll(/^\s*(\w+):\s*\[([^\]]*)\]/gm)]
+        .map(m => [m[1].toLowerCase(), [...m[2].matchAll(/'([^']+)'/g)].map(x => x[1]).sort()]));
+    assert.ok(Object.keys(theirs).length >= 2 && Object.values(theirs).every(l => l.length),
+        `guide-sources.test.mjs's marker list was read as ${JSON.stringify(theirs)} — the reading is wrong, not the list`);
+    const ours = Object.fromEntries(Object.entries(PROVISIONAL_MARKERS)
+        .filter(([state]) => state !== 'unconfirmed').map(([state, list]) => [state, [...list].sort()]));
+    assert.deepEqual(ours, theirs,
+        'scripts/guide-index-lib.mjs and guide-sources.test.mjs name different provisional markers — a claim the '
+        + 'page marks provisional would reach the drawer unflagged. Make PROVISIONAL_MARKERS match, in the same commit.');
+    // `unconfirmed` is the Rangers guide's Marylebone badge, which guide-sources polices as a badge
+    // (its `status--unconfirmed` checks) rather than through that list. Its markers must be badges
+    // the Rangers stylesheet really draws, or the state could never be read off a page.
+    assert.match(src, /status--unconfirmed/, 'guide-sources.test.mjs no longer polices the unconfirmed badge');
+    const rangersCss = read('rangers-guide.css');
+    assert.ok(PROVISIONAL_MARKERS.unconfirmed.length > 0, 'the unconfirmed state has no marker');
+    for (const cls of PROVISIONAL_MARKERS.unconfirmed) {
+        assert.match(cls, /-status--unconfirmed$/, `${cls} is not an unconfirmed status badge`);
+        assert.ok(rangersCss.includes(`.${cls}`), `${cls}: rangers-guide.css draws no such badge`);
     }
-    assert.deepEqual(PROVISIONAL_MARKERS.draft, ['rr-card--draft', 'rc-unsourced']);
-    assert.deepEqual(PROVISIONAL_MARKERS.conflict, ['rr-card--conflict', 'rr-unresolved']);
-    assert.deepEqual(PROVISIONAL_MARKERS.unconfirmed, ['myb-status--unconfirmed']);
 });
 
 test('contract 4 — every index id is a real anchor in its own page', () => {
@@ -104,6 +125,22 @@ test('contract 7 — result rows ride nav-panel\'s delegated guide-link handler'
     // static import would put the ~90KB index into every page boot.
     assert.ok(nav.includes("import('./nav-guide-search.js')"), 'the lazy import is gone');
     assert.ok(!/^import .*nav-guide-search/m.test(nav), 'nav-guide-search must not be statically imported');
+});
+
+test('contract 5b — the FIP guide\'s Vilnius–Riga conflict reaches the drawer on both its cards', () => {
+    // The FIP guide's first Conflict is a claim-level callout on the Lithuania and Latvia cards. Its
+    // marker was missing from the extractor's vocabulary, so both cards were indexed as settled and a
+    // search for the train, or for either country, showed no "Source conflict" (whole-app check).
+    const by = (/** @type {string} */ id) => GUIDE_INDEX.find(u => u.id === id);
+    for (const id of ['country-lt', 'country-lv']) {
+        assert.ok(read('fip-guide.html').includes(`<details id="${id}"`), `premise: the FIP guide has no ${id} card`);
+        assert.deepEqual(by(id)?.e, ['conflict'], `${id}: its unresolved callout is not read as a conflict`);
+    }
+    for (const q of ['riga', 'vilnius', 'lithuania', 'latvia']) {
+        const cards = searchGuideIndex(GUIDE_INDEX, q).filter(r => r.id === 'country-lt' || r.id === 'country-lv');
+        assert.ok(cards.length, `"${q}" no longer finds the Lithuania or Latvia card`);
+        for (const r of cards) assert.deepEqual(r.evidence, ['conflict'], `"${q}" → ${r.id} arrives without its conflict`);
+    }
 });
 
 test('contract 8 — evidence-bearing units exist (the extractor has not gone quietly blind)', () => {

@@ -408,8 +408,9 @@ test('the FIP print button prints the countries on screen, not all of them @prin
     // and a hardcoded number here would be a claim about the guide's prose.
     const shown = await page.evaluate(() =>
         [...document.querySelectorAll('[id^="country-"]')].filter(c => !c.hidden).length);
+    // Cards, not countries (whole-app check, Nov 2026): one of them is Lake Constance's ferries.
     await expect(page.locator('.btn-print'))
-        .toHaveAttribute('aria-label', new RegExp(`the guide with the ${shown} countr(y|ies) shown`));
+        .toHaveAttribute('aria-label', new RegExp(`the guide with the ${shown} cards? shown`));
 
     // …and a SIGHTED reader is told too (v23.31). The accessible name above is announced on focus;
     // a traveller filtering to one country never focuses the button before pressing it, so until
@@ -916,6 +917,23 @@ test('printing one country prints one country @print', async ({ page, browserNam
     // the restore is IDEMPOTENT as well as that it happened.
     await page.evaluate(() => { window.dispatchEvent(new Event('afterprint')); });
     expect(await sheets(), 'the whole guide is back after the print').toBe(whole);
+});
+
+// THE SOURCE BANNER GOES WITH ITS CARDS (whole-app check, Nov 2026). The page-wide banner about the
+// Vilnius–Riga conflict printed on every one-country sheet, so France's sheet said one claim "on this
+// page" was disputed over a page with none. A Lithuania sheet, whose card holds the claim, keeps it.
+test('a one-country sheet carries the source banner only when its card is the one in dispute @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => { window.print = () => {}; });
+    const bannerOnPaper = () => inPrint(page, () => (document.querySelector('.source-banner')?.getClientRects().length ?? 0) > 0);
+    expect(await bannerOnPaper(), 'the whole guide prints its banner').toBe(true);
+    for (const [id, banner] of /** @type {const} */ ([['country-fr', false], ['country-lt', true]])) {
+        await page.locator(`#${id} > summary`).click();
+        await page.locator(`#${id} .btn-print-country`).click();
+        expect(await bannerOnPaper(), `${id}: the banner ${banner ? 'prints with the card it is about' : 'stays off a sheet it says nothing about'}`).toBe(banner);
+        await page.evaluate(() => { window.dispatchEvent(new Event('afterprint')); });
+    }
+    expect(await bannerOnPaper(), 'and the whole guide prints it again').toBe(true);
 });
 
 // The engine that fires no `afterprint` (AirPrint) also need not fire `visibilitychange` — the print

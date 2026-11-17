@@ -269,36 +269,66 @@ test('every railcard/fip register row is referenced by at least one guide block 
 // value gets a parity guard; this one is user-facing accuracy, so it earns one more than most.
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// EACH CARD IS BOUNDED BY THE NEXT CARD (whole-app review, 10 Nov 2026). This read
+// EACH CARD IS BOUNDED BY ITS OWN ELEMENT (whole-app review, 10 Nov 2026, and again since). This read
 // `data-guide-source="…" … </details>` lazily, which is right for a <details> card and wrong for the
 // two not-FIP <div> cards: Sweden's match ran on to the next </details> and swallowed Finland and the
 // North Sea ferry, so neither of their dates was ever compared (a stale Finland date passed,
-// measured). Every country and ferry card — <details> or <div> — now runs to the next card or
-// section heading, whichever comes first.
-test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed date', () => {
-    const reviewedOf = new Map(rows.map(r => [r.ID, r.Reviewed]));
-    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
-    const opens = [...html.matchAll(/<(?:details|div)\b([^>]*\bid="(?:country|ferry)-[^"]+"[^>]*)>/g)];
-    let checked = 0;
-    opens.forEach((m, i) => {
-        const start = m.index ?? 0;
-        const nextCard = i + 1 < opens.length ? (opens[i + 1].index ?? html.length) : html.length;
-        const nextHead = html.indexOf('<h2', start);
-        const card = html.slice(start, Math.min(nextCard, nextHead === -1 ? html.length : nextHead));
-        const src = m[1].match(/data-guide-source="([^"]+)"/);
-        const dm = card.match(/Checked\s+([A-Z][a-z]{2})\s+(\d{4})/);
-        if (!src || !dm) return;          // presence is the next test's job
-        const id = src[1].trim().split(/\s+/)[0];
-        const mi = MONTHS.indexOf(dm[1]);
-        assert.ok(mi >= 0, `fip-guide.html: "${dm[1]}" is not a recognised month abbreviation`);
-        const shown = `${dm[2]}-${String(mi + 1).padStart(2, '0')}`;
-        assert.equal(shown, reviewedOf.get(id),
-            `fip-guide.html: the card for "${id}" shows "Checked ${dm[1]} ${dm[2]}" (${shown}) but its ` +
-            `register row says Reviewed ${reviewedOf.get(id)} — a freshness date staff rely on must ` +
-            `never be older or newer than the review that backs it`);
-        checked++;
+// measured). A date now belongs to the nearest cited block that is still OPEN where the date sits.
+//
+// EVERY ROW, AND EVERY GUIDE (whole-app check, Nov 2026). It compared the FIRST row a card cites, and
+// the FIP guide alone — so the Railcard guide's Family & Friends and HM Forces cards said "Checked · Aug
+// 2026" over a row last reviewed in July, and nothing could see it. A block citing several rows is no
+// fresher than the least recently reviewed of them: its date is the OLDEST, since a newer one claims a
+// review for a row nobody re-read. A claim nested in a block keeps its own date, as it keeps its own
+// state (guide-pages.md → "Evidence is per CLAIM"), so only the block's own rows count.
+/**
+ * Every "checked <Mon> <Year>" a guide renders, with the register ids of the block it belongs to.
+ * @param {string} file
+ * @returns {{ line: number, month: string, year: string, ids: string[] }[]}
+ */
+function renderedCheckedDates(file) {
+    const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8')
+        .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));   // comments are not rendered
+    const blocks = [...html.matchAll(/<([a-z]+)\b[^>]*\bdata-guide-source="([^"]+)"[^>]*>/g)];
+    /** Is the block that `b` opens still open at `at`? Counted by its own tag name. */
+    const openAt = (/** @type {RegExpMatchArray} */ b, /** @type {number} */ at) => {
+        const tags = new RegExp(`<(/?)${b[1]}\\b[^>]*>`, 'g');
+        tags.lastIndex = (b.index ?? 0) + b[0].length;
+        let depth = 1;
+        for (let t = tags.exec(html); t && t.index < at; t = tags.exec(html)) {
+            depth += t[1] ? -1 : 1;
+            if (depth === 0) return false;
+        }
+        return true;
+    };
+    return [...html.matchAll(/\b[Cc]hecked(?:&nbsp;|\s)+(?:·(?:&nbsp;|\s)+)?([A-Z][a-z]{2})(?:&nbsp;|\s)+(\d{4})\b/g)].map((m) => {
+        const at = m.index ?? 0;
+        const block = blocks.filter(b => (b.index ?? 0) < at && openAt(b, at)).at(-1);
+        return { line: html.slice(0, at).split('\n').length, month: m[1], year: m[2], ids: block ? block[2].trim().split(/\s+/) : [] };
     });
-    assert.ok(checked >= 30, `expected every FIP country and ferry card to show a date, found ${checked}`);
+}
+
+test('every rendered "checked" date is the oldest Reviewed date of the rows its block cites', () => {
+    const reviewedOf = new Map(rows.map(r => [r.ID, r.Reviewed]));
+    const MIN = { 'fip-guide.html': 30, 'railcard-guide.html': 10, 'rangers-guide.html': 10 };
+    for (const [file, min] of Object.entries(MIN)) {
+        const dates = renderedCheckedDates(file);
+        assert.ok(dates.length >= min, `${file}: found ${dates.length} rendered "checked" dates, expected at least ${min} — the scan is wrong`);
+        for (const d of dates) {
+            assert.ok(d.ids.length, `${file}:${d.line}: "checked ${d.month} ${d.year}" sits in no block that cites a register row`);
+            const mi = MONTHS.indexOf(d.month);
+            assert.ok(mi >= 0, `${file}:${d.line}: "${d.month}" is not a recognised month abbreviation`);
+            const shown = `${d.year}-${String(mi + 1).padStart(2, '0')}`;
+            const backing = d.ids.map(id => `${reviewedOf.get(id) ?? '?'} ${id}`).sort();
+            assert.equal(shown, backing[0].split(' ')[0],
+                `${file}:${d.line}: shows "checked ${d.month} ${d.year}" (${shown}) over rows reviewed ${backing.join(', ')} — ` +
+                'a freshness date staff rely on is the OLDEST review behind it: newer, it claims a review nobody did; ' +
+                'older, it undersells the block');
+        }
+    }
+    // And every FIP country and ferry card still shows one — the reason this check began there.
+    const fipCards = renderedCheckedDates('fip-guide.html').filter(d => d.ids.some(id => /^fip-/.test(id)));
+    assert.ok(fipCards.length >= 30, `expected every FIP country and ferry card to show a date, found ${fipCards.length}`);
 });
 
 // ── EVERY COUNTRY AND FERRY CARD SHOWS ITS EVIDENCE STATE (v20.31) ──────────────────────────────
@@ -466,6 +496,51 @@ test('fip: the Lithuania and Latvia cards give one answer on the Vilnius–Riga 
         assert.ok(riga.length, `#${id} no longer speaks about the train to Riga — re-check this test`);
         assert.ok(riga.some(s => /ask Rail Staff Travel/i.test(s)), `#${id} must send the reader to Rail Staff Travel on Vilnius–Riga`);
         for (const s of riga) assert.doesNotMatch(s, /\bFIP (?:is )?valid\b/i, `#${id} settles the Vilnius–Riga question: "${s}"`);
+    }
+});
+
+// A TAG'S WORDS DECIDE ITS COLOUR (whole-app check, Nov 2026). "Coupons: staff only" is amber — a limit:
+// no coupons for family — on sixteen cards, and was green on Lake Constance's, where it read as good news.
+test('fip: a tag that says the same thing wears the same colour on every card', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    /** @type {Map<string, Set<string>>} */
+    const colours = new Map();
+    for (const m of html.matchAll(/<span class="tag (tag-[a-z]+)">([^<]+)<\/span>/g)) {
+        colours.set(m[2].trim(), (colours.get(m[2].trim()) ?? new Set()).add(m[1]));
+    }
+    assert.ok(colours.size > 20, `found ${colours.size} distinct tags — re-anchor this test`);
+    const mixed = [...colours].filter(([, c]) => c.size > 1).map(([words, c]) => `"${words}": ${[...c].join(', ')}`);
+    assert.deepEqual(mixed, [], 'the same tag in two colours: one of them tells the reader the wrong thing');
+    assert.deepEqual([...(colours.get('Coupons: staff only') ?? [])], ['tag-warn'], 'coupons for the employee only is a limit, so amber');
+});
+
+// THE CZECH SUPPLEMENT IS NOT THE ONLY ONE (whole-app check, Nov 2026). Its box said "the one country where
+// a leisure coupon costs you money", on a page whose Austria, Italy, Spain, Greece and Poland cards all
+// charge coupon holders supplements. What is Czech, as fip-cz-supplement records, is that a LEISURE coupon
+// pays it while a DUTY coupon does not.
+test('fip: the Czech supplement box says what is Czech about it, and claims no "only country"', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    const cz = (html.match(/<details id="country-cz"[\s\S]*?<\/details>/) || [''])[0];
+    const box = cz.match(/<div class="box box-red[^"]*">\s*<strong>([\s\S]*?)<\/strong>/);
+    assert.ok(box, 'the Czech card no longer opens a red box with a heading — re-anchor this test');
+    const heading = box[1].replace(/<[^>]+>/g, '');
+    assert.match(heading, /leisure coupon/i, `the Czech box heading no longer says whose coupon pays: "${heading}"`);
+    assert.match(heading, /duty coupon does not/i, `the Czech box heading no longer says the duty coupon does not pay: "${heading}"`);
+    assert.doesNotMatch(html.replace(/<[^>]+>/g, ' '), /the (?:one|only) country where/i, 'an "only country" claim is back on the FIP guide');
+});
+
+// The ferries' introduction offered them "whether you're travelling as a foot passenger or taking a car",
+// over the two routes it names (Ireland and Greece) whose sources give a vehicle no FIP discount at all
+// (fip-stena-irish-sea, fip-attica; whole-app check, Nov 2026). It now says so, and is held to the cards.
+test('fip: the ferries introduction promises nothing for a car that the cards do not give', () => {
+    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+    const words = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const intro = words(html.match(/id="sec-ferries"[^>]*>[\s\S]*?<p class="section-intro">([\s\S]*?)<\/p>/)?.[1] ?? '');
+    assert.match(intro, /Ireland or Greece/, `the ferries introduction no longer names the routes it is about: "${intro}"`);
+    assert.doesNotMatch(intro, /taking a car|bring(?:ing)? a car|with (?:a|your) car/i, `the introduction offers FIP help for a car: "${intro}"`);
+    for (const [id, rule] of [['ferry-stena-irish-sea', /does not cover carriage of a car/i], ['ferry-superfast', /no reduction for a vehicle/i]]) {
+        const card = words(html.match(new RegExp(`<details id="${id}"[\\s\\S]*?</details>`))?.[0] ?? '');
+        assert.match(card, rule, `${id} no longer says a vehicle gets no FIP discount — re-read the ferries introduction against it`);
     }
 });
 
@@ -995,6 +1070,18 @@ test('railcard: the three kinds of morning rule stay distinguishable', () => {
             `${id} has re-acquired an invented "around HH:MM" Railcard cutoff. It has no Railcard ` +
             'time of its own — the ticket decides, and the direction decides the ticket.');
     }
+});
+
+// The quick check said "there are only three kinds of morning rule" over five boxes: four kinds, and a
+// concession with no blanket rule (whole-app check, Nov 2026). The number is held to the boxes.
+test('railcard: the quick check counts the kinds of morning rule it shows', () => {
+    const quick = RC_HTML.slice(RC_HTML.indexOf('id="rc-quick"'), RC_HTML.indexOf('id="rc-mornings"'));
+    const kinds = [...quick.matchAll(/class="qc-group (qc-[a-z]+)"/g)].map(m => m[1]);
+    assert.ok(kinds.length >= 4 && kinds.includes('qc-other'), `the quick check's boxes were read as ${kinds.join(', ')} — re-anchor this test`);
+    const said = quick.replace(/<[^>]+>/g, '').match(/There are (?:only )?(\w+) kinds of morning rule/)?.[1];
+    const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven'];
+    assert.equal(WORDS.indexOf(said ?? ''), kinds.filter(k => k !== 'qc-other').length,
+        `the quick check says "${said}" kinds of morning rule over the boxes ${kinds.join(', ')} (the last, qc-other, has no blanket rule)`);
 });
 
 test('railcard: the Marylebone morning panel is directional and disclaims itself', () => {
