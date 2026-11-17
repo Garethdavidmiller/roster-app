@@ -48,6 +48,8 @@ let fetchReply = () => new Response(JSON.stringify({ ok: true }), { status: 200 
 globalThis.fetch = async (url, init = {}) => { fetches.push({ url: String(url), init }); return fetchReply(); };
 
 const fc = await import('./firebase-client.js');
+// The same module instance firebase-client.js imports, so its write gate is the one read here.
+const { hasUnconfirmedWrite, _resetUnconfirmedWrites } = await import('./claim-retry.js');
 
 const MEMBER = 'L. Springer';
 beforeEach(() => {
@@ -158,6 +160,34 @@ describe('a work email is written under the member it belongs to', () => {
         state.failNext.set('staffContact/', 'permission-denied');
         await assert.rejects(fc.saveStaffContact(MEMBER, 'a@chilternrailways.co.uk'));
         assert.equal(writes('staffContact/').length, 1);
+    });
+});
+
+// ── A WRITE THE RULES REFUSED STAYS A REFUSAL (review, 17 Nov 2026) ─────────────────────────────────
+// Refusal and revocation at once: the write is refused, the forced refresh is refused because the
+// account was disabled or its sessions revoked, and the SDK signs the account out BEFORE the refresh
+// re-throws. With the sign-out watch around the whole retry, that sign-out won: the refusal was
+// reported "not confirmed" and every later write on the page was refused until a reload, for a write
+// whose outcome was never in doubt. Through the real withClaimRetry, with the fake SDK in that order.
+describe('a write the rules refused stays a refusal when the token refresh signs the account out', () => {
+    test('the caller gets the refusal, nothing is retried, and the next write is let through', async () => {
+        const who = 'A. Person';
+        _resetUnconfirmedWrites();
+        try {
+            signIn({ refreshRefusedWith: 'auth/user-disabled' });
+            state.failNext.set('staffContact/', 'permission-denied');
+            await assert.rejects(fc.saveStaffContact(who, 'a.person@chilternrailways.co.uk'), (e) => e.code === 'permission-denied');
+            assert.equal(writes('staffContact/').length, 1, 'the refresh was refused, so the write was never retried');
+            assert.deepEqual(state.authOps.filter((o) => o.op === 'getIdToken'), [{ op: 'getIdToken', force: true }]);
+            assert.equal(state.currentUser, null, 'the refused refresh signed the account out, as the SDK does');
+            assert.equal(hasUnconfirmedWrite(), false,
+                'a refused write was counted as one of unknown outcome, so every later write on the page is refused until a reload');
+            signIn();
+            await fc.saveStaffContact(who, 'a.person@chilternrailways.co.uk');
+            assert.equal(writes('staffContact/').length, 2, 'signed in again, the next write goes out');
+        } finally {
+            _resetUnconfirmedWrites();
+        }
     });
 });
 

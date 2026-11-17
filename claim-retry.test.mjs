@@ -5,7 +5,7 @@ import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
     runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, unconfirmedWriteLine,
-    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, OWN_WRITES_WAIT_MS } from './claim-retry.js';
+    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, OWN_WRITES_WAIT_MS, runWatchedClaimRetry } from './claim-retry.js';
 
 // ── trackBackgroundWrite (review, 11 Nov 2026) — a write no page started, counted until it settles ──
 describe('trackBackgroundWrite', () => {
@@ -140,10 +140,11 @@ describe('abandonOnSignOut', () => {
     });
 });
 
-// THE WIRING. firebase-client.js cannot load in Node (it imports the SDK from gstatic), so the helper
-// above could be perfect and never called: removing it from withClaimRetry left every suite green.
-// Every Admin write goes through withClaimRetry, so this is the one line that has to hold.
-test('withClaimRetry wraps every request in abandonOnSignOut, watching the live auth state', async () => {
+// THE WIRING. firebase-client.js loads in Node only behind the fake SDK, so the helper above could be
+// perfect and never called: removing it from withClaimRetry left every suite green. Every Admin write
+// goes through withClaimRetry, so this is the one line that has to hold. (Its behaviour through the
+// real module: firebase-client.test.mjs → "a write the rules refused stays a refusal".)
+test('withClaimRetry is runWatchedClaimRetry, watching the live auth state for the account it started as', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('./firebase-client.js', import.meta.url), 'utf8');
     // BOTH markers must be found, in this order (test audit, 7 Nov 2026). The end marker used to read
@@ -154,9 +155,139 @@ test('withClaimRetry wraps every request in abandonOnSignOut, watching the live 
     const end = src.indexOf('export function writeWithClaimRetry');
     assert.ok(start > -1 && end > start, `withClaimRetry was not found where expected (start ${start}, end ${end})`);
     const body = src.slice(start, end);
-    assert.match(body, /return abandonOnSignOut\(runWithClaimRetry\(/, 'the retry runs INSIDE the sign-out watch');
+    assert.match(body, /return runWatchedClaimRetry\(fn, \{/, 'each attempt runs inside the sign-out watch, the refresh outside it');
+    assert.doesNotMatch(body, /abandonOnSignOut\(runWithClaimRetry\(/,
+        'the watch is back around the whole run: a refused token refresh signs the account out, and a write the rules '
+        + 'REFUSED is then reported "not confirmed" and blocks every later write until a reload');
     assert.match(body, /uid: auth\.currentUser\?\.uid/, 'the account is captured when the request starts');
-    assert.match(body, /onAuthStateChanged\(auth, cb\)/, 'the watch is the real auth state');
+    assert.match(body, /watch: cb => onAuthStateChanged\(auth, cb\)/, 'the watch is the real auth state');
+});
+
+// ── runWatchedClaimRetry (review, 17 Nov 2026) — the watch covers each ATTEMPT, never the refresh ──
+//
+// A stand-in for Firebase Auth in the SDK's own order, read in node_modules rather than assumed:
+// listeners are told in a MICROTASK (its ObserverProxy), and a refused token refresh signs the account
+// out BEFORE it re-throws (`_logoutIfInvalidated` awaits `auth.signOut()`). With the watch around the
+// whole run, that order let the sign-out end the wait before the refusal came back.
+/** @param {string} [uid] */
+function sdkOrderedAuth(uid = 'u1') {
+    /** @type {{ uid: string }|null} */ let user = { uid };
+    /** @type {Set<(u: any) => void>} */ const listeners = new Set();
+    const notify = () => { for (const l of listeners) Promise.resolve().then(() => l(user)); };
+    return {
+        get user() { return user; },
+        watch: (/** @type {(u: any) => void} */ cb) => {
+            listeners.add(cb);
+            Promise.resolve().then(() => cb(user));
+            return () => { listeners.delete(cb); };
+        },
+        /** The account goes now: another tab signed out, or a refresh was refused. */
+        signOut: () => { user = null; notify(); },
+        /** Another account signs in on this browser. @param {string} other */
+        switchTo: (other) => { user = { uid: other }; notify(); },
+        get listening() { return listeners.size; },
+    };
+}
+const refusal = () => Object.assign(new Error('Missing or insufficient permissions.'), { code: 'permission-denied' });
+const hangs = () => new Promise(() => {});
+
+describe('runWatchedClaimRetry — a sign-out ends the wait only for a write on its way', () => {
+    it('THE REFUSED REFRESH: a write the rules refused stays refused, and the next write is not blocked', async () => {
+        // Refusal and revocation at once: the write is refused (nothing written), the forced refresh is
+        // refused because the account was disabled, and the SDK signs it out before re-throwing. The
+        // reader is told to sign in again, which is true, and no later write on the page is refused
+        // for a write whose outcome was never in doubt.
+        _resetUnconfirmedWrites();
+        const auth = sdkOrderedAuth();
+        let commits = 0;
+        const original = refusal();
+        const fn = async () => { commits++; throw original; };
+        const refresh = async () => {
+            auth.signOut();
+            await Promise.resolve();
+            throw Object.assign(new Error('token refused'), { code: 'auth/user-disabled' });
+        };
+        const err = await runGatedWrite(() => runWatchedClaimRetry(fn, {
+            retryCode: 'permission-denied', hasUser: () => !!auth.user, refresh, uid: auth.user?.uid, watch: auth.watch,
+        })).then(() => null, e => e);
+        assert.equal(err, original, `the caller must get the server's refusal, as itself — it got ${err?.code}`);
+        assert.equal(commits, 1, 'the refresh was refused, so the write was never retried');
+        assert.equal(hasUnconfirmedWrite(), false, 'a refused write is not one of unknown outcome');
+        assert.match(saveFailureMessage(err), /sign in again/);
+        assert.doesNotMatch(saveFailureMessage(err), /confirmed/);
+        let ran = false;
+        await runGatedWrite(async () => { ran = true; });
+        assert.equal(ran, true, 'the next write on the page is let through');
+        assert.equal(auth.listening, 0, 'no watch is left behind');
+        _resetUnconfirmedWrites();
+    });
+
+    it('a sign-out while the write is ON ITS WAY still ends the wait as unconfirmed (v24.36)', async () => {
+        _resetUnconfirmedWrites();
+        const auth = sdkOrderedAuth();
+        const p = runGatedWrite(() => runWatchedClaimRetry(hangs, {
+            retryCode: 'permission-denied', hasUser: () => !!auth.user, refresh: async () => {}, uid: auth.user?.uid, watch: auth.watch,
+        }));
+        await new Promise(r => setTimeout(r, 0));   // the watch reports the current account first
+        auth.signOut();
+        await assert.rejects(p, e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+        assert.equal(hasUnconfirmedWrite(), true, 'Firestore may still send it, so the gate closes');
+        _resetUnconfirmedWrites();
+    });
+
+    it('the RETRY is watched too: a sign-out while it is on its way is unconfirmed', async () => {
+        _resetUnconfirmedWrites();
+        const auth = sdkOrderedAuth();
+        let calls = 0;
+        /** @type {(v?: any) => void} */ let retrying = () => {};
+        const retryStarted = new Promise(r => { retrying = r; });
+        const fn = () => { calls++; if (calls === 1) return Promise.reject(refusal()); retrying(); return hangs(); };
+        const p = runGatedWrite(() => runWatchedClaimRetry(fn, {
+            retryCode: 'permission-denied', hasUser: () => !!auth.user, refresh: async () => 'fresh-token', uid: auth.user?.uid, watch: auth.watch,
+        }));
+        await retryStarted;
+        await new Promise(r => setTimeout(r, 0));
+        auth.signOut();
+        await assert.rejects(p, e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+        assert.equal(calls, 2);
+        assert.equal(hasUnconfirmedWrite(), true);
+        _resetUnconfirmedWrites();
+    });
+
+    it('the retry is watched for the account the call STARTED as', async () => {
+        // A shared PC: somebody else signs in on another tab while the token is refreshed. The retry
+        // cannot be confirmed for the account that asked, so it is reported as not confirmed.
+        const auth = sdkOrderedAuth('u1');
+        let calls = 0;
+        const fn = () => (++calls === 1 ? Promise.reject(refusal()) : hangs());
+        const p = runWatchedClaimRetry(fn, {
+            retryCode: 'permission-denied', hasUser: () => !!auth.user,
+            refresh: async () => { auth.switchTo('u2'); await Promise.resolve(); }, uid: auth.user?.uid, watch: auth.watch,
+        });
+        await assert.rejects(p, e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+        assert.equal(calls, 2);
+    });
+
+    it('a refusal that survives the refresh is passed on as the refusal, and no watch is left', async () => {
+        const auth = sdkOrderedAuth();
+        let calls = 0;
+        await assert.rejects(runWatchedClaimRetry(async () => { calls++; throw refusal(); }, {
+            retryCode: 'permission-denied', hasUser: () => !!auth.user, refresh: async () => {}, uid: auth.user?.uid, watch: auth.watch,
+        }), e => /** @type {any} */ (e).code === 'permission-denied');
+        assert.equal(calls, 2);
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(auth.listening, 0);
+    });
+
+    it('no account at the start: nothing is watched, and the result passes through', async () => {
+        let subscribed = 0;
+        const out = await runWatchedClaimRetry(async () => 'ok', {
+            retryCode: 'permission-denied', hasUser: () => false, refresh: async () => {}, uid: null,
+            watch: () => { subscribed++; return () => {}; },
+        });
+        assert.equal(out, 'ok');
+        assert.equal(subscribed, 0);
+    });
 });
 
 test('saveFailureMessage — signed-out says unconfirmed, never lost; the other two unchanged', () => {
