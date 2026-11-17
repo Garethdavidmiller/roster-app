@@ -688,7 +688,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
-            // class; see runNamedSignIn / LOGIN_INCIDENT.md). On failure we restore the button and
+            // class; see runNamedSignIn / ROADMAP_HISTORY.md). On failure we restore the button and
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
             const _result = await runNamedSignIn(signInDeps(name, typedPw));
             if (!_result.ok) {

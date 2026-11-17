@@ -71,7 +71,7 @@ rule text and gate cases:
   `FIREBASE_SERVICE_ACCOUNT` secret both deleted (**Appendix A2**). · A3 — doc-only accuracy.
 - **Track B (authorization release):** B0 — named-vs-anonymous identity signal. · B1 — named-session
   enforcement on the write pages, unconditional since its kill-switch was retired (v24.34;
-  LOGIN_INCIDENT.md has the freeze it was once rolled back for). · B2 — per-member `overrides`
+  ROADMAP_HISTORY.md → "The login freeze" has the freeze it was once rolled back for). · B2 — per-member `overrides`
   isolation, permissive 3-tier `name || admin || manager`, plus the `manager` claim in
   `setupRosterAuth`. · **B3 — strict cutover (v16.29):** the `!('name' in token)` legacy escape removed
   from `overrides` create/update AND delete; shipped via the `CLAIM_EPOCH` sweep + `writeWithClaimRetry`

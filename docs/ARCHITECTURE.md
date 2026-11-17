@@ -78,7 +78,6 @@ live anchors:
 | `CREDENTIAL_LIFECYCLE.md` | **Proposed** — nothing in it is started | Design + sequencing only; status stays in the canonical table. §7 is an OPEN owner decision and must not be actioned as though it were settled |
 | `AUTH_ARCHITECTURE.md` | Track 1 complete | Code comments cite it by phase number |
 | `OTHER_DAYS.md` | Shipped | Code comments cite "OTHER_DAYS.md decision N" |
-| `LOGIN_INCIDENT.md` | Resolved | `PASSWORD_DESIGN.md` and `AUTH_AND_SESSIONS.md` send you here before touching login |
 | `LATENCY.md` | **CLOSED 19 Sep 2026 — nothing open.** The wall is the `accounts:lookup` round trip. The fast path built against it rarely fired, and was retired on 26 Sep 2026 and replaced by the own-roster copy (`CALENDAR_DATA.md` 17); Phase 2 closed on its own rule; Phase 3 measured and declined; Phase 4's trigger unfired. The App Speed card that carried its instruments was trimmed on 25 Oct 2026 | Holds the readings, the decision rules, and THE CLOSING READ of 19 Sep 2026 |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the Dec 2026 project context |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |

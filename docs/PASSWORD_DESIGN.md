@@ -41,7 +41,7 @@ SECURITY_RELEASE_PLAN.md → Track C with the email half deferred: it delivers *
 the recovery path) **+ C3** (self-service change), defers **C2** (email verification), and leaves
 **C5** (retire the surname — irreversible, ≥90% gate) exactly as planned. The two critical review fixes
 (§3.2, §3.3) are load-bearing — do not change either without re-reading them. Not version-stamped; not
-a runtime asset. **Read LOGIN_INCIDENT.md before touching any of this.***
+a runtime asset. **Read ROADMAP_HISTORY.md → "The login freeze" before touching any of this.***
 
 ---
 
@@ -161,7 +161,7 @@ retried. The client 3-strikes-30s lockout is keyed off returned failures. The lo
 (a per-member hint would need a Firestore read on the login path — forbidden): *"Your surname in
 lowercase — or the password you've set yourself."*
 
-### 3.6 Invariants preserved verbatim (LOGIN_INCIDENT.md)
+### 3.6 Invariants preserved verbatim (the login freeze, ROADMAP_HISTORY.md)
 The login contract: 8s `withTimeout`, **`saveSession` only after auth resolves**, visible "Signing in…"
 disabled button. The `_attempting` mutex, `_signingIn` back-guard, and `_authGen` stale-auth generation
 guard all survive unchanged. **No Firestore read (or any slow await) on the login→reload critical
