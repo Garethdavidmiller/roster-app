@@ -250,7 +250,9 @@ Every roster measured prints Sunday first, and the header row used to be dropped
 so a template printed Monday first would have handed every row over a day early, every check agreeing.
 `readGridPage` now reads the header (six of its seven day cells must name a day, through
 `headerToDayIndex`): a page whose header runs in any other order gives no rows, and the cell path runs
-only once a header has been read Sunday to Saturday (`no-day-header` otherwise). **And one row is one
+only once a header has been read Sunday to Saturday (`no-day-header` otherwise). No real roster was to
+hand, so the first import after it shipped is the check: its path line must not say `no-day-header` —
+if it does, the sheet's header names no day the reader knows, and the cell path is off until it does. **And one row is one
 member's**: a row two names match — a member absent from the sheet whose name is part of a
 colleague's, or two people in one band — is `shared-row`, and the witness gives neither a signal.
 
