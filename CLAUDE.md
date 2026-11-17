@@ -74,8 +74,9 @@ breakage".
 
 **After every merge that deploys, run `npm run test:live` once Deploy Firebase Hosting, and the
 mirror's deploy that follows it, have FINISHED** — not at the merge. The deploy runs the whole
-browser suite before it releases anything, so a check started at the merge reads the previous
-release, and its pass says nothing about the new one. A merge whose files all sit in that workflow's
+browser suite before it releases anything (about two minutes, not ten, when the PR's own run already
+passed it on the identical tree — `deploy-hosting.yml`'s `tested` job), so a check started at the
+merge reads the previous release, and its pass says nothing about the new one. A merge whose files all sit in that workflow's
 `paths-ignore` (docs, tests, workflows, Functions, rules) starts no Hosting deploy, so there is
 nothing to wait for.
 

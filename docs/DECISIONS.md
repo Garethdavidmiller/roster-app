@@ -386,6 +386,23 @@ shown that yet.
   cost: three shards per project, the same list in both workflows, 5 to 8 minutes a job on the first
   run against 16 to 18. `fullyParallel` came with it, so a shard is a count of tests, not of files.
 
+- **CI made quicker in three ways; the release gate may reuse a pull request's proof — ADOPTED**
+  (owner, 17 Nov 2026). Measured on #1803: the pull-request checks took about 15 minutes and a
+  release about 11, almost all of it test time, not setup. (1) **Shards are cut by measured time**, not
+  by count: Playwright's equal-count cut gave each project's first shard every heavy file (desktop
+  Chrome 9.3 minutes against 5.2 and 4.7). Each entry's `weights` moves the cut; they drift towards
+  uneven, never towards wrong, and `workflow-hygiene.test.mjs` fails if Playwright stops reading
+  them. WebKit and the iPhone went to four shards each. (2) **A documentation-only pull request skips the
+  browser jobs**: pushes of `.md` alone already started no run. (3) **The Hosting deploy skips its gate
+  jobs when the pull request's Tests run passed the same four on the identical tree.** That is the one
+  that touches the release gate, so it fails closed at every step: only a push, only a record e2e.yml
+  made in this repository, only after all four counterparts SUCCEEDED, only on a byte-identical
+  tree. Main having moved since the PR's run, a red run, an expired record or an API error all run the
+  full gate. **What it gives up:** a second run of the same tests on the same files, which can only
+  catch a test that flakes. **Declined alongside:** more Playwright workers per runner (measured as a
+  flake source, playwright.webkit.mjs), larger paid runners, dropping the one retry. Bounded by the
+  free plan's ~20 concurrent jobs: a job added to the run is also a job that queues.
+
 - **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
   `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
   app already leans on `:has()` in several stylesheets, and the other uses fail *worse*: an unsupported

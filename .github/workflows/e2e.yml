@@ -675,7 +675,7 @@ jobs:
   # shards each come to 15.3 and 17.3 test-minutes a shard, about 8 and 9 minutes on two workers,
   # where three count-equal shards had run up to 25 and 26. The two Links projects run whole: 13.5
   # and 13.7 test-minutes, about 7 each, under the other shards, so the iPhone's second Links shard
-  # no longer buys anything. That keeps the run at 26 jobs — GitHub runs about 20 of one account's
+  # no longer buys anything. That keeps the run at 26 jobs at the start (`tested` comes at the end) — GitHub runs about 20 of one account's
   # jobs at once, and three of #1803's waited up to 69 seconds for a runner, so a job added here is
   # also a job queued.
   #
@@ -1452,3 +1452,45 @@ jobs:
             -f output[summary]="$SUMMARY" \
             --silent \
             || echo "::warning::Could not publish the visual-baselines check run — the PR comment and the visual-diffs artifact still carry the result."
+
+  # ── THE PROOF THE HOSTING DEPLOY CAN REUSE (17 Nov 2026) ─────────────────────────────────────
+  #
+  # When `unit`, every `smoke` shard, `csp` and `signed-in` have all SUCCEEDED, this records the
+  # tree they checked out, as an artifact named tested-tree-<tree hash>. Those four are
+  # deploy-hosting.yml's gate, run the same way. A pull request whose branch is up to date with main
+  # squash-merges into that same tree, and the Hosting deploy then finds this record and skips
+  # re-running them: its `tested` job has the account, and the rules for what counts as proof.
+  #
+  # It records only on success: each of the four is named in the condition, because `!cancelled()`
+  # (which every job here carries, workflow-hygiene.test.mjs says why) would otherwise run it after a
+  # red one. A docs-only PR skips the browser jobs, so it records nothing, which is right: its
+  # browsers never ran. The tree comes from the API, not a checkout, so the job costs seconds.
+  tested:
+    needs: [guard, unit, smoke, csp, signed-in]
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.unit.result == 'success' && needs.smoke.result == 'success' && needs.csp.result == 'success' && needs.signed-in.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Name the tree the jobs above tested
+        id: tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha)
+          printf '%s' "$tree" | grep -qxE '[0-9a-f]{40}'
+          echo "commit $SHA has tree $tree"
+          printf 'commit %s\ntree %s\n' "$SHA" "$tree" > "$RUNNER_TEMP/tested-tree.txt"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+
+      - name: Record it for the Hosting deploy
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tested-tree-${{ steps.tree.outputs.tree }}
+          path: ${{ runner.temp }}/tested-tree.txt
+          retention-days: 7
+          # A re-run of this run records the same tree again.
+          overwrite: true
