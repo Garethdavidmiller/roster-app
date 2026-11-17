@@ -189,7 +189,7 @@ Object.assign(exports, buildDocumentEndpoints({
  *     dates:       ["2026-03-29", ..., "2026-04-04"],   // Sun → Sat
  *     crossCheck, missingMembers, duplicateMembers, choices, geometry, geometryRefused,   // the review's evidence — each explained where it is sent
  *     parsed: [
- *       { memberName: "L. Springer", shifts: { "2026-03-29": "RD", "2026-03-30": "05:30-11:30", ... } },
+ *       { memberName: "A. Person", shifts: { "2026-03-29": "RD", "2026-03-30": "05:30-11:30", ... } },
  *       ...
  *     ]
  *   }
