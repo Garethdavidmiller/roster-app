@@ -605,7 +605,7 @@ working notes are `.claude/rules/sessions.md`, which loads with the session and 
   (AUTH_AND_SESSIONS 3). **The `manager` tier is load-bearing** (on-behalf edits, daily); **do NOT
   grant managers `admin: true`.** A newly listed manager needs Set up accounts and a token refresh.
 
-**New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
+**New starter:** invoke `/new-starter` — the skill has the full checklist, in the order it must run (the account step comes only after the roster change has deployed), the mid-year field reference and the pro-rata formula invariant.
 
 **The depot annual-leave workbook (the roster clerks' Excel file):** invoke `/al-workbook` the moment one is uploaded, or any question is asked about somebody's leave, allowance or days remaining. It is a TRIGGER, not a checklist — it sends you to `docs/AL_WORKBOOK.md` §0 and requires the learnings to be written back in the same session. **Read §0 before answering from the spreadsheet** — answering first has gone wrong twice, on the same person, in sessions that had the document: a person's `AL over depot quota` days are real leave, invisible in the calendar grid, and belong in any list of their annual leave. The sheet is checked against the app with a sealed leave file (`scripts/make-leave-file.mjs`; AL_WORKBOOK.md, OPERATIONS_REFERENCE.md). **A leave file names colleagues: it never enters the tree** (`leave-file-privacy.test.mjs`).
 
