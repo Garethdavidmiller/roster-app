@@ -809,6 +809,32 @@ test('calendar: the Today highlight moves when the local date turns', async ({ p
     await expect.poll(async () => (await today.textContent())?.trim()).not.toBe(before);
 });
 
+// THE ROW TEAM VIEW MARKS AS THE READER'S OWN IS THE MEMBER SIGNED IN (17 Nov 2026) — through the page's
+// own wiring (`ownName`), which the unit test cannot reach. It was the picker's member: a colleague's
+// row on a colleague's calendar, and on the staff PIN whoever was chosen last. Two current CEAs are
+// taken from the roster by position, so no name is written here.
+test('team view: the row marked as the reader\'s own is the member signed in, never the picker\'s', async ({ page }) => {
+    const [me, colleague] = teamMembers.filter(m => !m.hidden && m.role === 'CEA');
+    await seedMemberSession(page, me.name);
+    await page.addInitScript((n) => localStorage.setItem('myb_roster_selected_member', n), colleague.name);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    const mine = page.locator('tr.tv-my-row th.tv-name-col');
+    await expect(mine).toHaveCount(1);
+    await expect(mine, 'the colleague the picker shows was marked as the reader').toHaveText(me.name);
+});
+
+test('team view on the staff PIN marks nobody\'s row as the reader\'s own', async ({ page }) => {
+    const [someone] = teamMembers.filter(m => !m.hidden && m.role === 'CEA');
+    await seedMember(page, someone.name);   // the picker's last choice on a station PC
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('tr th.tv-name-col').first()).toBeVisible();
+    await expect(page.locator('tr.tv-my-row'), 'a station PC marked the last-chosen member as the reader').toHaveCount(0);
+});
+
 // …AND TEAM VIEW'S WEEK FOLLOWS THE SAME RULE AS THE MONTH (16 Nov 2026). It kept the week it was on, so
 // a phone resumed on Sunday morning showed last week with no today in it, while a reload opened on this
 // week. A grid on the old today's week moves with the date; a browsed week stays, until the member has
