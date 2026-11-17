@@ -572,6 +572,24 @@ describe('"agree" means the figures agree', () => {
         assert.deepEqual(compare(CEA, [], [AL(CEA, d)]).beyond, []);
     });
 
+    test('ONE of any reason is a reason: a single app-only day, a single undated day, an allowance alone — never the fallback', () => {
+        // Each of these used to be caught only by the safety net below when there was exactly one of it, so a
+        // threshold of "more than one" read as "figures differ, nothing shows why" over a reason the card names.
+        const d = find(CEA, '2026-07-01', timed);
+        const e = find(CEA, '2026-07-01', timed, [d]);
+        const appOnly = compare(CEA, [leave(CEA, d)], [AL(CEA, d), AL(CEA, e)], { sheet: { used: 1 } });
+        const undated = compare(CEA, [], [], { sheet: { columnE: 1, unexplained: 1 } });
+        const allowance = compare(CEA, [], [], { sheet: { allowance: 33 } });
+        for (const [what, res, key] of /** @type {Array<[string, any, string|null]>} */ ([
+            ['one app-only day', appOnly, 'app-only'], ['one undated day', undated, 'undated'], ['the allowance alone', allowance, null]])) {
+            if (key) assert.equal(res.counts[key], 1, `${what}: premise`);
+            else assert.equal(res.allowanceDiffers, true, `${what}: premise`);
+            assert.notEqual(res.figuresGap, 0, `${what}: premise — the figures part by it`);
+            assert.equal(res.needsALook, true, what);
+            assert.equal(res.counts.figures, 0, `${what} is a named reason, not "nothing shows why"`);
+        }
+    });
+
     test('the safety net: figures that differ for no reason the card names still need a look, and say so', () => {
         // Unreachable through a sealed file whose sums hold — so it is built by hand.
         const res = compare(CEA, [], [], { sheet: { corrected: 31 } });
