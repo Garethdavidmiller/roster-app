@@ -13,7 +13,7 @@ import { LOST_PHONE } from '../operations-reset.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
 import { describeRefusal } from '../al-leave-file.js';
 import { manualOverrideId } from '../override-id.js';
-import { dayLabel, appWords, chipsFor, totalsLines, totalsEntries, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
+import { dayLabel, appWords, chipsFor, totalsEntries, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
     moreDaysWords, notComparedWords, beyondHeadWords, SAVE_WORDS, questionWords, confirmWords, saveButtonWords, receiptWords,
     refusalWords, undoConfirmWords, undoneWords, savingWords, leftFreeWords } from '../al-leave-words.js';
 import { LEAVE_FILE_MAX_AGE_DAYS, LEAVE_FILE_MAX_BYTES } from '../al-leave-file.js';
@@ -4706,7 +4706,7 @@ test('operations annual leave sheet: each person is checked against their own re
     await expect(result.locator('.al-sheet-age')).toContainText('(2 days ago)');
     await expect(result.locator('.al-sheet-warn'), 'a fresh copy saved by the clerks carries no warning').toHaveCount(0);
     await expect(result.locator('.al-sheet-overall')).toHaveText(overallWords(1, 2));
-    await expect(result.locator('.al-sheet-totals li')).toHaveText(totalsLines({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }));
+    await expect(result.locator('.al-sheet-totals li')).toHaveText(totalsEntries({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }).map(e => e.text));
     // …and each line carries its kind, which is what colours its bullet like the chips below it.
     await expect(result.locator('.al-sheet-totals li')).toHaveClass(
         totalsEntries({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }).map(e => new RegExp(`al-sheet-total--${e.key}`)));
@@ -5033,7 +5033,7 @@ test('operations annual leave sheet: an old copy is flagged, and an allowance th
     await expect(result.locator('#alSheetSaveBtn, .al-sheet-confirm, .al-sheet-answer'), 'a check only').toHaveCount(0);
     await expect(result.locator('.al-sheet-note').last()).toHaveText(CARD_WORDS.checkOnly);
     await expect(result.locator('.al-sheet-overall')).toHaveText(overallWords(2, 2));
-    await expect(result.locator('.al-sheet-totals li').first()).toHaveText(totalsLines({}, 1)[0]);
+    await expect(result.locator('.al-sheet-totals li').first()).toHaveText(totalsEntries({}, 1)[0].text);
     await expect(result.locator('.al-sheet-heading'), 'nobody agrees now').not.toContainText([CARD_WORDS.agree]);
     // B's only difference is the allowance, and their closed row still says so.
     const b = result.locator('.al-sheet-person').filter({ has: page.locator('.al-sheet-name', { hasText: fx.B.name }) });

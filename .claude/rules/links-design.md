@@ -867,7 +867,7 @@ between the designers in Firestore (`linkTargetSets`), because the promise they 
 `generateLink({ slots, spareLines, lines })` tries **settled weeks** first and falls back to the
 **rotating window**. Which one ran is REPORTED in the status line, never silent, because they give
 visibly different designs. `generatePatterns` is the thin wrapper that returns the patterns only, kept
-for the callers and tests written against it. The reasoning and the measurements are the comment above
+for the construction tests written against it; the page calls `generateLink`. The reasoning and the measurements are the comment above
 the two constructions in `links-design.js`.
 
 1. **Settled weeks (default).** Slots are grouped into WAVES — starts within `WAVE_SPAN_MINUTES`, the

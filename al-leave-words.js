@@ -255,9 +255,6 @@ export function totalsEntries(totals, allowances = 0) {
         .map(([k, [one, many]]) => ({ key: k, text: `${totals[k]} ${totals[k] === 1 ? one : many}` }))];
 }
 
-/** The summary's lines, words only. @param {Record<string, number>} totals @param {number} [allowances] */
-export const totalsLines = (totals, allowances = 0) => totalsEntries(totals, allowances).map(e => e.text);
-
 /** Why a person is not compared. @param {string} reason */
 export function reasonWords(reason) {
     switch (reason) {
