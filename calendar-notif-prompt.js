@@ -147,6 +147,9 @@ export function initNotifPrompt({ authReady, getAccessType }) {
                 lsSet(NOTIF_PROMPT_DONE, '1');   // asked and declined — don't re-prompt
                 return;
             }
+            // GRANTED: the done flag is notif.js's to set, once the subscription is SAVED (`subscribe`).
+            // So a subscription that fails leaves it unset and the strip comes back saying so
+            // (`showFailed`) — both halves of "Enable answers it" (.claude/rules/calendar.md).
             // Already resolved — the prompt is only shown from inside a `authReady`
             // callback — but kept so the gesture/auth ordering above stays explicit at the one
             // place it matters.

@@ -400,6 +400,36 @@ test('a day panel open when access is lost closes with it — it does not stay o
     await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/visible/);
 });
 
+test('the month picker open when access is lost closes with it, and cannot move the month behind the lock card (17 Nov 2026)', async ({ page }) => {
+    // The day and leave panels closed on a lost grant; the month picker stayed open over the lock card,
+    // and "Go to month" moved and PERSISTED the month behind it, so the member signed back in to a month
+    // they had not chosen. The keyboard already refused there; the picker now does too.
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.month-year').click();
+    await expect(page.locator('#monthJumpOverlay')).toHaveClass(/visible/);
+    const stored = () => page.evaluate(() => localStorage.getItem('myb_roster_month'));
+    const before = await stored();
+
+    await page.evaluate(async () => {
+        const m = await import('./calendar-access.js');
+        m.handleAccessLost();
+    });
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await expect(page.locator('#monthJumpOverlay'), 'the picker stayed open over the lock card').not.toHaveClass(/visible/);
+
+    // A confirm that arrives anyway — a tap already on its way — moves nothing.
+    await page.evaluate(() => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('monthJumpMonth'));
+        sel.value = String((Number(sel.value) + 3) % 12);
+        document.getElementById('monthJumpConfirm')?.click();
+    });
+    expect(await stored(), 'a month was moved and kept behind the lock card').toBe(before);
+});
+
 test('Back from the PIN card the front door opened returns to the sign-in card, not out of the app (sign-in check, 11 Nov 2026)', async ({ page }) => {
     await page.goto('/index.html');
     await expect(page.locator('#loginPassword')).toBeVisible();

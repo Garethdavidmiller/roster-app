@@ -281,7 +281,7 @@ Firebase Auth initialises — `CALENDAR_DATA.md` 10); phase 2 waits for `authRea
   a moment for the cache paint; `dismissSyncError()` withdraws a recorded failure (never a running
   "Updating…") when the month panel's Try again takes over; the chip also withdraws a failure itself
   once the month on screen has been confirmed since.
-- Chip: hidden → "↻ Updating your shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
+- Chip: hidden → "↻ Updating shifts…" after 800 ms → "⚠ Couldn't update — try again" at the
   timeout. A press says "↻ Retrying…" for at most `RETRY_TIMEOUT_MS`, then gives the control back. The owed state is `_chipState`, not the DOM, and a `MutationObserver` puts the chip back
   whenever a header rebuild takes it away (beside `setChipState`).
 - **Whose outcome is it** (`standing`, internal). The boot's read and each retry are ATTEMPTS, each
@@ -793,7 +793,9 @@ the tooltip share. The reasoning is beside each function.
   Callers pass no `onRetryMonth` during that read. One delegated click opens the day panel on every
   pointer type.
 - `setSnapshotSource(fn)` — where a loading month's stored copy comes from (set by `calendar-app.js`).
-- `createCalendarHeader(...)` · `createDayCell(...)` · `dayCellParts(...)` → `{ forced, badgeWord,
+- `createCalendarHeader(first, last, prefix, month, year, cycleWeeks?)` — a range that runs off the end of
+  the cycle says both ends ("CEA Weeks 19–20, 1–3"), never one run backwards ·
+  `createDayCell(...)` · `dayCellParts(...)` → `{ forced, badgeWord,
   timeShown }` · `dayCellName({...})` — the cell and its accessible name come from one answer, and the
   name contains what the cell shows (WCAG 2.5.3) · `getSwipeDirection(...)`.
 - For the day panel: `shiftWords(shift, member, derivedRdw, alwaysTime?)` (one ladder for the shift and

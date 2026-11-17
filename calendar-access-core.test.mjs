@@ -149,6 +149,8 @@ describe('classifyUnlockFailure — the words a member reads', () => {
         const f = classifyUnlockFailure({ status: 401, offline: true });
         assert.equal(f.kind, 'offline');
         assert.match(f.message, /online/i);
+        // Not "online ONCE": every unlock asks the server, so a one-time step is the wrong promise.
+        assert.doesNotMatch(f.message, /\bonce\b/i, `"${f.message}" reads as a one-time step`);
     });
 
     test('401 and 403 are the same rejection, and say to try again', () => {

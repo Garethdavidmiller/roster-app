@@ -141,9 +141,10 @@ function _markReadyIfGridShown() {
 let openAboutLightbox = null;
 
 // Returned by initCalendarLightboxes(); lets a day-cell click or tap (any pointer)
-// open the day panel — the fuller form of what the hover tooltip previews — and
-// lets renderCalendar() close the AL lightbox on
-// member change (stale data). Both handles are ready before the swipe init.
+// open the day panel — the fuller form of what the hover tooltip previews — and lets
+// the redraw scheduler's `nameApplied` (below) close the AL lightbox when the name
+// picker changes member (its figures would be the previous name's). Both handles are
+// ready before the swipe init.
 // NOT deferred behind Calendar access, and checked rather than assumed (v20.12). This attaches
 // handlers; it fetches nothing. The AL lightbox's own Firestore read happens in its `onOpen`, fired
 // by `#alBtn`, which lives inside `#calendarControls` — hidden while locked, so out of the
@@ -326,9 +327,18 @@ const updateLegend = () => legend.update();
 function _showStaleMemberBanner(staleName, fallbackName) {
     const banner = document.getElementById('errorBanner');
     if (!banner) return;
-    banner.textContent = `"${staleName}" is no longer in the roster — showing ${fallbackName}'s calendar. Use the dropdown to select the correct person.`;
+    // A LINE OF ITS OWN, BESIDE WHATEVER THE BANNER ALREADY SAYS (17 Nov 2026). The start-up roster
+    // check writes its warning here first, to stay until a reload; this line replaced it, and its
+    // 30-second timer then hid the banner with that warning gone too. Now only this line times out,
+    // and the banner goes with it only when nothing else is left in it.
+    const line = document.createElement('div');
+    line.textContent = `"${staleName}" is no longer in the roster — showing ${fallbackName}'s calendar. Use the dropdown to select the correct person.`;
+    banner.appendChild(line);
     banner.classList.add('visible');
-    setTimeout(() => banner.classList.remove('visible'), 30000);
+    setTimeout(() => {
+        line.remove();
+        if (!banner.textContent?.trim()) banner.classList.remove('visible');
+    }, 30000);
 }
 
 /**
@@ -865,7 +875,12 @@ try {
                 }
             });
 
+            // A LOST GRANT TAKES THE PICKER WITH IT (17 Nov 2026), as it takes the leave and day panels:
+            // left open over the lock card, "Go to month" moved and PERSISTED the month behind it, so the
+            // member signed back in to a month they had not chosen — the keyboard already refuses below.
+            onCalendarAccess(({ open }) => { if (!open) picker.close(); });
             btnConfirm?.addEventListener('click', () => {
+                if (getAccessType() === 'none') { picker.close(); return; }
                 setDisplayMonth(parseInt(selMonth.value, 10));
                 setDisplayYear(parseInt(selYear.value, 10));
                 picker.close();

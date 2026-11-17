@@ -24,8 +24,21 @@ export function initCalendarTooltip() {
   tip.setAttribute('aria-hidden', 'true');
   document.body.appendChild(tip);
 
+  // A MOUSE'S PREVIEW, NEVER A FINGER'S (17 Nov 2026). The query above describes the device's PRIMARY
+  // pointer, and a touchscreen laptop or a tablet with a trackpad reports the trackpad — so a finger on
+  // the screen fires the compatibility mouseover that follows every tap, and the tip stuck where the
+  // finger had been, back over the grid once the day panel closed. Pointer events name the input that
+  // moved, so the tip answers only to a mouse (or trackpad); a touch or a pen takes it down.
+  let _byMouse = true;
+  const notePointer = (/** @type {PointerEvent} */ e) => {
+    _byMouse = e.pointerType === 'mouse';
+    if (!_byMouse) tip.hidden = true;
+  };
+  for (const type of ['pointerover', 'pointermove', 'pointerdown']) document.addEventListener(type, /** @type {any} */ (notePointer), true);
+
   let _tipW = 0, _tipH = 0;
   document.addEventListener('mouseover', e => {
+    if (!_byMouse) { tip.hidden = true; return; }
     const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day[data-tooltip]'));
     if (!cell) { tip.hidden = true; return; }
     tip.textContent = cell.dataset.tooltip ?? '';
@@ -40,6 +53,7 @@ export function initCalendarTooltip() {
     // (keyboard PageUp/Down, Enter, a swipe) re-renders the grid under a stationary cursor, swapping
     // the cell's DOM node without firing mouseover — so without re-reading here the tip kept showing
     // the PREVIOUS month's text until the cursor next crossed a cell boundary (v16.22).
+    if (!_byMouse) { tip.hidden = true; return; }
     const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day[data-tooltip]'));
     if (!cell) { tip.hidden = true; return; }
     const text = cell.dataset.tooltip ?? '';

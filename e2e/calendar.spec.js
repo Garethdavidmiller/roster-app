@@ -401,7 +401,7 @@ test('calendar: after the panel retry succeeds, no "couldn\'t update" chip is le
 });
 
 // ONE MESSAGE AT A TIME (polish round 2). The withheld-grid panel and the header sync chip used to say
-// the same thing together — "Checking this month" beside "Updating your shifts…", "Couldn't check
+// the same thing together — "Checking this month" beside "Updating shifts…", "Couldn't check
 // this month" + Try again beside "Couldn't update — try again". The chip now steps back while a
 // panel speaks, and ONLY then: over a painted grid it is the only thing saying a sync is running.
 //
@@ -1357,6 +1357,34 @@ test('calendar: a removed saved member falls back to the calendar + stale banner
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.first-run-prompt')).toHaveCount(0);
     await expect(page.locator('#errorBanner')).toContainText('no longer in the roster');
+});
+
+test('calendar: the removed-member line sits beside the banner\'s warning, and its timer takes only itself away (17 Nov 2026)', async ({ page }) => {
+    // The banner is shared with the start-up roster check, whose warning stays until a reload. The
+    // removed-member line REPLACED it, and its 30-second timer then hid the banner — warning and all.
+    // A warning already in the banner stands in for the check's (the roster cannot be made to fail it).
+    await page.clock.install({ time: new Date(2026, 8, 16, 9, 0, 0) });
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent');
+        // As the banner is parsed — before any module runs, as the check's own warning comes first.
+        const seen = new MutationObserver(() => {
+            const b = document.getElementById('errorBanner');
+            if (!b) return;
+            seen.disconnect();
+            b.textContent = 'Roster check warning';
+            b.classList.add('visible');
+        });
+        seen.observe(document, { childList: true, subtree: true });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const banner = page.locator('#errorBanner');
+    await expect(banner).toContainText('no longer in the roster');
+    await expect(banner, 'the removed-member line replaced the warning already there').toContainText('Roster check warning');
+    await page.clock.fastForward('00:31');
+    await expect(banner).not.toContainText('no longer in the roster');
+    await expect(banner, 'the 30-second timer hid the warning with its own line').toBeVisible();
+    await expect(banner).toContainText('Roster check warning');
 });
 
 test('calendar: member dropdown is populated by JS from teamMembers', async ({ page }) => {

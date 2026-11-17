@@ -272,7 +272,7 @@ describe('a Dispatcher is counted ONCE (owner, 5 Nov 2026)', () => {
         assert.equal(split.boxingDay, 1);
         assert.equal(split.base + split.lieu + split.boxingDay, entitlementFor(DISP_2026, 2027, worked));
         assert.equal(entitlementNote({ member: DISP_2026, year: 2027, overrides: worked }),
-            `22 base + ${split.lieu} BH lieu + 1 in lieu for Boxing Day 2026`);
+            `22 + ${split.lieu} for bank holidays worked + 1 for working Boxing Day 2026`);
         assert.equal(dispatcherBreakdown({ member: DISP_2026, year: 2026, overrides: worked })?.boxingDay, 0);
     });
 });

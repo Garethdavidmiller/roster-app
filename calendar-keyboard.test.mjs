@@ -45,15 +45,26 @@ let clicked;
 /** @type {any[]} */
 let cells;
 
+/** Every other document listener, by type — the tooltip's. @type {Record<string, Function[]>} */
+const docListeners = {};
+/** The tooltip element the module builds. @type {any} */
+const tip = { id: '', hidden: true, textContent: '', style: {}, setAttribute() {},
+              getBoundingClientRect: () => ({ width: 120, height: 24 }) };
 globalThis.document = /** @type {any} */ ({
-    addEventListener: (/** @type {string} */ type, /** @type {any} */ fn) => { if (type === 'keydown') keydown = fn; },
+    addEventListener: (/** @type {string} */ type, /** @type {any} */ fn) => {
+        if (type === 'keydown') keydown = fn; else (docListeners[type] ||= []).push(fn);
+    },
     get activeElement() { return doc.activeElement; },
     querySelectorAll: () => cells,
     getElementById: (/** @type {string} */ id) => ({ click: () => clicked.push(id) }),
+    createElement: () => tip,
+    body: { appendChild() {} },
 });
 doc = { activeElement: null };
+// A device whose PRIMARY pointer is fine and hovers — a touchscreen laptop reports its trackpad.
+globalThis.window = /** @type {any} */ ({ matchMedia: () => ({ matches: true }), innerWidth: 1280, innerHeight: 800 });
 
-const { initCalendarKeyboard } = await import('./calendar-keyboard.js');
+const { initCalendarKeyboard, initCalendarTooltip } = await import('./calendar-keyboard.js');
 /** @type {any[]} */
 const opened = [];
 initCalendarKeyboard({ navigateToPaycalc: () => false, openDayDetail: c => opened.push(c) });
@@ -150,5 +161,34 @@ describe('the stored copy before the grant is READ, never used (whole-app review
     test('the arrows still move between its cells', () => {
         assert.equal(press('ArrowRight'), true);
         assert.equal(doc.activeElement, cells[11]);
+    });
+});
+
+describe('the hover tooltip is a MOUSE\'s preview, never a finger\'s (17 Nov 2026)', () => {
+    // The media query is about the device's PRIMARY pointer, and a touchscreen laptop answers for its
+    // trackpad — so a finger on the screen fired the compatibility mouseover every tap is followed by,
+    // and the tip stuck where the finger had been. Pointer events name the input that moved.
+    initCalendarTooltip();
+    const day = { dataset: { tooltip: 'Early shift 06:00-14:00 · Payday' } };
+    const over = (/** @type {any} */ target) => { for (const fn of docListeners.mouseover || []) fn({ target }); };
+    const pointer = (/** @type {string} */ pointerType) => { for (const fn of docListeners.pointerover || []) fn({ pointerType }); };
+    const onDay = { closest: (/** @type {string} */ sel) => (sel === '.calendar-day[data-tooltip]' ? day : null) };
+
+    test('a mouse over a day shows the day\'s line (premise: the tip works at all)', () => {
+        tip.hidden = true;
+        pointer('mouse');
+        over(onDay);
+        assert.equal(tip.hidden, false);
+        assert.equal(tip.textContent, day.dataset.tooltip);
+    });
+
+    test('a finger on the same day leaves it down, and takes down one a mouse left up', () => {
+        pointer('mouse');
+        over(onDay);
+        assert.equal(tip.hidden, false, 'premise: the mouse put it up');
+        pointer('touch');   // the tap's own pointer events come first…
+        assert.equal(tip.hidden, true, 'a touch left the mouse\'s tip standing');
+        over(onDay);        // …then the compatibility mouseover every tap is followed by
+        assert.equal(tip.hidden, true, 'a tap on a touchscreen laptop put the hover tip up');
     });
 });

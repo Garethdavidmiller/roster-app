@@ -12,6 +12,7 @@
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 // ── Mock-controllable state ───────────────────────────────────────────────────
 
@@ -500,16 +501,16 @@ describe('failure path', () => {
         assert.equal(getSyncChip(), null, 'over THAT grid, which is current, the failure is withdrawn');
     });
 
-    test('…and only the failure: "Updating your shifts…" is still true over a confirmed month, so it comes back', (t) => {
+    test('…and only the failure: "Updating shifts…" is still true over a confirmed month, so it comes back', (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => new Promise(() => {});                  // the window's read is still out
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         t.mock.timers.tick(800);
-        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…', 'premise: the updating chip is up');
+        assert.equal(getSyncChip()?.textContent, '↻ Updating shifts…', 'premise: the updating chip is up');
         const now = new Date();
         noteKnowledge(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, 'authoritative');
         rebuildHeader();
-        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…',
+        assert.equal(getSyncChip()?.textContent, '↻ Updating shifts…',
             'a header rebuild over a confirmed month took away a sync that is still running');
     });
 
@@ -679,7 +680,7 @@ describe('sync-chip state machine', () => {
         t.mock.timers.tick(800);
         const chip = getSyncChip();
         assert.ok(chip, 'chip should appear after 800ms');
-        assert.equal(chip.textContent, '↻ Updating your shifts…');
+        assert.equal(chip.textContent, '↻ Updating shifts…');
         assert.equal(chip.disabled, true);
     });
 
@@ -1117,7 +1118,7 @@ describe('the read ticket: an outcome after access went stands down on every pat
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { renders++; }, onAccessLost: () => {} });
         await flushAsync();
         t.mock.timers.tick(800);
-        assert.equal(visibleChips().length, 1, 'premise: "Updating your shifts…"');
+        assert.equal(visibleChips().length, 1, 'premise: "Updating shifts…"');
         lock();
         _progressHistory = [];
         t.mock.timers.tick(9200);
@@ -1584,19 +1585,19 @@ describe('the loading chip survives a calendar re-render (v25.06)', () => {
     // The renderer withholds its own "couldn't check" note while the first read runs, so this chip is
     // the cached grid's only label during it. It was built by hand, outside the recorded state, so
     // the first header rebuild — a swipe, or a cache paint landing after 800ms — took it away for good.
-    test('a header rebuild after 800ms puts "Updating your shifts…" back', async (t) => {
+    test('a header rebuild after 800ms puts "Updating shifts…" back', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _fetchImpl = () => new Promise(() => {});   // the server read is still out
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         t.mock.timers.tick(800);
-        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…', 'precondition: the loading chip shows');
+        assert.equal(getSyncChip()?.textContent, '↻ Updating shifts…', 'precondition: the loading chip shows');
 
         rebuildHeader();
         await flushAsync();
 
         const chip = getSyncChip();
         assert.ok(chip, 'the read is still running, so its label must still be on screen after a rebuild');
-        assert.equal(chip.textContent, '↻ Updating your shifts…');
+        assert.equal(chip.textContent, '↻ Updating shifts…');
         assert.equal(chip.disabled, true, 'a loading chip is not a control');
     });
 });
@@ -1718,4 +1719,21 @@ describe('team view retry recovery', () => {
             'a failed retry re-claimed the months up-front, so it must release them again — otherwise ' +
             'one failed tap strands all three for the rest of the session');
     });
+});
+
+// ── WHAT TEAM VIEW'S HELP NOTE PROMISES IS WHAT THIS MODULE DOES (17 Nov 2026) ──────────────────────
+// The note said a change saved on Admin appears "the next time this page loads" — true until the
+// stale-month re-read (v24.67), and wrong for every page left open since. It now states the re-read's
+// worst case: a month read just after one check is released at the second, so twice STALE_MONTH_MS.
+// Read from both files, so the figure on screen cannot drift from the timer behind it.
+test('Team View\'s help note states the re-read\'s real worst case — twice STALE_MONTH_MS', () => {
+    const src  = readFileSync(new URL('./calendar-initial-fetch.js', import.meta.url), 'utf8');
+    const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+    const minutes = Number(/const STALE_MONTH_MS = (\d+) \* 60_000;/.exec(src)?.[1]);
+    assert.ok(minutes > 0, 'STALE_MONTH_MS is no longer written as minutes × 60_000 — read it another way');
+    const note = /<p class="team-info-note">([^<]*)<\/p>/.exec(html)?.[1] ?? '';
+    assert.match(note, new RegExp(`within ${minutes * 2} minutes while it stays open`),
+        `the note says "${note}" — the re-read reaches an open page within ${minutes * 2} minutes`);
+    assert.doesNotMatch(note, /next time this page loads/, 'the note still says only a reload shows a change');
+    assert.doesNotMatch(note, /your base roster/, 'Team View shows everybody\'s base roster, not the reader\'s');
 });
