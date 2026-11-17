@@ -1191,6 +1191,79 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await expect(page.locator('#trPatternHint')).toContainText('Sundays');
     });
 
+    // A PAGE LEFT IN VIEW TURNS BY ITSELF (whole-app check, Nov 2026). The page redrew only on a press, a
+    // Back or the tab coming back into view, so a station computer's tab — never hidden — kept Saturday's
+    // trains into Sunday morning: the lookup answered from them, and the countdown and day tab stayed put.
+    // `runFor` is the page's own minute passing; Date stays where `setFixedTime` puts it.
+    test('a page left in view turns at 03:00 by itself: the day, the countdown and the words with them', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-12-13T02:30:00'));   // still Saturday's railway day
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trCountdown')).toHaveText('Starts tomorrow');
+        await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        await page.clock.setFixedTime(new Date('2026-12-13T03:30:00'));   // the change has come; nothing pressed, never hidden
+        await page.clock.runFor(60_000);
+        await expect(page.locator('#trCountdown')).toHaveText('Starts today');
+        await expect(page.locator('[data-day="SU"]'), 'the day turned without a press').toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#trChangesHint')).toContainText('Sundays');
+        await expect(page.locator('#trLead')).toContainText('The timetable that ran until Saturday 12 December');
+    });
+
+    test('a time typed just after 03:00 is answered for the new day, before the page\'s minute comes round', async ({ page }) => {
+        // A December train that runs on Sundays and not Saturdays: asked on Saturday's tab, it has no answer.
+        const sat = new Set(TIMETABLES.dec.SO.dep.map(r => r[0]));
+        const sunday = /** @type {string} */ (TIMETABLES.dec.SU.dep.map(r => r[0]).find(t => t >= '07:00' && !sat.has(t)));
+        expect(sunday, 'premise: some December Sunday train has no Saturday twin').toBeTruthy();
+        await page.clock.setFixedTime(new Date('2026-12-13T02:50:00'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        await openLookup(page);
+        await page.clock.setFixedTime(new Date('2026-12-13T03:05:00'));
+        await page.locator('#trLookupInput').fill(sunday);
+        await expect(page.locator('#trLookupResult .tr-answer')).toContainText(`The ${sunday} to`);
+        await expect(page.locator('#trLookupResult')).not.toContainText('No Saturday train');
+        await expect(page.locator('[data-day="SU"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    // The overview opened on the ended message only when the page STARTED after the books ran out; a page
+    // open across that night kept the card folded with the message inside it.
+    test('a page left open past the end of December\'s books opens its overview on the message', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2027-05-15T22:00:00'));   // the books' last day
+        await seedSession(page, 'C. Reen');
+        await page.addInitScript(() => localStorage.setItem('myb_trains_overview_seen', '1'));
+        await page.goto('/trains.html');
+        await expect(page.locator('#trOverviewBody')).not.toHaveClass(/\bopen\b/);
+        await expect(page.locator('#trEnded')).toBeHidden();
+        await page.clock.setFixedTime(new Date('2027-05-16T03:30:00'));
+        await page.clock.runFor(60_000);
+        await expect(page.locator('#trCountdown')).toHaveText('Timetable ended');
+        await expect(page.locator('#trOverviewBody')).toHaveClass(/\bopen\b/);
+        await expect(page.locator('#trEnded')).toBeVisible();
+    });
+
+    // The ? panels were built once, at import: the Christmas and leaf-fall lines read in the present tense
+    // from 11 January to May. They are read as each panel opens now, so they go when the page's notes go.
+    test('the overview ? panel drops the lines about weeks that have ended, on a page left open across them', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2027-01-10T20:00:00'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        const tips = page.locator('.btn-card-tips[data-card="overview"]');
+        await tips.click();
+        await expect(page.locator('#tipsLbBody')).toContainText('Christmas and New Year are not on this page.');
+        await expect(page.locator('#tipsLbBody')).toContainText('leaf-fall');
+        await page.locator('#tipsLightboxClose').click();
+        await expect(page.locator('#tipsLightbox')).toBeHidden();
+        await page.clock.setFixedTime(new Date('2027-01-11T03:30:00'));
+        await tips.click();
+        await expect(page.locator('#tipsLbBody')).toContainText('Chiltern\'s public timetables');
+        await expect(page.locator('#tipsLbBody')).not.toContainText('Christmas');
+        await expect(page.locator('#tipsLbBody')).not.toContainText('leaf-fall');
+        await page.locator('#tipsLightboxClose').click();
+        await page.clock.runFor(60_000);
+        await expect(page.locator('#trFestive'), 'and the page\'s own Christmas line went with them').toBeHidden();
+    });
+
     // The station PIN opens this page (AUTH_AND_SESSIONS 24), but its session ends with the browser and
     // belongs to the tab that unlocked the Calendar, so a station computer can arrive here locked — and
     // the card asked only for a member's grade, name and password.

@@ -892,6 +892,21 @@ describe('the eight improvements (v24.94): Last trains, the remembered station, 
         assert.deepEqual(sat, { crs: hatton, now: '20:32', dec: '21:02', shift: 30, kind: 'later' });
     });
 
+    // The Last trains ? panel said the Monday-and-Friday trains are left out "as they are on a station's
+    // card" — but the card's own list shows them, with their days (whole-app check, Nov 2026). They are
+    // left out of the card's FIGURES, which is where its "Last train" comes from, and the panel says so.
+    test('the Last trains panel says where else the Monday-and-Friday trains are left out: a card\'s figures, not its list', () => {
+        const panel = CARD_TIPS.last.sections.flatMap(s => s.items.map(i => i.html)).join(' ');
+        assert.match(panel, /Mondays and Fridays are left out, as they are from the figures on a station's card/);
+        const mfo = /** @type {any} */ (TIMETABLES.now.SX.dep.find(r => r[3] === 'MFO'));
+        assert.ok(mfo, 'premise: a weekday train runs on Mondays and Fridays only');
+        const crs = mfo[1];
+        const view = stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, crs, 'dep', { change: CHANGE_DATE, started: false });
+        assert.equal(view.now.total, aRealDay(TIMETABLES.now.SX.dep).filter(r => callsOf(r).includes(crs)).length, 'the figures count one real day');
+        assert.match(renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: true, allTrains: true }), /Mon and Fri only/,
+            'and the list under them names the Monday-and-Friday train, with its days');
+    });
+
     test('renderLastTrains — banded by line, the moved time bold with a chip, a kept time quiet', () => {
         const labels = { old: 'Now', new: 'From 13 Dec' };
         const bands = stationBands([...TIMETABLES.now.SO.dep, ...TIMETABLES.dec.SO.dep]);

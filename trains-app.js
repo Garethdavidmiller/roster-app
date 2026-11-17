@@ -45,6 +45,12 @@
  * the lookup, and when both timetables have ended — read fresh on every render, so a page left open
  * over the change turns with it.
  *
+ * And a page left open IN VIEW turns too. A render came only from a press, a Back or the tab coming
+ * back into view, so the station computer's tab, never hidden, kept yesterday's kind of day — the
+ * lookup answered a Sunday morning from Saturday's trains — and its countdown, its Christmas line and
+ * its folded overview, past 03:00 and past the end of the books. So the page asks once a minute, and
+ * before a key in either box redraws one card, whether the railway day has turned (`turnIfNewDay`).
+ *
  * What comes after the preview — the teaching extras, and the at-a-glance page it becomes on
  * 13 December: docs/ROADMAP.md → "Trains page — what comes after the preview".
  */
@@ -66,7 +72,7 @@ import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { STATIONS } from './trains-data.js';
-import { CARD_TIPS } from './trains-tips.js';
+import { CARD_TIPS, tipsOn } from './trains-tips.js';
 import { railwayToday } from './trains-change.js';
 import { changesTitle, SIGN_IN_ABOUT } from './trains-render.js';
 import { DEC_STOPS_KNOWN, LAST_STATION_KEY, phase, renderOverview, renderChanges, renderPattern, renderStationPicks, renderLast,
@@ -83,6 +89,10 @@ const OVERVIEW_SEEN_KEY = 'myb_trains_overview_seen';
 /** Today's kind of day, as the day tabs name it — the RAILWAY day, which runs to 03:00. @returns {Day} */
 const todayDay = () => { const dow = railwayToday().getDay(); return dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX'; };
 let dayPinned = false;   // set once a day tab is pressed: the chosen day then survives the tab's sleep
+/** The railway day and the phase the page last drew (`render`) — how a page left open notices either turn. */
+const drawn = { day: '', phase: '' };
+/** The overview's collapse, opened by `render` when the page turns to both timetables having ended. */
+let overviewCard = { setOpen(/** @type {boolean} */ _open) {} };
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -147,8 +157,10 @@ function start(member) {
     openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — Trains', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();
 
-    // The changes panel is titled as its view is, which turns at the change (`changesTitle`) — read as it opens.
-    initTipsLightbox({ ...CARD_TIPS, get changes() { return { ...CARD_TIPS.changes, title: `🔔 ${changesTitle(phase().started)}` }; } }, { getIsAdmin: () => isAdmin });
+    // Each ? panel is read as it opens, for the railway day it is then (trains-tips.js → `tipsOn`): its
+    // title turns at the change, and a line about weeks that have ended goes, on a page left open too.
+    initTipsLightbox(Object.defineProperties({}, Object.fromEntries(Object.keys(CARD_TIPS).map(key =>
+        [key, { enumerable: true, get: () => tipsOn(railwayToday())[key] }]))), { getIsAdmin: () => isAdmin });
     const cards = Object.fromEntries(['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern', 'trLast', 'trJump'].map(id => [id,
         // Opening the lookup — by its chevron or its header — puts the cursor in the box: that is what
         // a member opened it to do. `setOpen` runs the same callback, but only ever with `false` here.
@@ -156,8 +168,10 @@ function start(member) {
     // OPEN ON THE ANSWERS (the header). The overview is read once; from the next visit its header —
     // title, hint and the countdown chip — says everything it needs to, and the card opens collapsed.
     // The Christmas line is not in the fold, so folding never hides it (trains.html). Except
-    // when both timetables have ended: then its one message IS the card's, and must be seen.
-    if (lsGet(OVERVIEW_SEEN_KEY) && phase().phase !== 'ended') cards.trOverview.setOpen(false);
+    // when both timetables have ended: then its one message IS the card's, and must be seen —
+    // which `render` sees to, on this first draw and on the draw that finds the page has turned.
+    overviewCard = cards.trOverview;
+    if (lsGet(OVERVIEW_SEEN_KEY)) cards.trOverview.setOpen(false);
     lsSet(OVERVIEW_SEEN_KEY, '1');
     // On a phone the lookup sits above the changes list and starts collapsed: its header says what it
     // is for, the list stays the first thing read, and the box is one tap away rather than two
@@ -186,6 +200,8 @@ function start(member) {
     // A tab left open overnight (the station PC's, since the PIN reads this page) comes back on TODAY's
     // kind of day unless somebody chose one; the labels and the phase re-read too (`render`).
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(state); });
+    // …and one that is never hidden is asked each minute (the header's "On and after the change").
+    setInterval(() => { if (document.visibilityState === 'visible') turnIfNewDay(state); }, 60_000);
 
     if (member) {
         sessionReady.then(() => {
@@ -216,6 +232,11 @@ async function lockStaffPin() {
 function render(state) {
     if (!dayPinned && state.day !== todayDay()) { state.day = todayDay(); state.gridCol = null; }
     const p = phase();
+    // Both timetables ending is the overview's one message, so the card opens for it: on the first draw,
+    // which a return visit had folded, and on the draw that finds the page has turned to it while open.
+    if (p.phase === 'ended' && drawn.phase !== 'ended') overviewCard.setOpen(true);
+    drawn.day = railwayToday().toDateString();
+    drawn.phase = p.phase;
     renderOverview(p);
     for (const b of /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('[data-day],[data-view],[data-sdir],[data-grid]')])) {
         const on = b.dataset.day ? b.dataset.day === state.day : b.dataset.view ? b.dataset.view === state.view
@@ -241,6 +262,13 @@ function render(state) {
     // The fixed copy of the grid's column heads: rebuilt from whatever the grid now is — including
     // nothing, when another view is on screen (trains-grid-mirror.js).
     syncGridMirror(state.view === 'grid' ? el('trPattern') : null);
+}
+
+/** Redraw the whole page if the railway day has turned since it was drawn (the header). @param {PageState} state @returns {boolean} whether it did */
+function turnIfNewDay(state) {
+    if (railwayToday().toDateString() === drawn.day) return false;
+    render(state);
+    return true;
 }
 
 // ── Wiring ──────────────────────────────────────────────────────────────────────────────────────
@@ -299,8 +327,10 @@ function wire(state) {
         state.view = 'changes';
         render(state);
     });
-    el('trLookupInput')?.addEventListener('input', () => renderLookup(state));
-    el('trStationInput')?.addEventListener('input', () => renderStationPicks(state));
+    // A key redraws its own card — unless the railway day has turned since the page was drawn, when the
+    // whole page turns first and the answer is that day's, not the one the page was opened on.
+    el('trLookupInput')?.addEventListener('input', () => { if (!turnIfNewDay(state)) renderLookup(state); });
+    el('trStationInput')?.addEventListener('input', () => { if (!turnIfNewDay(state)) renderStationPicks(state); });
     // Enter takes the first match — with one station left, it is the one meant.
     el('trStationInput')?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') /** @type {HTMLElement|null} */ (el('trStationPicks')?.querySelector('button[data-station]') ?? null)?.click();
