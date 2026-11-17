@@ -100,8 +100,9 @@
 
 'use strict';
 
-const { BLANK_CELL_TOKEN, reviewLabel } = require('./roster-parse-helpers');
+const { BLANK_CELL_TOKEN, reviewLabel, headerToDayIndex } = require('./roster-parse-helpers');
 const { weekEndingsOnPage } = require('./roster-week-heading');
+const { printsNothing } = require('./cell-day-rules');
 
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -282,17 +283,73 @@ function rulesFromOperatorList(ops, OPS) {
 
 // ── 2. Text runs → cells ────────────────────────────────────────────────────────────────────────
 
+// ── A CELL'S DAY IS ITS COLUMN'S, SO THE COLUMNS' ORDER IS READ (review, Nov 2026) ──────────────
+//
+// Every cell takes its day from its column's POSITION — the first day column is Sunday because every
+// roster measured prints Sunday first. Nothing read the sheet's own header row to say so: it was page
+// furniture, dropped with the title. So a template printed Monday first was read cleanly, every member
+// placed, and each row handed over a day early — Monday's duties as Sunday's — with nothing on the
+// review to say so. The header is now read before it is dropped: a page whose header names the days in
+// any other order gives no rows (`extractRosterGeometry`), and the cell path runs only once a header
+// has been read in order (`buildCellTable`, roster-prompt.js).
+
+/** A header cell's day — `headerToDayIndex` of a line or a word of it — or undefined when it names
+ *  none, or more than one. "Sunday", "Sun 30/08" and "30/08 | Sun" all name Sunday.
+ *  @param {string} cell @returns {number|undefined} */
+function dayNamedBy(cell) {
+    const found = new Set();
+    for (const line of String(cell ?? '').split('|')) {
+        for (const part of [line, ...line.trim().split(/\s+/)]) {
+            const day = headerToDayIndex(part);
+            if (day !== undefined) found.add(day);
+        }
+    }
+    return found.size === 1 ? [...found][0] : undefined;
+}
+
+/** How many of a band's seven day cells must name a day for it to be the day header: SIX. One may be
+ *  unreadable (a label printed left of its rule lands in the name column), and with six read, no order
+ *  but Sunday to Saturday can pass: a reorder moves at least two days, and only one cell is left to
+ *  hide one in. */
+const DAY_HEADER_MIN = 6;
+
 /**
- * Assign every text run on one page to its physical (row, column) cell.
+ * The days a band names, when it is the day header — its name cell, furniture or empty, plays no part
+ * — or null when it is not.
+ * @param {string[]} cells @returns {Array<number|undefined>|null}
+ */
+function headerDays(cells) {
+    const days = cells.map(dayNamedBy);
+    return days.filter(d => d !== undefined).length >= DAY_HEADER_MIN ? days : null;
+}
+
+/** The order every read assumes: each header cell that names a day names its own column's. */
+const inWeekOrder = (/** @type {Array<number|undefined>} */ days) => days.every((d, i) => d === undefined || d === i);
+
+/**
+ * Assign every text run on one page to its physical (row, column) cell — the page's member rows.
  *
  * PURE: takes the runs and the rules, returns member rows. The pdfjs shapes are flattened first so
- * this can be driven from a JSON fixture without a PDF.
+ * this can be driven from a JSON fixture without a PDF. `readGridPage` is the same read with the
+ * page's day header counted too.
  *
  * @param {{ items: Array<{ str: string, x: number, y: number }>, vx: number[], hy: number[] }} page
  * @returns {Array<{ name: string, cells: string[], occupancy: boolean[] }>|null}
  *   null when the page does not carry the nine-column grid (the caller counts it as rejected)
  */
-function assignRunsToGrid({ items, vx, hy }) {
+function assignRunsToGrid(page) {
+    const read = readGridPage(page);
+    return read && read.rows;
+}
+
+/**
+ * One page: its member rows, and its day header — `headers` read Sunday to Saturday, `misordered`
+ * read in any other order. PURE, as `assignRunsToGrid`.
+ *
+ * @param {{ items: Array<{ str: string, x: number, y: number }>, vx: number[], hy: number[] }} page
+ * @returns {{ rows: Array<{ name: string, cells: string[], occupancy: boolean[] }>, headers: number, misordered: number }|null}
+ */
+function readGridPage({ items, vx, hy }) {
     if (!Array.isArray(vx) || vx.length !== GRID_COLUMNS) return null;
     if (!Array.isArray(hy) || hy.length < 2) return null;
 
@@ -316,10 +373,10 @@ function assignRunsToGrid({ items, vx, hy }) {
 
     /** @type {Array<{ name: string, cells: string[], occupancy: boolean[] }>} */
     const out = [];
+    let headers = 0, misordered = 0;
     for (const [, r] of [...byRow.entries()].sort((p, q) => p[0] - q[0])) {
         const name = r.name.join(' ').replace(/\s+/g, ' ').trim();
-        if (!name || FURNITURE_NAME.test(name)) continue;
-        const cells = r.cells.map(cellRuns => {
+        const cells = r.cells.map((/** @type {Array<{ s: string, x: number, y: number }>} */ cellRuns) => {
             // Group by line (y), top line first; within a line, left to right.
             /** @type {Map<number, Array<{ s: string, x: number, y: number }>>} */
             const lines = new Map();
@@ -333,22 +390,29 @@ function assignRunsToGrid({ items, vx, hy }) {
                 .map(([, runs]) => runs.sort((p, q) => p.x - q.x).map(i => i.s).join('').replace(/\s+/g, ' ').trim())
                 .filter(Boolean).join(' | ');
         });
+        // The day header, by what its cells NAME (above) — read, then dropped like other furniture.
+        const days = headerDays(cells);
+        if (days) { if (inWeekOrder(days)) headers++; else misordered++; continue; }
+        if (!name || FURNITURE_NAME.test(name)) continue;
         // The footer, by CONTENT — its name is not always the first thing in the row.
         if (cells.some(c => FOOTER_CELL.test(c))) continue;
-        out.push({ name, cells, occupancy: cells.map(c => c.length > 0) });
+        // A cell printing only a dash is EMPTY, as it is to every read of a cell (`printsNothing`).
+        out.push({ name, cells, occupancy: cells.map(c => !printsNothing(c)) });
     }
-    return out;
+    return { rows: out, headers, misordered };
 }
 
 // ── 3. The adapter — the only code that touches pdfjs ───────────────────────────────────────────
 
-/** @typedef {{ available: boolean, reason?: string, rows: Array<{ name: string, cells: string[], occupancy: boolean[] }>, pagesRead: number, pagesRejected: number, weekEndings?: Array<{ printed: string, iso: string|null }> }} RosterGeometry */
+/** @typedef {{ available: boolean, reason?: string, rows: Array<{ name: string, cells: string[], occupancy: boolean[] }>, pagesRead: number, pagesRejected: number, weekEndings?: Array<{ printed: string, iso: string|null }>, dayHeaders?: number, pagesMisordered?: number }} RosterGeometry */
 
 /**
  * Read the roster PDF's grid. NEVER THROWS — every failure is a `RosterGeometry` with
  * `available: false` (nothing usable) or with fewer pages, so the import proceeds as it did before
  * this witness existed. It also gathers the sheet's own `Week Ending:` headings (`weekEndings`) from
- * every page with text, grid or not: the heading sits above the grid (roster-week-heading.js).
+ * every page with text, grid or not: the heading sits above the grid (roster-week-heading.js). And it
+ * counts the day headers read Sunday to Saturday (`dayHeaders`): a page whose header runs in another
+ * order is REJECTED, rows and all (`pagesMisordered`; section 2 says why).
  *
  * @param {Buffer|Uint8Array} pdfBytes
  * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports the pinned pdfjs-dist (6.5.438)
@@ -356,7 +420,7 @@ function assignRunsToGrid({ items, vx, hy }) {
  */
 async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOMETRY_WORK_BUDGET_MS, now = Date.now } = {}) {
     /** @type {RosterGeometry} */
-    const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [] };
+    const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [], dayHeaders: 0, pagesMisordered: 0 };
     const deadline = now() + workBudgetMs;
     let pdfjs;
     try {
@@ -392,10 +456,18 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
                 const items = tc.items.map(it => ({ str: it.str, x: it.transform[4], y: it.transform[5] }));
                 result.weekEndings.push(...weekEndingsOnPage(items)); // before the grid: it may reject the page
                 const { vx, hy } = rulesFromOperatorList(await page.getOperatorList(), pdfjs.OPS);
-                const rows = assignRunsToGrid({ items, vx, hy });
-                if (rows === null) { result.pagesRejected++; continue; }
+                const read = readGridPage({ items, vx, hy });
+                if (read === null) { result.pagesRejected++; continue; }
+                if (read.misordered) {
+                    // Every cell here would be handed over under another day's name (section 2).
+                    result.pagesRejected++;
+                    result.pagesMisordered = (result.pagesMisordered || 0) + 1;
+                    console.warn(`[roster-geometry] page ${p}: its header does not run Sunday to Saturday — no row on it is read`);
+                    continue;
+                }
                 result.pagesRead++;
-                result.rows.push(...rows);
+                result.dayHeaders = (result.dayHeaders || 0) + read.headers;
+                result.rows.push(...read.rows);
             } catch (err) {
                 result.pagesRejected++;
                 console.warn(`[roster-geometry] page ${p} could not be read: ${err && err.message}`);
@@ -410,9 +482,11 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
     }
     result.available = result.rows.length > 0;
     // A page READ is a page with text and the nine-column grid, so when such a page placed no member
-    // row the honest reason is that — not `no-text`, which sent the reader to a scanned sheet.
+    // row the honest reason is that — not `no-text`, which sent the reader to a scanned sheet. A grid
+    // refused for its day order says so, not `no-grid`, which sends the reader to the operator list.
     if (!result.available && !result.reason) {
-        result.reason = result.pagesRead ? 'no-rows' : result.pagesRejected ? 'no-grid' : 'no-text';
+        result.reason = result.pagesMisordered ? 'day-order'
+            : result.pagesRead ? 'no-rows' : result.pagesRejected ? 'no-grid' : 'no-text';
     }
     return result;
 }
@@ -444,6 +518,11 @@ function nameTokens(name) {
  * rows that BOTH carry content stay refused, because then the sheet really is ambiguous and picking
  * either would be a guess. It can only ever narrow a tie the old rule dropped — it can never
  * promote a non-match, and it never chooses between two rows that both say something.
+ *
+ * ONE ROW CAN STILL ANSWER TWO MEMBERS, and that is for the callers to refuse: tier 2 gives "J. Smith"
+ * the row "J Smith-Jones" when J. Smith is not on the sheet, and two people printed in one band (the
+ * rule between them unread) both match it. `buildCellTable` (roster-prompt.js) calls such a grid
+ * unusable, and the witness below gives neither member a signal.
  *
  * @param {string} memberName
  * @param {Array<{ name: string, occupancy: boolean[] }>} rows
@@ -505,9 +584,18 @@ function applyGeometryWitness(safeEntries, geometry, dates) {
     if (!Array.isArray(dates) || dates.length < 7) return stats;
     stats.ran = true;
 
+    // A ROW TWO MEMBERS MATCH SPEAKS FOR NEITHER (review, Nov 2026 — `matchGeometryRow` says how one
+    // can). Its cells are at most one person's, so checking the other against them refuses a true week
+    // or passes a wrong one. Neither is checked: both count as not covered, which the review states,
+    // and a disputed Sunday of theirs goes to the review (`settleDisputedSundays`).
+    const rowOf = new Map(safeEntries.map(e => [e, matchGeometryRow(e.memberName, geometry.rows)]));
+    /** @type {Map<object, number>} */
+    const holders = new Map();
+    for (const row of rowOf.values()) if (row) holders.set(row, (holders.get(row) || 0) + 1);
+
     for (const entry of safeEntries) {
-        const row = matchGeometryRow(entry.memberName, geometry.rows);
-        if (!row) { stats.unmatched.push(entry.memberName); continue; }
+        const row = rowOf.get(entry);
+        if (!row || /** @type {number} */ (holders.get(row)) > 1) { stats.unmatched.push(entry.memberName); continue; }
         stats.checked++;
         /** @type {string[]} */
         const refusedDates = [];
@@ -515,9 +603,12 @@ function applyGeometryWitness(safeEntries, geometry, dates) {
             const d = dates[i];
             const v = entry.shifts[d];
             if (!isClaim(v) || row.occupancy[i]) continue;
-            // THE RULE. Not weighed, not repaired — refused, with both facts stated.
+            // THE RULE. Not weighed, not repaired — refused, with both facts stated. A cell printing
+            // only a dash is empty to the grid (`printsNothing`), and the admin is told what it holds.
+            const printed = String(/** @type {any} */ (row).cells?.[i] ?? '').trim();
+            const cell = printed && printsNothing(printed) ? `holds only "${printed}"` : 'is empty';
             console.warn(`[parseRosterPDF] ${entry.memberName} ${d}: "${v}" was read for ${DAY_LABELS[i]}, but the PDF's ${DAY_LABELS[i]} cell on that row is EMPTY — refused (the row is probably a day out)`);
-            entry.shifts[d] = `UNKNOWN|${reviewLabel(v)} was read here, but this cell is empty on the PDF — the row may be a day out`;
+            entry.shifts[d] = `UNKNOWN|${reviewLabel(v)} was read here, but this cell ${cell} on the PDF — the row may be a day out`;
             refusedDates.push(d);
         }
         if (refusedDates.length) stats.refused.push({ memberName: entry.memberName, dates: refusedDates });
@@ -657,6 +748,7 @@ module.exports = {
     GRID_COLUMNS,
     rulesFromOperatorList,
     assignRunsToGrid,
+    readGridPage,
     extractRosterGeometry,
     matchGeometryRow,
     geometryCoverage,

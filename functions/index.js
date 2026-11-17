@@ -338,10 +338,10 @@ A blank Sunday cell must still appear in your output. You MUST write "Sun": "BLA
 (Reporting the empty cell is the point. What it means on each day is decided after you.)
 
 CORRECT example (Sunday column exists, Sunday cell is blank):
-  Table row: G. Miller | [blank] | 06:00-14:00 | 06:00-14:00 | RD | 06:00-14:00 | RD | RD
+  Table row: A. Person | [blank] | 06:00-14:00 | 06:00-14:00 | RD | 06:00-14:00 | RD | RD
   Correct output:
   {
-    "memberName": "G. Miller",
+    "memberName": "A. Person",
     "Sun": "BLANK",
     "Mon": "06:00-14:00",
     "Tue": "06:00-14:00",
@@ -353,7 +353,7 @@ CORRECT example (Sunday column exists, Sunday cell is blank):
 
 WRONG example (do not do this — Sun key is missing):
   {
-    "memberName": "G. Miller",
+    "memberName": "A. Person",
     "Mon": "06:00-14:00",
     ...
   }
@@ -399,13 +399,13 @@ RULES:
 OUTPUT FORMAT — return exactly this structure:
 {
   "sundayScan": {
-    "L. Springer": "BLANK",
-    "G. Miller": "RDW 06:00-14:00"
+    "B. Example": "BLANK",
+    "A. Person": "RDW 06:00-14:00"
   },
   "columnHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   "parsed": [
     {
-      "memberName": "L. Springer",
+      "memberName": "B. Example",
       "Sun": "BLANK",
       "Mon": "05:30-11:30",
       "Tue": "05:30-11:30",
@@ -416,13 +416,13 @@ OUTPUT FORMAT — return exactly this structure:
     }
   ],
   "columnScan": {
-    "Sun": { "L. Springer": "BLANK" },
-    "Mon": { "L. Springer": "05:30-11:30" },
-    "Tue": { "L. Springer": "05:30-11:30" },
-    "Wed": { "L. Springer": "SPARE" },
-    "Thu": { "L. Springer": "05:30-11:30" },
-    "Fri": { "L. Springer": "BLANK" },
-    "Sat": { "L. Springer": "BLANK" }
+    "Sun": { "B. Example": "BLANK" },
+    "Mon": { "B. Example": "05:30-11:30" },
+    "Tue": { "B. Example": "05:30-11:30" },
+    "Wed": { "B. Example": "SPARE" },
+    "Thu": { "B. Example": "05:30-11:30" },
+    "Fri": { "B. Example": "BLANK" },
+    "Sat": { "B. Example": "BLANK" }
   }
 }
 
@@ -448,7 +448,8 @@ columnScan: one key per column header; every staff member appears in every colum
         if (cellTable.usable) {
             console.log(`[parseRosterPDF] geometry placed all ${cellTable.rows.length} ${rosterType} rows — the model is normalising cells, not reading a table`);
         } else {
-            console.log(`[parseRosterPDF] geometry cannot place every ${rosterType} row (${cellTable.reason}; ${cellTable.unmatched.length} unmatched) — reading the PDF as before`);
+            console.log(`[parseRosterPDF] geometry cannot place every ${rosterType} row (${cellTable.reason}; ${cellTable.unmatched.length} unmatched`
+                + `${cellTable.shared?.length ? `; one row matched by ${cellTable.shared.join(', ')}` : ''}) — reading the PDF as before`);
         }
 
         // ---- The sheet's own week, from its printed heading: no model involved (roster-week-heading.js) ----
@@ -843,7 +844,8 @@ Object.assign(exports, rosterMembers.overtimeEnabled === false ? { purgeExpiredO
  * ── THE FIVE THINGS THIS HANDLER MUST KEEP DOING ────────────────────────────────────────────────
  *
  * 1. **Never log, echo or store the submitted PIN.** Not in an error, not in a warning, not in a
- *    response body. The log line below records the OUTCOME and the hashed source, nothing else.
+ *    response body. The log lines below record the OUTCOME, and a refusal its hashed source;
+ *    a correct unlock names no source at all.
  * 2. **Never return a different response for "wrong shape" and "wrong value".** Both are 401 with
  *    one message, so the endpoint cannot be used to learn the PIN's length.
  * 3. **Only FAILURES stay in the throttle store.** Every attempt is charged BEFORE its compare (so
@@ -1032,7 +1034,10 @@ exports.unlockCalendarViewer = onRequest(
             const token = await getAuth().createCustomToken(CALENDAR_VIEWER_UID, viewerClaims());
             await refunded;
 
-            console.log('[unlockCalendarViewer] unlocked', sourceKey);
+            // The OUTCOME only (rule 1). A right PIN is somebody using the app, which the throttle
+            // store deletes rather than keeps, so its line names no source: the key is a short
+            // unsalted hash of an address, and a hash of an address is recovered by trying addresses.
+            console.log('[unlockCalendarViewer] unlocked');
             // The MINIMUM the client needs. No claims echo, no uid, no expiry hint — the client
             // verifies what it got from the ID token it receives after signing in, which is the only
             // copy that means anything.

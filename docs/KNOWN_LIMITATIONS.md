@@ -1309,7 +1309,9 @@ population that is hardest to check by eye — the people whose weeks all look a
 population this check cannot speak for.
 
 **What still covers them is the PDF's own grid.** On the geometry path the grid assigns every day by
-coordinate (`functions/roster-prompt.js`), so a row cannot shift at all. When an upload falls back to
+coordinate (`functions/roster-prompt.js`), so the model cannot shift a row; the day is the column's
+position, and that order is read from the sheet's own header row and must run Sunday to Saturday, or
+the upload takes the PDF path (`readGridPage`, `functions/roster-geometry.js`). When an upload falls back to
 the PDF path — any member the grid cannot place turns it off for that document — the geometry witness
 (`functions/roster-geometry.js`) is positional rather than pattern-based and still refuses a claim in
 an empty cell; and when `geometry.status` comes back `unavailable` these members have **no
@@ -1344,7 +1346,8 @@ day read for an empty Monday-to-Saturday cell goes to the review (`reviewRestRea
 - **On both paths, a printed duty read as `RD` in an OCCUPIED cell is not checked.** Telling a
   printed RD from a printed duty means READING the text, which is phase 3 of `ROADMAP.md` → "Roster
   import". Nor can the witness see a shifted row whose week is fully occupied: on the geometry path
-  such a row cannot shift, and `assessRosterAlignment` covers the PDF path.
+  the model cannot shift such a row (the grid places each cell, under a header read Sunday to
+  Saturday), and `assessRosterAlignment` covers the PDF path.
 
 **Do not rebuild the cross-check on the column scan.** It was built, and the existing fixtures
 refused it: one real CES row scans as `['blank', '06:00-14:00', 'OFF', 'blank', '07:00-15:00', '-',

@@ -79,7 +79,7 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 
 | | Title | Body |
 |---|-------|------|
-| Pay | `💷 Payday Friday — hours cutoff today` | `Open the Pay Calculator to estimate your 28 March pay.` |
+| Pay | `💷 Payday Friday — hours cut-off today` | `Open the Pay Calculator to estimate your 28 March pay.` |
 | Overtime asked | `⏱️ Overtime — availability form open` | `Tell the roster team when you can work. Answer by Tue 18 Aug · 12:00.` |
 | Overtime reminder | `⏱️ Overtime — answers due today` | `Initial answers for week ending Sat 5 Sep are due by 12:00 today.` |
 | Reset request | `🙋 Reset requests — 2 waiting` | `N. Surname asked for a reset. 1 other waiting.` |
@@ -222,7 +222,7 @@ hope — but write to fit; a clipped deadline is worse than none.
 ## How long a notice may wait (TTL)
 
 A push service holds a notice for a phone that is off, and web-push's default is FOUR WEEKS — long
-enough for "hours cutoff today" to arrive days late. Every send passes a TTL from `PUSH_TTL_BY_TAG`
+enough for "hours cut-off today" to arrive days late. Every send passes a TTL from `PUSH_TTL_BY_TAG`
 (`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
 queue 6 h, password-reset 7 days, the timetable reminder 30 h (not 24 h), the Error Log and PIN
 lockout notices 24 h, anything unlisted one day — each value's reason is its comment there. **A new

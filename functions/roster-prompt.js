@@ -15,7 +15,9 @@
  *
  * So the second prompt removes the freedom instead of checking it. The PDF's drawn grid assigns
  * every cell to a member and a day by coordinate, and the model is handed the cells already
- * separated. A row cannot shift, because there is no step at which anything could shift it.
+ * separated. The model cannot shift a row, because it is never asked which day a cell is. The day
+ * comes from the column's position, so that order is checked against the sheet's own header row
+ * (`dayHeaders`, roster-geometry.js): a header out of order, or none read, and the PDF path runs.
  *
  * **That is a claim about CONSTRUCTION, not accuracy.** It says the model cannot move a cell
  * between days. It does not say the model reads a cell's CONTENT better this way.
@@ -46,7 +48,7 @@
 
 const { BLANK_CELL_TOKEN, normaliseShift, memberRows } = require('./roster-parse-helpers');
 const { matchGeometryRow } = require('./roster-geometry');
-const { isBlankReading } = require('./cell-day-rules');
+const { isBlankReading, printsNothing } = require('./cell-day-rules');
 
 /** Sunday-first, matching `dates` everywhere in the import. `headerToDayIndex` accepts these. */
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -135,22 +137,37 @@ Treat a cell as blank ONLY when it has no text whatsoever.`;
  * and the unmatched count. If phase 2 seems not to be running, read that line before reading this
  * file; the answer is usually one name.
  *
- * @param {{ available?: boolean, rows?: Array<{ name: string, cells: string[], occupancy: boolean[] }> }|null|undefined} geometry
+ * **Two more ways the grid cannot speak unambiguously, each a fallback (review, Nov 2026).** The day
+ * of every cell is its column's position, so the sheet's own header must have been read naming the
+ * days Sunday to Saturday (`dayHeaders`, roster-geometry.js; a header in another order already took
+ * its page's rows) — `no-day-header`. And ONE row matched by TWO members is at most one person's week
+ * (`matchGeometryRow` says how it happens), so handing it to both put a colleague's week on somebody
+ * absent from the sheet, pre-ticked, with nobody listed missing — `shared-row`, the names in `shared`.
+ *
+ * @param {{ available?: boolean, rows?: Array<{ name: string, cells: string[], occupancy: boolean[] }>, dayHeaders?: number }|null|undefined} geometry
  * @param {string[]} memberNames
  * @returns {{ usable: boolean, reason: string, rows: Array<{ memberName: string, cells: string[] }>,
- *             matched: string[], unmatched: string[] }}
+ *             matched: string[], unmatched: string[], shared: string[] }}
  */
 function buildCellTable(geometry, memberNames) {
     /** @type {any} */
-    const out = { usable: false, reason: '', rows: [], matched: [], unmatched: [] };
+    const out = { usable: false, reason: '', rows: [], matched: [], unmatched: [], shared: [] };
     if (!geometry || !geometry.available || !Array.isArray(geometry.rows) || !geometry.rows.length) {
-        out.reason = 'no-grid';
+        // The read's own reason where it gave one (`day-order`, `wait-timeout` …): it is what the
+        // coordinator's path line prints, and that line is the one to read first.
+        out.reason = (geometry && geometry.reason) || 'no-grid';
+        return out;
+    }
+    if (!(Number(geometry.dayHeaders) > 0)) {
+        out.reason = 'no-day-header';
         return out;
     }
     if (!Array.isArray(memberNames) || !memberNames.length) {
         out.reason = 'no-members';
         return out;
     }
+    /** @type {Map<object, string[]>} */
+    const holders = new Map();
     for (const name of memberNames) {
         const row = matchGeometryRow(name, geometry.rows);
         // A row must carry all seven cells. A short `cells` array would become a blank DAY rather
@@ -159,10 +176,13 @@ function buildCellTable(geometry, memberNames) {
             out.unmatched.push(name);
             continue;
         }
+        holders.set(row, [...(holders.get(row) || []), name]);
         out.matched.push(name);
         out.rows.push({ memberName: name, cells: row.cells.map(c => String(c == null ? '' : c).trim()) });
     }
+    out.shared = [...holders.values()].filter(names => names.length > 1).flat();
     if (out.unmatched.length) { out.reason = 'incomplete'; return out; }
+    if (out.shared.length) { out.reason = 'shared-row'; return out; }
     if (!out.rows.length) { out.reason = 'no-rows'; return out; }
     out.usable = true;
     out.reason = 'ok';
@@ -245,7 +265,7 @@ OUTPUT FORMAT — return exactly this structure:
 {
   "parsed": [
     {
-      "memberName": "L. Springer",
+      "memberName": "B. Example",
       "Sunday": "${BLANK_CELL_TOKEN}",
       "Monday": "05:30-11:30",
       "Tuesday": "05:30-11:30",
@@ -289,6 +309,8 @@ const quoteCell = (/** @type {string} */ text) => (text.length > 40 ? `${text.sl
  *
  * A cell that SAYS rest (`RD`, `OFF`, `SN`, `NA`, `NS`) is left alone: an empty read of it
  * changes nothing. Mon–Sat this only improves the review's wording — the day was already a question.
+ * So is a cell printing only a dash (`printsNothing`): the vocabulary calls it blank, so an empty read
+ * of it is the right answer — a dash-printed Sunday is the rest day a blank one is (review, Nov 2026).
  * Not counted as a witness refusal: one missed cell is not evidence the row is a day out, and it
  * must not feed the drift breaker.
  *
@@ -322,7 +344,7 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
         const days = [];
         for (let i = 0; i < 7; i++) {
             const text = String(cells[i] == null ? '' : cells[i]).trim();
-            if (!text || cellSaysRest(text)) continue;
+            if (printsNothing(text) || cellSaysRest(text)) continue;
             const label = DAY_LABELS[i];
             const raw = reply[label] !== undefined ? reply[label] : byDay[label.slice(0, 3).toLowerCase()];
             // The same words for an empty read as buildSafeEntries: a "-" it made the day's blank
@@ -355,7 +377,8 @@ function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dat
  *
  * Sunday is left alone: a blank Sunday IS a rest day (`blankCellMeaning`). Not counted as a witness
  * refusal — an invented rest day is not evidence the row is a day out, and must not feed the drift
- * breaker.
+ * breaker. A weekday cell printing only a dash is the blank it means (`printsNothing`), so a rest day
+ * read for it is asked about too, naming the dash.
  *
  * @param {Array<{ memberName: string, shifts: Record<string, string> }>} safeEntries
  * @param {Array<{ memberName: string, cells: string[] }>} cellRows   `buildCellTable(...).rows`
@@ -375,10 +398,10 @@ function reviewRestReadsOfEmptyCells(safeEntries, cellRows, dates) {
         for (let i = 1; i < 7; i++) {                         // Monday to Saturday — never the Sunday
             const text = String(cells[i] == null ? '' : cells[i]).trim();
             const v = String(entry.shifts[dates[i]] ?? '').trim().toUpperCase();
-            if (text || (v !== 'RD' && v !== 'OFF')) continue;
+            if (!printsNothing(text) || (v !== 'RD' && v !== 'OFF')) continue;
             const label = DAY_LABELS[i];
             console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell is empty on the PDF but was read as a rest day — sent to review`);
-            entry.shifts[dates[i]] = `UNKNOWN|this ${label} cell is empty on the PDF, but it was read as a rest day — check the PDF`;
+            entry.shifts[dates[i]] = `UNKNOWN|this ${label} cell ${text ? `holds only "${text}"` : 'is empty'} on the PDF, but it was read as a rest day — check the PDF`;
             days.push(dates[i]);
         }
         if (days.length) sent.push({ memberName: entry.memberName, dates: days });

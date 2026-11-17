@@ -444,11 +444,22 @@ describe('deployed-secret shape', () => {
         }
     });
 
-    test('the same rule governs the submitted PIN and the configured one', () => {
+    test('the same rule governs the submitted PIN and the configured one', async () => {
         // One rule, so the two can never drift into disagreeing about what a PIN is — the drift
-        // would show up as "correct PIN refused", which is indistinguishable from a wrong PIN.
-        assert.equal(isValidPinShape('1234'), isValidPinShape('1234'));
-        assert.equal(typeof isValidPinShape, 'function');
+        // would show up as "correct PIN refused", which is indistinguishable from a wrong PIN. This
+        // compared the rule with itself (review, Nov 2026); the handler and the PIN card are what can
+        // drift. The handler needs the Functions SDK to run (index-endpoints.test.mjs runs it), so its
+        // two calls are read from the source here, where nothing need be installed.
+        const index = readFileSync(new URL('./functions/index.js', import.meta.url), 'utf8');
+        const handler = index.slice(index.indexOf('exports.unlockCalendarViewer = onRequest('));
+        assert.match(handler, /!isValidPinShape\(expected\)/, 'the configured secret is not held to the shape rule');
+        assert.match(handler, /isValidPinShape\(supplied\) && pinMatches\(supplied, expected\)/,
+            'the submitted PIN is not held to the shape rule before it is compared');
+        // …and the card lets through exactly what the handler will compare.
+        const { isCompletePin } = await import('./calendar-access-core.js');
+        for (const v of ['0000', '9137', '123', '12345', 'abcd', '12a4', ' 123', '1234 ', '١٢٣٤', '', null, 1234]) {
+            assert.equal(isCompletePin(/** @type {any} */ (v)), isValidPinShape(v), `the card and the server disagree about ${JSON.stringify(v)}`);
+        }
     });
 });
 

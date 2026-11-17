@@ -25,10 +25,12 @@ const { buildCellTable, renderCellTable, buildCellPrompt, DAY_LABELS, SHIFT_VOCA
     require_('./functions/roster-prompt.js');
 const { buildSafeEntries, buildWeekDates } = require_('./functions/roster-parse-helpers.js');
 const { awaitGeometryWithin, settledGeometry } = require_('./functions/roster-geometry.js');
+const { printsNothing } = require_('./functions/cell-day-rules.js');
 
 /** A geometry row, cells Sunday-first. `occupancy` is derived exactly as the real reader derives it. */
-const row = (name, ...cells) => ({ name, cells, occupancy: cells.map(c => String(c || '').length > 0) });
-const geo = (...rows) => ({ available: true, rows });
+const row = (name, ...cells) => ({ name, cells, occupancy: cells.map(c => !printsNothing(c)) });
+/** A grid as a real read returns one: its rows, and the sheet's day header read Sunday to Saturday. */
+const geo = (...rows) => ({ available: true, dayHeaders: 1, rows });
 
 describe('buildCellTable — all or nothing, per document', () => {
     test('every member placed → usable', () => {
@@ -395,5 +397,65 @@ describe('reviewRestReadsOfEmptyCells — an empty weekday is a question, even w
     test('a shift read into an empty weekday is left for the witness, which refuses claims', () => {
         const { s } = run({ ...ALL_RD, Monday: '06:00-14:00' }, ['', '', 'RD', 'RD', 'RD', 'RD', '06:00-14:00']);
         assert.equal(s[dates[1]], '06:00-14:00', 'this rule is about rest days only');
+    });
+});
+
+// ── A DASH, THE HEADER, AND ONE ROW FOR TWO (review, Nov 2026) ──────────────────────────────────
+//
+// Three ways the cell path read a grid it should not have trusted, or questioned a cell it should
+// have trusted. A cell printing only a dash is the vocabulary's blank, so reading it as empty is the
+// RIGHT answer — it went to the review as a mistake. A grid whose header was never read could be a day
+// out in every row. And one row matched by two members put a colleague's week on somebody off the
+// sheet. The names here are invented.
+describe('the cell path: a dash is a blank, the header is read, a row answers one member', () => {
+    const dates = buildWeekDates('2026-10-31');
+    const quiet = (/** @type {() => any} */ fn) => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
+    /** buildSafeEntries, then both review rules — the handler's order on this path. */
+    const run = (/** @type {Record<string, string>} */ days, /** @type {string[]} */ cells) => quiet(() => {
+        const parsed = { memberName: 'A. Person', ...days };
+        const safe = buildSafeEntries([parsed], DAY_LABELS, dates);
+        const blank = reviewBlankReadsOfFilledCells(safe, [parsed], [{ memberName: 'A. Person', cells }], dates);
+        const rest = reviewRestReadsOfEmptyCells(safe, [{ memberName: 'A. Person', cells }], dates);
+        return { s: safe[0].shifts, sent: [...blank, ...rest] };
+    });
+    const WEEK = { Monday: '06:00-14:00', Tuesday: 'RD', Wednesday: 'RD', Thursday: '06:00-14:00', Friday: 'RD', Saturday: 'RD' };
+    const CELLS = ['06:00-14:00', 'RD', 'RD', '06:00-14:00', 'RD', 'RD'];
+
+    test('a Sunday printing only a dash, read as empty, is the rest day a blank Sunday is — nothing asked', () => {
+        for (const dash of ['-', '–', '—']) {
+            for (const said of ['BLANK', dash]) {
+                const { s, sent } = run({ Sunday: said, ...WEEK }, [dash, ...CELLS]);
+                assert.equal(s[dates[0]], 'RD', `a "${dash}" Sunday read as ${JSON.stringify(said)} became ${s[dates[0]]}`);
+                assert.deepEqual(sent, []);
+            }
+        }
+    });
+
+    test('a weekday printing only a dash is the blank weekday it means: read empty, the usual question; read as rest, asked too', () => {
+        const empty = run({ Sunday: 'BLANK', ...WEEK, Tuesday: 'BLANK' }, ['', 'RD', '–', ...CELLS.slice(2)]);
+        assert.match(empty.s[dates[2]], /^UNKNOWN\|no Tuesday cell was read/, 'an empty read of a dash is not a misread');
+        const rest = run({ Sunday: 'BLANK', ...WEEK }, ['', 'RD', '-', ...CELLS.slice(2)]);
+        assert.match(rest.s[dates[2]], /^UNKNOWN\|this Tuesday cell holds only "-" on the PDF, but it was read as a rest day/,
+            'a weekday dash read as a rest day was believed — a blank weekday is a question, never a rest day');
+        assert.deepEqual(rest.sent, [{ memberName: 'A. Person', dates: [dates[2]] }]);
+    });
+
+    test('a grid whose day header was not read in order is no cell table: the PDF path runs', () => {
+        const rows = [row('A. Person', '', 'RD', '06:00-14:00', '', '', '', '')];
+        assert.equal(buildCellTable({ available: true, rows }, ['A. Person']).reason, 'no-day-header');
+        assert.equal(buildCellTable({ available: true, rows, dayHeaders: 0 }, ['A. Person']).usable, false);
+        assert.equal(buildCellTable({ available: true, rows, dayHeaders: 1 }, ['A. Person']).usable, true, 'control: with it, the same grid is used');
+        assert.equal(buildCellTable({ available: false, reason: 'day-order', rows: [] }, ['A. Person']).reason, 'day-order',
+            'the read\'s own reason is the one the coordinator logs');
+    });
+
+    test('ONE row two members match is no cell table — a colleague\'s week must not stand for somebody off the sheet', () => {
+        // J. Person is not on this week's sheet; the loose name tier gives J. Person-Example's row to both.
+        const g = geo(row('J Person-Example', '', '06:00-14:00', 'RD', '', '', '', ''));
+        const t = buildCellTable(g, ['J. Person', 'J. Person-Example']);
+        assert.equal(t.usable, false, 'a row was handed to two members');
+        assert.equal(t.reason, 'shared-row');
+        assert.deepEqual(t.shared, ['J. Person', 'J. Person-Example']);
+        assert.equal(buildCellTable(g, ['J. Person-Example']).usable, true, 'control: her own row alone is used');
     });
 });

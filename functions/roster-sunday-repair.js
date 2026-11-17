@@ -36,24 +36,25 @@
  *    day right. The question's pick says what the row read gave, and only that is asked.
  */
 
-const { blankCellMeaning, isPhysicallyBlank, isNotAvailable, isNotAvailableSunday } = require('./cell-day-rules');
+const { blankCellMeaning, isPhysicallyBlank, isLoneDash, isNotAvailable, isNotAvailableSunday } = require('./cell-day-rules');
 const { reviewLabel } = require('./roster-parse-helpers');
 
 /** The value `buildSafeEntries` writes for a Saturday the model reported empty. */
 const BLANK_SATURDAY = blankCellMeaning(6, 'Saturday');
 
 /** The Sunday scan saw NOTHING in the cell (no answer, BLANK or EMPTY) — the only reading the PDF
- *  grid can contradict. A dash is ink in the cell, so it is a rest code below, not this. */
+ *  grid can contradict. A scan that wrote a dash answered about a mark, so it is a rest code below,
+ *  not this (`isPhysicallyBlank` says why). */
 const scanSawEmpty = (/** @type {any} */ raw) => isPhysicallyBlank(raw);
 
 /** The Sunday scan saw a printed rest code. NA and NS on a Sunday are both the rest day a Sunday
  *  already is (cell-day-rules.js, which also reads `N.A.` as `NA`). OFF is the rest code the CES and
  *  bilingual sheets PRINT (roster-prompt.js), and the column scan already reads it as rest
  *  (BLANK_SCAN_TOKENS) — leaving it out here meant a slid CES or bilingual week was not realigned
- *  at this stage (whole-app review, Nov 2026). */
+ *  at this stage (whole-app review, Nov 2026). A lone dash is any of the three (`LONE_DASHES`). */
 const scanSawRestCode = (/** @type {any} */ raw) => {
     const s = String(raw).trim().toUpperCase();
-    return s === 'RD' || s === '-' || s === 'OFF' || isNotAvailable(s) || isNotAvailableSunday(s);
+    return s === 'RD' || isLoneDash(s) || s === 'OFF' || isNotAvailable(s) || isNotAvailableSunday(s);
 };
 
 /**
@@ -177,8 +178,10 @@ function shiftChoices(choices, memberName, dates) {
  * After the geometry witness: a disputed Sunday the witness did not look at goes to review
  * (modifies in place). One it refused is already a question; one whose cell the grid shows as
  * OCCUPIED keeps the row read — but ONLY when the scan saw a literally empty cell, which the grid
- * then contradicts. A printed rest code (NS, NA, RD, '-') is ink in that cell: the grid's
- * "occupied" AGREES with the scan and is no evidence for the worked shift the row read put there.
+ * then contradicts. A printed rest code (NS, NA, RD) is ink in that cell: the grid's "occupied"
+ * AGREES with the scan and is no evidence for the worked shift the row read put there. A DASH the
+ * grid reads as empty (`printsNothing`, cell-day-rules.js), so a claim on a dash-printed Sunday was
+ * refused above; a scan that wrote a dash beside an occupied cell is still a question.
  *
  * @param {object[]} safeEntries
  * @param {string[]} disputed   from applySundayScanCorrections
