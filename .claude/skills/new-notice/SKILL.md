@@ -414,7 +414,12 @@ Three habits from it:
 3. Remove the row from the "Current notices" table above
 4. Bump the version (HTML and JS files are being modified)
 
-**Do not remove** a notice that is still within its archive window — users who haven't visited yet may still see it on their first visit.
+**Do not remove a notice before its own expiry** unless you are retiring it early (below): until
+`isNoticeExpired` fires — its window, or its `LAST_DAY` — it still opens for a member who has not
+seen it on that device. **After its expiry it shows to nobody, a first visit included**: the page
+marks it seen without showing it (the Status note under Current notices), so until the 180 days all
+its code does is set that flag. The App Notices archive keeps its own copy, aged from when it was
+archived (Archive expiry, above), so removing the code takes nothing out of the drawer.
 
 **Retiring one EARLY** (before 180 days, because it has stopped being true rather than stopped being
 new) is the same four steps, plus two: drop any `CONFIG.*_NOTICE_DAYS` constant it owned, and check

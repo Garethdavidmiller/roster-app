@@ -24,7 +24,7 @@ commit.** `githooks/pre-commit` checks both, and it now looks for a module here 
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, override list
-├── operations.html         ← admin-only: the Needs-attention strip over the Huddle, Circular, Newsletter and Roster upload cards, Password Reset Requests, Account status (per-member work email, password migration and reset), Error Log, Usage, App Speed and Staff Login Accounts
+├── operations.html         ← admin-only: the Needs-attention strip over the Huddle, Circular and Newsletter upload cards, Document links, the Roster upload, the Annual leave sheet, Password Reset Requests, Account status (per-member work email, password migration and reset), Staff Login Accounts, Error Log, Usage and App Speed
 ├── settings.html          ← a STATUS page, not a set of forms: a summary line, then Your account (Work Email, Password), This device (Notifications, a conditional Install card) and Your data (Pay Calculator Data). Cards open themselves only when their state says to; what each state MEANS is settings-status.js
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring

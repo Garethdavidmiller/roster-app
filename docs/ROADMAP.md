@@ -207,10 +207,11 @@ random ones, answering the credential question without touching the read one
 (`CREDENTIAL_LIFECYCLE.md` §7; `SECURITY_RELEASE_PLAN.md` → Track C).
 
 ### 2027/28 Pay Calculator rollover
-**Status:** Planned · **Deadline:** 6 April 2027 · **Start:** February 2027 · See `MAINTENANCE_CALENDAR.md`
+**Status:** Planned · **Deadline:** 6 March 2027 · **Start:** February 2027 · See `MAINTENANCE_CALENDAR.md`
 
-A hard external deadline, not a feature. It is in the maintenance calendar with a deliberate
-two-month warning, because "must be done by April" reliably becomes "started in April".
+A hard external deadline, not a feature, and a month before the tax year: the first 2027/28 payslip
+(paid 9 April) pays for shifts from Sunday 7 March. It is in the maintenance calendar with a warning a
+month ahead, because "must be done by March" reliably becomes "started in March".
 
 ---
 
@@ -511,11 +512,11 @@ subscription.
 ### Team Week and the roster import read the dated grade
 **Status:** Conditional · **Trigger:** a promotion that cannot be released between two roster uploads
 
-A grade has a date since v25.99 (`roleHistory`, `roster-roles.js`), but only the Pay Calculator reads
-it. The roster import's name lists and Team Week's grade tabs read `role`, the grade NOW, which is why
-a promotion is released between the last upload under the old grade and the first under the new one
-(OPERATIONS_REFERENCE.md → "A member changes grade"). Reading the grade on each week's own dates would
-lift that rule. **Success:** a promotion released on any day imports the weeks either side of it.
+A grade has a date since v25.99 (`roleHistory`, `roster-roles.js`), but only the Pay Calculator and the
+leave allowance (`allowanceRole`, `al-contract.js`) read it. The roster import's name lists and Team
+Week's grade tabs read `role`, the grade NOW, which is why a promotion is released between the last
+upload under the old grade and the first under the new one (OPERATIONS_REFERENCE.md → "A member
+changes grade"). Reading the grade on each week's own dates would lift that rule. **Success:** a promotion released on any day imports the weeks either side of it.
 
 ### Calendar sign-in without the reload
 **Status:** Conditional · **Trigger:** staff say signing in on the Calendar is slow, or **Signing in** on the App Speed card is still red on a full month after v26.12 · **Owner:** Gareth · **Review:** the December 2026 card, read in the first week of January 2027
