@@ -95,13 +95,14 @@ function vapidKey() {
 }
 
 /**
- * How long turning notifications on waits for the server to take the record (whole-app check, 17 Nov
- * 2026). A Firestore write settles only when the server acknowledges it, and with no connection that
- * is never — only a sign-out bounded it — so the Settings card sat on "Enabling…", and the bell and
- * the Calendar's strip waited with it. Past this the save counts as failed and the rollback below
- * runs, so the 'off-lapsed' the device then reports is TRUE whatever becomes of the queued write:
- * should it land later, its record names an endpoint that no longer exists, and the next send's 410
- * deletes it. The member can simply turn it on again once there is a signal.
+ * How long turning notifications on — or the daily re-save in `getNotifState` — waits for the server
+ * to take the record (whole-app check, 17 Nov 2026). A Firestore write settles only when the server
+ * acknowledges it, and with no connection that is never — only a sign-out bounded it — so the
+ * Settings card sat on "Enabling…", and the bell and the Calendar's strip waited with it. Past this
+ * the save counts as failed. Turning on, the rollback below runs, so the 'off-lapsed' the device then
+ * reports is TRUE whatever becomes of the queued write: should it land later, its record names an
+ * endpoint that no longer exists, and the next send's 410 deletes it. The member can simply turn it
+ * on again once there is a signal. The re-save rolls nothing back; its own comment says why.
  */
 const SAVE_LIMIT_MS = 15_000;
 
@@ -205,8 +206,12 @@ export async function getNotifState() {
                 // mislabel a genuinely-LIVE subscription as lapsed. Only stamp the throttle timestamp
                 // on success, so a failed save simply retries on the next load instead of churning
                 // the bell state. (The enable + VAPID-rotation saves already guard their own writes.)
+                // TIME-LIMITED like them (17 Nov 2026): a Firestore write settles only when the server
+                // acknowledges it, so with no connection this waited for ever, and the bell and the
+                // Calendar's renewal with it. At the limit it is a transient failure like any other —
+                // the subscription stays 'on', the stamp is withheld, and the next load tries again.
                 try {
-                    await savePushSubscription(sub);
+                    await saveWithinLimit(sub);
                     lsSet(SUB_RESAVE_KEY, String(Date.now()));
                     lsSet(SUB_ENDPOINT_KEY, sub.endpoint);
                     _rememberOwner();

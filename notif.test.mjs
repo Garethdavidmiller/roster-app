@@ -211,6 +211,30 @@ describe('getNotifState', () => {
         assert.equal(_saveCalls, 1, 'the re-save was attempted');
         assert.equal(_ls.has('myb_push_resave_at'), false, 'the throttle stamp is withheld on failure so it retries next load');
     });
+    // The daily re-save is a Firestore write too, so with no connection it never settled and the
+    // Calendar's renewal — and anything else awaiting the state — waited for ever (17 Nov 2026). It
+    // is given up at the same limit as turning notifications on, and counts as a transient failure:
+    // the subscription is live, so the state stays "on" and the next load tries the save again.
+    test('a re-save that never settles is given up at the time limit, and the live subscription stays "on"', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const flush = () => new Promise(r => setImmediate(r));
+        const { sub } = setupEnv({ permission: 'granted', hasSub: true });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7'); // current fingerprint → the throttled re-save path
+        _saveHangs = true;
+        /** @type {string|null} */ let result = null;
+        void getNotifState().then(r => { result = r; });
+        await flush();
+        assert.equal(_saveCalls, 1, 'guard: the re-save was started');
+        assert.equal(result, null, 'guard: still waiting inside the limit');
+        t.mock.timers.tick(14_999);
+        await flush();
+        assert.equal(result, null, 'guard: not given up before the limit');
+        t.mock.timers.tick(1);
+        await flush();
+        assert.equal(result, 'on', 'the state check waited past its limit on a save nobody will answer');
+        assert.equal(sub._unsubscribed, false, 'a live subscription is never rolled back for a slow save');
+        assert.equal(_ls.has('myb_push_resave_at'), false, 'the throttle stamp is withheld, so the next load tries again');
+    });
     test('a STRUCTURAL keyless failure on the self-heal path rolls the sub back and reports "off-lapsed"', async () => {
         // The self-heal guard must swallow ONLY transient errors. A keyless subscription
         // (savePushSubscription throws push/subscription-missing-keys) genuinely cannot receive pushes,

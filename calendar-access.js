@@ -68,7 +68,8 @@ import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthState
 import { getSession, reconcileExpiredIdentity, ensureNamedSession, authGeneration, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
-import { lockCardId, armSkeleton, showBootSkeleton, setWorkspaceHidden, speakAfterMount } from './calendar-lock-slot.js';
+import { lockCardId, armSkeleton, showBootSkeleton, setWorkspaceHidden } from './calendar-lock-slot.js';
+import { speakAfterMount } from './status-text.js';
 // The three cards this gate can put where the Calendar goes. They DRAW; this file DECIDES —
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.

@@ -481,11 +481,16 @@ describe('extractAIJson', () => {
         const result = extractAIJson('```json\n{"foo": "bar"}\n```');
         assert.deepEqual(result, { foo: 'bar' });
     });
-    test('throws SyntaxError when no JSON found', () => {
-        assert.throws(() => extractAIJson('no json here'), SyntaxError);
+    // The TYPE decides what the admin is told (functions/index.js: any SyntaxError is "the AI returned an
+    // unreadable response"); the MESSAGE is what the function log says, and it is the only thing that
+    // tells an answer with no object at all (prose) from a broken one. Both are pinned (17 Nov 2026): the
+    // early no-brace check changed only the message, so deleting it left every test green.
+    test('throws SyntaxError when no JSON found — and the log says there was no object at all', () => {
+        assert.throws(() => extractAIJson('no json here'), { name: 'SyntaxError', message: 'No JSON object found in AI response' });
     });
-    test('throws SyntaxError on invalid JSON', () => {
-        assert.throws(() => extractAIJson('{bad json}'), SyntaxError);
+    test('throws SyntaxError on invalid JSON — and the log carries the parser\'s reason', () => {
+        assert.throws(() => extractAIJson('{bad json}'),
+            (/** @type {any} */ e) => e instanceof SyntaxError && /^No valid JSON object found in AI response: \S/.test(e.message));
     });
     test('nested object', () => {
         const result = extractAIJson('{"parsed": [{"memberName": "G. Miller", "Mon": "RD"}]}');

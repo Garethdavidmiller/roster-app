@@ -70,23 +70,36 @@ export function isAccessFailure(err) {
  * `fn` MUST be re-runnable: a Firestore write thunk must build a FRESH `WriteBatch` each call — a
  * committed (even failed-commit) batch cannot be re-committed. Whatever `fn` returns passes through.
  *
+ * ── THE RETRY GOES OUT AS THE ACCOUNT THAT MADE THE FIRST ATTEMPT, OR NOT AT ALL (17 Nov 2026) ──
+ *
+ * The refresh is awaited, and on a shared browser another tab can sign a DIFFERENT member in while
+ * it runs (the Auth state is one per browser, not per tab). The SDK attaches whichever account is
+ * signed in when a request is made, so the retry went out as that other member — a write nobody on
+ * that account asked for. Given `uid` (the account when the call started) and `currentUid`, the
+ * retry is sent only while the signed-in account is still that one; otherwise the first attempt's
+ * refusal is passed on, as itself. It was refused, so nothing was written — a known outcome, which
+ * the caller words as "sign in again". Without `currentUid` (no caller in the app) there is no check.
+ *
  * @template T
  * @param {() => Promise<T>} fn
- * @param {{ retryCode: string, hasUser: () => boolean, refresh: () => Promise<any> }} deps
+ * @param {{ retryCode: string, hasUser: () => boolean, refresh: () => Promise<any>,
+ *           uid?: string|null, currentUid?: () => string|null|undefined }} deps
  * @returns {Promise<T>}
  */
-export async function runWithClaimRetry(fn, { retryCode, hasUser, refresh }) {
+export async function runWithClaimRetry(fn, { retryCode, hasUser, refresh, uid, currentUid }) {
     try {
         return await fn();
     } catch (err) {
         // hasUser() is read synchronously immediately before refresh() with no await between, so the
-        // signed-in user cannot change underneath us here (single-threaded event loop).
+        // signed-in user cannot change underneath us here (single-threaded event loop). The refresh
+        // IS awaited, which is why the account is asked again before the retry (see above).
         if (isClaimRetryable(err, retryCode, hasUser())) {
             try {
                 await refresh();               // force refresh → pick up the newly-set claim
             } catch {
                 throw err;                     // preserve the original permission-denied / unauthorized
             }
+            if (currentUid && (currentUid() ?? null) !== (uid ?? null)) throw err;   // another account now: never retried as it
             return await fn();                 // retry once with the fresh token
         }
         throw err;
@@ -306,17 +319,20 @@ export function abandonOnSignOut(request, { uid, watch }) {
  * write on the page until a reload. Watched per attempt, the refusal stands: runWithClaimRetry
  * re-throws it, and the caller's words for it ("sign in again") are the true ones.
  *
- * `uid` is the account when the call STARTS, and the retry is watched for that same account: one
- * that changed during the refresh is a loss as soon as the retry begins. A retry still on its way
- * when the account goes is as unknown as a first attempt, and is reported so.
+ * `uid` is the account when the call STARTS, and the retry is watched for that same account. One that
+ * changed during the refresh is never retried at all (`currentUid`, runWithClaimRetry): until 17 Nov
+ * 2026 the retry went out AS the new account and was then reported "not confirmed", which also shut
+ * the page's writes until a reload — for a first attempt the rules had refused, nothing written. A
+ * retry still on its way when the account goes is as unknown as a first attempt, and is reported so.
  * @template T
  * @param {() => Promise<T>} fn  re-runnable, as runWithClaimRetry requires
  * @param {{ retryCode: string, hasUser: () => boolean, refresh: () => Promise<any>, uid: string|null|undefined,
+ *           currentUid: () => string|null|undefined,
  *           watch: (cb: (user: { uid: string }|null) => void) => () => void }} deps
  * @returns {Promise<T>}
  */
-export function runWatchedClaimRetry(fn, { retryCode, hasUser, refresh, uid, watch }) {
-    return runWithClaimRetry(() => abandonOnSignOut(fn(), { uid, watch }), { retryCode, hasUser, refresh });
+export function runWatchedClaimRetry(fn, { retryCode, hasUser, refresh, uid, currentUid, watch }) {
+    return runWithClaimRetry(() => abandonOnSignOut(fn(), { uid, watch }), { retryCode, hasUser, refresh, uid, currentUid });
 }
 
 /**

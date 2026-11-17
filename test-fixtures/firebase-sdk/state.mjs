@@ -53,9 +53,13 @@ export function resetState() {
  * revoked since its token was minted: `_logoutIfInvalidated` signs the account out, its listeners are
  * told in a microtask, and only THEN does the refresh re-throw. The order is the point — it is how a
  * sign-out came to overtake a refusal (claim-retry.js → runWatchedClaimRetry).
- * @param {{ uid?: string, email?: string, token?: string, refreshRefusedWith?: string }} [o]
+ *
+ * `refreshSwitchesTo` is a shared browser: ANOTHER account (that uid) is signed in by another tab while
+ * a forced refresh is on its way, and the refresh itself succeeds. A retry made after it would go out
+ * as that account (claim-retry.js → runWithClaimRetry, 17 Nov 2026).
+ * @param {{ uid?: string, email?: string, token?: string, refreshRefusedWith?: string, refreshSwitchesTo?: string }} [o]
  */
-export function signIn({ uid = 'uid_member', email = 'l.springer@myb-roster.local', token = 'id-token', refreshRefusedWith } = {}) {
+export function signIn({ uid = 'uid_member', email = 'l.springer@myb-roster.local', token = 'id-token', refreshRefusedWith, refreshSwitchesTo } = {}) {
     state.currentUser = {
         uid, email,
         getIdToken: async (force = false) => {
@@ -65,6 +69,12 @@ export function signIn({ uid = 'uid_member', email = 'l.springer@myb-roster.loca
                 for (const listener of state.authListeners) queueMicrotask(() => listener(null));
                 await Promise.resolve();
                 throw Object.assign(new Error(refreshRefusedWith), { code: refreshRefusedWith });
+            }
+            if (force && refreshSwitchesTo) {
+                const other = { uid: refreshSwitchesTo, email: 'other@myb-roster.local', getIdToken: async () => 'other-token' };
+                state.currentUser = other;
+                for (const listener of state.authListeners) queueMicrotask(() => listener(other));
+                await Promise.resolve();
             }
             return token;
         },

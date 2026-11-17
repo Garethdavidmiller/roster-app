@@ -58,7 +58,8 @@ import { newsletterInMenu } from './newsletter-recency.js';
 import { takeStaffPinEndedMark } from './staff-pin-ended.js';
 import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH, PIN_FIRST_HASH } from './calendar-access-core.js';
-import { mountLockCard, unmountLockCard, speakAfterMount } from './calendar-lock-slot.js';
+import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';
+import { speakAfterMount } from './status-text.js';
 import { lazyImport } from './sw-register.js';
 // The Back stack every overlay uses (overlay.js): the front door's PIN card takes one entry, so Back
 // returns to the sign-in card the way it closes a sheet (sign-in check, 11 Nov 2026).

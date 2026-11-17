@@ -46,6 +46,7 @@
  */
 
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
+import { speakAfterMount } from './status-text.js';
 
 /** sessionStorage: a page in THIS tab ended the PIN. One writer and one reader, both here. */
 const PIN_ENDED_MARK = 'myb_staff_pin_ended';
@@ -103,25 +104,30 @@ export function takeStaffPinEndedMark() {
 
 /**
  * Say it on a page with no sign-in card (see the block above). A status region goes into `host` NOW,
- * empty — an empty div takes no room — so the words written when the teardown lands are a change a
- * screen reader announces (text a live region is created with is read by nobody), with the way back.
+ * empty — an empty div takes no room — and the words, with the way back, go in once the browser has
+ * DRAWN it (`speakAfterMount`, status-text.js). Text a live region is created with is read by nobody,
+ * and "created" means the same TASK, not the same line: when the PIN had already ended, the listener
+ * below runs on a microtask of the task that put the region here, so writing at once was silent
+ * (17 Nov 2026). A teardown that lands later waits the same frame, which costs nothing.
  * @param {Element|null} host
- * @returns {() => void}  stop listening
+ * @returns {() => void}  stop listening — and stop a line not yet written
  */
 export function sayStaffPinEndedIn(host) {
     if (!host) return () => {};
     const region = document.createElement('div');
     region.setAttribute('role', 'status');
     host.appendChild(region);
-    return onStaffPinEnded(() => {
-        if (!region.isConnected) return;   // the page has moved on, or redrawn this part
+    let listening = true;
+    const stop = onStaffPinEnded(() => speakAfterMount(region, () => {
+        if (!listening) return;   // stopped; a region the page has redrawn away is skipped by speakAfterMount
         const line = document.createElement('p');
         const back = document.createElement('a');
         back.href = BACK_TO_PIN;
         back.textContent = '← Back to roster';
         line.append(STAFF_PIN_ENDED_NOTICE + ' ', back);
         region.appendChild(line);
-    });
+    }));
+    return () => { listening = false; stop(); };
 }
 
 /**
