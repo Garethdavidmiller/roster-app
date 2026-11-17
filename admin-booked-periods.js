@@ -292,8 +292,8 @@ export function createBookedPeriods(deps) {
         // and nothing else, so a day the member was not contracted to work — a REST DAY carrying an
         // AL override — was listed and counted, while `consumesEntitlement` (which the AL banner
         // above it uses) correctly ignored it. One card, two disagreeing counts of the same thing:
-        // M. Robson's chips summed to 33 against a banner reading 32 of 32, and his December period
-        // began a day before his leave did. Reported by the owner from the roster office's own
+        // one member's chips summed to 33 against a banner reading 32 of 32, and their December period
+        // began a day before their leave did. Reported by the owner from the roster office's own
         // spreadsheet, which agreed with the banner.
         //
         // `cfg.consumes` is the ENTITLEMENT rule itself, injected rather than re-derived, so the two
