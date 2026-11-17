@@ -1012,8 +1012,9 @@ designer-only Links) stays with each coordinator, after sign-in.
   and focuses the password. `about` (`LoginAbout`: lines, a relative guide link, a footnote) puts the page's own
   explanation under the subtitle and describes the dialog with it; its link is inert mid-sign-in, as Back is (the Pay
   Calculator's, `paycalc-role-card.js`). The typed password goes straight to `ensureNamedSession`: the server is the
-  arbiter, and only a `credential` failure counts towards the three-strike client lockout. On success it
-  writes the one-shot set-password marker (`PW_FORCE_PENDING_PREFIX`) and calls `onSuccess(name)`.
+  arbiter, and only a `credential` failure counts towards the three-strike client lockout — counted, and
+  the 30-second lock held, for the person who earned it alone, so a change of person in the card releases
+  it. On success it writes the one-shot set-password marker (`PW_FORCE_PENDING_PREFIX`) and calls `onSuccess(name)`.
 - `runNamedSignIn(deps)` — the DOM-free sign-in core (`login-overlay.test.mjs`). It time-boxes
   `ensureNamedSession` and saves the local session ONLY once auth genuinely resolves; otherwise it returns
   `{ ok: false, kind, error }`, `kind` being `timeout`, `ratelimit`, `transient`, `credential`, `other` or
@@ -1834,7 +1835,7 @@ The Weekly Roster Upload coordinator on Operations: pick a file → `parseRoster
 - `PARSE_ABORT_MS` — how long the browser waits for the parse, above the server's own `timeoutSeconds` as `fetch-timeout.js`'s table says; `admin-roster-upload.test.mjs` pins it to the server's figure. The bound covers the reply's BODY as well as its headers. `statusFailureLine(status)` — the words for a refusal whose body carries none (the platform's gateway timeout, not the handler's JSON), so no failure reads "contact support".
 - `fetchOverridesForWeek(dates)` — the week's existing overrides, for classification. **Fails closed**: a failed or offline-cache read throws a tagged `conflictReadFailed` error rather than returning `[]`, which would misclassify every existing override as absent.
 - `_saveOverrideBatches` — `saveRosterWrites` (`roster-import-save.js`), re-exported under its old name for the suites that drive it. The review's Save hands it the records the review loaded (`_shown`, by id). **A refused Save** (`IMPORT_CHANGED_CODE`: a record it would delete changed after the read) re-reads the week and redraws the review, so the changed days show as they are — no second read of the PDF; a failed re-read closes the review.
-- `shiftDisplay(value, date?)` — the badge for one value; a worked Sunday time renders as RDW. `manualShiftDisplay(s)` — a stored manual value, with the RDW badge restored from the override's `type`.
+- `shiftDisplay(value, date?)` — the badge for one value; a worked Sunday time renders as RDW. An `UNKNOWN|…` value is quoted as unreadable PDF text only when it is one (the server upper-cases those); a sentence the import wrote is shown as itself. `manualShiftDisplay(s)` — a stored manual value, with the RDW badge restored from the override's `type`.
 - Re-exports `normaliseCellValue`, `shiftValueToOverrideType` and `isZeroLengthRange` (`roster-cell-rules.js`) and `computeCellStates` (`roster-review-states.js`), so existing call sites and tests are unchanged.
 - **The review offers the original PDF as a DOWNLOAD** (`<a download>`), never a `blob:` tab: that document inherits the page's `object-src 'none'`, so Chrome painted it blank, and admitting `blob:` was declined (the comment beside the button). `e2e/operations.spec.js` takes delivery of the file.
 
