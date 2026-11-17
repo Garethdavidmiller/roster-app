@@ -239,8 +239,9 @@ export function pickBookedYear({ pinned, preferred, years }) {
 
 
 /**
- * Build the renderer. Every handle it needs is INJECTED — this module imports only leave-year.js,
- * which imports nothing — so the whole of it is tested in Node with no DOM and no Firebase.
+ * Build the renderer. Every handle it needs is INJECTED — this module imports only leave-year.js, and
+ * for `periodDelete` the delete-set builder (override-utils.js) and the Christmas closure rule
+ * (christmas-leave.js), none of which reaches a DOM or Firebase — so the whole of it is tested in Node.
  *
  * @param {{
  *   doc: Document,
