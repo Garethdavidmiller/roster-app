@@ -10,9 +10,10 @@
 //   the shared preview guard chain (no member / no dates / bad range), rest-day counting
 //   via isWorkingDate, the change-listener wiring, and the whole save→feedback→refresh flow
 //   incl. the session-expired vs generic error split.
-// Does NOT own: the AL entitlement maths, the AL confirm-bar flag, or the spare-shift warning —
-//   admin-al.js injects them via the preSave / renderReady / project / swapQuestion hooks (the
-//   maths itself is admin-al-projection.js and admin-al-spare-note.js).
+// Does NOT own: the AL entitlement maths, the AL confirm-bar flag, the spare-shift warning or the
+//   swapped-day question — admin-al.js injects them via the preSave / renderReady / project /
+//   swapQuestion hooks (the rules themselves are admin-al-projection.js, admin-al-spare-note.js and
+//   al-swapped-days.js). The Absence card injects no question, so its rest days are skipped silently.
 //
 // ── ONE PICTURE OF THE MEMBER, AND THE SAVE ACTS ON THE ONE ON SCREEN NOW ──────────────────────
 //
