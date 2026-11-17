@@ -41,11 +41,11 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './admin-tips.js';
-import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
+import { mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, consumesEntitlement, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
-import { createBookedPeriods, fadeFeedback, holdFeedback } from './admin-booked-periods.js';
+import { createBookedPeriods, fadeFeedback, holdFeedback, periodDelete } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -1054,16 +1054,16 @@ export function init() {
      * @param {number} [listedCount]  How many days the row showed — what the confirmation reports
      */
     async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn, listedCount) {
-        // Scoped so a Sunday RD correction another range still needs is kept (computePeriodDeleteIds).
+        // WHICH RECORDS GO, AND WHAT THE LINE SAYS: `periodDelete` (admin-booked-periods.js) — scoped so a Sunday RD
+        // correction another range still needs is kept (edge Sunday, A1), a stored Christmas day stays the Christmas
+        // row's, and the line counts the DAYS the row listed (not documents), naming any uncounted ones it takes too.
         const allForDelete = getAllOverrides();
         const memberObj = teamMembers.find(m => m.name === memberName);
-        const deleteIds = computePeriodDeleteIds(allForDelete,
-            { type, memberName, start, end, isRestGap: d => isRestGap(d, memberObj) });   // edge Sunday (A1)
+        const { ids: deleteIds, said } = periodDelete({ overrides: allForDelete, type, memberName, start, end,
+            isRestGap: d => isRestGap(d, memberObj), listedCount });
         // THE BUTTON'S IDLE STATE IS admin-booked-periods.js's, restored when this promise settles.
         if (!deleteIds.length) return;
         const idSet = new Set(deleteIds);
-        // The DAYS the row listed, not documents: duplicates and corrections are no day it showed.
-        const leaveCount = listedCount ?? new Set(allForDelete.filter(o => idSet.has(o.id) && o.type === type).map(o => o.date)).size;
         // Wait for the session, as executeSave() does: auth.currentUser is briefly null while a returning
         // session restores, and a delete then would report a false "Delete failed".
         await sessionReady;
@@ -1089,8 +1089,6 @@ export function init() {
             _refreshAlPreview?.(); _refreshSickPreview?.();   // a range already picked was drawn over the deleted days (admin-2-2)
             // The week follows the delete (admin-own-write.js): a change staged on a deleted day is cleared, named below.
             const cleared = syncWeekAfterOwnWrite(allForDelete.filter(o => idSet.has(o.id)));
-            const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
-            const said = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;
             if (feedbackEl) {
                 setStatus(feedbackEl, withClearedDays(said, cleared));
                 feedbackEl.className = 'feedback success';
