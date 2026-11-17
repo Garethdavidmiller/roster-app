@@ -1174,6 +1174,27 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
             + `standard method. Update them from your <strong>20 Nov payslip</strong> (P${payslipPeriodNum(nov20)}) to sharpen it.`);
     });
 
+    // ── NEVER AN OLDER PAYSLIP THAN THE SOURCE (17 Nov 2026) ──────────────────────────────────────
+    // On the source payslip, or one before it, "the payslip before this one" is OLDER than the figures
+    // held. The note told a member with 23 Oct figures, looking back at 23 Oct, to update them from
+    // 25 Sep — and following it put stale totals in, which the next payslip then found misfitting.
+    test('on the source payslip or an earlier one, nothing older is offered to update from', () => {
+        const plain = `Your Year to Date figures are from ${from}, so this payslip uses the standard method.`;
+        for (const p of [oct23, byNum(56), byNum(55)]) {
+            assert.equal(status({ p, now: NOV21 }).note, plain, `viewing ${p.payday.toDateString()} with figures from 23 Oct`);
+        }
+    });
+
+    test('…and the January notice\'s route stays quiet: figures from 13 Mar 2026 viewed on 13 Mar', () => {
+        // The Holiday Pay Premium notice sends a member to the LAST 2025/26 payslip for its Year to
+        // Date pay. The note there offered 13 Feb — the opposite of what the notice had just asked.
+        const TY25 = /** @type {any} */ (PC_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2025/26'));
+        const mar13 = byNum(48 + TY25.last);
+        assert.equal(mar13.payday.getMonth(), 2, 'fixture: the last 2025/26 payslip is in March');
+        const s = ytdAnchorStatus({ p: mar13, ty: TY25, src: mar13.num, hasFigures: true, now: new Date(2026, 10, 20, 10) });
+        assert.doesNotMatch(s.note, /Update them from/, s.note);
+    });
+
     // ── "IN USE" IS WHAT computeTax DID (whole-app review, Nov 2026) ────────────────────────────────
     // The card worked it out for itself — "the payslip after the source, and either box has text" —
     // and called figures "in use" in three states where the standard method ran.
@@ -1318,7 +1339,9 @@ describe('the Year to Date rules keep to the payslips a joiner was employed for'
                 'the line does not ask for the 20 Nov figures');
             assert.equal(ytdSourceOffered(nov20, TY, NOV30), false, 'the picker does not offer 20 Nov');
             assert.equal(ytdSourceToStamp(null, true, TY, NOV30), null, 'a first entry is not stamped 20 Nov');
-            assert.ok(!/20 Nov/.test(ytdAnchorStatus({ p: dec18, ty: TY, src: 61, hasFigures: true, now: DEC20 }).note),
+            // A source OLDER than 20 Nov, so the start date — not the newer-than-the-source rule — is
+            // what keeps 20 Nov off the note.
+            assert.ok(!/20 Nov/.test(ytdAnchorStatus({ p: dec18, ty: TY, src: 57, hasFigures: true, now: DEC20 }).note),
                 'the note does not offer 20 Nov to update from');
             // From their own first payslip on, everything works as for anyone else.
             assert.equal(ytdUpdateFrom({ p: jan15, ty: TY, src: 0, inUse: false, taxCode: '1257L', now: DEC20 }), dec18);

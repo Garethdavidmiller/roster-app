@@ -1438,10 +1438,30 @@ test('paycalc: backup → restore round trip survives the reload', async ({ page
     const reloaded = page.waitForEvent('load');
     await page.locator('#ptPasteGo').click();
     await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
-    await expect(page.locator('#ptStatus')).toContainText(/Restored/);
+    await expect(page.locator('#ptStatus')).toContainText('Restored 1 payslip. Reloading…');
     await reloaded;
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16')))
         .toBe('{"satH":7,"satM":30}');
+});
+
+// A backup can hold no payslips at all — settings and Year to Date figures only — and the card said
+// "Restored 0 payslips", which reads as a restore that did nothing (17 Nov 2026).
+test('paycalc: a backup with no payslips says it was restored, not "Restored 0 payslips"', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_code', 'K100'));   // something for it to replace
+    await page.locator('#ptPaste').fill(JSON.stringify({
+        format: 'myb-paycalc-backup', version: 1, member: 'G. Miller', slug: 'gmiller',
+        data: { myb_pc_gmiller_code: '1257L' },
+    }));
+    const reloaded = page.waitForEvent('load');
+    await page.locator('#ptPasteGo').click();
+    await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
+    await expect(page.locator('#ptStatus')).toHaveText('Restored your backup — it held no payslips. Reloading…');
+    await reloaded;
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_code')), 'premise: it was restored').toBe('1257L');
 });
 
 test("paycalc: another member's backup is refused and writes nothing", async ({ page }) => {
@@ -1905,6 +1925,36 @@ test('paycalc: an hours edit inside the award window re-prices the back-pay lump
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
+// …AND CLEARING THEM MOVES IT BACK (17 Nov 2026). "Clear all entries" deletes the saved hours the lump
+// accrues from, and re-priced everything but the lump: the card kept the cleared overtime in it.
+test('paycalc: clearing a payslip inside the award window re-prices the back-pay lump at once', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.install({ time: PAY_2026_27_DAY });   // a running clock: the clear's second tap must come later
+    await seedSession(page);
+    await page.addInitScript(LUMP_QUIET);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await page.locator('#periodSelect').selectOption('52');   // 5 Jun 2026 — inside the 2026/27 award window
+    await page.evaluate(() => {
+        const t = /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle'));
+        /** @type {HTMLElement} */ (t.querySelector('.collapse-chevron') || t).click();
+    });
+    const total = page.locator('#backPayTotalAmt');
+    await expect(total).toHaveText(/£\d/);
+    const before = await total.textContent();
+    await page.fill('#otH', '20');
+    await page.dispatchEvent('#otH', 'input');
+    await expect(total, 'premise: the overtime is in the lump').not.toHaveText(before ?? '');
+
+    await page.clock.pauseAt(new Date(PAY_2026_27_DAY.getTime() + 60_000));
+    await page.locator('#clearBtn').click();                  // arms…
+    await page.clock.runFor(1000);
+    await page.locator('#clearBtn').click();                  // …and a second later, confirms
+    await expect(page.locator('#otH'), 'premise: the payslip is cleared').toHaveValue('');
+    await expect(total, 'the cleared overtime leaves the lump at once').toHaveText(before ?? '');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── A LUMP TYPED FROM THE PAYSLIP IS NOT AN ESTIMATE TO SHARPEN (whole-app check, 10 Nov 2026) ────
 // The banner's second line — "For the best estimate, fill in your hours on each payslip back to
 // 1 April …" — is the way to improve a lump WORKED OUT from hours. Typed from the payslip it is the
@@ -1918,6 +1968,8 @@ test('paycalc: a back-pay lump typed from the payslip is not told to fill in hou
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
     await page.locator('#periodSelect').selectOption('55');   // Paid 28 Aug 2026 · P24 — carries the 2026/27 award
     await expect(page.locator('#bpActiveBanner')).toBeVisible();
+    // Paid in August, so the lump IS on it — never "will land", ten weeks after it did (17 Nov 2026).
+    await expect(page.locator('#bpBannerText')).toContainText('is on this payslip — not added to this estimate');
     await expect(page.locator('#bpBannerNote'), 'worked out from hours: the line is the way to sharpen it')
         .toHaveText('For the best estimate, fill in your hours on each payslip back to 1 April 2026.');
 
@@ -2632,6 +2684,46 @@ test('paycalc: the opt-out date can be corrected forward, and un-ticking records
     expect(errors, 'Uncaught JS exceptions correcting the pension timeline').toHaveLength(0);
 });
 
+// ── A FIGURE BEHIND THE LOCK IS KEPT, NOT ERASED (17 Nov 2026) ───────────────────────────────────
+// Inside an opt-out spell the box is locked at £0.00 — the payslip's default there — and the save
+// read that as "the default", storing nothing over the figure the payslip held. An hours edit on the
+// payslip, or Save settings, erased it; correcting the date then brought back the scheme figure.
+test('paycalc: a pension typed on a payslip survives edits inside an opt-out spell, and returns with the date', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    const values = await page.locator('#periodSelect option').evaluateAll(os => os.map(o => o.value));
+    const early = values[values.length - 4], mid = values[values.length - 3], later = values[values.length - 2];
+    const saved = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? 'null')?.pension ?? null, `myb_pc_gmiller_p${mid}`);
+
+    // Her own figure on one payslip…
+    await page.locator('#periodSelect').selectOption(mid);
+    await page.locator('#pensionAmt').fill('140');
+    await expect.poll(saved, 'premise: the figure is saved on that payslip').toBe(140);
+    // …then she ticks "not in the scheme", dated — too early — from an earlier payslip.
+    await page.locator('#periodSelect').selectOption(early);
+    await page.locator('#pensionOptOutCheck').check();
+    await page.locator('#periodSelect').selectOption(mid);
+    await expect(page.locator('#pensionAmt'), 'premise: inside the spell the box is locked at £0.00').toHaveValue('0.00');
+    await expect(page.locator('#pensionAmt')).toBeDisabled();
+
+    // An hours edit on that payslip, and Save settings, while it is locked.
+    await page.locator('#otH').fill('2');
+    await expect.poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}').otH, `myb_pc_gmiller_p${mid}`)).toBe(2);
+    expect(await saved(), 'the edit stored the lock\'s £0.00 over her figure').toBe(140);
+    await page.locator('#saveSettingsBtn').click();
+    expect(await saved(), 'Save settings wrote over her figure').toBe(140);
+
+    // She corrects the date: the spell starts two payslips later, and her own figure is back.
+    await page.locator('#pensionOptOutFrom').selectOption(later);
+    await expect(page.locator('#pensionAmt'), 'her £140, not the scheme figure').toHaveValue('140');
+    await expect(page.locator('#pensionAmt')).toBeEnabled();
+    expect(errors, 'Uncaught JS exceptions keeping the pension figure').toHaveLength(0);
+});
+
 // The device that already carries the retired boolean. It records no date, so the migration dates
 // it to the first payslip of the current tax year — and the property that makes that safe is
 // directional: it can only move a payslip from a wrongly-imposed £0 back to the scheme default,
@@ -3154,6 +3246,31 @@ test('paycalc: a grade chosen by hand covers whole payslips from the one named; 
     await expect(page.locator('#gradeFromField'), 'the roster needs no date of its own').toBeHidden();
     await expect(page.locator('#hourlyRate')).toHaveValue('22.60');
     expect(await page.evaluate(k => localStorage.getItem(k), `${PROMOTED_PC}grade_from`)).toBeNull();
+    expect(errors).toHaveLength(0);
+});
+
+// THE PAYSLIP ON SCREEN, NOT TODAY'S (17 Nov 2026). Settings load before the payslip selector exists,
+// so the hidden "from which payslip?" was built with the payslip being earned today — and a grade
+// chosen while an older payslip was on screen was dated from today's: that payslip kept CEA rates,
+// under a box naming 15 Jan 2027. The pension tick dates itself from the payslip on screen; so does this.
+test('paycalc: a grade chosen by hand starts from the payslip on screen', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));   // today's payslip: 15 Jan 2027
+    await seedSession(page, LONG_SERVING);
+    await page.addInitScript(({ pc }) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem(`${pc}setup`, '1');
+    }, { pc: LONG_SERVING_PC });
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    const onScreen = await page.locator('#periodSelect').inputValue();
+    await expect(page.locator('#hourlyRate'), 'premise: priced as the roster\'s CEA').toHaveValue(GRADES.cea.rate.toFixed(2));
+    await page.locator('#settingsToggle .card-toggle-arrow').click();
+    await page.locator('#gradeSelect').selectOption('ces');
+    await expect(page.locator('#gradeFromField')).toBeVisible();
+    await expect(page.locator('#gradeFrom'), 'the box names the payslip on screen').toHaveValue(onScreen);
+    expect(await page.evaluate(k => localStorage.getItem(k), `${LONG_SERVING_PC}grade_from`)).toBe(onScreen);
+    await expect(page.locator('#hourlyRate'), 'and the payslip on screen is priced at it').toHaveValue(GRADES.ces.rate.toFixed(2));
     expect(errors).toHaveLength(0);
 });
 
@@ -4066,6 +4183,17 @@ test('paycalc: the rate badges print in their own colours, RDW included', async 
     const paper = await paint();
     await page.emulateMedia({ media: null });
     expect(paper).toEqual(screen);
+});
+
+// The sheet's header names the payslip as the page does — "Paid 20 Nov 2026" — never "20 Nov 26"
+// (17 Nov 2026): the result card and the picker both spell the year out.
+test('paycalc: the printed header names the payday with its whole year', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-17T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2026-11-20');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    await expect(page.locator('.app-header')).toHaveAttribute('data-print-line', /^Paid 20 Nov 2026 \(P\d+\) · /);
 });
 
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────

@@ -94,6 +94,15 @@ describe('dropping the hedge — an unconfirmed figure reading as settled', () =
         assert.ok(!/could land/.test(BP({ isEstimate: false }).text));
     });
 
+    test('a confirmed lump IS on its payslip once that payslip may be in hand — never "will land" after it paid', () => {
+        // The 28 Aug 2026 payslip, viewed in November, said the lump "will land" on it (17 Nov 2026).
+        assert.equal(BP({ isEstimate: false, inHand: true }).text,
+            'ℹ️ Your back pay lump sum of £1,240.00 is on this payslip — not added to this estimate');
+        assert.match(BP({ isEstimate: false, inHand: false }).text, /will land on this payslip/, 'before it arrives, it will land');
+        // An unconfirmed award has no decided payslip, so it stays hedged either way.
+        assert.match(BP({ isEstimate: true, inHand: true }).text, /could land on this payslip/);
+    });
+
     test('HPP hedges an unconfirmed premium on both sentences', () => {
         assert.match(HPP({ isEstimate: true, forPeriod: 480 }).text, /estimated Holiday Pay Premium/);
         assert.match(HPP({ isEstimate: true }).text, /^ℹ️ Estimated Holiday Pay Premium .* could land on this payslip/);
@@ -220,6 +229,9 @@ describe('the CALLER passes the added sum, not the available one', () => {
             'the back-pay banner is told about a different sum from the one in the total');
         assert.match(callSite('hppBannerCopy'), /forPeriod:\s*_hppForPeriod\b/,
             'the HPP banner is told about a different sum from the one in the total');
+        // …and whether the payslip ON SCREEN may be in hand, by the app's one rule for that.
+        assert.match(callSite('backPayBannerCopy'), /inHand:\s*!!_curP && payslipMayBeInHand\(_curP\)/,
+            'the back-pay banner is not told whether its payslip has arrived');
     });
 
     test('2 — and the tick each banner shows is the tick that gated that sum', () => {

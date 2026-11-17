@@ -50,7 +50,7 @@ const memberName = () => getLoggedMember()?.name || '';
 import { APP_VERSION } from './roster-data.js';
 import { confirmDialog, openCardNamedByHash } from './overlay.js';
 import {
-    selectBackupKeys, buildBackup, validateBackup, rekeyEntries, backupFilename,
+    selectBackupKeys, buildBackup, validateBackup, rekeyEntries, backupFilename, restoredLine,
     applyRestore as applyStorageRestore,
 } from './paycalc-transfer.js';
 import { inventoryOf, inventoryLines } from './paycalc-inventory.js';
@@ -325,7 +325,7 @@ export function initTransferCard() {
             return;
         }
 
-        status(`Restored ${plural(res.counts.periods, 'payslip')}. Reloading…`, 'ok');
+        status(restoredLine(res.counts), 'ok');
         setTimeout(() => window.location.reload(), 800);
     }
 

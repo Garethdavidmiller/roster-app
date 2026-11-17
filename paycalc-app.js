@@ -63,7 +63,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fd, fdShort, fdLong, fmt, minutesFieldText } from './paycalc-format.js';
+import { fdShort, fdLong, fmt, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
@@ -286,7 +286,8 @@ export function init() {
       const boxing = hasBoxingDay(p);
       /** @type {HTMLElement} */ (document.getElementById('boxingBanner')).classList.toggle('visible', boxing);
       /** @type {HTMLElement} */ (document.getElementById('boxingRow')).classList.toggle('hidden', !boxing);
-      if (!boxing) { /** @type {HTMLInputElement} */ (document.getElementById('boxH')).value = ''; /** @type {HTMLInputElement} */ (document.getElementById('boxM')).value = ''; }
+      // No blanking of the hidden Boxing Day boxes here: loadPeriodData below writes every box from the
+      // payslip's own saved entries, and calculate() reads Boxing Day hours only where the payslip has one.
 
       // Update tax year tab active state
       updateTyTabs();
@@ -444,12 +445,17 @@ export function init() {
       btn.classList.toggle('negative', _adjNegative);
     }
 
+    /** The pension payslip `pNum`'s saved entries hold (null for none): `readFormData` keeps it while an
+     *  opt-out locks the box, rather than storing the lock's £0.00 over it. @param {number} pNum */
+    const _savedPension = (pNum) => parseSavedPeriod(lsGet(periodKey(pNum))).data?.pension ?? null;
+
     function autosave() {
       const pNum = currentPeriodNum();   // SAVED before calculate() below: HPP and the year card read storage
       const _autoP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
       const d    = readFormData({
         adjNegative: _adjNegative,
         periodDefaultPension: _autoP ? periodDefaultPension(_autoP) : null,
+        savedPension: _savedPension(pNum),
       });
       try {
         lsSet(periodKey(pNum), JSON.stringify(d));
@@ -462,7 +468,8 @@ export function init() {
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
      *  (`autosave` would save the calendar's suggestion too — see `settingFieldsWrite`). @param {string[]} fields */
     const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
-      const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative, periodDefaultPension: p ? periodDefaultPension(p) : null }), fields);
+      const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative,
+        periodDefaultPension: p ? periodDefaultPension(p) : null, savedPension: _savedPension(pNum) }), fields);
       if (w) { try { lsSet(periodKey(pNum), w); updateSaveStatus(pNum); } catch { /* storage unavailable */ } }
       calculate(); };
 
@@ -586,6 +593,7 @@ export function init() {
       _adjNegative = false;
       updateAdjSign();
       updateSaveStatus(pNum);
+      _runCalcBackPay();   // the lump accrues from SAVED hours, and these were just deleted — as autosave re-prices it
       calculate();
       // Clearing blanks the fields programmatically — refresh the roster card so
       // rows don't keep showing ✓ matched against now-empty fields.
@@ -867,6 +875,7 @@ export function init() {
         copy: backPayBannerCopy({
           thisPeriod: _bpThisPeriod, amount: _bpAmount, isEstimate: _bpIsEstimate, fromPayslip: _bpFromPayslip,
           aprilYear: _bpAvailableHere ? _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4) : '',
+          inHand: !!_curP && payslipMayBeInHand(_curP),
         }),
       });
 
@@ -1454,8 +1463,9 @@ export function init() {
       const printedNow = new Date();
       const now = printedStamp(printedNow, formatClock(printedNow));
       // "Pay Calculator", never the old MYB name: the app is "Marylebone Roster" on screen, and a
-      // print header is where a stale name leaves the app on paper.
-      const label = p ? `Paid ${fd(p.payday)} (P${payslipPeriodNum(p)}) · ${now}` : `Pay Calculator · ${now}`;
+      // print header is where a stale name leaves the app on paper. The payday with its whole year,
+      // as the result card and the picker say it ("Paid 20 Nov 2026") — never "20 Nov 26" on paper.
+      const label = p ? `Paid ${fdLong(p.payday)} (P${payslipPeriodNum(p)}) · ${now}` : `Pay Calculator · ${now}`;
       hdr.setAttribute('data-print-line', label);
     }
     stampPaycalcPrintLine();

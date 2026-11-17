@@ -92,13 +92,24 @@ function _readActual(id) {
 /**
  * Read the period form into a saveable object.
  *
- * @param {{ adjNegative?: boolean, periodDefaultPension?: number|null }} [opts]
+ * A LOCKED PENSION BOX IS NOBODY'S FIGURE (17 Nov 2026). Inside a pension opt-out spell the box is
+ * disabled and reads £0.00 (`applyPensionOptOutUI`), which equals that payslip's default of £0, so the
+ * round trip stored "the default" — null — over whatever figure the payslip held. Any edit there, or a
+ * Settings save, erased a pension the member had typed, and correcting the opt-out date then brought
+ * the payslip back at the scheme default instead of their figure. So while the box is locked the
+ * payslip's own saved figure is carried, untouched and dormant (every surface prices a payslip in the
+ * spell at £0 whatever it holds — paycalc-3-3).
+ *
+ * @param {{ adjNegative?: boolean, periodDefaultPension?: number|null, savedPension?: number|null }} [opts]
  *   adjNegative — the coordinator's current ± state for `otherAdj`.
  *   periodDefaultPension — this period's default pension (default × pro-rate, 2dp). Omit or pass
  *   null to skip the self-heal, which is what the old inline code did when no period was found.
+ *   savedPension — what this payslip's saved entries hold for the pension (null for none), stored
+ *   again unchanged while the box is locked. Every caller that SAVES passes it.
  * @returns {Record<string, any>}
  */
-export function readFormData({ adjNegative = false, periodDefaultPension = null } = {}) {
+export function readFormData({ adjNegative = false, periodDefaultPension = null, savedPension = null } = {}) {
+    const _pa = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
     // hmPair, not two intVal reads: an hours box still holding "7.5" (not yet blurred) is stored as
     // the 7h 30m the blur would write, never parseInt's 7.
     const _hm = (/** @type {string} */ h, /** @type {string} */ m) => {
@@ -112,9 +123,8 @@ export function readFormData({ adjNegative = false, periodDefaultPension = null 
         slSkip: /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
         otherAdj: (() => { const _r = Math.abs(numVal('otherAdj') || 0); return adjNegative ? -_r : _r; })(),
         // Blank/garbage → null, a typed "0" kept, the period default → null: `pensionToStore` above.
-        pension: pensionToStore(
-            /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'))?.value ?? '',
-            periodDefaultPension),
+        // A locked box (an opt-out spell) keeps the payslip's own saved figure — see the header.
+        pension: _pa?.disabled ? (savedPension ?? null) : pensionToStore(_pa?.value ?? '', periodDefaultPension),
         // Real take-home from the payslip (v18.42 — review item 3): null when blank/garbage, like
         // pension — mid-edit autosaves must not store a phantom £0 "actual". Deliberately NOT in
         // isDataEmpty: a period with only this figure has no hours to compute from.

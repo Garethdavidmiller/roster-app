@@ -33,9 +33,10 @@ const {
   fetchOverridesForPeriod,
   resetOverrides,
   getOverridesFetchState,
+  bhsForYear,
 } = await import('./paycalc-roster-suggestions.js');
 
-const { teamMembers, parseISODate } = await import('./roster-data.js');
+const { teamMembers, parseISODate, formatISO } = await import('./roster-data.js');
 const cReen = teamMembers.find(m => m.name === 'C. Reen');
 // C. Reen: fixed roster — Mon–Fri 12:00-19:00 (7h), Sat/Sun RD.
 const sBoyle = teamMembers.find(m => m.name === 'S. Boyle');
@@ -787,6 +788,56 @@ describe('getRosterSuggestion — each payslip reads its own recorded changes', 
 });
 
 // ── Sunday-on-BH payroll rule ─────────────────────────────────────────────────
+
+// ── ONLY 26 DECEMBER IS BOXING DAY (17 Nov 2026) ──────────────────────────────────────────────────
+// Two date tests decide it: the bank-holiday list drops 26 December (it is priced at 3× on its own),
+// and an Other-family rest day routes to the Boxing Day box only on 26 December. Each is a `month ===
+// 11 && date === 26`, and either `&&` could become `||` with this file green — taking Christmas Day,
+// the substitute bank holiday and any 26th out of the bank holidays (their hours lost), or pricing
+// every December training rest day at 3×. An invented member on fixed pattern 1 (Mon–Fri 12:00-19:00,
+// weekends at rest), so the base shifts are the pattern's own.
+describe('getRosterSuggestion — only 26 December is Boxing Day', () => {
+  const A_PERSON = { name: 'A. Person', currentWeek: 1, rosterType: 'fixed', role: 'CEA' };
+  test('the bank-holiday list keeps Christmas Day, the substitute day and any other 26th', () => {
+    const y26 = bhsForYear(2026).map(formatISO), y25 = bhsForYear(2025).map(formatISO);
+    assert.ok(y26.includes('2026-12-25'), 'Christmas Day is a bank holiday');
+    assert.ok(y26.includes('2026-12-28'), 'Mon 28 Dec 2026, the substitute for a Saturday Boxing Day, is a bank holiday');
+    assert.ok(y25.includes('2025-05-26'), 'the Spring bank holiday on Mon 26 May 2025 is a bank holiday');
+    assert.ok(!y25.includes('2025-12-26'), 'Boxing Day itself is priced on its own, at 3×');
+  });
+
+  test('a rostered shift on the substitute day is Bank Holiday Rostered', () => {
+    _setOverridesForTest(new Map());
+    const s = getRosterSuggestion(period('2026-12-28'), A_PERSON);   // Mon, base 12:00-19:00
+    assert.ok(s, 'the substitute bank holiday must not read as an ordinary Monday');
+    assert.deepEqual([s.bhCount, s.bhH, s.bhM, s.boxCount], [1, 7, 0, 0]);
+  });
+
+  test('a rostered shift on a bank holiday that falls on a 26th is Bank Holiday Rostered', () => {
+    _setOverridesForTest(new Map());
+    const s = getRosterSuggestion(period('2025-05-26'), A_PERSON);   // Spring bank holiday, base 12:00-19:00
+    assert.ok(s);
+    assert.deepEqual([s.bhCount, s.bhH, s.boxCount], [1, 7, 0]);
+  });
+
+  test('a rest day worked on Christmas Day is Bank Holiday Overtime', () => {
+    _setOverridesForTest(new Map([
+      ['2026-12-25', { type: 'rdw', value: '09:00-17:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-12-25'), A_PERSON);   // base RD (Christmas)
+    assert.ok(s);
+    assert.deepEqual([s.bhOtCount, s.bhOtH, s.rdwCount, s.boxCount], [1, 8, 0, 0]);
+  });
+
+  test('a training rest day in December, or on another month\'s 26th, is Rest Day Working — not 3×', () => {
+    for (const day of ['2026-12-19', '2026-09-26']) {                // both Saturdays, base RD
+      _setOverridesForTest(new Map([[day, { type: 'other', value: 'TRG RDW', _ts: 1, _manual: true }]]));
+      const s = getRosterSuggestion(period(day), A_PERSON);
+      assert.ok(s, day);
+      assert.deepEqual([s.rdwCount, s.rdwH, s.boxCount], [1, 8, 0], `${day} is not Boxing Day`);
+    }
+  });
+});
 
 describe('getRosterSuggestion — Sunday-on-BH payroll rule', () => {
 

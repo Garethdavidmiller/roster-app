@@ -71,28 +71,38 @@ export const SL_BY_YEAR = {
   },
 };
 
-// Scottish income tax (Holyrood-set). Bands are per-period TAXABLE tops (total
-// income threshold minus PA, divided by P_YR). PA still set by Westminster.
+// Scottish income tax (Holyrood-set). Bands are per-period TAXABLE tops — taxable pay above the
+// PAYE threshold, exactly as HMRC's "Rates and thresholds for employers" tables print them — divided
+// by P_YR. PA still set by Westminster.
+//
+// THE ADVANCED TOP IS £125,140 OF TAXABLE PAY, NOT £125,140 − £12,570 (17 Nov 2026). The lower four
+// tops are the gov.scot INCOME thresholds less the personal allowance, which is what HMRC prints for
+// them too. The Advanced band is not: by £125,140 of income the allowance has been withdrawn, so
+// HMRC's table puts the 45% band at £62,431–£125,140 of TAXABLE pay and 48% above it, whatever the
+// code's allowance — the same reading the rUK branch of computeTax makes for its 45% band. Written in
+// income space (£112,570) it started the 48% rate a whole allowance early for an S0T or SK code:
+// computeTax(9000, 'S0T') on 2026/27 gave £3,397.80 where the table gives £3,387.58.
 export const SCOTTISH_TAX_BY_YEAR = {
+  // GOV.UK, Rates and thresholds for employers 2025 to 2026 — Scottish PAYE bands of taxable pay.
   '2025/26': { pa: 12570/P_YR, bands: [
-    { top:  2827/P_YR, rate: 0.19 }, // Starter      19%  £12,571–£15,397
-    { top: 14921/P_YR, rate: 0.20 }, // Basic        20%  £15,397–£27,491
-    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £27,491–£43,662
-    { top: 62430/P_YR, rate: 0.42 }, // Higher       42%  £43,662–£75,000
-    { top:112570/P_YR, rate: 0.45 }, // Advanced     45%  £75,000–£125,140
-    { top: Infinity,   rate: 0.48 }, // Top          48%  over £125,140
+    { top:  2827/P_YR, rate: 0.19 }, // Starter      19%  £1–£2,827 of taxable pay
+    { top: 14921/P_YR, rate: 0.20 }, // Basic        20%  £2,828–£14,921
+    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £14,922–£31,092
+    { top: 62430/P_YR, rate: 0.42 }, // Higher       42%  £31,093–£62,430
+    { top:125140/P_YR, rate: 0.45 }, // Advanced     45%  £62,431–£125,140
+    { top: Infinity,   rate: 0.48 }, // Top          48%  above £125,140
   ]},
-  // Confirmed against the Scottish Budget 2026/27 (gov.scot rates & bands, reviewed Jul 2026). All
-  // six rates and band count unchanged; the Starter and Basic tops were uprated +7.4% (to £16,537 /
-  // £29,526) and the Intermediate/Higher/Advanced/Top thresholds held frozen. Scottish bands are set
-  // annually by the Scottish Budget (NOT covered by the Westminster freeze) — re-verify every year.
+  // GOV.UK, Rates and thresholds for employers 2026 to 2027 (checked 17 Nov 2026), which agrees with
+  // the Scottish Budget 2026/27: all six rates and the band count unchanged, the Starter and Basic
+  // tops uprated (to £16,537 / £29,526 of income) and the rest held. Scottish bands are set annually
+  // by the Scottish Budget (NOT covered by the Westminster freeze) — re-verify every year.
   '2026/27': { pa: 12570/P_YR, bands: [
-    { top:  3967/P_YR, rate: 0.19 }, // Starter      19%  £12,571–£16,537
-    { top: 16956/P_YR, rate: 0.20 }, // Basic        20%  £16,537–£29,526
-    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £29,526–£43,662
-    { top: 62430/P_YR, rate: 0.42 }, // Higher       42%  £43,662–£75,000
-    { top:112570/P_YR, rate: 0.45 }, // Advanced     45%  £75,000–£125,140
-    { top: Infinity,   rate: 0.48 }, // Top          48%  over £125,140
+    { top:  3967/P_YR, rate: 0.19 }, // Starter      19%  £1–£3,967 of taxable pay
+    { top: 16956/P_YR, rate: 0.20 }, // Basic        20%  £3,968–£16,956
+    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £16,957–£31,092
+    { top: 62430/P_YR, rate: 0.42 }, // Higher       42%  £31,093–£62,430
+    { top:125140/P_YR, rate: 0.45 }, // Advanced     45%  £62,431–£125,140
+    { top: Infinity,   rate: 0.48 }, // Top          48%  above £125,140
   ]},
 };
 

@@ -32,13 +32,21 @@
  *
  * ── AND WHAT IT HONESTLY CANNOT DO ─────────────────────────────────────────────────────────────
  *
- * Two sets of current-year figures are NOT frozen and cannot be derived from anything the repo can
- * verify: the Scottish Starter/Basic band tops (set annually by the Scottish Budget, uprated +7.4%
- * for 2026/27) and the five student-loan thresholds (uprated annually, HMRC SL3). Those are pinned
- * as LITERALS with their source named. A literal lock is a CHANGE-DETECTOR, not a truth-oracle: it
+ * Some figures no payslip on record can vouch for, in EITHER year, so the freeze carries no evidence
+ * into them: every Scottish band and rate (set annually by the Scottish Budget, and no payslip on
+ * record carries a Scottish code — VALIDATION_REGISTER.md, VAL-PAY-006), Plan 4 and the
+ * Postgraduate Loan (no payslip on record deducts either), and the student-loan thresholds uprated
+ * each April. Those are pinned as LITERALS, each beside the published table it was read from and a
+ * note that it is published-source only. A literal lock is a CHANGE-DETECTOR, not a truth-oracle: it
  * cannot tell you the published figure is right, only that nobody altered it without coming here,
  * reading the source line, and re-checking it deliberately. That is the whole intent — the failure
  * it prevents is a silent edit, which is exactly what the mutation demonstrated.
+ *
+ * A comparison between the two years is NOT such a lock, and Scotland once leaned on one: the
+ * Scottish tests asserted only that the current year's upper tops EQUAL the anchored year's, so a
+ * top wrong in both years passed — and the Advanced top was, written in income space (£112,570)
+ * where HMRC's table says £125,140 of taxable pay (17 Nov 2026). Every figure below was read against
+ * GOV.UK's "Rates and thresholds for employers" pages for 2025 to 2026 and 2026 to 2027 that day.
  *
  * WHEN A NEW TAX YEAR ARRIVES this file fails, loudly, because `CURRENT` must be the newest entry in
  * TAX_YEARS — which is the point: the new year's figures want checking against the published tables,
@@ -110,42 +118,95 @@ describe('THE FROZEN FIGURES: real-payslip evidence carried into the current yea
         assert.deepEqual(NI_BY_YEAR[CURRENT], NI_BY_YEAR[ANCHORED],
             'NI was confirmed unchanged for 2026/27 — a difference here is unverified');
     });
+});
 
-    test('Scotland: the personal allowance is Westminster-set, so it is frozen too', () => {
+// ── SCOTLAND: PUBLISHED SOURCE ONLY ─────────────────────────────────────────────────────────────
+// No payslip on record carries a Scottish code (VAL-PAY-006), so nothing here is evidence carried
+// from a payslip — and comparing one year with the other proves nothing about either. Each band is
+// pinned as GOV.UK's employer table prints it: the TOP of its slice of annual TAXABLE pay (pay above
+// the PAYE threshold), and its rate. The table stores each top ÷ 13.
+/** @type {Record<string, [number, number, string][]>} [annual taxable top, rate, band] — every row
+ *  published-source only. */
+const SCOTTISH_PUBLISHED = {
+    // GOV.UK, "Rates and thresholds for employers 2025 to 2026" → Scottish PAYE tax rates and
+    // thresholds (read 17 Nov 2026). Published source only — no payslip on record.
+    '2025/26': [
+        [2827, 0.19, 'Starter'],          // up to £2,827 — published source only
+        [14921, 0.20, 'Basic'],           // £2,828 to £14,921 — published source only
+        [31092, 0.21, 'Intermediate'],    // £14,922 to £31,092 — published source only
+        [62430, 0.42, 'Higher'],          // £31,093 to £62,430 — published source only
+        [125140, 0.45, 'Advanced'],       // £62,431 to £125,140 — published source only
+        [Infinity, 0.48, 'Top'],          // above £125,140 — published source only
+    ],
+    // GOV.UK, "Rates and thresholds for employers 2026 to 2027" → Scottish PAYE tax rates and
+    // thresholds (read 17 Nov 2026; the Scottish Budget 2026/27 uprated Starter and Basic only).
+    // Published source only — no payslip on record.
+    '2026/27': [
+        [3967, 0.19, 'Starter'],          // up to £3,967 — published source only
+        [16956, 0.20, 'Basic'],           // £3,968 to £16,956 — published source only
+        [31092, 0.21, 'Intermediate'],    // £16,957 to £31,092 — published source only
+        [62430, 0.42, 'Higher'],          // £31,093 to £62,430 — published source only
+        [125140, 0.45, 'Advanced'],       // £62,431 to £125,140 — published source only
+        [Infinity, 0.48, 'Top'],          // above £125,140 — published source only
+    ],
+};
+
+describe('SCOTLAND: every band and rate, as published — no payslip evidence exists', () => {
+    for (const [year, rows] of Object.entries(SCOTTISH_PUBLISHED)) {
+        test(`${year}: each band's taxable top and rate is the published one`, () => {
+            const bands = SCOTTISH_TAX_BY_YEAR[year].bands;
+            assert.equal(bands.length, rows.length, `${year}: the band COUNT changed — that is a structural change`);
+            rows.forEach(([top, rate, name], i) => {
+                assert.equal(bands[i].top, top === Infinity ? Infinity : perPeriod(top), `${year} ${name} top`);
+                assert.equal(bands[i].rate, rate, `${year} ${name} rate`);
+            });
+        });
+    }
+
+    test('the Advanced top is £125,140 of TAXABLE pay — never £125,140 less the allowance', () => {
+        // The income-space figure (£112,570) is the mistake the rUK branch of computeTax already
+        // corrected for its 45% band, and Scotland carried until 17 Nov 2026.
+        for (const year of Object.keys(SCOTTISH_PUBLISHED)) {
+            assert.notEqual(SCOTTISH_TAX_BY_YEAR[year].bands[4].top, perPeriod(125140 - 12570), year);
+        }
+    });
+
+    test('the personal allowance is Westminster-set, so it is frozen too', () => {
         assert.equal(SCOTTISH_TAX_BY_YEAR[CURRENT].pa, SCOTTISH_TAX_BY_YEAR[ANCHORED].pa);
         assert.equal(SCOTTISH_TAX_BY_YEAR[CURRENT].pa, TAX_BY_YEAR[CURRENT].pa,
             'the Scottish table must not carry a different personal allowance from the rUK one');
     });
 
-    test('Scotland: the four UPPER band tops are frozen, and only the lower two were uprated', () => {
-        // The Scottish Budget 2026/27 uprated Starter and Basic and held the rest. Pinning WHICH
-        // bands moved is the part that catches an edit to the wrong row — a mistake that would
-        // otherwise look exactly like the legitimate uprating.
+    test('consistency, not evidence: only Starter and Basic moved between the two years', () => {
+        // The Scottish Budget 2026/27 uprated Starter and Basic and held the rest. This catches an
+        // edit to the wrong row of ONE year; the literals above are what catch a figure wrong in both.
         const cur = SCOTTISH_TAX_BY_YEAR[CURRENT].bands;
         const anc = SCOTTISH_TAX_BY_YEAR[ANCHORED].bands;
-        assert.equal(cur.length, anc.length, 'the band COUNT changed — that is a structural change');
         for (const i of [2, 3, 4, 5]) {
             assert.equal(cur[i].top, anc[i].top,
                 `Scottish band ${i} (0-indexed) moved; only Starter (0) and Basic (1) were uprated for ${CURRENT}`);
         }
         assert.ok(cur[0].top > anc[0].top, 'Starter should have been uprated upward');
         assert.ok(cur[1].top > anc[1].top, 'Basic should have been uprated upward');
-    });
-
-    test('every rate is unchanged in both regimes — a rate change is a Budget event, not an edit', () => {
-        assert.deepEqual(
-            SCOTTISH_TAX_BY_YEAR[CURRENT].bands.map((/** @type {any} */ b) => b.rate),
-            SCOTTISH_TAX_BY_YEAR[ANCHORED].bands.map((/** @type {any} */ b) => b.rate));
+        assert.deepEqual(cur.map((/** @type {any} */ b) => b.rate), anc.map((/** @type {any} */ b) => b.rate),
+            'a rate change is a Budget event, not an edit');
     });
 });
 
 describe('THE UPRATED FIGURES: literals, pinned to their published source', () => {
     // Honest framing: these catch a silent edit, not a wrong source. See the header.
-    test('Scottish Starter and Basic tops match the Scottish Budget 2026/27', () => {
-        // gov.scot rates & bands: Starter to £16,537, Basic to £29,526. Stored as TAXABLE tops,
-        // i.e. the total-income threshold minus the £12,570 personal allowance.
-        assert.equal(SCOTTISH_TAX_BY_YEAR[CURRENT].bands[0].top, perPeriod(16537 - 12570));
-        assert.equal(SCOTTISH_TAX_BY_YEAR[CURRENT].bands[1].top, perPeriod(29526 - 12570));
+    test('Plan 4 and the Postgraduate Loan, both years — published source only', () => {
+        // No payslip on record deducts either, so none of these six figures is payslip-evidenced.
+        // GOV.UK, "Rates and thresholds for employers 2025 to 2026" (read 17 Nov 2026):
+        assert.equal(SL_BY_YEAR[ANCHORED].plan4.t, perPeriod(32745));     // Plan 4 £32,745 — published source only
+        assert.equal(SL_BY_YEAR[ANCHORED].plan4.r, 0.09);                 // Plan 4 9% — published source only
+        assert.equal(SL_BY_YEAR[ANCHORED].postgrad.t, perPeriod(21000));  // Postgraduate £21,000 — published source only
+        assert.equal(SL_BY_YEAR[ANCHORED].postgrad.r, 0.06);              // Postgraduate 6% — published source only
+        // GOV.UK, "Rates and thresholds for employers 2026 to 2027" (read 17 Nov 2026):
+        assert.equal(SL_BY_YEAR[CURRENT].plan4.t, perPeriod(33795));      // Plan 4 £33,795 — published source only
+        assert.equal(SL_BY_YEAR[CURRENT].plan4.r, 0.09);                  // Plan 4 9% — published source only
+        assert.equal(SL_BY_YEAR[CURRENT].postgrad.t, perPeriod(21000));   // Postgraduate £21,000 — published source only
+        assert.equal(SL_BY_YEAR[CURRENT].postgrad.r, 0.06);               // Postgraduate 6% — published source only
     });
 
     test('the five student-loan thresholds match HMRC SL3 2026-27', () => {

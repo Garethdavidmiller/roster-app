@@ -280,6 +280,39 @@ describe('saving the setting from the Grade box', () => {
         assert.deepEqual(G.getGradeSetting(), { grade: 'cea', from: 58 });
     });
 
+    // THE PAYSLIP ON SCREEN, NOT TODAY'S (17 Nov 2026). Settings load before the payslip selector
+    // exists, so the hidden "from which payslip?" is built with the payslip being earned today. A
+    // member viewing an older payslip who then chose CES had it dated from today's: the payslip in front
+    // of them stayed at CEA rates, under a date naming another. Reproduced in a browser on 20 Dec 2026
+    // with the 23 Oct payslip on screen: the box named 15 Jan 2027. The row is picked by SHAPE.
+    test('a grade chosen for the first time starts at the payslip ON SCREEN — never today\'s', (t) => {
+        const CEA_ALL_YEAR = /** @type {string} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden
+            && !m.managerOnly && !m.startDate && !m.roleHistory && !m.rosterChanges)?.name);
+        const DEC_20 = new Date(2026, 11, 20, 10);
+        load(CEA_ALL_YEAR, { grade: 'roster' }, t, DEC_20);
+        _session = { name: CEA_ALL_YEAR };
+        const today = String(P.todaysPeriodNum());
+        assert.equal(page.gradeFrom.value, today, 'premise: built before the selector existed, with today\'s payslip');
+        page.periodSelect = { value: '57' };       // the selector is built, and the 23 Oct payslip is on screen
+        assert.notEqual(today, '57', 'premise: today\'s payslip is another one');
+        page.gradeSelect.value = 'ces';
+        G.saveGradeSetting(57);
+        assert.equal(_ls.get(SK.gradeFrom), '57', 'dated from today\'s payslip, not the one on screen');
+        assert.equal(page.gradeFrom.value, '57', 'and the box beneath the grade says so');
+        assert.deepEqual(G.getGradeSetting(), { grade: 'ces', from: 57 });
+    });
+
+    test('…but once a grade is chosen, the payslip the member picks is the one kept — through a change of grade too', (t) => {
+        load(STEADY_CES, { grade: 'cea', gradeFrom: '55' }, t, NOV_13);
+        page.periodSelect = { value: '58' };
+        page.gradeFrom.value = '57';               // the member picks another payslip in the box
+        G.saveGradeSetting(58);
+        assert.equal(_ls.get(SK.gradeFrom), '57', 'the pick was replaced by a default');
+        page.gradeSelect.value = 'ces';
+        G.saveGradeSetting(58);
+        assert.equal(_ls.get(SK.gradeFrom), '57', 'a recorded date is the member\'s answer, not a default');
+    });
+
     test('a save may hide the grade prompt, never raise it', (t) => {
         load(STEADY_CES, { grade: 'roster' }, t, NOV_13);
         assert.equal(page.gradePrompt.hidden, true);

@@ -2,9 +2,10 @@
 /**
  * paycalc-hpp.js — Holiday Pay Premium estimator and shared period helpers.
  *
- * Owns: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp, what a confirmed
+ * Owns: _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp, what a confirmed
  *   prior-year premium is stored as (priorHppToStore, commitPriorHppActual), and whether a year's
  *   premium is still the member's to estimate (premiumStillToEstimate — the January notice's reader).
+ *   It re-exports isDataEmpty, which lives in paycalc-format.js.
  * Does NOT own: period arithmetic (paycalc-periods.js), settings (paycalc-settings.js),
  *   calculation engine (paycalc-app.js), back-pay (paycalc-backpay.js).
  * Edit here for: HPP maths, prior-year HPP section, variable-pay formula.
@@ -666,8 +667,16 @@ export function premiumStillToEstimate(ty) {
   if (resolveHppForPeriod(lsGet(hppActualKey(ty)), null).hasActual) return 'done';
   const s = readHppState(ty);
   const wholeYear = (parseInt(lsGet(ytdSrcKey(ty)) ?? '', 10) || 0) >= last.num;
-  const theirs = !s.damaged && ((s.mode === 'ytd' && wholeYear) || s.mode === 'exact');
+  // "Typed in" means a figure in the box: a stored figure beside an EMPTY "Enter the figure yourself"
+  // box was never theirs (`_typedByMember`).
+  const theirs = !s.damaged && ((s.mode === 'ytd' && wholeYear) || (s.mode === 'exact' && _typedByMember(s)));
   return theirs && resolveHppForPeriod(null, lsGet(hppEstKey(ty))).amount > 0 ? 'done' : 'open';
+}
+
+/** Is there a figure in a year's "Enter the figure yourself" box, as its saved state holds it?
+ *  @param {{ exact: string }} s  `readHppState`'s answer @returns {boolean} */
+function _typedByMember(s) {
+  return (parseSmartFloatOrNull(s.exact) ?? 0) > 0;
 }
 
 /**
@@ -697,6 +706,24 @@ function _priorSourcePhrase(priorTy, source) {
 }
 
 /**
+ * What last year's block asks for when that year's chosen source has no figure in it yet — said where
+ * the member is, and pointing to where the figure is made: that year's own Holiday Pay Premium card.
+ * The Year to Date route names the year's LAST payslip, whose Year to Date box holds the whole year
+ * (the January notice's route).
+ * @param {any} priorTy @param {'ytd'|'exact'|'unknown'} source @returns {string}
+ */
+function _priorSourcePrompt(priorTy, source) {
+  const year = priorTy.label;
+  if (source === 'exact') return `No figure yet — you chose to enter the ${year} figure yourself. Open any ${year} payslip and type it into this card.`;
+  if (source === 'ytd') {
+    const last = /** @type {any} */ (periodsInTaxYear(priorTy, getPeriods()).pop());
+    const where = last ? `your ${fdLong(last.payday)} payslip` : `your last ${year} payslip`;
+    return `No figure yet — you chose a rough estimate from your ${year} Year to Date pay. Open ${where} and copy its Year to Date Taxable Pay into Year to Date Figures.`;
+  }
+  return `Your saved choice of where the ${year} figure comes from couldn't be read — open any ${year} payslip and choose an option in this card.`;
+}
+
+/**
  * Update the prior-year HPP section of the HPP card.
  * @param {any} ty - Current tax year object from CONFIG.TAX_YEARS.
  */
@@ -723,12 +750,25 @@ export function updatePriorHpp(ty) {
   const { hasActual, amount: actual } = resolveHppForPeriod(actualRaw, null);
   const _anyStored = actualRaw != null && actualRaw.trim() !== '';   // even text that is not a figure
   // A STORED figure is whatever that year's own amount source last wrote; one computed below is from
-  // the saved hours. The block says which — see _priorSourcePhrase.
-  const _fromStore = est > 0;
+  // the saved hours, which only happens while that source IS the hours. The block says which — see
+  // _priorSourcePhrase.
+  const source = _savedSourceOf(priorTy);
+  // "Enter the figure yourself" with nothing in its box has no figure of the member's. A stored one
+  // beside it was worked out from hours by this function before 17 Nov 2026 and only labelled as
+  // theirs — so it goes, as calcHPP deletes it on that year's own payslip.
+  if (source === 'exact' && est > 0 && !hasActual && !_typedByMember(readHppState(priorTy))) {
+    lsDel(hppEstKey(priorTy));
+    est = 0;
+  }
 
   // If no stored estimate yet, compute on the fly so the prior-year HPP section
   // is populated on first login even before the user has visited a prior-year period.
-  if (est === 0 && !hasActual) {
+  // ONLY WHILE THAT YEAR'S SOURCE IS ITS HOURS (17 Nov 2026). A year whose member chose to type the
+  // figure, or to work it from Year to Date pay, has nothing from them yet: an hours figure stored here
+  // was then read back under THEIR choice's name ("Your figure — Entered by you", or "Rough estimate
+  // from your Year to Date pay"), counted as done, and taken to the January payslip — a figure not on
+  // record, dressed as one (paycalc.md invariant 1). Nothing is computed; the block asks for theirs.
+  if (est === 0 && !hasActual && source === 'hours') {
     const _priorPeriods = getPeriods().filter(/** @param {any} p */ p => {
       const o = p.num - 48;
       return o >= priorTy.first && o <= priorTy.last;
@@ -796,7 +836,6 @@ export function updatePriorHpp(ty) {
     if (amtEl)    amtEl.textContent   = fmt(actual);
     if (basisEl)  basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
   } else if (est > 0) {
-    const source = _fromStore ? _savedSourceOf(priorTy) : 'hours';
     const basis  = _priorSourcePhrase(priorTy, source);
     if (amtLabel) amtLabel.textContent = isJanPayday ? 'Expected on this payslip' : source === 'exact' ? 'Your figure' : 'Estimated';
     if (amtEl)    amtEl.textContent    = fmt(est);
@@ -805,12 +844,15 @@ export function updatePriorHpp(ty) {
       : inHand ? `${basis} — check your January ${priorTy.hppPaidJan} payslip and enter the confirmed amount below`
       : `${basis} — enter the confirmed amount below once your January ${priorTy.hppPaidJan} payslip arrives`;
   } else {
-    if (amtLabel) amtLabel.textContent = 'Estimated';
+    if (amtLabel) amtLabel.textContent = source === 'exact' ? 'Your figure' : 'Estimated';
     if (amtEl)    amtEl.textContent    = '£–';
-    // "No variable pay recorded" would be a LIE when the truth is unreadable saved data.
-    if (basisEl)  basisEl.textContent  = _priorSkipped > 0
-      ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} payslip${_priorSkipped > 1 ? 's' : ''} — open ${_priorSkipped > 1 ? 'those periods' : 'that period'} and enter the hours again, then check your January ${priorTy.hppPaidJan} payslip`
-      : `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
+    // "No variable pay recorded" would be a LIE when the truth is unreadable saved data — or when the
+    // member chose a source that has nothing in it yet, which is what that source's own card asks for.
+    if (basisEl)  basisEl.textContent  = source !== 'hours'
+      ? _priorSourcePrompt(priorTy, source)
+      : _priorSkipped > 0
+        ? `Couldn't read ${_priorSkipped} saved ${priorTy.label} payslip${_priorSkipped > 1 ? 's' : ''} — open ${_priorSkipped > 1 ? 'those periods' : 'that period'} and enter the hours again, then check your January ${priorTy.hppPaidJan} payslip`
+        : `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
   }
   // Corrupt periods behind a PARTIAL estimate: the figure shown may be too low — say so.
   if (_priorSkipped > 0 && !hasActual && est > 0 && basisEl) {

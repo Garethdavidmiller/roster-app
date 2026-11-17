@@ -200,6 +200,23 @@ describe('pension — the field behind three of the four defects', () => {
         assert.equal(_els.pensionAmt.value, '0',
             'a stored 0 is a real opt-out and must be restored (as the DOMString the platform coerces it to)');
     });
+
+    // A LOCKED BOX IS NOBODY'S FIGURE (17 Nov 2026). Inside an opt-out spell the box is disabled and
+    // reads £0.00, equal to that payslip's default of £0 — so any edit stored null over the £140 the
+    // member had typed, and correcting the opt-out date brought the scheme default back instead.
+    test('a box LOCKED by the opt-out keeps the payslip\'s own saved figure — never the lock\'s £0.00', () => {
+        _els.pensionAmt.value = '0.00';
+        _els.pensionAmt.disabled = true;
+        assert.equal(readFormData({ periodDefaultPension: 0, savedPension: 140 }).pension, 140,
+            'the typed £140 was replaced by "the default"');
+        assert.equal(readFormData({ periodDefaultPension: 0, savedPension: 0 }).pension, 0, 'a saved £0 opt-out stays a £0');
+        assert.equal(readFormData({ periodDefaultPension: 0, savedPension: null }).pension, null,
+            'a payslip that never held a figure still follows its default');
+        _els.pensionAmt.disabled = false;
+        _els.pensionAmt.value = '151.86';
+        assert.equal(readFormData({ periodDefaultPension: 151.86, savedPension: 140 }).pension, null,
+            'CONTROL: unlocked, the box is the figure — here the period default, stored as null');
+    });
 });
 
 describe('actualNet — the same shape, found later (v18.42)', () => {
