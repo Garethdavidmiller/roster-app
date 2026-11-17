@@ -2347,12 +2347,21 @@ async function stranded(page, id) {
     }), id);
 }
 
+// It waits for the jump to END, not for a set time. CI's Safari engine draws this 2,800px-tall window so slowly
+// that the jump outlasted the 1.8 s this test used to sleep — and the page's own 1.5 s timer, which then judged it
+// in flight and let the chip go. The page now judges a jump at scrollend where the browser has it (guide-chips.js).
 test('fip: a chip near the end of the page stays lit after its jump, though its section never reaches the line', async ({ page }) => {
     const height = await heightToStrand(page, 'sec-ferries');
     await page.setViewportSize({ width: 1280, height });
     const ferries = page.locator('.chip-bar .chip[data-target="sec-ferries"]');
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__jumpEnded = new Promise(done => {
+            addEventListener('scrollend', () => done('scrollend'), { once: true });
+            setTimeout(() => done('no scrollend in 10 s'), 10000);
+        });
+    });
     await ferries.click();
-    await page.waitForTimeout(1800);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__jumpEnded), 'premise: the jump ended').toBe('scrollend');
     const geo = await stranded(page, 'sec-ferries');
     expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
     expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);

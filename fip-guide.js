@@ -189,7 +189,9 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 // on Ferries or Mistakes lit Apply, the last chip (whole-app check, Nov 2026). The chip a tap or a
 // #fragment link chose stays lit while what it put in place stays where it was put; the section
 // moving more than 2px, or a jump the reader stopped, hands the bar back to the rule. The guide's
-// single column needs nothing of guide-chips.js's two-column rule.
+// single column needs nothing of guide-chips.js's two-column rule. A tap's jump is judged when it ENDS,
+// as there: at scrollend where the browser has it, so the 1.5 s timer no longer judges a long jump in
+// flight — this page's jump to Ferries outlasted it in CI's Safari engine (Nov 2026).
 var spyPaused = false;
 var spyTimer = 0;
 var spyTicking = false;
@@ -200,6 +202,8 @@ var jumpChip = null;      // the chip a jump or a link holds lit
 var jumpEl = null;        // what the jump or link put in place: the chip's heading, or the linked element
 var jumpTop = NaN;        // where that was left, in viewport pixels; NaN while still in flight
 var jumpByLink = false;   // the hold is a link's: the landing settles it, not the tap's arrival rule
+/** How long a tap's jump may take before it is judged anyway, in ms: a net where scrollend exists, the guess where it does not. */
+var jumpCeilingMs = 'onscrollend' in window ? 5000 : 1500;
 
 /** The top of what a jump or link put in place, in viewport pixels; NaN once it has gone or is hidden. */
 function heldTop() {
@@ -290,13 +294,14 @@ if (chipBar) {
         jumpEl = target;
         jumpTop = NaN;
         jumpByLink = false;
-        if (!reduceMotion) {
+        var settled = reduceMotion || jumpArrived(target);   // instant, or nowhere to go: no scrollend comes
+        if (!settled) {
             spyPaused = true;
             if (spyTimer) clearTimeout(spyTimer);
-            spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
+            spyTimer = setTimeout(resumeSpy, jumpCeilingMs);
         }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-        if (reduceMotion) jumpTop = heldTop();   // an instant jump has already settled
+        if (settled) jumpTop = heldTop();   // nothing is in flight: the jump stands where it is
         // Land focus on the section (keyboard / screen-reader users).
         target.setAttribute('tabindex', '-1');
         target.focus({ preventScroll: true });
