@@ -448,7 +448,8 @@ columnScan: one key per column header; every staff member appears in every colum
         if (cellTable.usable) {
             console.log(`[parseRosterPDF] geometry placed all ${cellTable.rows.length} ${rosterType} rows — the model is normalising cells, not reading a table`);
         } else {
-            console.log(`[parseRosterPDF] geometry cannot place every ${rosterType} row (${cellTable.reason}; ${cellTable.unmatched.length} unmatched) — reading the PDF as before`);
+            console.log(`[parseRosterPDF] geometry cannot place every ${rosterType} row (${cellTable.reason}; ${cellTable.unmatched.length} unmatched`
+                + `${cellTable.shared?.length ? `; one row matched by ${cellTable.shared.join(', ')}` : ''}) — reading the PDF as before`);
         }
 
         // ---- The sheet's own week, from its printed heading: no model involved (roster-week-heading.js) ----

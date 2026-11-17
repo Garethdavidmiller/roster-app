@@ -47,7 +47,7 @@ const {
     shouldNotifyAdmin,
     summariseSignIns,} = require('./functions/roster-parse-helpers.js');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
-const { blankCellMeaning, isBlankReading } = require('./functions/cell-day-rules.js');
+const { blankCellMeaning, isBlankReading, printsNothing } = require('./functions/cell-day-rules.js');
 const { applyGeometryWitness } = require('./functions/roster-geometry.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -1011,9 +1011,10 @@ describe('Case A — a left-shifted row whose empty Saturday arrives as BLANK', 
 
     // R-A1 (re-review). The occupancy exemption above holds only when the scan saw a LITERALLY empty
     // cell: then the grid contradicts the scan and the row read wins. A printed rest code (NS, NA,
-    // RD, '-') is ink in the cell, so the grid's "occupied" AGREES with the scan and says nothing
-    // for the worked shift the row read put there.
-    for (const code of ['NS', 'NA', 'N.A.', 'RD', '-']) {
+    // RD) is ink in the cell, so the grid's "occupied" AGREES with the scan and says nothing for the
+    // worked shift the row read put there. A scan's dash is no "saw nothing" either: the grid reads a
+    // lone dash as EMPTY (Nov 2026), so beside an occupied cell the two readings disagree — a question.
+    for (const code of ['NS', 'NA', 'N.A.', 'RD', '-', '–']) {
         test(`a Sunday printed ${code}, grid occupied, row read a shift → a review question, not a worked Sunday`, () => {
             const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
             const scan = { 'X. Test': code };
@@ -1112,11 +1113,13 @@ describe('a correctly read week is never moved by the Sunday repair', () => {
     }
 
     test('the words for an empty cell are one list for every read', () => {
-        for (const w of ['', 'BLANK', 'blank', 'EMPTY', '-', ' - ', undefined, null]) {
+        // A lone en or em dash is the hyphen a word processor made of it (review, Nov 2026): the
+        // vocabulary's "only a dash", which the row read took for an unreadable value.
+        for (const w of ['', 'BLANK', 'blank', 'EMPTY', '-', ' - ', '–', ' — ', undefined, null]) {
             assert.equal(isBlankReading(w), true, `${JSON.stringify(w)} is an empty cell to the row read`);
             if (w !== undefined && w !== null) assert.equal(normaliseScanValue(w), 'RD', `${JSON.stringify(w)} is one to the column scan`);
         }
-        for (const w of ['RD', 'OFF', '--', 'AL', '06:00-14:00']) assert.equal(isBlankReading(w), false, `${w} is printed text`);
+        for (const w of ['RD', 'OFF', '--', '–-', 'AL', '06:00-14:00']) assert.equal(isBlankReading(w), false, `${w} is printed text`);
     });
 });
 
@@ -2580,11 +2583,15 @@ describe('a physically blank weekday never becomes a rest day', () => {
         }
     });
 
-    test('a lone dash MEANS an empty cell, and is still ink in it (import-server-1, re-review R-A1)', () => {
+    test('a lone dash MEANS an empty cell — and a scan that wrote one answered about a mark (import-server-1, re-review R-A1)', () => {
         // The vocabulary calls a dash-only cell blank, so the row read gives it the day's blank
-        // meaning; the PDF grid sees it as occupied, so a reading weighed against the grid does not.
+        // meaning, and so does the PDF grid (`printsNothing`, Nov 2026). Where a SCAN's dash is weighed
+        // against an occupied cell it is not the "saw nothing" the grid can contradict.
         assert.equal(isBlankReading(' - '), true);
         assert.equal(isPhysicallyBlank(' - '), false);
+        assert.equal(isPhysicallyBlank('–'), false);
+        for (const t of ['', ' - ', '–', '—']) assert.equal(printsNothing(t), true, `${JSON.stringify(t)} prints nothing`);
+        for (const t of ['--', 'RD', '- | CEA 1']) assert.equal(printsNothing(t), false, `${JSON.stringify(t)} is printed text`);
         const s = buildSafeEntries([{ memberName: 'S. Horsman', Sun: '-', Mon: '-', Tue: 'EMPTY', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],
             HEADERS, DATES)[0].shifts;
         assert.equal(s[SUN], 'RD', 'a dashed Sunday is the rest day a blank Sunday is');

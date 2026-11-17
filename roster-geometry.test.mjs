@@ -66,10 +66,12 @@ const pdfjsInstalled = (() => {
 const REAL_PDFJS_SKIP = (!pdfjsLoads && !pdfjsInstalled)
     && 'needs pdfjs-dist — run `cd functions && npm ci`, or `npm run test:functions`';
 const {
-    GRID_COLUMNS, rulesFromOperatorList, assignRunsToGrid, extractRosterGeometry,
+    GRID_COLUMNS, rulesFromOperatorList, assignRunsToGrid, readGridPage, extractRosterGeometry,
     matchGeometryRow, applyGeometryWitness, geometryCoverage, awaitGeometryWithin,
     GEOMETRY_WAIT_BUDGET_MS, GEOMETRY_WORK_BUDGET_MS, _isClaim, _nameTokens, _PATH_OP,
 } = require('./functions/roster-geometry.js');
+const { buildSafeEntries, buildWeekDates, applyColumnScanCrossCheck } = require('./functions/roster-parse-helpers.js');
+const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
 
 import { VX, COL_X, NAME_X, DATES, ROSTER_FIXTURE, rosterPage, buildPdf } from './test-fixtures/roster-pdf.mjs';
 
@@ -573,6 +575,109 @@ describe('applyGeometryWitness — refused, not weighed', () => {
     });
 });
 
+// ── THREE THINGS THE GRID READ GOT WRONG (review, Nov 2026) ─────────────────────────────────────
+//
+// Each was a week written onto somebody's days with every check agreeing. A cell printing only a dash
+// counted as OCCUPIED, though every read calls it blank, so a shift read onto a dash-printed Sunday
+// could never be refused. The header row was dropped unread, so a template printed Monday first
+// handed every row over a day early. And one row could answer two members. The names are invented.
+describe('a printed dash, the day header, and a row two members share', () => {
+    const HEADER = ['Sunday', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const quiet = (/** @type {() => any} */ fn) => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
+
+    test('a cell printing only a dash is EMPTY to the grid, as it is to every read — and keeps its text for the review', () => {
+        for (const dash of ['-', '–', '—']) {
+            const [row] = assignRunsToGrid(pageFrom([['A. Person', dash, 'RD', '06:00-14:00', '', '', '', '']]));
+            assert.equal(row.occupancy[0], false, `a cell printing only "${dash}" was counted as occupied`);
+            assert.equal(row.cells[0], dash, 'the printed text stays on the row, for the review to quote');
+        }
+        for (const text of ['--', 'RD', '06:00-14:00']) {
+            const [row] = assignRunsToGrid(pageFrom([['A. Person', text, '', '', '', '', '', '']]));
+            assert.equal(row.occupancy[0], true, `"${text}" is printed text, not a blank`);
+        }
+    });
+
+    // The reviewer's case, in the handler's own order: the PDF prints "-" on the Sunday, the row read
+    // and the column scan both read a shift there, and the Saturday is occupied, so the Sunday repair
+    // cannot realign the row. The scan reports the dash as BLANK, as its prompt tells it to. Until the
+    // grid read a dash as empty, the witness saw an occupied cell, the dispute was settled in the row
+    // read's favour, and the Sunday was written as a worked Sunday, pre-ticked.
+    for (const dash of ['-', '–']) {
+        for (const scan of ['BLANK', '06:00-14:00']) {
+            test(`a Sunday printed "${dash}" and read as a shift (scan: ${scan}) goes to the review, and its row is refused`, () => {
+                const dates = buildWeekDates('2026-11-28');
+                const headers = HEADER.slice(1);
+                const geometry = { available: true, rows: assignRunsToGrid(pageFrom([HEADER,
+                    ['A. Person', dash, '06:00-14:00', '06:00-14:00', 'RD', '06:00-14:00', '06:00-14:00', 'RD']])) };
+                const read = { memberName: 'A. Person', Sun: '06:00-14:00', Mon: '06:00-14:00', Tue: '06:00-14:00', Wed: 'RD', Thu: '06:00-14:00', Fri: '06:00-14:00', Sat: 'RD' };
+                const columnScan = Object.fromEntries(headers.map(h => [h, { 'A. Person': /** @type {any} */ (read)[h] }]));
+                const sundayScan = { 'A. Person': scan };
+                const { safe, stats } = quiet(() => {
+                    const safe = buildSafeEntries([read], headers, dates);
+                    const cc = applyColumnScanCrossCheck(safe, columnScan, headers, dates);
+                    const disputed = applySundayScanCorrections(safe, sundayScan, true, dates, cc.choices);
+                    const stats = applyGeometryWitness(safe, geometry, dates);
+                    settleDisputedSundays(safe, disputed, stats, dates, sundayScan);
+                    return { safe, stats };
+                });
+                assert.match(safe[0].shifts[dates[0]], new RegExp(`^UNKNOWN\\|06:00-14:00 was read here, but this cell holds only "${dash}" on the PDF`),
+                    'a dash-printed Sunday was written as a worked one');
+                assert.deepEqual(stats.refused.map((/** @type {any} */ r) => r.memberName), ['A. Person'], 'the row starts unticked and counts toward the breaker');
+                assert.equal(safe[0].shifts[dates[1]], '06:00-14:00', 'nothing else is rewritten');
+            });
+        }
+    }
+
+    test('the header row is READ: Sunday to Saturday counts, any other order is said', () => {
+        const member = ['A. Person', '', '06:00-14:00', '', '', '', '', ''];
+        const inOrder = readGridPage(pageFrom([HEADER, member]));
+        assert.deepEqual([inOrder?.headers, inOrder?.misordered, inOrder?.rows.map(r => r.name)], [1, 0, ['A. Person']]);
+        const mondayFirst = readGridPage(pageFrom([['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], member]));
+        assert.deepEqual([mondayFirst?.headers, mondayFirst?.misordered], [0, 1], 'a Monday-first header was not seen');
+        const swapped = readGridPage(pageFrom([['', 'Sat', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sun'], member]));
+        assert.equal(swapped?.misordered, 1, 'two days swapped is another order too');
+        const dated = readGridPage(pageFrom([['', 'Sunday 22/11', 'Monday 23/11', 'Tuesday 24/11', 'Wednesday 25/11', 'Thursday 26/11', 'Friday 27/11', 'Saturday 28/11'], member]));
+        assert.equal(dated?.headers, 1, 'a dated header names its days');
+        assert.deepEqual(readGridPage(pageFrom([member]))?.headers, 0, 'a page with no header row says none was read');
+    });
+
+    test('one day cell may be unreadable — six named in their own columns is still the header, five is not', () => {
+        const member = ['A. Person', '', '06:00-14:00', '', '', '', '', ''];
+        // A Sunday label printed left of its rule lands in the NAME column: the header still reads.
+        const spilled = readGridPage(pageFrom([['Sunday', '', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], member]));
+        assert.deepEqual([spilled?.headers, spilled?.misordered], [1, 0]);
+        // With two unread, a swap of those two could hide — so it is not taken for the header at all.
+        const five = readGridPage(pageFrom([['', '', '', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], member]));
+        assert.deepEqual([five?.headers, five?.misordered], [0, 0]);
+    });
+
+    test('ONE row two members match speaks for neither — no refusal, no pass, both said to be unchecked', () => {
+        const g = { available: true, rows: assignRunsToGrid(pageFrom([['J Person-Example', '', '06:00-14:00', 'RD', '', '', '', '']])) };
+        const week = (/** @type {string} */ name) => ({ memberName: name, shifts: Object.fromEntries(DATES.map(d => [d, '06:00-14:00'])) });
+        const entries = [week('J. Person'), week('J. Person-Example')];
+        const s = applyGeometryWitness(entries, g, DATES);
+        assert.deepEqual(s.refused, [], 'one person\'s week was used to refuse another\'s');
+        assert.deepEqual(s.unmatched, ['J. Person', 'J. Person-Example']);
+        assert.equal(s.checked, 0);
+        assert.equal(entries[0].shifts[DATES[0]], '06:00-14:00', 'nothing rewritten');
+        // Control: alone, the row is checked, and its empty Sunday refused.
+        assert.deepEqual(applyGeometryWitness([week('J. Person-Example')], g, DATES).refused.map(r => r.memberName), ['J. Person-Example']);
+    });
+
+    test('two people in ONE band — the rule between them unread — is one row for both, so neither is checked', () => {
+        const top = 700;
+        const items = [
+            { str: 'A. Person', x: NAME_X, y: top - 25 }, { str: 'B. Example', x: NAME_X, y: top - 75 },
+            { str: '06:00-14:00', x: COL_X[1], y: top - 25 }, { str: 'RD', x: COL_X[1], y: top - 75 },
+        ];
+        const rows = /** @type {any[]} */ (assignRunsToGrid({ items, vx: [...VX], hy: [top, top - 100] }));
+        assert.deepEqual(rows.map(r => r.name), ['A. Person B. Example'], 'premise: one band');
+        const week = (/** @type {string} */ name) => ({ memberName: name, shifts: Object.fromEntries(DATES.map(d => [d, '06:00-14:00'])) });
+        const s = applyGeometryWitness([week('A. Person'), week('B. Example')], { available: true, rows }, DATES);
+        assert.deepEqual([s.checked, s.refused], [0, []]);
+    });
+});
+
 // ── geometryCoverage — the figure the ADMIN reads ──────────────────────────────────────────────
 //
 // A separate block from the witness above because it answers a different question. The witness asks
@@ -741,6 +846,22 @@ describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip
         assert.equal(g.available, false);
         assert.equal(g.pagesRejected, 1);
         assert.equal(g.reason, 'no-grid');
+    });
+
+    test('the day header is counted from the real read, and a page printed Monday first gives NO rows (review, Nov 2026)', async () => {
+        assert.equal((await extractRosterGeometry(buildPdf([rosterPage(ROSTER)]))).dayHeaders, 1, 'the fixture\'s header, Sunday to Saturday');
+        const mondayFirst = rosterPage([['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            ['A. Person', '06:20-14:20', '06:20-14:20', 'RD', '07:00-16:00', '07:00-15:00', 'RD', '']]);
+        const w = console.warn; console.warn = () => {};
+        try {
+            const alone = await extractRosterGeometry(buildPdf([mondayFirst]));
+            assert.deepEqual([alone.available, alone.reason, alone.pagesRejected, alone.rows.length], [false, 'day-order', 1, 0],
+                'a Monday-first grid was read as Sunday-first — every cell a day early');
+            // One page in order, one not: only the first page's rows are evidence.
+            const mixed = await extractRosterGeometry(buildPdf([rosterPage(ROSTER), mondayFirst]));
+            assert.deepEqual([mixed.pagesRead, mixed.pagesRejected, mixed.dayHeaders], [1, 1, 1]);
+            assert.equal(mixed.rows.some(r => r.name === 'A. Person'), false);
+        } finally { console.warn = w; }
     });
 
     test('a scanned sheet — a PDF with no text layer — is unavailable, not a refusal of everything', async () => {
