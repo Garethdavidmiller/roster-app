@@ -256,6 +256,22 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
         assert.doesNotMatch(tip, /Custom time/);
     });
 
+    // ONE ROW PER SHIFT TIME (17 Nov 2026): the card's intro and the tip said "one row per start time", and the
+    // default table opens with three rows that start at 06:20 and finish at different times.
+    test('the generator\'s table is one row per SHIFT time, start and finish — the card and the tip say so', async () => {
+        const { CARD_TIPS } = await import('./links-tips.js');
+        const { DEFAULT_SHIFT_TIMES } = await import('./links-default-targets.js');
+        const starts = DEFAULT_SHIFT_TIMES.map(t => t.slice(0, 5));
+        assert.ok(new Set(starts).size < starts.length, 'premise: two rows of the default table start together');
+        const tip = words(CARD_TIPS, 'links-generator');
+        const intro = src('links.html').match(/<p class="links-desc">List the shifts([\s\S]*?)<\/p>/)?.[1] ?? '';
+        assert.ok(intro, 'the generator card\'s intro was not found in links.html');
+        for (const [where, text] of [['the tip', tip], ['the card\'s intro', intro]]) {
+            assert.match(text, /one row per shift time, its start and finish/, `${where} says what a row is`);
+            assert.doesNotMatch(text, /start time(?!s)/, `${where} still calls a row a start time`);
+        }
+    });
+
     test('the refusal is described both ways, each with its own remedies', async () => {
         const { CARD_TIPS } = await import('./links-tips.js');
         const gen = src('links-design.js');
