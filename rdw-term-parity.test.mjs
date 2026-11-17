@@ -80,7 +80,10 @@ describe('RDW is "Rest Day Working" everywhere a colleague reads it', () => {
         assert.match(read('./paycalc.html'), /<div class="h-title"><span aria-hidden="true">💼<\/span> Rest Day Working<\/div>/,
             'the Pay Calculator row where the hours are typed');
         assert.match(read('./paycalc-help.js'), /RDW = Rest Day Working/, 'the Pay Calculator glossary');
-        assert.match(read('./staff-guide.html'), /<span class="badge-desc">Rest Day Working \(overtime\)<\/span>/,
+        // Sentence case, as every entry in that key is ("Rest or off day", "Annual leave"). Title case
+        // also wrapped the label onto a third line and printed the Staff Guide on a third sheet
+        // (e2e/print.spec.js), which has a few pixels to spare.
+        assert.match(read('./staff-guide.html'), /<span class="badge-desc">Rest day working \(overtime\)<\/span>/,
             'the Staff Guide badge key');
     });
 });
