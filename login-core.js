@@ -21,7 +21,7 @@ import { withTimeout } from './password-force.js';
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
  * Firebase session, time-boxed, and commits the LOCAL session ONLY if auth genuinely resolves — so
  * a slow/hung auth can never leave a "half signed-in" state (the v14.72–75 login-freeze class; see
- * LOGIN_INCIDENT.md). Pure of DOM: the caller passes the already-name-bound session helpers, and
+ * ROADMAP_HISTORY.md → "The login freeze"). Pure of DOM: the caller passes the already-name-bound session helpers, and
  * applies the button/error effects from the result. A resolved-but-NOT-named result is a failure:
  * there is no anonymous session to accept (the `enforce` dep, fed by the `ENFORCE_NAMED_SESSION`
  * switch, was retired v24.34).

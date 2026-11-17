@@ -113,5 +113,5 @@ Calendar — see CLAUDE.md → *Change impact*.
 
 ## Read this first
 
-`LOGIN_INCIDENT.md` — the login freeze. Resolved, but it records the diagnosis and the current flag
-state, and invariant 1 exists because of it.
+`ROADMAP_HISTORY.md` → "The login freeze" — resolved, but it records the diagnosis, and invariant 1
+exists because of it.
