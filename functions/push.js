@@ -45,7 +45,7 @@ const SEND_TIMEOUT_MS = 10000;
  * HOW LONG A PUSH SERVICE MAY HOLD EACH NOTICE FOR A PHONE THAT IS OFF (Oct 2026 production review).
  *
  * web-push's default is FOUR WEEKS, and nothing here set one — so a phone switched off over a
- * deadline showed "hours cutoff today" or "answers due today" days later, about a day long gone.
+ * deadline showed "hours cut-off today" or "answers due today" days later, about a day long gone.
  * Each feature now says how long its words stay true. Keyed by TAG, because the tag is what a
  * payload already carries to the senders; an unknown tag gets a day, never four weeks.
  * @type {Readonly<Record<string, number>>} seconds
@@ -54,7 +54,7 @@ const PUSH_TTL_BY_TAG = Object.freeze({
     'huddle':         36 * 3600,   // "Latest Huddle": the next day's plan, sent the evening before
     'circular':       72 * 3600,   // weekly documents: still the latest for days
     'newsletter':     72 * 3600,
-    'pay-reminder':   12 * 3600,   // "hours cutoff today"
+    'pay-reminder':   12 * 3600,   // "hours cut-off today"
     'overtime':       12 * 3600,   // "answers due today" / "form open — answer by …"
     'reset-request':   6 * 3600,   // "N waiting" — a queue depth that is stale within hours
     'password-reset':  7 * 24 * 3600,   // tells the member something lasting about their account

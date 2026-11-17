@@ -446,3 +446,30 @@ describe('the prompt never asks the AI to interpret a blank cell', () => {
             'the worked example of the omitted Sun key must survive');
     });
 });
+
+// ── A WORKED EXAMPLE NAMES NOBODY ON A ROSTER (review, Nov 2026) ───────────────────────────────
+//
+// The examples showed real members of the very roster type each prompt reads, with whole concrete
+// weeks. When such a member is absent from the sheet, a model that copies the example produces a
+// believable week for a real person — on the name list, so it passes the name filter, is not listed
+// missing, and arrives pre-ticked. An example name no roster carries is dropped by that filter.
+describe('the prompts\' worked examples name nobody on any roster', async () => {
+    const { teamMembers } = await import('./roster-member-data.js');
+    const { buildCellPrompt } = createRequire(import.meta.url)('./functions/roster-prompt.js');
+    const names = teamMembers.map((/** @type {any} */ m) => m.name);
+
+    test('the roster has names to look for — or this checks nothing', () => {
+        assert.ok(names.length > 20, `only ${names.length} roster names were read`);
+    });
+
+    for (const [which, text] of /** @type {[string, () => string][]} */ ([
+        ['the PDF prompt', () => fullPrompt()],
+        ['the cell prompt', () => buildCellPrompt([])],
+    ])) {
+        test(`${which} names nobody on a roster`, () => {
+            const named = names.filter((/** @type {string} */ n) => text().includes(n));
+            assert.equal(named.length, 0,
+                `${which} uses ${named.length} roster name(s) in its examples — use a name no roster carries ("A. Person")`);
+        });
+    }
+});

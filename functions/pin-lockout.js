@@ -15,9 +15,10 @@
  * ── EVERYTHING HERE IS BEST-EFFORT, AND NOTHING HERE MAY CHANGE THE ANSWER ───────────────────────
  *
  * Each function runs after the wrong PIN has been charged and before the 401 goes back. None throws,
- * and the notice is time-boxed: an outage of the push service, or a record that cannot be written, must
- * never turn "PIN not recognised" into a 500 — that would tell a script something the 401 does not, and
- * leave a member at a station PC with the wrong message. What it can cost is the notice, never the door.
+ * and the sweep and the notice are both time-boxed: an outage of the push service, a record that cannot
+ * be written, or a collection read that stalls must never turn "PIN not recognised" into a 500 or the
+ * platform's timeout — that would tell a script something the 401 does not, and leave a member at a
+ * station PC with the wrong message. What it can cost is the sweep or the notice, never the door.
  *
  * ── THE RECORD: viewerAttempts/_lockout-record ───────────────────────────────────────────────────
  *
@@ -45,6 +46,9 @@ const {
 const LOCKOUT_NOTICE_BUDGET_MS = 6_000;
 /** Each push's own bound, inside that budget (the reset request's reasoning, ./reset-request.js). */
 const LOCKOUT_SEND_TIMEOUT_MS = 4_000;
+/** How long the sweep may hold up the 401. With the notice's budget it stays well inside the
+ *  endpoint's 20-second limit, which a stalled read used to run into, answering a wrong PIN with a 5xx. */
+const SWEEP_BUDGET_MS = 3_000;
 
 /** `firebase-admin/firestore` at CALL time, so a test's fake in `require.cache` is the one asked. */
 const db = () => require('firebase-admin/firestore').getFirestore();
@@ -53,12 +57,15 @@ const attempts = () => db().collection('viewerAttempts');
 /**
  * Delete throttle rows that have aged out (v20.15 — the opportunistic sweep, moved here whole from
  * index.js). On the FAILURE path only, so the correct-PIN path pays for no collection read. The lockout
- * record is not a throttle row and is never swept.
+ * record is not a throttle row and is never swept. Never throws; bounded by `budgetMs` — a sweep given
+ * up on finishes on its own, or not, and the next wrong PIN sweeps again.
  * @param {number} now  epoch ms
+ * @param {{ budgetMs?: number }} [o]
  * @returns {Promise<void>}
  */
-async function sweepExpiredThrottleRows(now) {
-    try {
+async function sweepExpiredThrottleRows(now, { budgetMs = SWEEP_BUDGET_MS } = {}) {
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+    const work = (async () => {
         const old = await attempts().limit(50).get();
         const dead = old.docs.filter(d => d.id !== LOCKOUT_RECORD_KEY && isThrottleStateStale(d.data(), now));
         if (dead.length) {
@@ -67,9 +74,15 @@ async function sweepExpiredThrottleRows(now) {
             await batch.commit();
             console.log('[unlockCalendarViewer] swept', dead.length, 'expired throttle rows');
         }
+    })();
+    try {
+        await Promise.race([work, new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('timed out')), budgetMs); })]);
     } catch (e) {
-        console.warn('[unlockCalendarViewer] throttle sweep failed:', e && e.code);
+        console.warn('[unlockCalendarViewer] throttle sweep failed:', e && (e.code || e.message));
+    } finally {
+        clearTimeout(timer);
     }
+    work.catch(() => {});   // a loser of the race must not surface as an unhandled rejection
 }
 
 /**
@@ -139,6 +152,7 @@ async function readPinLockout(now) {
 
 module.exports = {
     LOCKOUT_NOTICE_BUDGET_MS,
+    SWEEP_BUDGET_MS,
     sweepExpiredThrottleRows,
     buildPinLockoutNotifier,
     noteStationBlock,

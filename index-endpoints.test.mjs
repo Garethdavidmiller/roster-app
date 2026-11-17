@@ -1190,6 +1190,22 @@ describe('the endpoint tells a guesser nothing (rules 1 and 2)', () => {
         assert.equal(out.headers['Cache-Control'], 'no-store');
     });
 
+    test('a correct unlock is logged with no source — the hashed key of an address is the address (review, Nov 2026)', async () => {
+        // The key is a short unsalted hash, so anyone holding the log can try addresses until one
+        // matches: a line per correct unlock was a list of who used the app, from where — the record
+        // the throttle store deletes a refunded charge to avoid keeping.
+        build();
+        /** @type {string[]} */
+        const lines = [];
+        const real = console.log;
+        console.log = (...a) => { lines.push(a.join(' ')); };
+        let out;
+        try { out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN)); } finally { console.log = real; }
+        assert.equal(out.code, 200, 'premise: the PIN was right');
+        assert.ok(lines.some(l => l.includes('[unlockCalendarViewer] unlocked')), 'the outcome is still logged');
+        assert.equal(lines.some(l => l.includes(STATION_KEY)), false, 'a correct unlock logged its source');
+    });
+
     test('a GET (the PIN card\'s warm-up) gets a quiet 204 without touching the throttle store', async () => {
         // 204, not 405 (sign-in check, 11 Nov 2026): the warm-up is the app's own request, and a 405
         // put a red line in the console of every PIN card — the health check reads red as broken.

@@ -383,6 +383,21 @@ describe('normaliseShift', () => {
             assert.equal(lines.length, 2, 'and logs nothing');
         } finally { console.warn = real; }
     });
+    test('what it logs names no cell\'s text — an absence written as a word is its reason (review, Nov 2026)', () => {
+        // Beside the member a nearby line names, "hospital" or "compassionate" in the functions log is
+        // a reason for an absence, which the app never stores. The review row still carries the text.
+        /** @type {string[]} */
+        const lines = [];
+        const real = console.warn;
+        console.warn = (...a) => lines.push(a.join(' '));
+        try {
+            assert.equal(normaliseShift('06:00-12:00 hospital appt'), '06:00-12:00');
+            assert.equal(normaliseShift('06:00-12:00 RDW hospital appt'), 'RDW|06:00-12:00');
+            assert.equal(normaliseShift('compassionate'), 'UNKNOWN|COMPASSIONATE', 'the review still shows what was read');
+        } finally { console.warn = real; }
+        assert.equal(lines.length, 3, 'each still says what was done');
+        for (const line of lines) assert.doesNotMatch(line, /hospital|compassionate/i, `the log quoted the cell: ${line}`);
+    });
 });
 
 // ── functions/roster-other-days.js — the server's half of the Other-family grammar (v25.38) ─────
@@ -1447,11 +1462,11 @@ describe('buildPushPayload', () => {
     test('pay (event): caller-supplied headline + url, pay-reminder tag', () => {
         const p = buildPushPayload({
             feature: 'pay',
-            headline: 'Payday Friday — hours cutoff today',
+            headline: 'Payday Friday — hours cut-off today',
             body: 'Open the Pay Calculator to estimate your 28 March pay.',
             url: `${BASE}/paycalc.html?payday=2026-03-28`,
         });
-        assert.equal(p.title, '💷 Payday Friday — hours cutoff today');
+        assert.equal(p.title, '💷 Payday Friday — hours cut-off today');
         assert.equal(p.tag, 'pay-reminder');
         assert.equal(p.url, `${BASE}/paycalc.html?payday=2026-03-28`);
     });
@@ -1495,7 +1510,7 @@ describe('buildPushPayload', () => {
 
     test('design-language invariants hold for every feature: one leading emoji, no exclamation, title within budget', () => {
         for (const [key, f] of Object.entries(NOTIFICATION_FEATURES)) {
-            const title = f.defaultHeadline ? `${f.emoji} ${f.defaultHeadline}` : `${f.emoji} Payday Friday — hours cutoff today`;
+            const title = f.defaultHeadline ? `${f.emoji} ${f.defaultHeadline}` : `${f.emoji} Payday Friday — hours cut-off today`;
             assert.ok(title.startsWith(f.emoji), `${key} title must lead with its feature emoji`);
             assert.ok(!title.includes('!'), `${key} title must not use an exclamation mark`);
             assert.ok(title.length <= 40, `${key} title "${title}" exceeds the 40-char budget (${title.length})`);

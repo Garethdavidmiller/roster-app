@@ -2579,7 +2579,7 @@ The PURE server rules behind the staff Calendar PIN — CommonJS, kept apart fro
 
 ### `functions/pin-lockout.js`
 The PIN throttle store's upkeep, and telling the admin when the station-wide block trips. `unlockCalendarViewer` (index.js) calls it on the FAILURE path only; every rule it asks is `calendar-viewer-auth.js`'s. Nothing here may change the 401: each function is best-effort and never throws.
-- `sweepExpiredThrottleRows(now)` — the opportunistic sweep, moved from index.js; never the lockout record.
+- `sweepExpiredThrottleRows(now, { budgetMs? })` — the opportunistic sweep, moved from index.js; never the lockout record. Time-boxed (`SWEEP_BUDGET_MS`), so a stalled read cannot hold a wrong PIN's 401 past the endpoint's own limit.
 - `noteStationBlock({ now, blockedUntil, notify, budgetMs? })` — the record and the once-a-day decision in ONE transaction (two instances ring once), then the notice, time-boxed (`LOCKOUT_NOTICE_BUDGET_MS`).
 - `buildPinLockoutNotifier({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, adminNames })` — the notice: `enabledAdminUids` → `sendTargetedPush`, never `fanOutPush`; feature `pinLockout` (🔢), deep link `operations.html#login-accounts`.
 - `readPinLockout(now)` — `lockoutSummary` of the stored record, for `getAccountSetupGaps`.

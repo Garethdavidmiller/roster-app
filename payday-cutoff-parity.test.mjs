@@ -76,4 +76,25 @@ describe('pay-cutoff cycle — browser ↔ functions parity', () => {
         }
         assert.ok(checked >= 20, `expected to exercise ≥20 pure-grid cutoffs across two years, only checked ${checked}`);
     });
+
+    test('no payday the app covers is moved by a bank holiday — the day one is, the reminder needs the rule (review, Nov 2026)', () => {
+        // The scheduled reminder fires on a cut-off Saturday and names the Friday six days on
+        // (sendPayReminderNotification, functions/documents.js). getPaydaysAndCutoffs moves a payday
+        // that falls on a bank holiday back a day, and the server does not, so in such a week the
+        // reminder would name the bank holiday and deep-link to a payday the calculator does not list.
+        // Today none of these years has one, so the two agree everywhere the app goes. A one-off bank
+        // holiday on a payday Friday (as 8 May 2020 was), or a wider year range, fails this — replicate
+        // the rule on the server first.
+        /** @type {string[]} */
+        const moved = [];
+        for (let year = CONFIG.MIN_YEAR; year <= CONFIG.MAX_YEAR; year++) {
+            const { paydays, cutoffs } = getPaydaysAndCutoffs(year);
+            paydays.forEach((/** @type {Date} */ payday, /** @type {number} */ i) => {
+                if (payday.getDay() !== 5 || Math.round((+payday - +cutoffs[i]) / DAY) !== 6) moved.push(payday.toDateString());
+            });
+        }
+        assert.deepEqual(moved, [],
+            'a bank holiday now moves a payday the server\'s pay reminder still names as the Friday — '
+            + 'teach isPayCutoffDay and sendPayReminderNotification the bank-holiday rule before this ships');
+    });
 });

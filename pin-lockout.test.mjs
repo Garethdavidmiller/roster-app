@@ -15,6 +15,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const fnDir = new URL('./functions/', import.meta.url).pathname;
@@ -34,9 +35,10 @@ const PIN_LIKE = /\b\d{4}\b/;
 
 /**
  * A fresh world. `accounts` maps an invented name to its account record (absent → not found).
- * @param {{ record?: any, accounts?: Record<string, any>, accepted?: number, hang?: boolean, txFail?: boolean }} [o]
+ * `sweepHang` makes the sweep's collection read never answer.
+ * @param {{ record?: any, accounts?: Record<string, any>, accepted?: number, hang?: boolean, txFail?: boolean, sweepHang?: boolean }} [o]
  */
-function world({ record = null, accounts, accepted = 1, hang = false, txFail = false } = {}) {
+function world({ record = null, accounts, accepted = 1, hang = false, txFail = false, sweepHang = false } = {}) {
     const w = {
         record: record && { ...record },
         /** @type {{ payload: any, uids: string[], tag: string, opts: any }[]} */ sends: [],
@@ -52,7 +54,10 @@ function world({ record = null, accounts, accepted = 1, hang = false, txFail = f
     const db = {
         collection: (/** @type {string} */ name) => {
             w.collections.push(name);
-            return { doc: (/** @type {string} */ id) => { assert.equal(id, LOCKOUT_RECORD_KEY); return ref; } };
+            return {
+                doc: (/** @type {string} */ id) => { assert.equal(id, LOCKOUT_RECORD_KEY); return ref; },
+                limit: () => ({ get: () => (sweepHang ? new Promise(() => {}) : Promise.resolve({ docs: [] })) }),
+            };
         },
         runTransaction: (/** @type {(tx: any) => Promise<any>} */ fn) => {
             if (txFail) return Promise.reject(Object.assign(new Error('unavailable'), { code: 14 }));
@@ -197,6 +202,26 @@ describe('it can cost the notice, never the 401', () => {
         const out = await w.trip();
         assert.deepEqual(out, { recorded: false, alert: false, accepted: 0 });
         assert.equal(w.sends.length, 0);
+    });
+
+    // The sweep runs on the same path, before the 401, and had no bound of its own (review, Nov 2026):
+    // a collection read that stalled held the wrong PIN's answer until the platform killed the request,
+    // and the caller got a 5xx where every wrong PIN gets the same 401.
+    test('a sweep whose read never answers is given up on within its budget, and throws nothing', { timeout: 5_000 }, async () => {
+        const w = world({ sweepHang: true });
+        const started = Date.now();
+        await w.L.sweepExpiredThrottleRows(T0, { budgetMs: 50 });
+        assert.ok(Date.now() - started < 1_000, 'bounded');
+    });
+
+    test('the sweep and the notice together stay inside the endpoint\'s own time limit', () => {
+        const w = world();
+        const index = readFileSync(new URL('./functions/index.js', import.meta.url), 'utf8');
+        const handler = index.slice(index.indexOf('exports.unlockCalendarViewer = onRequest('));
+        const limitSeconds = Number((/timeoutSeconds:\s*(\d+)/.exec(handler) || [])[1]);
+        assert.ok(limitSeconds > 0, 'could not read the endpoint\'s timeoutSeconds — this checks nothing');
+        assert.ok(w.L.SWEEP_BUDGET_MS + w.L.LOCKOUT_NOTICE_BUDGET_MS < limitSeconds * 1000,
+            'a wrong PIN could wait out both budgets and still be killed by the platform');
     });
 });
 

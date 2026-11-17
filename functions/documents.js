@@ -252,7 +252,9 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
  * Cutoff date logic mirrors isCutoffDate() in roster-data.js:
  *   - First payday: 13 Feb 2026 (Friday). Cycle: every 28 days.
  *   - Cutoff = Saturday 6 days before payday.
- *   - Bank holiday adjustments to payday are not replicated here (rare edge case).
+ *   - A bank holiday that moves a payday back is NOT replicated here, so the reminder would name the
+ *     Friday. No payday the app covers is moved today, and payday-cutoff-parity.test.mjs fails the
+ *     day one is (a one-off bank holiday on a payday, a wider year range): replicate it then.
  */
 const sendPayReminderNotification = onSchedule(
     {
