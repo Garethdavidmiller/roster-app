@@ -171,6 +171,7 @@ every base-shift, date and shift-classification helper. Rules: `.claude/rules/ro
   `avatarInitials` / `avatarHue` · `MONTH_NAMES` · `DAY_NAMES` / `MONTH_ABB` (from `date-format.js`) ·
   `SWIPE_THRESHOLD` / `SWIPE_VELOCITY`.
 - Never put real pay figures in this served file (`.claude/rules/paycalc.md` → Example payslips).
+- **Exports:** `APP_VERSION` · `CONFIG` · `teamMembers` · `isWorkedShift` · `gradeForRole` · `projectAnnualLeaveOverage` · `weeklyRoster` · `bilingualRoster` · `fixedRoster` · `cesRoster` · `dispatcherRoster` · `FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS` · `TIME_RE` · `DAY_NAMES` · `MONTH_ABB` · `MONTH_NAMES` · `TEAM_GRADES` · `SWIPE_THRESHOLD` · `SWIPE_VELOCITY` · `computeEaster` · `isSameDay` · `getBankHolidays` · `isBankHoliday` · `isChristmasDay` · `isEasterSunday` · `getPaydaysAndCutoffs` · `paydayForCutoff` · `isPayday` · `isCutoffDate` · `getSpecialDayBadges` · `validateRosterPatterns` · `SHIFT_TIME_REGEX` · `isChristmasRD` · `isEarlyShift` · `isNightShift` · `getShiftKind` · `getShiftClass` · `shiftBadgeParts` · `getShiftBadge` · `resolveMemberRoster` · `getWeekNumberForDate` · `getRosterForMember` · `getBaseShift` · `getPatternShift` · `escapeHtml` · `parseSmartFloat` · `parseSmartFloatOrNull` · `avatarInitials` · `avatarHue` · `isValidEmail` · `isChilternWorkEmail` · `workEmailLocalPart` · `workEmailFrom` · `formatISO` · `parseISODate` · `isSunday` · `getMembersForGrade`
 
 ### `calendar-app.js`
 Coordinator for `index.html`: it wires the modules below and owns what is left — month navigation,
@@ -205,6 +206,7 @@ the access hooks, the member's own-roster copy, the month-jump picker and About.
 - Delegates the AL and day panels, the first read, swipe, keyboard, Team View, notices, the Huddle and
   document viewers and the two prompt strips to their modules; `watchLocalDate` repaints when the date
   turns.
+- **Exports:** none
 
 ### `calendar-state.js`
 The Calendar's display month and year, and the arithmetic that moves them. No DOM.
@@ -228,6 +230,7 @@ The Calendar's display month and year, and the arithmetic that moves them. No DO
   too. Tested by `calendar-state.test.mjs`.
 - At load, `restoreViewedMonth` honours a `?date=` link once (then strips it), else the stored month
   if it was stored in the last `BROWSED_MONTH_KEPT_MS` and is not in the future.
+- **Exports:** `BROWSED_MONTH_KEPT_MS` · `getDisplayMonth` · `getDisplayYear` · `setDisplayMonth` · `setDisplayYear` · `changeDisplay` · `addMonths` · `watchLocalDate` · `persistViewedMonth`
 
 ### `calendar-swipe.js`
 The Pointer Events month carousel on `#calendarDisplay`. The design notes (panels built on
@@ -239,6 +242,7 @@ unlike `admin-week-swipe.js`) are in the module.
 - `isSwipeGestureActive()` — **background re-renders must wait on this**: a render mid-gesture detaches
   the carousel's panels. One place asks it, `calendar-redraw.js`, which holds what has to wait.
 - `isSwipeCooldown()` — true while a swipe animation runs; the buttons and keyboard wait for it.
+- **Exports:** `isSwipeCooldown` · `isSwipeGestureActive` · `initSwipeHandler`
 
 ### `calendar-al-lightbox.js`
 The Calendar's annual-leave panel and its day-detail panel — the only place a touch user reads what a
@@ -274,6 +278,7 @@ day is. The reasoning sits beside each step, in `index.css` (layout) and in `ind
 - A click opens it on every pointer type, and the keyboard keeps Enter's pay jump (the renderer's click
   handler says why); a mouse drag opens nothing (`e2e/calendar.spec.js`). Tested by that spec's
   `day detail:` block, `lightbox-transform-parity.test.mjs` and `day-detail-explains.test.mjs`.
+- **Exports:** `initCalendarLightboxes`
 
 ### `calendar-initial-fetch.js`
 The Calendar's first three-month override read and the sync chip. Two phases (`AUTH_PLAN.md` → E1):
@@ -300,6 +305,7 @@ Firebase Auth initialises — `CALENDAR_DATA.md` 10); phase 2 waits for `authRea
   `STALE_MONTH_MS` release months older than that so they are re-read behind the grid
   (`releaseStaleMonths`, `CALENDAR_DATA.md` 18); a first load that failed over a saved copy owes those
   months a re-check on return (`oweRecheck`). Team View re-reads through `refetchTeamView`.
+- **Exports:** `initInitialFetch`
 
 ### `calendar-keyboard.js`
 Keyboard navigation and the hover tooltip for the month grid.
@@ -309,6 +315,7 @@ Keyboard navigation and the hover tooltip for the month grid.
   PageUp/Down for months, Enter/Space to activate: a pay or cut-off cell tries the calculator, and a
   refused jump falls through to the day panel. On the stored copy painted before the grant only the
   arrows work.
+- **Exports:** `initCalendarTooltip` · `initCalendarKeyboard`
 
 ### `calendar-access.js`
 The Calendar's access gate: decide at boot, show the right card, and hold the shared staff-PIN
@@ -350,6 +357,7 @@ viewer's session. The header carries the design; `CALENDAR_DATA.md` 3, 4, 11 and
 - The cards are `calendar-lock-cards.js`, in the one slot `calendar-lock-slot.js` owns. Why `overrides`
   stopped being world-readable, and running the PIN: OPERATIONS_REFERENCE.md → "Staff PIN access for the
   Calendar".
+- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
 The three cards that can stand where the Calendar goes. They DRAW; `calendar-access.js` DECIDES and
@@ -376,6 +384,7 @@ things an edit can silently break.
 - `takePinFirst()` — was the PIN card asked for first (`#staff-pin`, or this tab's PIN-ended mark)? The
   boot asks once; both are removed whatever the decision, so a member never carries either into their Calendar.
 - Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
+- **Exports:** `PIN_FIRST_HASH` · `initLockCards` · `resetUnlockFailures` · `takePinFirst` · `hideLockPanel` · `dismissSignInForm` · `showLockPanel` · `showSignInPanel` · `showMemberPanel`
 
 ### `calendar-lock-slot.js`
 The one place on the Calendar page where a card stands in for the grid — at most one at a time.
@@ -389,6 +398,7 @@ The one place on the Calendar page where a card stands in for the grid — at mo
   attribute (moved from `calendar-access.js`, 16 Nov 2026); the gate decides when.
 - The skeleton's line, the member card's reason and the PIN card's "expired" line are written through
   `speakAfterMount` (status-text.js since 17 Nov 2026, when the sign-in card needed it on every page).
+- **Exports:** `mountLockCard` · `unmountLockCard` · `lockCardId` · `armSkeleton` · `showBootSkeleton` · `setWorkspaceHidden`
 
 ### `calendar-snapshot.js`
 The member's own roster, kept on the device so the Calendar shows it, labelled, while the sign-in
@@ -407,6 +417,7 @@ it keeps are in its header. Tested by `calendar-snapshot.test.mjs`.
   `sweepRetiredLeaveKeys()` deletes the old per-member `myb_al_stats_*` keys on each Calendar load.
 - **Never a source of truth:** never written into `rosterOverridesCache`, never `noteKnowledge`. Deleted
   by `clearSession()`, a PIN or failed grant, and access loss.
+- **Exports:** `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER` · `LEAVE_YEARS_AROUND` · `inWindow` · `clearSnapshot` · `readSnapshot` · `readLeaveBalance` · `saveLeaveBalance` · `sweepRetiredLeaveKeys` · `snapshotMonth` · `saveSnapshotMonths`
 
 ### `calendar-access-core.js`
 The pure rules of Calendar access — no DOM, no Firebase, no storage — tested by
@@ -427,6 +438,7 @@ The pure rules of Calendar access — no DOM, no Firebase, no storage — tested
 - `personalActionsAllowed({ accessType, sessionName, shownMember })` — may the day panel offer "Leave
   dates" or "Pay estimate"? Refused in viewer mode whatever the device remembers, and unless the
   calendar on screen is the signed-in member's own (`CALENDAR_DATA.md` 14).
+- **Exports:** `CALENDAR_VIEWER_UID` · `CALENDAR_VIEWER_CLAIM` · `PIN_LENGTH` · `PIN_FIRST_HASH` · `isViewerUser` · `noticeAudienceAllows` · `personalActionsAllowed` · `decideAccess` · `normalisePin` · `isCompletePin` · `classifyUnlockFailure` · `attemptBackoffMs`
 
 ### `calendar-overrides.js`
 The Calendar's override cache and every read that fills it. The reasoning is beside each function;
@@ -475,6 +487,7 @@ The Calendar's override cache and every read that fills it. The reasoning is bes
   up). A ticket's grant number is the state's `grantNumber()`, compared only by `answerStillWanted`.
 - This module's two reads are the cache's only writers, and both clear the month shift-type memo; a new
   writer must clear it too, or the legend goes stale.
+- **Exports:** `SERVED_FROM_CACHE` · `READ_SUPERSEDED` · `rosterOverridesCache` · `hasOverrideAccess` · `setOverrideAccessLostHandler` · `_initialFetchInProgress` · `setInitialFetchInProgress` · `addFetchedMonths` · `clearFetchedMonth` · `releaseStaleMonths` · `oweRecheck` · `monthKey` · `issueReadTicket` · `answerStillWanted` · `_monthSlices` · `fetchOverridesForRange` · `fetchOverridesForRangeFromCache` · `ensureOverridesCached` · `getShiftTypesInMonth`
 
 ### `calendar-legend.js`
 The month legend's two questions: which keys apply, and whether the legend shows at all. It imports
@@ -489,6 +502,7 @@ what an edit can break.
   not `'hide'`: Team View owns the element, so write nothing.
 - `createLegend(deps)` → `{ update }`. The shown/hidden answer belongs to the UPDATE, not to a render,
   because a swipe commit updates the legend without rendering (`e2e/calendar.spec.js`).
+- **Exports:** `legendVisibility` · `onDispatcherRosterIn` · `legendShown` · `createLegend`
 
 ### `calendar-data-state.js`
 What the Calendar KNOWS about each month's overrides, and so what it may show. Pure with no imports,
@@ -507,6 +521,7 @@ exists — and the four states are argued in the header (`CALENDAR_DATA.md` 1–
   legend and the page-ready metric. A `cached` month draws its grid labelled "Saved copy — couldn't check
   for changes" with a Try again (not while the first check is still running, where the sync chip speaks
   alone); Team View draws a `cached` week exactly as a current one.
+- **Exports:** `noteKnowledge` · `noteCheckFailed` · `forget` · `knowledgeOf` · `worstKnowledge` · `decideDisplay` · `showsRoster` · `_reset`
 
 ### `overtime-app.js` / `overtime-boot.js` / `overtime-data.js` / `overtime-format.js` / `overtime-clock.js` / `overtime-tips.js`
 The Overtime availability page. **Paused:** `CONFIG.OVERTIME_ENABLED` is false, so the page says so to
@@ -561,6 +576,12 @@ It re-exports `deadlineLabel`, `phaseCopy`, `phaseChip`, `phaseTone` and `deadli
 
 **`overtime-tips.js`** — `CARD_TIPS` for the page's `?` panels, one panel per audience. Read them when
 behaviour changes: prose about a feature fails no test.
+- **Exports of `overtime-app.js`:** `init`
+- **Exports of `overtime-boot.js`:** none
+- **Exports of `overtime-data.js`:** `correctedNow` · `myStateReadAt` · `getMyOvertimeState` · `getOvertimeManagerOverview` · `createOvertimeWindow` · `withdrawOvertimeParticipant` · `submitOvertimeAvailability` · `loadWeekDetail`
+- **Exports of `overtime-format.js`:** `deadlineLabel` · `phaseCopy` · `phaseChip` · `phaseTone` · `deadlineLines` · `SUBMIT_GRACE_MS` · `DEADLINE_SYNC_WINDOW_MS` · `clockOffset` · `submitDisposition` · `shouldResyncClock` · `canRestoreNow` · `dayUnfinished` · `unfinishedDates` · `reconcileVerdict` · `writeOutcomeUnknown` · `conflictIsOurs` · `shiftSpanMinutes` · `sameAnswer` · `shortDate` · `longDate` · `weekLabel` · `weekSpan` · `weekDates` · `printedLabel` · `asAtLine` · `declaredAgo` · `receiptLine` · `rowStateCopy` · `countsCopy` · `modesFor` · `offersFullTwelve` · `submitFailureCopy` · `answerCopy` · `isWithdrawn` · `withdrawnLine` · `putBackWindow` · `isUnavailable` · `isAvailableAnswer` · `rosterBadge` · `answerAnchorStale` · `answerTone` · `deriveHistory` · `gradeScopeLabel` · `weekAvailabilitySummary` · `reminderLine`
+- **Exports of `overtime-clock.js`:** `SUBMIT_GRACE_MS` · `DEADLINE_SYNC_WINDOW_MS` · `clockOffset` · `submitDisposition` · `shouldResyncClock` · `canRestoreNow`
+- **Exports of `overtime-tips.js`:** `CARD_TIPS`
 
 ### `overtime-form.js` / `overtime-roster.js`
 The member's side of the Overtime page (paused — see the entry above). `overtime-form.js` renders one
@@ -589,6 +610,8 @@ server.
   clause, against a fake that applies the constraints it is given) and `e2e/overtime.spec.js` (including a
   chosen pill's computed colour). The day rows' state grammar is in `overtime.css`. A day's answer is about
   a duty STARTING that day: `OVERTIME_AVAILABILITY.md`.
+- **Exports of `overtime-form.js`:** `renderWeekForm`
+- **Exports of `overtime-roster.js`:** `rosterBadge` · `loadRosterContext` · `loadRosterForMembers`
 
 ### `links-import.js`
 Turns somebody else's roster proposal, pasted as text, into a design the workspace can hold — the pure
@@ -598,6 +621,7 @@ half; the panel is in `links-design-library.js`. Tested by `links-import.test.mj
   refusal, never a half-design, and an unreadable cell is refused by name, never defaulted to a rest day.
   Warnings are shown before the save. It computes no hours, coverage or verdict — the workspace's panels
   assess what it produces. The header has the rest.
+- **Exports:** `MAX_IMPORT_NAME` · `parseCell` · `parseGrid` · `parseDesignImport` · `summariseImport`
 
 ### `overtime-manager.js`
 The reviewer's workspace for one selected week — By day, Awaiting, the participant panels and the print
@@ -628,6 +652,7 @@ sheet — rendered from data handed in (paused — see the Overtime entry). It p
   past tense.
 - **Print:** a call sheet that names its week, states its age (`asAtLine`), carries the grade scope
   (`.ot-print-scope`) and all seven days, with outlined chips (`overtime.css`).
+- **Exports:** `renderWeekDetail` · `refocus` · `focusLost` · `stampPrinted`
 
 ### `functions/overtime.js`
 The Overtime endpoints and their Firestore orchestration — the boundary (auth, transactions, batches,
@@ -655,6 +680,7 @@ HTTP); every rule is in `functions/overtime-core.js`. A factory, `buildOvertimeE
   on the deadline's morning) use `sendTargetedPush`, never `fanOutPush`; the `notify` dep is the test seam.
 - **Identity is the token, never the body** (`memberNameFromClaims`, verified with `checkRevoked`).
   **Retention is enforced in the read endpoints**, not in the rules.
+- **Exports:** `buildOvertimeEndpoints`
 
 ### `functions/doc-url-core.js`
 Who may be handed a short-lived document URL, for which document, and for how long. No I/O and nothing
@@ -670,6 +696,7 @@ the design and the options refused: `AUTH_PLAN.md` §5.
   Admin Storage API bypasses `storage.rules`.
 - `SIGNED_URL_TTL_MS` · `signedUrlExpiry(nowMs)` — sized to outlive the Office viewer's server-side fetch,
   not just a tap.
+- **Exports:** `DOC_KINDS` · `kindFromBody` · `SIGNED_URL_TTL_MS` · `mayReceiveDocumentUrl` · `resolveKind` · `signedUrlExpiry` · `isSignablePathForKind`
 
 ### `functions/doc-link-rotation.js`
 A NEW key for the permanent download link of every stored Huddle, Circular and Newsletter file, so every old copy of the link stops opening it (`ARCHITECTURE.md` EXC-007). The bucket and Firestore are passed in, and it requires only `doc-url-core.js`, so `doc-link-rotation.test.mjs` runs in `test:hygiene`. Used by `rotateDocumentLinks` (`functions/documents.js`). Reasoning: its header.
@@ -678,6 +705,7 @@ A NEW key for the permanent download link of every stored Huddle, Circular and N
 - **An unused file may be an upload still in flight** (review, 13 Nov 2026). Both uploaders save the file, with its key, to a NEW path before any record names it, so an unused file loses its key only when it is at least `UNLINKED_MIN_AGE_MS` (a day) old — younger, or of unknown age, it keeps it and is counted in `unlinkedTooNew` — and only when the second read of the records, just before the first write, still finds no record naming it (otherwise `changedDuringRun`). The unused files are written first, straight after that read.
 - **A refusal that was its own write is not a change.** Every key write goes through `writeKeys`, which reads a refused file back: the same object carrying exactly the keys this run wrote is counted as done, because the storage library retries a guarded write whose answer was lost and the retry is refused (412). The record transaction likewise counts a record already holding this run's new link as its own: Firestore re-runs a transaction whose commit answer was lost.
 - `downloadUrl(bucketName, path, key)` · `pathOfDownloadUrl(url, bucketName)` · `keysOf(metadata)` · `TOKEN_KEY` — the link format, written and read in one place. `UNLINKED_MIN_AGE_MS` — how old an unused file must be to lose its key, and why that long: the header.
+- **Exports:** `rotateDocumentLinks` · `downloadUrl` · `pathOfDownloadUrl` · `keysOf` · `TOKEN_KEY` · `UNLINKED_MIN_AGE_MS`
 
 ### `functions/member-identity.js`
 Which member a verified ID token speaks for, or none — the server copy of `isMember()` in
@@ -695,6 +723,7 @@ Which member a verified ID token speaks for, or none — the server copy of `isM
   `resetMemberPassword` refuses it (409).
 - `unlinkOtherProviders(user)` — the `updateUser` field (`providersToUnlink`) that strips every sign-in
   method but the password from an account being taken back or re-enabled; `{}` when there is none.
+- **Exports:** `memberNameFromClaims` · `mustReclaim` · `claimedByAnotherMember` · `unlinkOtherProviders`
 
 ### `functions/request-helpers.js`
 The request plumbing every endpoint shares — one copy, because the five inline copies had drifted (a
@@ -709,6 +738,7 @@ when it runs, so the readers are tested in test:hygiene (`doc-url-core.test.mjs`
   returns null. Used by parseRosterPDF, the four admin account endpoints and `rotateDocumentLinks`.
 - `readRawBody(req, res, logTag, maxBytes)` — the raw base64 upload body, capped WHILE it streams (413), for
   ingestHuddle and parseRosterPDF; on a failure it has answered and returns null. `index.js` hands the cap in.
+- **Exports:** `jsonBodyOf` · `readJsonBody` · `bearerToken` · `requireAdmin` · `readRawBody`
 
 ### `functions/london-clock.js`
 An ISO calendar date, and the instant it names in London — machinery, not Overtime policy. **It requires
@@ -720,6 +750,7 @@ in `test:hygiene`.
 - The hours the depot chose (`londonNoonTimestamp`, `londonMidnightTimestamp`, `lastSchedulerRun`) stay
   with `overtime-core.js`, which re-exports these. The line: if changing it would change what the app
   promises somebody, it is not clock code.
+- **Exports:** `londonOffsetMinutes` · `londonTimestamp` · `londonIsoDate` · `isValidIsoDate` · `isoDayOfWeek` · `addDays`
 
 ### `functions/overtime-core.js`
 Every rule Overtime has, with no I/O and no clock of its own (anything that needs "now" is given it).
@@ -751,6 +782,7 @@ five things it protects. Feature design: `OVERTIME_AVAILABILITY.md`.
 - **Notices:** `reminderDue` · `londonDeadlineLabel` · `askedNotice` · `reminderNotice` (the words are
   asserted through the real `buildPushPayload`).
 - **Nothing here manufactures an answer:** no response is unknown, never "not available".
+- **Exports:** `POLICY_VERSION` · `MILESTONE_OFFSETS` · `DEADLINE_HOUR_LONDON` · `SCHEDULER_HOUR_LONDON` · `lastSchedulerRun` · `ANSWERABLE_WEEKS` · `PLANNING_WEEKS` · `MAX_PARTICIPANTS_PER_WINDOW` · `AUDIENCES` · `AVAILABILITY_MODES` · `REQUEST_DAY_FIELDS` · `OPTIONAL_DAY_FIELDS` · `londonOffsetMinutes` · `londonTimestamp` · `londonNoonTimestamp` · `londonMidnightTimestamp` · `londonIsoDate` · `isValidIsoDate` · `isoDayOfWeek` · `addDays` · `isSaturday` · `weekDates` · `weekEndingFor` · `deriveMilestones` · `storedMilestones` · `toMillis` · `phaseFor` · `isOpenPhase` · `canChangeParticipation` · `canRestoreParticipant` · `isWithdrawn` · `validateWeekEnding` · `planningWeekEndings` · `weeksNeedingWindows` · `windowRowState` · `isEligibleForWeek` · `selectParticipants` · `isSafeDocId` · `normaliseDay` · `normaliseDays` · `daysEqual` · `revisionId` · `decideSubmission` · `publicHead` · `deriveHistory` · `REMINDER_LOOKAHEAD_MS` · `reminderDue` · `londonDeadlineLabel` · `askedNotice` · `reminderNotice` · `PURGE_ARMS_AT` · `purgeArmedAt`
 
 ### `calendar-notices.js`
 The Calendar page's one-time notices, in one place — a `/new-notice` for `index.html` lands here. The
@@ -769,6 +801,7 @@ notice HTML stays in `index.html`; which notices are wired and live: the new-not
   notice's end (`FOLLOWED_ENDS`, kept after that notice is retired) it stops waiting.
 - No live notice declares `'signed-out'`, so the positive direction of the audience gate rests on a
   static contract in `calendar-notices.test.mjs` until one does (the header says more).
+- **Exports:** `initCalendarNotices`
 
 ### `calendar-member.js`
 Which member the Calendar shows, and the member picker.
@@ -785,6 +818,7 @@ Which member the Calendar shows, and the member picker.
   pick): the Calendar asks them to choose rather than showing somebody else's roster.
 - `populateTeamMemberDropdown()` — grouped by role when more than one is present; a first run leads with
   "— Choose your name —". `validateTeamMembers()` → error strings.
+- **Exports:** `takeStaleMemberName` · `getDefaultMemberIndex` · `isFirstRun` · `getSelectedMemberIndex` · `_resetSelectionFallbackForTest` · `saveSelectedMember` · `populateTeamMemberDropdown` · `getCurrentMember` · `validateTeamMembers`
 
 ### `calendar-renderer.js`
 Builds the month grid and each day cell for `index.html`, and holds the pure helpers the day panel and
@@ -812,6 +846,7 @@ the tooltip share. The reasoning is beside each function.
 - A cell carries raw `data-detail-*` values, never markup. "As rostered" is written only on a settled
   month, and never before the member's start date. Every cell resolves through `resolveDayShift`
   (`christmas-leave.js`).
+- **Exports:** `changeProvenance` · `shiftWords` · `splitShiftLine` · `dayMarkers` · `weekContext` · `createCalendarHeader` · `dayCellParts` · `dayCellName` · `createDayCell` · `getSwipeDirection` · `setSnapshotSource` · `buildCalendarContainer`
 
 ### `calendar-huddle-viewer.js`
 The Daily Huddle viewer on the Calendar — a full-bleed panel, not a lightbox (one of `overlay.js`'s three
@@ -830,6 +865,7 @@ exceptions). It opens only through the `#huddle` hash, from the drawer link and 
   `firstColumnMask` says are really in column 1 (`.huddle-shift-col`). The CSS must also let the table be
   wide (`index.css`, `#huddleViewerBody table`).
 - `_triggerAutoOpen(huddle)` — the internal open, a test seam.
+- **Exports:** `wrapTables` · `initHuddleViewer`
 
 ### `huddle-table-grid.js`
 Which cells of a Huddle table are physically in column 1 — what the sticky job column is selected by,
@@ -840,6 +876,7 @@ holds the three rules an edit can break.
   open span (`groupStarts`), `rowspan="0"` runs to the end of its group, and the answer is per cell.
 - Only caller: `wrapTables` in `calendar-huddle-viewer.js`. Tested by `huddle-table-grid.test.mjs` and
   `e2e/pages.spec.js`.
+- **Exports:** `firstColumnMask`
 
 ### `calendar-doc-viewer.js`
 The in-app viewer for the Weekly Retail Circular and the Marylebone Newsletter, reached only from a
@@ -855,6 +892,7 @@ open directly instead (`nav-panel.js`).
   the PIN".
 - Every wait is bounded (`DOC_AUTH_WAIT_MS`, `DOC_FETCH_TIMEOUT_MS`) and a failure carries a focused
   "↻ Try again"; `_openSeq` discards a superseded or closed open. Tested by `calendar-doc-viewer.test.mjs`.
+- **Exports:** `initDocViewer`
 
 ### `calendar-team-view.js`
 Team Week View — the grade-wide week grid toggled from the Calendar header.
@@ -879,6 +917,7 @@ Team Week View — the grade-wide week grid toggled from the Calendar header.
   the month's rule (`watchLocalDate`). `followDate` applies it before the date watcher's repaint, and
   the next repaint reads any month the new week needs. Tested by `team-week-start.test.mjs` and
   `e2e/calendar.spec.js`.
+- **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
 
 ### `admin-app.js`
 Coordinator for `admin.html`: sign-in and session, the shared DOM handles, and the wiring between the
@@ -897,6 +936,7 @@ admin modules. `init()` is invoked by `admin-boot.js`.
 - Not here: the AL and absence save logic, the week grid, override list and bulk bar
   (`admin-overrides.js`), the roster upload, Huddle upload and account set-up (Operations), and the
   Notifications card (Settings).
+- **Exports:** `init`
 
 ### `settings-status.js`
 What each Settings card's state MEANS — its chip, whether it opens itself, and the summary line at the
@@ -913,6 +953,7 @@ reassurance and false alarm); the wiring by `e2e/settings.spec.js`.
 - `summarise(states)` → `{ tone, headline, items, ids, cards }`. **Silence is not success:** a card that has not
   reported is `unknown`, which outranks every answer, and a failed read is `error` — never "all set".
   `ids`/`cards` say which card each to-do is about, and its element id: the strip's items link there.
+- **Exports:** `CARD_ORDER` · `shouldOpen` · `installNeed` · `summarise`
 
 ### `settings-app.js`
 Coordinator for `settings.html`, for every signed-in member. `init()` is invoked by `settings-boot.js`.
@@ -927,6 +968,7 @@ Coordinator for `settings.html`, for every signed-in member. `init()` is invoked
   (`auth-identity.js`, shared with `password-force.js`), re-authenticates, then writes with `changeOwnPassword`
   under `settleOrTimeout`, so a slow write is never reported as a failure. A release's reload waits while
   a password save or any other write is in flight.
+- **Exports:** `init`
 
 ### `overlay.js`
 The shared overlay plumbing: the scroll lock, Android Back, the keyboard rules, the canonical lightbox,
@@ -984,6 +1026,7 @@ the frame that fades one in, and the drawer panels' 60 ms focus, ask whether it 
   nav drawer's body is the one other caller (`nav-panel.js`), from open to close.
 - `initCardCollapse` and `openCardNamedByHash` are **re-exported** from `card-collapse.js` (below), so
   every page imports them from here as before.
+- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
 
 ### `card-collapse.js`
 A card's collapsible header and the deep link that opens a collapsed card by name. Moved out of
@@ -996,6 +1039,7 @@ and the re-export) and `overlay.test.mjs` (the toggle, through the re-export).
 - `openCardNamedByHash(cardId, bodyId, toggleId)` → boolean — opens the collapsed card the URL fragment
   names through its toggle's own click, and keeps it at the top while the page GROWS (a `ResizeObserver`,
   never a timer), until the first real gesture or the watch's end. Call after `initCardCollapse`.
+- **Exports:** `initCardCollapse` · `openCardNamedByHash`
 
 ### `about-lightbox.js`
 The shared About panel (`#iconLightbox`) on every app page.
@@ -1006,16 +1050,19 @@ The shared About panel (`#iconLightbox`) on every app page.
 - `wireHeaderLogo(onActivate?)` — the sub-page header logo's back-to-calendar wiring, idempotent; a page
   with unsaved work passes its own confirm-then-go. It is the only module allowed to wire the logo
   (`page-contract-parity.test.mjs`). The Calendar's header logo opens About instead.
+- **Exports:** `initAboutLightbox` · `wireHeaderLogo`
 
 ### `tips-lightbox.js`
 The shared per-card Tips panel (`#tipsLightbox`); each page keeps only its `CARD_TIPS` data.
 - `initTipsLightbox(CARD_TIPS, { getIsAdmin })` — wires every `.btn-card-tips`, filters `adminOnly` and
   `staffOnly` entries at open time, names the dialog after the card, and runs the canonical lifecycle.
   The content shape is in the module header, pinned by `tips-content.test.mjs`.
+- **Exports:** `initTipsLightbox`
 
 ### `login-core.js`
 The sign-in card's DOM-FREE rules, moved out of `login-overlay.js` (Nov 2026, three lines under the size at which a module must be capped). `login-overlay.js` imports and re-exports all three, so callers and `login-overlay.test.mjs` reach them there; their descriptions are that entry's.
 - `runNamedSignIn(deps)` · `isAboutLinkAllowed(href)` · `resetRequestFailureLine(err, timedOut)`.
+- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine`
 
 ### `login-overlay.js`
 The one sign-in card for every protected page: every page signs in on the spot and none redirects
@@ -1063,6 +1110,7 @@ designer-only Links) stays with each coordinator, after sign-in.
   `credential` failures only raise its emphasis, and a change of name or a sign-in clears its status. It
   resets nothing — see the reset-request queue below.
 - Importers: grep for it — the protected pages, `page-session.js`, and `calendar-lock-cards.js` (dynamic).
+- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `sayStaffPinEndedIn` · `signInDeps` · `dismissLoginOverlay` · `initLoginOverlay`
 
 ### `sw-register.js`
 Service-worker registration and the update lifecycle, shared by every app page. The reasoning is beside
@@ -1090,6 +1138,7 @@ each branch.
 - Per page: the Calendar defers while visible, then `reloadWhileHidden`; Admin, Settings, Operations and
   Overtime use `reloadWhenNotBusy` with their own busy test; Links holds an update while a write is
   unconfirmed and otherwise asks when the design is dirty; Pay, Trains and New link take the default.
+- **Exports:** `_resetForTest` · `hasPendingUpdate` · `lazyImport` · `reloadWhileHidden` · `reloadWhenNotBusy` · `reloadForUpdate` · `registerServiceWorker`
 
 ### `splash-watchdog.js`
 A CLASSIC (non-module) recovery script for `index.html`, loaded with `<script defer>` so it runs even when
@@ -1103,6 +1152,7 @@ does nothing.
 - Both halves of each check matter: the banner and the container are on every page load, so testing for
   their mere existence would disable the watchdog. Tested by `splash-watchdog.test.mjs`; precached like
   any app asset (`service-worker.js`).
+- **Exports:** none
 
 ### The reset-request queue
 Not a module — the pieces a locked-out member's "ask the admin" request passes through, listed together
@@ -1147,6 +1197,7 @@ blocking is safe.
   off.
 - The Calendar runs it on the `named` grant when the marker is present, and its notices queue behind it;
   `page-contract-parity.test.mjs` requires every coordinator that mounts the sign-in to run it.
+- **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `initPasswordForce`
 
 ### `session.js`
 The shared session and sign-in module: the local session, the Firebase Auth sign-in that every protected page and the Calendar's member card go through, the staff-PIN checks, and the bridge that feeds the auth store (`auth-state.js`). The reasoning is beside the code; the invariants are `AUTH_AND_SESSIONS.md`.
@@ -1166,10 +1217,12 @@ The shared session and sign-in module: the local session, the Firebase Auth sign
 - `signOutStaffPin()` — the drawer's Lock on such a page; throws if the viewer is still current, and never touches a member.
 - `releasePushForEndingHold()` — releases this device's push record when a member's hold ends without a sign-out (never the staff PIN's: it owns none); `page-session.js` and `login-overlay.js` call it too. Bounded, never throws.
 - Imported by every protected coordinator and many feature modules; grep for the import rather than trusting a list. Tested by `session.test.mjs`.
+- **Exports:** `shedCalendarViewer` · `terminalAuthEvent` · `AUTH_KEY` · `SESSION_MS` · `SESSION_VER` · `sessionReady` · `resolveSession` · `AUTH_READY_TIMEOUT_MS` · `authGeneration` · `getFirebaseIdentity` · `firebaseSessionIsNamed` · `getFirebaseAuthError` · `AUTH_RESTORE_TIMEOUT_MS` · `restoreFirstAuthUser` · `primeAuth` · `ensureFirebaseSession` · `isTransientAuthError` · `ensureNamedSession` · `refreshClaimsIfStale` · `getSession` · `saveSession` · `clearSession` · `reconcileExpiredIdentity` · `releasePushForEndingHold` · `ACCESS_DECISION_BUDGET_MS` · `holdsStaffPin` · `signOutStaffPin`
 
 ### `viewer-shed.js`
 The shared Calendar viewer signed out BEFORE a member signs in, in the one order that keeps it out of long-lived storage. Moved whole from `session.js` (Nov 2026, at that file's size cap); `session.js` imports it — its sign-in is the one caller — and re-exports it.
 - `shedCalendarViewer()` — drops the shared PIN viewer before a member signs in. **Signing out BEFORE restoring member persistence is the security property** (`setPersistence` would move the viewer into IndexedDB; proven both ways in `experiments/viewer-persistence-proof/`); throws when it cannot confirm the viewer has gone (AUTH_AND_SESSIONS.md invariant 8). Tested through `session.js` by `session.test.mjs`.
+- **Exports:** `shedCalendarViewer`
 
 ### `staff-pin-ended.js`
 Whether arriving on THIS page ended the shared staff PIN, and who is waiting to hear it — so the page can say why the roster is locked again, on its sign-in card or, with no card (paused Overtime), in its body (AUTH_AND_SESSIONS 24). A module of its own because session.js was at its size cap (coordinator-ratchet.test.mjs), and this is one subject a Node test can hold.
@@ -1180,6 +1233,7 @@ Whether arriving on THIS page ended the shared staff PIN, and who is waiting to 
 - `sayStaffPinEndedIn(host)` → stop — for a page with no sign-in card (paused Overtime): an empty status region in `host` now, filled with the sentence and a link back when the teardown lands, and never before the region has been drawn (`speakAfterMount`) — a PIN that ended before the page drew it used to be told in the same task, and was silent. `stop()` also cancels a line not yet written.
 - `takeStaffPinEndedMark()` — did a page in this TAB end the PIN? `noteStaffPinEnded` leaves a one-tab sessionStorage mark (`forgetStaffPinEnded` clears it) so the phone's Back, which carries no hash, still opens the Calendar on the PIN box; read and removed once, by `takePinFirst` (calendar-lock-cards.js).
 - Imports only `PIN_FIRST_HASH` (calendar-access-core.js). Tested through the real teardown by `session.test.mjs`, and on the pages by `e2e/calendar-pin.spec.js`.
+- **Exports:** `STAFF_PIN_ENDED_NOTICE` · `BACK_TO_PIN` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `takeStaffPinEndedMark` · `sayStaffPinEndedIn` · `onStaffPinEnded`
 
 ### `silent-sign-in.js`
 The rules of the sign-in nobody typed — a page load re-establishing the identity behind a 60-day local session with the surname default — and when that session began. Pure: no storage, no Firebase, no clock of its own; `ensureFirebaseSession` (session.js) reads and writes the memory and hands the time in. The reasoning (the station NAT's shared rate limit, the six-hourly reset recheck) is its header.
@@ -1190,6 +1244,7 @@ The rules of the sign-in nobody typed — a page load re-establishing the identi
 - `remembersRefusal(code)` — a definitive rejection of the surname is remembered; never `auth/user-not-found`.
 - `sessionStartMs(user, email, now)` / `SIGN_IN_CLOCK_SKEW_MS` — when a session saved now began: the account's `metadata.lastSignInTime` (Firebase's clock) when the account is the member's own and the record is within three days of the device, else the device clock. The expiry counts from it (`saveSession`), and the reset check compares it with `resetAt`.
 - Imports only `auth-identity.js`. Tested by `session.test.mjs`, alone and through the real sign-in.
+- **Exports:** `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
 
 ### `auth-state-core.js`
 The pure identity state machine (`AUTH_ARCHITECTURE.md` Track 1, Phase 1): no DOM, no Firebase, no storage. States are facts about who the user is; `login` and `forbidden` are decisions in `auth-policy.js`, never states.
@@ -1197,6 +1252,7 @@ The pure identity state machine (`AUTH_ARCHITECTURE.md` Track 1, Phase 1): no DO
 - `reduceAuthState(state, event)` — `RESOLVE_START{member}`, `NAMED{member}`, `ANONYMOUS`, `NONE{error}` → `signedOut`, `TRANSIENT{error}` → `degraded` (member kept), `RETRY` (from `degraded` only), `FATAL{error}` → `error`, `SIGN_OUT`. Always a new frozen object; an unknown event returns the same state.
 - Nothing dispatches `ANONYMOUS` or `FATAL` any more, so `anonymous` and `error` are unreachable; they stay on purpose (the header says why). Stale events are the shell's job (session.js's generation guard), not the reducer's.
 - Tested by `auth-state-core.test.mjs`.
+- **Exports:** `AUTH_STATUSES` · `INITIAL_STATE` · `reduceAuthState`
 
 ### `auth-state.js`
 The auth store (Phase 2): the one identity state, reduced by `auth-state-core.js`. Only `session.js` dispatches into it, wrapped so a store error can never break a sign-in; everything else reads. It imports nothing but the core, which keeps `session.js → auth-state.js → auth-state-core.js` acyclic.
@@ -1204,6 +1260,7 @@ The auth store (Phase 2): the one identity state, reduced by `auth-state-core.js
 - `subscribeAuth(listener)` → unsubscribe — calls the listener at once, then on every change; a listener that throws is isolated. No production subscriber yet: the single-owner shell is future work.
 - `dispatchAuth(event)` — reduce and notify; a transition that changes nothing notifies nobody. `_resetAuthStateForTest()` — test only.
 - The store and `sessionReady` are driven by the same `ensureNamedSession` resolution, so they cannot disagree. Tested by `auth-state.test.mjs`; the bridge by `session.test.mjs`.
+- **Exports:** `getAuthSnapshot` · `subscribeAuth` · `dispatchAuth` · `_resetAuthStateForTest`
 
 ### `auth-policy.js`
 The page-authorisation layer (Phase 3): may this identity be on this page? **Client UX only** — Firestore rules and the Functions' claim checks are the boundary, and the role check (a name in a `CONFIG` list) is an optimisation, never enforcement.
@@ -1216,6 +1273,7 @@ The page-authorisation layer (Phase 3): may this identity be on this page? **Cli
 - `canOpenNewlink(member)` — admin, a `CONFIG.NEWLINK_PREVIEW` name, or `newlinkAudience` (a normal CEA contract — `role` CEA, no `bilingualContract`, not hidden — or a `CONFIG.MANAGER_NAMES` name; open since v25.60). Written here because `newlink-boundary.test.mjs` keeps `newlink-config.js` out of this module; `newlink-config.test.mjs` holds the role to `audienceNames()` and the managers for every name, and the function to `PAGE_POLICIES.newlink`.
 - `admitsStaffPin(page)` — the policy's `staffPin` flag, the one answer to where the station PIN may go; `requirePageAuth` never sees the PIN. `page-contract-parity.test.mjs` refuses a coordinator that asks `holdsStaffPin` on a page this does not admit.
 - Tested by `auth-policy.test.mjs`.
+- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `admitsStaffPin` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `overtimeEnabled` · `requirePage`
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin only). Its only export is `init()`, run by `operations-boot.js`.
@@ -1224,6 +1282,7 @@ Coordinator for `operations.html` (admin only). Its only export is `init()`, run
 - Wires the upload cards (Huddle, Weekly Roster, and the Circular and Newsletter through `initDocumentUploadCards`), Document links (`initDocLinksCard`, handed overlay.js's `confirmDialog`), the Annual leave sheet (`initAlSheetCard`), Staff Login Accounts (`initAuthSetup`), the Needs-attention strip (operations-attention.js) and the three reporting cards, each imported from its own module.
 - Owns two cards: **Account status** (`initAccountStatus` — per member, the work email with Set/Edit/Remove and the password posture with a Reset for everyone; why everyone is beside `buildRow`, and every word the Reset asks and says is `operations-reset.js`'s) and **Password reset requests** (`initResetRequests` — refreshed on returning to the tab without re-opening a card the admin closed).
 - `#reset-requests`, `#error-log` and `#login-accounts` open their card; `DEEP_LINK_CARDS` is the allowlist. Admin reads go through `withClaimRetry`.
+- **Exports:** `init`
 
 ### `operations-reports.js` / `operations-errors.js` / `operations-usage.js` / `operations-speed.js`
 The three read-only reporting cards on `operations.html`, one module each, plus `operations-reports.js` for what they share. Each awaits `sessionReady`, reads under `withClaimRetry`, renders into its own card and touches no coordinator state.
@@ -1231,6 +1290,10 @@ The three read-only reporting cards on `operations.html`, one module each, plus 
 - `initErrorLog({ onAttention, onWithdraw })` (operations-errors.js) — `clientErrors`, with Resolve all shown, per-row Resolve and Copy details, and a truncation note. `onAttention` must fire at every moment the header count changes, including the in-place refresh and the retry; `onWithdraw` tells the strip the count is unknown after a failed refresh. A tap on the admin's Error Log notification, on a page already open, re-reads the log (`hashchange` to `#error-log`, read from `e.newURL` because `operations-app.js` strips the hash in the same event).
 - `initUsageCard()` (operations-usage.js) — page popularity and member-devices. Deduped per DEVICE, because the server never learns who, so the figures are a direction and not a headcount, and the card says so. Its private `_appendSignInSection` adds the exact unique sign-in counts (`getSignInStats`), detached and self-silencing: a failure removes only its own section, and a late answer never paints into a re-rendered card.
 - `initPageSpeedCard()` (operations-speed.js) — App Speed from `getPerfStats` (the maths is perf-stats.js). The four rules every figure keeps — the big number says it is the QUICK share, nothing by colour alone, the explanation on screen, and `compactPct` never rounds to a lie — are in its header.
+- **Exports of `operations-reports.js`:** `PRIVACY_FOOTER` · `PAGE_META` · `OPEN_META` · `_cardLoadError` · `_usageMonthLabel` · `_relativeTime`
+- **Exports of `operations-errors.js`:** `initErrorLog`
+- **Exports of `operations-usage.js`:** `initUsageCard`
+- **Exports of `operations-speed.js`:** `initPageSpeedCard`
 
 ### `links-app.js`
 Coordinator for `links.html`, the link-design workspace (designers only). It owns the grid, paint mode, the dialogs, the dirty state and the wiring; the rules live in the domain modules below it. The workspace's contract is `.claude/rules/links-design.md`.
@@ -1244,6 +1307,7 @@ Coordinator for `links.html`, the link-design workspace (designers only). It own
 - The orientation lightbox (`#linksWelcomeLb`) opens once per device under `myb_links_welcome_seen`, never expires, and `#linksHowBtn` in the About panel reopens it. Printing opens every `<details>` first (`_preparePrint`), because CSS cannot.
 - Capped by `coordinator-ratchet.test.mjs`, whose latest raise of this cap is argued beside it; the next
   Links rule still goes in a domain module.
+- **Exports:** `init`
 
 ### `links-analysis.js`
 The read-only analysis on `links.html`: the Coverage heat map with its demand rows, the Design checks card, and the sticky summary strip in the grid card's save row. Render only — every figure comes from the pure modules (`links-design`, `links-fatigue`, `links-limits`, `links-window`, `links-demand`), and none of the coordinator's save, concurrency or dirty state is touched.
@@ -1252,6 +1316,7 @@ The read-only analysis on `links.html`: the Coverage heat map with its demand ro
 - The strip shows lines undesigned, staffed hours with trains and nobody on, fatigue factors present (never `standing`) and hours a week. It is not a score, and it recomputes rather than reading the other renderers' results, so render order cannot make it wrong.
 - `NIGHT_FAMILY` must equal the `family` string `links-fatigue.js` stamps, or the night rollup stops matching.
 - **Every class this module emits must exist in `links.css`**: `links-analysis.test.mjs` scans a prefix set and fails on an emitted family outside it. Tested by `links-analysis.test.mjs` (fake DOM).
+- **Exports:** `initLinksAnalysis`
 
 ### `links-compare-analysis.js`
 What the difference between two Links designs MEANS, for compare mode. Pure; `links-compare.js` renders it. The four rules an edit can break are in the header.
@@ -1259,6 +1324,7 @@ What the difference between two Links designs MEANS, for compare mode. Pure; `li
 - Every figure is the single-design card's own function, called the same way (`summariseDemand` against each design's OWN window, `peakHours(...).byCars`, `assessHardLimits`, `assessFatigue`), so compare mode and the cards cannot report one design differently.
 - The weekday busiest-hour row is the FEWEST on duty on any of Monday to Friday (`fewestOn` names the day), never Monday's alone. Fatigue rows pair on code AND title (MRSF is three rows under one code), and the caveats travel: `confirm`, `threshold`, `hoursAreFloor`.
 - Scores nothing. Pinned by `links-compare-analysis.test.mjs` (real proposal sheets as fixtures) and `links-compare.test.mjs`.
+- **Exports:** `compareDesigns`
 
 ### `links-compare.js`
 Compare mode on `links.html`: two designs side by side, a strip of what differs, what the difference means, and a gold outline on differing cells.
@@ -1268,6 +1334,7 @@ Compare mode on `links.html`: two designs side by side, a strip of what differs,
 - "Only the lines that differ" is a view: every row renders and `.compare-diff-only` hides the `.row-same` ones (a class, not `hidden` — `links.css` says why). The strip says its figures still cover every line; the filter is offered only when it would both hide something and leave something; leaving compare mode clears it, switching the compared design does not.
 - The compare cells are `<span>`s, because they cannot be operated; the scrolling columns are reached by keyboard through their wrappers' `tabindex="0"` (`links.css`: never restore the buttons for it).
 - The two columns scroll together, and an echo that changes nothing must not arm the guard (`initScrollSync`). Tested by `links-compare.test.mjs` (fake DOM).
+- **Exports:** `COMPARE_ACTIVE_FALLBACK` · `initLinksCompare`
 
 ### `links-grid-input.js`
 How the design grid on `links.html` is operated. `links-app.js` keeps what a cell MEANS — paint it with the armed brush, or open the shift sheet over it; this decides which cell an input lands on, and keeps focus where a keyboard user left it. The reasoning is in the header.
@@ -1275,10 +1342,12 @@ How the design grid on `links.html` is operated. `links-app.js` keeps what a cel
 - `createGridInput(tbody, { lines, days, ready, armed, paint, edit })` → `{ render(html) }`. Delegated to the body: ONE Tab stop among the cells (a roving tabindex) that the arrows move; a click paints or edits; a MOUSE stroke paints every cell it crosses and owns the click that ends it, while touch and pen keep tap-to-paint. `render` keeps the Tab stop, and keyboard focus, across a re-render.
 - `trackPaintBarHeight(bar, table)` — publishes the paint bar's height as `--brush-bar-h`, so the day header sticks beneath the sticky bar (`links.css`).
 - Focus survives an edit only because `applyShift` repaints the cell's button in place (`repaintCellBtn`). Tested by `links-grid-input.test.mjs`; the wiring by `e2e/links.spec.js`.
+- **Exports:** `cellAfterKey` · `createGridInput` · `trackPaintBarHeight`
 
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s four `?` panels (grid, coverage, checks, generator). Pure data, rendered through `initTipsLightbox`; the shape is pinned by `tips-content.test.mjs`. It imports `ROTATING_LINES` and `DEFAULT_MAX_RUN`, never a literal.
 - The generator panel describes what the tool DOES and points at the Design checks for what it achieved — never a promise about the result. Its "The default table" section restates `links-default-targets.js`'s header, so a change to that table changes this. Neither rule can fail a test.
+- **Exports:** `CARD_TIPS`
 
 ### `links-design.js`
 The pure link-design maths: reading a shift, coverage, hours, the generator and the design checks. No DOM, no Firebase. **This entry is the export list** (`.claude/rules/links-design.md` defers to it); the rules an edit can break are in the module header.
@@ -1290,12 +1359,14 @@ The pure link-design maths: reading a shift, coverage, hours, the generator and 
 - Generator: `generateLink({ slots, spareLines, lines, settled, requireContract, requireRest })` → `{ patterns, mode, waves, reason, … }` tries settled weeks first (`groupIntoWaves`) with the rotating window as fallback, and REFUSES rather than ships — `short-hours` and `over-hours` (the targets must pay the contract exactly, with `askedMinutes`/`needMinutes`/`working` for the gap), `short-rest`, `no-rest`, `over-capacity`, plus the input refusals. `requireContract` and `requireRest` default on, and `links-contract.test.mjs` fails if `links-app.js` turns either off. `generatePatterns(opts)` is the patterns-only wrapper. `restBetween` / `repairShortRest` are the minimum-rest repair: a swap of two lines' duties within one day column, so no headcount, target or cover moves.
 - Checks: `runDesignChecks(patterns, lines)` — unfilled lines, weekends off, short turnarounds, longest run, early and late balance. Its turnaround rest repeats `restBetween`'s expression: change the two together.
 - Tested by `links-design.test.mjs`; the contract and rest gates by `links-contract.test.mjs`.
+- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
 
 ### `links-target-sets-store.js`
 The Firestore half of the saved staffing setups: `createTargetSetStore(deps)` → `{ list, writeIfUnchanged }`, with every Firebase handle injected so it loads in Node. Used by `links-generator-targets.js`; the two rules are in the header.
 - `list()` → `{ status: 'ready'|'error', sets, fromCache? }` — a read that fails is not an empty collection, and nor is an EMPTY answer from the cache, which offline may never have held the collection. What the picker may then say is `describeSetList` (`links-target-sets.js`).
 - `writeIfUnchanged(set, payload)` — lands only on the version the picker showed (consent names a VERSION); a `null` payload deletes. Gone-already is success for a delete and a refusal for an overwrite, which would resurrect a set somebody deleted.
 - Tested by `links-target-sets-store.test.mjs`, whose `onRead` seam runs a competing writer inside the transaction's window.
+- **Exports:** `createTargetSetStore`
 
 ### `links-target-hours.js`
 Does a generator target table pay the contract, and the words the card says it in. Pure; `links-generator-targets.js` renders the result. The three rules are in the header.
@@ -1303,6 +1374,7 @@ Does a generator target table pay the contract, and the words the card says it i
 - `targetHoursLines(a)` → `{ value, tone, note }` — the gap is stated as a TOTAL, never per line.
 - `targetProvenanceNote({ fromMemory, differsFromDefault, setName })` → where the table came from, or null; it names the set when there is one.
 - Sundays are out of the comparison, and the average divides by the whole rotation with a cover week counted as a contracted week, as the Design-checks row does. Tested by `links-target-hours.test.mjs`.
+- **Exports:** `assessTargetHours` · `targetHoursLines` · `targetProvenanceNote`
 
 ### `links-design-doc.js`
 The SHAPE of a link design, in memory and in Firestore, and every conversion between the two. Pure. Its three rules are in the header: every shape carries `window`; everything arriving from Firestore is canonicalised and nothing in memory is re-normalised; the working copy deep-copies its patterns.
@@ -1313,6 +1385,7 @@ The SHAPE of a link design, in memory and in Firestore, and every conversion bet
 - `LEGACY_DOC_ID` (`'combined-28'`, a document id and not a length — the one-time migration's source).
 - `LINK_26_FROM` · `PREVIOUS_LINK_LENGTH` · `isPre26Design(entry, lines?)` — a design drawn for the previous rotation, which `links-app.js` moves to Recently deleted (owner decision, 3 Oct 2026). All three conditions must hold: saved before `LINK_26_FROM`, nothing past the old length, and something drawn; an unresolved timestamp is never old.
 - Tested by `links-design-doc.test.mjs`.
+- **Exports:** `LEGACY_DOC_ID` · `LINK_26_FROM` · `PREVIOUS_LINK_LENGTH` · `isPre26Design` · `deepCopyPatterns` · `designFromDoc` · `binEntryFromDoc` · `docPayload` · `workingCopy` · `binEntryFrom` · `restoredEntryFrom` · `recordSave` · `lastSavedLabel`
 
 ### `links-generator-targets.js`
 The numbers the generator runs against, where they came from, and what may replace them: the DOM half of the generator card's target table. It keeps answering one question — are these the default, today's roster, this design's own memory or a colleague's saved setup, and have they changed since? The four rules that are easy to undo are in the header.
@@ -1322,6 +1395,7 @@ The numbers the generator runs against, where they came from, and what may repla
 - Owns the "Saved staffing setups" row and its dialogs — Load copies a set and writes nothing, Save changes overwrites your own set after a confirm, "+ Save as new…" keeps your version of a colleague's — and the two reset buttons (`links-default-targets.js`, `links-seed.js`).
 - Remembers each design's table in localStorage on every keystroke, stamped with its `source` and `APP_VERSION`. `loadGenTargets` retires a stamped `default` from an older version and an unstamped table equal to the seed or the default, and never an edited one.
 - Does NOT own what a set is (`links-target-sets.js`), the Firestore half (`links-target-sets-store.js`), the verdict (`links-target-hours.js`) or the Generate button (the coordinator).
+- **Exports:** `customShiftRefusal` · `createTargetPanel`
 
 ### `select-sheet.js`
 The app's own dropdown. A native `<select>`'s popup is drawn by the OS, so every dropdown a reader reads opens this sheet instead; the `<select>` stays as the value holder, so consumers are untouched. The rules an enhancement can break are numbered contracts in `select-sheet-parity.test.mjs`; the reasoning is beside the code.
@@ -1331,6 +1405,7 @@ The app's own dropdown. A native `<select>`'s popup is drawn by the OS, so every
 - `readGroups(select)` (also the options parser for `openOptionSheet`; a `hidden` option is never offered) · `triggerLabel(select, placeholder?)` · `widestOptionLabel(select, placeholder?)` — the trigger is sized to the longest label, so it does not change width when the value does.
 - `shouldOfferSearch(count)` · `optionMatches(option, query)` · `filterGroups(groups, query)` · `searchLabelFor(title)` — the filter on a long sheet: a substring of the label or its second line, case and accents folded; a group that keeps nothing is dropped, and no match is an empty list. The box never takes focus, and it is deliberately not `guide-search.js`. Its name is the caller's `searchLabel`, else `searchLabelFor`: a title of plain words is welded on (an instruction keeps its noun), anything else — a question — is just "Search".
 - `createLightbox` is injected because `overlay.js` touches `window` at import. Tested by `select-sheet.test.mjs` and `select-sheet-pick.test.mjs`; coverage by `select-sheet-parity.test.mjs`; the wiring by `e2e/calendar.spec.js`.
+- **Exports:** `readGroups` · `triggerLabel` · `widestOptionLabel` · `shouldOfferSearch` · `searchLabelFor` · `optionMatches` · `filterGroups` · `enhanceSelect` · `openOptionSheet` · `initSelectSheets`
 
 ### `select-sheet-parity.test.mjs`
 The guard that every `<select>` the app ships is enhanced or native by a declared decision, and that the page CSS reaches the trigger. A missed select is invisible to every other lane: the closed control looks the same, the popup belongs to the platform, and `selectOption` drives both. The numbered contracts are the list, each with its reason in the file: the scan reads every construction site (page markup, `createElement` and JS template literals) and fails when it cannot; `NATIVE_BY_DECISION` carries a reason per row, and a stale row fails; an id rule needs a `#<id>Trigger` counterpart; a page whose enhanced selects carry no class names `.fieldpick`; nothing focuses an enhanced select; no `hidden` select is enhanced; a selection changed in code announces itself; a test reads the face, never the select; and a box that collapses is a containing block.
@@ -1342,6 +1417,7 @@ The shortlisted designs for the new link, built into the workspace as read-only 
 - `proposalDisplayName(p)` — the name every page SHOWS: the printed one without its " — Dec 2026", because the link starts in January 2027 (17 Nov 2026). `name` stays as printed. The Links picker, masthead, compare and printed sheet, Keep only the shortlist and the New link page (`designName`) all show it. `PROPOSAL_NAMES` — each proposal's shown name, then its printed one, as `checkName`'s `existing`: a saved design may take neither.
 - **The one rule: a proposal id never reaches Firestore.** `links-app.js` opens one with `activeDesignId` null and `activeProposalId` set, so save, rename and delete treat it as unsaved and the first save creates a new design. Compare offers proposals beside saved designs; Generate while one is open builds a new unsaved design. A device left on a proposal that has since left the shortlist reopens its first saved design.
 - Tested by `links-proposals.test.mjs`: the shortlist and its order, every line drawn, the contract and hard limits, and a faithful copy of each source grid.
+- **Exports:** `PROPOSAL_PREFIX` · `PROPOSALS` · `proposalDisplayName` · `PROPOSAL_NAMES` · `isProposalId` · `proposalById` · `proposalCopyName`
 
 ### `links-shortlist.js`
 "Keep only the shortlist": the admin's one deliberate press that moves every design last saved before the shortlist was settled to Recently deleted (owner, 2 Nov 2026). The shortlist itself is untouched, built in and read-only (`links-proposals.js`). Pure; the press is in `links-design-library.js`.
@@ -1349,6 +1425,7 @@ The shortlisted designs for the new link, built into the workspace as read-only 
 - `olderDesigns(designs)` · `canKeepOnlyShortlist({ isAdmin, designs })` — the ··· More row is the admin's while anything older remains, so it goes by itself once used.
 - `keepOnlyShortlistMessage(older, { currentUser, dirty })` — the dialog, naming each design and who last saved it (up to `LISTED_IN_DIALOG`, the rest counted) and the shortlist it keeps, read from `PROPOSALS`. `keptOnlyShortlistLine(moved, failed)` — the receipt.
 - **A press, never a move on page open** — the header has the three reasons. Each move goes through the store's `binIfStill`, which asks `isOlderDesign` again inside its transaction. Tested by `links-shortlist.test.mjs`; the press by `e2e/links-shortlist.spec.js`.
+- **Exports:** `OLDER_BEFORE` · `LISTED_IN_DIALOG` · `isOlderDesign` · `olderDesigns` · `canKeepOnlyShortlist` · `keepOnlyShortlistMessage` · `keptOnlyShortlistLine`
 
 ### `links-design-header.js`
 The design masthead on `links.html`: which design is open, whose, whether it is saved, the Save buttons, the picker sheet and the ··· More sheet behind which every other verb lives. Every handle is injected — `createLightbox` included, because `overlay.js` touches `window` at import — so it loads in Node. The four rules an edit can break are in the header.
@@ -1359,6 +1436,7 @@ The design masthead on `links.html`: which design is open, whose, whether it is 
 - `lastSaveTime(entry)` — the DISPLAY reading of a last save, the newer of `updatedAt` and a device-recorded `savedAt`; the concurrency baseline stays `updatedAt`.
 - `whoCopy({ saved, updatedBy, currentUser })` → `{ name, role }` · `proposeNewDesignName(currentUser, existing, now?)` → "<member> · 8 Sep", stepping past a clash · `toDate(v)`.
 - Tested by `links-design-header.test.mjs`.
+- **Exports:** `toDate` · `lastSaveTime` · `groupDesigns` · `saveButtonLabel` · `statusCopy` · `whoCopy` · `proposeNewDesignName` · `createDesignHeader`
 
 ### `links-design-naming.js`
 What a design or a staffing setup may be CALLED: one rule for new, import, duplicate, rename and save-a-setup-as-new. Pure; the reasons are in the header.
@@ -1368,6 +1446,7 @@ What a design or a staffing setup may be CALLED: one rule for new, import, dupli
 - `proposeCopyName(base, existing)` — "X copy", then "X copy 2"…, reserving room for the suffix BEFORE building the candidate, so a long name is never offered back unchanged or cut mid-suffix.
 - `MAX_DESIGN_NAME` — the bound `firestore.rules` enforces.
 - It refuses a duplicate rather than renaming one silently, case- and space-insensitively. What it guarantees is narrower than "no duplicates exist" — the header says why. Tested by `links-design-naming.test.mjs`.
+- **Exports:** `MAX_DESIGN_NAME` · `nameKey` · `nameConflict` · `checkName` · `proposeCopyName`
 
 ### `rangers-guide.css`
 The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff accept or refuse at the gateline. A static page with no app modules and no Firebase; its chip bar is `guide-chips.js` and its ⤓ PDF button `guide-print.js`, both shared with other guides.
@@ -1379,6 +1458,7 @@ The generator's roster seed: it reads the roster people actually work and turns 
 - `buildRosterTargets(sources = rosterSeedLines())` → `{ slots: [{ time, weekday, sat, sun }], spareLines }`, as fresh objects. The weekday figure is the BUSIEST Monday-to-Friday day for that time, spare is counted in whole LINES, and nothing is added to what it measures.
 - **The seed samples exactly what the design represents.** The new link is the main roster widened and excludes the bilingual roster, so no bilingual line or time is sampled. Sources are a parameter defaulting to the real roster, so which lines are sampled and what is counted are tested apart.
 - Tested by `links-seed.test.mjs`: line identity, no bilingual-only time ever seeded, and no bare numeric loop bound.
+- **Exports:** `rosterSeedLines` · `buildRosterTargets`
 
 ### `links-default-targets.js`
 The table the generator starts from when a design has none: the duty table of Short Run, in the pack and on the owner's shortlist until 8 Nov 2026, which pays the contracted week exactly, so Generate works on a card nobody has touched. It DESIGNS where `links-seed.js` MEASURES, and the two are one button apart. Pure data plus one builder. The header has the arithmetic and the `docs/links-26/RULES.md` rules the table meets; `links-default-targets.test.mjs` pins each one.
@@ -1387,6 +1467,7 @@ The table the generator starts from when a design has none: the duty table of Sh
 - `DEFAULT_SHIFT_TIMES` — every time the table proposes, in order. `links-app.js` adds them to the cell dropdowns; the paint chips are the design's own times, falling back to these only for an empty design.
 - `sameTargetTable(a, b)` — order-insensitive whole-table equality. `isSupersededMemory(remembered, rosterSeed)` — true when a remembered table equals the roster seed or the current default, by content alone, so an edited table is never discarded; the version-stamp route is `loadGenTargets` in `links-generator-targets.js`. The seed is passed in, so this module imports nothing.
 - It is not a link. The panels below the grid assess what the generator makes of it.
+- **Exports:** `DEFAULT_COVER_WEEKS` · `OPENING_TURNS` · `CLOSING_TURNS` · `EVENING_TURNS_FROM_22` · `SATURDAY_CLOSING_TURNS` · `SATURDAY_TURNS` · `SUNDAY_TURNS` · `TARGET_DAYS_PER_WEEK` · `DEFAULT_SHIFT_TIMES` · `sameTargetTable` · `isSupersededMemory` · `buildDefaultTargets`
 
 ### `links-target-sets.js`
 Named, shared snapshots of the generator's target table (`linkTargetSets`), and who may overwrite one — because the owner's ask, "others can mess about but not lose my shift times set", cannot be kept per device. Pure; the caller injects `serverTimestamp()`.
@@ -1396,6 +1477,7 @@ Named, shared snapshots of the generator's target table (`linkTargetSets`), and 
 - `describeSetState(set, ctx)` — what the row SAYS and what it OFFERS. `describeSetList(status, sets)` — what the picker may claim about a list it might not have: loading, empty, rows or error. `usable` is false whenever the list is not known to be complete, and the error hint says the error does not mean the sets were deleted, without claiming they were not.
 - `MAX_SET_NAME` · `MAX_SET_SLOTS` · `SPARE_WEEKS_CAP` · `targetSetProblem(table)` — the bounds the rules enforce, asked before a save so a refusal says why (`links-target-sets.test.mjs` pins them to `firestore.rules`). `sortTargetSets(sets)` — by name, case-insensitive, ties by id.
 - Tested by `links-target-sets.test.mjs`; the rules by `firestore.rules.test.mjs`; the wiring by the `links sets:` e2e cases, signed in as a designer who is not the admin, because the admin's override is real.
+- **Exports:** `MAX_SET_NAME` · `MAX_SET_SLOTS` · `SPARE_WEEKS_CAP` · `targetSetProblem` · `targetSetFromDoc` · `targetSetPayload` · `canOverwriteTargetSet` · `describeSetState` · `sortTargetSets` · `describeSetList`
 
 ### `links-limits.js`
 The HARD limits: the ones a design meets or cannot be run. A separate module from `links-fatigue.js` on purpose — a hard limit is the opposite kind of statement from an advisory factor, so it has its own function, count and section, is red on a breach, and renders when passing too. Pure; the header holds whose limit this is, its withdrawn-2007 origin and the three rules every edit keeps.
@@ -1403,6 +1485,7 @@ The HARD limits: the ones a design meets or cannot be run. A separate module fro
 - `POLICY_SOURCE_CONFIRMED` — the one switch every visible claim derives from; while it is `false` the limit reads as provisional everywhere. `LIMIT_CLAIM` — the heading wording, derived from it, which the Design checks card and compare mode both read.
 - `CONTRACTED_DAYS_CEILING` · `contractedDaysPerYear(patterns, lines)` — the new link's contracted-days ceiling (`docs/links-26/RULES.md`): Monday-to-Saturday duties plus four days per cover week, over the rotation, scaled to a year. Assessed only once every line is drawn and only at `ROTATING_LINES`; its row reports the measurement and never says "cannot be run".
 - Tested by `links-limits.test.mjs`.
+- **Exports:** `MAX_CONSECUTIVE_WORKED_DAYS` · `POLICY_SOURCE_CONFIRMED` · `LIMIT_CLAIM` · `CONTRACTED_DAYS_CEILING` · `contractedDaysPerYear` · `assessHardLimits`
 
 ### `links-fatigue.js`
 The ORR good-practice fatigue factors (December 2021 guide: twenty-five rows in six families, read at source) assessed against a link design. Pure. **It reports factors PRESENT and never passes or fails a design**: the ORR says these are not prescriptive limits, and the dominant risk is false assurance. The header and the comment beside each row carry the reasoning.
@@ -1413,6 +1496,7 @@ The ORR good-practice fatigue factors (December 2021 guide: twenty-five rows in 
 - `family` names a group and never a verdict; `links-analysis.js`'s `NIGHT_FAMILY` must equal the night family's string.
 - Only FF19 carries `confirm: true` (owner, 28 Sep 2026, on ORR's text: its reading is the owner's, more lenient than ORR's). FF18 is ORR's cadence factor, `standing` on any link with timed lines, with the week-to-week step from `scoreOrder` (`links-adjacency.js`) as extra information.
 - A spare day carries no times: the runs and the 55-hour row take it at its worst (17 Nov 2026), a count of long duties is a floor. Read by `links-analysis.js`, the two compare modules and `links-app.js`'s `currentLinkBaseline()`. Tested by `links-fatigue.test.mjs`.
+- **Exports:** `DAY_NAME` · `isRest` · `isWorked` · `dutyMinutes` · `isEarlyStart` · `isVeryEarlyStart` · `coversNightWindow` · `toSequence` · `longestRunBetween48hBreaks` · `longestWorkedRun` · `longestRunOf` · `earlyBlocksWithShortRecovery` · `maxHoursInAny7Days` · `COVER_DUTY_MINUTES` · `COVER_DUTY_WORDS` · `worstHoursInAny7Days` · `startTimeJumps` · `rotationDirection` · `assessFatigue`
 
 ### `links-window.js`
 The operating window of a link design — when Marylebone is staffed — so the heat map reads a design against the hours it has to cover, not against its own first and last duty, which hid missing cover at either end of the day. Pure. Stored as an optional `window` map on each `linkDesigns` document; a design saved without one reads as the default.
@@ -1421,6 +1505,7 @@ The operating window of a link design — when Marylebone is staffed — so the 
 - `normaliseWindow` falls back PER ROW, never per field, so a stored start is never paired with a default end.
 - The editor uses TEXT inputs, because Chromium draws `<input type="time">` in a 12-hour format even at en-GB; `canonicaliseWindowTime` pads.
 - The window travels with the design everywhere, the bin included (`links-design-doc.js`). Tested by `links-window.test.mjs`; the wiring by `e2e/links.spec.js`.
+- **Exports:** `DEFAULT_WINDOW` · `WINDOW_ROWS` · `windowMinutes` · `rowMinutes` · `canonicaliseWindowTime` · `isValidWindowRow` · `windowEditRefusal` · `normaliseWindow` · `windowForDay` · `isHourStaffed` · `heatSpan` · `formatWindow` · `windowsDiffer` · `isDefaultWindow`
 
 ### `links-demand.js`
 The service a link design has to cover: trains per hour at Marylebone in the December 2026 timetable, so the heat map can set cover against service. Pure. Demand counts arrivals as well as departures, weighted by train length (owner, Aug 2026), and the movement count and the car count are both kept and never blended, because they disagree about the peak. It never scores a design. The header has the reasoning, how the lengths were derived and the traps in re-measuring.
@@ -1429,6 +1514,7 @@ The service a link design has to cover: trains per hour at Marylebone in the Dec
 - `dutySpans(patterns, lines)` — who is on duty to the MINUTE: each day's duties as closed `[start, end]` spans, read as `calcHourlyCoverage` reads them (a past-midnight tail lands on the next day), and a test holds the two together hour by hour.
 - `summariseDemand({ movements, spans, days, windowFor })` splits a FINDING from a FACT — the anti-cry-wolf rule. `uncovered` (the station open, a train running, nobody on duty at that minute) is a finding, asked train by train against `dutySpans` and reported per day by clock hour, so a gap inside an hour is seen; `outside` (trains while the station is shut) is a neutral fact, per day class to the minute, split before and after.
 - Rendered by `links-analysis.js` as rows in the same table as the cover, in `--cov-late` orange, a different hue from the cover ramp so the two rows do not read as one thing in one unit. Tested by `links-demand.test.mjs`; the wiring by `e2e/links.spec.js`.
+- **Exports:** `DEC_2026_SOURCE` · `DAY_CLASS_KEYS` · `DEC_2026_MOVEMENTS` · `DEC_2026_DEMAND` · `demandAt` · `peakCars` · `demandBucket` · `peakHours` · `DAY_LABEL` · `DAY_CLASSES` · `movementsOutside` · `dutySpans` · `summariseDemand` · `describeHours` · `describeMovements`
 
 ### `links-adjacency.js`
 What happens BETWEEN the lines: the order they sit in. You work line w one week and line w+1 the next, so the week-to-week movement of the working day, full and long weekends, and rest from Saturday into Sunday all live in the order. Pure; `links-app.js` applies it after Generate. The header carries the reasoning and the measured weights.
@@ -1437,6 +1523,7 @@ What happens BETWEEN the lines: the order they sit in. You work line w one week 
 - **Reordering is free with respect to coverage** — permuting the rows leaves every day's cover unchanged, and a test asserts it — so the objectives compete only with each other. Switches, not a formula: an objective that is off contributes nothing, and all off returns the order untouched.
 - **Two terms are constraints, not switches**: the even spread of cover weeks (weighted to dominate every switch, and filtered on) and rest across the week boundary (minimum rest is a gate the generator applies before the reorder, so the reorder must not undo it). `variety` stays on by default, because minimising the step alone produces long blocks of one shift.
 - Deterministic per attempt: attempt 0 is the greedy start; later attempts are seeded shuffles (never `Math.random`), so "design 3" is the same design on every device. Tested by `links-adjacency.test.mjs`, which also fails if the waves are interleaved inside the generator (a won't-do; `links-design.js`'s header).
+- **Exports:** `OBJECTIVES` · `GENTLE_THRESHOLD_MINUTES` · `DEFAULT_BLOCK_TARGET` · `lineStartProfile` · `weekStep` · `breakLength` · `boundaryRest` · `blockRuns` · `longestBlockOf` · `blockExcess` · `spareSpread` · `longestRunFor` · `runExcess` · `scoreOrder` · `cost` · `reorderLines` · `applyOrder`
 
 ### `links-deletion.js`
 The pure rules behind Recently deleted in the Links workspace: a soft delete (`deletedAt` and `deletedBy` on the document) that hides a design and keeps it until a designer removes it for good. **The bin is PERMANENT** (owner decision, 19 Sep 2026): nothing expires a design and there is no retention constant, which `doc-parity.test.mjs` pins, so no doc may promise a removal window.
@@ -1445,6 +1532,7 @@ The pure rules behind Recently deleted in the Links workspace: a soft delete (`d
 - `sortByDeleted(entries)` · `tsMillis(ts)` (null for a timestamp not yet resolved). Nothing here refuses to bin the last saved design: a shortlisted proposal opens in its place.
 - `deleteOutcomeLine(found, name, deletedData?)` — what a delete found, in words: ours, a colleague's earlier delete (named), or removed for good · `renameRefusedLine(name, deletedData)` — why a rename of a design no longer live did not happen.
 - The Firestore calls are `links-design-store.js`; the panel is `links-design-library.js`. Tested by `links-deletion.test.mjs`.
+- **Exports:** `tsMillis` · `isDeleted` · `deletedLabel` · `sortByDeleted` · `deleteOutcomeLine` · `renameRefusedLine`
 
 ### `links-concurrency.js`
 The pure co-editing rules for the Links workspace: is this save about to overwrite a colleague's work? No DOM, no Firebase, no timers; `links-design-store.js` applies them. Every bug this logic has had was a SILENT overwrite, which is why the rules live where they can be tested.
@@ -1453,22 +1541,31 @@ The pure co-editing rules for the Links workspace: is this save about to overwri
 - `nextRevision(serverData)` — the revision a write should commit: monotonic, and never trusts a non-number.
 - `canAdvanceBaseline(preTs, ourBaseline, preReadOk = true)` — a rename may move our baseline only when nothing changed underneath it; with a revision on both sides it compares those instead.
 - Tested by `links-concurrency.test.mjs`, one case per historical bug; the read-back window end to end in `links-design-store.test.mjs`.
+- **Exports:** `conflictOf` · `baselineAfterWrite` · `baselineAfterCommit` · `baselineFromEntry` · `nextRevision` · `canAdvanceBaseline`
 
 ### `admin-tips.js`
 `CARD_TIPS` — the content of every `?` panel on `admin.html`, one entry per card, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins; `adminOnly` lines show to the admin and managers, `staffOnly` to a self-service member. Pure data; `admin-app.js` passes it to `initTipsLightbox`. `al-copy-parity.test.mjs` reads its Annual Leave entry.
+- **Exports:** `CARD_TIPS`
 
 ### `admin-boot.js` / `links-boot.js` / `operations-boot.js` / `paycalc-boot.js` / `settings-boot.js`
 The page bootstraps: each imports `init` from its coordinator and calls it, and does nothing else. Both reasons are needed — CSP `script-src 'self'` blocks an inline `init()` in the page, and keeping the call out of the coordinator lets a test import `init` without running the page. The Overtime, Trains and New link boot files are the same shape and sit in their own pages' entries.
+- **Exports of `admin-boot.js`:** none
+- **Exports of `links-boot.js`:** none
+- **Exports of `operations-boot.js`:** none
+- **Exports of `paycalc-boot.js`:** none
+- **Exports of `settings-boot.js`:** none
 
 ### `admin-range-booking.js`
 The shared skeleton of the two date-range booking sections on `admin.html`: Annual Leave and Absence.
 - `createRangeBookingSection(cfg)` → `{ updatePreview, saveBtn }` — wires one section by `cfg.prefix` (`al` / `sick`): the member dropdown (the remembered member set through its options, so one no longer listed leaves it as it was), the preview guard chain (no member, no dates, a bad range), working-day counting through `isWorkingDate`, the date listeners, and the save → receipt → refresh flow, including the signed-out and unconfirmed-write messages; a range a colleague's change refused names its days, and one stopped part-way says whether a colleague's change (`DELETE_REFUSED`) or the connection stopped it. A change staged in Change a Shift on a day the booking wrote is cleared, and named in the receipt (`clearedDaysLine`) — on a part-done stop too. The preview and the Save click read one plan; the click refuses while the member's records are unread, and asks — never skips — a rest day that newly needs the question. Worked Sundays set as rest days are named in the preview and the receipt.
 - Each section's differences are injected: `validateRange`, `renderReady`, `successFeedback`/`successToast`, `beforePreview`/`afterDateChange`/`afterSave`/`onViewYearChange`, `onClick` and `preSave` (both cards: the AL over-entitlement check, and the Absence card's day-in-lieu check), and the AL-only `project` and `swapQuestion`. It owns none of the leave rules: `admin-al.js` brings in the projection (`admin-al-projection.js`), the Spare sentence (`admin-al-spare-note.js`) and the swapped-day question (`al-swapped-days.js`); the Absence card asks no question, so its rest days are skipped silently.
+- **Exports:** `createRangeBookingSection`
 
 ### `admin-al.js`
 The Annual Leave booking section on `admin.html`: a thin configuration of `createRangeBookingSection` (`admin-range-booking.js`).
 - `initALSection(deps)` — the AL config: the range-length cap, the preview (with the Spare sentence), the swapped-day question, the projection of what the save will write, and the over-entitlement pre-save check that shows the confirm bar. DOM handles and callbacks arrive through `deps`, so nothing imports `admin-app.js` back.
 - `triggerConfirmedALSave()` — called by the confirm bar in `admin-app.js` when the user accepts booking past the entitlement; it sets the flag and presses Save again. The flag is captured and reset at the top of every save, so an early return can never leave it set.
+- **Exports:** `triggerConfirmedALSave` · `initALSection`
 
 ### `al-contract.js`
 A member's CONTRACT leave allowance for a year — the grade that decides it, its figure, a Dispatcher's days in lieu. Left `roster-data.js` (Nov 2026) for the owner's "role at the time" rule; the header carries the rules. Imports roster-data, override-utils and roster-roles; imported by `al-entitlement.js` and `christmas-leave.js`.
@@ -1477,6 +1574,7 @@ A member's CONTRACT leave allowance for a year — the grade that decides it, it
 - `dispatcherBaseAL(member, year)` — a Dispatcher's leave before days in lieu (the joining year's `proRatedAL`, else 22), the one base the allowance and `dispatcherBreakdown` share.
 - `countsAsDispatcherBankHoliday(member, date)` — does the Dispatcher bank-holiday rule count this day: a bank holiday, on or after the start date, a Dispatcher year, a Dispatcher on the day. `allowanceForBoxingDay` asks it, so a Boxing Day is counted once. `countDispatcherBankHolidaysWorked(member, year, overrides)` — those days whose winning value is worked (a trainee's `TRG` included, owner 16 Nov 2026).
 - Tested by `al-entitlement.test.mjs` (the grade at the time, the start date, the trainee) and `roster-data.test.mjs`.
+- **Exports:** `allowanceRole` · `countsAsDispatcherBankHoliday` · `countDispatcherBankHolidaysWorked` · `dispatcherBaseAL` · `getALEntitlement`
 
 ### `al-entitlement.js`
 Which annual-leave days spend a member's entitlement, and where that leaves them: taken, booked, remaining. Pure. One module because the set of counted days used to be built by hand in four places that disagreed (the header has the story and the rules).
@@ -1489,6 +1587,7 @@ Which annual-leave days spend a member's entitlement, and where that leaves them
 - `winningEntriesOfType(overrides, memberName, type)` — resolve the winning record for each date FIRST, then ask its type; filtering the raw collection finds an old AL document under a newer shift.
 - `isWorkingDate(memberObj, dateStr, ovByDate?)` — will this day be WRITTEN as leave (Sunday → override → base; no map means no override); re-exported by `admin-overrides.js`. `consumesEntitlement` asks the other half, whether it COSTS a day.
 - Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`. Grep for the import rather than trusting a list of callers.
+- **Exports:** `entitlementFor` · `consumesEntitlement` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 The LEAVE FILE — the one contract between Stage 1 (`scripts/make-leave-file.mjs`, a session reading the clerks' workbook) and Stage 2 (the Operations card), so the two cannot disagree about a valid file or its seal (docs/AL_UPLOADER_PLAN.md §3). Pure, with no app import: it loads in Node and the browser alike. Names in it are the APP's; every day says where it was found and whether the sheet's own total counts it.
@@ -1498,6 +1597,7 @@ The LEAVE FILE — the one contract between Stage 1 (`scripts/make-leave-file.mj
 - `validateLeaveFile(file)` — every structural rule (no Sunday leave, nothing on 25/26 December, a next-January day carries this year's `leaveYear`, one entry per person per date, a person's grade is their used row's) and every sum. `personSums(person, days)` — the file re-added against the sheet's own printed figures, so a day THE SHEET COUNTS that was dropped while it was made fails here; a day it does not count (misspelt, a dated comment beside a blank count, no totals row) has no printed figure to fail against, and is checked by Stage 1's own tests. `usedRow(person)`.
 - `describeRefusal(r)` — the plain-text sentence for each code. `leaveFileAgeDays(file, todayStr)` — counted from the clerks' LONDON day, `londonDayOf(iso)`, through `Intl` (a save at 00:30 on a summer night read as the UTC day before). `isRealIsoDate` · `isSundayIso` · `isChristmasIso`.
 - Tested by `al-leave-file.test.mjs`.
+- **Exports:** `LEAVE_FILE_FORMAT` · `LEAVE_FILE_VERSION` · `LEAVE_FILE_MAX_AGE_DAYS` · `LEAVE_FILE_MAX_BYTES` · `GRADES` · `DAY_KINDS` · `FOUND_IN` · `ROW_WHY` · `NOT_IMPORTED_REASONS` · `CORRECTED_BECAUSE` · `canonicalJson` · `leaveFileDigest` · `sealLeaveFile` · `isRealIsoDate` · `isSundayIso` · `isChristmasIso` · `leaveFileAgeDays` · `londonDayOf` · `usedRow` · `personSums` · `readLeaveFile` · `validateLeaveFile` · `describeRefusal`
 
 ### `al-leave-compare.js`
 The leave sheet BESIDE the app, person by person and day by day — Phase 1 of the uploader, which decides and writes nothing (AL_WORKBOOK.md §11's reconcile-and-report). Every judgement is the app's own: what a day costs is `consumesEntitlement` after the winning record is resolved, what booking a day would do is `projectAlBooking` (so "a rest day" here is exactly the day Admin would ask the swap question about, and a recorded rest day is asked about only where Admin asks — `swapQuestion`), where a person stands is `alPosition`, and what a day SHOWS is `resolveDayShift` (`drawn`). **"Agree" means the figures agree**: the gap between the sheet's corrected figure and the app's is the sum of the reasons named on the row, and a gap nothing names still needs a look (`counts.figures`).
@@ -1505,6 +1605,7 @@ The leave sheet BESIDE the app, person by person and day by day — Phase 1 of t
 - `comparePerson({ person, days, member, records, year, todayStr, firstDate, lastDate })` — each sheet day in one of `DAY_STATES` (`not-in-app`, `rest-day`, `free-in-app`, `other-year`, `differs`, `worked`, `before-start`, `carried`, `match`, `sunday`; a leave day before the start date is `before-start` whatever the app holds there), with what the Calendar draws and the year the app charges it to. `carried` is the explained carry-over (AL_WORKBOOK.md §9): as many moved-back January days as the sheet carries forward, taken off the sheet's allowance before the two are compared. Then the app-only leave from a separate pass (with the year it costs; never a record no surface shows — leave on a Sunday, before the start date, or on Christmas Day or Boxing Day from 2026 — nor a day of next January the app leaves on its own year, which is next year's sheet's), the leave after the sheet's last date that the app takes from this year (`beyond`, `countedAlDates`'s own), both sides' figures with the app's own note (`entitlementNote`), whether the allowances differ, and what each OTHER row of theirs carries forward when it differs from the row used (`otherCarry`: said, never resolved). `NEEDS_A_LOOK` — the day states that want somebody to look (`before-start` among them: the sheet counts a day the app never can). `COUNT_KEYS` — every count a person and the file carry: the day states, then `app-only`, `beyond`, `undated` and the safety net `figures`.
 - `compareLeaveFile({ file, members, recordsByName, todayStr })` — the whole file: people needing a look first, who could not be checked and why, who is in the app and not on the sheet, and the totals. The file's own lists are asked again of TODAY's roster: "in the app" keeps only those the app can still record leave for, plus anybody added since, and a person left out of the file is shown with why they would be left out now (`since`, when the app could compare them today but the file does not carry their days). `winnersByDate(records, name)`.
 - Tested by `al-leave-compare.test.mjs`; driven on Operations by `e2e/operations.spec.js`.
+- **Exports:** `DAY_STATES` · `NEEDS_A_LOOK` · `COUNT_KEYS` · `leaveRecordability` · `winnersByDate` · `comparePerson` · `compareLeaveFile`
 
 ### `al-leave-plan.js`
 What one Save of the Annual leave sheet would write, person by person; what its upload log says; and what an Undo of it may take back — Phase 2b of the uploader (docs/AL_UPLOADER_PLAN.md §4.5–4.10). Pure: it starts from the comparison (`al-leave-compare.js`) and adds only what is specific to a Save. **It writes only three things**: leave on a working day the app holds nothing on (`not-in-app`), leave on a rest day answered "swapped" (`rest-day`, with `replacedType` from `replacedTypeForSwap`), and stored leave rewritten with the swap recorded where Admin would ask (`free-in-app`). Nothing for a person not confirmed; never on a Sunday (the Sunday rule's seventh layer) or on 25/26 December; never a day an earlier log calls in line that the app has lost since (removed in the app since: shown, never written). Each write is the Admin leave card's own: a manual record at the fixed id, the records it replaces travelling as the rows the check loaded.
@@ -1513,6 +1614,7 @@ What one Save of the Annual leave sheet would write, person by person; what its 
 - `logLists({ after, plans, recordsByName, savedBy, uploadId, exclude })` — the log's `inLine` and `added`, from what the server holds AFTER the Save, never from what was sent. `landedWrites({ plans, recordsByName, savedBy, uploadId, kinds, exclude })` → each person's dates whose write the read shows landed as written, still carrying the Save's `uploadId` — what the receipt counts, so a Save whose answer was lost is not called "nothing"; `added` is its record-creating subset. With no `uploadId` nothing landed: an unmarked record never matches an empty mark. `exclude` is each person's days the Save was REFUSED on, never counted or undone as its own. `logFields(…)` — the log's fields bar `savedAt`, `writesMarked: true` among them; null when empty or over `LOG_MAX_DAYS`, the rules' own cap. `planUndo({ log, recordsByName })` → `{ remove, kept, gone }` — only a day still the Save's own: at the fixed id, by the log's author, and carrying the log's id — or, on a log from before the mark (no `writesMarked`), stamped no later than the log.
 - `dayKey(name, date)` · `parseDayKey(key)` · `ANSWERS` · `HELD_STATES` · `WRITE_KINDS` · `LOG_MAX_DAYS`.
 - Tested by `al-leave-plan.test.mjs`.
+- **Exports:** `oldestSaveableYear` · `ANSWERS` · `LOG_MAX_DAYS` · `HELD_STATES` · `WRITE_KINDS` · `dayKey` · `parseDayKey` · `writableDate` · `questionsFor` · `planPerson` · `writesFor` · `saveTotals` · `recordsAfter` · `judgeUploads` · `saveRefusal` · `logLists` · `landedWrites` · `logFields` · `planUndo`
 
 ### `al-leave-save.js`
 The Annual leave sheet's Save, its upload log and its Undo, against Firestore — Phase 2b of the uploader (docs/AL_UPLOADER_PLAN.md §4.9–4.10). WHAT is written is `al-leave-plan.js`'s; this sends it. **Every part is checked, additions included**: the uploader writes manual records at fixed ids, as the Admin leave card does, so each person's days commit through `commitChecked` (admin-override-store.js) in parts of at most 450 operations, each refusing — writing nothing and naming the days — unless every day still holds what the check read. Operations has no Admin cache, so every record a part replaces travels as the row the check read. **Offline, nothing is held** (`holdOffline: false`): a device that knows it is offline writes nothing, and a part that cannot reach the server stops the Save. A refusal stops that person only; losing the server or the account stops everybody.
@@ -1522,6 +1624,7 @@ The Annual leave sheet's Save, its upload log and its Undo, against Firestore �
 - `undoUpload(log, { recordsByName, undoneBy })` → `{ removed, kept, gone, logged }` — only days still the Save's own (`planUndo`), person by person; a day refused by the check is kept and the rest go, because the log may be marked undone only once. The mark lists every day of the Save's now gone (`removed` and `gone`), so an Undo cut short — its deletes landed, its mark not, or between two people — is finished by pressing it again. Every day changed by somebody since records nothing.
 - The checked commit is loaded with a review that can be saved (`preloadSaveStore()`, never throws), from the release the page came from; when it cannot load, the Save and the Undo say they never started (`STORE_UNLOADED`). A record exactly like the Save's on its FIRST attempt is somebody's booking, refused (`commitChecked`'s `lostAnswerOnly`); only a re-run after a lost answer may call it the Save's own, and only with the Save's own `uploadId`.
 - Tested by `al-leave-save.test.mjs`.
+- **Exports:** `CACHED_READ` · `readMemberRecords` · `readUploadLogs` · `STORE_UNLOADED` · `preloadSaveStore` · `saveLeavePlans` · `newUploadLogId` · `writeUploadLog` · `pruneUploadLogs` · `undoUpload`
 
 ### `al-leave-words.js`
 Every sentence the Annual leave sheet card says (`operations-al-sheet.js`). Pure: the comparison decides each day and this only says it, so each line is tested without a browser. A day says what the SHEET says, then what the APP SHOWS — what the Calendar draws, never a stored record no surface draws — as facts about the records: never an instruction, and never one side being wrong (the workbook is a quota grid and the app a leave record, and both can be right, AL_WORKBOOK.md §9). Admin's own question, "was it a swapped working day?", is asked exactly where Admin asks it. An allowance is explained from each side's own parts — the sheet's printed figures and the app's `entitlementNote` — never a cause restated here.
@@ -1533,6 +1636,7 @@ Every sentence the Annual leave sheet card says (`operations-al-sheet.js`). Pure
 - `CARD_WORDS` — every fixed line and heading the card shows. `checkedWords` · `overallWords` · `oldWords` · `unplacedWords` · `appOnlyWords(chargedTo)` · `beyondHeadWords(year)` · `moreDaysWords` · `notComparedWords` — its counted lines, singular and plural, so no sentence is written in `operations-al-sheet.js`.
 - **The Save's words** (Phase 2b, `operations-al-save.js`): `SAVE_WORDS` — its fixed lines, the rest-day answers in Admin's own words (*Swapped — counts* · *Rest day — free*). `questionWords(date)` · `confirmWords({ name, add, swap })` · `afterWords(p)` · `stillDiffersWords(chips)` · `unansweredWords(n)` · `saveButtonWords({ days, people })` · `savingWords(done, total)` · `refusalWords(code, { maxAge, year, newest })` · `receiptWords({ days, people, refused, unsure, landedFor })` (no "Nothing was saved." when that would be a guess, nor for a refused person the read shows some days saved for) · `leftFreeWords(name, days)` (the days answered "Rest day — free", named, as Admin's receipt names them) · `lastSaveWords({ savedAt, savedBy, added, latest })` (`latest` false: a later Save added none) · `undoConfirmWords(n)` · `undoneWords({ removed, kept, gone })`.
 - Tested by `al-leave-words.test.mjs`.
+- **Exports:** `dayLabel` · `sheetWords` · `patternWords` · `drawnWords` · `appWords` · `figuresLine` · `personNotes` · `chipsFor` · `totalsEntries` · `reasonWords` · `CARD_WORDS` · `beyondHeadWords` · `checkedWords` · `overallWords` · `oldWords` · `unplacedWords` · `appOnlyWords` · `moreDaysWords` · `notComparedWords` · `ageWords` · `SAVE_WORDS` · `questionWords` · `confirmWords` · `afterWords` · `stillDiffersWords` · `unansweredWords` · `saveButtonWords` · `savingWords` · `refusalWords` · `receiptWords` · `leftFreeWords` · `lastSaveWords` · `undoConfirmWords` · `undoneWords`
 
 ### `christmas-leave.js`
 Christmas Day and Boxing Day: who is on leave, what it costs, and the day in lieu (the owner's rules, 5 Nov 2026). Pure. **Derived, never stored**: the leave follows from the pattern and the date, so nothing is written to Firestore and anything recorded on the day wins. `getBaseShift` still makes both days a rest day for everybody (`isChristmasRD`); these rules sit on top, in their own module so `al-entitlement.js` can import them without a cycle. The header has the rules and the one door they cost.
@@ -1545,6 +1649,7 @@ Christmas Day and Boxing Day: who is on leave, what it costs, and the day in lie
 - `isUncountedChristmasLeave(shift, dateStr, christmasLeave)` — is this leave never counted because it falls on Christmas? True for the leave shown from the pattern and for leave recorded on either day.
 - `christmasLeaveDates({ member, year, overrides })` · `christmasLeaveByYear({ member, overrides, thisYear })` · `christmasLeaveLine(dates)` — the leave records' Christmas dates and their one line ("…: annual leave, not counted"). The records list exactly the dates the Calendar shows as Christmas leave, because both ask `resolveDayShift`; a delete is offered only for leave somebody recorded.
 - Tested by `christmas-leave.test.mjs` and the `christmas` e2e cases in `calendar.spec.js` and `admin.spec.js`.
+- **Exports:** `CHRISTMAS_LEAVE_FROM_YEAR` · `isChristmasLeaveDay` · `isChristmasClosureDate` · `isUncountedChristmasLeave` · `allowanceForBoxingDay` · `boxingDayForAllowance` · `allowanceYearsOf` · `boxingDayLieuDays` · `resolveDayShift` · `christmasLeaveDates` · `christmasLeaveByYear` · `christmasLeaveLine`
 
 ### `leave-year.js`
 Which year's allowance a day of annual leave comes out of. Pure, with no imports. **Default by rule, exception by record** — the `replacedType` pattern: a day counts against its own year with no record at all, and a January day moved to the year before carries `leaveYear: <year − 1>`. The owner's three decisions (3 Nov 2026) are in the header.
@@ -1553,6 +1658,7 @@ Which year's allowance a day of annual leave comes out of. Pure, with no imports
 - `nextLeaveYear(existing, newType, date)` — what a REWRITE carries: leave over moved leave keeps the year, anything that stops the day being leave drops it. Stamped by every write path; re-exported by `override-utils.js` beside `nextReplacedType`.
 - `canChooseLeaveYear(date)` · `offeredJanuaries(todayStr)` · `carryLine({ year, carriedIn, carriedOut })` → the Calendar leave panel's one line about days crossing New Year, or null.
 - Tested by `leave-year.test.mjs`.
+- **Exports:** `LEAVE_YEAR_CHOICE` · `LEAVE_YEAR_FROM` · `leaveYearChoiceEnabled` · `isValidLeaveYear` · `carriedFrom` · `leaveYearOf` · `nextLeaveYear` · `canChooseLeaveYear` · `offeredJanuaries` · `carryLine`
 
 ### `admin-leave-year.js` / `admin-leave-year-save.js`
 The Admin AL card's "Which year's allowance" panel, and the save behind it. It draws the answer from `leaveYearChoices` (al-entitlement.js) and decides neither which days are listed nor the cap.
@@ -1560,11 +1666,14 @@ The Admin AL card's "Which year's allowance" panel, and the save behind it. It d
 - `leaveYearPanelHtml(groups, { busyDate })` — the pure markup, including the cap's disabled state and its one-line reason. `leftWords(n)` → "3 days left" / "2 over".
 - `setLeaveYear({ memberName, date, leaveYear, changedBy })` — the ordinary manual write (delete-then-set onto the fixed id, `source: 'manual'`, carrying `replacedType` and the note from the SERVER's copy), **checked and written in ONE transaction** (`commitIfUnchanged`, v25.89): refused unless the day is still, on the server, exactly the leave shown and the fixed id holds nothing the page did not load — so neither a stale page nor a shift saved mid-move is turned back into leave. A re-run after a commit whose answer was lost reads this move's own write, which `alreadyDone` recognises (this editor's leave, the chosen year, everything replaced gone) — so a move that saved never reports "nothing was saved". Returns the day when a change staged on it in Change a Shift was cleared (`syncWeekAfterOwnWrite`), which the panel names. Its own module because `admin-overrides.js` is at its ratchet cap.
 - Tested by `admin-leave-year.test.mjs` (the panel) and `admin-overrides.test.mjs` (the save).
+- **Exports of `admin-leave-year.js`:** `leftWords` · `leaveYearPanelHtml` · `initLeaveYearPanel`
+- **Exports of `admin-leave-year-save.js`:** `setLeaveYear`
 
 ### `admin-al-year.js`
 Which calendar year the Annual Leave figures on `admin.html` describe. Pure, with no imports, so the precedence can be tested without a page — the ORDER is the whole rule, and the order is what broke.
 - `alFigureYear({ pickedFrom, pickerViewYear, shiftDate, today })` → `'YYYY'` — strongest first: the AL range's picked start date; the year the range picker is DISPLAYING, but only once it has crossed a year (`pickerViewYear` is null until then); the week open on Change a Shift; then today. The header says why the first two rungs must not be "tidied".
 - Fed by `admin-rangepicker.js`'s `onViewYearChange` (through `admin-range-booking.js` and `admin-al.js`), read by `updateALBanner` in `admin-app.js`. Deliberately not wired on the Absence card, which states no per-year figure (`admin-sick.js`).
+- **Exports:** `alFigureYear`
 
 ### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js`
 The Trains page: what changes at Marylebone when the December 2026 timetable starts on 13 December, organised by the station a customer is going to. Every signed-in member's, and the station PIN's too (`auth-policy.js` → `staffPin`). The timetable is public; the page reads no network, so once opened it works offline. Each module's header carries its reasoning.
@@ -1577,10 +1686,21 @@ The Trains page: what changes at Marylebone when the December 2026 timetable sta
 - `trains-grid-mirror.js` — `syncGridMirror(host)`: a fixed, `aria-hidden` copy of the stopping grid's column heads while the real ones are off screen. Fixed rather than sticky, because every ancestor clips (the header says why). It also watches the grid's swipe line (`.tr-grid-swipe`, drawn `hidden`) through `overflow-hint.js`.
 - `trains-tips.js` — `CARD_TIPS`, the page's `?` panels and their caveats, and `tipsOn(today)`: the panels as they read on a railway day. Dates and thresholds come from the page's own modules; `tips-content.test.mjs` evaluates them.
 - `trains-data.js` — GENERATED by `docs/timetable-dec26/tooling/build.py`; never hand-edit. `CHANGE_DATE` · `DEC_VALID_UNTIL` · `FURTHER_CHANGES_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` (the books' own order, never typed) · `TIMETABLES.{now,dec}.{SX,SO,SU}.{dep,arr}` as `[time, station, route, days, stops]` rows, where empty `stops` means NOT KNOWN, never "no stops". Public data only; the generator's inputs are never committed.
+- **Exports of `trains-app.js`:** `init`
+- **Exports of `trains-boot.js`:** none
+- **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `renderLookup` · `setText` · `el`
+- **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `changeLabel` · `timetablePhase` · `dateWords` · `holidaysWithin` · `daysLabel` · `routeName` · `JOURNEY_PLANNER_URL`
+- **Exports of `trains-stations.js`:** `aRealDay` · `boardingTime` · `parseStops` · `stopsKnown` · `callsOf` · `lineOf` · `callingAt` · `endingAt` · `knowableWithoutStops` · `decemberKnown` · `summarise` · `stationView` · `stationTrains` · `verdictFor` · `hourChanged` · `rateWords` · `stopChanges` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList` · `busiestStations` · `matchStations` · `stationBands` · `stoppingGrid` · `orderStations` · `pairColumns` · `lastTrains`
+- **Exports of `trains-headlines.js`:** `headlineChanges`
+- **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `renderLastTrains`
+- **Exports of `trains-data.js`:** `CHANGE_DATE` · `FURTHER_CHANGES_UNTIL` · `DEC_VALID_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` · `TIMETABLES`
+- **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
+- **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
 
 ### `overflow-hint.js`
 A "swipe the table" line that is true: shown only while its table really scrolls sideways. Shared by Team view's week (`calendar-team-view.js`, through `watchHintFit`) and the Trains stopping grid (`trains-grid-mirror.js`). The line's words, its place and its retirement after a swipe stay with each page; whether it is a touch line at all is `touch-only`'s.
 - `watchOverflowHint(wrap, hint)` → the `ResizeObserver`, for the caller to disconnect when the table goes, or `null` (nothing to watch, or no `ResizeObserver`: measured once). Sets `hint.hidden` at once, so the line never arrives showing, and again a frame after the box or its table changes size. A page's line needs its own `[hidden] { display: none }` rule, because `.touch-only` sets `display`.
+- **Exports:** `watchOverflowHint`
 
 ### `newlink-app.js` / `newlink-boot.js` / `newlink-config.js` / `newlink-data.js` / `newlink-render.js`
 The New link page (`newlink.html`): the three shortlisted proposals for the new CEA link, which starts in January 2027 (the day not yet set), shown evenly to the colleagues who will work it — A to Z, one colour, no recommendation. S. Silva, the RMT rep, leads the change; the admin built the page and is in charge of neither the change nor the choice, so nothing on it may suggest the admin decides, recommends or collects views (`newlink-config.js` header → WHO IS IN CHARGE). `PHASE` is `'open'` since v25.60 (owner, 9 Nov 2026): everyone on a normal CEA contract and the managers, with the admin and `CONFIG.NEWLINK_PREVIEW`, who had it alone while it was `'preview'` — through `auth-policy.js` `newlink` (role `['admin', 'newlinkPreview', 'newlinkAudience']`), `canOpenNewlink` and the pill flag `newlinkAudienceOnly`; signed in only, never the station PIN. Why the page is laid out as it is: `newlink-app.js` header.
@@ -1589,12 +1709,19 @@ The New link page (`newlink.html`): the three shortlisted proposals for the new 
 - `newlink-data.js` — GENERATED by `docs/links-26/tooling/newlink-data.mjs` from the module the one-page sheet prints from; never hand-edit. `COLUMNS` (Today, then the three A to Z), `CHANGES`, `GAINS` / `COSTS`, `DIFFERS` (`{ design, better, worse }` — each one's edge and cost against the other two, the at-a-glance sheet's points by its 5% rule, from `docs/links-26/tooling/edge-cost.mjs`, which the sheet reads too) and `DIFFER_RULE` (that rule, and that a count of points is not a score), `PERSONAS` (`{ id, icon, chip, who, gist, rows }`), `NOTES`, `PACK` (the colleague PDFs, with page counts). `newlink-data.test.mjs` runs the generator in `--check` mode.
 - `newlink-render.js` — every word of HTML, as pure functions; its header states the page's three rules (evenly, not your roster, teach in place). `statusPhase` (where the page's story is: 'decided' once `CHOSEN` names one of the shortlist — any other name is refused — 'open' before the link's start, and 'waiting' from the start with nothing chosen, when the page stops asking for views and says only who will confirm the outcome) · `statusHint` ("For discussion, not a decision" while open, nothing otherwise) · `renderStatus` (its tense follows `today`; "Have your say" only while open), `renderList`, `renderCommon`, `renderDiffers` ("Where they differ": each proposal A to Z in the same two panels `renderCommon` draws, the rule beneath, and the one-page comparison as a `fileRow`), `renderFigures` + `figuresKey` (the best of the three is marked in green AND said), `renderPersonas`, `renderPersonaChips`, `renderWeeks` (numbered weeks, a cover week as one cell, a "not your roster" flag, never a date), `renderAllWeeks`, `renderWeeksKey`, `renderWeeksTabs`, `renderPack`, `fileRow` (one pack file as a row to press — the ONE builder, so a file offered anywhere on the page looks and opens the same). Helpers: `aToZ` (every list of the three passes through it, whatever order it arrives in), `designName` (`proposalDisplayName`, `links-proposals.js`), `closesWords` / `startsWords` (a malformed or rolled-over date reads as unset), `dutyKind` (an early starts before 11:00), `ifYou`. No `title` attributes.
 - **The boundary:** `newlink-boundary.test.mjs` walks the import graph from the Calendar, the Pay Calculator and Admin, and fails if `links-proposals.js` or any `newlink-*` module is in reach.
+- **Exports of `newlink-app.js`:** `init`
+- **Exports of `newlink-boot.js`:** none
+- **Exports of `newlink-config.js`:** `STARTS` · `TIMETABLE_STARTS` · `CONTACT` · `CONTACT_ROLE` · `CHOSEN` · `PHASE` · `CLOSES` · `AUDIENCE` · `audienceNames` · `PACK_BASE` · `HAVE_YOUR_SAY`
+- **Exports of `newlink-data.js`:** `COLUMNS` · `CHANGES` · `GAINS` · `COSTS` · `DIFFERS` · `DIFFER_RULE` · `PERSONAS` · `NOTES` · `PACK`
+- **Exports of `newlink-render.js`:** `designName` · `aToZ` · `closesWords` · `startsWords` · `statusPhase` · `statusHint` · `renderStatus` · `renderList` · `renderCommon` · `renderDiffers` · `ifYou` · `renderFigures` · `figuresKey` · `renderPersonas` · `renderPersonaChips` · `dutyKind` · `renderWeeks` · `renderAllWeeks` · `renderWeeksKey` · `renderWeeksTabs` · `fileRow` · `renderPack`
 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
 The in-app PDF viewer: a full-screen panel with a ✕ that draws a PDF's pages with PDF.js (vendored in `pdfjs/<version>/`, the legacy build — a new version is a new folder, never new bytes under the old names), so a document opens INSIDE the app and closes back to it. Built for the New link pack (owner, 10 Nov 2026): opened as links, its PDFs left an app installed from the github.io address on the PDF with no way back on an iPhone — in-scope links open in the app's own window, which has no Back and no toolbar. The owner chose this over serving the pack from Firebase as well. The reasoning is `pdf-viewer-core.js`'s header; the three things easy to get wrong are `pdf-viewer.js`'s.
 - `pdf-viewer.js` — `initPdfViewer()` → `{ open({ url, title, kicker?, pages? }) }`, or null on a page without the `#pdfViewer` markup (only newlink.html carries it). The lifecycle is `createLightbox` (focus, scroll lock, Escape, Android Back, Tab trap), not a hand-rolled exception. Loads PDF.js by URL on first use and keeps it; a failed load is forgotten so Try again really tries. Fetches the file with `fetchWithTimeout`, draws only the pages within a screen of view (an IntersectionObserver frees the rest), redraws on zoom and on a resize, and reads each page's words into a visually hidden line for a screen reader. A page that cannot be drawn (PDF.js refuses it, or the browser gives its canvas no memory) says so in its own box, with a Try again for that page alone; a zoom or a resize clears it too, and it is never retried on its own, because a page PDF.js cannot draw would fail again in a loop. Closing aborts the download, cancels drawing and destroys the document; every await re-checks it still belongs to the load on screen. `isEvalSupported: false`, or PDF.js trips the CSP.
 - `pdf-viewer-core.js` — pure, tested in Node. `ZOOM_STEPS` (1, 1.5, 2, 3 × the page fitted to its box), `zoomAfter(current, ±1)`, `zoomLabel`; `pageLayout({ pageWidth, pageHeight, boxWidth, boxHeight, zoom, dpr, maxPixels })` → CSS and canvas sizes and PDF.js's `scale` — at 1× a landscape page (a slide) fits the box both ways, a portrait sheet its width — under `MAX_DEVICE_PIXEL_RATIO` (2), `MAX_CANVAS_PIXELS` (3 MP a page) and `MAX_FIT_WIDTH` (960px at 1×); `canOpenOutside({ fileUrl, pageUrl, standalone })` — the "Open the PDF on its own" rule: always in a browser tab, in an installed app only when the file is outside its scope (never the trap); `isPlainClick(event)` — a modified click is the browser's; `classifyFailure({ online, status, timedOut, networkError })` → `connection` / `gone` / `broken`, worded by `FAILURE_TEXT`; `PAGE_FAILURE_TEXT`, one page's own; `pageLabel`, `pagesLabel`.
 - **Two app-wide rules it brought:** the CSP's `connect-src` names the mirror (the pack is read from there on both addresses), and the service worker passes anything under `docs/` straight to the network — it used to keep a pack file for the life of a release.
+- **Exports of `pdf-viewer.js`:** `initPdfViewer`
+- **Exports of `pdf-viewer-core.js`:** `ZOOM_STEPS` · `MAX_DEVICE_PIXEL_RATIO` · `MAX_CANVAS_PIXELS` · `MAX_FIT_WIDTH` · `zoomAfter` · `zoomLabel` · `pageLayout` · `canOpenOutside` · `isPlainClick` · `classifyFailure` · `FAILURE_TEXT` · `PAGE_FAILURE_TEXT` · `pageLabel` · `pagesLabel`
 
 ### `overtime-phase.js`
 Where the Overtime week stands in the MEMBER's terms, and the two deadlines that decide it. Pure; imports only `date-format.js`. Every export is re-exported from `overtime-format.js`, so callers import it from there.
@@ -1602,18 +1729,21 @@ Where the Overtime week stands in the MEMBER's terms, and the two deadlines that
 - `deadlineLabel(ms)` → "Tue 18 Aug · 12:00", in London wall-clock time. `phaseCopy(phase)` → the sentence; `phaseChip(phase)` → 'Open' / 'Still open' / 'Closed'; `phaseTone(phase)` → `ok` / `warn` / `done`, the horizon's own classes, so the member's band and the reviewer's row colour one state one way.
 - `deadlineLines(phase, initialAt, finalAt, openedAt?)` → the form head's lines as `{ text, label, value, lead, warn? }`: `text` is always `label + ' ' + value`, exactly one `lead`, a passed deadline turns "were due" and stays, only the FINAL_OPEN sentence carries `warn`, and a form opened after its first deadline names only the final one.
 - **No line names a document the member does not receive, and none is a countdown** (`phaseCopy`'s JSDoc). Each function's JSDoc carries its own reasoning.
+- **Exports:** `deadlineLabel` · `phaseAt` · `phaseCopy` · `phaseChip` · `phaseTone` · `deadlineLines`
 
 ### `overtime-answer.js`
 The ONE place a day's answer is edited on the Overtime form. Pure; no imports. A day carries three independent statements — the overtime mode, the willingness tick (`fullTwelve`) and the Sunday-release request (`releaseRequested`) — and every transition between them is here, so `overtime-answer.test.mjs` can ask each one what else it changed.
 - `withMode(previous, mode, shift)` — a mode press, keeping whatever the new mode does not contradict (the same object back when the mode is unchanged). `withFullTwelve(previous, on)` — a no-op on a day with no mode or on `unavailable`. `withRelease(previous, on)` — on a day with no answer gives `{ releaseRequested: true }` with NO mode; off on such a day gives `undefined`, exactly unanswered again.
 - **Five rules, numbered in the header:** the request is not an answer (a mode-less answer is unfinished, so Submit refuses it); every mode keeps the request; `unavailable` alone drops the willingness tick; a flag off is DELETED, never stored `false`; nothing mutates.
 - The form only wires it — `setAnswer(date, next)` puts the result back and deletes the day on `undefined` — and `e2e/overtime.spec.js` proves that wiring.
+- **Exports:** `withMode` · `withFullTwelve` · `withRelease`
 
 ### `overtime-sunday-release.js`
 Asking to be taken off a Sunday you are ROSTERED to work. Pure: one predicate, one formatter, two strings. Its own module because it is about contracted work and is a request, where everything else on the page is about overtime; why the app needs it at all (leave cannot be written on a Sunday, so the workbook's Sunday tags had no home) is in the header.
 - `offersSundayRelease(date, ctx)` — only on a Sunday, rostered to work, with the roster actually READ: a null context is a failed read, not a rest day, so nothing is offered. A context that was read but carries no `isRest` counts as rostered.
 - `releaseRequestLine(day)` — the reviewer's flag, or `''`; `overtime-manager.js` renders it BESIDE the answer, never merged into it. `SUNDAY_RELEASE_LABEL` / `SUNDAY_RELEASE_ASKED` — the member's two lines.
 - **It grants nothing** — no override, no roster change, no leave — and no surface may word it as agreed (`docs/OVERTIME_AVAILABILITY.md` invariant 14). The control is in `overtime-form.js`; `functions/overtime-core.js` stores it as `releaseRequested`.
+- **Exports:** `offersSundayRelease` · `SUNDAY_RELEASE_ASKED` · `SUNDAY_RELEASE_LABEL` · `releaseRequestLine`
 
 ### `al-swapped-days.js`
 Which days in an annual-leave booking need the SWAPPED-DAY question, and what to write when the answer is yes. Pure, no DOM. Leave on a base-roster rest day costs nothing unless the member swapped a working day onto it, which only the person booking knows — so both booking surfaces ASK, only when a day is affected, and never default; both rules are the owner's (.claude/rules/admin.md → "AL on a rest day is ASKED about"). The defect it closes, and why "rest day" is not the whole test: the header.
@@ -1621,6 +1751,7 @@ Which days in an annual-leave booking need the SWAPPED-DAY question, and what to
 - `replacedTypeForSwap(existing, newType)` → the `replacedType` for a declared swap: `'shift'`, unless the record already names work contracted even on a rest day (a retired `swap` or `allocated`), which it keeps; an Other day or a Spare turn gives way to `'shift'`, as `rdw` does, because on a rest day neither costs a day (owner, 10 Nov 2026). Every value is in the vocabulary `firestore.rules` validates.
 - `rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates })` → the dates `recordRangeOverrides` writes: an asked date only when answered swapped ("Rest day — free" writes nothing), every other date by `isWorkingDate`; never a date before the member's start date, for either type. Absence is never asked, so an absence range is unchanged.
 - Consumed by `admin-al.js` (the `swapQuestion` hook — leave only, and the reason is beside it), `admin-overrides.js`, `admin-al-projection.js` (and through it `admin-al-week-save.js` and the leave sheet check, `al-leave-compare.js`), `admin-week-editor.js` and the roster import's Save (`roster-import-save.js`).
+- **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `rangeWriteDates`
 
 ### `admin-al-projection.js`
 What an Annual Leave booking WILL do, decided once so the preview, the over-entitlement warning and the write cannot disagree. Pure — no DOM, no Firestore. The defect it closes, and why both booking surfaces ask this one module: the header.
@@ -1632,13 +1763,16 @@ What an Annual Leave booking WILL do, decided once so the preview, the over-enti
 - `overridesAfterSave(overrides, { memberName, writes, deleteIds })` — the overrides as they will stand after the save, because a save can move the allowance as well as spend it.
 - `projectAlOverage({ member, memberName, overrides, consuming, exclude, after })` → the over-entitlement message, or `null`. It takes the caller's `consuming` rather than re-deriving it; reads the allowance from `after` when given and also checks any year whose allowance the save LOWERS (a Boxing Day record's next year too, `allowanceYearsOf`); charges a January day already moved to last year's allowance to that year; and skips a year with a `null` entitlement (the write still goes ahead).
 - Consumed by `admin-al.js` (the `project` and `preSave` hooks), `admin-sick.js` (`projectAbsenceRange`: its preview and `preSave`), `admin-al-week-save.js` and the leave sheet check (`al-leave-compare.js`, which asks `projectAlBooking` what booking a day with nothing recorded would do); `rangeSundayCorrections` by both range cards (`admin-range-booking.js`) and the writer (`admin-overrides.js`). Tested by `admin-al-projection.test.mjs`.
+- **Exports:** `willConsume` · `projectAlBooking` · `rangeSundayCorrections` · `projectAbsenceRange` · `lieuGoesWords` · `overridesAfterSave` · `projectAlOverage`
 
 ### `admin-time-inputs.js`
 The Admin week grid's time boxes. `initTimeInputs()` attaches two delegated `document` listeners once per page life: on `input`, reformat with `formatClockInput` (`clock-input.js`) and, once the box holds a real time (`TIME_RE`), move focus from a row's start to its end, or from `#bulkStart` to `#bulkEnd`; on `focusout`, settle the value with `finaliseClockInput` and flag a failure with `.input-error` and `aria-invalid`. The typing rules are `clock-input.js`'s and are never restated here. **The `_formatting` re-entry guard is load-bearing on iOS Safari**, where assigning `value` inside an `input` listener fires another `input`.
+- **Exports:** `initTimeInputs`
 
 ### `admin-day-pills.js`
 Which changes one week-grid day takes, refused at its pills with the reason in each control's accessible name (the row's own note says it in words). Imports only `TYPES`; works from the row alone, like `admin-week-row-state.js`. Extracted when `admin-week-editor.js` reached its ratchet cap.
 - `restrictDayPills(row, { sunday, boxing, beforeStart })` — before the member's start date every pill is off. A Sunday turns off leave, absence and a plain shift (layer 1 of the Sunday rule). On a Sunday or Boxing Day the Other pill STAYS ON for Spare alone (owner, Nov 2026): every Other-family chip is off and the row is marked `dataset.spareOnly`, so `_activateRow` presses Spare at once. The saves already took a Spare on either day (`SUNDAY_FORBIDDEN_TYPES` leaves `spare_shift` out; `checkDayRules` refuses only `other` on Boxing Day). Tested by `admin-day-pills.test.mjs`.
+- **Exports:** `restrictDayPills`
 
 ### `admin-week-row-state.js`
 A week-grid ROW's appearance in each of its states: on and off, drawn from its saved record (remembered by row, for the save to compare with), and the four things that follow its type — the RDW warning, Spare mode, the swapped-day question and the overwrite badge. It imports only `TYPES`, `parseOtherValue`/`OTHER_FLAVOURS`, `setStatus` and `keptRecord`/`sameKeptRecord` (`override-compare.js`, v26.08), all pure, and every function takes a row — or, for a week's draft and its drawn records, the grid — and reads the DOM beneath it. **Keep it dependency-free**: if something here needs the editor's state or its injected services, the seam has moved (header, including why the bulk bar was not the seam).
@@ -1656,6 +1790,7 @@ A week-grid ROW's appearance in each of its states: on and off, drawn from its s
 - `unsavedWeekDraft(data, recordOn, stillHeld)` (v25.97) — what is still unsaved in a draft kept mid-save, or null: a row whose day now holds exactly what the save was sending (`sending`, from `sendingDays`), or whose deleted record is gone, has landed; every other row is still work, whatever became of the save. Pure.
 - `sendingEntries(toSave, toDelete, removedRows, member)` → `SendingDay[]` (v25.97) — what a save sends, one entry a day: `{ member, date, type, value }` per day it writes, `{ member, date, removeId }` per record it deletes; a deleted id with no known row names no day and is left out. Pure.
 - `keptWeekDraft(rows, sending, member)` → `{ rows, sending? }` (v25.97) — a week as a draft keeps it: its staged rows, plus the part of the save in flight that is `member`'s, and no `sending` at all when there is none. Pure.
+- **Exports:** `drawnRecords` · `drawnDays` · `rosteredWords` · `_syncOtherRdwWarn` · `_syncOtherSpareMode` · `_activateRow` · `_syncAlSwap` · `_syncOverwriteBadge` · `prefillRow` · `_deactivateRow` · `isStagedRow` · `readRowDraft` · `applyRowDraft` · `readWeekDraft` · `sendingEntries` · `keptWeekDraft` · `unsavedWeekDraft` · `applyWeekDraft`
 
 ### `admin-own-write.js`
 What a write the Admin page makes ITSELF does to Change a Shift's week — a Saved Changes or Recorded dates delete, a leave or absence range (or the part that landed), a leave-year move; not the week's own save, which redraws the week. The grid's functions arrive through `initOwnWrite`, so it loads in Node. **Only the days the write touched**: with nothing staged the week is redrawn as before; otherwise a touched day's row is swapped for the row a fresh draw makes, and only when its record changed. Every other row keeps the record it was drawn from, which keeps a colleague's change refused at Save (header).
@@ -1664,28 +1799,33 @@ What a write the Admin page makes ITSELF does to Change a Shift's week — a Sav
 - `syncWeekAfterOwnWrite(rows)` → the days whose staged change it cleared. Called once the cache holds the write's result, by `admin-saved-changes.js` (as `onOwnWrite`), `recordRangeOverrides` (also part-done), `setLeaveYear` and `admin-app.js`'s Recorded dates delete. Clearing runs `markChanged`, which drops the over-allowance bar's captured batch.
 - `clearedDaysLine(dates)` / `withClearedDays(text, dates)` — what the card that made the write says: "Your unsaved change to Mon 24 Aug in Change a Shift was cleared, because that day has just changed. Set it again if you still want it."
 - Tested by `admin-own-write.test.mjs` and, through each writer, `admin-saved-changes.test.mjs`, `admin-overrides.test.mjs` and `e2e/admin.spec.js`.
+- **Exports:** `initOwnWrite` · `ownWriteRowAction` · `syncWeekAfterOwnWrite` · `clearedDaysLine` · `withClearedDays`
 
 ### `admin-bulk-apply.js`
 What the week card's "Apply to ticked days" is waiting for, as the sentence the line under it says. Pure: it imports only `isForbiddenOnSunday` (override-utils.js, so `SUNDAY_FORBIDDEN_TYPES` is consulted, never restated) and `isSunday`. **Not a layer of the Sunday rule** — the apply still skips a Sunday row itself (layer 2); this only stops Apply being offered when nothing could apply (owner, 8 Nov 2026).
 - `bulkApplyWaitingFor(tickedDates, type, leftAlone?)` → `''` when Apply can act; otherwise, in order: "Tick at least one day and choose a type" / "Tick the days to apply it to" / "Choose a type for the ticked day(s)" / "Sunday isn’t a contracted day — tick a working day" (every ticked day a Sunday, and a type a Sunday refuses) / a sentence when every other ticked day is one `leftAlone(date)` names — `'rest'` (Absent on a rest day, owner 10 Nov 2026) or `'start'` (before the member's start date). `_updateBulkSelCount` (admin-week-editor.js) greys Apply out on any non-empty answer and writes it into `#bulkApplyHint`; `_leftAloneBy` there supplies `leftAlone`.
 - `bulkSkippedLine(applied, skipped, fmt)` — the line Apply leaves: "Set N days — …", naming each day it left alone, in the Absence card's and the roster import's words for a rest day.
+- **Exports:** `bulkApplyWaitingFor` · `bulkSkippedLine`
 
 ### `admin-al-week-save.js`
 What ONE week-grid save does about the annual leave in it. Pure — no DOM, no Firestore. `admin-al-projection.js` says what a date means, this says what a batch does with a set of them, and `admin-app.js` keeps the DOM half (show the confirmation bar, or commit).
 - `planAlWeekSave({ member, memberName, toSave, toDelete, ovByDate, swapAnswers, overrides })` → `{ toSave, skipped, keptLeave, unanswered, overage }`. `toSave` is the batch to write (the same array when nothing was dropped); `skipped` the days answered "rest day — free", which the receipt names; `keptLeave` those of them still holding leave, so the receipt does not call them clear; `unanswered` rest days withheld from the batch, which the caller must refuse and name; `overage` the confirmation message or `null` — checked even with no leave in the batch, because deleting a worked Boxing Day takes back its day in lieu.
 - **Two orderings are load-bearing** (header; mutation-tested in `admin-al-week-save.test.mjs`): the answered-free drop comes before `exclude` is built, and the bar reads the projection's `consuming`, never the batch.
 - `planAlDelete({ rows, members, overrides, isRead })` → the over-allowance message a DELETE from Saved Changes owes, or `null`: `planAlWeekSave`'s delete-only path per member whose records `isRead` says are read, so the ✕ and Delete selected raise the week grid's bar, in its words, before a worked Boxing Day's day in lieu goes.
+- **Exports:** `planAlWeekSave` · `planAlDelete`
 
 ### `admin-al-spare-note.js`
 The one sentence the Annual Leave booking preview says about Spare days. Pure; a module of its own so the wording is unit-tested, because the template literal it replaced was ungrammatical for months with nothing able to read it (header).
 - `spareShiftNote(spareCount, totalDays)` → plain text, or `''`; three branches, because English has three: "This is a Spare day" (a one-day booking), "1 of these days is a Spare day", "N of these days are Spare days".
 - `countSpareDays(memberObj, dates, ovByDate)` → how many dates are STILL Spare, read through `resolveEffectiveShift` (a Spare day since given a shift is not counted; a saved Spare override is), and COST a day by `consumesEntitlement` — so never a Sunday, 25/26 December or a Spare turn saved on a base rest day, which is free (owner, 10 Nov 2026).
 - **A day is a day** (owner decision): every branch ends "uses 1 day of annual leave", and nothing may suggest a Spare day costs more. It carries 📋, never ⚠ (information, not a caution), and is in the third person, because a manager books for somebody else from the same card. Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
+- **Exports:** `spareShiftNote` · `countSpareDays`
 
 ### `admin-period-dates.js`
 What a run of booked dates is, and what it reads as: the pure helpers the Recorded-dates lists are built from (`admin-booked-periods.js` takes them as injected handles), plus `formatDisplay`.
 - `addDays(dateStr, n)` → ISO string. `fmtPeriodDate(d)` → "Mon 15 Jun"; `fmtPeriodRange(start, end)` → "Mon 15 – Fri 19 Jun", naming both months when a range crosses one. `formatDisplay(str)` → "18 Mar 2026" (re-exported by `admin-overrides.js`). `namedDays(dates)` (v25.90) → the days a refused save names: "Tue 16 Jun", "… and Wed 17 Jun", past three the first two and a count, "a day in this save" for none.
 - `isRestGap(dateStr, memberObj)` — **a gap is not the same as a day off.** It decides whether bookings either side of a date are one period or two: a Sunday is always a gap, a base-roster rest day is a gap, and anything else is not — including a day whose base shift cannot be resolved. Merging wrongly claims leave across a worked day; splitting wrongly only shows two short rows (header). Tested by `admin-period-dates.test.mjs`.
+- **Exports:** `addDays` · `isRestGap` · `fmtPeriodDate` · `fmtPeriodRange` · `formatDisplay` · `namedDays`
 
 ### `admin-booked-periods.js`
 The **Recorded Annual Leave dates** and **Recorded Absence dates** sub-cards on `admin.html` — one renderer for two lists that differ only in the type they filter and the colour of their count pill — and which YEAR of the list is on screen. Imports `leave-year.js`, and the delete-set builder (`override-utils.js`) and the Christmas closure rule (`christmas-leave.js`) for `periodDelete`; every other handle is injected, so the decisions are testable in Node. Why it left the coordinator, and the owner's year-end rule: the header.
@@ -1698,9 +1838,11 @@ The **Recorded Annual Leave dates** and **Recorded Absence dates** sub-cards on 
 - `armConfirm(btn, armedText, idleText, armedName?)` / `disarmConfirm(btn, idleText)` — the two-tap destructive control, one disarm timer per control (never while it is `disabled`, i.e. in flight); `holdFeedback(el)` / `fadeFeedback(el, idleClass, ms)` — one fade per feedback line, cancelled by every later write. Shared with `admin-saved-changes.js` and `admin-range-booking.js`.
 - **It states no total**: the banner above owns the figures and this owns the dates.
 - Consumed by `admin-app.js` (`updateALBookedBox` / `updateSickBookedBox`), which passes `preferredYear` on the AL card only.
+- **Exports:** `periodDelete` · `armConfirm` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
 
 ### `admin-sick.js`
 The Record Absence card on `admin.html`: a thin config over `createRangeBookingSection` (`admin-range-booking.js`). `initSickSection(deps)` supplies the one-year range cap (maternity, long-term absence) and the 🪑 preview, and returns `{ updateSickPreview }` for a member change. No swapped-day question and no count of absence days: absence is not capped. **But an absence can lower the leave allowance** — over a worked Boxing Day or a Dispatcher's worked bank holiday it takes the day in lieu back — so the preview names those days and `preSave` raises the shared over-allowance bar when the fall leaves the member over (`projectAbsenceRange`; "Save anyway" runs the card's own resume, `showALConfirm`'s fifth argument). **Nothing on the card is scoped to a year**, which is why the range picker's `onViewYearChange` is deliberately not wired here and the recorded-absences box is given no `preferredYear` (header). DOM handles and callbacks arrive through `deps`, to avoid circular imports.
+- **Exports:** `initSickSection`
 
 ### `admin-overrides.js`
 The Change a Shift coordinator: the two save paths, the validation glue and `buildMemberDateMap`. The grid, the list, the cache and the type table live in `admin-week-editor.js`, `admin-saved-changes.js`, `admin-override-store.js` and `admin-shift-types.js`, and are RE-EXPORTED here so `admin-app.js` and the tests keep one import site.
@@ -1710,9 +1852,11 @@ The Change a Shift coordinator: the two save paths, the validation glue and `bui
 - `buildMemberDateMap(memberName)` — the winning cached record per date for one member. `getEffectiveShift(...)` / `validateShiftRules(...)` — resolve the neighbouring days and mark the rows `checkShiftRules` (`admin-shift-rules.js`) says failed.
 - Re-exports, each described in its home module's entry: `TYPES`, `PILL_TYPES`; `renderWeekGrid`, `buildWeekGridInto`, `updateWeekNavLabel`, `updateSaveBtn`, `resetBulkPills`, `_hasStagedEdits`, `setSaveInFlight`, `isSaveInFlight`, `sendingDays`, `NOT_ON_ROSTER_LINE`; `renderTable`, `resetTableMemberFilter`; `initOverrideStore`, `getAllOverrides`, `setAllOverrides`, `removeFromCache`, `whenOverridesReady`, `whenLoadSettled`, `isOverrideCacheLoaded`, `hasOverrideAuthorityFor`, `loadOverrides`, `ensureMemberLoaded`; `isWorkingDate` (`al-entitlement.js`); `formatDisplay` (`admin-period-dates.js`).
 - **Write invariants**, each argued beside its line: both writers wait for the boot load and then for any load in flight (`whenLoadSettled`), and merge their new records into the cache BY ID; the writes are rebuilt from nothing on every run (`fill`), because a `writeWithClaimRetry` retry and a transaction Firestore runs again both call it afresh; `swapped` and `existingId` are stripped before the write, because a stray key fails `hasOnly()` in `firestore.rules`. Tested by `admin-overrides.test.mjs`.
+- **Exports:** `TYPES` · `PILL_TYPES` · `renderTable` · `resetTableMemberFilter` · `renderWeekGrid` · `buildWeekGridInto` · `updateWeekNavLabel` · `updateSaveBtn` · `resetBulkPills` · `_hasStagedEdits` · `setSaveInFlight` · `isSaveInFlight` · `sendingDays` · `NOT_ON_ROSTER_LINE` · `initOverrideStore` · `getAllOverrides` · `setAllOverrides` · `removeFromCache` · `whenOverridesReady` · `whenLoadSettled` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `loadOverrides` · `ensureMemberLoaded` · `buildMemberDateMap` · `isWorkingDate` · `initOverrides` · `executeSave` · `getEffectiveShift` · `validateShiftRules` · `recordRangeOverrides` · `formatDisplay`
 
 ### `admin-save-receipt.js`
 What a save did, said day by day. Pure. `buildSaveReceipt({ toSave, removed, memberName, formatDate, describe, skipped?, keptLeave? })` → `{ summary, lines }`: one line per DATE in date order, because a manager checks a receipt against a run of days, not a list of documents. A removed day is named as removed, never omitted, and a removal the cache could not resolve is still counted. A day deliberately left alone (`skipped`) is named and not counted — in different words when leave still stands on it (`keptLeave`), and when it is Christmas Day or Boxing Day. `removed` must be captured BEFORE the batch commits. Tested by `admin-save-receipt.test.mjs`.
+- **Exports:** `buildSaveReceipt`
 
 ### `slow-save.js`
 Say so when a save is waiting on the server. With `persistentLocalCache` a write lands on the device first and `commit()` then waits for the server with no limit, so on a weak signal the Save button read as frozen (header). The watcher is pure (timers injected); the notice is one reference-counted live line, styled in `shared.css` because Operations uses it too.
@@ -1723,6 +1867,7 @@ Say so when a save is waiting on the server. With `persistentLocalCache` a write
 - `SLOW_SAVE_EVENT` — `{ phase: 'slow', batched }` at the threshold and `{ phase: 'done', ms, hiddenMs, onlineWhenSlow, batched, ok }` on settlement, both with the save's `id`; `error-reporter.js` listens and logs the slow-while-online case. An event rather than an import, so this module stays Firebase-free.
 - `trackHiddenTime({ isHidden, subscribe, now })` → `{ stop() }` — a stopwatch for the time the page spends hidden, from the start of each wrapped save to its settlement: `stop()` returns the milliseconds, or `null` when the browser cannot say (never a 0 that would read as "on screen"). An installed iPhone app is frozen while hidden and the clock runs on, so this is what separates a phone's wait from the connection's (v25.87; the header says why it counts to its own stop rather than waiting for the event back).
 - **It never says "saved"** (a held write can still be refused) **and never gives the button back** (a second tap repeats a write that is still held). `window.__E2E.slowSaveMs` is a test seam only. Wraps the Admin override writes and deletes, the leave-year save, the roster upload, the Settings work-email card, and Operations' own writes (a work email, a cleared reset request, a resolved error).
+- **Exports:** `SLOW_SAVE_MS` · `SLOW_SAVE_TEXT` · `SLOW_SAVE_TEXT_BATCHED` · `SLOW_SAVE_TEXT_ONLINE` · `SLOW_SAVE_TEXT_BATCHED_ONLINE` · `SLOW_SAVE_TEXT_UNHELD` · `SLOW_SAVE_TEXT_UNHELD_ONLINE` · `slowSaveText` · `SLOW_SAVE_EVENT` · `watchSlowCommit` · `trackHiddenTime` · `writesInFlight` · `withSlowSaveNotice`
 
 ### `admin-shift-types.js`
 The shift-type table the Change a Shift surface is built from: pure data, importing only the Other-day words from `override-utils.js` (a leaf), so every consumer can read it without importing the coordinator back.
@@ -1730,6 +1875,7 @@ The shift-type table the Change a Shift surface is built from: pure data, import
 - `PILL_TYPES` — the ONE ordered declaration of which pills exist. Both pill rows are generated from it — the week editor's per-row pills and `admin-app.js`'s bulk bar — and neither may restate it. Spare is reached through the Other submenu but stays its own `spare_shift` type.
 - `WORKED_OVERRIDE_TYPES` — the types a Sunday RD correction must never overwrite. The retired types are not in it, because no record of them remains (owner, 7 Nov 2026; the comment beside it).
 - `rowValueText(type, value)` → what a Saved Changes row prints for a stored value, or `''` where it would only repeat the badge (so "Absent" never sits beside "SICK"). An Other day prints its word through `OTHER_FLAVOURS` ("Training RDW 09:00-17:00", never "TRG …"), as the save receipt does. It fails toward SHOWING: an unknown type, or a value that disagrees with its type's fixed value or the Other grammar, is printed.
+- **Exports:** `TYPES` · `PILL_TYPES` · `WORKED_OVERRIDE_TYPES` · `rowValueText`
 
 ### `admin-week-editor.js`
 The seven-day Change a Shift grid, its pills, the bulk bar and everything staged but not saved; it ends where `executeSave` begins. Permissions, feedback, the dirty marker and `memberDateMap` arrive through `initWeekEditor`, which keeps it out of a cycle with the coordinator. Why staged edits count both ways, and why an unread member draws a loading or a failed state rather than seven base-roster days: the header.
@@ -1741,9 +1887,11 @@ The seven-day Change a Shift grid, its pills, the bulk bar and everything staged
 - `_hasStagedEdits()` — a staged add or change AND a staged removal; background refreshes skip `renderWeekGrid()` while it is true, and the page's own writes then redraw only the days they touched (`admin-own-write.js`).
 - `NOT_ON_ROSTER_LINE` — what a member still signed in after leaving the roster is told: by the week, where it said "Select a date above" with a date showing, and by `admin-app.js` on the three cards' hints.
 - **It holds Sunday enforcement layers 1 and 2** (CLAUDE.md → "Sundays are non-contracted"): the per-row pills for every forbidden type are disabled with the reason in their accessible name, and the bulk sweep skips a ticked Sunday and says how many it dropped. `override-utils.test.mjs` only pins that each layer names every forbidden type; whether a pill is really dead is tested by `e2e/admin.spec.js`, on a rendered row.
+- **Exports:** `rosteredWords` · `NOT_ON_ROSTER_LINE` · `initWeekEditor` · `_hasStagedEdits` · `resetStagedRows` · `updateWeekNavLabel` · `buildWeekGridInto` · `renderWeekGrid` · `setSaveInFlight` · `isSaveInFlight` · `sendingDays` · `updateSaveBtn` · `resetBulkPills`
 
 ### `admin-saved-changes.js`
 The Saved Changes list, and un-recording. `initSavedChanges(deps)` takes the permissions and `onOwnWrite` — the week's own-write sync, handed the rows each delete removed (`admin-own-write.js`; injected, so no cycle with the coordinator) — and wires its delegated listeners once per page life. A change staged on a deleted day is cleared, and named on the list's line, which then does not fade. `renderTable()` draws the list with its month and member filters and its count chip; `resetTableMemberFilter()` clears the All-staff toggle on a member change. Both delete paths — a row's two-tap ✕, and the bulk delete of ticked rows — compare and delete in ONE transaction (`deleteIfUnchanged`, the rows captured at the press by `asShown`); a bulk delete goes in chunks that never split a day from the older copies it hides (`deleteChunks`), is pre-checked whole when it takes more than one, says an unconfirmed outcome first (a sign-out ends the wait, not the write) and otherwise reports a part-done stop as part done, and names any older copies of a day removed alongside. **`coversAllStaff()` is asked at RENDER time**, not at the toggle, so a per-member cache is never labelled "(all staff)" (header).
+- **Exports:** `initSavedChanges` · `resetTableMemberFilter` · `renderTable`
 
 ### `admin-override-store.js`
 The Admin override cache, the reads that fill it, and the states they put on screen. The renderers arrive through `initOverrideStore({ renderTable, renderWeekGrid, hasStagedEdits, onAfterLoad })`, never imported back. The header names the three things silent when wrong: the in-flight guard is keyed by the QUERY, a capped collection read never covers a write, and waiting and stuck are different states.
@@ -1757,12 +1905,15 @@ The Admin override cache, the reads that fill it, and the states they put on scr
 - **An ordinary save is checked too, whenever the server can be asked:** `commitChecked(write, { shownFor, removed?, line, holdOffline?, lostAnswerOnly? })` → `{ checked, done }` runs `write` once against a recorder to learn every document the save sets and deletes, then commits it through `commitIfUnchanged`: what it deletes, and `removed`, must still be what the page holds, and each day it sets must still hold the record `shownFor` says the page showed (`mustExist`) and nothing at the day's fixed id unless that is it (`mustBeAbsent`); a lost answer is recognised as the save's own records (`done`). Offline (`navigator.onLine === false`), or when the transaction ends `unavailable` / `deadline-exceeded`, it is a batch held on the device, unchecked (`checked: false`) — unless `holdOffline: false` (a save that removes a day, or the leave sheet's), which never becomes a batch. The week grid's save, each chunk of a range booking and the leave sheet's Save and Undo (`al-leave-save.js`) commit through it.
 - **So is the leave-year move** (`admin-leave-year-save.js`): `commitIfUnchanged`, refusing with `LEAVE_YEAR_CHANGED_LINE`.
 - Tested by `admin-override-store.test.mjs` and, through the writers, `admin-overrides.test.mjs`.
+- **Exports:** `initOverrideStore` · `whenOverridesReady` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `OVERRIDES_QUERY_CAP` · `getAllOverrides` · `mutateCache` · `coversAllStaff` · `loadFailedFor` · `isTruncated` · `setAllOverrides` · `idsReplacedBy` · `withManualDuplicates` · `deleteChunks` · `removeFromCache` · `whenLoadSettled` · `loadOverrides` · `CHANGED_ELSEWHERE_LINE` · `UNCHECKED_DELETE_LINE` · `findChangedSince` · `staleDeleteVerdict` · `DELETE_REFUSED` · `asShown` · `commitIfUnchanged` · `deleteIfUnchanged` · `commitChecked` · `LEAVE_YEAR_CHANGED_LINE` · `ensureMemberLoaded`
 
 ### `override-id.js`
 The ONE document id a manual override is written to. Pure. `manualOverrideId(memberName, date)` → `'m_<date>_<encodeURIComponent(name)>'`, so two editors saving one day land on the same document (one record) instead of leaving two — and since v25.90 the second is refused whenever it can check the server (`commitChecked`, `admin-override-store.js`). Roster imports keep random ids, because an import and a manual record coexist by design (header). Used by `admin-overrides.js`, `admin-override-store.js` and `admin-leave-year-save.js`; tested by `override-utils.test.mjs` and, wired, by `admin-overrides.test.mjs` ("two editors saving the same day").
+- **Exports:** `manualOverrideId`
 
 ### `override-compare.js`
 Is the server's copy of a day still the record this page showed? Pure. `sameOverrideRecord(was, now)` compares `memberName`, `date`, `type`, `value`, `note`, `source`, `replacedType` and `leaveYear` (absent ≡ empty), the `createdAt` revision — except on the page's own optimistic copy, whose stamp is the device's clock — and `changedBy` where the page has one; any difference in these reads as changed, and so does a missing record on either side. It is the question every guarded Admin write asks inside its transaction (`commitIfUnchanged`, `admin-override-store.js`) — a delete, an ordinary save through `commitChecked`, the leave-year move — and the bulk delete's pre-check (`findChangedSince`); the roster import's Save asks it of every record it deletes (`roster-import-save.js`), and the own-write sync of each day a write touched while a change is staged (`admin-own-write.js`). `overrideFromSnapshot(d)` is how a record read OUTSIDE a transaction is held — Admin's two list reads, the import's week read (`fetchOverridesForWeek`) and the Annual leave sheet check's per-member reads (`operations-al-sheet.js`): a document this device has written but not yet sent (`metadata.hasPendingWrites`) has no server stamp, so it is stamped as the page's own copy (a `Date`, the SDK's estimate), or the check refused the member's own record once the save landed (v25.96, found on the real SDK). `keptRecord(rec)` / `sameKeptRecord(kept, now)` (v26.08) are the same rule for a record an unsaved-work draft keeps: every field `sameOverrideRecord` reads plus the id, in a shape that survives JSON (the revision as milliseconds, an own copy marked `own`), so a restore refuses a day whose leave year, note or revision has changed since (external review, 14 Nov 2026). Tested by `override-utils.test.mjs`, and wired by `admin-override-store.test.mjs` (block 8b), `admin-roster-upload.test.mjs`, `admin-overrides.test.mjs` and the signed-in lane's "back online" journey.
+- **Exports:** `sameOverrideRecord` · `keptRecord` · `sameKeptRecord` · `overrideFromSnapshot`
 
 ### `admin-override-coverage.js`
 What the Admin override cache actually KNOWS. Pure — no DOM, no Firebase, no imports. An unfetched member and a member with no overrides produce the same empty slice, so authority is answered from what was REQUESTED, never from the data (header, which also argues why the scope is a member and not a date window).
@@ -1770,6 +1921,7 @@ What the Admin override cache actually KNOWS. Pure — no DOM, no Firebase, no i
 - `hasAuthorityFor(cov, member)` — the question every write gate asks; full coverage is checked first. `coversEveryone(cov)` — the All-staff view's separate question: fifty members read one at a time is not the collection.
 - `replaceMemberSlice(docs, member, fresh)` — a replace, not a merge: the read is authoritative for that member, so a document it omits has been deleted. `mergeCappedRead(docs, fresh, members)` — after a capped read, keeps the individually covered members' documents from beyond the cap.
 - Tested by `admin-override-coverage.test.mjs`.
+- **Exports:** `emptyCoverage` · `withMember` · `withAll` · `hasAuthorityFor` · `coversEveryone` · `replaceMemberSlice` · `mergeCappedRead`
 
 ### `admin-shift-rules.js`
 The two rules a shift change must not break — maximum length and minimum rest — and the days that take no change at all. Pure: it DECIDES, and the caller (`validateShiftRules`, `admin-overrides.js`) PAINTS.
@@ -1778,23 +1930,27 @@ The two rules a shift change must not break — maximum length and minimum rest 
 - `checkDayRules({ toSave, member, formatDate })` → `{ errors, failedDates }` — the days that take no change at all: before the member's start date (the Calendar never shows it) and an Other day on Boxing Day (owner, Jul 2026). The Save's backstop, run by `admin-app.js` AFTER the collector; the grid refuses both at the pills first. `isBoxingDay(iso)`.
 - `weekStepAllowed(iso, days)` — may the week grid move that far? Never further outside `CONFIG.MIN_YEAR`–`MAX_YEAR`, always back towards them; asked by the arrows' disabled state (`updateWeekNavLabel`), `shiftWeek` and the swipe's adjacent panel. `linkableDate(s)` — a `?date=` that is a real day inside those years.
 - `MAX_SHIFT_MINS` / `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours`. Tested by `admin-shift-rules.test.mjs`.
+- **Exports:** `MAX_SHIFT_MINS` · `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours` · `constrainingTime` · `checkShiftRules` · `isBoxingDay` · `weekStepAllowed` · `linkableDate` · `checkDayRules`
 
 ### `admin-deep-link.js`
 Where a hash on `admin.html` lands. Admin is a page of folded cards, so a link helps only if what it names is unfolded on arrival — and the Recorded Annual Leave dates box is a fold inside a fold. The header numbers three things not to "tidy".
 - `resolveDeepLink(hash, doc)` → `{ folds, scrollTo, settleOn }` or `null` — which folds to open, what to scroll to now, and the id to finish on later. It opens nothing: `openCollapsibleCard` in `admin-app.js` keeps `aria-expanded` in step. The hash is decoded in a `try` and never handed to `querySelector`, where a malformed hash throws and the reload it causes loops.
 - `NESTED_DEEP_LINKS` — an explicit map, not a guessed selector, because a link that opens the WRONG fold is worse than none.
 - `createDeepLinkLanding(win)` → `{ arrive(resolved), settle(boxId) }` — the scrolling. A nested target scrolls to its card first and to itself once its render gives it a height (`settle`, from the booked-dates renderer's `onRendered`), once only, and the second scroll cancels the first with an instant scroll to where the page already is. `e2e/admin.spec.js` asserts the box's bottom edge, because "did it scroll?" passes on the broken behaviour.
+- **Exports:** `NESTED_DEEP_LINKS` · `resolveDeepLink` · `createDeepLinkLanding`
 
 ### `admin-rangepicker.js`
 The inline date-range calendar both range cards use, through `admin-range-booking.js`.
 - `buildRangePicker(prefix, { onViewYearChange? })` — a swipeable month grid wired to the hidden `#{prefix}From` / `#{prefix}To` inputs, with chip labels and a clear button; returns `{ reset({ keepView? }) }` — `keepView`, which a save passes, clears the range but leaves the month on screen. `onViewYearChange` fires when the DISPLAYED month crosses into another year, never on build. Its arrows, keys and swipe move only between `CONFIG.MIN_YEAR` and `MAX_YEAR`, as the Calendar's. A swipe turns the month past `SWIPE_THRESHOLD` or `SWIPE_VELOCITY`, and month names come from `MONTH_NAMES` (all `roster-data.js`). Pointer capture is on the grid, never the clip (CLAUDE.md → architecture decisions).
 - `getDateRange(fromVal, toVal)` — pure: the inclusive ISO date list; `null` when reversed, `[]` when either input is empty. Tested by `admin-rangepicker.test.mjs`.
+- **Exports:** `getDateRange` · `buildRangePicker`
 
 ### `date-picker.js`
 The app's own single-date picker, replacing the native `<input type="date">` popup the app cannot style. Used by the four Operations upload date fields, Admin's week jump and Team View's week jump (`calendar-team-view.js`, loaded lazily). Built on `createLightbox`; its CSS (`.dp-*`, `.date-trigger`) is in `shared.css`, because three pages use it.
 - `initDatePickers(inputIds)` — progressive enhancement: each input stays in the DOM, hidden, as the value holder (so `doc-upload.js` and the roster card's Saturday snap work unchanged), and a `.date-trigger` button opens ONE shared modal calendar. A pick sets `input.value` and dispatches `input` and `change`; the label is re-read afterwards, so a consumer's normalisation shows through.
 - `openDatePicker(input, { title?, week? })` — opens the calendar for any date input, for a page with its own trigger. `title` is passed rather than read off the input, because such a caller has moved the `aria-label` to its trigger. `week: true` gives a Sunday-first week picker with the chosen and hovered weeks banded; picking still sets one day. It dispatches `date-picker-opening` FIRST, synchronously, so a consumer can refresh `min` / `max` before they are read (why here and not in the click handler: the comment beside it).
 - `monthCells(year, month, weekStart = 1)` — pure: a flat month grid (`null` padding, then ISO days), Monday-first by default. Tested by `date-picker.test.mjs`.
+- **Exports:** `monthCells` · `openDatePicker` · `initDatePickers`
 
 ### `date-format.js`
 ONE spelling of a date, everywhere the app writes one in words. Pure, and imports NOTHING, so a module can take a date vocabulary without taking the roster. `Intl` with `month: 'short'` spells September "Sept" in en-GB on every engine the app runs on, which put "18 Sept" beside the calendar's "18 Sep" (header; `month-vocabulary-parity.test.mjs` fails on a new local fix).
@@ -1803,20 +1959,24 @@ ONE spelling of a date, everywhere the app writes one in words. Pure, and import
 - `printedStamp(date, clock)` → "Printed Fri 18 Sep 2026 · 14:23", the provenance line every printable surface closes on. The clock is PASSED IN, so a surface cannot inherit the wrong zone.
 - `londonDate(at)` / `londonClock(at)` — the zone shim for a roster-office document that must read as London wall-clock. `londonDate` returns the London date as a local Date at NOON (a London time on it would be in reach of a DST gap); `londonClock` formats through `Intl` in London and builds no local Date.
 - `NO_DATE` (`'—'`) — what every composer returns for an unusable date, never "NaN undefined NaN"; an em dash rather than a blank, because "no date recorded" is a different, legitimate state.
+- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
 
 ### `huddle.js`
 The Daily Huddle upload card (Operations, admin only) and the Notifications card (Settings, all staff).
 - `initHuddleUpload({ currentIsAdmin, currentUser })` — called by `operations-app.js`; reveals the card for an admin and wires it through `initDocUploadCard` with the Huddle's differences: PDF or Word, a date cap of tomorrow (it is sent the evening before), and a Mammoth DOCX→HTML transform loaded once from an SRI-pinned CDN. A converter that will not load is not fatal — the file uploads without inline HTML, like a PDF; only a parse failure aborts. The inline-HTML cap matches the server's (`upload-cap-parity.test.mjs`).
 - `initHuddleNotifications({ onState?, payReminders? })` — called by `settings-app.js`; the subscribe and unsubscribe card, through `notif.js`, which owns the VAPID key and the fingerprint re-subscription. The card reads state with `peekNotifState`, deliberately avoiding that side effect, reports it through `onState` so Settings can show a header chip without restating this module's words, and returns the card's collapse handle. `payReminders` (Settings passes `payCalculatorPrices` of the member) shows the card's pay-reminder pieces and lets the status lines promise the pay cut-off: the reminder goes to CEA and CES only.
+- **Exports:** `initHuddleUpload` · `initHuddleNotifications`
 
 ### `doc-upload.js`
 The shared skeleton of the Operations document upload cards: the Weekly Retail Circular and the Marylebone Newsletter (configured in `operations-doc-uploads.js`) and the Daily Huddle (`huddle.js`). `initDocUploadCard(cfg)` owns pick → validate (type and size) → an optional pre-upload `transform` → upload → feedback, and the date cap (today, or today plus `maxDateOffsetDays`), recomputed on every submit and whenever the date picker opens, because a tab left open overnight would otherwise upload under yesterday's date and overwrite that day's document. `isPdfFile(f)` / `isDocxFile(f)` are the accept predicates (a `.docx` is matched by its extension, because Android often reports one as a ZIP).
 - One upload at a time per card — the picker is disabled and a stray pick or press is ignored until the answer. The upload runs through `runGatedWrite` and a sign-out is worded by `unconfirmedWriteLine` (optional `whereToCheck`, a string or a function of the ISO date); `successMsg(date, iso)` is handed the date as app copy spells it (`10 Nov 2026`), then the ISO one; the optional `onUploaded(iso)` is told once the upload has landed (the Newsletter's ☰ button, `noteNewsletterUploaded`). With `noun` and `newest` (a read of the newest of the kind, asked at the press and given `NEWEST_WAIT_MS`), a date before the newest filed gets `hiddenByNewerLine(noun, date, newest)` instead of the success line: staff are shown only the newest, so they will not see it.
 - **`MAX_UPLOAD_BYTES` is one of THREE declarations of the upload size limit**, with `MAX_FILE_BYTES` in `functions/index.js` and the cap in each of `storage.rules`' upload blocks. `upload-cap-parity.test.mjs` derives all three from source and pins the card's "maximum" sentence to them; its header says why a client cap above the rules' is the costly direction.
+- **Exports:** `hiddenByNewerLine` · `isPdfFile` · `isDocxFile` · `initDocUploadCard`
 
 ### `admin-auth.js`
 The Staff Login Accounts card on Operations (admin only). `initAuthSetup({ currentIsAdmin, onAttention?, onWithdraw? })` — called once by `operations-app.js`. Returns `{ refresh }` — the audit asked again (`operations-app.js`: a `#login-accounts` deep link while the page is open, and a return to the tab); only the latest answer asked for is drawn. Its button calls the `setupRosterAuth` Cloud Function with a fresh ID token (`getIdTokenResult(true)`) as the bearer — no client secret — and the member and role lists are server-owned. A run's result names, among the rest, anyone signed out because a tier was taken away (`demoted`).
 - **The provisioning audit.** On load and after every run it reads `getAccountSetupGaps` and states, above the controls, who has no login, who has no permissions or the wrong ones, and which leaver can still sign in — and, before the button is pressed, whom Set up accounts will reset to the surname default and sign out (no permissions, or a disabled account: `RESET_BY_SETUP`). The audit is a READ and deliberately not a repair, because an audit that fixed what it found would make the gap invisible again. Three states that never collapse into one another: gaps found · none found · **could not tell** (a refusal, a failed call, or a reply missing either list). `onAttention({ setUp, leavers })` fires only when the audit answered, because the Needs-attention strip reads an unreported item as unknown and an absent one as nothing to do; `onWithdraw` fires whenever a check could not tell, so a count an earlier answer reported goes back to unknown with it. Tested by `admin-auth.test.mjs`.
+- **Exports:** `initAuthSetup`
 
 ### `roster-cell-rules.js`
 What a parsed roster cell MEANS as an override. Its own module because the review's state machine and the entry control both need it and both obvious homes form a cycle (header). Its three rules are re-exported by `admin-roster-upload.js`. The import's whole contract: `.claude/rules/roster-import.md`.
@@ -1824,6 +1984,7 @@ What a parsed roster cell MEANS as an override. Its own module because the revie
 - `shiftValueToOverrideType(value, date)` → the override `type`; layer 4 of the Sunday rule (a value the Sunday rewrite turns to RD becomes a `correction`; a timed Other day on a Sunday is `rdw`). The base shift is not an argument (no caller's value was ever read); anything but an ISO date in `date` throws, so a stale three-argument call cannot silently lose the Sunday rule.
 - `isZeroLengthRange(value)` — equal start and end, the one range shape always wrong here, since every duration helper reads it as 24 hours. `end < start` is NOT caught: an overnight shift is ordinary. Accepts the `RDW|` encoding.
 - `RDW_PREFIX` / `isRdwEncoded` / `stripRdw` / `UNKNOWN_PREFIX` / `isUnknownEncoded` / `stripUnknown` — the two review-only encodings, defined HERE once because this is the module all three import modules can reach without a cycle (they were three copies). `roster-review-states.js` re-exports them.
+- **Exports:** `RDW_PREFIX` · `isRdwEncoded` · `stripRdw` · `UNKNOWN_PREFIX` · `isUnknownEncoded` · `stripUnknown` · `normaliseCellValue` · `shiftValueToOverrideType` · `isZeroLengthRange`
 
 ### `roster-entry-control.js`
 Answering an UNREADABLE roster cell where the question is asked, so a cell like `SEE NATHAN` is not a dead end that sends the admin to another page with a name and a date to remember. The header holds the three rules — the pills come from `PILL_TYPES` (Other included, its chips from `OTHER_FLAVOURS` and its value from `composeOtherValue`; Spare is not offered), Sunday exclusions are read from `isForbiddenOnSunday`, and an entry passes the guards a parsed value passes — and why the times are text boxes rather than `<input type="time">`.
@@ -1832,6 +1993,7 @@ Answering an UNREADABLE roster cell where the question is asked, so a cell like 
 - `entryClick(el, state)` — applies a click inside the control (pill, flavour chip, RDW tick, swap answer) to the draft and commits it; returns whether it handled the element.
 - `toggleEntry(rowEl, btn, key, state, open)` / `redrawEntry(rowEl, key, state)` / `isoFromKey(key)` — the control opens, closes and redraws IN PLACE, because re-rendering the review threw the reader back to the top of a long list; a redraw puts focus back on the control that was pressed. `patchEntryRow(rowEl, done, state)` keeps the row's tag and hint honest between keystrokes, taking its tag style from `unreadableTagClass` (`roster-review-states.js`).
 - `paintUnreadableRow(rowEl, state)` — paints EVERY control of an unreadable row from its state by the render's rules (a reading lit when picked, Skip when nothing is chosen, the enter button when the entry is the answer; a closed editor leaves the row). The entry press, the keystroke, a picked reading, Skip and Skip all all call it, because four partial patches let the lit buttons drift from what Save writes.
+- **Exports:** `entryControlHtml` · `isoFromKey` · `redrawEntry` · `toggleEntry` · `patchEntryRow` · `paintUnreadableRow` · `entryClick` · `commitEntry` · `entryLeftAsRest`
 
 ### `roster-alignment.js`
 Is a roster read trustworthy, or is it a day out? Evidence about the import that does NOT come from the model, and the only such check drawn from the member's own pattern (the PDF's grid and its printed week are the others): the row read, `sundayScan` and `columnScan` are one model call on one PDF and can agree on the same misread, while this compares each parsed week with the member's own base pattern, which the PDF cannot influence (header; `.claude/rules/roster-import.md` → Day drift). It imports no Firebase, so a test can build a shifted week from the real roster.
@@ -1840,6 +2002,7 @@ Is a roster read trustworthy, or is it a day out? Evidence about the import that
 - `defaultWeekEnding(now)` → the week ending the upload form offers first, by LONDON date (owner, 10 Nov 2026): from Thursday the following week — the one a Thursday release covers — and Sunday to Wednesday the week in progress, a Saturday keeping the next Saturday; so Thursday to the next Wednesday offer one week. A whole week out is invisible to the ±1 detector, which is why the default is decided here.
 - `driftCopy(drift, escapedName)` / `stopCopy(alignment, who)` — the per-row warning and the whole-read banner, beside the verdict so a new kind of drift cannot wear another's words. `geometryCopy(geometry)` — says when the PDF's own grid was not consulted, including a response with no `geometry` field; `complete` says nothing. It unticks nothing: whether a missing witness should fail closed is an owner decision.
 - **What the verdict does** (`roster-review-states.js` and the coordinator): a drifted member's rows start unticked; a blocked read makes every tick inert, replaces Save with "Read the roster again", and is skipped by `collectRosterWrites`. No per-row override and no "save anyway". Tested by `admin-roster-upload.test.mjs`; the wiring by `e2e/operations.spec.js`.
+- **Exports:** `defaultWeekEnding` · `detectShiftedRow` · `ALIGNMENT_BLOCK_THRESHOLD` · `assessRosterAlignment` · `geometryCopy` · `driftCopy` · `stopCopy`
 
 ### `roster-review-states.js`
 What state every cell of the roster review is in, and whether it is TICKED — the decisions behind what a Save writes. Pure and Firebase-free; the coordinator re-exports `computeCellStates`, and its tests still reach it there. The header numbers the five things an edit can silently break; the import's contract is `.claude/rules/roster-import.md`.
@@ -1850,6 +2013,7 @@ What state every cell of the roster review is in, and whether it is TICKED — t
 - GUARDED rows: `guardCopy(guard, asks, christmas)` — the reason in the admin's words (`'sunday'`, `'sunday-other'`, `'rest-day'`, and the Christmas leave on 25/26 December), never reading as an error. `swapQuestionApplies(state)` — only leave or an absence on a base REST day, never a Sunday, never on a refused read, never on 25/26 December. `guardedWriteValue(state)` → `'SICK'` | `'AL'` | null — written only once answered "swapped". `guardedWrites(state, memberName, date)` — "swapped" replaces a previous import, "rest day" removes one, unanswered writes nothing. `guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc })` — the row's markup.
 - `replacedFromState(state)` → what a write over the row's saved record carries forward (`type`, `replacedType`, `leaveYear`): one builder for every save site. `restOverRest(value, baseShift)` — an answer of a rest day on a day the base already rests: the collector writes nothing new there (it clears what the day held) and the entry control says so. An UNREADABLE cell one of whose readings is leave or an absence on a base rest day offers no picks, so the guard's "Rest" is never a button. `unreadableTagClass(state)` → `'act-read'` | `'act-choice'`, presentation only.
 - `RDW_PREFIX` / `isRdwEncoded` / `stripRdw` / `UNKNOWN_PREFIX` / `isUnknownEncoded` / `stripUnknown` — the two review-only encodings, RE-EXPORTED from `roster-cell-rules.js`, where they are defined. Neither reaches Firestore: RDW-ness lives in a saved override's `type`, and the sentinel is never written.
+- **Exports:** `CHRISTMAS_NOTE` · `RDW_PREFIX` · `isRdwEncoded` · `stripRdw` · `UNKNOWN_PREFIX` · `isUnknownEncoded` · `stripUnknown` · `computeCellStates` · `guardCopy` · `swapQuestionApplies` · `guardedWriteValue` · `replacedFromState` · `guardedWrites` · `restOverRest` · `collectRosterWrites` · `reviewOutcome` · `outcomeHtml` · `guardedRowHtml` · `unreadableTagClass` · `carryReviewAnswers`
 
 ### `admin-roster-upload.js`
 The Weekly Roster Upload coordinator on Operations: pick a file → `parseRosterPDF` → review → batched write. It reads the page, calls the Cloud Function and paints; every rule it applies is in `roster-review-states.js`, `roster-cell-rules.js`, `roster-alignment.js` or `roster-entry-control.js`. Read `.claude/rules/roster-import.md` first.
@@ -1860,17 +2024,20 @@ The Weekly Roster Upload coordinator on Operations: pick a file → `parseRoster
 - `shiftDisplay(value, date?)` — the badge for one value; a worked Sunday time renders as RDW. An `UNKNOWN|…` value is quoted as unreadable PDF text only when it is one (the server upper-cases those); a sentence the import wrote is shown as itself. `manualShiftDisplay(s)` — a stored manual value, with the RDW badge restored from the override's `type`.
 - Re-exports `normaliseCellValue`, `shiftValueToOverrideType` and `isZeroLengthRange` (`roster-cell-rules.js`) and `computeCellStates` (`roster-review-states.js`), so existing call sites and tests are unchanged.
 - **The review offers the original PDF as a DOWNLOAD** (`<a download>`), never a `blob:` tab: that document inherits the page's `object-src 'none'`, so Chrome painted it blank, and admitting `blob:` was declined (the comment beside the button). `e2e/operations.spec.js` takes delivery of the file.
+- **Exports:** `normaliseCellValue` · `shiftValueToOverrideType` · `isZeroLengthRange` · `computeCellStates` · `PARSE_ABORT_MS` · `statusFailureLine` · `shiftDisplay` · `manualShiftDisplay` · `_saveOverrideBatches` · `fetchOverridesForWeek` · `initRosterUpload`
 
 ### `roster-import-save.js`
 What one Save of the weekly roster review writes (v25.92). Pure of the DOM; firebase-client.js for the writes. The reasoning is its header.
 - `saveRosterWrites(toWrite, currentUser, shown?)` → how many rows were refused as zero-length. Parts of at most ~450 operations, each inside `writeWithClaimRetry`. **A part that deletes is ONE transaction** that re-reads each record it deletes (`replaceId`, `alsoDelete`) and refuses — writing nothing — unless each is still the record in `shown` (`sameOverrideRecord`) or already gone; a record `shown` lacks is refused, never deleted on trust. **A part that only adds is a batch**, as before: a manual record outranks an import, so an added record cannot hide a colleague's day. New ids are minted ONCE per part, so a transaction re-run writes the same documents. Throws `{ code: IMPORT_CHANGED_CODE, days, savedEarlier }` for a refusal; marks `partialCommit` when earlier parts landed or a deleting part never reached the server. **A deleting part first waits for this device's own queued saves** (`whenOwnWritesSent`, v25.95); one that gives up throws `{ code: 'unavailable', unsent: true }` with `UNSENT_SAVES_DETAIL` as its message, NOT `partialCommit` on the first part, because no transaction started.
 - `IMPORT_CHANGED_CODE` · `refusalLine(days, { savedEarlier?, redrawn? })` — the words for a refusal, naming each day (up to four, then "and N more") · `UNSENT_SAVES_DETAIL` — what the admin reads after "Couldn't save — " when the wait gave up.
+- **Exports:** `IMPORT_CHANGED_CODE` · `UNSENT_SAVES_DETAIL` · `saveRosterWrites` · `refusalLine`
 
 ### `paycalc-app.js`
 The Pay Calculator coordinator for `paycalc.html`: no pay maths and no period arithmetic. `init()` is called by `paycalc-boot.js` (CSP blocks an inline call). The pay rules are `.claude/rules/paycalc.md`.
 - **The gates, in order.** A signed-out visitor gets the in-place sign-in, which says what the page is and that the staff PIN does not open it (`PAYCALC_SIGN_IN_ABOUT`) — deliberately not `requirePage`, because the page needs a local member to namespace its storage; the Firebase-confirmation path (`_initErrorReporting`) does ask `requirePage(…, 'paycalc')`, which is `soft` and never blocks the calculator. A member who held no grade with confirmed rates on any day of the payslips the page shows, or today (`payCalculatorPrices`, `pay-audience.js` — the role AT THE TIME), or whose session name is not on the roster, gets a card naming the gap instead of a calculator (`_showUnsupportedRole`), before anything can render a figure; its words are written for its reader by `paycalc-role-card.js`. An admitted member's payslip with a day under a role with no rates gets no figure: `calculate()` paints `unpricedLineFor` through `renderUnpricedPayslip` and stops.
 - Internal to `init()`: `calculate()` (the engine, over `paycalc-calc.js`), `onPeriodChange()`, `autosave()`, and the back-pay state `_bpAmount` / `_bpPNum` — the lump joins the take-home only when its tick is on and its paid-in payslip is the one viewed.
 - Delegates periods to `paycalc-periods.js`, settings to `paycalc-settings.js`, the hint bar to `paycalc-roster-hint.js`, HPP to `paycalc-hpp.js`, back pay to `paycalc-backpay.js`, the form round trip to `paycalc-form-data.js`, the headline, the check against a payslip and the banners to `paycalc-result-headline.js` and `paycalc-money-banner.js`, the result markup to `paycalc-breakdown.js`, the Year to Date card's anchor to `paycalc-ytd-card.js`, the disclosures to `paycalc-disclosures.js`, and the overlays to `paycalc-lightboxes.js`.
+- **Exports:** `init`
 
 ### `paycalc-result-headline.js`
 Which figure is the headline, and what it is called. Two branches — a confirmed payslip figure or the estimate — write the same six targets, and a target left unwritten keeps the last render's value under the other branch's label (header).
@@ -1881,18 +2048,22 @@ Which figure is the headline, and what it is called. Two branches — a confirme
 - `wireYtdLine()` — the line's button: opens the Year to Date card through its header (as the `#payslipCard` deep link does), scrolls to it and focuses `#ytdPay`.
 - `renderUnpricedPayslip(line)` — a payslip worked under a role with no rates: `body.payslip-unpriced` (paycalc.css hides what a figure feeds), "£–" in the headline and the sticky bar, and the line in `#unpricedPayslipNote`. Called on every `calculate()` run, with '' for a payslip that can be priced.
 - `renderActualCheck({ inHand, net, taxCode, recognised, deducted, ytdFrom, estimate })` — "Check against your payslip": shown from the cut-off (`inHand`, the caller's `payslipMayBeInHand`), the verdict (`buildActualCheck`) and the other lines compared with the summary's own figures (`buildActualComparison`).
+- **Exports:** `headlineLabels` · `renderResultHeadline` · `renderUnpricedPayslip` · `renderActualCheck` · `renderYtdLine` · `wireYtdLine`
 
 ### `paycalc-ytd-card.js`
 The Year to Date card's anchor on the page. Carries `paycalc-periods.js`'s answers to the DOM and owns no rule; split from `paycalc-app.js`, touching no coordinator state.
 - `ytdHasFigures()` — either box holds text: the one guard the stamp, the note and the chip share. `refreshYtdSrc(ty)` — rebuilds the "From which payslip?" select, records a source for figures that never had one (`ytdSourceToStamp`) and selects the stored one. `updateYtdNote(ty, p, src, inUse, taxCode, misfit?)` — the note and the header chip from `ytdAnchorStatus`, on every `calculate()`. Tested by `paycalc-ytd-card.test.mjs`.
+- **Exports:** `ytdHasFigures` · `refreshYtdSrc` · `updateYtdNote`
 
 ### `paycalc-disclosures.js`
 The Pay page's button-and-panel disclosures, one core: `setDisclosure(btnId, bodyId, open, opts?)` (a given state — the click and `loadPeriodData`'s programmatic open) and `toggleDisclosure(btnId, bodyId, opts?)`, keeping `aria-expanded` and the arrow glyph (`opts.arrowSel`) with the panel. The named ones: `toggleHoursExtra`, `toggleHppNote` (its label swaps), `toggleBD`; and `toggleDisclaimer`, whose More/Less has no panel. Tested by `paycalc-disclosures.test.mjs`.
+- **Exports:** `setDisclosure` · `toggleDisclosure` · `toggleHoursExtra` · `toggleHppNote` · `toggleBD` · `toggleDisclaimer`
 
 ### `paycalc-money-banner.js`
 The two opt-in money banners on the result card, back pay and Holiday Pay Premium. **A banner may say "Includes" only when the sum is in the figure above it**, and a figure not yet confirmed says so on both paths (header).
 - `backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, fromPayslip?, inHand? })` · `hppBannerCopy({ forPeriod, amount, isEstimate })` → `{ text, note }` — PURE. A confirmed lump "will land" until its payslip may be in hand (`inHand`, `payslipMayBeInHand`), and then it "is on this payslip". The tick's own state decides the sentence; availability only decides whether there is anything to offer. The notes differ on purpose: back pay says how to improve a lump worked out from hours (never one typed from the payslip, `fromPayslip`), while HPP prompts only when opted in to a figure that is still an estimate.
 - `paintBanner({ rootId, textId, tickId, noteId, available, included, copy, tickYear? })` — hides by `display` and touches nothing else, so a hidden banner cannot come back carrying the previous payslip's number. The arithmetic gate behind the words is guarded by the rendered £ in `e2e/paycalc.spec.js`.
+- **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner`
 
 ### `paycalc-lightboxes.js`
 The overlays on `paycalc.html`. `initPaycalcLightboxes()` returns `{ openAboutLightbox, showPayNotice }`: the drawer logo opens About, and the coordinator calls `showPayNotice` — the one opener of the page's two notices, Year to Date first — LAST, after anything else the page may open.
@@ -1901,6 +2072,7 @@ The overlays on `paycalc.html`. `initPaycalcLightboxes()` returns `{ openAboutLi
 - **The Holiday Pay Premium notice** (`hpp_2526`, 16 Nov 2026 – 8 Jan 2027) — SECOND: due only once `NOTICE_YTD_KEY` is set when it is wired, so never on the load the Year to Date notice is answered. For a member `premiumStillToEstimate` (paycalc-hpp.js) calls 'open' — a 2025/26 payslip, no figure of their own for that year's premium; 'none' or 'done' keeps it shut WITHOUT setting `NOTICE_HPP_KEY` — a device flag, so the next member signed in on that phone still gets it. Never over a card a link opened (any `#…`) or the ownership prompt. Its link opens the last 2025/26 payslip at `#payslipCard`; archived as it opens.
 - **The data-ownership prompt** — legacy unnamespaced pay data is claimed ("mine"), discarded ("fresh") or left for later (✕), through `resolveLegacyMigration`.
 - **The device-local payslip actuals import** — the developer account only (`isActualsDev`); the figures are never served.
+- **Exports:** `initPaycalcLightboxes`
 
 ### `paycalc-periods.js`
 Period arithmetic and the period select for `paycalc.html`. `p.num` is an INTERNAL, monotonic id (the anchor payday is 48), never the number printed on the payslip, so storage and maths key off `p.num` only (the comment above `CONFIG`).
@@ -1912,6 +2084,7 @@ Period arithmetic and the period select for `paycalc.html`. `p.num` is an INTERN
 - `payslipMayBeInHand(p, now?)` — from its cut-off a payslip may be in the member's hand (it arrives before payday): the one rule for the Year to Date picker and the "Check against your payslip" box. `ytdSourceOffered(p, ty, now?, firstPNum?)` / `ytdAutoSource(ty, now?)` / `buildYtdSourceSelect(ty)` — the Year to Date card's "From which payslip?" select and its first-entry stamp, never a payslip from before a joiner started. `ytdSourceToStamp(raw, hasFigures, ty, now?, firstPNum?)` — the source to record on load for figures that never had one, or null; a recorded `'0'` (a deliberate un-anchor) is never re-stamped. `ytdSourceAfterRetype(raw, { p, ty, now?, firstPNum? })` — figures typed in again over an OLDER recorded source move to the payslip the take-home line names (the same rule as `ytdUpdateFrom`), or null. `ytdAnchorStatus({ p, ty, src, hasFigures, inUse, taxCode, misfit?, now?, firstPNum? })` → `{ note, noteLive, chip, chipLive }` — the card's note and header chip; "in use" is `computeTax`'s `usingCumulative`, handed over by `calculate()` on every run, and figures not in use on the payslip after the source say why: a week 1 / month 1 code, figures that do not fit the code (`misfit` = `computeTax`'s `ytdMisfit`), or a pair not complete.
 - `updateTyTabs()` · `jumpToTaxYear(tyIndex, onPeriodChange)` / `prevPeriod(onPeriodChange)` / `nextPeriod(onPeriodChange)` — navigation, taking the coordinator's callback to avoid a circular import. `_setSelectPeriod(sel, pNum)` — an internal setter, exported for tests.
 - `ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised?, misfit?, now?, firstPNum? })` — the payslip whose Year to Date figures the take-home's line asks for (the one before `p`), or null: quiet on a paid payslip, the tax year's first, a week 1 / month 1 or NT code (through `readTaxCode`, `computeTax`'s own reader), a code `computeTax` does not recognise, while the figures are in use (`inUse` = `computeTax`'s `usingCumulative`), do not fit the code (`misfit`) or come from `p` or later, for a payslip from before the member started, and until that payslip can be in hand. Painted by `renderYtdLine`.
+- **Exports:** `CONFIG` · `getPeriods` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `hasBoxingDay` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
 
 ### `paycalc-settings.js`
 Each payslip's rate, contracted hours, the pension controls and Settings persistence for `paycalc.html`. The rate and pension rules are `.claude/rules/paycalc.md` (invariants 8, 12, 13 and 17).
@@ -1921,6 +2094,7 @@ Each payslip's rate, contracted hours, the pension controls and Settings persist
 - **The rate.** `settledRate(grade, ty)` — a grade's settled rate for a year, fixed from `AWARD_RATES`, never stored. `settledRateFor(p, ty?)` — a payslip's, each grade by its days (the HPP estimate); null for a payslip with a day under a role with no rates. `periodRate(ty, p?)` → `{ rate, preAward }` — the rate a payslip was PAID at (rate null for such a payslip, never CEA's in its place) (a pre-award payslip gets the old one; one across a promotion is its grades' rates weighted by days, UNROUNDED): the one answer for `calculate()`, the read-only field `updateRateForPeriod(ty, p)` loads to the penny (with the changeover line under it), and the Settings card's collapsed summary, which `settingsSummary(ty, p?)` writes for the coordinator and `confirmSettings` alike. `awardGrade(awardTy)` — the grade the award's backdated months were worked under, which the back-pay card prices; null when neither they nor the payslip on screen had one with rates, and the card refuses. `updateYtdForTaxYear(ty)` — the Year to Date figures.
 - `settingsKey(ty)` (the per-year confirmed flag) · `saveSettings()` (records the pension change; it stores no pension amount — each payslip keeps its own through the form, and one with none takes its period default — and a loan-stop select with nothing chosen never overwrites the record) · `confirmSettings(calculate)` · `setSettingsCardOpen(open)` (a close hands focus inside the card to its arrow) · `loadSettings()`.
 - `wireSettingsCard({ openCardNamedByHash })` — from 1024px moves the card after Hours IN THE DOM, so Tab follows the decided desktop order (CSS `order` moves paint, not focus); and opens the card from the setup banner's `#settingsCard` link (and that fragment), focus on the grade. The helper is injected: overlay.js cannot load in Node.
+- **Exports:** `gradeForRole` · `getGradeSetting` · `gradeDaysFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `isPeriodPriced` · `unpricedLineFor` · `getEffectiveContr` · `getProRateFactor` · `getPensionTimeline` · `savePensionTimeline` · `isPensionOptedOut` · `applyPensionOptOutUI` · `buildPensionFromSelect` · `periodDefaultPension` · `wirePensionControls` · `getPensionDefault` · `settledRate` · `settledRateFor` · `awardGrade` · `periodRate` · `settingsSummary` · `updateRateForPeriod` · `updateYtdForTaxYear` · `settingsKey` · `saveSettings` · `confirmSettings` · `setSettingsCardOpen` · `wireSettingsCard` · `loadSettings`
 
 ### `paycalc-grade-setting.js`
 The member's GRADE SETTING on this device, and the page's grade controls. Its own module because dating the grade took `paycalc-settings.js` past 900 lines; it never imports that file (import-graph.test.mjs), which imports it and re-exports its readers. The rules it applies are `paycalc-grade.js`; the reasoning is `.claude/rules/paycalc.md` invariant 17 and the grade passage.
@@ -1929,6 +2103,7 @@ The member's GRADE SETTING on this device, and the page's grade controls. Its ow
 - **The grade prompt** (owner, 10 Nov 2026) — only for a grade CHOSEN by hand. `gradeToOffer(stored, role, kept)` — pure: the roster's grade to offer, or null (no chosen grade, no confirmed rates, the chosen grade is any grade held over the payslip on screen, or the member kept their own over THIS roster grade — `SK.gradeKept`). `renderGradePrompt(mayShow)` — paints `#gradePrompt`; only `loadGradeSetting` may RAISE it. "Use" sets the Grade box to From the roster and dispatches `change`, so the page's own grade-change path re-prices; "Keep" stores the declined grade; either is replaced by one focused line.
 - **The one-time note** (`#gradeNote`): for a member whose roster grade changes within the payslips they can see, while the roster decides; "OK" stores the change's first day in `SK.gradeNote` and gives way to one focused line.
 - Tested by `paycalc-grade-setting.test.mjs` (loading and saving through the real entry points, on the real rows), and through `paycalc-settings.test.mjs`, `paycalc-grade-wiring.test.mjs` and `e2e/paycalc.spec.js` (the promotion and the grade question).
+- **Exports:** `getGradeSetting` · `gradeDaysFor` · `isPeriodPriced` · `unpricedLineFor` · `getContr` · `getLoggedMember` · `gradeToOffer` · `renderGradePrompt` · `saveGradeSetting` · `loadGradeSetting`
 
 ### `paycalc-grade.js`
 WHICH GRADE EACH OF A PAYSLIP'S DAYS WAS WORKED UNDER, from the roster's dated grades (`roster-roles.js`). Pure — no DOM, no storage. **By days, not by shifts** (owner, 13 Nov 2026): a payslip across a promotion is each grade's rate weighted by its days, exact for contracted hours and an estimate for premium hours, which are stored per payslip. The reasoning: its header; the rule: `.claude/rules/paycalc.md` invariant 17.
@@ -1936,6 +2111,7 @@ WHICH GRADE EACH OF A PAYSLIP'S DAYS WAS WORKED UNDER, from the roster's dated g
 - `settingFromLegacy({ saved, kept, rosterGrades, firstNum })` — the one conversion of a grade saved before grades had dates. `windowGrade(parts)` → `{ grade, mixed }` — the back-pay window's grade.
 - The words: `gradeSplitLine({ parts, rateOf, start, today })` (under the changeover payslip's rate), `rosterStretches(member, start, end)` and `rosterGradeLine(stretches)` (under the Grade box), `gradeChangeNote(stretches, today)` → `{ key, text }` (the one-time note). Each reads "changes" while the date is ahead and "changed" after it.
 - Tested by `paycalc-grade.test.mjs` (the rules) and `paycalc-grade-wiring.test.mjs` (through `paycalc-settings.js`, the real period table and the real rows, with the data guard that no promotion is dated inside an award's backdated months).
+- **Exports:** `FROM_ROSTER` · `gradeDays` · `payslipPriced` · `byDays` · `settingFromLegacy` · `windowGrade` · `gradeSplitLine` · `rosterStretches` · `unpricedPayslipLine` · `rosterGradeLine` · `gradeChangeNote`
 
 ### `paycalc-roster-hint.js`
 The roster-assist hint bar on `paycalc.html`: render, fill, and the snapshot of what was suggested. The suggestion engine is `paycalc-roster-suggestions.js`; viewing a period never persists a suggestion, and the engine never infers an ambiguous category (`.claude/rules/paycalc.md` invariant 11). It takes `autosave` as a parameter rather than importing the coordinator.
@@ -1945,11 +2121,13 @@ The roster-assist hint bar on `paycalc.html`: render, fill, and the snapshot of 
 - `clearRosterSuggestedAll()` · `_restoreRosterSuggested(pNum)` · `snapKey(pNum)` (the snapshot's key, exported so the coordinator's `clearPeriod()` can delete it). The snapshot describes the SAVED payslip: the background refresh on view never moves the entry of a saved figure, and `recordCalendarFigures(pNum)` — for a caller that has just saved a period — re-records it from the gold boxes at their saved values.
 - `_confBadge(cat, fromOv, estimateHours)` — a row's confidence chip. A figure that holds a DEFAULT says so ("Includes an Nh estimate — check"), and it is exported so that wording is tested.
 - `HM_PAIRS` — the hour/minute field pairs, re-exported from `paycalc-format.js`.
+- **Exports:** `HM_PAIRS` · `_confBadge` · `snapKey` · `recordCalendarFigures` · `_restoreRosterSuggested` · `updateRosterHint` · `updateJoinerNotice` · `toggleRosterDays` · `clearRosterSuggestedAll` · `_applyRosterSuggestion` · `fillCategoryFromRoster` · `fillFromRoster`
 
 ### `paycalc-hpp-schedule.js`
 WHICH payslip carries WHICH tax year's Holiday Pay Premium. Pure — no DOM, no storage, no imports; the period grid and the tax-year table are passed in. **The rule:** a tax year's premium is paid on the FIRST January payslip of the FOLLOWING tax year, so `ty.hppPaidJan` falls OUTSIDE `ty`'s own window — the trap that four hand-rolled copies fell into (`.claude/rules/paycalc.md` invariant 4; the header).
 - `periodsInTaxYear(ty, periods)` — the year's own payslips, in payday order. `hppPayslipForTaxYear(ty, periods)` — the payslip that carries `ty`'s premium, or null while the grid does not reach that January. `hppTaxYearForPayslip(p, periods, taxYears)` — the inverse; only the EARLIEST January payslip qualifies, so a premium is never added twice. `hppPaidInTaxYear(ty, periods, taxYears)` → `{ taxYear, payslip }` — the premium paid INSIDE `ty`'s window, which is always the prior year's.
 - Consumed by `paycalc-app.js`, `paycalc-hpp.js`, `paycalc-year-card.js` and `paycalc-year-summary.js`. Tested by `paycalc-hpp-schedule.test.mjs`, which runs the carrier → tax year → carrier round trip against the REAL `TAX_YEARS`.
+- **Exports:** `periodsInTaxYear` · `hppPayslipForTaxYear` · `hppTaxYearForPayslip` · `hppPaidInTaxYear`
 
 ### `paycalc-hpp.js`
 The Holiday Pay Premium card, and the period decoders it shares with back pay. The HPP rules — the three amount sources, what accrues and what never feeds in — are `.claude/rules/paycalc.md` (invariants 5 to 7, and the HPP paragraph).
@@ -1961,15 +2139,19 @@ The Holiday Pay Premium card, and the period decoders it shares with back pay. T
 - `premiumStillToEstimate(ty)` → `'none'|'done'|'open'` — is a year's premium still the member's to estimate? The reader of the Pay page's January notice (`hpp_2526`): 'none' without a payslip in the year (asked of its LAST pay period), 'done' with a confirmed figure, a typed one, or a rough one from the Year to Date pay on the year's LAST payslip (an earlier one covers part of the year), else 'open'. Unit-tested against the real grid; the notice's dates and link are pinned there too.
 - The 'ytd' figure NAMES a premium inside Taxable Pay that no record holds — the first year's January payslip carries the year before's (16 Jan 2026, 2024/25's), and a year on record may have no figure stored — rather than taking it out: "This may be a little high…". The back-pay lump's rule (said, never guessed). It says what it covers ("up to your … payslip"), and that a part-year figure for a year that has ended may be low; a covered payslip that cannot be priced refuses it.
 - `isDataEmpty(d)` — re-exported from `paycalc-format.js`.
+- **Exports:** `isDataEmpty` · `resolveHppForPeriod` · `_decodeHours` · `savedPeriodPension` · `_varPayForPeriod` · `hppFromYtdTaxable` · `knownYtdLumps` · `applyHppMode` · `readHppState` · `saveHppState` · `restoreHppState` · `calcHPP` · `priorHppToStore` · `commitPriorHppActual` · `premiumStillToEstimate` · `updatePriorHpp`
 
 ### `paycalc-fill-year.js` / `paycalc-year-card.js`
 "Fill these from your calendar" and the "This tax year so far" card, a card of its own in the sidebar beside the Year to Date card.
 - `paycalc-fill-year.js` — pure orchestration over INJECTED deps, so it runs in Node; its header numbers the seven rules that make a bulk write safe: never a period with entered data, never a corrupt one, no base-only fills (a period whose recorded-changes fetch fails is skipped and named), every fill marked like a single fill, the payslip's own figures kept, a receipt that counts only verified writes, and eligibility re-asked after each fetch. `fillablePeriods({ periods, now, proRateFactor, priced, readSaved })` → `{ fillable, corrupt }`, by the same priced + paid + employed + empty test the "Not entered yet" list uses (`priced` is `isPeriodPriced`, injected through the fill's `deps`). `fillYearFromCalendar({ periods, member, now, deps })` — sequential, because the suggestion module keeps one override map per fetch; a fetch that does not answer within its timeout is named unreached. `answerWithin(promise, ms)` → the answer or `'timeout'`, and `FETCH_TIMEOUT_MS` (15 s) — the one bound on every fetch a fill waits on, the card's re-fetch afterwards included. `fillYearReceipt(r, fd)` — the receipt: dates by name, and an explicit all-clear.
 - `paycalc-year-card.js` — `initYearCard({ afterFill, fetchTimeoutMs })` (one delegated listener; `afterFill` is the coordinator reloading the visible form and recalculating; `fetchTimeoutMs` is for tests) · `renderYearCard({ ty, plan, pgLoan, slPaidOffFromP, bpLump })` — the year-so-far block, the fill button beside "Not entered yet" (drawn disabled while a fill runs), a slim state while nothing READABLE is entered, the projection only while payslips remain, and the receipt until the year changes. Focus survives the rebuild, and the end of a fill focuses its receipt unless the member has moved on to another field. **A fill that throws restores the button and says so**, and may never claim nothing was written, because the loop writes period by period (the comment in `_runFill`).
 - `HM_PAIRS` and `isDataEmpty` live in `paycalc-format.js` so the pure module can reach them. Tested by `paycalc-fill-year.test.mjs` and `paycalc-year-card.test.mjs`.
+- **Exports of `paycalc-fill-year.js`:** `FETCH_TIMEOUT_MS` · `answerWithin` · `fillablePeriods` · `fillYearFromCalendar` · `fillYearReceipt`
+- **Exports of `paycalc-year-card.js`:** `initYearCard` · `renderYearCard`
 
 ### `paycalc-year-summary.js`
 "This tax year so far". `computeYearSoFar(ty, opts)` re-runs the calculator headlessly over every PAID payslip of the year that has saved hours — `_decodeHours` → `computeGross` (the period-aware rate, pro-rated London, the payslip's own saved pension or the default) → non-cumulative `computeTax` / `computeNI` / `computeSL` (honouring each period's `slSkip` and the loan cutover) — and returns `{ entered, paid, total, employed, taxable, tax, ni, sl, net, projectedNet, skipped, missing, unpriced }`. Each payslip's money is rounded as the result card shows it (`takeHomePay`), and a payslip under a role with no rates is in none of the counts (`unpriced` says how many). `projectedNet` is labelled rough, and corrupt periods are counted in `skipped`, never dropped. No DOM: the caller passes the tax code and loan settings in `opts` (and `now`, for tests). Rendered by `renderYearCard`. Tested by `paycalc-year-summary.test.mjs` against the REAL engine.
+- **Exports:** `computeYearSoFar`
 
 ### `paycalc-backpay.js`
 The back-pay card: the lump owed for a pay award backdated to 1 April. Every rule — the 1 April backdate, the paid-in payslip excluded, per-year state, the opt-in tick, locked confirmed rates — is `.claude/rules/paycalc.md` → Back-pay; the three figure decisions are `paycalc-backpay-state.js`.
@@ -1978,17 +2160,20 @@ The back-pay card: the lump owed for a pay award backdated to 1 April. Every rul
 - PURE: `bpStoryHtml(o)`; `raiseByPercent(oldVal, pct)`. The award arithmetic is re-exported from `paycalc-backpay-accrual.js`, so its importers are unchanged.
 - `_bpAwardTaxYear(fromPNum)` / `_backdatedFromPNum()` — the award tax year, and its April period; there is no user-facing "backdated from" control.
 - Tested by `paycalc-backpay.test.mjs`, which drives the real `calcBackPay` against a fake `document`; the pure helpers by `paycalc-periods.test.mjs`.
+- **Exports:** `paidInPeriodNum` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `_backdatedFromPNum` · `applyBpMode` · `_bpAwardTaxYear` · `prefillBackPay` · `restoreBpState` · `raiseByPercent` · `bpStoryHtml` · `calcBackPay`
 
 ### `paycalc-backpay-accrual.js`
 What a pay award owes, period by period — PURE, no DOM. A module of its own so the HPP Year to Date estimate can reuse the card's arithmetic: `paycalc-backpay.js` imports `paycalc-hpp.js`, so the premium module could not import the card without a cycle. Re-exported by `paycalc-backpay.js`.
 - `_accrueBackPayPeriod(i)` → `{ backPay, varPay }` (`varPay`, the HPP-accruing part, excludes London); `awardWindowFactor(p, backdatedFrom, periodDays?)` — the year's first period counts as a FRACTION (`.claude/rules/paycalc.md` invariant 14); `_awardBackdateDate(awardTy)` — 1 April of the award year, at noon; `paidInPeriodNum(periods, awardFrom)` — the payslip that carries a decided award.
 - `awardLumpNonPremium({ window, auth, backdate, effContr, proRateFactor, peerDays })` — the lump's basic and London arrears, every rate from the record; null when a rate is not on record, which the caller labels instead of guessing (owner, 10 Nov 2026).
+- **Exports:** `paidInPeriodNum` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `awardLumpNonPremium`
 
 ### `paycalc-format.js`
 Pure formatters and field helpers shared by the paycalc modules; its only import is `date-format.js`, so it loads in Node. Tested by `paycalc-format.test.mjs`.
 - `fd(d)` → "18 Sep 26" · `fdShort(d)` → "18 Sep" · `fdLong(d)` → "18 Sep 2026" — the app's own vocabulary, read off the device's local calendar (period dates are local values, not instants). `fdList(dates, cap = 4)` — a run of dates as prose, truncated past `cap`. `fmt(n)` → "£1,234.56". `fmtRate(r)` — an hourly rate: `fmt`'s "£21.49" for whole pence (every grade's rate), up to four places otherwise ("£22.3225", a payslip across a change of grade), so the basic-pay row's own multiplication makes its figure.
 - `clampMinute(n)` — into [0, 59]. `minutesFieldText(m)` — what a minutes box SHOWS for a value the app writes ("05"), display only. `decimalToHM(val)` → `{ h, m }`, carrying 60 minutes into the hour (7.999 → 8h 00m); null for a negative or non-finite value.
 - `HM_PAIRS` · `isDataEmpty(d)` — the hrs/mins field pairs and the "nothing entered" test, homed here so `paycalc-fill-year.js` can reach them; re-exported by `paycalc-roster-hint.js`, `paycalc-hpp.js` and `paycalc-form-data.js`.
+- **Exports:** `fd` · `fdShort` · `fdLong` · `fmt` · `fmtRate` · `fdList` · `clampMinute` · `minutesFieldText` · `decimalToHM` · `HM_PAIRS` · `isDataEmpty`
 
 ### `paycalc-breakdown.js`
 The pure HTML builders for the pay-result card, so its markup is testable apart from `calculate()`'s DOM and maths. Each takes a plain object whose fields match the caller's locals. Tested by `paycalc-breakdown.test.mjs`.
@@ -1998,6 +2183,7 @@ The pure HTML builders for the pay-result card, so its markup is testable apart 
 - `buildActualCheck(actual, estimated, used?)` — the "Check against your payslip" verdict. A gap names THIS estimate's own settings first: `used` is what it applied (the tax code, whether the engine recognised it, the pension, and the payslip the Year to Date figures count from), and only a plain letters-and-digits code is quoted. Never red. `buildProvChips(d)` — the provisional-figure chips, `''` when there are none. The full rules: `.claude/rules/paycalc.md` → "Check against your payslip".
 - `taxCodeNotRecognised(code)` → `{ row, field }` — the words for a code `computeTax` does not recognise (priced on the standard 1257L allowance): `row` under the Income Tax figure (`buildSummaryRows` adds it when told `taxCodeRecognised: false`), `field` for the Tax Code box's warning. A hint fits the slip (a letter O for a zero; numbers with no letter); a code is quoted only when plain, its week 1 / month 1 marker a word of its own (`readTaxCode`).
 - `ytdMisfitNote(misfit, code, from?)` — the line under Income Tax when the Year to Date figures do not fit the code (`buildSummaryRows` adds it when given `taxYtdMisfit`, with `ytdFrom` the source payslip's date): both figures — what the code would have taken by that payslip, and the Tax Paid given — and that this payslip's tax is worked out on its own. It replaced a "refund may be due" line the same figures used to produce.
+- **Exports:** `taxCodeNotRecognised` · `fmtHrsMins` · `buildSummaryRows` · `buildLoanLines` · `ytdMisfitNote` · `buildBreakdownRows` · `buildActualCheck` · `buildActualComparison` · `buildProvChips` · `buildBreakBar`
 
 ### `paycalc-form-data.js`
 The per-period form ↔ saved-data ROUND TRIP. These lines produced four money-affecting defects of one shape — a value the form could hold being persisted as something it does not mean — so the round trip is a module with a write → read → write test (`paycalc-form-data.test.mjs`; `.claude/rules/paycalc.md` invariant 2; the header lists the four).
@@ -2006,6 +2192,7 @@ The per-period form ↔ saved-data ROUND TRIP. These lines produced four money-a
 - `pensionToStore(raw, periodDefaultPension)` — THE rule for what a pension field's text is stored as: blank or garbage → null, a typed 0 kept, the period default (±0.005) → null, so the payslip keeps following `PENSION_STEPS`. Shared with `confirmSettings`.
 - `settingFieldsWrite(raw, formNow, fields)` — what a Settings control may write into the viewed payslip's blob: the saved blob with ONLY the named fields replaced, or `null` (write nothing) when nothing is saved or the blob will not parse.
 - `isDataEmpty` — re-exported from `paycalc-format.js`.
+- **Exports:** `isDataEmpty` · `emptyPeriodData` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
 
 ### `paycalc-inputs.js`
 The field readers for `paycalc.html`'s hours and figures, and the live "= 7h 30m" hint. They depend only on `document` and pure helpers, so they test in Node against a fake document (`paycalc-inputs.test.mjs`); the event wiring that uses them stays in the coordinator.
@@ -2016,11 +2203,13 @@ The field readers for `paycalc.html`'s hours and figures, and the live "= 7h 30m
 - `wireIosTap(el, action, { releaseFocus })` — touch-and-click wiring for a control tapped while the soft keyboard is up, where iOS cancels the click: it fires from `touchend`, suppresses a duplicate click within a time window, and treats a moved touch as a scroll (the destructive "Replace with calendar values" row). `releaseFocus` lets go of the field in hand BEFORE acting, because the guard also cancels the tap's focus move — on for the period arrows, the peer stepper, Save settings and the take-home bar; off for the ± sign button. Its JSDoc gives each rule's reason.
 - `commitFocusedField()` — blurs the focused input, textarea or select (never a button), so what it commits on leaving lands now: `releaseFocus`, and the coordinator when the page is hidden (the prior-year Holiday Pay Premium commits only on `change`).
 - `paintTaxCodeWarning({ code, recognised })` — the Tax Code box's warning for a code the engine does not recognise, built on first need and named by the box's `aria-describedby`; held back while the box has focus (every code is briefly unrecognised as it is typed), so the coordinator recalculates on `blur`.
+- **Exports:** `numVal` · `numValOr` · `intVal` · `hoursTextToHM` · `hmPair` · `hhmmDec` · `clampMins` · `_decHintEl` · `decimalHoursText` · `decPreview` · `paintTaxCodeWarning` · `commitFocusedField` · `wireIosTap`
 
 ### `paycalc-backpay-state.js`
 Which FIGURE ends up in which back-pay box, and which of them the member may change — the three decisions every recorded back-pay defect sat in, taken out of `calcBackPay` so they are unit-tested (`paycalc-backpay-state.test.mjs`; the header lists the five defects).
 - `BP_FIELDS` (the saved-state schema, DOM id ↔ blob key) · `readBpFields` / `bpFieldWrites` (the round trip) · `resolveAuthoritativeRates` · `allRatesOnRecord` · `resolvePaidInPeriod` · `blobFitsGrade` (was a saved blob written under the grade now in force — else a box with no record for it is blanked).
 - **Three rules:** `bpFieldWrites` returns an entry for EVERY field, so a blob silent about a field blanks it. The lock never reads a box's contents, and a locked box is WRITTEN with its recorded figure. `resolvePaidInPeriod` never returns 0 while any candidate exists — the order of its ladder is a judgement, and never-zero is the safety property.
+- **Exports:** `BP_FIELDS` · `readBpFields` · `bpFieldWrites` · `resolveAuthoritativeRates` · `blobFitsGrade` · `allRatesOnRecord` · `resolvePaidInPeriod`
 
 ### `paycalc-pension.js`
 WHEN a member was in the pension scheme, not merely WHETHER: a timeline of changes, because a single opt-out flag rewrote the pension on every payslip there has ever been, and auto-enrolment makes a rejoin the expected shape (header; `.claude/rules/paycalc.md` invariant 12). Pure — no DOM, storage or imports. Tested by `paycalc-pension.test.mjs`.
@@ -2028,6 +2217,7 @@ WHEN a member was in the pension scheme, not merely WHETHER: a timeline of chang
 - `withPensionChange(timeline, pNum, out)` — the primitive: a change AT a payslip, collapsing redundant changes and keeping later ones. The card makes two EDITS rather than one boolean written twice: `withOptOutStartAt(timeline, pNum)` MOVES the current spell's start (a spell already ended is left alone), and `withRejoinAt(timeline, pNum)` ENDS it at the payslip on screen (naming the start or earlier erases it, which is undoing a tick). Both are idempotent. `optOutStartsAt(timeline)` — the current spell's start, for the select.
 - `migrateLegacyOptOut(legacyOptedOut, firstPNumOfCurrentTaxYear)` — the old boolean becomes a spell from the current tax year's first payslip; it only ever moves a figure away from a wrongly imposed £0.
 - **Three rules:** an empty timeline means CONTRIBUTING; a payslip before the first change is never affected by it; the parser refuses whole. The consumer is `getPensionDefault(pObj)`, in `paycalc-settings.js`.
+- **Exports:** `parsePensionTimeline` · `serialisePensionTimeline` · `isOptedOutAt` · `withPensionChange` · `withOptOutStartAt` · `withRejoinAt` · `optOutStartsAt` · `migrateLegacyOptOut`
 
 ### `paycalc-inventory.js`
 What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the card's itemised list and the damage preflight all ask, so they cannot disagree (`.claude/rules/paycalc.md` invariant 15). The header has the undercount it replaced and its three rules.
@@ -2036,6 +2226,7 @@ What a stored pay key IS, and what a set of them adds up to — the ONE classifi
 - `inventoryOf(keys, prefix)` → `{ periods, taxYears, groups, unknown, keys }`, with `taxYears` a sorted LIST, because "is my old year in here?" is the question. `inventoryLines(inv)` — the inventory as lines, pure so the wording is tested.
 - `damagedEntries(entries, prefix)` — which STRUCTURED entries will not parse into the object or list their reader expects (`null` or a bare number counts as damaged; only a kind declared `structured` is parsed). It REPORTS rather than refuses, because a backup is often the member's only copy.
 - Tested by `paycalc-inventory.test.mjs`, which scans the source for every `${pcPrefix()}…` builder and asserts each produces a known kind.
+- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines`
 
 ### `paycalc-transfer.js`
 The pay-data BACKUP FORMAT and its import rules. Pay data lives in `localStorage`, which is per origin, so it does not follow a member between the two addresses or to a new phone, and it is kept off the server by decision (header). Every function is pure, because the import decides whether a member's whole pay history is overwritten. The DOM half is `paycalc-transfer-card.js`; the contract is `.claude/rules/paycalc.md` invariant 10.
@@ -2045,15 +2236,18 @@ The pay-data BACKUP FORMAT and its import rules. Pay data lives in `localStorage
 - `validateBackup(text, { currentSlug })` → `{ ok: false, error }` | `{ ok: true, blob, unnamespaced, srcSlug, counts, inventory, damaged }` — the TRUST BOUNDARY, returning a result rather than throwing. It fails closed on identity FIRST (an empty `currentSlug` refuses everything); refuses another member's backup ("sign in as them"; a name the roster does not hold, such as a former one, is told to contact the admin instead), an "ownerless" blob whose keys name an owner (a member's slug, `keyOwnerSlug`, or any key shaped `<name>_<one of our keys>`), a non-string slug, a newer `dataGeneration`, and anything that is not a pay key with a string value; and flags pre-namespacing data `unnamespaced` for the caller to confirm.
 - `rekeyEntries(entries, fromSlug, toSlug)` — re-keys from the recorded slug, never a guessed one. `backupFilename(member, when)` — dated by the device's own calendar when given a `Date`. `restoredLine(counts)` — the line a restore ends on: the payslips it brought back, or, for a backup that held none, that it was restored (never "Restored 0 payslips"). A key quoted in a refusal is the file's own text, so it is capped.
 - `applyRestore({ get, set, del, existing, entries })` → `{ ok, reason?, restored }` — the all-or-nothing REPLACE over a storage with no transactions: the unit of work is the UNION of what is there and what arrives; it writes first, verifies, then deletes the surplus and reads the deletions back. Storage is INJECTED, so a storage that fails on demand tests every path (`paycalc-transfer.test.mjs`). Key SHAPE is guarded by `paycalc-key-parity.test.mjs`.
+- **Exports:** `BACKUP_FORMAT` · `BACKUP_VERSION` · `selectBackupKeys` · `summarise` · `buildBackup` · `validateBackup` · `rekeyEntries` · `restoredLine` · `backupFilename` · `applyRestore`
 
 ### `paycalc-transfer-card.js`
 The DOM half of the "Move Your Pay Data" card: file and clipboard plumbing, and the confirmations before a restore. It owns no rule; every decision is `paycalc-transfer.js`'s. Its header says why the title must not begin "Back up" (it read as back pay) and why the hint must keep leading with "Keep a copy".
 - `initTransferCard()` — a safe no-op without the card. It shows an ITEMISED inventory ("On this device:"), read again whenever the card opens and, while it is open, after any entry elsewhere on the page; wires Download, Copy as text, Restore from a file and Restore from pasted text, and honours a `#payTransferCard` link from Settings through `openCardNamedByHash` (`overlay.js`), which expands the card and holds it at the top while the page lays out.
 - **Every control is disabled when the member cannot be identified, the paste pair included.**
 - **A restore is a REPLACE, never a merge**: `validateBackup` → a confirm if `unnamespaced` → a `danger` confirm naming BOTH sides (what arrives and what it replaces, damaged entries included) → `applyRestore` → reload. A failure part-way says how far it got rather than claiming success.
+- **Exports:** `initTransferCard`
 
 ### `paycalc-help.js`
 `HELP_CONTENT` — the pay calculator's help-panel text, keyed by each `.help-btn`'s `data-help` (`hours`, `settings`, `accuracy`, `hpp`, `backpay`); a tip may carry `<strong>`. Pure data: it imports `TAX_YEARS` and `GRADES` from `paycalc-calc.js` for the rate and London Allowance figures in its tips, so those are never typed.
+- **Exports:** `HELP_CONTENT`
 
 ### `paycalc-migrations.js`
 The pay calculator's storage keys and its one-time data migrations. Every per-member key carries `pcPrefix()`, and device-level flags never do (`.claude/rules/paycalc.md` invariant 3).
@@ -2064,6 +2258,7 @@ The pay calculator's storage keys and its one-time data migrations. Every per-me
 - `PAY_DATA_GENERATION` — what shape the stored VALUES are in, as against `BACKUP_VERSION`, the file. Nothing consumes it yet, deliberately; bump it when a migration changes what a stored value MEANS (header).
 - `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — the one-time migrations, then this member's namespace (its deps are passed in to avoid a cycle). `hasPendingLegacyMigration(name)` / `resolveLegacyMigration(name, 'mine'|'fresh')` — legacy shared data is never claimed silently: the prompt in `paycalc-lightboxes.js` asks, and `myb_pc_ns_migrated` makes it one-shot.
 - `isActualsDev(member)` / `readPayslipActuals()` / `writePayslipActuals(map)` / `clearPayslipActuals()` — the developer-only device-local payslip actuals, never served.
+- **Exports:** `PAY_DATA_GENERATION` · `memberSlug` · `keyOwnerSlug` · `pcPrefix` · `SK` · `setPaycalcNamespace` · `periodKey` · `parseSavedPeriod` · `readSavedPeriod` · `hppEstKey` · `hppActualKey` · `hppIncKey` · `hppModeKey` · `bpKey` · `ytdPayKey` · `ytdSrcKey` · `ytdTaxKey` · `NOTICE_YTD_KEY` · `NOTICE_HPP_KEY` · `isActualsDev` · `readPayslipActuals` · `writePayslipActuals` · `clearPayslipActuals` · `DEVICE_KEYS` · `RETIRED_DEVICE_KEYS` · `hasPendingLegacyMigration` · `resolveLegacyMigration` · `runMigrations`
 
 ### `paycalc-calc.js`
 The pay maths: pure functions and the rate and threshold tables — no DOM, no Firebase, no browser globals. Every rate, allowance and pension figure, and how to add the next award or tax year, is `.claude/rules/paycalc.md` (the next-award steps are also beside `TAX_YEARS`). Covered by `paycalc.test.mjs`, `paycalc-current-year.test.mjs` and, on the owner's checkout, the real-payslip lane (`npm run test:payslip-local`).
@@ -2072,6 +2267,7 @@ The pay maths: pure functions and the rate and threshold tables — no DOM, no F
 - The award step: `awardRatesFor(grade, tyLabel)` · `awardFromForYear(tyLabel)` — the date a year's award was applied, single-sourced from that year's `londonAllowFrom` and never stored on `AWARD_RATES` · `isPreAwardPeriod(p, grade, tyLabel)` — the one shared "paid before its award" predicate · `getRateForPeriod(p, grade, tyLabel, settledRate)` · `getLondonAllowanceForPeriod(p, ty)` · `getPensionForPeriod(grade, payday)`.
 - Periods and joiners: `getTaxYearForOffset(offset)` / `taxYearForPeriod(p)` (the `- 48` anchor and the null fallback in one place) · `getThresholds(yearLabel)` · `calcProRateFactor(startDate, periodStart, periodCutoff)` → 0 to 1 · `proRateDays(…)` → `{ daysEmployed, totalDays }`, counted between wall-clock readings so a period holding the clock change costs nobody a day · `capHours({ effContr, satHrs, bhHrs })` — the Saturday and bank-holiday caps against contracted hours, single-sourced.
 - The engine: `computeGross(i)` · `calcBandedTax(taxable, bands, scale = 1)` (the band walker; `scale` is how cumulative PAYE prices period N) · `readTaxCode(taxCode)` → `{ code, base, marker, nonCumulative, scottish, recognised }` — the ONE reader of a tax code, shared with the Year to Date rules in `paycalc-periods.js` and the printed code in `paycalc-breakdown.js`; a week 1 / month 1 marker as HMRC writes it (W1, M1, X) or as payslips print it (Wk1, Mth1, "Week 1/Month 1", after a slash, in brackets) · `computeTax(sacGross, taxCode, t, { ytdPay, ytdTax, periodN, otherDeductions })` — the Scottish flat-rate codes, the 50% limit for K codes, the cumulative method only with BOTH Year to Date figures, figures that FIT the code (Tax Paid no more than £2 over what the code takes by the payslip they came from; otherwise this payslip on its own, and `ytdMisfit` reported) and bounded by what NI and loans (`otherDeductions`) leave of the pay, rounded DOWN to the penny (HMRC's tax-table routines), and `code`, `recognised`, `refund`, `payLimited` and `ytdMisfit` reported, a refund never netted into take-home · `computeNI(sacGross, ni)` — each band to the penny by reg 12(1)(b) (a halfpenny or less disregarded, read off the third decimal place) · `computeSL(sacGross, plan, slByYear, skip)` (HMRC's method: only the final deduction is floored to £; the caller sums an undergraduate plan and a Postgraduate Loan) · `takeHomePay({ gross, pension, tax, ni, sl })` → `{ afterPension, net }` — the summary's arithmetic, each figure to the penny as `fmt` shows it, so its rows add up to the take-home. Each method is `.claude/rules/paycalc.md` → Payroll rules.
+- **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL`
 
 ### `paycalc-roster-suggestions.js`
 The roster-to-pay suggestion engine: the per-period override cache, the member-narrowed Firestore fetch, and the categorised Saturday / Sunday / bank holiday / BH overtime / RDW / overtime / Boxing Day totals the hint bar pre-fills. No DOM. The payroll rules it applies are `.claude/rules/paycalc.md` (invariants 9 and 11).
@@ -2081,6 +2277,7 @@ The roster-to-pay suggestion engine: the per-period override cache, the member-n
 - `BARE_TRAINING_DAY_MINS` — a pattern's bare Training day on a bank holiday is priced as the contracted day and flagged in `defaulted7h`, so the hint says it is an estimate.
 - `bhsForYear(year)` — the year's bank holidays without 26 Dec (Boxing Day is priced separately at 3×); also used by `paycalc-periods.js`.
 - Test seams: `_setOverridesForTest(map)`, `_addBhDateForTest(year, iso)`, `_removeBhDateForTest(year, iso)`. Tested by `paycalc-roster-suggestions.test.mjs`.
+- **Exports:** `_setOverridesForTest` · `_addBhDateForTest` · `_removeBhDateForTest` · `resetOverrides` · `getOverridesFetchState` · `bhsForYear` · `fetchOverridesForPeriod` · `BARE_TRAINING_DAY_MINS` · `getRosterSuggestion`
 
 ### `firebase-client.js`
 The single Firebase initialisation point: every page imports `db`, `auth` and the SDK calls from here, never from the CDN. The SDK version appears here once, and a bump also moves `FIREBASE_SDK_VERSION` in `service-worker.js` (CLAUDE.md → Change impact). It cannot load in Node, because it imports the SDK from gstatic, so its rules live in the pure modules it imports and the factories it binds.
@@ -2095,6 +2292,7 @@ The single Firebase initialisation point: every page imports `db`, `auth` and th
 - **Admin Functions:** `getSignInStats()` (four integers, no identity) and `getAccountSetupGaps()` (names, grouped by remedy; **`refused` is not "no gaps"** and must never render as one).
 - **Reset queue:** `requestPasswordReset(memberName)` (public, sends no token; a timeout means "may have been sent") · `getResetRequests()` · `clearResetRequest(memberName)` (a gated write).
 - **Error log and counters**, bound from `buildAnalyticsClient` (see `analytics-client.js`): `logClientError`, `getClientErrors`, `resolveClientError`, `recordPageView`, `recordActiveAccount`, `recordOriginUse`, `recordPerfSample`, `getPerfStats`, `getUsageStats`.
+- **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `restoreMemberPersistence` · `setViewerPersistence` · `signInWithEmailAndPassword` · `signInWithCustomToken` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
 
 ### `fetch-timeout.js`
 The bound on every client call to a Cloud Function. The header holds both rules below and the per-endpoint budget table.
@@ -2102,11 +2300,13 @@ The bound on every client call to a Cloud Function. The header holds both rules 
 - `FETCH_TIMEOUT_CODE` / `isFetchTimeout(err)` — our bound fired. `FETCH_ABORTED_CODE` / `isFetchAborted(err)` — the caller cancelled, never our bound; when both fire, the timeout wins. `DEFAULT_FETCH_TIMEOUT_MS` — the budget for a caller that names none.
 - `serverRefusal(err)` → `{ status, reason }` for a `Server responded 4xx: …` error (the body's JSON `error` sentence as the reason), else null. A refusal is an answer, so Operations' Reset shows it and offers no Retry.
 - **A budget sits above the endpoint's own `timeoutSeconds`, never below.** **A timeout on a state-changing call does not mean it did not happen**: write callers say "may still have gone through", never "failed"; reads may say "failed".
+- **Exports:** `FETCH_TIMEOUT_CODE` · `FETCH_ABORTED_CODE` · `DEFAULT_FETCH_TIMEOUT_MS` · `fetchWithTimeout` · `isFetchTimeout` · `isFetchAborted` · `serverRefusal`
 
 ### `error-reporter.js`
 `initErrorReporter()`, the one export: `error` and `unhandledrejection` listeners that write filtered records, one per distinct message per page session, to `clientErrors` through `logClientError`. It never throws and never awaits. It also turns `slow-save.js`'s events into slow-save DIAGNOSTIC entries (only for a save that was slow while the device said it was online, at most three per page), with how much of the wait the app spent in the background (a frozen phone, not the connection) and the sign-in token's timing that tells auth from the connection.
 - **Never call it bare.** Without an auth context the rules refuse every write and the log looks healthy because it is broken. The call shapes are in the module header; the rule is `AUTH_AND_SESSIONS.md` invariant 13.
 - The noise filters and the log's ordering are `client-errors.js`. Records surface on Operations → Error Log.
+- **Exports:** `initErrorReporter`
 
 ### `usage-reporter.js`
 The anonymous usage recorder: it decides WHEN to count and leaves the I/O to `firebase-client.js`. Called once per page beside `initErrorReporter()`; fire-and-forget. The header argues each rule below.
@@ -2115,6 +2315,7 @@ The anonymous usage recorder: it decides WHEN to count and leaves the I/O to `fi
 - **Only a SIGNED-IN admin is excluded.** `selected` (the Calendar's selection) is a dedup key and nothing else: an admin selection records the page view and no account. `signedIn` is always the signed-in name, never the selection.
 - **A load the app reloaded itself for a release records nothing** (`loadFollowedRelease`, shared with `perf-reporter.js` because the marker can be read once).
 - The rolling counts MOVE to the latest active day (`rollingMove`, `usage-stats.js`) rather than freezing.
+- **Exports:** `recordUsage` · `recordOpen`
 
 ### `usage-stats.js`
 Pure date bucketing and aggregation for the usage counters — no DOM, no Firebase. Imported by `analytics-client.js` and `usage-reporter.js`; tested by `usage-stats.test.mjs`.
@@ -2122,6 +2323,7 @@ Pure date bucketing and aggregation for the usage counters — no DOM, no Fireba
 - `shouldCountMonth(lastMonth, now)` — the per-month dedup. `rollingMove(lastMs, now, [windowDays])` → `{ add, remove }` or null: an account-device's one rolling count moves to today and leaves its old day while that is still in the window; null when today already holds it, so at most one write a day.
 - `recentDayKeys(now, [days])` / `sumDailyWindow(daily, now, [days])` — the rolling window and its sum, never below zero · `staleDailyKeys(daily, now, [keepDays])` — buckets to prune: older than the window, or not a day; never a later day, because `now` is a lower bound · `orderPageCounts(counts)` → `[{page, count}]`, busiest first · `ROLLING_WINDOW_DAYS` / `DAILY_RETENTION_DAYS` — the defaults.
 - Per-address counters: `originLabel(hostname)` → `'web'` · `'pages'` · `'fb'` · `'other'` (a stable label, never the hostname: a `.` in a map key is a field path) · `originKey(day, origin, [installed])` / `parseOriginKey(key)` (null for anything unparseable, so a stray key is never counted as a date) · `summariseOrigins(daily, now, [days])` → `[{origin, accounts, installed}]` — an account-device signal, not a headcount · `staleOriginKeys(daily, now, [keepDays])`, by the same rule, which also returns unparseable keys, so a bad writer cannot grow the document for ever.
+- **Exports:** `ROLLING_WINDOW_DAYS` · `DAILY_RETENTION_DAYS` · `monthKey` · `prevMonthKey` · `dayKey` · `shouldCountMonth` · `rollingMove` · `recentDayKeys` · `sumDailyWindow` · `orderPageCounts` · `staleDailyKeys` · `originLabel` · `originKey` · `parseOriginKey` · `summariseOrigins` · `staleOriginKeys`
 
 ### `perf-reporter.js`
 The anonymous page-load latency recorder. Per load it records only what the App Speed card reads — `fcp`, `domReady`, `ready`, `readyUpdate`, `rosterSnapshot`, `loginTotal` — as bucketed counters through `recordPerfSample`, with install mode and connection class. No identity and no raw millisecond value is ever stored. The header argues every rule; `LATENCY.md` records what the retired metrics found.
@@ -2132,6 +2334,7 @@ The anonymous page-load latency recorder. Per load it records only what the App 
 - `markLoginStart()` / `clearLoginStart()` — the sign-in marker in sessionStorage: read once on the destination page, cleared on a failed sign-in or one that leads to no page. `loginTotal` ends at the `ready` mark.
 - `loadFollowedRelease()` — did a release cause this load? Read once and remembered, because `recordUsage` (which skips such a load) reads it before this module does.
 - Tested by `perf-reporter.test.mjs`, which asserts ABSENCE for loads that hide, start hidden, prerender or wait for typing.
+- **Exports:** `markLoginStart` · `clearLoginStart` · `loadFollowedRelease` · `PAGE_READY_MARK` · `markAwaitingInput` · `markMilestone` · `markPageReady` · `recordPageLatency`
 
 ### `perf-stats.js`
 Pure latency maths for the speed pipeline — no DOM, no Firebase, no timing reads. Imported by `analytics-client.js`, `perf-reporter.js` and `operations-speed.js`; tested by `perf-stats.test.mjs`.
@@ -2139,6 +2342,7 @@ Pure latency maths for the speed pipeline — no DOM, no Firebase, no timing rea
 - Summaries: `SPEED_GROUPS` · `summarisePerf(samples, {metric})` · `summarisePerfBy(samples, {page, metric, dimension, minSamples, splitAt})` / `PERF_DIMENSIONS` (no version row crosses `splitAt`) · `perfVerdict(overall, kind?)` (thresholds and wording in its JSDoc) · `THIN_SAMPLE` (below it the verdict is withheld and the percentage still shown) · `shareLabel(part, whole)` / `compactPct(pct, count, total)` (a share never rounds to a lie) · `perfRecordFullness(samples)` (how near the month's record is to a Firestore document limit).
 - Release-bounded reads: `EARLY_ROSTER` / `summariseEarlyRoster` / `EARLY_ROSTER_FROM` / `earlyRosterShareLabel(samples, {page})` · `UPDATE_OPENS` / `summariseUpdateOpens` / `UPDATE_OPENS_FROM` · `CLEAN_TIMINGS_FROM` / `shareMeasuredBefore(samples, from?)`. Each `…_FROM` names the first release whose recorder produced what it reads.
 - **A stored count must be a count**: only a positive whole number under a million is read, because any signed-in session can write the values. **The three percentages always add to 100** (largest remainder).
+- **Exports:** `PERF_BUCKETS` · `bucketDuration` · `perfSampleKey` · `parsePerfSampleKey` · `SPEED_GROUPS` · `summarisePerf` · `PERF_DIMENSIONS` · `summarisePerfBy` · `EARLY_ROSTER` · `summariseEarlyRoster` · `EARLY_ROSTER_FROM` · `shareLabel` · `compactPct` · `earlyRosterShareLabel` · `UPDATE_OPENS` · `UPDATE_OPENS_FROM` · `summariseUpdateOpens` · `CLEAN_TIMINGS_FROM` · `shareMeasuredBefore` · `perfRecordFullness` · `THIN_SAMPLE` · `perfVerdict` · `LOGIN_MAX_MS` · `loginDurationBucket` · `createPerfBatcher`
 
 ### `auth-identity.js`
 Pure account-identity helpers, no imports, unit-testable because `firebase-client.js` (which re-exports the first two) cannot load in Node. Tested by `auth-identity.test.mjs`.
@@ -2148,12 +2352,14 @@ Pure account-identity helpers, no imports, unit-testable because `firebase-clien
 - `isPasswordMigrated(status)` — `passwordSetAt` present and no older than any `resetAt` · `MIN_PASSWORD_LENGTH` / `validateNewPassword(fullName, next, confirm)` — the chosen-password rules, shared by Settings and the forced overlay (`password-force.js`), so one surface cannot accept what the other refuses. `newPasswordProblemField(next, confirm)` — which box a refusal is about, so the caret goes there · `passwordChangeFailure(code, reauthed)` → `{ message, focus, escape? }` — one ladder for a failed change on both surfaces, by cause and then by stage (never "incorrect" once re-authentication succeeded); `escape` marks what no retyping gets past, where the forced change offers its way out.
 - `isCredentialRejection(code)` — a DEFINITIVE credential rejection (the codes are a module-private set), so both password ladders (sign-in in `session.js`, and `reauthenticateWithPassword` in `own-password.js`) try the next candidate only on a real rejection and stop on a transient failure.
 - `sessionPredatesReset(sessionCreatedMs, resetAtMs)` — refuse a SILENT re-sign-in on a session older than the last admin reset; an unknown reset time (`null`) refuses too · `resetAtFromRestDoc(status, body)`, `isRestCredentialRejection(status, body)`, `isRestThrottled(status, body)` — the three readings of the REST answers `probeResetAtMs` gets.
+- **Exports:** `normaliseSurname` · `nameToEmail` · `surnamePassword` · `credentialCandidatesFor` · `isPasswordMigrated` · `MIN_PASSWORD_LENGTH` · `validateNewPassword` · `newPasswordProblemField` · `passwordChangeFailure` · `isCredentialRejection` · `sessionPredatesReset` · `resetAtFromRestDoc` · `isRestThrottled` · `isRestCredentialRejection`
 
 ### `document-url.js`
 Asks the server for a SHORT-LIVED document url and decides what a refusal means. Imports only `fetch-timeout.js`, so the rule is testable in Node (`document-url.test.mjs`); `fetchSignedDocumentUrl` in `firebase-client.js` adds the current user and token.
 - `requestSignedDocumentUrl(kind, getToken, doFetch?)` → `{ url, expiresAt, fileType, storagePath }` or `null`. **It never throws, and `null` is not a failure**: every caller has the permanent `storageUrl`, and a 503, 403, 404, timeout or offline answer all mean "carry on the old way". A 200 with no usable url, or no readable expiry, is `null` too, so `undefined` never reaches `window.open`. `doFetch` is a test seam.
 - `DOCUMENT_URL_ENDPOINT` · `DOCUMENT_URL_TIMEOUT_MS` — short on purpose: the tap already has a working url in hand.
 - Which url opens, and whether the signed one is for the file on screen, is `resolveDocumentOpenUrl` (`storage-utils.js`).
+- **Exports:** `DOCUMENT_URL_ENDPOINT` · `DOCUMENT_URL_TIMEOUT_MS` · `requestSignedDocumentUrl`
 
 ### `functions/cell-day-rules.js`
 What a roster cell MEANS, given the day of the week it sits in. CommonJS, requires nothing; required by `roster-parse-helpers.js`, `roster-prompt.js`, `roster-sunday-repair.js` and `roster-geometry.js`. The import's contract is `.claude/rules/roster-import.md`.
@@ -2161,6 +2367,7 @@ What a roster cell MEANS, given the day of the week it sits in. CommonJS, requir
 - `isNotAvailable(raw)` (`NA`, `N/A`, `N.A.`) · `isNotAvailableSunday(raw)` (`NS`) — the recognisers, matched on the WHOLE cell, so `NAT` and a time are untouched. Both codes are rest days on every day (an owner decision; the header has the history), recorded as `RD` by `normaliseShift`. The Sunday scan repair asks the same recognisers before anything is normalised, so the two cannot disagree about a spelling.
 - `BLANK_CELL_TOKEN` · `LONE_DASHES` · `BLANK_READINGS` · `NOT_AVAILABLE_TOKENS` · `NOT_AVAILABLE_SUNDAY_TOKENS` · `SUNDAY` — the tokens and the day index the predicates read.
 - The blank rule's history stays in `buildSafeEntries`. Tested through the coordinator by `roster-parse-helpers.test.mjs`, and through the whole handler by `index-endpoints.test.mjs`.
+- **Exports:** `BLANK_CELL_TOKEN` · `LONE_DASHES` · `BLANK_READINGS` · `NOT_AVAILABLE_TOKENS` · `NOT_AVAILABLE_SUNDAY_TOKENS` · `SUNDAY` · `isBlankReading` · `isLoneDash` · `isPhysicallyBlank` · `printsNothing` · `isNotAvailable` · `isNotAvailableSunday` · `blankCellMeaning`
 
 ### `storage-utils.js`
 Pure Storage helpers, no imports, tested by `storage-utils.test.mjs` (the open rule's wiring by `calendar-doc-viewer.test.mjs`). `firebase-client.js` re-exports the first two below.
@@ -2169,6 +2376,7 @@ Pure Storage helpers, no imports, tested by `storage-utils.test.mjs` (the open r
 - `officeViewerUrl(storageUrl)` — Microsoft's full-page Office viewer, so a Word document renders instead of downloading · `isDocxUpload(file)` — the upload's file-type test.
 - `sixMonthCutoffISO(now)` — the retention cutoff, clamping a month-end day the target month lacks (31 Aug → 28 Feb), so `pruneOldDocs` never deletes early.
 - `legacyDocPath(collectionName, dateId, fileType?)` — the pre-versioning fixed path, the ONE rule for both places that delete an old object · `versionedDocPath(collectionName, date, uploadId, fileType)` — must stay under the `{collection}/{date}-` prefix the server's Huddle prune sweeps · `uploadMimeType(fileType)` — the explicit upload Content-Type (Android mis-reports a .docx).
+- **Exports:** `isSafeStorageUrl` · `isDocxUpload` · `officeViewerUrl` · `SIGNED_URL_MARGIN_MS` · `resolveDocumentOpenUrl` · `sixMonthCutoffISO` · `legacyDocPath` · `versionedDocPath` · `uploadMimeType`
 
 ### `client-errors.js`
 The pure rules of the client error log — no DOM, no Firebase. `error-reporter.js` uses the capture side, `analytics-client.js` the read side, and `operations-errors.js` uses `isDiagnosticEntry`. Tested by `client-errors.test.mjs` and `error-reporter.test.mjs`.
@@ -2176,6 +2384,7 @@ The pure rules of the client error log — no DOM, no Firebase. `error-reporter.
 - `CLIENT_ERROR_RETENTION_MS` (counted from resolution, not from the error) · `isResolvedErrorExpired(rec, now, [retentionMs])` · `expiredResolvedIds(resolved, now, [retentionMs])`.
 - `orderClientErrors(unresolved, resolved, now, [opts])` — every unresolved record first, newest first, then up to `resolvedLimit` recent resolved ones · `capUnresolvedErrors(fetchedUnresolved, cap)` → `{ shown, truncated }`: fetch `cap + 1`, and `truncated` only when the extra row came back.
 - `DIAGNOSTIC_PREFIX` / `isDiagnosticEntry(e)` — a slow-save diagnostic: listed and resolvable, never counted as an error. The admin's Error Log notification counts them apart, through a CommonJS copy of the prefix in `functions/error-log-notice.js`, pinned to this one by `error-log-notice.test.mjs`.
+- **Exports:** `APP_SCRIPT_ORIGINS` · `shouldReport` · `CLIENT_ERROR_RETENTION_MS` · `isResolvedErrorExpired` · `expiredResolvedIds` · `orderClientErrors` · `DIAGNOSTIC_PREFIX` · `isDiagnosticEntry` · `capUnresolvedErrors`
 
 ### `claim-retry.js`
 The pure write-safety rules — no DOM, no Firebase; the caller injects every dependency. Imported by `firebase-client.js`, the write surfaces (Admin, Settings, Operations, Links, `documents-client.js`, `slow-save.js`), `page-session.js` (`watchIdentityLoss`), `password-force.js` and `sw-register.js` (the background-write count) and, for `isAccessFailure`, the Calendar's fetches and `nav-panel.js`. Each function's JSDoc carries its reasoning. Tested by `claim-retry.test.mjs`.
@@ -2187,6 +2396,7 @@ The pure write-safety rules — no DOM, no Firebase; the caller injects every de
 - `saveFailureMessage(err)` — the Admin save's error line: unconfirmed, refused, or connection.
 - `ownWritesSent(waitForPendingWrites, ms?)` → true once this device's queued writes have reached the server, false when `OWN_WRITES_WAIT_MS` (8 s) passes first; a rejection (the account changed) is passed on. Every checked write asks first (`whenOwnWritesSent`, `firebase-client.js`), because a transaction reads the server and a save made offline is not there yet (v25.95).
 - `watchIdentityLoss({ uid, watch, stillLost, onLost, settleMs? })` — `onLost` once, when NOBODY has been signed in for `settleMs` and `stillLost()` agrees. Another account arriving is never a loss: Firebase shares one account across a browser's tabs. Wired through `guardNamedSession` (`page-session.js`).
+- **Exports:** `isClaimRetryable` · `isAccessFailure` · `runWithClaimRetry` · `SIGNED_OUT_CODE` · `signedOutLine` · `UNCONFIRMED_CODE` · `UNCONFIRMED_LINE` · `hasUnconfirmedWrite` · `_resetUnconfirmedWrites` · `trackBackgroundWrite` · `backgroundWritesInFlight` · `runGatedWrite` · `unconfirmedWriteLine` · `OWN_WRITES_WAIT_MS` · `ownWritesSent` · `saveFailureMessage` · `abandonOnSignOut` · `runWatchedClaimRetry` · `watchIdentityLoss`
 
 ### `page-session.js`
 How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again. The header says what each routine owns and the defects the copies had. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
@@ -2200,6 +2410,7 @@ How a signed-in page leaves a session, and what it does when the session leaves 
 - `reloadIfRestoredForSomeoneElse()` — the first line of every coordinator: reload a back/forward-cache restore, or a page left open in another tab, unless the signed-in member matches both who the page was built for and who was signed in at `pagehide`.
 - `guardNamedSession({ page, pageLabel, member, established, signIn? })` — once `established` settles: a login decision releases this device's push record (`releasePushForEndingHold`, not awaited), clears the session, resets the drawer and signs in; a PENDING one (Firebase's start-up stalled) shows the sign-in over a KEPT session and reloads once this member's identity lands; otherwise `watchIdentityLoss` does the same as a login decision on a later loss. Used by every protected page except the Calendar (PIN) and the Pay Calculator (soft policy).
 - `lateReloadAllowed(now)` / `LATE_RELOAD_GAP_MS` — at most one late-identity reload every two minutes per tab, because on a connection that never answers, the SDK emits the stored user about 30 s into every load.
+- **Exports:** `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `guardNamedSession`
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page, a swipe back asks nothing) and offered on the next load. Imports only `ls.js` and `date-format.js`. The six rules — never applied silently, never across members, it mirrors the unsaved state at the last hide, a day then gone, a draft is work and not a decision, and work a save has since landed is not unsaved — are its header. Written by `keepDraftWhenHidden` (`page-session.js`); used by `admin-app.js` and `links-app.js`. Tested in `page-session.test.mjs`.
@@ -2209,16 +2420,21 @@ A copy of unsaved work, kept on this device for the exits nothing can ask about 
 - `restoreQuestion(savedAt, now)` — the 24-hour question, with "yesterday" when it is.
 - `draftBaseline(raw)` — a Links draft's concurrency baseline read back: anything unusable is UNKNOWN, never "no baseline" (links-design.md invariant 5), so a colleague's save since still asks.
 - `weekRestoredLine(put, left)` — what Admin says after a restore, naming the days left as saved. (What a restored row is compared with is `override-compare.js`'s `keptRecord` / `sameKeptRecord` since v26.08; the `id|type|value` signature that lived here missed a moved leave year, a note and a fresh save.)
+- **Exports:** `DRAFT_PREFIX` · `DRAFT_MAX_AGE_MS` · `draftKey` · `encodeDraft` · `decodeDraft` · `restoreQuestion` · `draftBaseline` · `weekRestoredLine` · `createDraftSlot`
 
 ### `guide-search.js` / `guide-index.js` / `nav-guide-search.js`
 Cross-guide search in the drawer's Reference zone: a member knows a term, not which guide owns it. The three rules are numbered in `guide-search.js`'s header. Contracts: `guide-search.test.mjs` (the rules) and `guide-index-parity.test.mjs` (staleness, marker vocabulary, anchors, the legend rule, wiring).
 - `guide-search.js` (pure, no imports) — `tokeniseText(text)`, the ONE tokeniser (the index generator imports it, so index and query cannot disagree), and `searchGuideIndex(index, query, {limit})` → ranked results: every token must match, the last as a prefix; a title hit outranks a body hit; a section is dropped when a card inside it matched; **`evidence` passes through verbatim**, never merged into a "worst" and never dropped.
 - `guide-index.js` — `GUIDE_INDEX`, GENERATED by `npm run generate:guide-index` (`scripts/generate-guide-index.mjs`, sharing `scripts/guide-index-lib.mjs`); never hand-edit it. One unit per `h2` section with an id and per answer card, carrying the provisional evidence states the page declares through its marker classes; an element marked `data-gs-example` is dropped first (`.claude/rules/guide-pages.md`).
 - `nav-guide-search.js` — `initGuideSearch({ guides })`, lazy-loaded with the index on the box's first focus; `guides` is the drawer's own `NAV_GUIDES`, passed in so the drawer keeps the single declaration. Result rows are ordinary `.nav-panel-link--guide` anchors with `data-open-id`, so the drawer's delegated handler gives them open-counting, `?from=` and the Back handling. Evidence shows as one chip per state (`EVIDENCE_LABELS`). Escape clears a non-empty box first.
+- **Exports of `guide-search.js`:** `tokeniseText` · `searchGuideIndex`
+- **Exports of `guide-index.js`:** `GUIDE_INDEX`
+- **Exports of `nav-guide-search.js`:** `initGuideSearch`
 
 ### `operations-tips.js`
 `CARD_TIPS` — the content of every `?` panel on `operations.html`, one entry per card, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins. Pure data; `operations-app.js` passes it to `initTipsLightbox`.
 - `NEWSLETTER_CARD` — the Newsletter receipt's words, asked of the date just uploaded: `told(iso)` (what the receipt says staff were given — the ☰ menu, or that the issue is too old for it) and `whereToCheck(iso)` (where a sign-out mid-upload is told to look — the menu, or, for an issue too old for it, to upload it again). Both apply `isRecentIssue` (`newsletter-recency.js`, its one import); the Newsletter card's configuration (`operations-doc-uploads.js`) passes them to `doc-upload.js`, which hands them the ISO date. `e2e/operations.spec.js` pins both answers.
+- **Exports:** `NEWSLETTER_CARD` · `CARD_TIPS`
 
 ### `operations-attention.js`
 The "Needs attention" strip on `operations.html`: an index of exceptional card states. Its three refusals are the header — it runs no reads (every count comes from the card that owns it), it does not exist when clean, and it owns no navigation (hash anchors into `DEEP_LINK_CARDS`). Pure half tested by `operations-attention.test.mjs`; the wiring by `e2e/operations.spec.js`.
@@ -2228,11 +2444,13 @@ The "Needs attention" strip on `operations.html`: an index of exceptional card s
 - `createAttentionStrip({ container, onJump })` → `{ report(id, count, {truncated}), withdraw(id), unchecked(id) }`. `report` and `unchecked` THROW on an unknown id; `withdraw` takes a count back to unknown when the card's reload fails; `unchecked` keeps the item and says "couldn’t check" in a neutral colour (`.attn-count--unchecked`), for the reset queue only.
 - `reportLoginAccounts(strip, { setUp, leavers, pinLockout })` · `withdrawLoginAccounts(strip)` — the Staff Login Accounts card's three items (`accountSetup`, `accountLeavers`, `pinLockout` — the staff PIN shut for everyone) from ONE answer of its audit; a `null` PIN count is unknown, so that item is WITHDRAWN, never reported as zero.
 - Fed by the reset-request refresh and the account-setup audit (`operations-app.js`) and the Error Log (`operations-errors.js`), at the moments the card header chips update, so the strip and the chips cannot disagree. A failed card load reports nothing — except the reset queue's, which says "couldn’t check" (owner, 10 Nov 2026: its card stays closed, so an absent item read as nothing outstanding).
+- **Exports:** `ATTENTION_CATALOGUE` · `attentionBadge` · `buildAttentionItems` · `reportLoginAccounts` · `withdrawLoginAccounts` · `createAttentionStrip`
 
 ### `operations-pin-lockout.js`
 The staff PIN's station-wide block on Operations (owner, Nov 2026): a line on Staff Login Accounts and the strip's `pinLockout` count, while a block runs or one began in the last day. **It runs no read**: the fact rides on the audit's answer (`pinLockout`, `getAccountSetupGaps`). Times and counts only. The three states and why ABSENT is unknown: its header.
 - `readLockout(raw, now)` → the lockout, `null` (none) or `undefined` (unknown) · `lockoutWords(lockout, now)` → `{ text, fix }`, London times, named with their day when it is not today · `renderLockoutLine(host, lockout, now)` · `lockoutCount(lockout)` → blocks, `0`, or `null` for unknown · `lockoutChangesAt(lockout, now)` → when the drawn line next changes (the block's end, the day-old cut-off, or London midnight, which turns "at 23:40" into "yesterday at 23:40"), or `null`; `admin-auth.js` redraws then.
 - Wired by `admin-auth.js`. Tested by `operations-pin-lockout.test.mjs` and `admin-auth.test.mjs`.
+- **Exports:** `readLockout` · `lockoutWords` · `lockoutChangesAt` · `renderLockoutLine` · `lockoutCount`
 
 ### `operations-doc-links.js`
 The Document links card on `operations.html` (owner, 12 Nov 2026 — `ARCHITECTURE.md` EXC-007). The server does the work (`functions/doc-link-rotation.js`); this card asks for it in a safe order and reports it honestly. Pure apart from `initDocLinksCard` and the count it keeps: the wording and the request are `operations-doc-links.test.mjs`, the wiring `e2e/operations.spec.js`.
@@ -2241,18 +2459,21 @@ The Document links card on `operations.html` (owner, 12 Nov 2026 — `ARCHITECTU
 - `checkFailure(err)` — a check changes nothing, so it names the refusal or the connection. `runFailure(err)` — "nothing was changed" only for a refusal (a 4xx other than a 408), the endpoint's own 503 carrying `changed: false`, or a request that never left; the platform sends 503s of its own, and a failed fetch may have left, so anything else is unknown, with the safe next step (running it twice is safe). In both, a platform page (a 404 before the function is deployed) is shown as its status, never as the page.
 - `initDocLinksCard({ auth, askToConfirm, fetchFn? })` — Check (a preview) → Replace (behind `askToConfirm`, overlay.js's `confirmDialog`, passed in because overlay.js touches `window` as it loads). Replace stays after a run that failed on a file, or whose answer was lost or unreadable, so the retry is one press away; otherwise it goes, and a file changed mid-run is finished by checking again.
 - `docLinksRequestInFlight()` — true while a check or a run waits for its answer, counted from the token to the answer (v25.92). Operations holds an update's reload on it (`_opsBusy`): a run can take minutes, and its report is the only record of what it did — a check made after a run reads exactly like one made before it.
+- **Exports:** `ROTATE_LINKS_URL` · `docLinksRequestInFlight` · `requestLinkRotation` · `describePreview` · `describeResult` · `checkFailure` · `runFailure` · `initDocLinksCard`
 
 ### `operations-reset.js`
 What Operations → Account status → **Reset** asks, and every sentence it says about the answer (not the reset-request queue). Pure — it imports only `fetch-timeout.js` — so every combination of stages is `operations-reset.test.mjs`, and it is driven on the real page, outcome by outcome, by `e2e/operations.spec.js`; the coordinator keeps the row's button and the re-read after a reset.
 - `LOST_PHONE` · `resetQuestion(name)` — `confirmWithOption`'s options: the question, and an UNTICKED "Their phone is lost or stolen" box whose hint says what ticking it changes. Ticked, the request asks for `lostDevice: true`: no notice (it would land on the lost phone's lock screen), and every push record the member owns deleted (sign-in audit D1/A1).
 - `resetFailure(name, err)` → `{ retry, note }` — a timeout may have landed, so no Retry and no "failed"; a refusal names its reason, no Retry; the endpoint's own 503 or 500 sentence is shown as written (the 500's may say it is not known whether the password changed), beside Retry; markup is never shown as a reason.
 - `resetOutcome(name, result, { lostDevice })` → `{ title, message }` or `null` — built from the stages the answer reports: a sign-out that failed (the password change still ends those sign-ins within the hour, so "reset again to sign them out now"), an account taken back, a lost-phone reset (signed out, notifications off on every device or not, no notice sent — tell them yourself), a ticked box an older server ignored (the step did not run — reset again with the box ticked), and a member no notice reached (`notified: false`, whether or not the sign-out worked). `null` when the row's "Reset ✓" says it all.
+- **Exports:** `LOST_PHONE` · `resetQuestion` · `resetFailure` · `resetOutcome`
 
 ### `operations-al-sheet.js`
 The Annual leave sheet card on `operations.html` — Phases 1 and 2b of the leave uploader (docs/AL_UPLOADER_PLAN.md). A leave file in, the app's own records beside it, every difference on screen, and each person handed to the Save (`operations-al-save.js`). The file is checked by `al-leave-file.js` (a file edited by hand fails its seal), each day is decided by `al-leave-compare.js`, the records and the upload logs are read by `al-leave-save.js`, and every word is `al-leave-words.js`'s; this module reads, wires and draws.
 - `initAlSheetCard({ fileReader?, today? })` — a picked file or pasted text, whichever came last; Check reads the file, waits for `sessionReady`, then reads each recordable member's records WHOLE (`readMemberRecords` — a date window would miss next January's carried days and a Dispatcher's bank holidays) and the year's upload logs (`readUploadLogs`; unread, the card is a check only). **A read served from this device's cache stops the whole check**, because a partial cache would call leave missing that is not; a record this device saved but has not sent is read as its own copy. **The answer on screen is always for the input on screen**: every new input takes the old answer and status away and starts a new generation, a read or check from an older one is dropped, and the file input is let go once its file is taken, so the same file chosen again is read again. After a Save or an Undo the same check runs again with the receipt to show; the answers come across from the review's memory, as they do for Check again, a new copy or the paste box. While one runs every control is locked and the result is inert. Clear asks first while answers are unsaved, and only Clear forgets them. Text only, through `textContent`; a failed read or check logs its code or error name alone. The two options are the browser tests' seams.
 - `alSheetBusy()` — true while a check, a Save or an Undo runs, while an answer is on screen, and while anything the Save would write is unsaved, off the screen included; Operations holds an UPDATE's reload on it. `alSheetUnsaved()` — a tick or a "Swapped — counts" answer not saved, or a Save or an Undo running (a "Rest day — free" answer writes nothing, so it is not unsaved): what a notification tap, a drawer link, the header logo, sign-out and closing the tab ask about (`warnOnUnload`, `askBeforeLeavingByDrawer`, `leaveAfterAsking`, `askBeforeSignOut`). **Nothing is kept**: the file lives in memory while it is shown, and Clear takes it away.
 - Driven by `e2e/operations.spec.js`.
+- **Exports:** `alSheetBusy` · `alSheetUnsaved` · `initAlSheetCard`
 
 ### `operations-al-save.js`
 The Annual leave sheet's Save on Operations — Phase 2b (docs/AL_UPLOADER_PLAN.md §4.7–4.10): the rest-day answers, a confirmation per person, the figures after, the Save button, the receipt and the Undo. WHAT is written is `al-leave-plan.js`'s and sending it `al-leave-save.js`'s. **Nothing is saved for a person nobody confirmed**, one row at a time, never "accept all"; beside each box are the person's figures AFTER the Save, from the same comparison over the records it would leave (`recordsAfter`), and what would still differ in the chips' own words. A rest day is asked in Admin's own words (*Swapped — counts* · *Rest day — free*), never defaulted. A file the plan refuses — a year before last, too old, of unknown age, older than one already saved, or with a log record that could not be read — is a check only.
@@ -2261,9 +2482,11 @@ The Annual leave sheet's Save on Operations — Phase 2b (docs/AL_UPLOADER_PLAN.
 - **The answers outlive any new check** (15 Nov 2026): a memory beyond the review keeps each day's answer for every check that still asks about it — Check again, a new copy, the paste box, a check after a Save or an Undo, a check that failed offline — and a tick for every check whose box says exactly what it said. Only Clear forgets them (`forgetReview()`). `finishPendingLog({ file, comparison, records })` — every Save whose log could not be written, because the read after it or the log itself failed, is recorded by the NEXT check of the same file in this visit, never the one straight after the Save, whose receipt has just said what happened.
 - `alSaveWorking()` · `alSaveUnsaved()` · `forgetReview()`. Nothing is kept on the device: the answers live in memory alone.
 - Driven by `e2e/operations.spec.js`.
+- **Exports:** `alSaveWorking` · `alSaveUnsaved` · `forgetReview` · `finishPendingLog` · `createReview`
 
 ### `operations-doc-uploads.js`
 What the Weekly Retail Circular and Marylebone Newsletter upload cards on `operations.html` are configured with: `initDocumentUploadCards({ currentUser })`. The picker, the checks, the upload, the one-at-a-time lock and every outcome's words are `doc-upload.js`'s. Moved out of `operations-app.js`, which stood at its size cap, to make room for the Annual leave sheet card (14 Nov 2026).
+- **Exports:** `initDocumentUploadCards`
 
 ### `nav-panel.js`
 The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). The three zones and the rules each keeps are the module header and .claude/rules/nav-drawer.md; the reasoning is beside the code. Tested by `nav-panel.test.mjs`. Capped by `coordinator-ratchet.test.mjs`.
@@ -2276,6 +2499,7 @@ The slide-out drawer every app page carries: it injects the overlay and drawer, 
 - **The drawer's two lightboxes** (Coming soon, App Notices) share the drawer's history entry, so they hand-roll `createLightbox`'s promises: a fallback beside `transitionend`, a close that runs ONCE and finishes at once when the panel never faded in (`_finishNavLightboxClose`), a first frame and a 60 ms focus that each ask whether the panel is still open (the drawer's own 60 ms focus asks too), focus back to the burger, and key handlers that stand down under a higher `.lb-overlay` (`_overlayAbove`). App Notices' Tab cycles TWO stops, the ✕ and `#navNoticesList` (it scrolls under a still heading, so the keyboard must reach it — v25.61). `closePanelForNavigation()` closes the drawer without `history.back()` only when a link takes this page elsewhere, where `location.replace` overwrites the drawer's entry; a `./#…` hash on the Calendar, a new-tab click and the "you are here" pill pop the entry instead (`closePanel`), and a pop that lands on the drawer's own entry — a dialog's above it or above App Notices — is not the drawer's.
 - Adding a guide is one `NAV_GUIDES` entry with an `openId`, plus that id in the `firestore.rules` analytics allowlist and in `OPEN_META` (`firestore-contract-parity.test.mjs` checks all three). Adding a live document is one `links` entry in `NAV_INFORMATION`; `comingSoon: true` renders a button that opens `#navComingSoonLightbox`.
 - **The Newsletter's row** is drawn `hidden` unless `newsletterInMenu()` (`newsletter-recency.js`, below) says its latest issue is under six weeks old, and asked again on every open. The drawer never reads for it: the Calendar's check keeps the answer on the device.
+- **Exports:** `archiveNotice` · `isNoticeExpired` · `resetNavPanel` · `initNavPanel`
 
 ### `newsletter-recency.js`
 Whether the ☰ menu offers the Marylebone Newsletter: only while its latest issue is under six weeks old (owner, 14 Nov 2026 — it replaced v26.07's switch). The rule and where the answer comes from are its header. Pure apart from `ls.js`; the read is handed in. Tested by `newsletter-recency.test.mjs` (fixed dates, a clock change, a refused storage); the wiring by `e2e/calendar.spec.js` and `e2e/operations.spec.js`.
@@ -2284,12 +2508,14 @@ Whether the ☰ menu offers the Marylebone Newsletter: only while its latest iss
 - `newsletterInMenu(now?)` — asked by `nav-panel.js` (drawing and every open) and `calendar-lock-cards.js` (the staff PIN line names the Newsletter only while the menu does). A device that has never asked says no.
 - `recordLatestNewsletter(issueDate)` — keep what the server said (a date, or none). `noteNewsletterUploaded(iso)` — an Operations upload from this device (`doc-upload.js` `onUploaded`): kept unless the device already knows a later issue.
 - `checkLatestNewsletter({ ready, canRead, fetchLatest })` — the Calendar's one read per load (`calendar-app.js`, on `calendarAuthReady` and `hasDocumentAccess`, with `getLatestNewsletter`); asks nothing while the documents are shut, and never rejects.
+- **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`
 
 ### `notice-archive.js`
 The App Notices archive's rules: what a seen notice leaves behind, for how long, and when a notice is too old to show. Moved out of `nav-panel.js` (the seam `coordinator-ratchet.test.mjs` named); `nav-panel.js` re-exports the two calls the pages make. Imports only `ls.js`. Tested by `notice-archive.test.mjs`, and through the re-export by `nav-panel.test.mjs`.
 - `archiveNotice({ id, title, section, date, body })` — records a notice in the archive (`myb_app_notices`): deduped by id, the newest 50 kept, entries older than 180 days pruned, a legacy record without `archivedAt` migrated rather than dropped. Call it in `onClose` for a close-only notice and in `onOpen` for one with a link. The pattern is the `/new-notice` skill.
 - `isNoticeExpired(dateStr, days = 28)` — whether a "D Mon YYYY" posting date is older than `days` (the long window is 90), counted from that day's local midnight.
 - `readArchivedNotices()` → the archive, newest first; never throws — unreadable storage or a non-list reads as empty.
+- **Exports:** `isNoticeExpired` · `archiveNotice` · `readArchivedNotices`
 
 ### `notif.js`
 The Web Push module: the client's one copy of the VAPID public key (it must match `functions/index.js`, and a mismatch is silent and permanent — CLAUDE.md → Change impact) and the subscription lifecycle. Imported by `nav-panel.js`, `calendar-notif-prompt.js`, `calendar-lock-cards.js`, `install-prompt.js`, `huddle.js`, `settings-app.js` and `paycalc-transfer-card.js`, and loaded on demand by `session.js` (`releaseDevicePush`). The states are `'on'` · `'off-default'` · `'off-lapsed'` · `'denied'` · `'unsupported'`. Tested by `notif.test.mjs`; the server side and a rotated endpoint are `.claude/rules/notifications.md`.
@@ -2298,6 +2524,7 @@ The Web Push module: the client's one copy of the VAPID public key (it must matc
 - `peekNotifState()` — the same answer, read-only; the drawer bell uses it on every open.
 - `enableNotifications()` / `disableNotifications()` → the new state. A Disable records the choice on the device, so both reads answer `'off-default'` rather than `'off-lapsed'`; `notifOffByChoice()` reads it, and the Settings card reports Off rather than a to-do.
 - `releaseDevicePush(timeoutMs?)` — at sign-out (after `beforeSignOut` agrees, before `onSignOut`) and at the Calendar's hand-over to the staff PIN: delete this device's `pushSubscriptions` record while still signed in, so targeted notices stop following the member onto a shared device. When the delete is refused, or still unconfirmed at the time box, it drops the BROWSER subscription instead, so the next send's 410 removes the record.
+- **Exports:** `notifOffByChoice` · `isIOS` · `notifSupported` · `getNotifState` · `peekNotifState` · `enableNotifications` · `disableNotifications` · `releaseDevicePush`
 
 ### `print-guard.js`
 Can `window.print()` do anything here? In a home-screen web app on iPhone or iPad it silently does nothing (the header has the WebKit reference). Pure and import-free, so the guides and the app pages share one rule. Imported by `about-lightbox.js`, `calendar-app.js` (the `p` key), `links-app.js` and `guide-print.js`. Tested by `print-guard.test.mjs`; the entry points by `e2e/print.spec.js`.
@@ -2305,6 +2532,7 @@ Can `window.print()` do anything here? In a home-screen web app on iPhone or iPa
 - `printOrExplain({ print?, explain })` — the one entry every print control uses: print, or run `explain` and return false.
 - `openInSafari(url?)` — opens the page in a new context, which from a home-screen app is Safari; call it inside a tap. `explainNoPrint(confirmDialog)` — the app pages' dialog, whose confirm is that tap; the dialog is passed in so this module stays import-free.
 - `PRINT_UNAVAILABLE_TEXT`, `OPEN_IN_SAFARI_LABEL` — the one wording, shared by the guides' inline notice and the app's dialog.
+- **Exports:** `PRINT_UNAVAILABLE_TEXT` · `OPEN_IN_SAFARI_LABEL` · `printIsBlocked` · `openInSafari` · `printOrExplain` · `explainNoPrint`
 
 ### `clock-input.js`
 The rules of a TEXT clock box — pure, no imports. Every time box in the app is text rather than `<input type="time">`, because Chromium draws that from the OS format settings (`06:00 AM` beside 24-hour badges); so nothing in the browser validates the value, and these rules do. Imported by `override-utils.js`, `overtime-form.js`, `admin-time-inputs.js`, `admin-roster-upload.js` and `links-app.js`. Tested by `clock-input.test.mjs`.
@@ -2312,6 +2540,7 @@ The rules of a TEXT clock box — pure, no imports. Every time box in the app is
 - `formatClockInput(raw)` — what the box shows after each keystroke: digits only, at most four, the colon after the hour (a phone keypad has none). Three digits become a dropped leading zero only when the first is 3 to 9 (`630` → `06:30`); a four-digit non-time is left for `isClockTime` to refuse.
 - `finaliseClockInput(raw)` — what the box holds once it is LEFT: the keystroke rule plus the one reading it must defer, `240` → `02:40`, which shaped while typing would fill the box before the last 0 of `2400`. Called on `focusout` by `admin-time-inputs.js` and the roster review, and in the Links window editor's commit.
 - The shapers never widen what `isClockTime` admits; it still judges the result.
+- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput`
 
 ### `override-utils.js`
 The pure override rules shared by the Calendar, Team Week View, Admin and the pay engine: priority, the cache reconcile, the write shape, what an override says about the contract, the Other-day grammar and the Sunday rule. No DOM, no Firestore; each export's JSDoc carries its reasoning. Tested by `override-utils.test.mjs`. **At the 900-line threshold** of `coordinator-ratchet.test.mjs`, so extract before adding.
@@ -2323,6 +2552,7 @@ The pure override rules shared by the Calendar, Team Week View, Admin and the pa
 - **Sundays:** `SUNDAY_FORBIDDEN_TYPES` — the one list of types never written to a Sunday (CLAUDE.md → "Sundays are non-contracted" numbers the enforcement layers) · `isForbiddenOnSunday(type)` · `sundaySafeValue(value)` — the roster import's normaliser: leave or an absence becomes `RD`, and an Other day keeps its times as Sunday work · `isBeforeMemberStart(member, date)` — always call it; never inline the comparison.
 - **The review's entry control:** `manualCellValue(type, from, to)` — a type and two real clock times → the parsed-roster value; `other` returns null, because the review composes it through `composeOtherValue`.
 - **Batching:** `chunkByWrites(items, writesFor, { max, keepWithPrevious })` — splits override writes into batches under Firestore's 500-write cap, counting writes rather than items; the range booking keeps a Sunday correction in the batch of the day before it.
+- **Exports:** `nextLeaveYear` · `isRestShift` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
 
 ### `guide-chips.js`
 The "Jump to section" chip bar on four guides — Railcard, Rangers & Rovers, the Staff & Admin Guide and the Pay Calculator Guide. A classic `defer` script, no exports, because CSP forbids inline script and the guides load no modules of their own; one file for all four (it was `railcard-guide.js` and `rangers-guide.js`, identical but for comments). The ⤓ PDF button is `guide-print.js`'s and the ← arrow `guide-back.js`'s. `page-contract-parity.test.mjs` requires every guide to carry a bar and exactly one script driving it, and every chip to lead to an id in `<main>`.
@@ -2332,6 +2562,7 @@ The "Jump to section" chip bar on four guides — Railcard, Rangers & Rovers, th
 - **A link holds the same way:** a `#fragment` opened fresh lights the chip of the section it lands in (`chipFor` — a card's or a sub-heading's section too) from the first paint, through the landing; when the landing ends (`endLanding`) it holds on a tap's terms if its target is on screen. A reload, Back/Forward or a hash changed in place holds nothing.
 - **The sticky offsets** (`adjustScrollOffsets`): after `document.fonts.ready`, the bar's `top` matches the measured header and every id in `<main>` gets a `scrollMarginTop` clearing header and bar; a heading inside a `.guide-header` banner clears with its banner. A `ResizeObserver` on the header AND the bar re-syncs: a bar that wraps (from 641px in a window at least 600px tall, and from 1024px at any height — `guide-shell.css`) gains or loses a row with no change to the header.
 - **Deep-link landing:** until the page has loaded and measured with its fonts, or the reader touches, clicks, wheels or types, each measurement re-scrolls a `#fragment` target left under the sticky stack (`keepLandingClear`); a reload or Back/Forward keeps its restored position.
+- **Exports:** none
 
 ### `fip-guide.js`
 The FIP guide's behaviour — a classic `defer` script, all progressive enhancement: with JS off, every country is visible.
@@ -2340,15 +2571,19 @@ The FIP guide's behaviour — a classic `defer` script, all progressive enhancem
 - **Sticky chip bar and scrollspy**, measured after `document.fonts.ready` and again whenever the header or the bar changes size (a `ResizeObserver` on both, as in `guide-chips.js`), with `guide-chips.js`'s deep-link landing and its hold: the chip a tap or a link chose stays lit until what it put in place moves.
 - **Print:** `expandAllForPrint` / `restoreAfterPrint` open every `<details>` for the print run and put them back (Chromium does not print a closed `<details>`'s body). Both are idempotent, and neither trusts its own event: the prepare also runs in the ⤓ button's capture-phase click and the restore on `visibilitychange`, because iOS sends no `beforeprint` or `afterprint` for AirPrint. It prints what is on screen — a filtered-out card stays hidden — and `describePrintScope(shown)` sets the button's `aria-label` to say which, starting with "PDF", the visible word (WCAG 2.5.3).
 - **Print one country:** each card gets a `⤓ Print <country>` button. Printing one card is a CSS state (`body[data-print-country]` and a marker class), never a DOM edit, so an interrupted print cannot lose a country; the page-wide source banner prints with it only when that card holds the claim the banner names. A refusal from `guide-print.js` (`guide:print-refused`) puts the page back.
+- **Exports:** none
 
 ### `guide-print.js`
 The ⤓ PDF button on every guide, and the FIP guide's per-country buttons — an ES module all five guides load. One delegated bubble-phase `click` listener for `.btn-print` and `.btn-print-country`, routed through `printOrExplain` (`print-guard.js`): it prints, or inserts the `#printUnavailable` notice under the header with an "Open in Safari" button and dispatches `guide:print-refused` so a page that prepared can undo it. It prepares nothing itself; the FIP guide's own handlers run first. No guide may keep a private print handler.
+- **Exports:** none
 
 ### `guide-back.js`
 Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>` when it opens a guide, and this rewrites the arrow's `href` and `aria-label` to match. `from` is resolved through the `DESTINATIONS` allowlist of the app's own pages and never used as a url, so a crafted value cannot make an off-site link; an unknown or absent `from` leaves the authored href alone. The allowlist is hand-kept, and `page-contract-parity.test.mjs` fails when a page is missing from it. The header says why the arrow needs retargeting at all. It measures nothing: every guide has a chip bar, and its sticky stack is measured by `guide-chips.js` or `fip-guide.js`.
+- **Exports:** none
 
 ### `legacy-redirect.js`
 The one script the two legacy guide addresses (`guide.html`, `fip.html` — `REDIRECT_PAGES`) carry: a classic script, no exports, owner decision of 10 Nov 2026. Firebase's 301 keeps a bookmark's `#fragment` and `?query`; the Pages mirror serves no redirects, so there the stub's meta refresh was the redirect and dropped both. This goes to the stub's own `<link rel="canonical">` with both kept, by `location.replace`, so Back does not return to the stub. The meta refresh stays as the no-script fallback; it cannot overtake this (measured on Chromium and WebKit — the header says how). `page-contract-parity.test.mjs` allows a stub this one script, as a classic script after its canonical link, and nothing else; `e2e/guides.spec.js` follows an old address to its country and its back arrow.
+- **Exports:** none
 
 ### `ls.js`
 Safe `localStorage` wrappers — iOS Safari's private mode throws on any access. **Never call `localStorage` directly** in the page coordinators (CLAUDE.md); use these. Tested by `ls-persist.test.mjs`.
@@ -2357,11 +2592,13 @@ Safe `localStorage` wrappers — iOS Safari's private mode throws on any access.
 - `lsAvailable()` — will this browser SAVE? A probe write that reads back, then removed; never cached. A write rather than a read because storage can read and still refuse writes (a full quota), which is when a page renders and keeps nothing. The Pay Calculator asks it before promising "Saved automatically as you type".
 - **The checked writes**, for a caller about to DELETE the source: `lsSetVerified(k, v)` → boolean (writes, then reads the value back) · `lsMove(fromKey, toKey, value?)` → boolean (deletes the source only once the destination is verified) · `lsSetBothVerified(keyA, valueA, keyB, valueB)` → boolean (both keys or neither, and `false` even when the rollback itself fails). **Never delete source data until the destination has been read back** — an audit reproduced permanent loss from migrations that did. They are deliberately not the default: an ordinary preference write does not need the branch.
 - `requestPersistentStorage(keyPrefix)` — once a key under `keyPrefix` exists, asks for this origin's storage to be durable rather than evictable; a grant ends it, and a refusal is asked again once for each lever (running installed, notifications allowed) that has started to hold since — Chrome and Safari never prompt, and Firefox remembers its own answer. The Pay Calculator calls it with `pcPrefix()`. Safari has the API from 17; whether it grants in a tab is unmeasured (KNOWN_LIMITATIONS).
+- **Exports:** `lsGet` · `lsSet` · `lsDel` · `lsSetVerified` · `lsMove` · `lsSetBothVerified` · `lsAvailable` · `lsKeys` · `requestPersistentStorage`
 
 ### `storage-keys.js`
 The one spelling of every storage key read by MORE THAN ONE file, because a one-character typo loses data silently. A key one module uses stays local to it, and the Pay Calculator's namespace is `pcPrefix()` (`paycalc-migrations.js`), never here. `storage-key-parity.test.mjs` holds the shared keys to this file; each key's JSDoc names its writer and its readers.
 - `SELECTED_MEMBER` · `TEAM_VIEW` · `CALENDAR_SNAPSHOT` (the member's stored roster; `clearSession()` deletes it at every sign-out, so a misspelling would leave shifts on a shared device) · `NOTIF_PROMPT_DONE` · `PW_FORCE_PENDING_PREFIX` (the one-shot set-password marker).
 - `SW_UPDATE_RELOAD` — the one sessionStorage key: it describes one tab's journey, so it is read directly in a try/catch, not through `ls.js`. A drifted spelling would conceal itself — `readyUpdate` would never record, which reads as "no release has ever reloaded anybody".
+- **Exports:** `SELECTED_MEMBER` · `TEAM_VIEW` · `CALENDAR_SNAPSHOT` · `NOTIF_PROMPT_DONE` · `PW_FORCE_PENDING_PREFIX` · `SW_UPDATE_RELOAD`
 
 ### `status-text.js`
 The leading glyph on a transient status message (`✓`, `⚠`, `✗`, `↻`), kept out of what a screen reader announces. The header argues the design.
@@ -2370,6 +2607,7 @@ The leading glyph on a transient status message (`✓`, `⚠`, `✗`, `↻`), ke
 - `STATUS_GLYPHS` — the CLOSED vocabulary, longest first, so `⚠️` (U+26A0 U+FE0F) matches before the bare `⚠`.
 - Buttons are out of scope: `✓ Resolve` is an accessible NAME. `status-text.test.mjs` tests the helper; `status-glyph-parity.test.mjs` stops a new status line being written the old way.
 - `speakAfterMount(region, write)` — writes into a live region put on the page in THIS task once the browser has drawn it empty: the next frame, then a task. Filled in the mounting task — on the next line, or in a microtask — a region is CREATED with its words and read by nobody. Skipped when the region has left the page. Used by the Calendar's lock cards (calendar-lock-slot.js, calendar-lock-cards.js, calendar-access.js), the sign-in card's notice and staff-PIN line (login-overlay.js) and paused Overtime's line (`sayStaffPinEndedIn`, staff-pin-ended.js). Its timing is pinned in `status-text.test.mjs`; each caller's moment in `session.test.mjs`, `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js` (`recordFirstFrameText` reads what a region said at its first frame).
+- **Exports:** `STATUS_GLYPHS` · `splitStatusGlyph` · `setStatus` · `speakAfterMount`
 
 ### `paycalc-sticky-total.js`
 The bar that keeps the take-home figure on screen. `initPaycalcStickyTotal()` — safe when the elements are absent.
@@ -2377,6 +2615,7 @@ The bar that keeps the take-home figure on screen. `initPaycalcStickyTotal()` �
 - `stickyBarShows({ inLayoutView, keyboardUp, figure, visual })` — PURE, the whole show/hide decision: the observer's answer with the keyboard down; with it up, whether the £ overlaps the VISUAL viewport (the keys cover the layout viewport without shrinking it, so the observer called a £ behind them "in view").
 - `scrollToClearBar({ field, visual, barHeight })` — PURE: how far to scroll so the focused box sits above the bar pinned over the keys, never pushing its top out of view. Applied once per focus, so a member's own scroll is not fought.
 - Every guard fixes a reported iOS behaviour that headless tests cannot reproduce, which is why each carries its reasoning in the header: no `pagehide` disconnect, pinned above the keyboard rather than hidden behind it, the deferred `focusout` rebase, and a translate that composes with the desktop centring. The bar's tap goes through `wireIosTap`. Tested by `paycalc-sticky-total.test.mjs`, and on a page (with a stand-in visualViewport) by `e2e/paycalc.spec.js`.
+- **Exports:** `stickyBarShows` · `scrollToClearBar` · `initPaycalcStickyTotal`
 
 ### `paycalc-role-card.js`
 What the Pay Calculator says to somebody it will not price, and on its sign-in card. **Words only** — the coordinator still decides who is refused (`gradeForRole`) and hides the calculator.
@@ -2384,12 +2623,14 @@ What the Pay Calculator says to somebody it will not price, and on its sign-in c
 - `paintRoleCard(member, doc?)` — writes those three slots of `#unsupportedGradeBanner`, and hides the whole "What it does" box (`#unsupportedGradeAbout` — heading, sentence and guide link) where there is no explanation. The card wears the sign-in card's panel (shared.css → `.pc-role-card` joins the do-this-first recipe) and its `.login-about` box, so the page's two refusals look like one door.
 - `PAYCALC_SIGN_IN_ABOUT` — the sign-in card's `about` (login-overlay.js): what it does, both grades in full, that the staff PIN does not open it (worded for everyone — this page signs the PIN out on arrival), the guide link and the shared-screen footnote. `PAYCALC_GUIDE_URL` — the guide, which needs no sign-in.
 - Tested by `paycalc-role-card.test.mjs` (the properties of each message) and `e2e/paycalc.spec.js` (each card on the page).
+- **Exports:** `PAYCALC_GUIDE_URL` · `unsupportedRoleCopy` · `paintRoleCard` · `PAYCALC_SIGN_IN_ABOUT`
 
 ### `admin-week-swipe.js`
 The Admin week grid's swipe gesture and week arrows, which share one cooldown so a swipe and a press cannot both commit.
 - `initAdminWeekSwipe({ weekGrid, fieldDate, prevWeekBtn, nextWeekBtn, canNavigate, onWeekCommitted, onSettled, shiftWeek })`.
 - A pointer state machine and a carousel: it decides when a drag is a horizontal swipe (nothing starts until the intent is confirmed), builds the adjacent week panels, animates the commit and holds the cooldown. **It holds no business rule**: what a week change means stays in `admin-app.js` behind `onWeekCommitted` and `onSettled`, and whether the move may happen at all is `canNavigate`.
 - Deliberately not shared with `calendar-swipe.js` (the header says why). Two rules: Pointer Events, never Touch Events (CLAUDE.md), and `setPointerCapture` on the GRID, not the clip (`.claude/rules/admin.md`).
+- **Exports:** `initAdminWeekSwipe`
 
 ### `overtime-review-controller.js`
 The reviewer's side of `overtime.html`: the planning horizon, the week selection, the detail workspace, the grade and day lenses, the creation preview and the confirm bar. Overtime is paused — `docs/OVERTIME_AVAILABILITY.md` → Paused.
@@ -2397,6 +2638,7 @@ The reviewer's side of `overtime.html`: the planning horizon, the week selection
 - **The invariant it owns:** its state agrees about which week is on screen, and with nothing else on the page — generation tickets so only the newest read paints, `selectedWeek` re-checked after every await, a grade lens that survives a week change and a day lens that does not. The header names each one.
 - It renders through `overtime-manager.js` and reads through `overtime-data.js`; session, identity, tabs and the member's form stay with `overtime-app.js`.
 - Tested by `overtime-review-controller.test.mjs`, the only kind of test that can choose which of two in-flight reads resolves last.
+- **Exports:** `createReviewController`
 
 ### `links-design-library.js`
 The Links workspace's design LIBRARY — the import panel, the Recently deleted bin and Keep only the shortlist: managing the collection, apart from editing the open design. Every write goes through the design store, and every rule through its own module (`links-import.js`, `links-deletion.js`, `links-design-naming.js`, `links-shortlist.js`). Tested by `links-design-library.test.mjs`.
@@ -2404,6 +2646,7 @@ The Links workspace's design LIBRARY — the import panel, the Recently deleted 
 - It owns the bin list (read through `binList()`) and the automatic moves in flight (`trackBinMove`): a restore or purge waits for a pending move of the same design.
 - `keepOnlyShortlist()` moves every older design to the bin with the store's `binIfStill`, which asks the rule again inside the transaction; `removeDesigns` then opens the next live design, or the first of the shortlist.
 - Rename, duplicate and delete stay in `links-app.js`: each changes the open design's concurrency baseline or its unsaved state.
+- **Exports:** `createDesignLibrary`
 
 ### `links-design-store.js`
 The link-design collection's persistence lifecycle and its concurrency protocol. Every Firebase handle is injected (`links-app.js` passes `writeWithClaimRetry` as `withClaimRetry` and `whenOwnWritesSent` as `ownWritesSent`), so the interleavings can be forced against a fake Firestore (`links-design-store.test.mjs`).
@@ -2411,22 +2654,26 @@ The link-design collection's persistence lifecycle and its concurrency protocol.
 - `isOfflineFailure(err, isOfflineNow?)` — whether a failure was the absence of a server rather than a server saying no; the one test that admits the unserialised path. The page's own refusals — the unconfirmed-write gate's and a sign-out mid-write — are never offline, whatever the browser says.
 - **The six rules**, argued in the header: 1. a read a write depends on happens INSIDE that write's transaction; 2. no weaker fallback while online — an online failure is reported, and the caller keeps its unsaved state; 3. the baseline advances only to a revision the store verified, else `baselineUnknown` makes the next save ask; 4. a queued offline write is started, not awaited, and never stamps a revision a colleague's online save could also produce; 5. every transaction waits for this device's own queued writes first (`runTx`) — one that has not drained in time fails `unavailable`, so a save, rename or delete queues behind them and a restore, purge or automatic bin is refused. `ownWritesSent` is required: the factory throws without it. 6. a queued create or save says how it ENDED — `settled` resolves `'acked'`, `'held'` (signed out with it queued) or `'failed'`, and never rejects — so `links-app.js` keeps its copy until the server has it (a second tab's queue is memory only).
 - No DOM and no dialogs: a conflict comes back as `{ status: 'conflict', conflict }` and the workspace decides. Not a generic repository — it knows revisions, soft deletion and conflict results because those are Links concepts.
+- **Exports:** `isOfflineFailure` · `createDesignStore`
 
 ### `links-queued-saves.js`
 The Links saves only THIS BROWSER's queue holds until the server answers (v26.03). A second tab's Firestore queue is memory only, so a save queued there died with the page, which had called itself saved; until the answer comes, the copy that save wrote is kept as the unsaved-work draft. Pure — imports only `normalisePatterns` (`links-design.js`) and `normaliseWindow` (`links-window.js`). The seven rules are its header; tested by `links-queued-saves.test.mjs`, end to end in `e2e/links.spec.js`.
 - `createQueuedSaves()` → `{ next, queued(id, seq, written, before), confirmed(id), counts(id, seq?), acked(id), refused(id), get(id), heard(id, how, made), neverMade(id), newest() }` — one entry per design, its latest queued save: `counts` says whether an answer is for that save (a new design, copy or import, with no `seq`, counts only while no save of it waits); `queued` keeps the EARLIEST baseline still unconfirmed; a confirmed or acked save forgets it; a refused one stays, `failed`; `newest()` is what a clean page keeps in the one draft slot; `heard` marks a design whose MAKING the server refused — a new design, copy, import or first save — and the mark outlives a later save's answer until a write is confirmed (rule 7), which `neverMade` asks.
 - `refusedMakeLine(name, open)` — what the page says when the server refused to make a design: open, it is unsaved again and one Save as… away; not open, it has left the list. Never "removed for good": nothing was there to remove.
 - `stillUnsaved(kept, design)` — null when the design now holds exactly what a kept draft holds (canonical patterns and window), else the draft's data whole. `links-app.js` passes it to the draft's offer as `unsaved`.
+- **Exports:** `createQueuedSaves` · `refusedMakeLine` · `stillUnsaved`
 
 ### `upload-commit.js`
 What an AMBIGUOUS Firestore commit means after a document upload: `deadline-exceeded` can arrive after the server committed, and the live document has more than one writer.
 - `resolveUploadCommit({ ourPath, oldPath, livePath, readable })` → `'committed'` (the live path is ours) · `'superseded'` (somebody else's — never overwrite it) · `'retry'` (unchanged, so nothing of ours landed) · `'ambiguous'` (the read failed). **A failed read is not permission to write**: `ambiguous` writes nothing and rolls nothing back, and the upload is reported unconfirmed. An orphaned file costs storage; a live document pointing at a deleted file 404s behind the staff button.
 - `documents-client.js` asks it after an ambiguous commit and after a refused one (`settleRefusal`), and again inside the compare-and-set retry. Tested by `upload-commit.test.mjs`.
+- **Exports:** `resolveUploadCommit`
 
 ### `doc-retention.js`
 The six-month sweep behind Circular and Newsletter uploads — the browser's only destructive operation on shared data. Every Firebase handle is injected, so `doc-retention.test.mjs` replays the races against fakes.
 - `pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject, fs)` — run after each successful upload by `documents-client.js`. Firestore first and Storage only on success, so a partial failure leaves an invisible orphan rather than a dead link.
 - **The clock must be the server's**: the cutoff comes from the just-written document's `uploadedAt`, and with no server time there is no sweep. **Delete only what you read**: each delete re-reads inside a transaction and stands down if the storage path has moved. Its right long-term home is a scheduled Cloud Function.
+- **Exports:** `pruneOldDocs`
 
 ### `analytics-client.js`
 The Firestore I/O behind the admin's two read-outs of the app itself — the client error log and the anonymous usage and speed counters. A factory with every handle injected, so it loads in Node (`analytics-client.test.mjs` runs it against a fake Firestore); `firebase-client.js` builds it once and re-exports each function. It decides nothing: ordering and retention are `client-errors.js`, windows and summaries `usage-stats.js` and `perf-stats.js`, and who counts is `usage-reporter.js`.
@@ -2435,6 +2682,7 @@ The Firestore I/O behind the admin's two read-outs of the app itself — the cli
 - `recordPageView(pageId)` · `recordActiveAccount({ month, day, fromDay })` · `recordOriginUse({ day, origin, installed, countVisit, fromDay, fromPwaDay })` — increment-only counters; a rolling count is MOVED off `fromDay` in the same merged write · `getUsageStats()` — this and last month's page views, the account counts and the per-address counts, pruning stale daily buckets on the way.
 - `recordPerfSample({ page, metric, bucket, mode, conn })` — batched into ONE merged write per open (`createPerfBatcher`), flushed a second after the first sample, then at idle, or at once on `pagehide` or hidden · `getPerfStats()` → `{ thisMonth, lastMonth }`, each `{ month, login, fcp, pages, ready, samples }`, for the App Speed card.
 - **Two properties, in the header:** no identity in a counter, and telemetry never affects the app — every writer swallows its rejection, and every prune is wrapped so it cannot reject the read it rides on (the prunes use `FieldPath`, because a dotted `daily.<date>` path throws synchronously).
+- **Exports:** `buildAnalyticsClient`
 
 ### `own-password.js`
 Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both functions under their old names. The two properties an edit can break are its header.
@@ -2442,11 +2690,13 @@ Re-authenticating with, and changing, the signed-in member's OWN password — th
 - `reauthenticateWithPassword(memberName, typed)` — the sign-in's gated candidate ladder (`credentialCandidatesFor`): the next candidate only on a DEFINITIVE rejection, never behind a transient failure.
 - `changeOwnPassword(memberName, newPassword)` → `{ stamp }` — resolves once the password HAS changed (the half to time); the `passwordSetAt` stamp settles `false` rather than rejecting, and is counted until it lands (`trackBackgroundWrite`).
 - Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
+- **Exports:** `buildPasswordClient`
 
 ### `account-calls.js`
 The browser's side of three ACCOUNT endpoints, moved out of `firebase-client.js` at its size cap: a factory with `auth` injected, as `own-password.js` is, so it makes no import cycle. `firebase-client.js` builds it once and re-exports the three under their old names.
 - `buildAccountCalls({ auth })` → `{ resetMemberPassword, getAccountSetupGaps, requestPasswordReset }`. Each waits longer than its endpoint may run; a WRITE that times out says it may still have happened. `getAccountSetupGaps`' answer carries `pinLockout` — an object, `null` (none) or ABSENT (unknown: an older server, or a record it could not read).
 - Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
+- **Exports:** `buildAccountCalls`
 
 ### `documents-client.js`
 The three date-keyed document collections — Daily Huddle, Weekly Retail Circular, Marylebone Newsletter — and the upload sequence behind them. A factory with every Firebase handle injected, so it loads in Node and its failure orderings can be forced against fakes (`documents-client.test.mjs`); `firebase-client.js` builds it and re-exports each function. It owns the sequence; the decisions are `upload-commit.js` and `doc-retention.js`.
@@ -2454,6 +2704,7 @@ The three date-keyed document collections — Daily Huddle, Weekly Retail Circul
 - `assertFileSignature(file, expectedType)` — the magic-number check; it fails CLOSED on an unreadable or too-short file.
 - **The one invariant: a live document never points at a file that is not there.** So the signature is checked first; the file goes to a VERSIONED path, so the old one stays readable until Firestore commits; the new object is rolled back only on a DEFINITE non-commit; an ambiguous commit is resolved by READING, retried only as a compare-and-set inside `runTransaction` (which writes nothing over a record already naming our path, whatever its link), and left untouched when the read fails. A `permission-denied` is read back too (`settleRefusal`), from the SERVER (`getDocFromServer`, injected by `firebase-client.js`), before it is believed: the rules refuse the SDK's own re-send of the first `setDoc` once Document links has moved the record's link, so a record naming our path is our commit (a success, nothing rolled back), an unreadable one is `upload/unconfirmed`, and anything else lets the refusal stand. The header argues each step, and what the re-send guard still cannot reach.
 - A Circular or Newsletter upload runs the six-month sweep (`pruneOldDocs`) after it commits. `getLatestHuddle()` / `getLatestCircular()` / `getLatestNewsletter()` are one-time reads of the newest by date (the Operations upload receipts ask them) and treat a row with no `storageUrl` as absent. `subscribeToLatestHuddle(onData, onError)` is a live `onSnapshot`; CLAUDE.md says do not replace it with a one-time fetch.
+- **Exports:** `assertFileSignature` · `buildDocumentClient`
 
 ### `firestore.rules`
 The server-side Firestore security rules — the authority on access; what the fields mean is `docs/DATA_MODEL.md`. The header holds the audit table of what each identity gets from each collection: re-read it whenever an identity or capability is added, because every `request.auth != null` silently widens. Deployed by `deploy-rules.yml`. Verify a change with `npm run test:rules` and `firestore-contract-parity.test.mjs`; a field a client starts writing ships rules-first, in its own push (CLAUDE.md → Workflows).
@@ -2493,19 +2744,23 @@ The offline-first service worker. **The caching strategy and the update lifecycl
 - `SAFE_NOTIFICATION_PAGES` — the pages a notification tap may open; a payload's path is re-based onto this install's own scope and its origin is never trusted. A new notifying feature's landing page joins it. It matches `.claude/rules/notifications.md` → Deep link entry for entry; `sw-asset-check.test.mjs` checks both directions.
 - A document cache miss races the network against a cached fallback only when one exists; with nothing cached it waits for the network, and the synthesised offline page names the page asked for and has a Try again button that reloads (keeping a notification's #fragment). Every app page and guide falls back only to itself (the [keyword, page] table); only an unknown page falls back to the Calendar. A held page is served with no network request, and Navigation Preload is turned off on activate. Anything under `docs/` is left to the browser.
 - `pushsubscriptionchange` re-subscribes with the key the old subscription carried, so this file holds no copy of the VAPID key; `notif.js` re-saves the server record.
+- **Exports:** none
 
 ### `roster-cycle-data.js`
 The raw roster cycles — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster` — and `FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS` (v25.97: the fixed patterns on which a bank holiday is a rest day; `fixedRoster[4]`, the placeholder line, is the one), with no logic and no imports. Imported only by `roster-data.js`, which re-exports them; app code reads shifts through `getBaseShift`, never from a pattern directly. A cell is `RD`, `OFF`, `SPARE`, `AL`, `RDW`, `HH:MM-HH:MM` or, Monday to Saturday, a bare Other flavour (`fixedRoster[3]` is Training with no times); `validateRosterPatterns` in `roster-data.js` checks every pattern. **A fixed pattern is SHARED**: editing one member's line edits everyone on it.
+- **Exports:** `weeklyRoster` · `bilingualRoster` · `fixedRoster` · `FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS` · `cesRoster` · `dispatcherRoster`
 
 ### `roster-member-data.js`
 The roster's PEOPLE and nothing else — `teamMembers`, one entry per member, no logic and no imports. Its length tracks headcount, which is why it is not in `roster-data.js` (whose size guard was crossing on hiring rather than on complexity). **Re-exported by `roster-data.js`**, where every consumer reads it, the generator and the classification test included. To add or remove somebody: `/new-starter` and `/leaver`.
 - **It is world-readable**: both origins serve it with no session, PIN or token, so a field added here is published the moment it ships. The classification argument is on `teamMembers` in CLAUDE.md, and `public-data-classification.test.mjs` fails on an unclassified field; anything a stranger should not read belongs in Firestore behind a claim.
 - The field reference is `.claude/rules/roster-data.md` (CLAUDE.md → "teamMembers fields" keeps what every area needs); the comment at the top of the file covers the core fields and `rosterChanges`.
+- **Exports:** `teamMembers`
 
 ### `pay-audience.js`
 WHO the Pay Calculator is for, by the role AT THE TIME (owner, 16 Nov 2026): a CES promoted into management keeps the CES payslips. Pure; its own module so the Calendar asks without loading the Pay Calculator's graph.
 - `payCalculatorPrices(member, { periods?, today? })` — a priced grade today, or on any employed day of the payslips passed. The Pay page passes the payslips it shows; the Calendar's notices (`calendar-notices.js` → `payCalcIsTheirs`) pass none, so only today counts and the page never refuses a member a notice sent. `heldPricedGrade(member, start, end)` · `pricedGradeOn(member, date)`.
 - Each payslip is still refused on its own (`paycalc-grade.js` → `payslipPriced`). Tested by `pay-audience.test.mjs`.
+- **Exports:** `pricedGradeOn` · `heldPricedGrade` · `payCalculatorPrices`
 
 ### `roster-roles.js`
 A member's GRADE ON A DAY. `role` is the grade NOW, and every list reads it as of the release;
@@ -2518,12 +2773,14 @@ member changes grade"). Pure, no imports. Its own file because `roster-data.js` 
   `paycalc-grade-setting.js` asks for them over the payslip on screen (the grade prompt). A grade is not carried on `rosterChanges`: most line moves change no grade, and a member
   promoted on a fixed pattern changes grade without moving line. Tested against the real rows in
   `roster-data.test.mjs` ("A GRADE ON A DAY").
+- **Exports:** `roleOn` · `rolesInRange`
 
 ### `functions/index.js`
 The COMPOSITION ROOT of the Cloud Functions. **Its exports are the deploy surface** — Firebase discovers functions from them — and `functions-surface.test.mjs` pins every deployed name, failing on a drop or an unreviewed addition. It defines the shared infrastructure: the four `defineSecret` params, `VAPID_PUBLIC_KEY` (guarded by `sw-asset-check.test.mjs`; it must match `notif.js`), `STAFF_SITE_URL`, `ADMIN_FUNCTION_ORIGINS`, `readRawBody`, `nowInLondon`, the size caps and the commit-ambiguous code set. It keeps two endpoints and spreads in the rest from `buildDocumentEndpoints`, `buildAuthEndpoints` and `buildOvertimeEndpoints`, passing them that infrastructure so no domain owns a second copy of a guarded literal.
 - `parseRosterPDF` — the admin's roster upload → the parsed week for review; it writes nothing. It stays here because `roster-prompt-parity.test.mjs` reads the PDF prompt from this file. The PDF-grid read (`roster-geometry.js`) is started and awaited, bounded, BEFORE the model call; a usable cell table picks the cell prompt (`roster-prompt.js`); a sheet whose printed week is not the week chosen is answered 409 (`roster-week-heading.js`); the request settings are `MODEL_REQUEST`; and the geometry witness is applied LAST, after every model-side repair. The model call carries one deadline, `PARSE_MODEL_DEADLINE_MS` from the request's arrival. A 4xx refusal other than 408/409/429 is reported as a refusal, not an outage. The response carries `parsed`, `choices`, `missingMembers`, `duplicateMembers`, `geometry` and `geometryRefused`. The pipeline's contract is `.claude/rules/roster-import.md`.
 - `unlockCalendarViewer` — the staff Calendar PIN exchange. Its handler source, secret binding and no-log rule are pinned to this file by `calendar-viewer-parity.test.mjs`; the rules it applies are `functions/calendar-viewer-auth.js`.
 - Both handlers are EXECUTED by `index-endpoints.test.mjs`; `functions-surface.test.mjs` proves only that they exist.
+- **Exports:** `parseRosterPDF` · `unlockCalendarViewer` · and every endpoint `buildDocumentEndpoints`, `buildAuthEndpoints` returns
 
 ### `index-endpoints.test.mjs`
 Drives the two handlers `functions/index.js` keeps — `parseRosterPDF` and `unlockCalendarViewer` — for real: their rules were exemplary while nothing asked whether the handler calls them, in order, and acts on the answer (CLAUDE.md → "The rule tested, the wiring not"). Organised by what a wrong answer costs: every refusal of the roster parser asserts the MODEL WAS NOT ASKED, and the PIN tests cover the uncounted guess, both throttle ceilings, concurrent guesses, a rebuilt tampered viewer account and the minted token's single claim. It also pins `MODEL_REQUEST` through the real SDK against a local server. The fakes enter `require.cache` before `index.js` is required, and every fake RECORDS. Runs in `npm run test:functions`; its header names the mutations it was checked against.
@@ -2536,22 +2793,26 @@ The document-and-notification domain. `buildDocumentEndpoints(deps)` — a facto
 - `onHuddleCreated` (the push for a manual admin upload; it skips `power-automate`, which `ingestHuddle` already notified) · `onCircularCreated` · `onNewsletterCreated` — `onDocumentCreated` triggers, each pushing its document-arrival notice through `buildPushPayload` and `fanOutPush`; each announces only when its document is the LATEST of its kind (`isLatestOfKind`; a failed read still announces).
 - `sendPayReminderNotification` (daily at 08:00 London; on pay-cutoff Saturdays it calls `sendPayReminder`, `functions/pay-reminder.js`) · `sendTimetableReminder` (daily at 18:00 London; sends once, the evening before `TIMETABLE_CHANGE`, landing on `trains.html`) · `sendErrorLogNotification` (every 15 minutes, `maxInstances: 1`; the work is `functions/error-log-notify.js`).
 - `HUDDLE_PUSH_PAUSED`, the Huddle push kill switch, lives here.
+- **Exports:** `buildDocumentEndpoints`
 
 ### `functions/huddle-ingest.js`
 The Daily Huddle upload from Power Automate, server to server. `buildIngestHuddle(deps)` → `ingestHuddle`, built by `documents.js` with the shared infrastructure plus `isLatestOfKind` and `sendHuddlePushNotifications`, which stay there beside `HUDDLE_PUSH_PAUSED`. Tested by `documents-endpoints.test.mjs`, which reloads it with `documents.js` on every build.
 - `ingestHuddle` — Power Automate → Storage and Firestore: timing-safe bearer auth, base64 and file-signature checks, DOCX → HTML through a lazy `mammoth`, and the metadata written in a transaction. A re-run of that transaction after a lost commit answer that finds its own path writes nothing — Document links may have moved the record's link meanwhile — and answers what the committing attempt saw, so a first upload is still announced. When the transaction ends in a retriable error instead, a read of the record decides: one naming this request's path means the commit landed, and the ingest finishes and announces as usual; no record, another path or a failed read is a 500 with the new object left in place. It declares 512 MiB, refuses a date after London's tomorrow, keeps a .docx over `MAX_DOCX_CONVERT_BYTES` as a file, and announces a first upload or the replacement of a HAND upload — only when it is the latest Huddle. It awaits the three-month `pruneOldHuddles` (`functions/huddle-retention.js`) before it responds; a failed prune never fails the upload.
+- **Exports:** `buildIngestHuddle`
 
 ### `functions/pay-reminder.js`
 WHO the pay reminder reaches: CEA and CES members only (owner decision, 10 Nov 2026), because the Pay Calculator prices only the grades `gradeForRole` knows and turns everybody else away. The schedule that decides WHEN stays in `documents.js`.
 - `PAY_REMINDER_GRADES` — the server roster keys addressed (`cea`, `ces`), spelt as `gradeForRole` answers. `documents-endpoints.test.mjs` takes its expected audience from `gradeForRole` itself, so a newly priced grade fails a test rather than silently missing its members.
 - `payReminderMembers(roster)` — the names, from the server-owned `roster-members.json`, never a request; a missing grade list is logged, not guessed.
 - `sendPayReminder({ payday, roster, vapidPrivate, vapidPublic, STAFF_SITE_URL })` — resolves each name to its account uid (refusing the shared PIN account, skipping any failed lookup) and sends through `sendTargetedPush`, which fails closed: no uids, nothing sent — never everyone. Returns the subscriptions that accepted it.
+- **Exports:** `PAY_REMINDER_GRADES` · `payReminderMembers` · `sendPayReminder`
 
 ### `functions/error-log-notify.js`
 The admin's Error Log notification, SENT. Run every 15 minutes by `sendErrorLogNotification` (`documents.js`), which passes the VAPID keys, `STAFF_SITE_URL` and the server-owned roster in. The header says why it is a schedule and not a Firestore trigger: any signed-in member or the PIN viewer can write `clientErrors`, so a trigger would let a flood start a function per write.
 - `notifyAdminOfErrorLog({ vapidPrivate, vapidPublic, STAFF_SITE_URL, roster, now? })` → `{ outcome, accepted? }` — reads `errorLogNotice/state`; the first check SEEDS the line at that moment, so the backlog is never announced; then the entries after the line (`timestamp >`, ordered, at most 101) are counted, and one notice is sent through `sendTargetedPush` to `roster.roles.admin`'s accounts — each resolved by `nameToEmail`, enabled, and carrying the `admin` claim; there is no other audience and no fall-back. Outcomes: `seeded`, `wait`, `nothing new`, `all resolved`, `claimed elsewhere`, `sent`, `unreached`.
 - **The send is claimed in a transaction** that re-asks `noticeDue` and stamps `lastAttemptAt`, so two overlapping runs send once. **The line is the last entry's OWN `Timestamp`**, never rebuilt from milliseconds (Firestore keeps microseconds). **The line moves only when a device took the notice**: an unreached notice is tried again after the hour, counting everything since.
 - Tested by `error-log-notify.test.mjs` against a fake Firestore, Auth and transport that record every call.
+- **Exports:** `notifyAdminOfErrorLog`
 
 ### `functions/error-log-notice.js`
 The RULES of the admin's Error Log notification — no I/O, no Firebase; the sender is `functions/error-log-notify.js`. The header lists the six rules and the owner's request.
@@ -2559,12 +2820,14 @@ The RULES of the admin's Error Log notification — no I/O, no Firebase; the sen
 - `summariseNewEntries(entries)` → `{ errors, slowSaves, more, examined }` — resolved entries are skipped but still examined (the line passes them); slow saves (`isSlowSave`, the `DIAGNOSTIC_PREFIX` the client writes — pinned to `client-errors.js`) are counted apart; `more` past `NOTICE_SCAN_LIMIT` (100).
 - `noticeWords({ errors, slowSaves, more })` → `{ headline, body }` or null — **counts only**: never a name, page, version or message, because a notification renders on a lock screen.
 - Tested by `error-log-notice.test.mjs` (test:hygiene), the words through the real `buildPushPayload`.
+- **Exports:** `DIAGNOSTIC_PREFIX` · `NOTICE_GAP_MS` · `NOTICE_SCAN_LIMIT` · `isSlowSave` · `noticeDue` · `summariseNewEntries` · `noticeWords`
 
 ### `functions/huddle-retention.js`
 How long a Daily Huddle is kept, and what its clean-up may delete. It owns no endpoint; `ingestHuddle` (`huddle-ingest.js`) awaits it at the end of every upload, passing Firestore, the bucket and `nowInLondon` in, so the module requires no Firebase SDK.
 - `pruneOldHuddles(excludeDate, { db, bucket, nowInLondon })` — deletes Huddles older than `HUDDLE_RETENTION_MONTHS` (3), London dates, month-end clamped. **Only what it selected** (v25.89, external review): each document is re-read in a transaction and left alone if a replacement moved its `storagePath`, then only THAT version's object is deleted, by name and only under `huddles/<date>`. The old prefix sweep after the delete took a replacement upload's file and left its document pointing at nothing.
 - `sweepHuddleOrphans(bucket, db, date, nowMs)` — the rest of a pruned date: an object goes only when it is older than `HUDDLE_ORPHAN_MIN_AGE_MS` (a day — no upload in flight is that old) AND the date's document, read after listing, does not name it. An unknown age is kept.
 Tested through the ingest by `documents-endpoints.test.mjs` ("the retention sweep …"), including uploads landing mid-sweep.
+- **Exports:** `pruneOldHuddles` · `sweepHuddleOrphans` · `HUDDLE_RETENTION_MONTHS` · `HUDDLE_ORPHAN_MIN_AGE_MS`
 
 ### `functions/auth-endpoints.js`
 The account-and-credential domain. `buildAuthEndpoints(deps)` — the same factory pattern; the pure decisions it orchestrates live in `roster-parse-helpers.js`, `member-identity.js` and `account-lifecycle.js`, each unit-tested. `unlockCalendarViewer` is deliberately NOT here (`index.js`).
@@ -2574,16 +2837,19 @@ The account-and-credential domain. `buildAuthEndpoints(deps)` — the same facto
 - The two READS below are built by `functions/account-reads.js` and returned with the rest.
 - `getSignInStats` — admin-only: the exact unique sign-in counts from Firebase Auth's `lastSignInTime`, over the server-owned roster; four integers, no identity.
 - `getAccountSetupGaps` — admin-only READ: who has no account (`no-account`), no claim at all (`unstamped` — an account Set up accounts will TAKE BACK), a disabled one (`disabled`) or the wrong claims (`claims`), and which roster-domain account is still enabled for a leaver. **It returns NAMES**, grouped by remedy (`setUp`, `leavers`); `summariseAccountGaps` makes every judgement, including the refusal when no roster account is visible at all. It also carries `pinLockout` (the staff PIN shut for everyone): an object, `null`, or ABSENT when its record could not be read — which costs only the field.
+- **Exports:** `buildAuthEndpoints`
 
 ### `functions/account-reads.js`
 The account domain's two admin READS, SPLIT out of `auth-endpoints.js` (Nov 2026, at its cap): they change nothing. `buildAccountReadEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, now? })` → `{ getSignInStats, getAccountSetupGaps }` (described under `auth-endpoints.js`), built by `buildAuthEndpoints`. The roster is handed in and `firebase-admin/auth` required at call time, so a test's fake is the one asked.
 - `listAllUsers()` — every account, page by page: the loop both reads and the leaver sweep used to write out.
 - Tested through the handlers by `auth-endpoints.test.mjs`.
+- **Exports:** `buildAccountReadEndpoints` · `listAllUsers`
 
 ### `functions/admin-recipients.js`
 WHO a notice for the admin may reach — one rule for the reset-request doorbell, the Error Log notice and the PIN lockout notice (Nov 2026; the doorbell had taken whatever account held the admin's address).
 - `enabledAdminUids(names, logTag)` → uids: each admin name's OWN account, enabled, carrying `admin === true`; anything else is dropped and logged, never replaced, and an empty answer sends nothing.
 - Tested through its three senders (`auth-endpoints.test.mjs`, `error-log-notify.test.mjs`, `pin-lockout.test.mjs`).
+- **Exports:** `enabledAdminUids`
 
 ### `functions/account-lifecycle.js`
 The pure rules Set up accounts and the admin reset apply at the edges of an account's life (sign-in audit, Nov 2026). Requires only `roster-parse-helpers.js`; tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`. `auth-endpoints.js` is the orchestration; the reasoning is the header.
@@ -2591,17 +2857,20 @@ The pure rules Set up accounts and the admin reset apply at the edges of an acco
 - `unwrittenResetAnswer(member, err, { restored })` → `{ status, error }` — 409 (404 for a missing account) and "Nothing was changed" only when refused AND restored; a refusal whose restore failed says the password did not change but the reset is still recorded; an unknown outcome is a 500 that says resetting again is safe.
 - `elevatedClaimsLost(before, after)` / `ELEVATED_CLAIMS` — which of `admin`, `manager`, `linksDesigner` a re-stamp takes away (only `true` counts as held; manager → admin is a rise, not a loss). `setupRosterAuth` revokes such an account's refresh tokens once the new claims are on, so every `checkRevoked` endpoint refuses the old tier at once, and names it in `demoted`.
 - `disabledLeaverUids(users, activeEmails)` — the leaver accounts ALREADY disabled, judged by `computeOrphanLabels` as if enabled, so it is exactly the sweep's own filter (never a current member, never the shared PIN account). Every confirmed sweep releases their push records again: a phone whose token outlived the sweep can save its record anew.
+- **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids`
 
 ### `functions/reset-request.js`
 The public reset-request doorbell, split out of `auth-endpoints.js` whole; its header says why and what stayed behind. `buildResetRequestEndpoint(deps)` — the same factory pattern, called by `buildAuthEndpoints`, which passes the kill switch in as `enabled` (only `true` opens the door).
 - `requestPasswordReset` — one of the two public unauthenticated endpoints (with `unlockCalendarViewer`): records a locked-out member's request (the document id is the member's name, so the collection is bounded by the roster), throttled in a transaction, and tells the admin through `sendTargetedPush`. Every answer to a valid name waits for `RESET_REQUEST_ANSWER_FLOOR_MS` (3 s), so a throttled repeat cannot be told from a recorded request by its timing. One push per burst is decided by a claim taken in a two-attempt transaction; a push that reached nobody is tried once more. The admin push has its own shorter bound (`ADMIN_NOTIFY_SEND_TIMEOUT_MS`), and its `notifiedAt` stamp is an `update()`, which never re-creates a cleared row.
 - Tested through the real handler by `auth-endpoints.test.mjs`; the throttle, the coalescing window and the notice's words are `roster-parse-helpers.js`'s.
+- **Exports:** `buildResetRequestEndpoint`
 
 ### `functions/calendar-viewer-auth.js`
 The PURE server rules behind the staff Calendar PIN — CommonJS, kept apart from `req`/`res` so they are testable (`calendar-viewer-auth.test.mjs`); the uid and claim agreement across the browser, CommonJS and `firestore.rules` is `calendar-viewer-parity.test.mjs`.
 - Exports: `isValidPinShape` · `pinMatches(a, b)` · `sourceKeyFor` / `clientIpOf` · `throttleDecision` / `recordFailure` / `isThrottleStateStale` · `reserveAttempt` / `refundAttempt` · `viewerAccountTamper` / `isViewerAccount` · `viewerClaims()` (the one claim set the minted token carries) · `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` / `GLOBAL_THROTTLE` · the station-wide block, TOLD (owner, Nov 2026): `LOCKOUT_RECORD_KEY` · `LOCKOUT_ALERT_GAP_MS` · `LOCKOUT_RECENT_MS` · `noteGlobalBlock(record, now, blockedUntil)` → `{ next, alert }` (at most one notice a day) · `lockoutSummary(record, now)` (what Operations is shown: times and counts, or null) · `lockoutNoticeWords({ blockedUntil })` (a count and a London time — never the PIN or an address).
 - **The PIN is never learnt, stored, logged or returned** — no "which digit was wrong" and no input echo. **The throttle is sized against a real tension**: 10,000 combinations on one side, the whole station behind one corporate address on the other; read `DEFAULT_THROTTLE`'s comment before changing a number in either direction. The source key comes from the END of `x-forwarded-for`, which a caller can only prepend to.
 - **Every attempt is charged BEFORE its compare**, in the transaction that checks the block (`reserveAttempt`), and a right PIN is refunded afterwards (`refundAttempt`), so concurrent guesses cannot all be compared uncounted; a refund to zero deletes the row, so the store cannot count usage. `viewerAccountTamper` names a shared account somebody linked a way in to (the unlock rebuilds it); `isViewerAccount` keeps Set up accounts and the leaver sweep off it.
+- **Exports:** `CALENDAR_VIEWER_UID` · `PIN_LENGTH` · `DEFAULT_THROTTLE` · `GLOBAL_SOURCE_KEY` · `GLOBAL_THROTTLE` · `isValidPinShape` · `pinMatches` · `sourceKeyFor` · `clientIpOf` · `throttleDecision` · `recordFailure` · `reserveAttempt` · `refundAttempt` · `isThrottleStateStale` · `viewerClaims` · `viewerAccountTamper` · `isViewerAccount` · `LOCKOUT_RECORD_KEY` · `LOCKOUT_ALERT_GAP_MS` · `LOCKOUT_RECENT_MS` · `noteGlobalBlock` · `lockoutSummary` · `lockoutNoticeWords`
 
 ### `functions/pin-lockout.js`
 The PIN throttle store's upkeep, and telling the admin when the station-wide block trips. `unlockCalendarViewer` (index.js) calls it on the FAILURE path only; every rule it asks is `calendar-viewer-auth.js`'s. Nothing here may change the 401: each function is best-effort and never throws.
@@ -2610,18 +2879,21 @@ The PIN throttle store's upkeep, and telling the admin when the station-wide blo
 - `buildPinLockoutNotifier({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_URL, adminNames })` — the notice: `enabledAdminUids` → `sendTargetedPush`, never `fanOutPush`; feature `pinLockout` (🔢), deep link `operations.html#login-accounts`.
 - `readPinLockout(now)` — `lockoutSummary` of the stored record, for `getAccountSetupGaps`.
 - The record is `viewerAttempts/_lockout-record` (`blocks`, `blockedUntil`, `alertedAt`): closed to every client by the collection's existing rule. Tested by `pin-lockout.test.mjs`, and through the handler by `index-endpoints.test.mjs`.
+- **Exports:** `LOCKOUT_NOTICE_BUDGET_MS` · `SWEEP_BUDGET_MS` · `sweepExpiredThrottleRows` · `buildPinLockoutNotifier` · `noteStationBlock` · `readPinLockout`
 
 ### `functions/push.js`
 The web-push TRANSPORT: how a payload reaches a phone, never what it says or when — that is `buildPushPayload` (`functions/push-notices.js`) and `.claude/rules/notifications.md`.
 - `getWebPush()` (the lazy `web-push` require) · `setupWebPush(vapidPrivate, vapidPublic)` (once per instance) · `fanOutPush(payload, logTag)` — every subscribed device · `sendTargetedPush(payload, ownerUids, logTag, { timeoutMs }?)` — named uids only, an optional SHORTER per-send deadline for a caller that must answer quickly · `releasePushForOwner(uid)` — deletes the records one account owns: the leaver sweep's last step, and part of re-enabling a disabled account and of a lost-phone reset (an empty uid touches nothing) · `pushSendOptions(payload, timeoutMs)` / `PUSH_TTL_BY_TAG` — how long a push service may hold each feature's notice; a new feature adds its tag or gets a day.
 - **`sendTargetedPush` fails CLOSED at every step**: no target uids → nothing sent; a record with no `owner` → skipped, never assumed; no matches → log and stop. There is deliberately no fall-back-to-everyone branch, because the notice that needs it is "N. Surname is locked out".
 - Both senders skip any endpoint `isAllowedPushEndpoint` refuses, and delete a record only on a 404 or 410 (`shouldDeleteSubscription`), never on a 401.
+- **Exports:** `getWebPush` · `setupWebPush` · `sendTargetedPush` · `fanOutPush` · `releasePushForOwner` · `pushSendOptions` · `PUSH_TTL_BY_TAG`
 
 ### `functions/push-notices.js`
 The push notification DESIGN LANGUAGE (`.claude/rules/notifications.md`): what every Web Push payload looks like. Moved whole from `roster-parse-helpers.js` when that file reached its size cap; that file re-exports both names, so the older senders are untouched, and a new sender imports from here. Pure: no Firebase, no secrets.
 - `NOTIFICATION_FEATURES` — one row per notifying feature: its emoji (the feature's in-app icon), its stable `tag`, and for some a `defaultHeadline` and a `hashPath` landing. `sw-asset-check.test.mjs` reads the `hashPath`s from this file.
 - `buildPushPayload({ feature, body, baseUrl?, headline?, url? })` → `{ title, body, tag, url }` — the only way a payload is built: it throws on an unknown feature or a missing headline or url, and clips the title to 40 characters (emoji included) and the body to 80, on a word boundary.
 - Tested through the re-export by `roster-parse-helpers.test.mjs`, and by every handler test that sends a push.
+- **Exports:** `NOTIFICATION_FEATURES` · `buildPushPayload`
 
 ### `functions/roster-geometry.js`
 What the roster PDF's OWN GRID says about where each cell is, and the one refusal that follows: the only check in the import the model cannot influence, because the table's rules are DRAWN. CommonJS; the header holds the measurements, the hazards and the pdfjs brief. Tested by `roster-geometry.test.mjs` through the REAL pdfjs, on a PDF the test writes by hand.
@@ -2632,6 +2904,7 @@ What the roster PDF's OWN GRID says about where each cell is, and the one refusa
 - `geometryCoverage(stats, reviewedNames)` → `{ status, checked, total }` — recounted over the rows the admin will see, so an invented name cannot inflate the denominator.
 - `awaitGeometryWithin(promise, ms?)` / `GEOMETRY_WAIT_BUDGET_MS` / `GEOMETRY_WORK_BUDGET_MS` / `settledGeometry` — the bound is on the WAIT, not the work; a timed-out wait fails open, and `settledGeometry` re-asks a `wait-timeout` (and only that) before the witness runs.
 - **`pdfjs-dist` is pinned to 6.5.438** (v25.91): `rulesFromOperatorList` reads the 5.4.394+ path data (`PATH_OP`, codes the library does not export) and skips exactly what a PDF `re` becomes (`isRectangleOp` — a box drawn by hand is still read, unless it is drawn in a `re`'s own corner order), after dropping the close pdfjs writes into a path painted with `s`, `b` or `b*` (v25.94 — kept, it made a rule look like a zero-width `re` and a `re` look like four rules), and a change of encoding makes every document `no-grid` with no error, which only the real-pdfjs tests catch. The adapter asks for `useWasm: false`. `_isClaim`, `_nameTokens` and `_PATH_OP` are test seams.
+- **Exports:** `settledGeometry` · `GEOMETRY_WAIT_BUDGET_MS` · `GEOMETRY_WORK_BUDGET_MS` · `awaitGeometryWithin` · `GRID_COLUMNS` · `rulesFromOperatorList` · `assignRunsToGrid` · `readGridPage` · `extractRosterGeometry` · `matchGeometryRow` · `geometryCoverage` · `applyGeometryWitness` · `_isClaim` · `_nameTokens` · `_PATH_OP`
 
 ### `functions/roster-other-days.js`
 What a roster cell reads as when it names an Other-family day — Training, Induction, Assessment, Team Day, Union course, Meeting (OTHER_DAYS.md). CommonJS, requires nothing; `normaliseShift` asks it before any time is read. A deliberate duplicate of the RECOGNITION side of the client grammar (`_OTHER_RE`, `override-utils.js`), because CommonJS cannot import a browser module.
@@ -2639,18 +2912,21 @@ What a roster cell reads as when it names an Other-family day — Training, Indu
 - `readOtherDayCell(s, workedRange)` → the canonical value, or null when the cell is not a clean Other-family cell: a bare flavour with an RDW marker on either side, or a MEETING with one time range in either order (`meetingWithTimes`). **A meeting is always a meeting** (owner decision); the other five keep the no-times rule.
 - `namesMeeting(s)` — whether a cell names a meeting anywhere; `normaliseShift` sends such a cell to review rather than keep its time and drop the code.
 - Tested by `roster-parse-helpers.test.mjs` (including that its sentinels equal the client's `OTHER_FLAVOURS`), through the handler by `index-endpoints.test.mjs`, and against the prompt by `roster-prompt-parity.test.mjs`.
+- **Exports:** `OTHER_DAY_ALIASES` · `readOtherDayCell` · `meetingWithTimes` · `namesMeeting`
 
 ### `functions/roster-sunday-repair.js`
 Layer 1 of the day-drift defence, the Sunday-anchored repair, and what happens to a Sunday it could not repair. CommonJS; requires `cell-day-rules.js` and `roster-parse-helpers.js`, and only `functions/index.js` requires it. The contract is `.claude/rules/roster-import.md`.
 - `applySundayScanCorrections(entries, sundayScan, hasSundayCol, dates, choices?)` → the DISPUTED members. Case A — the blank Sunday dropped and the row one day left — is right-shifted back only when the Saturday slot holds the blank-Saturday question `buildSafeEntries` writes, and only on a Sunday claim the row read made (a cross-check question there is judged by its pick, and a shifted row takes its picks with it); a Saturday reading `RD` is a printed rest code, so that row is disputed instead. Case B is a stripped RDW marker. A printed `OFF` Sunday is a rest day, never a Case A claim. A disputed row keeps its Sunday claim, because overwriting it with `RD` would erase the one value the geometry witness can refuse.
 - `settleDisputedSundays(entries, disputed, geoStats, dates, sundayScan)` — AFTER the witness: a Sunday it refused is already a question; one the grid shows as occupied keeps the row read only when the scan saw a literally empty cell; anything the witness could not look at becomes `UNKNOWN|…` for review.
 - The wiring is pinned by `index-endpoints.test.mjs`, the rules by `roster-parse-helpers.test.mjs`.
+- **Exports:** `applySundayScanCorrections` · `settleDisputedSundays`
 
 ### `functions/roster-week-heading.js`
 The week the roster SAYS it is for, and the refusal when that is not the week chosen on the upload form: a WHOLE week out, which the day-drift layers cannot see, caught from the PDF's own printed text with no model involved. CommonJS; requires `london-clock.js` only. The contract is `.claude/rules/roster-import.md` (day drift, layer 4).
 - `weekEndingsOnPage(runs)` → `[{ printed, iso }]` — every `Week Ending: DD/MM/YYYY` one page's text runs carry, the label and the date joined when they are two runs on one line (the measured layout); `iso` is null unless the date is a real Saturday. Only that form is read, so the footer's `Print Date:` is never taken for the week. `extractRosterGeometry` gathers these from every page with text, grid or not.
 - `checkSheetWeek(geometry, weekEnding)` → `{ status: 'match'|'mismatch'|'unread', note, message?, sheetWeek? }`. A heading naming another Saturday is a `mismatch`, with a message naming both weeks; `parseRosterPDF` answers it 409 before the model is called, or once the grid read settles when its early wait gave up. No usable heading is `unread`: the read goes on and the `note` is logged. Never a guess either way.
 - Tested by `roster-geometry.test.mjs` (synthetic runs, and a synthetic PDF through the real pdfjs) and, through the handler, `index-endpoints.test.mjs`.
+- **Exports:** `weekEndingsOnPage` · `checkSheetWeek`
 
 ### `functions/roster-prompt.js`
 The two roster-parse prompts, the ONE vocabulary they share, and how the model is asked. CommonJS; the header holds the phase-2 argument and its measurements. Tested by `roster-cell-read.test.mjs` (`test:functions`) and `roster-prompt-parity.test.mjs` (hygiene).
@@ -2660,6 +2936,7 @@ The two roster-parse prompts, the ONE vocabulary they share, and how the model i
 - `repeatedMembers(parsedMembers, names)` → the members of `names`, in its order, that the model listed more than once. It is asked of `memberRows`, so these are exactly the names `buildSafeEntries` skipped a row for. `parseRosterPDF` passes `relevantNames`, the list `missingMembers` is judged against, and sends the answer as `duplicateMembers`. Tested through the handler by `index-endpoints.test.mjs`.
 - `MODEL_REQUEST` — the frozen request settings: the model, thinking as far off as the model allows, the effort and `max_tokens`. Its JSDoc says why each is set, and `index-endpoints.test.mjs` pins them through the real handler and SDK, because no stub raises the model's 400. `DECLINED_ERROR` — what the admin reads when the model declines; a decline is not an unreadable answer, and a retry cannot change it.
 - `DAY_LABELS` — the day names the table and its review messages use. Wired in `functions/index.js`, where `cellTable.usable` picks the prompt.
+- **Exports:** `DAY_LABELS` · `SHIFT_VOCABULARY` · `buildCellTable` · `renderCellTable` · `buildCellPrompt` · `reviewBlankReadsOfFilledCells` · `reviewRestReadsOfEmptyCells` · `repeatedMembers` · `MODEL_REQUEST` · `DECLINED_ERROR`
 
 ### `functions/roster-parse-helpers.js`
 Pure helpers for the Functions — no Firebase, no HTTP, no secrets — required across `functions/`. **Its `module.exports` block is the list**; the families are below. Tested by `roster-parse-helpers.test.mjs`. Read `.claude/rules/roster-import.md` before changing a parse helper.
@@ -2668,12 +2945,14 @@ Pure helpers for the Functions — no Firebase, no HTTP, no secrets — required
 - **Credentials:** `nameToEmail(fullName)` / `nameToPassword(fullName)` — the CommonJS twins of `auth-identity.js`, both built on `surnameCore(fullName)`, this side's one copy of the surname rule (`surname-parity.test.mjs`).
 - **Push:** `NOTIFICATION_FEATURES` / `buildPushPayload(...)` — RE-EXPORTED from `functions/push-notices.js`, where they live, so the older senders' imports stand · `shouldDeleteSubscription(statusCode)` (410 or 404 only) · `isAllowedPushEndpoint(endpoint)` / `PUSH_SERVICE_HOSTS` — HTTPS, default port, no credentials, a known push-service host; anything else is skipped, never deleted, so a new browser's push service must be added here · `buildResetRequestNotice(member, pending)`.
 - **Accounts:** `parseSetupActionFlags`, `resolveRosterAuthConfig`, `claimsForTier`, `computeOrphanLabels`, `summariseAccountGaps`, `shouldRecordResetRequest`, `shouldNotifyAdmin`, `summariseSignIns` — the decisions `auth-endpoints.js` orchestrates.
+- **Exports:** `shouldDeleteSubscription` · `isAllowedPushEndpoint` · `PUSH_SERVICE_HOSTS` · `normaliseShift` · `fileSignatureMatches` · `buildWeekDates` · `extractAIJson` · `HEADER_TO_INDEX` · `headerToDayIndex` · `mapColumnHeadersToDates` · `memberRows` · `buildSafeEntries` · `BLANK_CELL_TOKEN` · `isPhysicallyBlank` · `applyColumnScanCrossCheck` · `normaliseScanValue` · `reviewLabel` · `parseStrictIsoDate` · `isPayCutoffDay` · `nameToEmail` · `nameToPassword` · `surnameCore` · `NOTIFICATION_FEATURES` · `buildPushPayload` · `parseSetupActionFlags` · `resolveRosterAuthConfig` · `claimsForTier` · `computeOrphanLabels` · `summariseAccountGaps` · `shouldRecordResetRequest` · `buildResetRequestNotice` · `shouldNotifyAdmin` · `summariseSignIns`
 
 ### `calendar-notif-prompt.js`
 The Calendar's one-off notification prompt strip (`#notifPrompt`) and the silent subscription renewal for a device that already granted permission. The auth promise and the access-type reader are injected. Tested by `calendar-notif-prompt.test.mjs`.
 - `initNotifPrompt({ authReady, getAccessType })` — permission granted → renew through `getNotifState()` and show nothing; never asked → show the strip once per device (`NOTIF_PROMPT_DONE`); denied → nothing. Both halves run for `named` access only and **never for the shared PIN viewer**, whose uid is the same on every office PC, so a renewal there would re-stamp a real member's subscription `owner`. It is gated on auth, not access, because re-subscribing is a Firestore write.
 - Two orderings the header pins: `notifSupported()` before any read of `Notification.permission` (a plain iOS Safari tab has no `Notification`), and `requestPermission()` inside the tap before any `await` (WebKit refuses a request with no gesture).
 - Wired by `calendar-app.js` before `initInstallPrompt`, which hides this strip when it shows its own; neither shows once the install notice has taken the visit (`installNoticeHasTheVisit`).
+- **Exports:** `initNotifPrompt`
 
 ### `install-prompt.js`
 The one-off "add the roster to your home screen" strip on the Calendar. It shares the notification prompt's markup and slot so the two can never appear together, and install outranks notifications because on iOS `notifSupported()` is false until the app is installed. The header carries the argument, and the limit it deliberately does not rescue. Tested by `install-route.test.mjs`.
@@ -2682,12 +2961,14 @@ The one-off "add the roster to your home screen" strip on the Calendar. It share
 - **Three populations are never asked**: the shared PIN viewer (a station, not a person), anyone already in the installed app, and anyone on the Pages mirror — an offer there would create new installs on the address the app is leaving.
 - **Mobile-only is a BEHAVIOUR, not a layout**: the width test runs before the event is captured, because `preventDefault()` suppresses Chrome's own promotion. The breakpoint is read from `--prompt-available` in `index.css`.
 - **The install NOTICE** (`calendar-notices.js`) asks through it: `installRoute()` → null (a fine pointer, or the installed app) or `{ how: 'prompt'|'ios'|'menu', mirror }` (a touch screen is `(pointer: coarse)`, and `how` is never `'prompt'` on the mirror) · `promptInstall()` — spends the ONE held offer; call it first in a click handler · `yieldToInstallNotice()` — the strip and the notification ask leave the screen for the visit, unflagged · `releaseInstallNoticeYield()` — the notice was refused at its moment (another overlay open, or the audience ruled out), so whatever yielded comes back, and a strip held back while yielded is shown · `installNoticeHasTheVisit()` — whether that has happened, which both strips check before showing · `retireInstallStrip()` — the member answered the notice, so the strip does not ask again.
+- **Exports:** `installRoute` · `promptInstall` · `yieldToInstallNotice` · `releaseInstallNoticeYield` · `retireInstallStrip` · `installNoticeHasTheVisit` · `initInstallPrompt`
 
 ### `text-scale.js`
 How much larger than the stylesheet's sizes the phone actually draws its text, and the two-tier stamp the Calendar's control rows key on. Android's font and display scaling enlarges text and leaves the viewport alone, so no width query can reach the state where five buttons stop fitting — and the owner did not want two rows. Tested by `text-scale.test.mjs`; the probe itself in `e2e/calendar.spec.js`.
 - `LARGE_FROM` / `LARGE_VALUE` · `COMPACT_FROM` / `COMPACT_VALUE` · `tierFor(scale)` → null · `'large'` · `'compact'` · `measureTextScale(doc)` · `applyTextScale(doc)` (stamps `data-text-scale` on `<html>`).
 - **The probe IS the measurement**: a hidden 16px element's rendered height is the scale, whatever the OS calls the setting. **It cannot throw** — `calendar-app.js` calls it at module scope, and every fallback returns a value that is never `'compact'`.
 - `'large'` tightens the month heading row; `'compact'` tightens the action row as well. **Compact is the step BEFORE the wrap, never instead of it.**
+- **Exports:** `LARGE_FROM` · `COMPACT_FROM` · `LARGE_VALUE` · `COMPACT_VALUE` · `tierFor` · `measureTextScale` · `applyTextScale`
 
 ### `calendar-doc-access.js`
 May this Calendar read the documents? The Daily Huddle, Weekly Retail Circular and Marylebone Newsletter are visible only with the staff PIN or a password (an owner decision — CLAUDE.md). `firestore.rules` enforces that on the server; this makes the client honour it, because a read the local cache can answer never consults the rules. It keeps no answer of its own and cannot change the one there is: it imports the read and the listen from `calendar-access-state.js`, and nothing else. Tested by `calendar-doc-access.test.mjs`.
@@ -2695,6 +2976,7 @@ May this Calendar read the documents? The Daily Huddle, Weekly Retail Circular a
 - Opens and shuts with the roster reads, by construction: a grant (`calendar-access.js`) and every way of losing access write the one state. A deliberate Lock reloads, so the default applies.
 - **Subscribers, not just a flag**: the Huddle viewer's live subscription has to START when access arrives (a notification tap that met the PIN card opens the Huddle once the PIN is in), and a Circular tap made while locked is finished on unlock.
 - Consumers: `calendar-huddle-viewer.js` and `calendar-doc-viewer.js` (`docAccess`), and `nav-panel.js` (`canReadDocuments`, which refuses before the blank tab opens). Every other page keeps the default, which is always open.
+- **Exports:** `hasDocumentAccess` · `onDocumentAccess` · `documentAccess` · `_clearDocumentSubscribersForTests`
 
 ### `calendar-access-state.js`
 Is Calendar access held right now? The ONE copy. `calendar-access.js` writes it (`grant`, `handleAccessLost`), and the roster gate shuts it where a read is refused because access has gone; the roster gate (`calendar-overrides.js`) and the document gate (`calendar-doc-access.js`) read it, so no route that loses access can shut one and leave the other. No imports. Tested by `calendar-access-state.test.mjs`.
@@ -2702,6 +2984,7 @@ Is Calendar access held right now? The ONE copy. `calendar-access.js` writes it 
 - **Three properties:** shut as loaded; only a literal `true` opens; written BEFORE anyone is told, so no listener reads through a gate in the old position and listeners need no order among themselves.
 - **Every `true` is a grant**, even over a Calendar already open: the roster reads start afresh on every grant, the documents are told only when the answer changes.
 - **A new thing that must follow access reads or listens here.** It does not get a copy, and no gate gets a writer of its own: a second name reads as a narrower act than it is ("shut the documents" would lock the whole Calendar). `calendar-access-state.test.mjs` counts every call of the write as written — one grant and one shut in the access layer, one shut in the roster gate, none anywhere else.
+- **Exports:** `hasCalendarAccess` · `grantNumber` · `setCalendarAccess` · `onCalendarAccess`
 
 ### `calendar-redraw.js`
 When may the Calendar page draw, and what does its next draw owe? One scheduler, created once by `calendar-app.js`, which hands it the swipe's answer, the surface on screen and the two draws. It decides when and on which surface; it draws nothing. No imports; the clock is handed in. Tested by `calendar-redraw.test.mjs` and the `redraw:` tests in `e2e/calendar.spec.js`.
@@ -2710,6 +2993,7 @@ When may the Calendar page draw, and what does its next draw owe? One scheduler,
 - **Four rules:** never while a gesture is live (v16.23); ONE wait, and what is owed is settled together — a held repaint and a held change of name are one draw; the surface is asked when the work runs, so nothing is painted into Team View (v16.21) and the name is still saved; nothing is repainted before the workspace exists.
 - **The focus debt:** a draw that replaces a focused day cell gives the new grid's anchor the focus, and a panel with no day cells owes it to the grid that follows — while focus is still nowhere.
 - **A new thing that must wait for the gesture joins the one wait.** It does not get a timer of its own; `calendar-redraw.test.mjs` fails when `calendar-app.js` asks whether a gesture is live anywhere but the hand-over.
+- **Exports:** `GESTURE_POLL_MS` · `START_STAGES` · `createRedrawScheduler`
 
 ---
 
