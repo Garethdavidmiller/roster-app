@@ -143,6 +143,9 @@ export const ALIGNMENT_BLOCK_THRESHOLD = 3;
  * the WHOLE read untrustworthy, including the rows that happen to look fine — the rows that agree
  * with the base roster are exactly the rows a shift would leave looking unremarkable.
  *
+ * It fails OPEN on absent evidence: no `parsed` rows and no `geometryRefused` list give a clear
+ * verdict, never a block — `geometryCopy` is what tells the admin a witness did not run.
+ *
  * @param {{parsed: {memberName: string, shifts: Record<string,string>}[], dates: string[], geometryRefused?: string[]}} parsedResult
  * @returns {{ byMember: Map<string, Drift>, blocked: boolean,
  *             direction: 'left'|'right'|null, suspects: string[], geometryRefused: string[] }}
