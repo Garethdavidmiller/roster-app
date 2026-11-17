@@ -269,36 +269,66 @@ test('every railcard/fip register row is referenced by at least one guide block 
 // value gets a parity guard; this one is user-facing accuracy, so it earns one more than most.
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// EACH CARD IS BOUNDED BY THE NEXT CARD (whole-app review, 10 Nov 2026). This read
+// EACH CARD IS BOUNDED BY ITS OWN ELEMENT (whole-app review, 10 Nov 2026, and again since). This read
 // `data-guide-source="…" … </details>` lazily, which is right for a <details> card and wrong for the
 // two not-FIP <div> cards: Sweden's match ran on to the next </details> and swallowed Finland and the
 // North Sea ferry, so neither of their dates was ever compared (a stale Finland date passed,
-// measured). Every country and ferry card — <details> or <div> — now runs to the next card or
-// section heading, whichever comes first.
-test('every rendered "Checked <Mon> <Year>" matches its register row Reviewed date', () => {
-    const reviewedOf = new Map(rows.map(r => [r.ID, r.Reviewed]));
-    const html = readFileSync(new URL('./fip-guide.html', import.meta.url), 'utf8');
-    const opens = [...html.matchAll(/<(?:details|div)\b([^>]*\bid="(?:country|ferry)-[^"]+"[^>]*)>/g)];
-    let checked = 0;
-    opens.forEach((m, i) => {
-        const start = m.index ?? 0;
-        const nextCard = i + 1 < opens.length ? (opens[i + 1].index ?? html.length) : html.length;
-        const nextHead = html.indexOf('<h2', start);
-        const card = html.slice(start, Math.min(nextCard, nextHead === -1 ? html.length : nextHead));
-        const src = m[1].match(/data-guide-source="([^"]+)"/);
-        const dm = card.match(/Checked\s+([A-Z][a-z]{2})\s+(\d{4})/);
-        if (!src || !dm) return;          // presence is the next test's job
-        const id = src[1].trim().split(/\s+/)[0];
-        const mi = MONTHS.indexOf(dm[1]);
-        assert.ok(mi >= 0, `fip-guide.html: "${dm[1]}" is not a recognised month abbreviation`);
-        const shown = `${dm[2]}-${String(mi + 1).padStart(2, '0')}`;
-        assert.equal(shown, reviewedOf.get(id),
-            `fip-guide.html: the card for "${id}" shows "Checked ${dm[1]} ${dm[2]}" (${shown}) but its ` +
-            `register row says Reviewed ${reviewedOf.get(id)} — a freshness date staff rely on must ` +
-            `never be older or newer than the review that backs it`);
-        checked++;
+// measured). A date now belongs to the nearest cited block that is still OPEN where the date sits.
+//
+// EVERY ROW, AND EVERY GUIDE (whole-app check, Nov 2026). It compared the FIRST row a card cites, and
+// the FIP guide alone — so the Railcard guide's Family & Friends and HM Forces cards said "Checked · Aug
+// 2026" over a row last reviewed in July, and nothing could see it. A block citing several rows is no
+// fresher than the least recently reviewed of them: its date is the OLDEST, since a newer one claims a
+// review for a row nobody re-read. A claim nested in a block keeps its own date, as it keeps its own
+// state (guide-pages.md → "Evidence is per CLAIM"), so only the block's own rows count.
+/**
+ * Every "checked <Mon> <Year>" a guide renders, with the register ids of the block it belongs to.
+ * @param {string} file
+ * @returns {{ line: number, month: string, year: string, ids: string[] }[]}
+ */
+function renderedCheckedDates(file) {
+    const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8')
+        .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '));   // comments are not rendered
+    const blocks = [...html.matchAll(/<([a-z]+)\b[^>]*\bdata-guide-source="([^"]+)"[^>]*>/g)];
+    /** Is the block that `b` opens still open at `at`? Counted by its own tag name. */
+    const openAt = (/** @type {RegExpMatchArray} */ b, /** @type {number} */ at) => {
+        const tags = new RegExp(`<(/?)${b[1]}\\b[^>]*>`, 'g');
+        tags.lastIndex = (b.index ?? 0) + b[0].length;
+        let depth = 1;
+        for (let t = tags.exec(html); t && t.index < at; t = tags.exec(html)) {
+            depth += t[1] ? -1 : 1;
+            if (depth === 0) return false;
+        }
+        return true;
+    };
+    return [...html.matchAll(/\b[Cc]hecked(?:&nbsp;|\s)+(?:·(?:&nbsp;|\s)+)?([A-Z][a-z]{2})(?:&nbsp;|\s)+(\d{4})\b/g)].map((m) => {
+        const at = m.index ?? 0;
+        const block = blocks.filter(b => (b.index ?? 0) < at && openAt(b, at)).at(-1);
+        return { line: html.slice(0, at).split('\n').length, month: m[1], year: m[2], ids: block ? block[2].trim().split(/\s+/) : [] };
     });
-    assert.ok(checked >= 30, `expected every FIP country and ferry card to show a date, found ${checked}`);
+}
+
+test('every rendered "checked" date is the oldest Reviewed date of the rows its block cites', () => {
+    const reviewedOf = new Map(rows.map(r => [r.ID, r.Reviewed]));
+    const MIN = { 'fip-guide.html': 30, 'railcard-guide.html': 10, 'rangers-guide.html': 10 };
+    for (const [file, min] of Object.entries(MIN)) {
+        const dates = renderedCheckedDates(file);
+        assert.ok(dates.length >= min, `${file}: found ${dates.length} rendered "checked" dates, expected at least ${min} — the scan is wrong`);
+        for (const d of dates) {
+            assert.ok(d.ids.length, `${file}:${d.line}: "checked ${d.month} ${d.year}" sits in no block that cites a register row`);
+            const mi = MONTHS.indexOf(d.month);
+            assert.ok(mi >= 0, `${file}:${d.line}: "${d.month}" is not a recognised month abbreviation`);
+            const shown = `${d.year}-${String(mi + 1).padStart(2, '0')}`;
+            const backing = d.ids.map(id => `${reviewedOf.get(id) ?? '?'} ${id}`).sort();
+            assert.equal(shown, backing[0].split(' ')[0],
+                `${file}:${d.line}: shows "checked ${d.month} ${d.year}" (${shown}) over rows reviewed ${backing.join(', ')} — ` +
+                'a freshness date staff rely on is the OLDEST review behind it: newer, it claims a review nobody did; ' +
+                'older, it undersells the block');
+        }
+    }
+    // And every FIP country and ferry card still shows one — the reason this check began there.
+    const fipCards = renderedCheckedDates('fip-guide.html').filter(d => d.ids.some(id => /^fip-/.test(id)));
+    assert.ok(fipCards.length >= 30, `expected every FIP country and ferry card to show a date, found ${fipCards.length}`);
 });
 
 // ── EVERY COUNTRY AND FERRY CARD SHOWS ITS EVIDENCE STATE (v20.31) ──────────────────────────────
