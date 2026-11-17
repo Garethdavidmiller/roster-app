@@ -143,6 +143,16 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   break a long word (`overflow-wrap: anywhere`), and the tips stack as the badge key does, under ONE
   rule after both grids' own (`staff-guide.css` has the measurements). Pinned by "enlarged text does not
   widen the column past a phone", at 375, 360 and 320px. Measure a size change at 1.5× on 320–412px.
+  **And nothing runs past a phone's edge on any guide** — no box and no word, because a word wider than
+  its box overflows it without moving the box. A status badge (the Rangers guide's "✓ National Rail
+  checked · Aug 2026") wraps its own words only when it alone is wider than the column: a 1em corner,
+  so two lines make a rounded rectangle rather than a bubble; `&nbsp;` keeping a month with its year and
+  the "·" with the word before it; and the key's badges never shrinking (their rows are flex rows).
+  FIP's "Amsterdam/Rotterdam/Antwerp" takes ONE `<wbr>`, after "Rotterdam/". **A `<wbr>` is not a last
+  resort**: line-wrapping uses it wherever it helps, and five of them re-broke the Eurostar sentence at
+  the default size on a 320px phone. Pinned by "<guide>: enlarged text runs nothing past a phone's
+  edge" (all five, at 375, 360 and 320px under 1.5× and 320px under 1.3×) and "rangers: a status badge
+  keeps to one line at the ordinary size, and wraps cleanly under large text".
 - **One sub-heading:** on screen an `<h3>` is the app's card title (body size, 700, navy, `-0.01em`); its
   paper size stays in the page's print block. The Railcard's and Rangers' card names are headings by
   ARIA, not `<h3>`s, so it does not reach them. Pinned by "a sub-heading on screen is the app's card
