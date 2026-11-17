@@ -155,6 +155,7 @@ export async function assertFileSignature(file, expectedType) {
  *   uploadNewsletter: (date:string, file:any, uploadedBy:string) => Promise<string>,
  *   getLatestCircular: () => Promise<any>,
  *   getLatestNewsletter: () => Promise<any>,
+ *   getLatestHuddle: () => Promise<any>,
  *   subscribeToLatestHuddle: (onData:Function, onError:Function) => Function,
  * }}
  */
