@@ -50,6 +50,11 @@ import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
 // checks examine a different one, silently — and the rotation has since gone 28 -> 22 (v19.98),
 // which would have made all three wrong in three different ways.
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** A day key as a reader names it, in a sentence — "Line 3 Saturday", never the stored "sat" (17 Nov 2026: the
+ *  short-turnaround rows printed the keys, on screen and on the sheet, where FF8b's row already named the day). */
+const DAY_NAME = /** @type {Record<string, string>} */ ({
+    sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday',
+});
 const TOTAL_POS = ROTATING_LINES;
 /** The minimum rest in words, from the generator's own gate figure — never typed as "12". */
 const MIN_REST_HOURS = `${MIN_REST_MINUTES / 60} hours`;
@@ -76,9 +81,10 @@ const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
 const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
 
 /** Rest between two duties, in words. Below zero it is an OVERLAP (imported data can run a duty past
- *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. */
+ *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. In the workspace's
+ *  one hours-and-minutes shape, `hmFromHours` — "11h 05m", as the hours row on the same card writes it. */
 const restWords = (/** @type {number} */ m) => (m < 0
-    ? `overlapping by ${Math.floor(-m / 60)}h ${-m % 60}m` : `${Math.floor(m / 60)}h ${m % 60}m rest`);
+    ? `overlapping by ${hmFromHours(-m / 60)}` : `${hmFromHours(m / 60)} rest`);
 
 /**
  * @param {object} deps
@@ -429,8 +435,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 // figure most edits ever see, so a partial average must not wear the tick HERE
                 // either — that is the copy that would go on being trusted.
                 const ok = Math.abs(off) <= 0.5 && wh.complete;
+                // "(partial)" in words, as the row below says it (17 Nov 2026): a bare "*" pointed at a footnote
+                // the strip does not have.
                 return chip(ok ? 'ok' : 'warn', ok ? '✓' : '⚠',
-                    `${hmFromHours(wh.exSunday)}${wh.complete ? '' : '*'}`, 'a week');
+                    hmFromHours(wh.exSunday), wh.complete ? 'a week' : 'a week (partial)');
             })()
             + `<a class="sum-jump btn-text-link" href="#coverageCard">Full analysis ↓</a>`;
     }
@@ -459,6 +467,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         const { early, late, spare, worked } = balance;
         const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
         const latePct  = worked ? Math.round((late  / worked) * 100) : 0;
+        // The shares are of every WORKED day, cover days included, so with a cover week the early and late
+        // shares leave a gap; the spare share fills it rather than leaving a reader to wonder (17 Nov 2026).
+        const sparePct = worked ? Math.round((spare / worked) * 100) : 0;
 
         const tick  = `<span class="check-icon check-tick" aria-hidden="true">✓</span>`;
         const warn  = `<span class="check-icon check-warn" aria-hidden="true">⚠</span>`;
@@ -532,8 +543,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 `${cross}<div class="check-body">` +
                 `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than ${MIN_REST_HOURS} rest` +
                 `<ul class="check-list">${cap.map((/** @type {any} */ t) =>
-                    `<li>Line ${t.fromLine} ${t.fromDay} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
-                    `Line ${t.toLine} ${t.toDay} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
+                    `<li>Line ${t.fromLine} ${DAY_NAME[t.fromDay] ?? escapeHtml(t.fromDay)} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
+                    `Line ${t.toLine} ${DAY_NAME[t.toDay] ?? escapeHtml(t.toDay)} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
                     `${restWords(t.restMinutes)}</li>`
                 ).join('')}${more > 0 ? `<li>…and ${more} more</li>` : ''}</ul>` +
                 `</div></div>`
@@ -584,7 +595,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `${info}<div class="check-body">` +
             `<strong>Shift balance</strong> — ${early} early / ${late} late / ${spare} spare` +
             ` across the ${TOTAL_POS}-line rotation` +
-            `<span class="check-note"> (${earlyPct}% early, ${latePct}% late)</span>` +
+            `<span class="check-note"> (${earlyPct}% early, ${latePct}% late${spare ? `, ${sparePct}% spare` : ''})</span>` +
             `</div></div>`
         );
 
