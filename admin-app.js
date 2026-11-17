@@ -22,7 +22,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
@@ -1189,9 +1189,9 @@ export function init() {
             alMember.selectedIndex = -1;
             sickMember.selectedIndex = -1;
             fieldMember.disabled = alMember.disabled = sickMember.disabled = true;
-            const _msg = 'Your account is no longer on the roster — please contact the admin.';
+            // The week grid says it too, in the same words (`renderWeekGrid`), where it said "Select a date above".
             document.querySelectorAll('#alToggleHeader .hint, #sickToggleHeader .hint, #overridesToggleHeader .hint')
-                .forEach(el => { el.textContent = _msg; });
+                .forEach(el => { el.textContent = NOT_ON_ROSTER_LINE; });
             console.warn(`[Admin] Signed-in member "${currentUser}" is not a selectable roster member (hidden/leaver) — booking selectors blocked.`);
             return;
         }
