@@ -189,7 +189,7 @@ export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
  */
 export function getFirebaseAuthError() { return _fbAuthError; }
 
-/** Ceiling on the IndexedDB auth restore. Matches the 8s sign-in budget (LOGIN_INCIDENT.md) and
+/** Ceiling on the IndexedDB auth restore. Matches the 8s sign-in budget (the login freeze) and
  *  `SAVE_TIMEOUT_MS` in password-force.js — one number for "how long is Firebase allowed to take
  *  before we stop waiting", rather than a different guess per call site. */
 export const AUTH_RESTORE_TIMEOUT_MS = 8000;

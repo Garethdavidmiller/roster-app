@@ -1021,7 +1021,7 @@ designer-only Links) stays with each coordinator, after sign-in.
   and no account share one sentence; any other refusal is `other`, never counted. A failure clears any local
   session except this member's own (`keepsLocalSession`), releasing this device's push record before it
   clears another member's (`releaseEndedHold`); a success makes the staff PIN's end old news on the page
-  (`forgetStaffPinEnded`). The history is LOGIN_INCIDENT.md.
+  (`forgetStaffPinEnded`). The history is ROADMAP_HISTORY.md → "The login freeze".
 - `signInDeps(name, typedPw)` — the core's dependencies for one attempt, as the card's submit builds them;
   exported so the unit suite drives that exact wiring through the real `session.js`.
 - `dismissLoginOverlay()` — removes the card, and releases the scroll lock only if it was the modal one

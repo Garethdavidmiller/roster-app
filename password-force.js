@@ -77,7 +77,7 @@ const STATUS_READ_TIMEOUT_MS = 4000;
 /** Failed save attempts before the escape hatch appears regardless of the error. */
 const ESCAPE_AFTER_FAILURES = 3;
 
-/** Ceiling on the password WRITE. Mirrors runNamedSignIn's 8s sign-in budget (LOGIN_INCIDENT.md). */
+/** Ceiling on the password WRITE. Mirrors runNamedSignIn's 8s sign-in budget (the login freeze). */
 const SAVE_TIMEOUT_MS = 8000;
 
 /**

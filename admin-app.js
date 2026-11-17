@@ -123,7 +123,7 @@ export function init() {
 
     // ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
     /** Show the shared sign-in overlay configured for Admin.
-     *  NOTHING may be awaited on this path (LOGIN_INCIDENT.md): the first read after a fresh sign-in
+     *  NOTHING may be awaited on this path (the login freeze, ROADMAP_HISTORY.md): the first read after a fresh sign-in
      *  can take seconds, and it froze people on the overlay. Keep post-login work fire-and-forget. */
     function showAdminLogin({ reloadOnSuccess = false } = {}) {
         initLoginOverlay({
