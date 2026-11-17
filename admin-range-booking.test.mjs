@@ -989,3 +989,105 @@ describe('K. a save keeps the picker on the month it was showing', () => {
         assert.deepEqual(_resetArgs, [{ keepView: true }]);
     });
 });
+
+// L. A DAY THAT ALREADY HOLDS LEAVE IS NOT A NEW DAY (review, Nov 2026). With three of five days
+// already leave, the preview said "5 days of Annual Leave" and the receipt "Recorded 5 days", while the
+// balance fell by 2. The REAL card and projection (`alreadyBooked`); the writer is the mock.
+describe('L. days that already hold leave are counted apart from the new ones', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    /** A member and five days in a row that they work, none a Sunday — found from the roster. */
+    const run = (() => {
+        for (const m of teamMembers.filter(x => !x.hidden && !x.managerOnly && !x.startDate)) {
+            /** @type {string[]} */ const days = [];
+            for (let i = 0; i < 25 && days.length < 5; i++) {
+                const d = new Date(2027, 2, 1 + i);   // March 2027, before Easter: no bank holiday in reach
+                if (d.getDay() === 0 || !works(m, iso10(d))) { days.length = 0; continue; }
+                days.push(iso10(d));
+            }
+            if (days.length === 5) return { m, days };
+        }
+        return null;
+    })();
+    /** @type {string[]} */ let toasts = [];
+    const deps = (/** @type {string} */ name) => ({
+        alMember: memberSelect(name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {},
+        getCurrentUser: () => 'A. Admin', showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {},
+        showSuccess: (/** @type {string} */ t) => { toasts.push(t); },
+    });
+    /** The card wired for `m`, the first three days already annual leave, the five on screen. */
+    const book = (/** @type {any} */ m, /** @type {string[]} */ days) => {
+        toasts = [];
+        _ovMap = new Map(days.slice(0, 3).map(date => [date, { id: `h${date}`, memberName: m.name, date, type: 'annual_leave',
+            value: 'AL', source: 'manual', createdAt: { seconds: 1_790_000_000 } }]));
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ (deps(m.name)));
+        el('alFrom').value = days[0]; el('alTo').value = days[4];
+        for (const fn of el('alTo')._on.change ?? []) fn();
+    };
+
+    test('premise: some member works five days in a row, none a Sunday', () => {
+        assert.ok(run, 'no such run on the roster — the cases below prove nothing');
+    });
+
+    test('the preview counts the two new days, and names the three already booked', () => {
+        const { m, days } = /** @type {any} */ (run);
+        book(m, days);
+        assert.match(el('alPreview').innerHTML, /<strong>2 new days<\/strong> of Annual Leave/);
+        assert.match(el('alPreview').innerHTML, /\(\+ 3 already booked\)/);
+        assert.doesNotMatch(el('alPreview').innerHTML, /<strong>5 days<\/strong>/);
+    });
+
+    test('the receipt and the toast say the same, when the writer wrote the days the preview counted', async () => {
+        const { m, days } = /** @type {any} */ (run);
+        book(m, days);
+        _record = async () => ({ workingCount: 5, sundayCount: 0 });
+        await save();
+        assert.equal(el('alFeedback').textContent, `✓ Recorded 2 new days of Annual Leave for ${m.name} (3 already booked)`);
+        assert.deepEqual(toasts, [`Recorded 2 new days of Annual Leave for ${m.name} (3 already booked)`]);
+    });
+
+    test('a writer that wrote other days than the plan is reported by its own count alone', async () => {
+        const { m, days } = /** @type {any} */ (run);
+        book(m, days);
+        _record = async () => ({ workingCount: 4, sundayCount: 0 });
+        await save();
+        assert.equal(el('alFeedback').textContent, `✓ Recorded 4 days of Annual Leave for ${m.name}`);
+    });
+});
+
+// M. THE ABSENCE PREVIEW NAMES THE DAYS IT LEAVES AS THE AL CARD DOES (review, Nov 2026). It called a day
+// before the member's start date, and Christmas Day and Boxing Day, "rest days skipped": the first had not
+// started, and for a member due at work the second pair is leave on the Calendar. The REAL card.
+describe('M. the Absence card names a day before the start date and the Christmas days as themselves', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    const deps = (/** @type {string} */ name) => ({
+        sickMember: memberSelect(name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin',
+        showInChangeAShift() {}, showSuccess() {}, showALConfirm() {}, hideALConfirm() {},
+    });
+    /** The Absence card for `name` with `from`–`to` on screen; its preview. */
+    const preview = (/** @type {string} */ name, /** @type {string} */ from, /** @type {string} */ to) => {
+        for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
+        initSickSection(/** @type {any} */ (deps(name)));
+        el('sickFrom').value = from; el('sickTo').value = to;
+        for (const fn of el('sickTo')._on.change ?? []) fn();
+        return el('sickPreview').innerHTML;
+    };
+    const joiner = teamMembers.find(m => !m.hidden && !m.managerOnly && m.startDate instanceof Date);
+
+    test('Christmas Day and Boxing Day are named, never counted as rest days', () => {
+        const html = preview(MEMBER, '2026-12-25', '2026-12-26');
+        assert.match(html, /\(\+ Christmas Day and Boxing Day skipped\)/);
+        assert.doesNotMatch(html, /rest day/);
+    });
+
+    test('days before the start date are named as that, never as rest days', () => {
+        assert.ok(joiner, 'premise: a member on the roster has a start date');
+        const s = /** @type {Date} */ (/** @type {any} */ (joiner).startDate);
+        const before = (/** @type {number} */ n) => iso10(new Date(s.getFullYear(), s.getMonth(), s.getDate() - n));
+        const html = preview(/** @type {any} */ (joiner).name, before(3), before(1));
+        assert.match(html, /\(\+ 3 days skipped before the start date\)/);
+        assert.doesNotMatch(html, /rest day/);
+    });
+});

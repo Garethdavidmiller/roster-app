@@ -15,8 +15,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers, getBaseShift, getPatternShift, formatISO, isWorkedShift, getBankHolidays } from './roster-data.js';
-import { planAlWeekSave } from './admin-al-week-save.js';
+import { teamMembers, getBaseShift, getPatternShift, formatISO, isWorkedShift, getBankHolidays, CONFIG } from './roster-data.js';
+import { planAlWeekSave, planAlDelete } from './admin-al-week-save.js';
+import { isChristmasLeaveDay } from './christmas-leave.js';
 // The cross-layer block at the foot needs the surfaces the review named, not just the planner:
 // what the Calendar draws, what the entitlement costs, and what the receipt says.
 import { buildSaveReceipt } from './admin-save-receipt.js';
@@ -463,5 +464,51 @@ describe('a save that moves the Boxing Day day in lieu is costed against the all
         const p = planAlWeekSave({ member: disp, memberName: disp.name, toSave: [rdw], toDelete: [], overrides: recs,
             ovByDate: new Map(recs.map(o => [o.date, o])) });
         assert.equal(p.overage, null);
+    });
+});
+
+describe('planAlDelete — a delete from Saved Changes asks as the week grid does (review, Nov 2026)', () => {
+    // INVENTED members on a real line due at work on Boxing Day 2026, found from the patterns. Working it
+    // earns a day in lieu in 2027's allowance, so 33 days of 2027 leave sit exactly at the limit — until
+    // the worked day is deleted from the list, which takes the day in lieu back with it.
+    const week = Array.from({ length: CONFIG.MAIN_ROSTER_WEEKS }, (_, i) => i + 1)
+        .find(w => isChristmasLeaveDay({ rosterType: 'main', currentWeek: w }, new Date(2026, 11, 26)));
+    const Q = { name: 'Q. Example', role: 'CEA', rosterType: 'main', currentWeek: week };
+    const P = { name: 'P. Example', role: 'CEA', rosterType: 'main', currentWeek: week };
+    /** @type {any[]} */ const leave2027 = [];
+    for (let d = new Date(2027, 2, 1); leave2027.length < 33; d.setDate(d.getDate() + 1)) {
+        const shift = getBaseShift(Q, d);
+        if (d.getDay() !== 0 && isWorkedShift(shift) && shift !== 'SPARE') {
+            leave2027.push({ id: 'q' + leave2027.length, memberName: Q.name, type: 'annual_leave', date: formatISO(d), value: 'AL' });
+        }
+    }
+    const worked = { id: 'bx', memberName: Q.name, type: 'rdw', date: '2026-12-26', value: '06:00-14:00', source: 'manual' };
+    const overrides = [...leave2027, worked];
+    const ask = (/** @type {any[]} */ rows, /** @type {(n: string) => boolean} */ isRead = () => true) =>
+        planAlDelete({ rows, members: [P, Q], overrides, isRead });
+
+    test('premise: the line is due at work on Boxing Day, and 33 days of 2027 leave are exactly the allowance', () => {
+        assert.ok(week, 'no main line is due at work on Boxing Day 2026');
+        assert.equal(entitlementFor(Q, 2027, overrides), 33);
+        assert.equal(entitlementFor(Q, 2027, leave2027), 32, 'without the worked day, the day in lieu goes');
+    });
+
+    test('deleting the worked Boxing Day at the limit asks, in the week grid\'s words', () => {
+        const overage = ask([worked]);
+        assert.ok(overage);
+        assert.equal(overage.headline, 'Q. Example will be 1 day over their 2027 AL entitlement');
+        assert.equal(overage.detail, '33 days used of 32 allowed in 2027');
+        assert.deepEqual(overage, planAlWeekSave({ member: Q, memberName: Q.name, toSave: [], toDelete: ['bx'], overrides }).overage,
+            'the planner\'s own answer, not a second copy of it');
+    });
+
+    test('a row of another member beside it, or an id the page holds no record for, changes nothing', () => {
+        assert.ok(ask(['ghost-id', { id: 'p1', memberName: P.name, type: 'shift', date: '2027-03-02', value: '09:00-17:00' }, worked]));
+    });
+
+    test('nothing is asked of records not yet read, of a name not on the roster, or of a delete that lowers nothing', () => {
+        assert.equal(ask([worked], () => false), null);
+        assert.equal(planAlDelete({ rows: [worked], members: [P], overrides, isRead: () => true }), null);
+        assert.equal(ask([leave2027[0]]), null, 'deleting a day of leave only gives one back');
     });
 });

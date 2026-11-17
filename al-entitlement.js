@@ -321,9 +321,12 @@ export function dispatcherBreakdown({ member, year, overrides }) {
  * own `22 base + …` sum would have filed a Boxing Day in lieu under "BH lieu" (v25.37).
  *
  * A Dispatcher: `22 base + 4 BH lieu`, with `(pro-rated)` for a joining year and `+ 1 in lieu for
- * Boxing Day 2026` when earned. Anybody else: a line only when they earned the Boxing Day day
- * (christmas-leave.js → `boxingDayLieuDays`), because a figure one higher than every colleague's needs
- * its reason beside it.
+ * Boxing Day 2026` when earned. Anybody else: a line only when the figure differs from every
+ * colleague's on their grade — a joining year's transcribed `proRatedAL` ("Pro-rated for starting
+ * part way through 2026"), or a Boxing Day day earned (christmas-leave.js → `boxingDayLieuDays`) —
+ * because a figure unlike everybody else's needs its reason beside it. The joining year said nothing
+ * for a CEA or a CES until Nov 2026, while a Dispatcher's said "(pro-rated)": a "20" beside a
+ * colleague's 32 read like a mistake.
  *
  * THE LINE NAMES THE BOXING DAY'S YEAR (15 Nov 2026). The day is in the next year's allowance, so the
  * 2027 line is about December 2026. "For working Boxing Day" alone, under 2027, reads as a Boxing
@@ -341,8 +344,12 @@ export function entitlementNote({ member, year, overrides }) {
         return parts.join(' + ');
     }
     if (entitlementFor(member, year, overrides) === null) return null;
+    const y = parseInt(String(year), 10);
+    /** @type {string[]} */ const parts = [];
+    if (member.proRatedAL?.[y] !== undefined) parts.push(`Pro-rated for starting part way through ${y}`);
     const boxing = boxingDayLieuDays(member, year, overrides);
-    return boxing ? `Includes ${boxing} day in lieu for working Boxing Day ${boxingDayForAllowance(year)}` : null;
+    if (boxing) parts.push(`${parts.length ? 'includes' : 'Includes'} ${boxing} day in lieu for working Boxing Day ${boxingDayForAllowance(year)}`);
+    return parts.length ? parts.join('; ') : null;
 }
 
 /**

@@ -21,7 +21,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
-import { teamMembers, getBaseShift, getPatternShift, isWorkedShift, formatISO } from './roster-data.js';
+import { teamMembers, getBaseShift, getPatternShift, isWorkedShift, formatISO, CONFIG } from './roster-data.js';
 import { getALEntitlement } from './al-contract.js';
 import { resolveEffectiveShift } from './override-utils.js';
 import {
@@ -393,6 +393,20 @@ describe('a day shown wrongly — what each surface draws', () => {
                 .map(formatISO);
             assert.deepEqual(christmasLeaveDates({ member: m, year: 2026, overrides: [] }), shown, m.name);
         }
+    });
+
+    test('another member\'s record is ignored — Admin hands every member\'s records to the list', () => {
+        // INVENTED members on one real line due at work on both 2026 Christmas days, found rather than written
+        // down. A worked Boxing Day is Q's work: read as P's too, it took Boxing Day out of P's leave list.
+        const week = Array.from({ length: CONFIG.MAIN_ROSTER_WEEKS }, (_, i) => i + 1).find(w =>
+            isChristmasLeaveDay({ rosterType: 'main', currentWeek: w }, XMAS_2026)
+            && isChristmasLeaveDay({ rosterType: 'main', currentWeek: w }, BOXING_2026));
+        assert.ok(week, 'premise: a main line due at work on both days');
+        const P = { name: 'P. Example', role: 'CEA', rosterType: 'main', currentWeek: week };
+        const Q = { name: 'Q. Example', role: 'CEA', rosterType: 'main', currentWeek: week };
+        const theirs = [ov(Q, '2026-12-26', 'rdw', '06:00-14:00')];
+        assert.deepEqual(christmasLeaveDates({ member: Q, year: 2026, overrides: theirs }), ['2026-12-25'], 'premise: it is Q\'s work');
+        assert.deepEqual(christmasLeaveDates({ member: P, year: 2026, overrides: theirs }), ['2026-12-25', '2026-12-26']);
     });
 
     test('leave RECORDED on a Christmas day the member rests by pattern is listed too (7 Nov 2026 review)', () => {

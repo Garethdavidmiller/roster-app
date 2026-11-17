@@ -20,8 +20,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { restrictDayPills } from './admin-day-pills.js';
 import { _activateRow, prefillRow } from './admin-week-row-state.js';
-import { PILL_TYPES } from './admin-shift-types.js';
+import { PILL_TYPES, TYPES } from './admin-shift-types.js';
 import { OTHER_FLAVOURS } from './override-utils.js';
+import { CARD_TIPS } from './admin-tips.js';
 
 // ── A fake row: flat children, and just enough of a selector engine for the row's own queries ─────
 /** @param {string} sel @param {any} el @returns {boolean} */
@@ -100,6 +101,33 @@ describe('a Sunday: no leave, absence or plain shift, and Other offers Spare alo
         }
         assert.equal(row.dataset.spareOnly, '1');
     });
+});
+
+describe('the words that say what a Sunday offers name what its row leaves on', () => {
+    // The Change a Shift `?` tip and the Staff & Admin Guide each say it in a sentence, and both went on
+    // saying "only RDW and Rest Day" after Spare joined them: nothing held the sentence to the row.
+    const row = drawRow();
+    restrictDayPills(row, { ...ordinary, sunday: true });
+    const offered = [
+        ...PILL_TYPES.filter(t => t !== 'other' && !pill(row, t).disabled).map(t => TYPES[t].pill),
+        ...chips(row).filter((/** @type {any} */ c) => !c.disabled).map((/** @type {any} */ c) => c.textContent.replace(/^\P{L}+/u, '')),
+    ];
+    const refused = PILL_TYPES.filter(t => pill(row, t).disabled).map(t => TYPES[t].pill);
+    const plain = (/** @type {string} */ html) => html.replace(/<[^>]+>/g, '').replace(/&mdash;/g, '—');
+    const tipItem = CARD_TIPS['change-shift'].sections.flatMap(s => s.items).find(i => /Sunday<\/strong> offers only/.test(i.html));
+    const guideBox = /<h2 id="sg-sundays">[^<]*<\/h2>\s*<div class="info">([\s\S]*?)<\/div>/
+        .exec(readFileSync(new URL('./staff-guide.html', import.meta.url), 'utf8'));
+    for (const [where, html] of /** @type {Array<[string, string|undefined]>} */ ([['the Change a Shift tip', tipItem?.html],
+        ['the Staff & Admin Guide', guideBox?.[1]]])) {
+        test(`${where}: "offers only" lists every choice the row leaves on, and none it turns off`, () => {
+            assert.ok(html, `${where}: the sentence saying what a Sunday offers was not found`);
+            assert.deepEqual(offered.sort(), ['RDW', 'Rest Day', 'Spare'], 'premise: what a Sunday row offers');
+            // The list runs to the first full stop or dash: what follows it is what a Sunday refuses.
+            const list = /offers only ([^.—]*)/.exec(plain(html))?.[1] ?? '';
+            for (const word of offered) assert.match(list, new RegExp(`\\b${word}\\b`), `${where} leaves out ${word}`);
+            for (const word of refused) assert.doesNotMatch(list, new RegExp(`\\b${word}\\b`), `${where} offers ${word}`);
+        });
+    }
 });
 
 describe('Boxing Day: every pill, and Other offers Spare alone', () => {

@@ -106,6 +106,9 @@ describe('Annual Leave copy states the rule the save follows', () => {
         assert.ok(hint, 'the Annual Leave card hint is not where this test looks for it');
         assertNoAutomaticClaim(hint[1], "admin.html's Annual Leave hint");
         assert.match(hint[1], /rest day/i, 'the hint says nothing about a rest day at all');
+        // Nor that EVERY rest day is asked about (review, Nov 2026): a day before the start date, Christmas
+        // Day and Boxing Day, and a rest day its own record already settles never are (al-swapped-days.js).
+        assert.doesNotMatch(hint[1], /\b(any|every) rest day\b/i, 'the hint promises a question for every rest day');
     });
 
     test('nothing REWRITES that hint at runtime — one sentence, one home', () => {

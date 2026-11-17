@@ -270,6 +270,14 @@ describe('the Save button and the "after" figures', () => {
         assert.deepEqual(saveTotals([a, b]), { days: 2, people: 1, added: 1, swapped: 1, rewritten: 0 });
     });
 
+    test('each kind is counted apart: three added, one swapped rest day, one stored day rewritten', () => {
+        // Built by hand, with UNEQUAL counts: above, one add beside one swapped rest day, a count of everything
+        // that is NOT an add came out the same as the count of adds, so a reversed test went unseen.
+        const w = (/** @type {string} */ kind) => ({ kind, replaces: [] });
+        const plans = [{ name: 'Q. Example', writes: [w('add'), w('add'), w('add'), w('add-swapped'), w('swap')] }, { name: 'P. Example', writes: [] }];
+        assert.deepEqual(saveTotals(/** @type {any} */ (plans)), { days: 5, people: 1, added: 3, swapped: 1, rewritten: 1 });
+    });
+
     test('recordsAfter keeps the replaced type and the leave year, and drops what the write replaces', () => {
         const legacy = AL(CEA, REST, { id: 'legacy-random' });
         const person = compare(CEA, [leave(CEA, REST)], [legacy]);

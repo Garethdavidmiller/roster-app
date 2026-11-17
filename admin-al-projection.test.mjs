@@ -104,6 +104,34 @@ describe('projectAlBooking — a declared swap reaches every layer', () => {
     });
 });
 
+describe('alreadyBooked — leave written again is not a new day (review, Nov 2026)', () => {
+    const TUE = '2026-06-16', WED = '2026-06-17';
+    const leave = (/** @type {string} */ date, /** @type {Record<string, any>} */ extra = {}) =>
+        ({ id: `l${date}`, memberName: fixedCea.name, date, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: { seconds: 1 }, ...extra });
+
+    test('two of three working days already leave: they are counted, and named as already booked', () => {
+        const ovByDate = new Map([[MON, leave(MON)], [TUE, leave(TUE)]]);
+        const p = projectAlBooking({ member: fixedCea, dates: [MON, TUE, WED], ovByDate });
+        assert.deepEqual(p.consuming, [MON, TUE, WED], 'the over-allowance check is unchanged: every day still costs');
+        assert.deepEqual(p.alreadyBooked, [MON, TUE]);
+        assert.equal(p.counts.alreadyBooked, 2);
+    });
+
+    test('a rest day whose free leave is answered SWAPPED is a new day spent, not one already booked', () => {
+        const ovByDate = new Map([[SAT, leave(SAT)]]);
+        assert.equal(consumesEntitlement(fixedCea, SAT, ovByDate), false, 'premise: the leave there costs nothing now');
+        const p = projectAlBooking({ member: fixedCea, dates: [SAT], ovByDate, swapAnswers: new Map([[SAT, true]]) });
+        assert.deepEqual(p.consuming, [SAT]);
+        assert.deepEqual(p.alreadyBooked, [], 'its cost changes, so the balance falls by it');
+    });
+
+    test('a shift on the day, or nothing, is a new day', () => {
+        const ovByDate = new Map([[MON, { ...leave(MON), type: 'shift', value: '12:00-19:00' }]]);
+        const p = projectAlBooking({ member: fixedCea, dates: [MON, TUE], ovByDate });
+        assert.deepEqual(p.alreadyBooked, []);
+    });
+});
+
 describe('willConsume — the one rule both surfaces ask', () => {
     test('a declared swap consumes; the same day without the answer does not', () => {
         assert.equal(willConsume({ member: fixedCea, date: SAT, ovByDate: NO_OV, swapped: true }), true);

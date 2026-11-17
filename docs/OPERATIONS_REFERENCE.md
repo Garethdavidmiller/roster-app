@@ -1054,7 +1054,8 @@ would be lost: a confirmation or a "Swapped — counts" answer not yet saved, or
 still running.
 
 **Who is left out, and why:** leavers, managers, anybody the app has no allowance on record for, and
-anybody the app does not hold. The summary names each one with the reason **as the roster stands
+anybody the app does not hold. A member who has moved into Management is left out only for a year
+with no graded post in it: a year in which they held one keeps that post's allowance, so it is checked. The summary names each one with the reason **as the roster stands
 today** — somebody who could be compared now, but whose days the file does not carry, says a new
 leave file would include them. A member in the app and not on the sheet is listed too. Leave the app
 holds on a Sunday, before a member's start date, or on Christmas Day or Boxing Day is not counted as

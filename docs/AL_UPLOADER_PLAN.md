@@ -231,7 +231,9 @@ anything that does not fit is refused, and the refusal says exactly what and whe
 
 - `format`, `version` and `year` are recognised, and the digest is recomputed and matches.
 - Every name in `days` is someone the app can record leave for: in `teamMembers`, not `hidden`, not
-  `managerOnly`, and with an allowance on record. Anybody else belongs in `notImported`.
+  `managerOnly`, and with an allowance on record. Anybody else belongs in `notImported`. The one
+  exception is a member now in Management, for a year in which they held a graded post: that year
+  keeps the post's allowance (`allowanceRole`), so it is imported like anybody's (`leaveRecordability`).
 - Every date is real and in range, with one entry per person per date. There is no Sunday leave,
   and nothing on 25 or 26 December.
 - The sums in §3.5 hold for every person.

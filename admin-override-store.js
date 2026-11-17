@@ -29,8 +29,9 @@
  *   · **Waiting and stuck are different states.** Reporting a failed load as "Loading…" is the same
  *     class of false claim as showing an empty week — it just fails in the patient direction.
  *
- * Tested through `admin-overrides.test.mjs` (the write gates) and driven in a browser by
- * `e2e/admin.spec.js` (which query actually runs).
+ * Tested by `admin-override-store.test.mjs` (the reads, the cache and the checked commits), through
+ * `admin-overrides.test.mjs` (the write gates), and driven in a browser by `e2e/admin.spec.js` (which
+ * query actually runs).
  */
 
 import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, writeBatch, whenOwnWritesSent, COLLECTIONS } from './firebase-client.js';

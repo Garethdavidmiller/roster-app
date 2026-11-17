@@ -264,7 +264,7 @@ export function buildRangePicker(prefix, opts = {}) {
         return panel;
     }
 
-    // Carousel swipe — same pattern as the week grid in admin-app.js.
+    // Carousel swipe — same pattern as the week grid's, in admin-week-swipe.js.
     let swStartX = 0, swStartY = 0, swStartT = 0;
     let swListening = false, swDragging = false, swFired = false;
     let swHaptic = false, swCooldown = false;
