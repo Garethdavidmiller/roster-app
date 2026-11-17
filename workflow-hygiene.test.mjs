@@ -517,6 +517,56 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
             'nothing may set skip=true before the compare has been read');
     });
 
+    test('a documentation-only pull request skips the browser jobs, and nothing else', () => {
+        // 17 Nov 2026 (the guard's comment has the account). Two ways this goes wrong silently: a job
+        // that starts a browser and forgets the condition runs for nothing, and one that does NOT start
+        // a browser and takes it on stops running the documentation's own tests on a docs-only PR.
+        const startsBrowser = (/** @type {string} */ name) => /install-browser-deps|npm run test:(?:e2e|webkit|csp|signed-in|visual)/.test(blockOf(name));
+        for (const name of jobs.filter(n => n !== 'guard')) {
+            const gate = /^ {4}if: (.+)$/m.exec(blockOf(name))?.[1] ?? '';
+            if (startsBrowser(name)) {
+                assert.match(gate, /needs\.guard\.outputs\.browsers\s*!=\s*'false'/,
+                    `${name} starts a browser but does not stand aside for a documentation-only PR. It must ask `
+                    + "`needs.guard.outputs.browsers != 'false'` — never `== 'true'`, which skips it whenever the guard cannot answer.");
+            } else {
+                assert.doesNotMatch(gate, /outputs\.browsers/,
+                    `${name} starts no browser, yet skips on a documentation-only PR: the documentation's own tests live in jobs like this one.`);
+            }
+        }
+    });
+
+    test('the guard answers `browsers` for pull requests only, and only `true` when it cannot read the PR', () => {
+        const step = blockOf('guard').slice(blockOf('guard').indexOf('- id: docs'));
+        const script = step.slice(0, step.indexOf('- id: check') === -1 ? undefined : step.indexOf('- id: check'));
+        assert.ok(script.indexOf('browsers=true') !== -1 && script.indexOf('browsers=true') < script.indexOf('browsers=false'),
+            'the docs step must start from browsers=true, so every path it does not finish runs the browsers');
+        assert.match(script, /if \[ "\$EVENT" = "pull_request" \]/,
+            'only a pull request may skip the browsers: a push of documentation starts no run at all (paths-ignore)');
+        assert.match(script, /grep -v -E '\\\.md\$'/, 'the docs step must find every changed file that is not a .md');
+        assert.match(script, /"\$count" -lt 3000/,
+            'the files endpoint stops at 3,000 files, so a PR at that ceiling may hide a file that is not documentation');
+        assert.match(script, /\|\| true\)/, 'grep finding nothing exits 1, which would end the step under bash -e');
+    });
+
+    test('every .md file a browser test reads is one the docs-only check refuses to skip', () => {
+        // A spec that reads a document (guides.spec.js reads GUIDE_SOURCES.md) makes that document a
+        // test input: a PR changing only it can fail in a browser and nowhere else.
+        const listed = (/E2E_MD_READS: (.+)$/m.exec(blockOf('guard'))?.[1] ?? '').trim().split(/\s+/).filter(Boolean);
+        /** @param {string} dir @returns {string[]} */
+        const specs = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+            d.isDirectory() ? specs(join(dir, d.name)) : /\.(?:m?js)$/.test(d.name) ? [join(dir, d.name)] : []);
+        const read = new Set();
+        for (const f of specs('e2e')) {
+            const src = readFileSync(f, 'utf8').split('\n').filter(l => !/^\s*(?:\/\/|\*)/.test(l)).join('\n');
+            for (const m of src.matchAll(/['"`](?:\.\.\/)+((?:[\w.-]+\/)*[\w.-]+\.md)['"`]/g)) read.add(m[1]);
+        }
+        assert.ok(read.size >= 1, 'expected at least guides.spec.js\'s GUIDE_SOURCES.md; the scan found nothing');
+        const missing = [...read].filter(f => !listed.includes(f));
+        assert.deepEqual(missing, [],
+            `browser tests read ${missing.join(', ')}, which E2E_MD_READS in the guard does not list: a PR changing only `
+            + 'that document would skip the very tests that read it.');
+    });
+
     test('the guard is cheap enough to sit on the critical path', () => {
         // It runs before all seven siblings, so a checkout or an npm install here would be paid by
         // every real run to catch the rare redundant one. One API call, no repository.

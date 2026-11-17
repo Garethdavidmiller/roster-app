@@ -62,17 +62,60 @@ jobs:
   # IT FAILS OPEN IN EVERY DIRECTION, and the asymmetry is the design. An unnecessary run costs
   # runner minutes; a wrongly-SKIPPED run reports a green suite that tested nothing, on a branch
   # somebody is about to merge — silent, and in the one direction that matters. So an API error
-  # resolves to `unknown` and runs, a pull_request never consults the API at all, and every job
+  # resolves to `unknown` and runs, a pull_request never asks whether it may skip, and every job
   # below asks `!= 'true'` rather than `== 'false'`: if this job dies outright its output is the
   # empty string, and the suite still runs.
+  #
+  # ── A PULL REQUEST OF DOCUMENTATION ALONE SKIPS THE BROWSERS (17 Nov 2026) ───────────────────
+  #
+  # A push that changes only `.md` files starts no run at all (`paths-ignore` above), but the
+  # pull_request trigger has no filter, so a docs-only PR waited the full fifteen minutes of browser
+  # jobs for a tree no page could look different in. `browsers` answers that one question, for
+  # pull requests only: `false` when every file the PR changes ends in `.md` and none is a file a
+  # browser test reads (E2E_MD_READS, held to the specs by workflow-hygiene.test.mjs). The jobs
+  # that start a browser read it; the rest run as ever, and `unit` and `nodeps` are where the
+  # documentation's own tests (doc-parity and friends) live. It fails open like `skip`: an API
+  # error, an empty list, or a PR at the files endpoint's 3,000-file ceiling answers `true`, and
+  # the browser jobs ask `!= 'false'`, so a guard that died runs them.
   guard:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
+      pull-requests: read   # the docs-only check lists the PR's files
     outputs:
       skip: ${{ steps.check.outputs.skip }}
+      browsers: ${{ steps.docs.outputs.browsers }}
     steps:
+      - id: docs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          # Every .md file a browser test reads. A PR touching one of these still runs the browsers.
+          E2E_MD_READS: docs/GUIDE_SOURCES.md
+        run: |
+          browsers=true
+          if [ "$EVENT" = "pull_request" ] && [ -n "$PR" ]; then
+            if files=$(gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" --jq '.[].filename' 2>/dev/null) && [ -n "$files" ]; then
+              count=$(printf '%s\n' "$files" | wc -l)
+              other=$(printf '%s\n' "$files" | grep -v -E '\.md$' || true)
+              read=""
+              for f in $E2E_MD_READS; do
+                if printf '%s\n' "$files" | grep -qxF "$f"; then read="$read $f"; fi
+              done
+              echo "the PR changes $count file(s)"
+              if [ "$count" -lt 3000 ] && [ -z "$other" ] && [ -z "$read" ]; then
+                echo "every one is documentation no browser test reads — the browser jobs stand aside"
+                browsers=false
+              fi
+            else
+              echo "could not list the PR's files — the browser jobs run"
+            fi
+          fi
+          echo "browsers=$browsers" >> "$GITHUB_OUTPUT"
+
       # The context values go through `env`, not straight into the script. They are all
       # repo-controlled here, but a `${{ }}` spliced into a shell body is the shape of a script
       # injection and should not have to be re-audited to know it is safe.
@@ -387,7 +430,7 @@ jobs:
   # in parallel with unit.
   smoke:
     needs: guard
-    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.guard.outputs.browsers != 'false' }}
     # UBUNTU 24.04, NOT -LATEST (30 Oct 2026). ubuntu-latest moved to Ubuntu 26.04 that week, and Playwright 1.56.1
     # supported nothing newer than 24.04: `install-deps` printed "Cannot install dependencies for ubuntu26.04-x64" and
     # exited 0, so the libraries step passed and every WebKit test then failed at browser launch (408 of 409 in one
@@ -641,7 +684,7 @@ jobs:
   # is a person waiting on a merge, not runner minutes.
   webkit:
     needs: guard
-    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.guard.outputs.browsers != 'false' }}
     name: webkit (${{ matrix.project }}, ${{ matrix.shard }}/${{ matrix.shards }})
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
@@ -773,7 +816,7 @@ jobs:
   # can't (no headers). The Hosting emulator is Node-based, so no Java is needed here.
   csp:
     needs: guard
-    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.guard.outputs.browsers != 'false' }}
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -843,7 +886,7 @@ jobs:
   # not a lane.
   signed-in:
     needs: guard
-    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.guard.outputs.browsers != 'false' }}
     runs-on: ubuntu-24.04
     # The test step carries the budget; this is the backstop, wide enough for two browsers' system
     # libraries on a slow mirror (8 minutes each at worst, the smoke job says why).
@@ -944,7 +987,7 @@ jobs:
   # the Chromium visual lane is: a renderer difference nobody can act on must not fail a build.
   visual-webkit:
     needs: guard
-    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.guard.outputs.browsers != 'false' }}
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -1133,7 +1176,7 @@ jobs:
 
   visual:
     needs: guard
-    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.guard.outputs.browsers != 'false' }}
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     # 25, not 15 (7 Oct 2026): the Chromium install alone ran for the whole of a 15-minute cap on a
