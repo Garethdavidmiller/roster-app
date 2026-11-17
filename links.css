@@ -184,11 +184,9 @@ body:not(.auth-ready) .app-header { display: none; }
     opacity: 0.35;
 }
 .links-empty-state .links-empty-msg { max-width: 46ch; }
-/* The empty state's own status line — `.links-save-status`'s type and colours, at the message's measure. Empty, it
-   is taken OUT of the column rather than hidden: `display: none` would take the live region out of the
-   accessibility tree, where a line arriving later may go unannounced, and in the column it would add a gap. */
-.links-empty-status { margin: 0; max-width: 46ch; }
-.links-empty-status:empty { position: absolute; }
+/* The empty state's own status line. Empty, it leaves the column rather than hiding: `display: none` would drop the
+   live region from the accessibility tree, where a later line may go unannounced. */
+.links-empty-status { margin: 0; max-width: 46ch; } .links-empty-status:empty { position: absolute; }
 
 /* A design saved against a LONGER rotation than the current one (v19.98). Amber, not red: the
    design is intact and nothing is at risk — it simply describes a link that no longer exists, and
@@ -275,28 +273,26 @@ body:not(.auth-ready) .app-header { display: none; }
    page-visibility-parity.test.mjs — the third instance of this trap in the app. */
 .links-summary[hidden] { display: none !important; }
 
-/* THE STRIP IS ONE ROW SHORTER ON A PHONE THAN IT NEEDS TO BE (v22.79). The save row is sticky, so
-   whatever it costs it costs permanently: measured at 224px of a 393px x 851px phone — 31% of the
-   screen, against the 146px/17% this file recorded when the strip had three chips. The whole of the
-   growth is here.
-
-   It wraps to THREE rows because of six pixels. At 393px the strip has 341px, and "⛔ N staffed
-   hours with no cover" measures 203px — so with the 134px chip beside it the pair needs 347px and
-   the second chip is pushed to a row of its own, leaving most of the first row empty. Taking the
-   chip padding from 4px 10px to 3px 8px and the gap from 10px to 8px brings the pair to 339px, and
-   the strip to TWO rows and 190px (26%).
+/* THE STRIP'S CHIPS ARE PACKED TIGHT ON A PHONE (v22.79). The save row is sticky, so whatever it
+   costs it costs permanently. At v22.79 the trains chip, then "⛔ N staffed hours with no cover" at
+   203px, missed sitting beside a 134px chip by six pixels, so the chip padding went from 4px 10px to
+   3px 8px and the gap from 10px to 8px, and the strip came to two rows and 190px of an 851px phone.
+   THAT ARITHMETIC NO LONGER HOLDS (re-measured 17 Nov 2026, Pixel 5, Chromium). The chip reads
+   "staffed hours with trains and nobody on", 262px alone, and beside the 127px "26 lines designed"
+   needs 397px of the strip's 341px at 393px. So it wraps to FOUR rows — the lines chip, the trains
+   chip, the fatigue and hours chips together, "Full analysis ↓" — and the save row is 215px, a
+   quarter of the screen; 360px is the same. The tight chips still let fatigue and hours share a row.
 
    WHAT THIS DELIBERATELY DOES NOT DO is remove anything. Every figure still renders, no wording
    changes, and `.links-save-meta` ("Last saved by …") stays on every width — hiding it below 1024px
-   was measured too (a further 28px) and refused: `linkDesigns` is a SHARED collection, three
-   designers edit the same documents, and `links-concurrency.js` exists because a silent overwrite
-   of a colleague's work has happened three times. Who last saved, and when, is exactly the fact you
+   was measured too (a further 28px) and refused: `linkDesigns` is a SHARED collection, designers
+   edit the same documents, and `links-concurrency.js` exists because a silent overwrite of a
+   colleague's work has happened three times. Who last saved, and when, is exactly the fact you
    want while editing on a phone. 28px is not worth it.
 
-   360px still wraps to three rows (215px) and that is accepted rather than unseen — closing it
-   needs ~23px more, i.e. shortening "staffed hours with no cover", which this page's own rules
-   forbid. Nor is 320px what any of this is sized against: none of the three people with Links
-   access has a device that narrow (owner, Sep 2026). */
+   Losing a row would mean shortening "staffed hours with trains and nobody on", which this page's
+   own rules forbid softening. Nor is 320px what any of this is sized against: nobody who has had
+   Links access has a device that narrow (owner, Sep 2026). */
 .links-summary {
     display: flex;
     align-items: center;
@@ -1897,8 +1893,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .links-save-row, .links-empty-state,
     #generatorCard, .brush-bar, .design-picker-wrap, .compare-grids-wrap,
     .btn-card-tips, .collapse-chevron, .hint,
-    /* The window EDITOR is a control, not information — the masthead and the line above the heat
-       map both state the window in prose, which is what a paper reader needs. */
+    /* The window EDITOR is a control, not information — the masthead states the window in prose,
+       which is what a paper reader needs (on screen, the editor's own fields are the only statement). */
     #windowEditor { display: none !important; }
 
     .container { display: block !important; max-width: none; }
