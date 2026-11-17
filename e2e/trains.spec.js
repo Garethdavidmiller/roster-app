@@ -1197,7 +1197,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
     // `runFor` is the page's own minute passing; Date stays where `setFixedTime` puts it.
     test('a page left in view turns at 03:00 by itself: the day, the countdown and the words with them', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-12-13T02:30:00'));   // still Saturday's railway day
-        await seedSession(page, 'G. Miller');
+        await seedSession(page, 'A. Person');   // an invented member: the page admits any named session
         await page.goto('/trains.html');
         await expect(page.locator('#trCountdown')).toHaveText('Starts tomorrow');
         await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
@@ -1215,7 +1215,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         const sunday = /** @type {string} */ (TIMETABLES.dec.SU.dep.map(r => r[0]).find(t => t >= '07:00' && !sat.has(t)));
         expect(sunday, 'premise: some December Sunday train has no Saturday twin').toBeTruthy();
         await page.clock.setFixedTime(new Date('2026-12-13T02:50:00'));
-        await seedSession(page, 'G. Miller');
+        await seedSession(page, 'A. Person');
         await page.goto('/trains.html');
         await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
         await openLookup(page);
@@ -1230,7 +1230,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
     // open across that night kept the card folded with the message inside it.
     test('a page left open past the end of December\'s books opens its overview on the message', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2027-05-15T22:00:00'));   // the books' last day
-        await seedSession(page, 'C. Reen');
+        await seedSession(page, 'A. Person');
         await page.addInitScript(() => localStorage.setItem('myb_trains_overview_seen', '1'));
         await page.goto('/trains.html');
         await expect(page.locator('#trOverviewBody')).not.toHaveClass(/\bopen\b/);
@@ -1246,7 +1246,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
     // from 11 January to May. They are read as each panel opens now, so they go when the page's notes go.
     test('the overview ? panel drops the lines about weeks that have ended, on a page left open across them', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2027-01-10T20:00:00'));
-        await seedSession(page, 'G. Miller');
+        await seedSession(page, 'A. Person');
         await page.goto('/trains.html');
         const tips = page.locator('.btn-card-tips[data-card="overview"]');
         await tips.click();

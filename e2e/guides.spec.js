@@ -2250,9 +2250,10 @@ test('guides: every guide starts its first line the same space below the header 
 // Rangers guides' ("check the retail system"), which a FIP traveller cannot follow: the page says to ask
 // Rail Staff Travel. A Rangers conflict keeps its own words.
 test('guide search: the FIP guide\'s Vilnius–Riga conflict is flagged on its cards, with that guide\'s advice', async ({ page }) => {
-    await seedMemberSession(page, 'G. Miller');
-    await page.goto('/');
-    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    // The drawer is the same on every page; Trains admits any named member, so an invented one serves.
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/trains.html');
+    await expect(page.locator('#trControls')).toBeVisible();
     await page.locator('#navMenuBtn').click();
     const input = page.locator('#navGuideSearchInput');
     await expect(input).toBeVisible();
