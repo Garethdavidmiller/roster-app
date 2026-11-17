@@ -24,8 +24,8 @@ import { shiftBadgeParts } from './roster-data.js';
 import { getCurrentMember, isFirstRun } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
-import { formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
-import { countedAlDates, entitlementFor, entitlementNote } from './al-entitlement.js';
+import { formatISO, paydayForCutoff, parseISODate, CONFIG } from './roster-data.js';
+import { countedAlDates, alPosition, entitlementNote } from './al-entitlement.js';
 import { christmasLeaveDates, christmasLeaveLine, boxingDayForAllowance } from './christmas-leave.js';
 import { carryLine } from './leave-year.js';
 import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './calendar-snapshot.js';
@@ -34,11 +34,9 @@ import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './cal
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
  * Returns handles that the coordinator needs to pass to other modules.
  *
- * @returns {{ openDayDetail: (cell: HTMLElement) => void, closeALLightbox: () => void }}
- */
-/**
  * @param {{ navigateToPaycalc?: (paydayIso: string) => void }} [deps]
  *   navigateToPaycalc — wired to the day-detail "Pay estimate" button on pay-marked days.
+ * @returns {{ openDayDetail: (cell: HTMLElement) => void, closeALLightbox: () => void }}
  */
 export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   // ── ANNUAL LEAVE LIGHTBOX ───────────────────────────────────────────────────
@@ -65,6 +63,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   // by the same CONFIG years the calendar itself can reach.
   let alYear = getDisplayYear();
 
+  /** The earliest year ‹ steps back to: the calendar's own first year, or the member's start year if
+   *  later — a year before they joined has no allowance (al-contract.js), so a joiner's ‹ landed on a
+   *  page of dashes one tap back (17 Nov 2026). @param {any} member */
+  const firstLeaveYear = (member) => Math.max(CONFIG.MIN_YEAR,
+    member?.startDate instanceof Date ? member.startDate.getFullYear() : CONFIG.MIN_YEAR);
+
   const alLb = createLightbox({
     overlay:  /** @type {any} */ (lb),
     content:  /** @type {HTMLElement} */ (document.getElementById('alLightboxContent')),
@@ -75,7 +79,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   /** @param {number} step */
   function stepALYear(step) {
     const next = alYear + step;
-    if (next < CONFIG.MIN_YEAR || next > CONFIG.MAX_YEAR) return;
+    if (next < firstLeaveYear(isFirstRun() ? null : getCurrentMember()) || next > CONFIG.MAX_YEAR) return;
     alYear = next;
     loadALStats();
   }
@@ -107,6 +111,14 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (!alErrorEl) return;
     alErrorEl.textContent = text ?? '';
     alErrorEl.hidden = !text;
+  }
+
+  /** Why a year has no allowance, in one line, for the em-dash state. @param {any} member @param {number} year */
+  function noAllowanceLine(member, year) {
+    if (member?.startDate instanceof Date && year < member.startDate.getFullYear()) {
+      return `No allowance for ${year}: it is before the start date.`;
+    }
+    return `No allowance on record for ${year}: the app keeps leave figures for the CEA, CES and Dispatcher grades only.`;
   }
 
   /** Every not-a-figure state — '…' while loading, '—' with nothing to show. Muted (v24.46 polish):
@@ -150,6 +162,15 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     }
   }
 
+  /**
+   * May this device keep a leave balance for `name`: is it the READER'S OWN, signed in by name, on
+   * their own panel? Asked as the panel opens (may the saved copy be shown?) and asked AGAIN as the
+   * read lands (may the new one be saved?) — the save below says why the first answer is not reused.
+   * @param {string|undefined} name
+   */
+  const keepsBalanceFor = (name) => getAccessType() === 'named'
+    && personalActionsAllowed({ accessType: 'named', sessionName: getSession()?.name, shownMember: name });
+
   // Generation token: a slow load for member A resolving after the user switched to member B (and
   // reopened) must not overwrite B's figures with A's. Each call takes the next gen; a stale one bails.
   let _alLoadGen = 0;
@@ -173,7 +194,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     lb?.setAttribute('aria-label', whoName ? `Annual Leave balance, ${whoName}` : 'Annual Leave balance');
 
     yearEl.textContent = yearStr;
-    if (prevYearBtn) prevYearBtn.disabled = year <= CONFIG.MIN_YEAR;
+    if (prevYearBtn) prevYearBtn.disabled = year <= firstLeaveYear(member);
     if (nextYearBtn) nextYearBtn.disabled = year >= CONFIG.MAX_YEAR;
     // "View recorded leave" opens Admin's list ON THIS YEAR. Admin's list is the signed-in member's
     // own, so — like the day panel's "Leave dates" — it is offered only when the panel is showing
@@ -186,7 +207,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       viewLink.hidden = !ownPanel;
     }
     // A saved balance is the READER'S OWN or none: signed in by name, on their own panel.
-    const keepsBalance = ownPanel && getAccessType() === 'named';
+    const keepsBalance = keepsBalanceFor(member?.name);
     noteLine(null);
 
     if (!member) { paintPlaceholder('—'); if (firstRun) noteLine('Choose your name first to see your leave.'); return; }
@@ -209,8 +230,6 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     let _alTimer;
 
     try {
-      let taken = 0;
-      let booked = 0;
       /** @type {any[]} */
       const memberOverrides = [];
       const snap = await Promise.race([
@@ -248,10 +267,11 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       // carried its own loop until v25.18: it resolved one winner per date (v16.23) and asked
       // `consumesEntitlement` (v21.46), but it counted a day towards the year its DATE starts with,
       // so a January day moved back to last year's allowance would have counted in both years.
+      // AND WHERE THE MEMBER STANDS IS ONE ANSWER TOO — `alPosition`, the Admin banner's: which of
+      // those days are taken and which booked, and the entitlement beside them. The panel kept its own
+      // copy of that split until 17 Nov 2026; one copy is one place for the two screens to disagree.
+      const { taken, booked, entitlement } = alPosition({ overrides: memberOverrides, member, year, todayStr });
       const counted = countedAlDates({ overrides: memberOverrides, member, year });
-      for (const date of counted) {
-        if (date <= todayStr) taken++; else booked++;
-      }
       // ACROSS NEW YEAR, BOTH WAYS. In: days dated next January that count towards this year. Out:
       // this January's days counted towards LAST year. The read now starts on last year's Boxing Day,
       // so leave in the last days of December is last year's own and is left out: only this year's
@@ -260,13 +280,14 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       const carriedOut = [...countedAlDates({ overrides: memberOverrides, member, year: year - 1 })]
         .filter(d => d.startsWith(`${yearStr}-`)).length;
       const carry = carryLine({ year, carriedIn, carriedOut });
-      const entitlement = entitlementFor(member, year, memberOverrides);
       // NO ENTITLEMENT ON RECORD → the em-dash state this panel already uses for "no member"
-      // (v22.45). Unreachable from the calendar (a Management account is excluded from the member
-      // selector), but `renderALStats` would otherwise do `null - taken - booked` and paint a
+      // (v22.45), because `renderALStats` would otherwise do `null - taken - booked` and paint a
       // NEGATIVE remaining as confidently as a real one — null coerces to 0, so the arithmetic
       // that looks like it would fail loudly instead succeeds quietly.
-      if (entitlement === null) { paintPlaceholder('—'); noteLine(null); return; }
+      // …AND IT SAYS WHY (17 Nov 2026): four dashes and no words read as a fault. The panel can still
+      // reach such a year — it opens on the calendar's year, which can be before a joiner started,
+      // and a member whose grade changes can step into a year with no leave figures at all.
+      if (entitlement === null) { paintPlaceholder('—'); noteLine(noAllowanceLine(member, year)); return; }
       // WHAT THE ENTITLEMENT IS MADE OF — the Admin banner's own line (`entitlementNote`), so the two
       // cannot describe one number differently. This panel built its own until v25.37 as
       // `22 base + ${entitlement - 22} BH lieu`, hidden for a pro-rated year because that literal 22 is
@@ -280,8 +301,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       const fresh = { taken, booked, entitlement, breakdown, carry, christmas };
       renderALStats(fresh);
       noteLine(null);   // confirmed: no longer a saved copy
-      // Persist the last-known-good memo so the NEXT open paints instantly (best-effort).
-      if (keepsBalance) saveLeaveBalance(/** @type {any} */ (member).name, year, fresh);
+      // Persist the last-known-good memo so the NEXT open paints instantly (best-effort) — ASKED
+      // AGAIN NOW, never the answer from when the read began (17 Nov 2026). The read can outlive what
+      // made this the reader's own: access lost, a sign-out or session expiry in another tab, another
+      // member signed in. Each of those deletes this device's copy (CALENDAR_DATA.md 17), and a save
+      // decided before the read wrote the balance back after the deletion.
+      if (keepsBalanceFor(/** @type {any} */ (member).name)) saveLeaveBalance(/** @type {any} */ (member).name, year, fresh);
     } catch (e) {
       if (myGen !== _alLoadGen) return;   // a newer load superseded this one — don't clobber its result
       // Memo already on screen → keep the last-good figures, no partial or blank clobber, but SAY
@@ -318,8 +343,10 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const timeEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftTime'));
   const leaveYrEl = document.getElementById('dayDetailLeaveYear');
   const xmasEl    = document.getElementById('dayDetailChristmas');
+  const cutoffEl  = document.getElementById('dayDetailCutoff');
   const changeEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailChange'));
   const pairEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailChangePair'));
+  const saidEl   = document.getElementById('dayDetailChangeSaid');
   const byEl     = /** @type {HTMLElement} */ (document.getElementById('dayDetailBy'));
   const extrasEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailExtras'));
   const payBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailPayBtn'));
@@ -327,14 +354,16 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
 
   /**
    * One shift badge, built as elements. Same class, emoji and word as every other badge in the app.
-   * @param {string} shift @returns {HTMLElement}
+   * @param {string} shift @param {any} [who]  the member's `permanentShift`, as the cell honours it
+   * @returns {HTMLElement}
    */
-  function _badge(shift) {
-    const { cls, emoji, word, timed } = shiftBadgeParts(shift);
+  function _badge(shift, who) {
+    const { cls, emoji, word, timed } = shiftBadgeParts(shift, who);
     // A TIMED shift shows its time, not its kind. Both sides of a time tweak classify the same way
     // — 06:20 and 06:30 are both "Early" — so the kind alone drew `☀️ EARLY → ☀️ EARLY`, two
     // identical pills either side of an arrow, on what is probably the commonest change there is.
-    // The kind is still carried by the colour, the emoji and the accessible label.
+    // The kind is still carried by the colour and the emoji, and the change block's one spoken
+    // sentence says it in words — the badges themselves are not read (index.html says why).
     const body = timed ? shift : word;
     const el = document.createElement('span');
     // `ddc-badge` and NOT `shift-badge`: index.css owns `.shift-badge` for CALENDAR CELLS and
@@ -347,7 +376,6 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     ic.textContent = emoji;
     const tx = document.createElement('span');
     tx.textContent = body;
-    if (timed) el.setAttribute('aria-label', `${word} shift, ${shift.replace('-', ' to ')}`);
     el.append(ic, tx);
     return el;
   }
@@ -425,7 +453,11 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         : '';
       xmasEl.hidden = !(day || kept || lieu);
     }
-    const kindEmoji = d.detailShiftValue ? shiftBadgeParts(d.detailShiftValue).emoji : '';
+    // A member whose worked turns all wear ONE kind (`permanentShift`): the cell's badge says that
+    // kind whatever the time (calendar-renderer.js), so the glyph and the pair below say it too. Before
+    // 17 Nov 2026 they named the time's kind — a 🌙 Late cell opened a ☀️ panel.
+    const who = d.detailPermanentShift ? { permanentShift: d.detailPermanentShift } : undefined;
+    const kindEmoji = d.detailShiftValue ? shiftBadgeParts(d.detailShiftValue, who).emoji : '';
     if (glyphEl) {
       glyphEl.textContent = kindEmoji;
       glyphEl.hidden = !kindEmoji;
@@ -452,9 +484,9 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         to_.append(
           Object.assign(document.createElement('span'),
             { className: 'ddc-arrow', textContent: '→', ariaHidden: 'true' }),
-          _badge(to),
+          _badge(to, who),
         );
-        pairEl.replaceChildren(_badge(from), to_);
+        pairEl.replaceChildren(_badge(from, who), to_);
         // ONE sentence for a screen reader. The badges are decorative here — read individually
         // they would be "Spare, right arrow, Early", which is three fragments of one fact, and the
         // arrow is not a word. The headline above still states the shift in full.
@@ -466,13 +498,17 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         // gets one fact and not two fragments.
         // Same correction as the eyebrow: it is the BASE ROSTER on the left, not the previous
         // value, so the sentence leads with what that badge actually is.
-        changeEl.setAttribute('aria-label',
-          `Base roster ${d.detailBase}, changed to ${d.detailShift || ''}`.trim()
-          + (d.detailBy ? `. ${d.detailBy}` : ''));
+        // TEXT, NOT A LABEL (17 Nov 2026): this was an aria-label on the block's <div>, which has no
+        // role a label can name, so a screen reader was free to ignore it — and read the fragments.
+        // The parts are aria-hidden in index.html, and this visually hidden line is what is read.
+        if (saidEl) {
+          saidEl.textContent = `Base roster ${d.detailBase}, changed to ${d.detailShift || ''}`.trim()
+            + (d.detailBy ? `. ${d.detailBy}` : '');
+        }
         changeEl.hidden = false;
       } else {
         changeEl.hidden = true;
-        changeEl.removeAttribute('aria-label');
+        if (saidEl) saidEl.textContent = '';
       }
     }
     // "As rostered" — the change block's other state, and ONLY where the renderer could see that a
@@ -535,7 +571,20 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     // Pay-marked day (payday or cut-off): offer an explicit route to the calculator. Touch has no
     // hover, so tapping such a day used to teleport to paycalc unexpectedly — now the jump is a
     // deliberate button inside the detail. A cut-off day resolves to its own payday.
-    const payTarget = d.paydayIso || (d.cutoffIso ? paydayForCutoff(d.cutoffIso) : null);
+    const cutoffPayday = d.cutoffIso ? paydayForCutoff(d.cutoffIso) : null;
+    const payTarget = d.paydayIso || cutoffPayday;
+    // WHAT A PAY CUT-OFF IS (17 Nov 2026). The key and the chip name it, and nothing on the Calendar
+    // said what one is, so the day that carries it says so: name, then one plain sentence, with the
+    // payday it feeds. The words are neutral — the panel shows a colleague's day and the staff PIN's too.
+    if (cutoffEl) {
+      const when = cutoffPayday
+        ? parseISODate(cutoffPayday).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+        : 'the coming payday';
+      cutoffEl.textContent = d.cutoffIso
+        ? `Pay cut-off: shifts up to and including this day are paid on ${when}. Shifts after it are paid on the payday after that.`
+        : '';
+      cutoffEl.hidden = !d.cutoffIso;
+    }
     if (payBtn) {
       if (personal && payTarget && navigateToPaycalc) {
         payBtn.hidden = false;

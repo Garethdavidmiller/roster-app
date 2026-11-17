@@ -695,9 +695,12 @@ export function getShiftClass(timeStr) {
  * Two builders would eventually give the same shift two different colours on the same screen.
  *
  * @param {string} timeStr
+ * @param {any} [member]  A member whose `permanentShift` forces the kind of every worked, timed shift,
+ *   as `getShiftKind` and the Calendar's cells already honour it; the day panel passes it so it cannot
+ *   call a day another kind than the cell it opened from. Omitted, the time decides, as before.
  * @returns {{cls: string, emoji: string, word: string, title?: string, timed?: boolean}}
  */
-export function shiftBadgeParts(timeStr) {
+export function shiftBadgeParts(timeStr, member) {
     if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return { cls: 'badge-rest',  emoji: '🏠', word: 'Rest' };
     if (timeStr === 'SPARE') return { cls: 'badge-spare', emoji: '📋', word: 'Spare' };
     if (timeStr === 'RDW')   return { cls: 'badge-rdw',   emoji: '💼', word: 'RDW',
@@ -711,8 +714,10 @@ export function shiftBadgeParts(timeStr) {
     if (!SHIFT_TIME_REGEX.test(timeStr)) return { cls: 'badge-unknown', emoji: '❓', word: 'Unknown' };
     // `timed` = this badge's word is a CLASSIFICATION of a time, so a caller may trade the word
     // for the time itself. Declared here rather than re-derived from the class by each consumer.
-    if (isNightShift(timeStr)) return { cls: 'badge-night', emoji: '🦉', word: 'Night', timed: true };
-    return isEarlyShift(timeStr)
+    // The kind is `getShiftKind`'s, so a member's `permanentShift` wins here exactly as it does there.
+    const kind = getShiftKind(timeStr, member);
+    if (kind === 'night') return { cls: 'badge-night', emoji: '🦉', word: 'Night', timed: true };
+    return kind === 'early'
         ? { cls: 'badge-early', emoji: '☀️', word: 'Early', timed: true }
         : { cls: 'badge-late',  emoji: '🌙', word: 'Late',  timed: true };
 }

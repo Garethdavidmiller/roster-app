@@ -42,9 +42,9 @@
  *   2. THE SIGN-IN CARD MUST NOT MOUNT OVER A GRANTED CALENDAR. It awaits a dynamic import, and
  *      access can arrive while that is in flight (the late-identity watcher, a silent re-auth), so
  *      it re-reads `getAccessType()` afterwards and gives up if the answer changed.
- *   3. LEAVING A NAMED IDENTITY IS A SIGN-OUT, NOT A PANEL SWAP. The member card's "use the staff
- *      PIN instead" clears the session and reloads; the argument, and the leak it fixed, are beside
- *      the handler.
+ *   3. LEAVING A NAMED IDENTITY IS A SIGN-OUT, NOT A PANEL SWAP. The member card's "Sign out and
+ *      use the staff PIN" clears the session and reloads; the argument, and the leak it fixed, are
+ *      beside the handler — and the card says so before the tap, notifications included.
  *   4. A FAILED UNLOCK CLEARS THE FIELD AND RETURNS FOCUS TO IT. On a shared PC a PIN left in a
  *      form field is readable by the next person, and focus parked on a disabled button strands a
  *      keyboard user.
@@ -58,7 +58,7 @@ import { newsletterInMenu } from './newsletter-recency.js';
 import { takeStaffPinEndedMark } from './staff-pin-ended.js';
 import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH, PIN_FIRST_HASH } from './calendar-access-core.js';
-import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';
+import { mountLockCard, unmountLockCard, speakAfterMount } from './calendar-lock-slot.js';
 import { lazyImport } from './sw-register.js';
 // The Back stack every overlay uses (overlay.js): the front door's PIN card takes one entry, so Back
 // returns to the sign-in card the way it closes a sheet (sign-in check, 11 Nov 2026).
@@ -99,8 +99,8 @@ let _consecutiveFailures = 0;
 export function resetUnlockFailures() { _consecutiveFailures = 0; }
 
 /**
- * Was the PIN card asked for FIRST — `#staff-pin` in the address (a "Use the staff PIN instead"
- * sign-out, a Lock, a station PC's bookmark), or a page in this tab that ended the PIN (its one-tab
+ * Was the PIN card asked for FIRST — `#staff-pin` in the address (the member card's "Sign out and
+ * use the staff PIN", a Lock, a station PC's bookmark), or a page in this tab that ended the PIN (its one-tab
  * mark, staff-pin-ended.js — the phone's Back carries no hash, audit B3)? The Calendar's boot asks
  * ONCE, and both are removed whatever the decision: a member with a session who opened a station PC's
  * bookmark must not carry it into their own Calendar (v23.19's locked-path-only consumption let them).
@@ -242,6 +242,8 @@ export function showLockPanel() {
         // so the order changed nothing, and the box arrived with its text already in it. The parent is
         // always rendered (empty, it takes no space), so the box appearing inside it is a change the
         // region sees. (axe cannot see any of this: it checks a live region exists, not that it spoke.)
+        // That holds because `say` runs from the form's own events, never in the task that mounted the
+        // card; a message written as the card goes up waits for it to be drawn (`speakAfterMount`).
         msg.classList.toggle('visible', !!text);
         msg.classList.toggle('cal-lock-msg--info', !!text && !isError);
         msg.textContent = text;
@@ -444,7 +446,8 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
             <div class="login-subtitle" id="calLockWho">Calendar</div>
             <p class="login-hint" id="calLockWhy" role="status" aria-live="polite"></p>
             <button id="calLockSubmit" type="button">Sign in →</button>
-            <button class="login-back" id="calLockPinInstead" type="button">Use the staff PIN instead</button>
+            <button class="login-back" id="calLockPinInstead" type="button" aria-describedby="calLockPinNote">Sign out and use the staff PIN</button>
+            <p class="login-help" id="calLockPinNote">This signs you out on this device and turns off its notifications.</p>
         </div>` });
     if (!panel) return;
 
@@ -462,7 +465,9 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     // concatenation on the app's front door is not the place to rely on where a value came from.
     who.textContent = `Calendar · ${name}`;
     const whyEl = /** @type {HTMLElement|null} */ (panel.querySelector('#calLockWhy'));
-    if (whyEl) whyEl.textContent = why;
+    // The reason is a live region mounted in this task, so it is written once the card has been drawn
+    // (`speakAfterMount`): written here and now, it was never spoken.
+    speakAfterMount(whyEl, () => { if (whyEl) whyEl.textContent = why; });
 
     // ── THE FORM IS FETCHED NOW, SO THE TAP CAN OPEN IT AT ONCE (iPhone audit, 7 Nov 2026) ─────────
     //
@@ -524,6 +529,12 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     //
     // The address is REWRITTEN, not navigated (sign-in check, 11 Nov 2026), as `lockCalendar` does:
     // setting `location.hash` pushed a history entry, so Back after the reload went nowhere.
+    //
+    // AND THE CARD SAYS ALL OF THAT BEFORE THE TAP (17 Nov 2026). The button read "Use the staff PIN
+    // instead", so a member on their own phone who had forgotten their password tapped it and was
+    // signed out, with this phone's Huddle and pay notifications turned off, and nothing on the card
+    // had said either would happen. The label names the sign-out, and the line under it (read with
+    // the button, `aria-describedby`) names the notifications.
     pinAlt.addEventListener('click', async () => {
         await releaseDevicePush();
         clearSession();

@@ -232,7 +232,7 @@ const {
 const { showSignInPanel, resetUnlockFailures } = await import('./calendar-lock-cards.js');
 // The slot, so a test can ask WHICH card is standing where the Calendar goes. Real, not mocked —
 // it touches only the fake DOM, and the whole point of asking is that the answer is the shipped one.
-const { lockCardId } = await import('./calendar-lock-slot.js');
+const { lockCardId, showBootSkeleton } = await import('./calendar-lock-slot.js');
 // Where this device keeps the latest Newsletter's date — real, so the test sets the very key the card reads.
 const { NEWSLETTER_LATEST_KEY } = await import('./newsletter-recency.js');
 
@@ -1065,6 +1065,24 @@ describe('initCalendarAccess', () => {
         assert.notEqual(globalThis.window.location.hash, '#staff-pin', 'the hash was NAVIGATED to — that pushes a Back entry');
     });
 
+    test('the member card SAYS its way to the staff PIN signs them out here and turns this device\'s notifications off', async () => {
+        // The hand-over above is a sign-out that releases this device's push record, and the button
+        // read "Use the staff PIN instead": a member on their own phone who had forgotten their
+        // password tapped it and lost their Huddle and pay notifications, with nothing on the card to
+        // say so (17 Nov 2026). The words are asserted where they are, on the card, before the tap.
+        sessionValue = { name: 'A. Person' };
+        await initCalendarAccess({ onGranted: () => {} });
+        await new Promise(r => setTimeout(r, 0));
+        const html = lastPanelHtml();
+        const button = /<button[^>]*id="calLockPinInstead"[^>]*>([^<]*)<\/button>/.exec(html);
+        assert.ok(button, 'the member card offers no route to the staff PIN');
+        assert.match(button[1], /^Sign out\b/, `the button reads "${button[1]}" — nothing on it says it signs the member out`);
+        const note = /<p[^>]*id="calLockPinNote"[^>]*>([^<]*)<\/p>/.exec(html)?.[1] ?? '';
+        assert.match(note, /signs you out on this device/, 'the card does not say the sign-out is this device\'s');
+        assert.match(note, /turns off its notifications/, 'the card does not say this device\'s notifications stop');
+        assert.match(button[0], /aria-describedby="calLockPinNote"/, 'a screen reader hears the button without what it costs');
+    });
+
     test('the silent re-establishment GRANTS when it works — and NO sign-in surface is ever shown', async () => {
         // `ensureNamedSession` with no password tries only the surname default, so for anyone who has
         // not chosen their own password this is a complete recovery with no interaction at all.
@@ -1350,6 +1368,17 @@ describe('initCalendarAccess', () => {
         assert.ok(!lastPanelHtml().includes('cal-boot-grid'), 'the skeleton survived the decision');
     });
 
+    test('the skeleton\'s one line is written once the skeleton has been DRAWN, not in the task that mounted it', async () => {
+        // A live region put on the page and filled in the same task arrives with its words already in
+        // it — a region created with text, which no screen reader speaks. Writing on the line after the
+        // mount, as the skeleton did until 17 Nov 2026, is the same task (speakAfterMount).
+        showBootSkeleton();
+        const status = lastPanel().querySelector('[role="status"]');
+        assert.equal(status.textContent, '', 'the words went in with the region, so they are never announced');
+        await turn();
+        assert.equal(status.textContent, 'Loading the roster…', 'the skeleton says nothing to a screen reader');
+    });
+
     test('a decision that lands INSIDE the delay never flashes the skeleton — then or later', async () => {
         // The other half, and the one that decides whether the threshold is a real number or a
         // decoration. A boot that answers in 120ms must show nothing at all — and it must still show
@@ -1468,6 +1497,11 @@ describe('lockCalendar + handleAccessLost', () => {
         await unlockWithPin('1234');
         handleAccessLost();
         assert.ok(lastPanelHtml().includes('calLockPin'));
+        // NOT in the task that mounted the card (17 Nov 2026): its message region is new, and words
+        // written in the same task are words it was created with, which no screen reader speaks.
+        assert.equal(document.getElementById('calLockMsg').textContent, '',
+            'the reason went in with the card, so it is never announced (speakAfterMount, calendar-lock-slot.js)');
+        await turn();
         assert.match(document.getElementById('calLockMsg').textContent, /expired/i);
     });
 
@@ -1483,6 +1517,10 @@ describe('lockCalendar + handleAccessLost', () => {
         assert.equal(getAccessType(), 'none');
         assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN');
         assert.ok(lastPanelHtml().includes('calLockWho'), 'the member card was not shown');
+        // Its reason is a live region mounted in this task: written a task later, or never spoken.
+        assert.equal(document.getElementById('calLockWhy').textContent, '',
+            'the reason went in with the card, so it is never announced (speakAfterMount, calendar-lock-slot.js)');
+        await turn();
         assert.match(document.getElementById('calLockWhy').textContent, /expired/i, 'the card does not say why it is up');
     });
 
@@ -1935,6 +1973,7 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
         setCalendarAccess(false);   // the read shut first…
         handleAccessLost();         // …and then asked for the card
         assert.ok(lastPanelHtml().includes('calLockPin'), 'the state was already shut, so no card went up — the roster stayed on screen');
+        await turn();   // the reason goes in once the card has been drawn (speakAfterMount)
         assert.match(document.getElementById('calLockMsg').textContent, /expired/i);
     });
 

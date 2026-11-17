@@ -497,6 +497,20 @@ describe('createDayCell', () => {
         assert.ok(!html.includes('badge-early'));
     });
 
+    test('a permanent-shift member\'s cell tells the day panel the kind it forces (17 Nov 2026)', () => {
+        // The cell's badge wears the member's kind whatever the time (above); the day panel built its
+        // glyph and its change pair from the time alone, so a 🌙 Late cell opened a ☀️ panel. The panel
+        // can only agree if the cell says so.
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main', permanentShift: 'late' };
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 6);
+        assert.equal(cell?.dataset.detailShiftValue, '06:00-14:00', 'premise: an early time on the day');
+        assert.equal(cell?.dataset.detailPermanentShift, 'late');
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main' };
+        assert.equal(getDayCell(buildCalendarContainer(0, 2026), 6)?.dataset.detailPermanentShift, undefined,
+            'a member without one must not hand the panel a kind');
+    });
+
     test('worked shift with no permanentShift → shift-time div present', () => {
         const html = createDayCell(JAN_1, '06:00-14:00', undefined, true);
         assert.ok(html.includes('shift-time'));
@@ -870,7 +884,7 @@ describe('a chained change says which value it is showing', () => {
         assert.equal(cell?.dataset.detailNowShift, 'AL');
 
         const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-        const eyebrow = html.match(/<span class="ddc-eyebrow">([^<]*)<\/span>/)?.[1] ?? '';
+        const eyebrow = html.match(/<span class="ddc-eyebrow"[^>]*>([^<]*)<\/span>/)?.[1] ?? '';
         assert.match(eyebrow, /base roster/i,
             `the panel labels that pair "${eyebrow}". The left badge is the base roster and the `
             + 'right one is now; a label that does not say so reads as "what it was immediately '

@@ -167,6 +167,8 @@ const teamView = initTeamView({
     clearFetchedMonth,
     getSelectedMemberIndex,
     isFirstRun,
+    // Whose row is marked as the reader's own: the member signed in by name, never the picker's choice.
+    ownName: () => (getAccessType() === 'named' ? getSession()?.name : null),
     renderCalendar,
     getDisplayedMonth: () => ({ month: getDisplayMonth(), year: getDisplayYear() }),
     onMonthRead: _repaintAfterMonthRead,   // a read Team View starts may land after it has been left

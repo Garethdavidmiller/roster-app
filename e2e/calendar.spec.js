@@ -85,8 +85,13 @@ test('day detail: names the roster it was changed from, and opens at full size',
     const pills = await change.locator('.ddc-badge').allTextContents();
     expect(new Set(pills).size, `both pills read the same: ${pills.join(' / ')}`).toBe(pills.length);
     // One sentence for a screen reader — the badges read individually would be three fragments of
-    // one fact, and the arrow is not a word.
-    await expect(change).toHaveAttribute('aria-label', /^Base roster Spare day, changed to /);
+    // one fact, and the arrow is not a word. Visually hidden TEXT, not an aria-label: a label on a
+    // plain <div> names nothing, so a screen reader may skip it and read the fragments (17 Nov 2026).
+    // Asserted on the accessibility tree itself, which is what a screen reader is given.
+    await expect(change.locator('#dayDetailChangeSaid')).toHaveText(/^Base roster Spare day, changed to /);
+    const said = (await change.locator('#dayDetailChangeSaid').textContent()) ?? '';
+    expect(await change.ariaSnapshot(), 'the block is read as its parts as well as, or instead of, its one sentence')
+        .toBe(`- text: ${said}`);
 
     // Full size, not the 85% fossil. The transform is the only observable: the text renders either
     // way, which is exactly why this went unnoticed.
@@ -3047,7 +3052,7 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(line).toBeVisible();   // the text alone is no proof: a hidden line still holds it
     await expect(line).toHaveText('Christmas Day: due at work, so this is annual leave. It does not come off the allowance.');
     // The pair names the turn the member was ROSTERED — never "Rest day", which `getBaseShift` makes the day.
-    await expect(page.locator('#dayDetailChange')).toHaveAttribute('aria-label', /^Base roster Late shift 14:00-22:30, changed to /);
+    await expect(page.locator('#dayDetailChangeSaid')).toHaveText(/^Base roster Late shift 14:00-22:30, changed to /);
     await page.locator('#dayDetailClose').click();
 
     await expect(cell('Saturday 26 December 2026')).toHaveAttribute('data-detail-shift-value', 'RDW');

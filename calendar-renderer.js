@@ -626,6 +626,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // to be the one state the panel rendered in monochrome, which made the colour look like a
         // property of "something happened" rather than of the shift.
         dayCell.dataset.detailShiftValue = shift;
+        // A member whose worked turns all wear one kind (`permanentShift`): the cell's badge says that
+        // kind whatever the time, so the panel is told too, or its glyph and pair would name the time's.
+        if (member.permanentShift === 'early' || member.permanentShift === 'late') dayCell.dataset.detailPermanentShift = member.permanentShift;
         // Split so the panel can hold the TIME together across a wrap — see `splitShiftLine`.
         // Christmas leave heads the panel as plain "Annual leave": the line under it says why, and
         // the "(Christmas, not counted)" the tooltip and the cell's name need would say it twice.

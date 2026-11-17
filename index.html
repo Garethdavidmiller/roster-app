@@ -434,12 +434,18 @@
                  state a change which never happened, quietly and plausibly. Naming the base roster
                  is also the more useful fact, and "base roster" is vocabulary the Team view note
                  already teaches. -->
+            <!-- ONE SENTENCE FOR A SCREEN READER, in visually hidden TEXT (17 Nov 2026). Read part by
+                 part the block is "Changed from base roster, Spare, Early, changed by…" — fragments of
+                 one fact, the arrow not a word — so the parts are aria-hidden and the sentence says
+                 it whole. It used to be an aria-label on this div, which a screen reader may ignore:
+                 a plain div has no role a label can name, and axe only marks that "needs review". -->
             <div class="day-detail-change" id="dayDetailChange" hidden>
-                <span class="ddc-eyebrow">Changed from base roster</span>
-                <span class="ddc-pair" id="dayDetailChangePair"></span>
+                <span class="visually-hidden" id="dayDetailChangeSaid"></span>
+                <span class="ddc-eyebrow" aria-hidden="true">Changed from base roster</span>
+                <span class="ddc-pair" id="dayDetailChangePair" aria-hidden="true"></span>
                 <!-- Who made the change, or that it came in with the weekly roster. Absent when the
                      document cannot say, which is honest — the alternative names a colleague. -->
-                <span class="ddc-by" id="dayDetailBy" hidden></span>
+                <span class="ddc-by" id="dayDetailBy" aria-hidden="true" hidden></span>
             </div>
             <!-- THE OTHER HALF OF THE CHANGE BLOCK, IN THE SAME SLOT — a day was either changed
                  or it was not, so the two never appear together. An unchanged day used to render
@@ -456,6 +462,11 @@
                  used to answer without the ⭐. Built in JS from `dayMarkers`, the one authority
                  the hover tooltip's sentence also comes from. -->
             <div class="day-detail-markers" id="dayDetailExtras" hidden></div>
+            <!-- WHAT A PAY CUT-OFF IS (17 Nov 2026), on the day that carries the ✂️. The key calls it
+                 "Pay cut-off" and the chip above "Cut-off date", and nothing on the Calendar said what
+                 one is: the last day of shifts paid on the coming payday. The same quiet line as the
+                 two above it; absent on every other day. -->
+            <div class="day-detail-leaveyear" id="dayDetailCutoff" hidden></div>
             <!-- No 💷 here: the chip above carries it, and the two sat ten pixels apart saying the
                  same thing twice. The green already IS the app's Pay identity (the nav Pay pill). -->
             <!-- ANNUAL LEAVE DAYS ONLY (v22.91, owner request). The same rule as the pay button

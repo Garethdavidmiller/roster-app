@@ -58,8 +58,8 @@
  * The order of the two cards is NOT the security model: what each route GRANTS is `decideAccess`'s,
  * a member is never sent to the PIN (`showMemberPanel` answers a held session), and nothing is on
  * screen before access is granted. The PIN card comes first only when asked (`takePinFirst`, read
- * once at boot): `#staff-pin`, which a "Use the staff PIN instead" sign-out reloads with and a
- * station PC can bookmark, or the one-tab mark left by a page in this tab that ended the PIN.
+ * once at boot): `#staff-pin`, which the member card's "Sign out and use the staff PIN" reloads with
+ * and a station PC can bookmark, or the one-tab mark left by a page in this tab that ended the PIN.
  *
  * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
@@ -68,7 +68,7 @@ import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthState
 import { getSession, reconcileExpiredIdentity, ensureNamedSession, authGeneration, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
-import { lockCardId, armSkeleton, showBootSkeleton, setWorkspaceHidden } from './calendar-lock-slot.js';
+import { lockCardId, armSkeleton, showBootSkeleton, setWorkspaceHidden, speakAfterMount } from './calendar-lock-slot.js';
 // The three cards this gate can put where the Calendar goes. They DRAW; this file DECIDES —
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.
@@ -523,11 +523,15 @@ export function handleAccessLost() {
         return;
     }
     showLockPanel();
+    // The PIN card was mounted in this task, so its message region is new: the reason goes in once
+    // the card has been drawn (`speakAfterMount`), or it is read by nobody. Showing the box first and
+    // then writing, as this did, was the same task and so changed nothing.
     const msg = document.getElementById('calLockMsg');
-    if (msg) {
-        msg.classList.add('visible', 'cal-lock-msg--info');   // visible BEFORE the text — see say()
+    speakAfterMount(msg, () => {
+        if (!msg) return;
+        msg.classList.add('visible', 'cal-lock-msg--info');
         msg.textContent = 'Calendar access has expired. Enter the staff PIN to carry on.';
-    }
+    });
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────────────────────────
@@ -596,8 +600,8 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     const held = getSession();
     if (!held?.name) {
         // Nothing held: the front door. Sign-in first (owner decision); the PIN card first
-        // ONLY when asked for by the hash — a "Use the staff PIN instead" sign-out, or a station
-        // PC's bookmark (consumed above).
+        // ONLY when asked for by the hash — the member card's "Sign out and use the staff PIN", or a
+        // station PC's bookmark (consumed above).
         if (pinFirst) showLockPanel();
         else await showSignInPanel();
         return 'none';
