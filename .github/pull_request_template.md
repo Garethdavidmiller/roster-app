@@ -32,7 +32,7 @@
 
 ### Documentation
 - [ ] A new module is listed in `docs/FILE_INDEX.md` and `docs/AI_MAP.md` (the pre-commit hook enforces both); an architecture decision is recorded in `CLAUDE.md`
-- [ ] `AI_MAP.md` updated if any module's exports changed (pre-commit hook enforces this)
+- [ ] `npm run generate:ai-map` run if any module's exports changed (doc-parity fails a stale export line)
 - [ ] `OPERATIONS_REFERENCE.md` updated if a new admin workflow was added
 - [ ] Every stamped doc current to the latest 0.10 milestone (`sw-asset-check.test.mjs` lists them)
 

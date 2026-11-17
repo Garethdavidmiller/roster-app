@@ -322,7 +322,7 @@ test('every module has its own AI_MAP entry, not just a mention', () => {
 // which is not prose and not this test's business. It is the largest card that survived the second
 // pass, rounded up, so it can only come DOWN. An entry that needs more room is a module whose header
 // should hold the rest.
-const AIMAP_ENTRY_CAP = 5_000;
+const AIMAP_ENTRY_CAP = 1_500;
 test('no AI_MAP entry outgrows a routing card', () => {
     const entries = [];
     let cur = null;
