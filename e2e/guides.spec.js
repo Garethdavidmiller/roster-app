@@ -2318,3 +2318,59 @@ test('fip: the "Print <country>" button wears the guide\'s focus ring', async ({
     const rgb = (/** @type {string} */ hex) => `rgb(${[1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
     expect(ring.colour, 'the guide\'s navy').toBe(rgb(ring.navy));
 });
+
+// THE FIP GUIDE'S CHIPS HOLD AS THE OTHER FOUR GUIDES' DO (whole-app check, Nov 2026). Its own chip-bar script
+// had only the scroll rule, so where the page ran out before a late section reached the line — measured at
+// 1920×2600 — a tap on Ferries or Mistakes lit Apply, the last chip. The window is SIZED FROM THE PAGE, as the
+// Pay Calculator Guide's test is: the page below "Ferry services", plus the header and bar, plus 200px.
+/** @param {import('@playwright/test').Page} page @param {string} id @returns {Promise<number>} */
+async function heightToStrand(page, id) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/fip-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const room = await page.evaluate((sec) => {
+        const doc = document.documentElement.scrollHeight;
+        const top = /** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top + scrollY;
+        return { doc, below: Math.ceil(doc - top), bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+    }, id);
+    const height = room.below + room.bar + 200;
+    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+    return height;
+}
+/** @param {import('@playwright/test').Page} page @param {string} id */
+async function stranded(page, id) {
+    return page.evaluate((sec) => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }), id);
+}
+
+test('fip: a chip near the end of the page stays lit after its jump, though its section never reaches the line', async ({ page }) => {
+    const height = await heightToStrand(page, 'sec-ferries');
+    await page.setViewportSize({ width: 1280, height });
+    const ferries = page.locator('.chip-bar .chip[data-target="sec-ferries"]');
+    await ferries.click();
+    await page.waitForTimeout(1800);
+    const geo = await stranded(page, 'sec-ferries');
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(ferries, 'the chip chosen, not the last one').toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again').toHaveAttribute('aria-current', 'true');
+});
+
+test('fip: a link to a card near the end lights its own section\'s chip, through the landing', async ({ page }) => {
+    const height = await heightToStrand(page, 'sec-ferries');
+    await page.setViewportSize({ width: 1280, height });
+    await page.goto('about:blank');
+    await page.goto('/fip-guide.html#ferry-superfast');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await page.waitForTimeout(400);
+    expect((await stranded(page, 'ferry-superfast')).bottom, 'premise: the page bottomed out under the linked card').toBe(true);
+    await expect(page.locator('.chip-bar .chip[data-target="sec-ferries"]'), 'the section the link named, not the last one')
+        .toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+});

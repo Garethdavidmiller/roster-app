@@ -395,8 +395,9 @@ factual accuracy, source links, mobile layout, and the navy/gold palette.
 **Evidence is PER CARD, and there is deliberately no page-wide "last checked" date** — one date for
 thirty-odd claims is either stale or, once one card is re-verified, an over-claim for every other.
 Each country and ferry card shows its own `✓ Checked <Mon> <Year> against Rail Staff Travel` line and
-cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces that the date shown equals its
-row's `Reviewed`, that **every** country/ferry card carries a line *and* an anchor, and that the finder
+cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces that the date shown is the
+oldest `Reviewed` of the rows the card cites (as it does for the Railcard and Rangers guides' pills —
+a newer one claims a review nobody did), that **every** country/ferry card carries a line *and* an anchor, and that the finder
 note makes no page-wide claim. **Absence of a marker is a statement** (the page says an undated card
 is not re-verified), so it must never be an accident — which is why the invariant is structural.
 
