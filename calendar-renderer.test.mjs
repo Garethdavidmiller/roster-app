@@ -21,6 +21,12 @@ let _mockIsSameDay       = () => false;
 let _mockIsBH            = () => false;
 let _mockIsXmas          = () => false;
 let _mockIsEaster        = () => false;
+// The roster the header names: a week number per date, and the descriptor. Pinned (not real) so the
+// header assertions describe a fixed label; swappable so one test can make a month wrap the cycle.
+const _defaultWeek   = () => 3;
+const _defaultRoster = () => ({ weekPrefix: 'CEA Week' });
+let _mockWeekNumber  = _defaultWeek;
+let _mockRoster      = _defaultRoster;
 // Real Sunday check — avoid timezone drift by pinning noon.
 const _realIsSunday = dateStr => new Date(dateStr + 'T12:00:00').getDay() === 0;
 let _mockIsSunday = _realIsSunday;
@@ -79,8 +85,8 @@ mock.module('./roster-data.js', {
         isSunday:       dateStr => _mockIsSunday(dateStr),
         // The roster the header names. Pinned rather than real so the header assertions describe a
         // fixed week label instead of whatever week the real cycle maths puts today in.
-        getWeekNumberForDate: () => 3,
-        getRosterForMember:   () => ({ weekPrefix: 'CEA Week' }),
+        getWeekNumberForDate: (d, m) => _mockWeekNumber(d, m),
+        getRosterForMember:   (m, d) => _mockRoster(m, d),
         paydayForCutoff:      () => null,
     },
 });
@@ -193,6 +199,8 @@ beforeEach(() => {
     _mockIsXmas         = () => false;
     _mockIsEaster       = () => false;
     _mockIsSunday       = _realIsSunday;
+    _mockWeekNumber     = _defaultWeek;
+    _mockRoster         = _defaultRoster;
 
     global.document = { createElement: tag => makeEl(tag), getElementById: () => null };
     global.window   = { matchMedia: () => ({ matches: false }) };
@@ -241,6 +249,23 @@ describe('createCalendarHeader', () => {
     test('BL Week prefix pluralises correctly → BL Weeks', () => {
         const html = createCalendarHeader(1, 3, 'BL Week', 0, 2026);
         assert.ok(html.includes('BL Weeks 1–3')); // en-dash range (v18.19)
+    });
+
+    // A MONTH THAT WRAPS THE CYCLE (17 Nov 2026). Starting in week 19 of a 20-week cycle it ends in
+    // week 3, and "CEA Weeks 19–3" read as a range run backwards — in about a third of member-months
+    // over the winter. It is the end of one cycle and the start of the next, so it says both.
+    test('a range that wraps the cycle says both ends of it — never a range run backwards', () => {
+        for (const [first, last, cycle, want] of /** @type {const} */ ([
+            [19, 3, 20, 'CEA Weeks 19–20, 1–3'],
+            [20, 4, 20, 'CEA Weeks 20, 1–4'],
+            [17, 1, 20, 'CEA Weeks 17–20, 1'],
+            [8, 3, 8, 'CEA Weeks 8, 1–3'],
+        ])) {
+            const html = createCalendarHeader(first, last, 'CEA Week', 0, 2026, cycle);
+            assert.ok(html.includes(want), `weeks ${first} to ${last} of ${cycle}: expected "${want}" in ${html}`);
+            assert.ok(!html.includes(`${first}–${last}`), `a backwards range is back: ${first}–${last}`);
+        }
+        assert.ok(createCalendarHeader(3, 5, 'CEA Week', 0, 2026, 20).includes('CEA Weeks 3–5'), 'an ordinary range changed');
     });
 });
 
@@ -372,6 +397,23 @@ describe('buildCalendarContainer — withheld grid', () => {
         assert.deepEqual(retried, [2026, 0]);
     });
 
+    test('the withheld month speaks to whoever is reading — never "your" (17 Nov 2026)', () => {
+        // The panel stands over a colleague's calendar and the staff PIN's as often as the reader's
+        // own, so "your annual leave" told a station PC, or a colleague's reader, it was theirs. And
+        // the failure ended "the rota underneath it may be out of date", which does not parse.
+        for (const state of ['unknown', 'error']) {
+            _resetKnowledge();
+            if (state === 'error') noteKnowledge('2026-01', 'error');
+            const panel = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year)
+                .querySelectorAll('.calendar-pending')[0];
+            assert.ok(panel, `premise: an ${state} month draws the panel`);
+            assert.doesNotMatch(panel.innerHTML, /\byour\b/i, `the ${state} panel addresses the reader as the member`);
+            assert.match(panel.innerHTML, /annual leave, absences and shift changes/i);
+        }
+        assert.match(buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year).querySelectorAll('.calendar-pending')[0].innerHTML,
+            /without them it could show the wrong shifts/, 'the failure no longer says why the month is held back');
+    });
+
     test('no retry callback ⇒ no button — an inert control is worse than none', () => {
         _resetKnowledge();
         noteKnowledge('2026-01', 'error');
@@ -447,6 +489,14 @@ describe('buildCalendarContainer — transition-month week label', () => {
         }
     });
 
+    test('the month header is told the cycle\'s length, so a wrapping month says both ends', () => {
+        // The wiring half of the header test above: the length comes from the roster the month is on.
+        _mockRoster = () => ({ weekPrefix: 'CEA Week', cycleLength: 20 });
+        _mockWeekNumber = (/** @type {Date} */ d) => (d.getDate() === 1 ? 19 : 3);
+        const header = /** @type {any} */ (buildCalendarContainer(0, 2026)).querySelectorAll('.calendar-header')[0];
+        assert.ok(header.innerHTML.includes('CEA Weeks 19–20, 1–3'), `the header read: ${header.innerHTML}`);
+    });
+
     test('a normal (non-transition) member still shows the week label', () => {
         _member = FAKE_MEMBER;
         const container = buildCalendarContainer(0, 2026);
@@ -495,6 +545,20 @@ describe('createDayCell', () => {
         const html = createDayCell(JAN_1, '06:00-14:00', 'late', true);
         assert.ok(html.includes('badge-late'), 'an early time, drawn as the member\'s permanent Late');
         assert.ok(!html.includes('badge-early'));
+    });
+
+    test('a permanent-shift member\'s cell tells the day panel the kind it forces (17 Nov 2026)', () => {
+        // The cell's badge wears the member's kind whatever the time (above); the day panel built its
+        // glyph and its change pair from the time alone, so a 🌙 Late cell opened a ☀️ panel. The panel
+        // can only agree if the cell says so.
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main', permanentShift: 'late' };
+        _mockGetBaseShift = () => '06:00-14:00';
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 6);
+        assert.equal(cell?.dataset.detailShiftValue, '06:00-14:00', 'premise: an early time on the day');
+        assert.equal(cell?.dataset.detailPermanentShift, 'late');
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main' };
+        assert.equal(getDayCell(buildCalendarContainer(0, 2026), 6)?.dataset.detailPermanentShift, undefined,
+            'a member without one must not hand the panel a kind');
     });
 
     test('worked shift with no permanentShift → shift-time div present', () => {
@@ -657,7 +721,7 @@ describe('buildCalendarContainer — a day cell\'s name contains what it shows (
         assert.equal(byDay[2],  'Friday 2 — Early 06:20-14:00 — January 2026');
         assert.equal(byDay[6],  'Tuesday 6 — Rest day — January 2026');
         assert.equal(byDay[12], 'Monday 12 — AL, Annual leave — January 2026');
-        assert.equal(byDay[14], 'Wednesday 14 — RDW 09:00-17:00, Rest day worked — January 2026');
+        assert.equal(byDay[14], 'Wednesday 14 — RDW 09:00-17:00, Rest day working — January 2026');
         assert.equal(byDay[15], 'Thursday 15 — Train 09:00-17:00, Training — January 2026');
         assert.equal(byDay[23], 'Friday 23 — Early 07:15-15:45 — Payday — January 2026');
     });
@@ -870,7 +934,7 @@ describe('a chained change says which value it is showing', () => {
         assert.equal(cell?.dataset.detailNowShift, 'AL');
 
         const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-        const eyebrow = html.match(/<span class="ddc-eyebrow">([^<]*)<\/span>/)?.[1] ?? '';
+        const eyebrow = html.match(/<span class="ddc-eyebrow"[^>]*>([^<]*)<\/span>/)?.[1] ?? '';
         assert.match(eyebrow, /base roster/i,
             `the panel labels that pair "${eyebrow}". The left badge is the base roster and the `
             + 'right one is now; a label that does not say so reads as "what it was immediately '

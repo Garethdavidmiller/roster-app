@@ -93,7 +93,12 @@ export function statusFailureLine(status) {
  */
 export function shiftDisplay(shiftStr, date = null) {
     if (isUnknownEncoded(shiftStr)) {
-        return `<span class="review-shift-unreadable">⚠ couldn't read “${escapeHtml(stripUnknown(shiftStr))}”</span>`;
+        // WHOSE WORDS (review, Nov 2026). The server upper-cases a cell it cannot read before quoting
+        // it (`normaliseShift`), so a value with a lower-case letter is a sentence the import wrote —
+        // "no Monday cell was read — check the PDF" — and quoted, it read as text printed on the roster.
+        const said = stripUnknown(shiftStr);
+        const words = /[a-z]/.test(said) ? escapeHtml(said) : `couldn't read “${escapeHtml(said)}”`;
+        return `<span class="review-shift-unreadable">⚠ ${words}</span>`;
     }
     if (isRdwEncoded(shiftStr)) {
         const time = stripRdw(shiftStr);

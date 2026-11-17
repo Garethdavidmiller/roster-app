@@ -30,17 +30,18 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
   takes the next feature only by extracting something first; the ratchet's header says what a good
   response looks like, and raising a cap in passing is not one.
 - **One twin kept apart on purpose.** `fip-guide.js` carries the chip-bar blocks of
-  `guide-chips.js` — jump, scrollspy, sticky offsets (watching the bar's size as well as the
-  header's) and deep-link landing — woven into its country finder, where a jump also opens the
-  country's `<details>`; the other four guides share the one file. Three rules are in the shared file only: the two-column rule (the FIP
-  guide is one column), the hold that keeps a tapped or linked chip lit when its section cannot reach
-  the top (taps v25.80, links v25.81), and a banner section starting at its banner (the FIP guide has
-  no banners). Its last sections are long enough that nothing bottoms it out: a tap, measured at 375px
-  and 1280px, and every visible id opened fresh as a link, at 320, 375, 768 and 1280px, lights its own
-  section's chip. So none of the three has anything to do there yet.
-- **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the app sheets — nearly all one
-  navy shadow tint — are a ratchet that may only go down (`RGB_BASELINE` in
-  `css-hex-parity.test.mjs`). The guide sheets keep their own palette guard.
+  `guide-chips.js` — jump, scrollspy, the hold that keeps a tapped or linked chip lit when its
+  section cannot reach the top, sticky offsets (watching the bar's size as well as the header's) and
+  deep-link landing — woven into its country finder, where a jump also opens the country's
+  `<details>`; the other four guides share the one file. Two rules are in the shared file only: the
+  two-column rule (the FIP guide is one column) and a banner section starting at its banner (the FIP
+  guide has no banners), so neither has anything to do there yet. The hold was a third until Nov
+  2026: at 375px and 1280px wide nothing bottomed the page out, but a tall desktop window does, and
+  there a tap on Ferries or Mistakes lit Apply (`e2e/guides.spec.js` → "fip: a chip near the end of
+  the page stays lit after its jump").
+- **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the stylesheets, the app's and
+  the guides' alike — nearly all a navy shadow tint — are a ratchet that may only go down
+  (`RGB_BASELINE` in `css-hex-parity.test.mjs`).
 - **Overtime stays paused** (owner, 3 Nov 2026). Its page, Cloud Functions and tests are kept and keep
   running in CI, so it can be switched back on; removing it was offered and declined.
   `OVERTIME_AVAILABILITY.md` → Paused says what is switched off.
@@ -903,14 +904,15 @@ infrastructure.
 
 ## Pay calculator
 
-### The pay-period grid ends on 12 Mar 2027 — extend it at the tax-year rollover, not before
+### The pay-period grid ends on 12 Mar 2027 — extend it once the 2027/28 figures are out, before 7 March
 `CONFIG.LAST_OFFSET` (`paycalc-periods.js`) stops at the last 2026/27 payday. Extending it needs the
 2027/28 row in `TAX_YEARS`, the thresholds tables and the Student Loan tables, and most of those are
 not published until early 2027 — adding a year now would mean guessing figures the calculator then
 presents as fact, which is the one thing `.claude/rules/paycalc.md` forbids. The next pay award is not
 needed: the year is added without it, and the award's figures follow once it is announced. It
 is the existing "TAX YEAR ROLLOVER" step in `paycalc-periods.js`, due before the first 2027/28
-payday (~9 Apr 2027); `MAINTENANCE_CALENDAR.md` carries the date.
+payslip's shifts begin — Sunday 7 March 2027, for the payslip paid on 9 April — not at the tax year's
+start; `MAINTENANCE_CALENDAR.md` carries the date.
 
 ### Not a payslip replacement
 The calculator estimates take-home pay from staff-entered data. Actual payslips from
@@ -1214,6 +1216,12 @@ and re-bases the target page onto its **own** `registration.scope` (see `notific
 `service-worker.js`). So a github.io install taps through to github.io, a web.app install to
 web.app — `STAFF_SITE_URL`'s origin only supplies the path + hash.
 
+**On the mirror, the installed app's identity is the bare origin.** `manifest.json`'s `id` (`"/"`)
+is read against the origin, so there it is `https://garethdavidmiller.github.io/`, not
+`/roster-app/`. Latent while nothing installable is published at that origin; another app there whose
+id also comes out as `/` would be the same app to the browser. It is left as it is on purpose —
+`.claude/rules/pwa.md` says why changing it would cost every install.
+
 **Both origins must stay in the GCP API-key referrer allowlist** (`web.app`,
 `firebaseapp.com`, `garethdavidmiller.github.io`) until github.io is deliberately retired —
 dropping one silently breaks all Firebase Auth on that origin (task #1 above).
@@ -1302,7 +1310,9 @@ population that is hardest to check by eye — the people whose weeks all look a
 population this check cannot speak for.
 
 **What still covers them is the PDF's own grid.** On the geometry path the grid assigns every day by
-coordinate (`functions/roster-prompt.js`), so a row cannot shift at all. When an upload falls back to
+coordinate (`functions/roster-prompt.js`), so the model cannot shift a row; the day is the column's
+position, and that order is read from the sheet's own header row and must run Sunday to Saturday, or
+the upload takes the PDF path (`readGridPage`, `functions/roster-geometry.js`). When an upload falls back to
 the PDF path — any member the grid cannot place turns it off for that document — the geometry witness
 (`functions/roster-geometry.js`) is positional rather than pattern-based and still refuses a claim in
 an empty cell; and when `geometry.status` comes back `unavailable` these members have **no
@@ -1337,7 +1347,8 @@ day read for an empty Monday-to-Saturday cell goes to the review (`reviewRestRea
 - **On both paths, a printed duty read as `RD` in an OCCUPIED cell is not checked.** Telling a
   printed RD from a printed duty means READING the text, which is phase 3 of `ROADMAP.md` → "Roster
   import". Nor can the witness see a shifted row whose week is fully occupied: on the geometry path
-  such a row cannot shift, and `assessRosterAlignment` covers the PDF path.
+  the model cannot shift such a row (the grid places each cell, under a header read Sunday to
+  Saturday), and `assessRosterAlignment` covers the PDF path.
 
 **Do not rebuild the cross-check on the column scan.** It was built, and the existing fixtures
 refused it: one real CES row scans as `['blank', '06:00-14:00', 'OFF', 'blank', '07:00-15:00', '-',
@@ -1472,8 +1483,11 @@ not do, or cannot know:
     reading left 4 clear — so a manager quoting the FF19 figure should know whose reading it is. The
     other once-unsettled rows were checked against ORR's *Managing rail staff fatigue* (Aug 2024) on
     28 Sep 2026, and `links-fatigue.js` carries their readings.
-  - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
-    to "hours in any 7 days". The real total is higher, and the panel says so on the row.
+  - **A cover week's hours are an assumption, stated.** SPARE days carry no times. The 55-hour row
+    counts a cover week at its worst — each worked day, its Sunday included, as a quarter of the
+    contracted week (8h 45m) — and gives the floor beside it (17 Nov 2026; DECISIONS.md). A real cover
+    duty can run longer, so the worst case is a stated reading, not a ceiling. A count of long duties
+    cannot see a cover week at all, so it is a floor, and the panel says so.
   - **Coverage is not completeness.** The factors the panel asserts as not-applicable are the
     night-shift family, and that rests on CEAs working no nights. It flips to live the moment any
     duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue

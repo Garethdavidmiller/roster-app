@@ -645,6 +645,17 @@ describe('a year before the member joined has no allowance on record', () => {
         assert.equal(entitlementFor(joiner, 2027, []), 32);
     });
 
+    test('a CEA or CES joining year says why its figure is lower, as a Dispatcher’s "(pro-rated)" does', () => {
+        // Invented members. A "9" beside a colleague's 32 or 34 read like a mistake on the Admin banner and
+        // the Calendar's leave panel, which both print this line, while a Dispatcher's said "(pro-rated)".
+        for (const [role, rosterType] of [['CEA', 'main'], ['CES', 'ces']]) {
+            const m = { name: 'Q. Example', role, rosterType, currentWeek: 1, startDate: new Date(2026, 8, 20), proRatedAL: { 2026: 9 } };
+            assert.equal(entitlementFor(m, 2026, []), 9, `${role}: premise — the joining year is the transcribed figure`);
+            assert.equal(entitlementNote({ member: m, year: 2026, overrides: [] }), 'Pro-rated for starting part way through 2026', role);
+            assert.equal(entitlementNote({ member: m, year: 2027, overrides: [] }), null, `${role}: the year after is the contract figure`);
+        }
+    });
+
     test('a Dispatcher too — the base and the earned days both start with them', () => {
         const disp = { name: 'D', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1,
                        startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } };
@@ -1031,6 +1042,23 @@ describe('a day before the start date earns no lieu day', () => {
         const worked = [{ memberName: base.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual' }];
         assert.equal(boxingDayLieuDays(base, 2027, worked), 1, 'the control: due at work and worked');
         assert.equal(boxingDayLieuDays({ ...base, startDate: new Date(2026, 11, 28) }, 2027, worked), 0);
+    });
+});
+
+// ── A DISPATCHER'S DAYS IN LIEU ARE EARNED ON THEIR OWN RECORDS (review, Nov 2026) ──────────────
+// Admin hands the allowance EVERY member's records (projectAlOverage, the leave banner's cache), so the
+// member filter is the only thing keeping a colleague's worked bank holiday off this member's allowance.
+describe('a Dispatcher\'s bank holidays are counted from their own records alone', () => {
+    test('another member\'s record is ignored', () => {
+        // INVENTED Dispatchers on one line; a bank holiday the line rests on (found, not written down).
+        const P = { name: 'P. Invented', role: 'Dispatcher', rosterType: 'fixed', currentWeek: 2 };
+        const Q = { ...P, name: 'Q. Invented' };
+        const rest = getBankHolidays(2026).find(bh => isRestShift(getBaseShift(P, bh)));
+        assert.ok(rest, 'premise: the line rests on some 2026 bank holiday');
+        const worked = { memberName: Q.name, date: formatISO(/** @type {Date} */ (rest)), type: 'rdw', value: '09:00-16:00', source: 'manual' };
+        const base = countDispatcherBankHolidaysWorked(P, 2026, []);
+        assert.equal(countDispatcherBankHolidaysWorked(Q, 2026, [worked]), base + 1, 'premise: worked, it is Q\'s day in lieu');
+        assert.equal(countDispatcherBankHolidaysWorked(P, 2026, [worked]), base, 'and never P\'s');
     });
 });
 

@@ -94,12 +94,32 @@ function vapidKey() {
     return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
 }
 
+/**
+ * How long turning notifications on waits for the server to take the record (whole-app check, 17 Nov
+ * 2026). A Firestore write settles only when the server acknowledges it, and with no connection that
+ * is never — only a sign-out bounded it — so the Settings card sat on "Enabling…", and the bell and
+ * the Calendar's strip waited with it. Past this the save counts as failed and the rollback below
+ * runs, so the 'off-lapsed' the device then reports is TRUE whatever becomes of the queued write:
+ * should it land later, its record names an endpoint that no longer exists, and the next send's 410
+ * deletes it. The member can simply turn it on again once there is a signal.
+ */
+const SAVE_LIMIT_MS = 15_000;
+
+/** `savePushSubscription`, refused after `SAVE_LIMIT_MS`. @param {PushSubscription} sub */
+function saveWithinLimit(sub) {
+    /** @type {any} */ let timer;
+    return Promise.race([
+        savePushSubscription(sub),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('push/save-timeout')), SAVE_LIMIT_MS); }),
+    ]).finally(() => clearTimeout(timer));
+}
+
 /** Subscribe via the service worker, persist to Firestore, record the VAPID fingerprint. */
 async function subscribe() {
     const reg  = await swReady();
     const sub  = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
     try {
-        await savePushSubscription(sub);
+        await saveWithinLimit(sub);
     } catch (err) {
         // Couldn't persist the subscription (a keyless PushSubscription on some Android builds, or a
         // Firestore rejection). Roll back the BROWSER subscription so the device reads as 'off-lapsed'
@@ -344,7 +364,7 @@ async function _disableNotifications() {
  *
  * UNLESS THE RECORD CANNOT BE DELETED (48-hour review). The rule lets only its owner delete it, and
  * the Calendar's member card is shown precisely when a local session has OUTLIVED its Firebase
- * identity — so "Use the staff PIN instead" and the drawer's Sign out there ran a delete that was
+ * identity — so its sign-out to the staff PIN and the drawer's Sign out there ran a delete that was
  * always refused, and the departed member's personal notices kept arriving on a shared PC. When the
  * delete fails, the browser subscription is dropped instead: the next send to that endpoint gets a
  * 410, and the server deletes the record itself (`sendTargetedPush`/`fanOutPush`). The cost is that

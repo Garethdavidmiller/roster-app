@@ -520,6 +520,28 @@ describe('the method (buildLeaveFile)', () => {
         assert.ok(!Object.keys(file.nameMap.rows).some(k => k.includes('new marylebone totals')), 'the overtyped criterion is not a name');
     });
 
+    test('a member who has since moved into Management is in the file for the year of their graded post, in that post’s block only', () => {
+        // Invented: a CES up to Saturday 21 November 2026 and a manager from the Sunday, so hidden and
+        // managerOnly now, as every manager is. 2026's allowance is a CES one, so their 2026 leave is
+        // imported like anybody's — never left out as "a manager", the grade they hold TODAY.
+        const T_PROMOTED = { name: 'T. Promoted', role: 'Management', rosterType: 'ces', currentWeek: 5, hidden: true,
+            managerOnly: true, roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] };
+        const members = [...MEMBERS, T_PROMOTED];
+        const row = { row: 21, role: 'CES', crit: 'Promoted . T', d: 34 };
+        const { file, questions } = build(leaveWorkbook({ extraTotals: [row], extraPlaced: [['2026-06-09', 'H', 'Promoted . T']] }), { members });
+        assert.deepEqual(questions, []);
+        assert.ok(file);
+        assert.deepEqual(file.notImported, [{ name: 'F. Leaver', reason: 'leaver' }, { name: 'J. Boss', reason: 'manager' }]);
+        assert.equal(file.people.find((/** @type {any} */ p) => p.name === 'T. Promoted')?.grade, 'CES');
+        assert.deepEqual(daysFor(file, 'T. Promoted'), [['T. Promoted', '2026-06-09', 'leave', 'grid']]);
+        // Their spelling in ANOTHER grade's block is not matched to them: their leave is imported, so a
+        // match there could file somebody else's day under them. It is asked, as any unknown name is.
+        const elsewhere = build(leaveWorkbook({ extraTotals: [row],
+            extraPlaced: [['2026-06-09', 'H', 'Promoted . T'], ['2026-06-16', 'D', 'Promoted . T']] }), { members });
+        assert.equal(elsewhere.file, null);
+        assert.deepEqual(asked(elsewhere.questions), ['cell-name CEA|promoted . t']);
+    });
+
     test('the same workbook and the previous file’s map make the same file — and the per-workbook answers are asked again', () => {
         const first = build(leaveWorkbook()).file;
         assert.ok(first);

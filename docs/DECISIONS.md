@@ -793,8 +793,12 @@ had, and the payslip that spanned it was right for neither side. The roster now 
 3. **The grade history is published in the staff file**, which is world-readable: "a CEA until
    21 Nov 2026" can already be worked out from the line moves, and a private store would be a second
    copy of the roster to keep in step.
-4. **A member who moves into management keeps the refusal card.** The page prices nobody whose role
-   NOW has no confirmed rates; the payslips worked under the old grade are not offered.
+4. ~~**A member who moves into management keeps the refusal card.** The page prices nobody whose role
+   NOW has no confirmed rates; the payslips worked under the old grade are not offered.~~ **SUPERSEDED
+   16 Nov 2026 (owner, "role at the time"; v26.23).** The page now admits a member who held a priced
+   grade on any day of the payslips it shows, or today, and refuses each PAYSLIP with a day under a
+   role with no rates instead (`.claude/rules/paycalc.md` invariant 13; the header of `pay-audience.js`).
+   The same decision dates the leave allowance (`allowanceRole`, `al-contract.js`).
 
 **Considered and not done.** Asking "switch?" on each promotion — the v25.99 behaviour, which applies
 one answer to the whole history. Pricing by shifts — hours are stored per payslip, so nothing records
@@ -1055,8 +1059,29 @@ main, found the rest). The table's middle column may now break a long word, whic
 changes nothing at any width, measured; and the tips stack as the badge key above them already did,
 under one rule for both grids. A 320px phone therefore shows the tips in one column at any size, as
 it did the badge key. After the fix the Staff Guide runs past no width in the sweep, where main ran
-21px past a 320px phone at 1.5×; the Rangers guide's pills and FIP's 2px at 320px were there before
-and are unchanged.
+21px past a 320px phone at 1.5×; the Rangers guide's pills and FIP's 2px at 320px were there before,
+and v26.26 fixed them too (below).
+
+**The rest of the large-text sweep, fixed in v26.26 (owner, 16 Nov 2026: "Fix all").** The same sweep
+— all five guides at 320–412px under 1, 1.3 and 1.5× text — found two more things running past a
+phone's edge, both older than v26.24:
+- **The Rangers guide's status badges** ("✓ National Rail checked · Aug 2026") were `nowrap`, so a
+  badge wider than the card ran 43px past a 320px phone at 1.5×, 3px past a 360px one and 2px past
+  320px at 1.3×. A badge may now wrap its own words, which it does only when it alone is wider than the
+  column: at the ordinary size every badge is still one line at every width, and the page renders
+  byte-identical to v26.25 at 320, 360, 390, 768 and 1,280px. Three details make the wrapped badge
+  read right: a 1em corner (identical on one line, a rounded rectangle on two — 999px made a bubble),
+  `&nbsp;` keeping a month with its year and the "·" with the word before it, and the key's badges never
+  shrinking — a key row is a flex row, and without that the short "✓ checked" broke onto two lines at
+  the ordinary size.
+- **FIP's "Amsterdam/Rotterdam/Antwerp"** is one 292px word, and the Eurostar box had 260px for it at
+  1.5× on 320px. It takes one `<wbr>`, after "Rotterdam/". Five `<wbr>`s (after every slash) were tried
+  first and re-broke the sentence at the ORDINARY size on a 320px phone, because line-wrapping uses a
+  `<wbr>` wherever it helps, not only where a word cannot fit; with one, every default line is as it was.
+  A `<wbr>` also splits the line into two shaping runs, so the glyphs after it move by a fraction of a
+  pixel — invisible, and below the 6,200px the FIP screenshot baseline covers.
+
+After both, the sweep finds nothing past the edge on any guide at any of its 4 widths and 3 sizes.
 
 **Checked and left as they are, so not re-raised:**
 - **The Calendar's header on a phone** differs from the other pages' — kept (owner, 8 Nov 2026); from
@@ -1075,13 +1100,55 @@ and are unchanged.
 sizes, with the exceptions named (`KEEPS_ITS_OWN_SIZE`); reads a sample of each guide on paper; compares
 a guide's sub-heading with the app's card title; measures the top gap at 390 and 1,280px; and reads the
 Staff Guide at 375, 360 and 320px under 1.5× text ("enlarged text does not widen the column past a
-phone"). `e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths
+phone"); since v26.26 it reads every element and every run of text on all five guides at 375, 360 and
+320px under 1.5× and 320px under 1.3× ("enlarged text runs nothing past a phone's edge"), and holds the
+Rangers badges to one line at the ordinary size and a clean wrap under large text (five mutations, each
+caught by its own assertion: the key's no-shrink rule removed, `nowrap` back, the 999px corner back,
+FIP's `<wbr>` removed, a month's `&nbsp;` removed). `e2e/paycalc.spec.js` sizes the calendar button against the page's main buttons at four widths
 and checks that its longer label never clips. `e2e/trains.spec.js` and `e2e/paycalc.spec.js` read the
 show-more corners; `card-header-parity.test.mjs` requires the canvas group labels to be `h2`s on both
 pages. Thirteen mutations — an off-scale sub-line, the sizes reaching paper, the sub-heading's weight, a
 guide's own top margin, two pay columns, a print size removed, the button at 12px, both 8px corners, a
 `<p>` label, the table's word-break rule removed, the tips' grid taken out of the stacking rule, and the
 Railcard guide's screen sizes reaching paper — each failed its test.
+
+## The 55-hour row takes a cover week at its worst, as every run does (17 Nov 2026)
+
+**Decided (17 Nov 2026, under the owner's "do all" on a whole-app review):** the Links fatigue row "More
+than 55 hours worked in any 7-day period" takes its verdict on a cover week's WORST case, as every run
+rule in the panel already does ("A cover week is an unknown, not a no", `.claude/rules/links-design.md`).
+It took it on the FLOOR — a cover week counted as no hours — so Balanced V6 read CLEAR at 50.9 hours
+while one of its cover weeks falling badly comes to over 60, and Links' Design checks counted 3 factors
+present where the New link page, built from the pack's worst case, counted 4. Members can read both
+during the consultation.
+
+**What the worst case is.** Each worked day of a cover week counts as a quarter of the contracted week,
+8h 45m (`COVER_DUTY_MINUTES`, links-fatigue.js): the app already counts a cover week as the contracted
+week (the hours row, owner), and it is worked as four duties. The four fall on Monday to Saturday,
+placed as badly as each seven days allows, and the Sunday is worked as overtime on top — the bounds the
+run rules keep. The Sunday counts the same 8h 45m: one stated assumption rather than two.
+
+**What the row shows.** The worst case is the figure, and the sentence gives both — "61.2 hours in the
+worst case, and 50.9 on the duties the rota fixes" — with the assumption. It is never CLEAR while the
+worst case crosses 55. With no cover week the two figures are one, and nothing is said.
+
+**The New link page and the pack.** The page's counts now match the Design checks for all three
+shortlisted designs (Balanced V6 4, Level Crossing 0, Middle Ground 1). The pack's own worst case takes
+a cover duty as 8 hours (with 8h 45m and an 8-hour Sunday beside it), so its printed figures are a
+little lower than the app's — 58h 35m and 60h 30m where Links says 61.2 for Balanced V6 — and the two
+agree on every verdict. The pack was NOT regenerated: its tables keep their own split, the duties the
+rota fixes and then "up to", so `report-data.mjs` reads the row at its floor for them, and every sheet,
+deck and figure on the page is what it was.
+
+**What it costs:** a design with a cover week shows one more factor present wherever its worst case
+crosses 55 — Balanced V6 and Middle Ground on the shortlist. The "today's link" row is unchanged: today's
+main cycle is over 55 on its fixed duties already.
+
+**What holds it:** `links-fatigue.test.mjs` (four of Monday to Saturday and never six, the Sunday on top,
+the placement the pack's blocks reach, each week's own four across a lap, both figures in the
+sentence) and `newlink-data.test.mjs` (every count the page states is the Design checks' count for the
+same rota). Taking the verdict on the floor again fails both; dropping the pack's floor reading makes
+the generator count the week twice, which the same file's first test catches.
 
 ## No build step — the trade, and the two things that would reopen it
 

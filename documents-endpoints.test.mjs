@@ -934,7 +934,8 @@ describe('sendPayReminderNotification — a daily schedule that must fire on exa
         assert.equal(b.targeted.length, 1);
         const p = b.targeted[0].payload;
         assert.equal(p.tag, 'pay-reminder');
-        assert.match(p.title, /^💷 Payday Friday — /);
+        // "Cut-off", as the Calendar and the Pay Calculator spell it — the one word staff see in both.
+        assert.equal(p.title, '💷 Payday Friday — hours cut-off today');
         assert.ok(p.url.includes('payday=2026-02-13'), `deep link carries the payday: ${p.url}`);
         assert.match(p.body, /13 February/);
     });

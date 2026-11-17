@@ -22,6 +22,14 @@
     --amber-bg: #fff8e1;
     --red:      #c62828;
     --navy-bg:  #eef1f6;
+    /* The validity badges' fills and edges, and the unresolved callout's wash: values the badge rules
+       used to type out, named here so every colour on the page is a token (css-hex-parity.test.mjs). */
+    --green-bg:   #e8f5e9;   /* = railcard/FIP --green-bg */
+    --green-bdr:  #b7dfba;
+    --red-bg:     #ffebee;   /* = railcard/FIP --red-bg */
+    --red-bdr:    #f3bcbc;
+    --amber-bdr:  #e8c98a;
+    --red-note:   #fdecea;   /* .rr-unresolved — a breath warmer than --red-bg */
 }
 
 /* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, .chip-bar, print)
@@ -112,14 +120,27 @@ h2.section:first-of-type { margin-top: 4px; }
 .tok-ok { color: var(--green); }
 .tok-no { color: var(--red); }
 
+/* A BADGE MAY WRAP ITS OWN WORDS, BUT ONLY WHEN IT CANNOT FIT A LINE OF ITS OWN (v26.26). It was `nowrap`,
+   and "✓ National Rail checked · Aug 2026" is about 300px at 1.5× text, so on a 320px phone it ran 43px past
+   the screen, and the conflict badge 3px past a 360px one. A badge is an inline block, or an item in a row
+   that wraps: either way it first moves to a line of its own, whole, as before, and breaks inside itself only
+   when it is wider than the whole column, which needs larger text on a narrow phone. At the ordinary size
+   every badge is on one line at every width. The markup keeps a month with its year and the "·" with the word
+   before it (`&nbsp;`), so a wrapped badge reads "✓ National Rail checked ·" / "Aug 2026".
+   THE CORNER IS 1em, NOT 999px: one line is the same pill either way, because the badge is 1.5em plus 4px
+   tall and 1em is past half of that at any size, while a wrapped badge becomes a rounded rectangle and not
+   a bubble. */
 .pill {
     display: inline-block;
     padding: 1px 7px;
-    border-radius: 999px;
+    border-radius: 1em;
     font-size: 11px;
     font-weight: 700;
-    white-space: nowrap;
 }
+/* A KEY'S BADGE NEVER SHRINKS (v26.26). A key row is a flex row, and a flex row that is short of room shrinks
+   every item in it, so once a badge could wrap, "✓ checked" broke onto two lines on a 390px phone at the
+   ordinary size. The description beside it takes all of the squeeze. */
+.key-item .pill { flex-shrink: 0; }
 .pill-draft {
     background: var(--amber-bg);
     color: var(--amber);
@@ -131,7 +152,8 @@ h2.section:first-of-type { margin-top: 4px; }
    otherwise this page's "not valid on us" token (`.tok-no`, the near-miss stripe), so it is already
    read as *stop*. That is exactly right for a conflict — stop and check — and wrong for a draft,
    which means only "nobody has looked yet". Amber stays with Draft for the same reason.
-   `.pill` sets `white-space: nowrap`; these strings are long, so `.rr-top` wraps instead (below). */
+   These strings are long, so `.rr-top` wraps first (below), and a badge wraps its own words only when it is
+   wider than the column (the `.pill` note above). */
 .pill-checked {
     background: color-mix(in srgb, var(--green) 10%, white);
     /* DARKER THAN `--green`, and measured rather than eyeballed. The token on its own 10% tint comes
@@ -240,14 +262,14 @@ h2.section:first-of-type { margin-top: 4px; }
    part of v20.37 — the Shakespeare card said "⚠ Conflict" over an ABSENCE, which is the error the
    rest of the page is written to prevent. Red beside the red `⊘ Not valid` is deliberate and safe:
    the two are separated by the word and by the `⚠` vs `⊘` token, never by hue alone. */
-.myb-status--yes         { background: #e8f5e9; color: var(--green); border: 1px solid #b7dfba; }
-.myb-status--no          { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
-.myb-status--conflict    { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
-.myb-status--unconfirmed { background: var(--amber-bg); color: var(--amber); border: 1px solid #e8c98a; }
-.ch-status--yes          { background: #e8f5e9; color: var(--green); border: 1px solid #b7dfba; }
-.ch-status--no           { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
-.ch-status--conflict     { background: #ffebee; color: var(--red);   border: 1px solid #f3bcbc; }
-.ch-status--unconfirmed  { background: var(--amber-bg); color: var(--amber); border: 1px solid #e8c98a; }
+.myb-status--yes         { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bdr); }
+.myb-status--no          { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-bdr); }
+.myb-status--conflict    { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-bdr); }
+.myb-status--unconfirmed { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-bdr); }
+.ch-status--yes          { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bdr); }
+.ch-status--no           { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-bdr); }
+.ch-status--conflict     { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-bdr); }
+.ch-status--unconfirmed  { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-bdr); }
 
 /* The near-misses state their pair inline. No grid: with no Chiltern validity there is nothing to
    explain, only to state (and a full status block would give a dead end more weight than a live
@@ -312,7 +334,7 @@ h2.section:first-of-type { margin-top: 4px; }
    takes the red edge for that reason, and its label goes red with it, so a reader scanning card
    callouts cannot mistake "we cannot tell you" for "here is the answer". */
 .rr-chiltern.rr-unresolved {
-    background: #fdecea;
+    background: var(--red-note);
     border-left-color: var(--red);
 }
 .rr-unresolved .ct-label { color: var(--red); }
@@ -376,7 +398,7 @@ h2.section:first-of-type { margin-top: 4px; }
     height: 22px;
     border-radius: 50%;
     background: var(--navy);
-    color: #fff;
+    color: var(--white);
     font-weight: 800;
     font-size: 12px;
     display: flex;

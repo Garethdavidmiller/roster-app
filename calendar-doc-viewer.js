@@ -35,6 +35,14 @@ const DOCS = {
                   empty: 'No Marylebone Newsletter has been uploaded yet.' },
 };
 
+/**
+ * A document that IS uploaded but whose link this app will not open (`isSafeStorageUrl`). It was
+ * worded as `empty` — "No … has been uploaded yet" — which sent the reader away believing there was
+ * nothing to read, and the admin never heard of a broken link (whole-app check, 17 Nov 2026).
+ * @param {{ label: string }} d
+ */
+const unopenableText = (d) => `The latest ${d.label} can’t be opened — please tell the admin.`;
+
 /** Wait a moment for a session before reading, then read regardless — the user just tapped a
  *  notification and is watching a "Loading…" panel. */
 const DOC_AUTH_WAIT_MS = 2000;
@@ -121,7 +129,8 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     let _openSeq = 0;
     /** The document a locked tap asked for — finished by the grant. It SURVIVES a close on purpose:
      *  the locked message sits over the PIN card, so closing it is the only way to reach the form,
-     *  and the reader who then enters the PIN is asking for exactly the document they tapped.
+     *  and the reader who then enters the PIN is asking for exactly the document they tapped. A tap
+     *  closed while it still said "Loading…" — nothing asked of them yet — is given up (`onClose`).
      *  @type {string|null} */
     let _pendingKey = null;
     /** Whether access has been decided — see `accessDecided`. Bounded, so a decision that never
@@ -146,8 +155,15 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         },
         // Invalidate whatever is in flight. The existing `seq !== _openSeq` guards on BOTH the
         // success and failure paths then suppress every late DOM write and focus move. A held
-        // locked tap is NOT dropped here — see `_pendingKey`.
-        onClose: () => { _openSeq++; _viewing = null; },
+        // locked tap is NOT dropped here once the reader has been told what unlocks it — see
+        // `_pendingKey`. Closed while it still said "Loading…", before access was decided, it IS:
+        // the reader had not been asked for anything, so closing was "not now", and the grant that
+        // follows a moment later re-opened the viewer by itself over whatever they had gone back to
+        // (whole-app check, 17 Nov 2026). calendar-huddle-viewer.js gives such a tap up the same way.
+        onClose: () => {
+            if (!_decided && _waitingSeq === _openSeq) _pendingKey = null;
+            _openSeq++; _viewing = null;
+        },
         afterClose: () => { overlay.style.zIndex = ''; },
     });
     /** The document on screen, read under access — so a lock can take it down. @type {string|null} */
@@ -265,7 +281,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 const signed = await signedP;
                 if (seq !== _openSeq) return;   // a newer tap superseded this one while we waited
                 if (!resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType, storagePath: doc.storagePath })) {
-                    showMessage(d.empty, 'doc-viewer-empty'); return;
+                    showMessage(unopenableText(d), 'doc-viewer-empty'); return;
                 }
                 showMessage('', 'doc-viewer-loading');   // the button speaks for itself, and takes focus
                 const btn = document.createElement('button');
@@ -290,7 +306,8 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 bodyEl.appendChild(btn);
                 btn.focus();
             } else {
-                showMessage(d.empty, 'doc-viewer-empty');
+                // None uploaded, or one whose link this app will not open: two different sentences.
+                showMessage(doc ? unopenableText(d) : d.empty, 'doc-viewer-empty');
             }
         } catch (err) {
             if (seq !== _openSeq) return;   // superseded — leave the newer tap's content alone

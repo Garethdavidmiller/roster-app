@@ -75,6 +75,14 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 // is on screen when the landing ends. A reload or Back/Forward restores the reader's own position,
 // not the link, so it holds nothing; nor does a hash changed in place — the guides carry no in-page
 // links, so that is a fragment typed by hand, or Back across one — which ends the link's answer.
+//
+// A TAP'S JUMP IS JUDGED WHEN IT ENDS. Where the browser says a scroll has ended (scrollend), that is
+// when; the 1.5 s timer stands in only where it does not. The timer used to run everywhere, so a jump
+// that outlasted it was judged in flight, as though the reader had stopped it, and the chip let go —
+// the FIP guide's jump to Ferries in a tall window took longer than that in CI's Safari engine (Nov
+// 2026). Where scrollend exists the timer is only a net, for a jump that never ends. And a jump with
+// nowhere to go — its section already at the line, or the page already at its end — fires no
+// scrollend at all, so it stands at once, as an instant one does.
 var spyPaused = false;
 var spyTimer = 0;
 var spyTicking = false;
@@ -86,6 +94,8 @@ var jumpChip = null;      // the chip a jump or a link holds lit
 var jumpEl = null;        // what the jump or link put in place: the chip's heading, or the linked element
 var jumpTop = NaN;        // where that was left, in viewport pixels; NaN while still in flight
 var jumpByLink = false;   // the hold is a link's: the landing settles it, not the tap's arrival rule
+/** How long a tap's jump may take before it is judged anyway, in ms: a net where scrollend exists, the guess where it does not. */
+var jumpCeilingMs = 'onscrollend' in window ? 5000 : 1500;
 
 /** The top of what a jump or link put in place, in viewport pixels; NaN once it has gone or is hidden. */
 function heldTop() {
@@ -173,13 +183,14 @@ if (chipBar) {
         jumpEl = target;
         jumpTop = NaN;
         jumpByLink = false;
-        if (!reduceMotion) {
+        var settled = reduceMotion || jumpArrived(target);   // instant, or nowhere to go: no scrollend comes
+        if (!settled) {
             spyPaused = true;
             if (spyTimer) clearTimeout(spyTimer);
-            spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
+            spyTimer = setTimeout(resumeSpy, jumpCeilingMs);
         }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-        if (reduceMotion) jumpTop = heldTop();   // an instant jump has already settled
+        if (settled) jumpTop = heldTop();   // nothing is in flight: the jump stands where it is
         // Land focus on the section, so keyboard and screen-reader users arrive where the page did.
         target.setAttribute('tabindex', '-1');
         target.focus({ preventScroll: true });

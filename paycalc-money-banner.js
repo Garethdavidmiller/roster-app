@@ -39,23 +39,29 @@ import { fmt } from './paycalc-format.js';
  * from the payslip (`fromPayslip`, the card's "Enter the amount from your payslip"): hours change
  * nothing there, and the payslip's own figure has nothing left to sharpen.
  *
+ * A confirmed award's lump "will land" only until its payslip arrives (17 Nov 2026). From the
+ * payslip's cut-off it may be in the member's hand (`inHand`, paycalc-periods.js → payslipMayBeInHand),
+ * and the lump IS on it — a payslip paid in August 2026, or October 2025, still said "will land".
+ *
  * @param {object} s
  * @param {number} s.thisPeriod   the lump actually added to this estimate (0 = opted out)
  * @param {number} s.amount       the lump available on this payslip
  * @param {boolean} s.isEstimate  the award is not yet confirmed
  * @param {string} s.aprilYear    the tax year the award backdates to, e.g. "2026"
  * @param {boolean} [s.fromPayslip]  the lump was typed from the payslip rather than worked out
+ * @param {boolean} [s.inHand]    this payslip may already be in the member's hand (from its cut-off)
  * @returns {{ text: string, note: string }}
  */
-export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, fromPayslip = false }) {
+export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, fromPayslip = false, inHand = false }) {
     return {
         text: thisPeriod > 0
             ? `✓ Includes ${isEstimate ? 'estimated ' : ''}back pay lump sum of ${fmt(thisPeriod)}`
-            // A CONFIRMED award definitely lands ("will"); an unconfirmed one stays hedged
-            // ("could"). Either way it is opt-in, so both sentences end by saying it is not added.
+            // A CONFIRMED award definitely lands ("will", and "is on" once its payslip arrives); an
+            // unconfirmed one stays hedged ("could"). Either way it is opt-in, so every sentence ends
+            // by saying it is not added.
             : isEstimate
                 ? `ℹ️ Estimated back pay lump sum of ${fmt(amount)} could land on this payslip — not added to this estimate`
-                : `ℹ️ Your back pay lump sum of ${fmt(amount)} will land on this payslip — not added to this estimate`,
+                : `ℹ️ Your back pay lump sum of ${fmt(amount)} ${inHand ? 'is on' : 'will land on'} this payslip — not added to this estimate`,
         note: fromPayslip ? '' : `For the best estimate, fill in your hours on each payslip back to 1 April ${aprilYear}.`,
     };
 }
@@ -68,7 +74,7 @@ export function backPayBannerCopy({ thisPeriod, amount, isEstimate, aprilYear, f
  * A CONFIRMED premium is never hedged. It is the figure the member copied off this very payslip
  * (the HPP card's box asks for the Holiday Pay Premium line on the January payslip, and this banner
  * shows only on that payslip), so it IS on this payslip — "could land" undersold a fact the member
- * had just read, where back pay's confirmed award already says it "will land".
+ * had just read, where back pay's confirmed award says it "will land", and "is on" once in hand.
  *
  * @param {object} s
  * @param {number} s.forPeriod    the premium actually added to this estimate (0 = opted out)

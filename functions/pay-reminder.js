@@ -86,7 +86,7 @@ async function sendPayReminder({ payday, roster, vapidPrivate, vapidPublic, STAF
     // calm/no-exclamation tone, action in the body.
     const accepted = await sendTargetedPush(buildPushPayload({
         feature:  'pay',
-        headline: `Payday ${paydayDay} — hours cutoff today`,
+        headline: `Payday ${paydayDay} — hours cut-off today`,
         body:     `Open the Pay Calculator to estimate your ${paydayFmt} pay.`,
         url:      `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
     }), uids, '[payReminder]');

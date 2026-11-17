@@ -4857,6 +4857,8 @@ test('admin: the save refuses an unanswered rest day even when the row never ask
     // applies, the record says one does — and then drives the REAL save handler. Before the fix the
     // day was written and `consuming` excluded it: leave recorded that cost nothing.
     await seedSession(page, 'G. Miller');
+    // A write needs the signed-in Firebase user: the answered save at the end goes ahead.
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
 
@@ -4901,6 +4903,12 @@ test('admin: the save refuses an unanswered rest day even when the row never ask
     await expect(row, 'the day must be named, not written').toHaveClass(/row-error/);
     await expect(page.locator('#weekGridFeedback, .feedback').filter({ hasText: 'swapped working day' }).first())
         .toBeVisible();
+    // …and the question is PUT on the row (review, Nov 2026): the refusal named one nobody could see, and
+    // re-picking AL asked nothing either, so Discard was the only way out. Answered, the save goes ahead.
+    await expect(row.locator('.col-al-swap'), 'the refusal puts its question on screen').toBeVisible();
+    await clickInView(row.locator('.al-swap-btn[data-swap="yes"]'));
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText(`1 change saved for ${t.name}`, { timeout: 10000 });
 });
 
 test('admin: a skip-only save leaves the row showing the record that is still there (v23.89)', async ({ page }) => {

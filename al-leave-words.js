@@ -69,7 +69,7 @@ export function patternWords(shift) {
     const other = parseOtherValue(shift ?? '');
     if (other) {
         const t = other.time ? /^(\d\d:\d\d)-(\d\d:\d\d)$/.exec(other.time) : null;
-        return `${OTHER_FLAVOURS[other.flavour].full}${other.rdw ? ' (rest day worked)' : ''}${t ? ` ${t[1]}–${t[2]}` : ''}`;
+        return `${OTHER_FLAVOURS[other.flavour].full}${other.rdw ? ' (Rest Day Working)' : ''}${t ? ` ${t[1]}–${t[2]}` : ''}`;
     }
     return String(shift ?? '');
 }
@@ -254,9 +254,6 @@ export function totalsEntries(totals, allowances = 0) {
         .filter(([k]) => (totals[k] ?? 0) > 0)
         .map(([k, [one, many]]) => ({ key: k, text: `${totals[k]} ${totals[k] === 1 ? one : many}` }))];
 }
-
-/** The summary's lines, words only. @param {Record<string, number>} totals @param {number} [allowances] */
-export const totalsLines = (totals, allowances = 0) => totalsEntries(totals, allowances).map(e => e.text);
 
 /** Why a person is not compared. @param {string} reason */
 export function reasonWords(reason) {

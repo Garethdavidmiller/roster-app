@@ -9,9 +9,10 @@
  * bulk bar from it). Splitting the first two out of `admin-overrides.js` would have made every one
  * of them import the coordinator back — a cycle, which `import-graph.test.mjs` refuses.
  *
- * So the table moved to where nothing depends on anything: pure data, no imports, no DOM. That is
- * also the honest home for it. It is not the coordinator's private state; it is the vocabulary the
- * whole feature speaks.
+ * So the table moved to where nothing depends on anything: pure data, no DOM, and one import — the
+ * Other-day words from override-utils.js, a leaf that imports nothing of this feature, so no cycle can
+ * form through it. That is also the honest home for it. It is not the coordinator's private state; it
+ * is the vocabulary the whole feature speaks.
  *
  * **`PILL_TYPES` remains the ONE declaration of which pills exist and in what order.** Both pill
  * rows are generated from it — the per-row grid in the week editor and the bulk bar in
@@ -19,11 +20,13 @@
  * the reason the arrays live together rather than beside their renderers.
  */
 
+import { OTHER_FLAVOURS, parseOtherValue } from './override-utils.js';
+
 /** @type {Record<string, any>} */
 export const TYPES = {
     spare_shift:  { label: 'Spare shift',      pill: 'Spare',    fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',            pill: 'Shift',    fixed: false },
-    rdw:          { label: 'Rest Day Worked',  pill: 'RDW',      fixed: false },
+    rdw:          { label: 'Rest Day Working', pill: 'RDW',      fixed: false },
     annual_leave: { label: 'Annual Leave',     pill: 'AL',       fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day',  pill: 'Rest Day', fixed: true,  fixedValue: 'RD' },
     sick:         { label: 'Absent',           pill: 'Absent',   fixed: true,  fixedValue: 'SICK' },
@@ -78,6 +81,12 @@ export const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift']);
  * have, is printed. A row whose data disagrees with its own type is exactly the row an admin needs
  * to see, and hiding it would make a real inconsistency invisible.
  *
+ * AN OTHER DAY PRINTS ITS WORD, NEVER ITS CODE (Nov 2026). The row read "TRG RDW 09:00-17:00" and
+ * "MEET 10:00-14:00" while the save receipt, the week grid and the leave sheet check all say
+ * "Training" and "Meeting": a code reads as nothing to anybody who has not written one.
+ * `OTHER_FLAVOURS` is the one table of the words, and the receipt's own form is kept — the word, then
+ * RDW, then the times. A value the grammar cannot read is printed as stored, by the rule above.
+ *
  * @param {string} type  the override's type
  * @param {string} value the stored value
  * @returns {string} the text to print, or `''` to print nothing
@@ -85,5 +94,7 @@ export const WORKED_OVERRIDE_TYPES = new Set(['rdw', 'shift', 'spare_shift']);
 export function rowValueText(type, value) {
     const meta = TYPES[type];
     if (meta && meta.fixed && meta.fixedValue === value) return '';
+    const other = type === 'other' ? parseOtherValue(value) : null;
+    if (other) return [OTHER_FLAVOURS[other.flavour].full, other.rdw ? 'RDW' : '', other.time ?? ''].filter(Boolean).join(' ');
     return value ?? '';
 }

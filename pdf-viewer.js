@@ -14,15 +14,22 @@
  *
  * ── THE LIBRARY ─────────────────────────────────────────────────────────────────────────────────
  *
- * PDF.js 4.10.38 — Mozilla's renderer, the one inside Firefox — VENDORED in pdfjs/ (the legacy build:
- * it supports Safari 16.4, the oldest iOS the app supports). The server's roster reader moved to PDF.js
- * 6 at v25.91 and this did NOT follow, on purpose: 6.x's legacy build targets Safari 18, and this
+ * PDF.js 4.10.38 — Mozilla's renderer, the one inside Firefox — VENDORED in pdfjs/4.10.38/ (the legacy
+ * build: it supports Safari 16.4, the oldest iOS the app supports). The server's roster reader moved to
+ * PDF.js 6 at v25.91 and this did NOT follow, on purpose: 6.x's legacy build targets Safari 18, and this
  * viewer only ever opens the app's own PDFs (dependency-pin-parity.test.mjs holds the version, and
  * says how to move it). Served from our own origin because its worker must be: a browser will not start
  * a Worker from another origin, and `worker-src 'self'` would refuse one anyway. It is NOT precached —
  * about 1.8 MB that most members never need — so the service worker's cache-first branch keeps it once
  * it has been used. It loads by URL, not by a static import, so no page pays for it until a file opens
  * and the typecheck never reads the minified bundle.
+ *
+ * EACH VERSION HAS A FOLDER OF ITS OWN (review, 17 Nov 2026). That cache-first branch keeps a file
+ * under its ADDRESS, from any version's cache, and fetches a miss through the HTTP cache — the rule
+ * the font and the icons follow, so a changed file needs a new name (service-worker.js → FONT_ASSETS).
+ * A new build copied over the old names could reach a phone as the new library beside the old worker,
+ * and PDF.js refuses a worker of another version: no file would open until the next release. So a
+ * re-vendor is a new folder, and `PDFJS_DIR` is its one name here.
  *
  * ── THREE THINGS THAT ARE EASY TO GET WRONG ─────────────────────────────────────────────────────
  *
@@ -53,8 +60,10 @@ import {
     PAGE_FAILURE_TEXT, pageLabel, pagesLabel,
 } from './pdf-viewer-core.js';
 
-const LIBRARY_URL = new URL('./pdfjs/pdf.min.mjs', import.meta.url).href;
-const WORKER_URL = new URL('./pdfjs/pdf.worker.min.mjs', import.meta.url).href;
+/** The vendored build's own folder, named for its version — a re-vendor is a NEW folder (header). */
+const PDFJS_DIR = './pdfjs/4.10.38/';
+const LIBRARY_URL = new URL(`${PDFJS_DIR}pdf.min.mjs`, import.meta.url).href;
+const WORKER_URL = new URL(`${PDFJS_DIR}pdf.worker.min.mjs`, import.meta.url).href;
 
 /** The pack's largest file is about 1.4 MB: generous on a poor signal, and never for ever. */
 const FETCH_BUDGET_MS = 45_000;

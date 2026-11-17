@@ -16,7 +16,7 @@
  */
 
 import { escapeHtml as esc } from './roster-data.js';
-import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin } from './trains-change.js';
+import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, routeKey, LINES, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin } from './trains-change.js';
 import { pairColumns, lineOf, minutesWords, hourNote, hourWords, orderStations, stopChanges, aRealDay, parseStops } from './trains-stations.js';
 import { CHANGE_DATE } from './trains-data.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
@@ -437,7 +437,12 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
         to && to !== r.station ? stations[to] ?? to : routeName(stations, r.station, r.via);
     const andList = (/** @type {string[]} */ ws) => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} and ${ws[ws.length - 1]}`;
     const stopsWords = (/** @type {TrainRow|undefined} */ n, /** @type {TrainRow|undefined} */ d) => {
-        if (!n || !d || n[2] !== d[2]) return '';             // across Aylesbury's two routes the route is the story
+        // Across Aylesbury's two routes the route is the story. Asked of the ROUTE a train takes, not of
+        // its row's code: one run on to Aylesbury Vale Parkway carries no code (onward stops have none)
+        // but takes its line's, and compared by code the stops it dropped went unsaid (whole-app check,
+        // Nov 2026). A train whose end moves to another line keeps the comparison, as it always did.
+        const via = (/** @type {TrainRow} */ r) => LINES[routeKey(r)]?.via ?? r[2];
+        if (!n || !d || via(n) !== via(d)) return '';
         const { lost, gained } = stopChanges(n, d);
         const bits = [...(lost.length ? [`does not stop at ${andList(lost.map(c => stations[c] ?? c))}`] : []),
             ...(gained.length ? [`also stops at ${andList(gained.map(c => stations[c] ?? c))}`] : [])];

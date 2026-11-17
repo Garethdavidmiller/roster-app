@@ -85,7 +85,7 @@ green (see Evolution above for the final values).*
 | 1 | Family colour | **Bronze** — one new token pair `--trg` / `--trg-light` (as-was) (all three flavours share it) |
 | 2 | Badge | 🎓 + short flavour word: **Train** / **Ind** / **Assess** |
 | 3 | Hours slot (where a time normally shows) | The **time** (base shift time, or actual times when entered) — or the word **RDW** for a training rest-day with no times |
-| 4 | Tap on the day (day-detail / tooltip / aria) | The **full word**: "Training" / "Induction" / "Assessment" (+ " — Rest Day Worked" when RDW, + times when known) |
+| 4 | Tap on the day (day-detail / tooltip / aria) | The **full word**: "Training" / "Induction" / "Assessment" (+ " — Rest Day Working" when RDW, + times when known) |
 | 5 | Pay on a rostered day | Base hours at **that day's rate** (basic / Sat 1.25× / BH), automatic; never less |
 | 6 | Pay on a training rest-day (TRG RDW) | **Default 8h → RDW bucket**, manually adjusted afterwards (member in pay calc, or admin by entering real times) |
 | 7 | Over-run | Excess beyond the base shift → the existing **Overtime** bucket (BH over-run → BH-overtime bucket, matching the payslip). RDW days are never split — all hours stay RDW |

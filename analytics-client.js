@@ -20,6 +20,15 @@
  *     and every prune is wrapped so that it cannot reject the read it rides on. That is also why the
  *     prunes use `FieldPath`: a dotted `daily.<date>` path is invalid and throws SYNCHRONOUSLY,
  *     past any `.catch`, which would take the whole Usage card down with it.
+ *   A PRUNE TAKES ITS CUT-OFF FROM THE SERVER'S CLOCK, NEVER THIS DEVICE'S (whole-app check, 17 Nov
+ *     2026). The three prunes (resolved Error Log records past 90 days; the active-account and
+ *     address buckets past 35) are deletions on shared data, and they ran on `new Date()`: an admin
+ *     device running weeks fast deleted the whole live usage window, and months fast, records resolved
+ *     days before. doc-retention.js refuses exactly that, and the Links bin's purge was disarmed for
+ *     it. `trustedNow` is when this session's ID token was issued, by the token service's clock — a
+ *     LOWER bound on the server's now, so a cut-off from it can only delete less; no trusted time, no
+ *     prune (housekeeping runs again on the next read). What a card SHOWS still reads this device's
+ *     clock: a wrong figure on screen is visible and costs nothing, a wrong deletion is neither.
  *
  * ── WHY A FACTORY (v24.64) ─────────────────────────────────────────────────────────────────────
  *
@@ -61,11 +70,17 @@ function refuseCachedRead(snap) {
  *         serverTimestamp: Function, increment: Function, deleteField: Function, FieldPath: any },
  *   writeWithClaimRetry: <T>(fn: () => Promise<T>) => Promise<T>,
  *   appVersion: string,
- * }} deps
+ *   trustedNow?: () => Promise<number|null>,
+ * }} deps — `trustedNow`: the server's time in ms as far as it can be proved (the header's third
+ *   property); absent, or answering null, and nothing is pruned.
  */
-export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry, appVersion }) {
+export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry, appVersion, trustedNow }) {
     const { doc, getDoc, getDocs, setDoc, addDoc, deleteDoc, updateDoc, collection, query, where, limit,
         serverTimestamp, increment, deleteField, FieldPath } = fs;
+
+    /** The prunes' clock: `trustedNow`, or null — never a rejection, never this device's time. @returns {Promise<number|null>} */
+    const pruneClock = () => Promise.resolve().then(() => (trustedNow ? trustedNow() : null))
+        .then(t => (typeof t === 'number' && Number.isFinite(t) ? t : null), () => null);
 
     // ---- Client Error Reporting ----
 
@@ -111,19 +126,23 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
      * @returns {Promise<{ errors: Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>, truncated: boolean, resolvedTruncated: boolean }>}
      */
     async function getClientErrors() {
-        const now = Date.now();
+        const now = Date.now();   // what the card SHOWS — the prune below never reads it
         const UNRESOLVED_CAP = 100;
         const RESOLVED_CAP   = 200;
         const PRUNE_BATCH    = 200;   // per read; the next read takes the rest
+        const serverNowP = pruneClock();
         // Fetch ONE more than the display cap: if the 101st exists we KNOW there are more than
         // 100 (truncated), whereas a plain limit(100) can't tell "exactly 100" from "100+".
-        const [unresolvedSnap, resolvedSnap, expiredSnap] = await Promise.all([
+        const [unresolvedSnap, resolvedSnap, expiredSnap, serverNow] = await Promise.all([
             getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', false), limit(UNRESOLVED_CAP + 1))),
             getDocs(query(collection(db, collections.clientErrors), where('resolved', '==', true),  limit(RESOLVED_CAP + 1))),
-            // The prune's own read. Caught: a prune must never take the Error Log down with it — and a
-            // cached answer is caught the same way, so the prune falls back to the resolved list below.
-            getDocs(query(collection(db, collections.clientErrors),
-                where('resolvedAt', '<', new Date(now - CLIENT_ERROR_RETENTION_MS)), limit(PRUNE_BATCH))).then(refuseCachedRead).catch(() => null),
+            // The prune's own read, cut off by the server's clock (the header) — and not asked at all
+            // without it. Caught: a prune must never take the Error Log down with it — and a cached
+            // answer is caught the same way, so the prune falls back to the resolved list below.
+            serverNowP.then(t => (t === null ? null : getDocs(query(collection(db, collections.clientErrors),
+                where('resolvedAt', '<', new Date(t - CLIENT_ERROR_RETENTION_MS)), limit(PRUNE_BATCH))).then(refuseCachedRead)))
+                .catch(() => null),
+            serverNowP,
         ]);
         for (const snap of [unresolvedSnap, resolvedSnap]) refuseCachedRead(snap);   // before the prune below
         // Pure truncation split (client-errors.capUnresolvedErrors, unit-tested — it caps any list):
@@ -136,9 +155,12 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
         const expired    = (expiredSnap?.docs ?? []).map(toRecord);
 
         // Best-effort prune of resolved records past the retention window (from resolvedAt): what the
-        // expiry read found, plus any in the window above should that read have failed.
-        for (const id of new Set(expiredResolvedIds([...expired, ...resolved], now))) {
-            deleteDoc(doc(db, collections.clientErrors, id)).catch(() => {/* best-effort cleanup */});
+        // expiry read found, plus any in the window above should that read have failed. By the
+        // server's clock, or not at all (the header).
+        if (serverNow !== null) {
+            for (const id of new Set(expiredResolvedIds([...expired, ...resolved], serverNow))) {
+                deleteDoc(doc(db, collections.clientErrors, id)).catch(() => {/* best-effort cleanup */});
+            }
         }
         return { errors: orderClientErrors(unresolved, resolved, now), truncated, resolvedTruncated };
     }
@@ -309,16 +331,18 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
      * @returns {Promise<{ month: string, prevMonth: string, pageCounts: Array<{page: string, count: number}>, prevPageCounts: Array<{page: string, count: number}>, accountsThisMonth: number, accountsLast30: number, monthsHistory: Record<string, number>, origins: Array<{origin: string, accounts: number, installed: number}> }>}
      */
     async function getUsageStats() {
-        const now = new Date();
+        const now = new Date();   // what the card SHOWS — the prunes below never read it
         const m = monthKey(now);
         const pm = prevMonthKey(now);
-        const [pvSnap, pvPrevSnap, aaSnap, orgSnap] = await Promise.all([
+        const [pvSnap, pvPrevSnap, aaSnap, orgSnap, serverNow] = await Promise.all([
             getDoc(doc(db, collections.analytics, `pv_${m}`)),
             getDoc(doc(db, collections.analytics, `pv_${pm}`)),
             getDoc(doc(db, collections.analytics, 'activeAccounts')),
             // Missing until the first write after v19.23 — an absent doc is the empty picture, not an error.
             getDoc(doc(db, collections.analytics, 'origins')).catch(() => null),
+            pruneClock(),
         ]);
+        const pruneAt = serverNow === null ? null : new Date(serverNow);   // no server time, no prune (the header)
         // Origins too: a CACHED copy is not an absent document but an offline device, whose every figure
         // here is as old as that copy — so it fails the card rather than reading "No opens recorded yet".
         // Before the prunes below, so neither works from the cache's copy.
@@ -334,7 +358,7 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
         // or contain hyphens), so updateDoc would throw SYNCHRONOUSLY, bypass the `.catch`, and
         // reject getUsageStats — breaking the whole Usage card. The prune must never do that.
         try {
-            const stale = staleDailyKeys(daily, now);
+            const stale = pruneAt ? staleDailyKeys(daily, pruneAt) : [];
             if (stale.length) {
                 const ref = doc(db, collections.analytics, 'activeAccounts');
                 stale.forEach(k => {
@@ -347,7 +371,7 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
         // an origin key contains hyphens AND a `|`, so a dotted path would throw synchronously).
         const originDaily = (orgSnap && orgSnap.exists() ? /** @type {any} */ (orgSnap.data()).daily : null) || {};
         try {
-            const staleO = staleOriginKeys(originDaily, now);
+            const staleO = pruneAt ? staleOriginKeys(originDaily, pruneAt) : [];
             if (staleO.length) {
                 const ref = doc(db, collections.analytics, 'origins');
                 staleO.forEach(k => {

@@ -618,6 +618,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        means. */
     body[data-print-country] > .content > *:not(.is-print-country) { display: none !important; }
 
+    /* THE SOURCE BANNER GOES WITH ITS CARDS (whole-app check, Nov 2026). It names the page's one
+       unsettled claim, the Vilnius–Riga train, and printed on every one-country sheet: France's sheet
+       said "one claim on this page is marked Source conflict" over a page with none. It now prints with
+       a country only when that card carries the unresolved callout the banner is about. */
+    body[data-print-country]:not(:has(.is-print-country .fip-unresolved)) > .source-banner { display: none !important; }
+
     body { background: white; font-size: 13px; }
 
     .content { max-width: 100%; padding: 0 0 16px; }
@@ -698,7 +704,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     border-radius: 12px;
     cursor: pointer;
 }
-.btn-print-country:hover { border-color: var(--navy); }
+/* The page's own button recipe (.cf-popular, .country-jump): a hover only under a mouse, where it
+   cannot stick after a tap, and the guide's navy ring for the keyboard — it had only the browser's. */
+@media (hover: hover) and (pointer: fine) {
+    .btn-print-country:hover { border-color: var(--navy); }
+}
+.btn-print-country:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 
 /* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
    guide-shell.css → "THE GUIDES' THREE TEXT SIZES". This page was the closest to the scale already —

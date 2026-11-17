@@ -62,17 +62,17 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 
 /**
- * The app stylesheets, DERIVED rather than listed — a new page's sheet is covered the day it lands.
- * The guide sheets have their own palette guard (`guide-colour-parity.test.mjs`), which checks the
- * brand mirrors against the documented hex and so legitimately holds literals.
+ * Every stylesheet the app serves, the GUIDES' INCLUDED, DERIVED rather than listed — a new page's
+ * sheet is covered the day it lands. The guide sheets were left out because rangers-guide.css typed
+ * 16 hex literals into its rules; those are tokens in its `:root` now, so every guide sheet passes
+ * as the app's do (whole-app check, Nov 2026). Their palettes are token DEFINITIONS (exemption 1),
+ * which is where `guide-colour-parity.test.mjs` reads the brand mirrors.
  */
 const SHEETS = readdirSync('.')
     .filter(f => f.endsWith('.css'))
-    // The guide sheets are `<name>-guide.css`, NOT `guide-<name>.css` — a filter written the other
-    // way round silently scans them (it flagged 16 rangers-guide.css literals on the first run) and
-    // would fail this suite against a palette another guard deliberately states in hex.
-    .filter(f => !/^guide[-.]|-guide\.css$/.test(f))
     .sort();
+/** The guide stylesheets among them, named by the shape guide-pages.md's own `paths:` globs use. */
+const GUIDE_SHEETS = SHEETS.filter(f => /^guide[-.]|-guide\.css$/.test(f));
 
 /** Root JS modules — the app's own code, not tooling, tests or vendored copies. */
 const MODULES = readdirSync('.')
@@ -142,8 +142,12 @@ const JS_COLOUR_FN_EXEMPT = /** @type {Array<[string, RegExp, string]>} */ ([
 const RGB = /rgba?\(\s*([^)]*)\)/g;
 /** Pure black or white, comma or space syntax, any alpha — neutral, like the `black`/`white` keywords. */
 const NEUTRAL_RGB = /^(0\s*[, ]\s*0\s*[, ]\s*0|255\s*[, ]\s*255\s*[, ]\s*255)(\s*[,/]|$)/;
-/** Coloured rgb() literals each sheet held on 3 Nov 2026 — may only go DOWN (see the rgb() test). */
-const RGB_BASELINE = /** @type {Record<string, number>} */ ({ 'index.css': 8, 'links.css': 6, 'shared.css': 3 });
+/** Coloured rgb() literals each sheet held on 3 Nov 2026 — may only go DOWN (see the rgb() test). The
+ *  guides' joined on 17 Nov 2026, when the guide sheets came under this file: every one is the navy
+ *  card shadow (`rgba(0, 30, 60, …)`), the same tint the app sheets' baselines hold. */
+const RGB_BASELINE = /** @type {Record<string, number>} */ ({ 'index.css': 8, 'links.css': 6, 'shared.css': 3,
+    'fip-guide.css': 5, 'guide-doc.css': 2, 'guide-shell.css': 2, 'paycalc-guide.css': 1, 'railcard-guide.css': 8,
+    'rangers-guide.css': 10, 'staff-guide.css': 5 });
 
 /** Blank out comments, keeping every byte and newline so offsets and line numbers still hold. */
 const blankComments = (/** @type {string} */ src) =>
@@ -217,7 +221,7 @@ function insideVar(/** @type {string} */ decl, /** @type {number} */ offsetInDec
 
 describe('colours come from tokens, not from literals typed into a rule', () => {
 
-    test('no app stylesheet states a colour as a hex literal', () => {
+    test('no stylesheet, app or guide, states a colour as a hex literal', () => {
         const offenders = [];
         for (const file of SHEETS) {
             const css = blankComments(readFileSync(file, 'utf8'));
@@ -237,7 +241,7 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
             }
         }
         assert.deepEqual(offenders, [],
-            'hex literals in an app stylesheet — a colour typed into a rule stops tracking the '
+            'hex literals in a stylesheet — a colour typed into a rule stops tracking the '
             + 'token system, and nothing renders wrongly to say so:\n  ' + offenders.join('\n  ')
             + '\nDefine a token in :root and read it with var(). The four exemptions (a token '
             + 'definition, a var() fallback, a mask channel, @media print) are in this file\'s header.');
@@ -276,7 +280,7 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
     // ── named colours — the spelling with no digits at all (test audit, 7 Nov 2026) ──────────────
     // `color: darkorange` passed every check in this file: no `#`, no `rgb(`, no `oklch(`. None of the
     // app's stylesheets uses one today, so this is a plain ban rather than a ratchet.
-    test('no app stylesheet names a colour by keyword', () => {
+    test('no stylesheet, app or guide, names a colour by keyword', () => {
         const offenders = [];
         for (const file of SHEETS) {
             const css = blankComments(readFileSync(file, 'utf8'));
@@ -315,7 +319,7 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
     // not a colour choice. The rest are typed tints, nearly all one navy shadow (`rgba(0, 30, 60, …)`)
     // written out rule by rule. They are a RATCHET, not a pardon: each sheet may hold no more coloured
     // rgb() than it did, a sheet not listed may hold none, and a count that falls must come down here.
-    test('no app stylesheet adds a coloured rgb() literal — and the ones it held only go down', () => {
+    test('no stylesheet, app or guide, adds a coloured rgb() literal — and the ones it held only go down', () => {
         const counts = /** @type {Record<string, number>} */ ({});
         const found = /** @type {Record<string, string[]>} */ ({});
         for (const file of SHEETS) {
@@ -347,7 +351,7 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
     // Every token in shared.css is written in oklch(), so a literal one in a rule is a token typed out
     // by hand, and this file could not see it: four sat in the App Notices archive. No ratchet here,
     // because there was nothing to ratchet from — outside a token definition there is one, named below.
-    test('no app stylesheet types an oklch() colour into a rule', () => {
+    test('no stylesheet, app or guide, types an oklch() colour into a rule', () => {
         const offenders = [];
         const used = new Set();
         for (const file of SHEETS) {
@@ -377,7 +381,18 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
     // a stylesheet with no literals. These pin the machinery to literals that ARE there, so a
     // broken regex or an over-eager exemption fails loudly instead of reporting a clean sheet.
     test('the extractor and each exemption are demonstrably working', () => {
-        assert.ok(SHEETS.length >= 7, `expected the app stylesheets, found ${SHEETS.length}`);
+        assert.ok(SHEETS.length >= 14, `expected the app and guide stylesheets, found ${SHEETS.length}`);
+        assert.ok(GUIDE_SHEETS.length >= 7, `expected the guide stylesheets among them, found ${GUIDE_SHEETS.join(', ')}`);
+        // A guide palette is token definitions, and exemption 1 is what lets it pass: on screen,
+        // rangers-guide.css holds hex only in its :root (its print block keeps paper greys, exemption 4),
+        // so the extractor must see literals there and every one must be a definition.
+        // A fresh copy of HEX: `matchAll` starts where the shared regex's lastIndex was left, and an
+        // `assert.match` in an earlier test leaves it part-way through another file.
+        const rangers = blankComments(readFileSync('rangers-guide.css', 'utf8'));
+        const rangersPrint = printRegions(rangers);
+        const onScreen = [...rangers.matchAll(new RegExp(HEX.source, 'g'))].filter(m => !rangersPrint.some(([s, e]) => (m.index ?? 0) >= s && (m.index ?? 0) < e));
+        assert.ok(onScreen.length > 10 && onScreen.every(m => declarationAt(rangers, m.index ?? 0).trim().startsWith('--')),
+            'rangers-guide.css: its on-screen colours should all be token definitions — the guide sheets are not being read as this file thinks');
         assert.ok(MODULES.length >= 40, `expected the root modules, found ${MODULES.length}`);
 
         const shared = blankComments(readFileSync('shared.css', 'utf8'));

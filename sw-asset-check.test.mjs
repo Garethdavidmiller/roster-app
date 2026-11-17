@@ -113,6 +113,25 @@ test('purify.es.mjs is network-first AND precached (the .mjs runtime asset the .
     assert.ok(inList(arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS'), F), 'purify.es.mjs must be precached (offline DOCX sanitising)');
 });
 
+test('every kind of code file the app serves is sent no-cache — .mjs as well as .js', () => {
+    // Cache freshness is `Cache-Control: no-cache` in firebase.json plus the version-named cache
+    // (CLAUDE.md). The vendored .mjs files — purify.es.mjs, and PDF.js in pdfjs/<version>/, which the
+    // worker does not precache and fetches on a miss in the browser's default mode — had no rule of
+    // their own, so Firebase Hosting sent them with its default hour of max-age (review, 17 Nov 2026):
+    // a copy up to an hour old could be stored for the rest of a release. Read as Hosting reads it,
+    // by `source`, not by searching the text.
+    const fb = JSON.parse(readFileSync(join(ROOT, 'firebase.json'), 'utf8'));
+    const cacheFor = (/** @type {string} */ source) => (fb.hosting?.headers ?? [])
+        .find((/** @type {any} */ h) => h.source === source)?.headers
+        ?.find((/** @type {any} */ kv) => kv.key === 'Cache-Control')?.value;
+    for (const source of ['**/*.js', '**/*.mjs', '**/*.css', '**/*.html']) {
+        assert.equal(cacheFor(source), 'no-cache',
+            `firebase.json sends ${source} with ${cacheFor(source) ?? 'no Cache-Control rule'} — every code file the app serves must be no-cache`);
+    }
+    assert.ok(readdirSync(join(ROOT, 'pdfjs')).length > 0 && existsSync(join(ROOT, 'purify.es.mjs')),
+        'the .mjs files this rule is for have moved — re-point the test rather than dropping the rule');
+});
+
 test('every NOTIFICATION_FEATURES hashPath page is in the SW SAFE_NOTIFICATION_PAGES allowlist', () => {
     // Cross-boundary seam (cross-file review E3): buildPushPayload (Cloud Function) sets each
     // notification's deep-link path from NOTIFICATION_FEATURES.hashPath; the SW re-bases the tap only
@@ -744,6 +763,10 @@ for (const [page, entry, preloadsEntry] of PRELOAD_PAGES) {
         // The local modules the page declares as preloads.
         const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
             .map(x => x[1]).sort();
+        // A preload listed twice passes the comparison below (it checks membership, not count) and
+        // is a second hint for a file already asked for — index.html carried one for months.
+        const twice = preloaded.filter((f, i) => i > 0 && preloaded[i - 1] === f);
+        assert.deepEqual(twice, [], `${page} preloads these more than once: ${twice.join(', ')}`);
 
         const missing = expected.filter(f => !preloaded.includes(f));
         const stale   = preloaded.filter(f => !expected.includes(f));

@@ -216,3 +216,41 @@ test('3. the Change a Shift and Apply to Several Days steps list the buttons as 
     assert.deepEqual(list(/<li><strong>Choose type<\/strong>\s*—\s*([^<]+)<\/li>/, 'Apply to Several Days "Choose type"'),
         PILLS.filter(l => l !== TYPES.other.pill));
 });
+
+// 5. THE CALENDAR KEY (whole-app check, Nov 2026). The guide said the key "lists only what is actually in
+//    the month", while Rest, Early, Late, Today, Bank Holiday, Pay cut-off and Payday are always there and
+//    Night is the Dispatcher's; only the rest follow the month (calendar-legend.js → legendVisibility). The
+//    [data-calendar-key] sentence names exactly those, each by the key's own word or by the badge the
+//    guide's Shift Badges grid shows for it, and nothing the key always shows.
+test('5. the Staff Guide names exactly the calendar key items that follow the month', async () => {
+    const { legendVisibility } = await import('./calendar-legend.js');
+    const index = read('index.html');
+    /** The words the Calendar's key gives an item, by its element id (its emoji is aria-hidden, not a word). */
+    const keyWords = (/** @type {string} */ id) => {
+        const m = index.match(new RegExp(`id="${id}"[^>]*>[\\s\\S]*?<span class="legend-text">([\\s\\S]*?)</span></div>`));
+        assert.ok(m, `index.html: no key item #${id} — re-anchor this test`);
+        return text(m[1].replace(/<span aria-hidden="true">[^<]*<\/span>/g, ''));
+    };
+    // What an empty January shows a Dispatcher, with Easter in April: an item still hidden is one only a
+    // month can bring (the Dispatcher's Night is shown, so it is not among them).
+    /** @type {Record<string, boolean>} */
+    const shown = legendVisibility({ types: new Set(), isDispatcher: true, displayMonth: 0, easterMonth: 3 });
+    const monthly = Object.keys(shown).filter(id => !shown[id] && id !== 'legend-row-2');
+    assert.ok(monthly.length >= 6, `only ${monthly.length} month-driven key items were read — re-anchor this test`);
+    // The guide's badges: "🏖️ AL" over "Annual leave", so a key item may be named by its badge.
+    const badges = [...GUIDE.matchAll(/<span class="sb sb-[a-z]+">[^\s<]+\s+([^<]+)<\/span><span class="badge-desc">([^<]+)<\/span>/g)]
+        .map(m => ({ label: m[1].trim(), desc: m[2].trim().toLowerCase() }));
+    assert.ok(badges.length >= 8, `only ${badges.length} Shift Badges were read — re-anchor this test`);
+    const sentence = marked('data-calendar-key');
+    /** Every way the sentence may name a key item: the key's words, their first word, or its badge. */
+    const names = (/** @type {string} */ words) => [words, words.split(' ')[0],
+        ...badges.filter(b => b.desc.startsWith(words.toLowerCase())).map(b => b.label)];
+    const says = (/** @type {string} */ name) => new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(sentence);
+    for (const id of monthly) {
+        const words = keyWords(id);
+        assert.ok(names(words).some(says), `the guide's key sentence does not name "${words}" (#${id}), which only a month brings:\n  ${sentence}`);
+    }
+    for (const always of ['Rest', 'Early', 'Late', 'Today', 'Bank Holiday', 'Pay cut-off', 'Payday', keyWords('legend-night')]) {
+        assert.ok(!says(always), `the guide's key sentence names "${always}", which the key does not take from the month:\n  ${sentence}`);
+    }
+});

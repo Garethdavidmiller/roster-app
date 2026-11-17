@@ -34,6 +34,8 @@ var noMatchEl    = document.getElementById('countryNoMatch');
 // count down** — it was "25" until the v20.25 audit made it 32, and a number in a comment is a
 // claim nobody re-checks. The finder counts the DOM. (Finder control ids
 // use no hyphen — countrySearch/countryClear/… — so they never match this "country-" selector.)
+// They are CARDS, and the count says so: one is Lake Constance's ferries, which is not a country,
+// so "3 of 32 countries" counted a lake (whole-app check, Nov 2026).
 var countryCards = Array.prototype.slice.call(document.querySelectorAll('[id^="country-"]'));
 // A–Z jump chips, kept in lockstep with their target card's visibility.
 var jumpChips = Array.prototype.slice.call(document.querySelectorAll('.country-jump a[href^="#country-"]'));
@@ -72,16 +74,17 @@ var printBtn = document.querySelector('.btn-print');
  * see, and WCAG 2.5.3 (Label in Name) needs that word inside the name — axe checks it from 4.14.
  *
  * No page count is written here. The guide's length is measured elsewhere and would rot in a string.
- * @param {number|null} shown — how many countries the filter is showing, or null when unfiltered.
+ * @param {number|null} shown — how many country cards the filter is showing, or null when unfiltered.
  */
 function describePrintScope(shown) {
     if (!printBtn) return;
     // "the guide with \u2026", not "the N countries": the general chapters print as well, and a name that
     // promised only countries would undersell the sheet by a dozen pages (whole-app review, Nov 2026).
+    // CARDS, as the finder's count line says (above `countryCards`): one of them is a lake's ferries.
     var label = shown === null ? 'PDF \u2014 save or print the whole FIP guide'
         : shown === 0          ? 'PDF \u2014 save or print the guide without countries, as none matches your search'
-        : shown === 1          ? 'PDF \u2014 save or print the guide with the 1 country shown'
-        :                        'PDF \u2014 save or print the guide with the ' + shown + ' countries shown';
+        : shown === 1          ? 'PDF \u2014 save or print the guide with the 1 card shown'
+        :                        'PDF \u2014 save or print the guide with the ' + shown + ' cards shown';
     printBtn.setAttribute('aria-label', label);
 }
 describePrintScope(null);
@@ -117,7 +120,7 @@ function applyCountryFilter(/** @type {string} */ raw) {
         // behaviour exists is a traveller who wants one country, not 25 pages. It states the RULE
         // rather than repeating the number, so it reads correctly at one country and at twelve.
         countEl.textContent = showCount
-            ? ('Showing ' + shown + ' of ' + countryCards.length + ' countries · the PDF saves what is shown')
+            ? ('Showing ' + shown + ' of ' + countryCards.length + ' cards · the PDF saves what is shown')
             : '';
     }
     if (noMatchEl) {
@@ -179,10 +182,33 @@ function setActiveChip(/** @type {HTMLElement|null} */ chip) {
 // header + chip-bar. Above the first section the first chip wins (covers the page-intro); at the page
 // bottom the last chip wins (a short final section may never reach the line). Non-chipped sections
 // fall naturally into the zone of the preceding chipped section.
+//
+// A JUMP'S CHIP HOLDS UNTIL THE READER MOVES ON, AND A LINK'S HOLDS THE SAME WAY (guide-chips.js has
+// the argument; this mirrors it). This page had only the rule above, so in a window tall enough that
+// the end of the page arrives before a late section reaches the line — measured at 1920×2600 — a tap
+// on Ferries or Mistakes lit Apply, the last chip (whole-app check, Nov 2026). The chip a tap or a
+// #fragment link chose stays lit while what it put in place stays where it was put; the section
+// moving more than 2px, or a jump the reader stopped, hands the bar back to the rule. The guide's
+// single column needs nothing of guide-chips.js's two-column rule. A tap's jump is judged when it ENDS,
+// as there: at scrollend where the browser has it, so the 1.5 s timer no longer judges a long jump in
+// flight — this page's jump to Ferries outlasted it in CI's Safari engine (Nov 2026).
 var spyPaused = false;
 var spyTimer = 0;
 var spyTicking = false;
 var spyThreshold = 106;   // header + chip-bar + margin; measured for real once the header lays out
+/** @type {HTMLElement|null} */
+var jumpChip = null;      // the chip a jump or a link holds lit
+/** @type {Element|null} */
+var jumpEl = null;        // what the jump or link put in place: the chip's heading, or the linked element
+var jumpTop = NaN;        // where that was left, in viewport pixels; NaN while still in flight
+var jumpByLink = false;   // the hold is a link's: the landing settles it, not the tap's arrival rule
+/** How long a tap's jump may take before it is judged anyway, in ms: a net where scrollend exists, the guess where it does not. */
+var jumpCeilingMs = 'onscrollend' in window ? 5000 : 1500;
+
+/** The top of what a jump or link put in place, in viewport pixels; NaN once it has gone or is hidden. */
+function heldTop() {
+    return jumpEl && jumpEl.isConnected && jumpEl.getClientRects().length ? jumpEl.getBoundingClientRect().top : NaN;
+}
 
 /** Cache the sticky-stack height so the scroll handler never forces a layout read per frame. */
 function measureThreshold() {
@@ -193,6 +219,10 @@ function measureThreshold() {
 /** @returns {HTMLElement|null} */
 function currentChip() {
     if (!chipTargets.length) return null;
+    if (jumpChip) {
+        if (isNaN(jumpTop) || Math.abs(heldTop() - jumpTop) <= 2) return jumpChip;
+        jumpChip = null;   // the reader has moved on; the jump's answer does not come back
+    }
     // At (or a hair from) the very bottom, the last chip wins — a short final section may never scroll
     // its top up to the trigger line. Math.ceil absorbs sub-pixel scroll heights; the margin covers
     // browser-zoom / mobile-toolbar rounding that a tight `- 2` could miss (leaving the last chip unlit).
@@ -209,8 +239,30 @@ function currentChip() {
 }
 function updateSpy() { if (!spyPaused) setActiveChip(currentChip()); }
 
-/** Lift the post-click pause and reconcile the active chip to the settled scroll position. */
-function resumeSpy() { spyPaused = false; if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; } updateSpy(); }
+/**
+ * Did the jump ARRIVE? Its section sits at the line it was sent to (its own scroll margin), or the page
+ * ran out below it. A scroll that settled anywhere else was the reader's, not the jump's.
+ * @param {Element} target
+ */
+function jumpArrived(target) {
+    var top = target.getBoundingClientRect().top;
+    var line = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+    var atBottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2;
+    return Math.abs(top - line) <= 2 || (atBottom && top > line);
+}
+
+/** Lift the post-click pause, note where an arrived jump settled, and reconcile the active chip there. */
+function resumeSpy() {
+    spyPaused = false;
+    if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; }
+    // A link's hold is the landing's to settle (endLanding), whose own scrolls end too.
+    if (jumpChip && !jumpByLink && isNaN(jumpTop)) {
+        var top = heldTop();
+        if (!isNaN(top) && jumpArrived(/** @type {Element} */ (jumpEl))) jumpTop = top;
+        else jumpChip = null;
+    }
+    updateSpy();
+}
 
 if (chipTargets.length) {
     measureThreshold();
@@ -238,12 +290,18 @@ if (chipBar) {
         var target = document.getElementById(chip.dataset.target || '');
         if (!target) return;
         setActiveChip(chip);
-        if (!reduceMotion) {
+        jumpChip = chip;
+        jumpEl = target;
+        jumpTop = NaN;
+        jumpByLink = false;
+        var settled = reduceMotion || jumpArrived(target);   // instant, or nowhere to go: no scrollend comes
+        if (!settled) {
             spyPaused = true;
             if (spyTimer) clearTimeout(spyTimer);
-            spyTimer = setTimeout(resumeSpy, 1500);   // ceiling fallback where scrollend is unsupported
+            spyTimer = setTimeout(resumeSpy, jumpCeilingMs);
         }
         target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        if (settled) jumpTop = heldTop();   // nothing is in flight: the jump stands where it is
         // Land focus on the section (keyboard / screen-reader users).
         target.setAttribute('tabindex', '-1');
         target.focus({ preventScroll: true });
@@ -264,11 +322,53 @@ var landingId = '';
     if (nav && nav.type !== 'navigate') return;
     landingId = safeDecode(location.hash.slice(1));
 })();
-function endLanding() { landingId = ''; }
+
+/**
+ * The chip of the section an element sits in: the last chipped heading at or before it in the page.
+ * A link can name a card inside a section (a country, a ferry); one before the first section has none.
+ * @param {Element} el
+ */
+function chipFor(el) {
+    /** @type {HTMLElement|null} */
+    var found = null;
+    for (var i = 0; i < chipTargets.length; i++) {
+        var heading = /** @type {HTMLElement} */ (chipTargets[i].section);
+        if (heading !== el && !(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
+        found = chipTargets[i].chip;
+    }
+    return found;
+}
+// The link's chip holds from the first paint: the spy above has run once, so it is asked again now.
+(function () {
+    var target = landingId ? document.getElementById(landingId) : null;
+    var chip = target ? chipFor(target) : null;
+    if (!chip) return;
+    jumpChip = chip;
+    jumpEl = target;
+    jumpTop = NaN;
+    jumpByLink = true;
+    updateSpy();
+})();
+
+/** The landing is over. A link's hold now stands where the landing left its target — if the reader can see it. */
+function endLanding() {
+    landingId = '';
+    if (jumpChip && jumpByLink && isNaN(jumpTop)) {
+        var top = heldTop();
+        if (top >= 0 && top < window.innerHeight) jumpTop = top;
+        else { jumpChip = null; updateSpy(); }
+    }
+}
 ['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (type) {
     window.addEventListener(type, endLanding, { capture: true, passive: true });
 });
-window.addEventListener('hashchange', endLanding);
+// A hash changed in place — an A–Z or popular-country link on this page — is not the link the page
+// opened on, so that link's answer goes with it, and the bar follows the reader.
+window.addEventListener('hashchange', function () {
+    if (jumpByLink) jumpChip = null;
+    endLanding();
+    updateSpy();
+});
 
 /**
  * While the page is still landing on a deep link, move the target back out from under the sticky

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -84,8 +84,9 @@
     <h2 class="section" id="rc-quick">The quick check</h2>
 
     <div class="qc-intro" data-guide-source="rc-myb-restrictions">
-        <p><strong>There are only three kinds of morning rule.</strong> Work out which one you are
-        looking at and the rest follows. Weekends and bank holidays are clear for all of them.</p>
+        <p><strong>There are only four kinds of morning rule</strong>, and one concession with no
+        blanket rule. Work out which one you are looking at and the rest follows. Weekends and bank
+        holidays are clear for all of them.</p>
     </div>
 
     <div class="qc-group qc-none">
@@ -305,7 +306,7 @@
     <div class="rc amber" id="rc-ff" data-guide-source="rc-ff rc-ff-peak">
         <div class="rc-top">
             <span class="rc-name" role="heading" aria-level="3">Family &amp; Friends</span>
-            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
+            <span class="pill pill-checked">✓ Checked · Jul 2026</span>
         </div>
         <div class="rc-who">Up to two named adults 16+ on the card</div>
         <div class="rc-facts">
@@ -364,7 +365,7 @@
     <div class="rc amber" id="rc-forces" data-guide-source="rc-forces rc-forces-children rc-forces-photocard">
         <div class="rc-top">
             <span class="rc-name" role="heading" aria-level="3">HM Forces</span>
-            <span class="pill pill-checked">✓ Checked · Aug 2026</span>
+            <span class="pill pill-checked">✓ Checked · Jul 2026</span>
         </div>
         <div class="rc-who">Serving personnel, their partners, and eligible dependants</div>
         <div class="rc-facts">

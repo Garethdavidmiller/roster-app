@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 let _saveCalls = 0;
 let _saveThrows = false;   // structural failure — savePushSubscription throws 'push/subscription-missing-keys' (keyless sub — review B2)
 let _saveThrowsTransient = false;   // transient failure — an offline/Firestore blip (a DIFFERENT, non-structural error)
+let _saveHangs = false;    // the save starts and never settles — a Firestore write with no connection to acknowledge it
 let _deleteCalls = 0;
 let _deleteThrows = false;   // the rule refused the delete — no owner session on this device
 let _deleteHangs = false;    // the delete starts and never settles — a network that stopped answering
@@ -24,7 +25,7 @@ const _ls = new Map();
 
 mock.module('./firebase-client.js', {
     namedExports: {
-        savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); if (_saveThrowsTransient) throw new Error('unavailable'); },
+        savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); if (_saveThrowsTransient) throw new Error('unavailable'); if (_saveHangs) await new Promise(() => {}); },
         currentAuthUid:         () => _uid,
         deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; if (_deleteThrows) throw new Error('push/no-owner-session'); if (_deleteHangs) await new Promise(() => {}); },
     },
@@ -102,7 +103,7 @@ function setupEnv(cfg = {}) {
 }
 
 beforeEach(() => {
-    _saveCalls = 0; _saveThrows = false; _saveThrowsTransient = false; _deleteCalls = 0; _deleteThrows = false; _deleteHangs = false; _lastDeletedEndpoint = null; _ls.clear();
+    _saveCalls = 0; _saveThrows = false; _saveThrowsTransient = false; _saveHangs = false; _deleteCalls = 0; _deleteThrows = false; _deleteHangs = false; _lastDeletedEndpoint = null; _ls.clear();
 });
 
 // notifSupported reads `'Notification' in window` / `'serviceWorker' in navigator` / `'PushManager' in window`.
@@ -278,6 +279,30 @@ describe('enableNotifications', () => {
     test('unsupported → "unsupported"', async () => {
         setupEnv({ apis: false });
         assert.equal(await enableNotifications(), 'unsupported');
+    });
+    // ── A SAVE THE SERVER NEVER ANSWERS (whole-app check, 17 Nov 2026) ──────────────────────────────
+    // A Firestore write settles only when the server acknowledges it, so with no connection turning
+    // notifications on waited for ever: the Settings card sat on "Enabling…". It is given up at the time
+    // limit and rolled back like any failed save, so "off-lapsed" is the device's true state. Mock timers:
+    // the limit is ticked by hand, and a regression fails here rather than hanging the suite.
+    test('a save that never settles is given up at the time limit and rolled back → "off-lapsed"', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const flush = () => new Promise(r => setImmediate(r));
+        const { newSub } = setupEnv({ permission: 'granted' });
+        _saveHangs = true;
+        /** @type {string|null} */ let result = null;
+        void enableNotifications().then(r => { result = r; });
+        await flush();
+        assert.equal(_saveCalls, 1, 'guard: the save was started');
+        assert.equal(result, null, 'guard: still waiting inside the limit');
+        t.mock.timers.tick(14_999);
+        await flush();
+        assert.equal(result, null, 'guard: not given up before the limit');
+        t.mock.timers.tick(1);
+        await flush();
+        assert.equal(result, 'off-lapsed', 'turning on waited past its limit on a save nobody will answer');
+        assert.equal(newSub._unsubscribed, true, 'the browser subscription is rolled back, so "off-lapsed" is true');
+        assert.equal(_ls.has('myb_vapid_ver'), false, 'nothing is recorded as on');
     });
 });
 

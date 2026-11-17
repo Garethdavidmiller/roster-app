@@ -346,9 +346,11 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await expect(page.locator('#country-es')).toBeVisible();
     await expect(page.locator('#country-no')).toBeHidden();
     // Counted from the DOM, never written down. The literal 25 outlived the guide by one release:
-    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour.
-    const totalCountries = await page.locator('[id^="country-"]').count();
-    await expect(page.locator('#countryCount')).toContainText(`of ${totalCountries} countries`);
+    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour. CARDS,
+    // not countries (whole-app check, Nov 2026): one of them is Lake Constance's ferries.
+    const totalCards = await page.locator('[id^="country-"]').count();
+    await expect(page.locator('#countryCount')).toContainText(`of ${totalCards} cards`);
+    await expect(page.locator('#countryCount')).not.toContainText('countries');
     await expect(page.locator('#countryClear')).toBeVisible();
     // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
     await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
@@ -1628,6 +1630,108 @@ test('staff guide: enlarged text does not widen the column past a phone @layout'
     }
 });
 
+// ENLARGED TEXT RUNS NOTHING PAST A PHONE'S EDGE, ON ANY GUIDE (v26.26, owner: "Fix all"). The test above holds the
+// Staff Guide's columns; this one reads every element AND every run of text on every guide, because a word wider than
+// its box overflows it without moving the box, so a test of boxes alone cannot see it. What it found on main: the
+// Rangers guide's status badges, which were `nowrap` — 43px past a 320px phone at 1.5×, 3px past a 360px one, 2px past
+// 320px at 1.3× — and FIP's "Amsterdam/Rotterdam/Antwerp", one 292px word in a 260px box. What scrolls sideways on
+// purpose (the chip bar, FIP's fare table) holds its own overflow, so text inside one is its business; the page's own
+// wrappers never count as holding it, or a clip on <body> would hide exactly what this looks for. Every <details> is open.
+for (const { file } of GUIDE_PAGES) {
+    test(`${file}: enlarged text runs nothing past a phone's edge, not a box and not a word @layout`, async ({ page }) => {
+        for (const [width, k] of [[375, 1.5], [360, 1.5], [320, 1.5], [320, 1.3]]) {
+            await page.setViewportSize({ width, height: 800 });
+            await page.goto(`/${file}`);
+            await page.evaluate(() => document.fonts.ready);
+            await page.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+            await scaleText(page, k);
+            const m = await page.evaluate(() => {
+                const vw = document.documentElement.clientWidth;
+                /** @param {Element} e */
+                const held = e => {
+                    for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+                        if (getComputedStyle(p).overflowX !== 'visible') return true;
+                    }
+                    return false;
+                };
+                /** @param {Element} e */
+                const name = e => `${e.tagName.toLowerCase()}${[...e.classList].map(c => `.${c}`).join('')}`;
+                const past = new Set();
+                let texts = 0;
+                for (const e of document.querySelectorAll('body *')) {
+                    const r = e.getBoundingClientRect();
+                    if (r.width > 0 && r.right > vw + 0.5 && !held(e)) past.add(`${name(e)} «${(e.textContent ?? '').trim().slice(0, 40)}»`);
+                }
+                const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+                    const el = n.parentElement;
+                    if (!el || !(n.textContent ?? '').trim() || held(el)) continue;
+                    const range = document.createRange();
+                    range.selectNodeContents(n);
+                    const rects = [...range.getClientRects()].filter(r => r.width > 0);
+                    if (rects.length) texts++;
+                    if (rects.some(r => r.right > vw + 0.5)) past.add(`text in ${name(el)} «${(n.textContent ?? '').trim().slice(0, 40)}»`);
+                }
+                return { past: [...past], texts, scroll: document.documentElement.scrollWidth - vw };
+            });
+            expect(m.texts, `premise: ${file}'s text is read at all`).toBeGreaterThan(50);
+            expect(m.past, `${file} at ${width}px, ${k}× text: what runs past the screen's edge`).toEqual([]);
+            expect(m.scroll, `${file} at ${width}px, ${k}× text: the page scrolls sideways`).toBeLessThanOrEqual(0);
+        }
+    });
+}
+
+// A RANGERS STATUS BADGE WRAPS ITS OWN WORDS ONLY WHEN IT MUST, AND WRAPS CLEANLY (v26.26). At the ordinary size every
+// badge is one line at every width — including the key's, which sit in flex rows that shrink their items when short of
+// room, so they must not shrink (`.key-item .pill`). Under large text on a narrow phone the long ones wrap: never with a
+// line starting on the "·", never with a month parted from its year (the `&nbsp;`s in the markup), and as a rounded
+// rectangle, not a bubble — the 1em corner, where 999px rounds a two-line badge's ends into half-circles.
+test('rangers: a status badge keeps to one line at the ordinary size, and wraps cleanly under large text', async ({ page }) => {
+    const read = () => page.evaluate(() => [...document.querySelectorAll('.pill')].map(p => {
+        const s = getComputedStyle(p);
+        const lh = parseFloat(s.lineHeight);
+        /** @type {string[]} */
+        const lines = [];
+        let top = NaN;
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            const t = n.textContent ?? '';
+            for (let i = 0; i < t.length; i++) {
+                const r = document.createRange();
+                r.setStart(n, i);
+                r.setEnd(n, i + 1);
+                const b = r.getClientRects()[0];
+                if (!b) continue;
+                if (!(Math.abs(b.top - top) < lh / 2)) { lines.push(''); top = b.top; }
+                lines[lines.length - 1] += t[i];
+            }
+        }
+        const h = p.getBoundingClientRect().height;
+        return { text: (p.textContent ?? '').replace(/\u00a0/g, ' ').trim(),
+            lines: lines.map(l => l.replace(/\u00a0/g, ' ').trim()),
+            bubble: parseFloat(s.borderTopLeftRadius) >= h / 2 };
+    }));
+    await page.goto('/rangers-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    for (const width of [320, 390, 1280]) {
+        await page.setViewportSize({ width, height: 800 });
+        const pills = await read();
+        expect(pills.length, 'premise: the badges are where this test reads them').toBeGreaterThan(10);
+        expect(pills.filter(p => p.lines.length !== 1).map(p => p.text),
+            `${width}px at the ordinary size: badges on more than one line`).toEqual([]);
+    }
+    await page.setViewportSize({ width: 320, height: 800 });
+    await scaleText(page, 1.5);
+    const wrapped = (await read()).filter(p => p.lines.length > 1);
+    expect(wrapped.length, 'premise: at 1.5× on a 320px phone the long badges wrap').toBeGreaterThan(5);
+    for (const p of wrapped) {
+        expect(p.lines.filter(l => l.startsWith('·')), `"${p.text}": a line that starts on the "·"`).toEqual([]);
+        expect(p.lines.filter(l => /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/.test(l)),
+            `"${p.text}": a month parted from its year`).toEqual([]);
+        expect(p.bubble, `"${p.text}" wraps to ${p.lines.length} lines with fully round ends — a bubble`).toBe(false);
+    }
+});
+
 // The ← had no hover on four guides, and on the Railcard guide that page's `a:hover` (amber, meant for
 // links in the text) reached it — amber on navy, ~3.3:1 (desktop audit, Nov 2026). One hover now, the
 // shell's, read off the rendered arrow under a real mouse.
@@ -2138,4 +2242,145 @@ test('guides: every guide starts its first line the same space below the header 
             expect(Math.abs(g.gap - g.want), `${file} at ${width}px: "${g.what}" starts ${g.gap.toFixed(1)}px below the chips`).toBeLessThanOrEqual(1);
         }
     }
+});
+
+// THE FIP GUIDE'S CONFLICT REACHES THE DRAWER, IN THE FIP GUIDE'S OWN WORDS (whole-app check, Nov 2026).
+// The index's marker list lacked the FIP guide's conflict callout, so a search for the Vilnius–Riga train,
+// or for either country, found both cards with no flag at all. And the flag's advice was the Railcard and
+// Rangers guides' ("check the retail system"), which a FIP traveller cannot follow: the page says to ask
+// Rail Staff Travel. A Rangers conflict keeps its own words.
+test('guide search: the FIP guide\'s Vilnius–Riga conflict is flagged on its cards, with that guide\'s advice', async ({ page }) => {
+    // The drawer is the same on every page; Trains admits any named member, so an invented one serves.
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/trains.html');
+    await expect(page.locator('#trControls')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    const input = page.locator('#navGuideSearchInput');
+    await expect(input).toBeVisible();
+    await input.click();     // the first focus loads the search
+    for (const [q, id] of [['riga', 'country-lt'], ['vilnius', 'country-lt'], ['lithuania', 'country-lt'], ['latvia', 'country-lv']]) {
+        await input.fill(q);
+        const row = page.locator(`#navGuideSearchResults a[href*="fip-guide.html#${id}"]`);
+        await expect(row, `"${q}" finds the card`).toBeVisible();
+        await expect(row.locator('.nav-gs-flag--conflict'), `"${q}" flags it`).toHaveText('⚠ Source conflict — ask Rail Staff Travel');
+    }
+    await input.fill('thames rover');
+    await expect(page.locator('#navGuideSearchResults a[href*="rangers-guide.html#rr-thames"] .nav-gs-flag--conflict'))
+        .toHaveText('⚠ Source conflict — check the retail system');
+});
+
+// A HOVER WAITS FOR A MOUSE ON EVERY GUIDE (whole-app check, Nov 2026). The FIP guide's "Print <country>"
+// button darkened its edge on any hover, so on a phone the tapped button kept the edge; every other hover
+// in these sheets waits for a mouse. Read from the stylesheets each page actually parsed, so a new rule is
+// held to it too.
+test('guides: every hover in a guide\'s stylesheets waits for a mouse', async ({ page }) => {
+    let total = 0;
+    for (const { file } of GUIDE_PAGES) {
+        await page.goto(`/${file}`);
+        const g = await page.evaluate(() => {
+            /** @type {string[]} */ const ungated = [];
+            let hovers = 0;
+            const walk = (/** @type {CSSRuleList} */ rules, /** @type {string[]} */ gates) => {
+                for (const r of rules) {
+                    if (r instanceof CSSMediaRule) walk(r.cssRules, [...gates, r.media.mediaText]);
+                    else if (r instanceof CSSStyleRule) {
+                        if (!r.selectorText.includes(':hover')) continue;
+                        hovers++;
+                        if (!gates.some(m => /\(hover:\s*hover\)/.test(m))) ungated.push(`${gates.join(' · ') || 'no gate'} → ${r.selectorText}`);
+                    } else if (r instanceof CSSGroupingRule) walk(r.cssRules, gates);
+                }
+            };
+            for (const s of document.styleSheets) if (s.href) walk(s.cssRules, []);
+            return { hovers, ungated };
+        });
+        total += g.hovers;
+        expect(g.ungated, `${file}: a hover not gated on (hover: hover)`).toEqual([]);
+    }
+    expect(total, 'premise: the guides\' hover rules were read').toBeGreaterThan(8);
+});
+
+// …and the same button had no ring of its own for the keyboard, where every other control on the page
+// draws the guide's navy one.
+test('fip: the "Print <country>" button wears the guide\'s focus ring', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard ring is a keyboard\'s');
+    await page.goto('/fip-guide.html');
+    await page.locator('#country-lc > summary').click();
+    const btn = page.locator('#country-lc .btn-print-country');
+    await expect(btn).toBeVisible();
+    for (let i = 0; i < 40 && !(await btn.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+    await expect(btn).toBeFocused();
+    const ring = await btn.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { style: cs.outlineStyle, width: cs.outlineWidth, colour: cs.outlineColor,
+            navy: getComputedStyle(document.documentElement).getPropertyValue('--navy').trim() };
+    });
+    expect(ring.style).toBe('solid');
+    expect(ring.width).toBe('2px');
+    const rgb = (/** @type {string} */ hex) => `rgb(${[1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+    expect(ring.colour, 'the guide\'s navy').toBe(rgb(ring.navy));
+});
+
+// THE FIP GUIDE'S CHIPS HOLD AS THE OTHER FOUR GUIDES' DO (whole-app check, Nov 2026). Its own chip-bar script
+// had only the scroll rule, so where the page ran out before a late section reached the line — measured at
+// 1920×2600 — a tap on Ferries or Mistakes lit Apply, the last chip. The window is SIZED FROM THE PAGE, as the
+// Pay Calculator Guide's test is: the page below "Ferry services", plus the header and bar, plus 200px.
+/** @param {import('@playwright/test').Page} page @param {string} id @returns {Promise<number>} */
+async function heightToStrand(page, id) {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/fip-guide.html');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    const room = await page.evaluate((sec) => {
+        const doc = document.documentElement.scrollHeight;
+        const top = /** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top + scrollY;
+        return { doc, below: Math.ceil(doc - top), bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+    }, id);
+    const height = room.below + room.bar + 200;
+    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+    return height;
+}
+/** @param {import('@playwright/test').Page} page @param {string} id */
+async function stranded(page, id) {
+    return page.evaluate((sec) => ({
+        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+        top: Math.round(/** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top),
+        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+    }), id);
+}
+
+// It waits for the jump to END, not for a set time. CI's Safari engine draws this 2,800px-tall window so slowly
+// that the jump outlasted the 1.8 s this test used to sleep — and the page's own 1.5 s timer, which then judged it
+// in flight and let the chip go. The page now judges a jump at scrollend where the browser has it (guide-chips.js).
+test('fip: a chip near the end of the page stays lit after its jump, though its section never reaches the line', async ({ page }) => {
+    const height = await heightToStrand(page, 'sec-ferries');
+    await page.setViewportSize({ width: 1280, height });
+    const ferries = page.locator('.chip-bar .chip[data-target="sec-ferries"]');
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__jumpEnded = new Promise(done => {
+            addEventListener('scrollend', () => done('scrollend'), { once: true });
+            setTimeout(() => done('no scrollend in 10 s'), 10000);
+        });
+    });
+    await ferries.click();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__jumpEnded), 'premise: the jump ended').toBe('scrollend');
+    const geo = await stranded(page, 'sec-ferries');
+    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+    expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
+    await expect(ferries, 'the chip chosen, not the last one').toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.locator('.chip-bar .chip').first(), 'moved on: the bar follows the reader again').toHaveAttribute('aria-current', 'true');
+});
+
+test('fip: a link to a card near the end lights its own section\'s chip, through the landing', async ({ page }) => {
+    const height = await heightToStrand(page, 'sec-ferries');
+    await page.setViewportSize({ width: 1280, height });
+    await page.goto('about:blank');
+    await page.goto('/fip-guide.html#ferry-superfast');
+    await page.waitForFunction(() => document.fonts.status === 'loaded');
+    await settleFrames(page);
+    await page.waitForTimeout(400);
+    expect((await stranded(page, 'ferry-superfast')).bottom, 'premise: the page bottomed out under the linked card').toBe(true);
+    await expect(page.locator('.chip-bar .chip[data-target="sec-ferries"]'), 'the section the link named, not the last one')
+        .toHaveAttribute('aria-current', 'true');
+    await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);
 });

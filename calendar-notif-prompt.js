@@ -49,6 +49,23 @@ import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { lsGet, lsSet } from './ls.js';
 import { installNoticeHasTheVisit } from './install-prompt.js';
 import { NOTIF_PROMPT_DONE } from './storage-keys.js';
+import { getSession } from './session.js';
+import { teamMembers } from './roster-data.js';
+import { payCalculatorPrices } from './pay-audience.js';   // who is sent the pay reminder — CEA and CES
+
+/**
+ * Say what the strip will bring THIS member: the pay reminder goes to CEA and CES only — the grades the
+ * Pay Calculator prices (functions/pay-reminder.js) — and the offer promised it to everybody (whole-app
+ * check, 17 Nov 2026). Both endings are index.html's; this shows one. Asked when the strip is shown,
+ * because a member signing in at the front door has no session before then.
+ */
+function sayWhatItBrings() {
+    const pay = payCalculatorPrices(teamMembers.find(m => m.name === getSession()?.name) ?? null);
+    const withPay = document.getElementById('notifPromptOfferPay');
+    const documentsOnly = document.getElementById('notifPromptOfferDocs');
+    if (withPay) withPay.hidden = !pay;
+    if (documentsOnly) documentsOnly.hidden = pay;
+}
 
 /**
  * @param {{ authReady: Promise<any>, getAccessType: () => string }} deps
@@ -103,6 +120,7 @@ export function initNotifPrompt({ authReady, getAccessType }) {
         // taken this visit's ask (it hides this strip when it yields; this keeps the strip from
         // landing AFTER that, v24.96).
         if (getAccessType() !== 'named' || installNoticeHasTheVisit()) return;
+        sayWhatItBrings();
         _prompt.style.display = 'flex';
     });
     function hide() { _prompt.style.display = 'none'; }
@@ -147,6 +165,9 @@ export function initNotifPrompt({ authReady, getAccessType }) {
                 lsSet(NOTIF_PROMPT_DONE, '1');   // asked and declined — don't re-prompt
                 return;
             }
+            // GRANTED: the done flag is notif.js's to set, once the subscription is SAVED (`subscribe`).
+            // So a subscription that fails leaves it unset and the strip comes back saying so
+            // (`showFailed`) — both halves of "Enable answers it" (.claude/rules/calendar.md).
             // Already resolved — the prompt is only shown from inside a `authReady`
             // callback — but kept so the gesture/auth ordering above stays explicit at the one
             // place it matters.

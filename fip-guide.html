@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -298,7 +298,7 @@
 
         <div class="box box-yellow mb-8" data-guide-source="fip-eurostar-rules">
             <strong>Eurostar Plus (formerly Standard Premier)</strong>
-            Requires a <strong>1st class FIP Card</strong> — your card is the authority, not your grade. If yours is 1st class, Plus is £52.50 to Paris/Brussels/Lille/Calais, £62.00 to Amsterdam/Rotterdam/Antwerp and £30.50 Brussels↔Netherlands. Otherwise the Standard fares above are yours.
+            Requires a <strong>1st class FIP Card</strong> — your card is the authority, not your grade. If yours is 1st class, Plus is £52.50 to Paris/Brussels/Lille/Calais, £62.00 to Amsterdam/Rotterdam/<wbr>Antwerp and £30.50 Brussels↔Netherlands. Otherwise the Standard fares above are yours.
             <br><br>
             <span class="src-note">You cannot upgrade a 2nd class FIP ticket to Plus, even if the option appears when you change a booking.</span>
         </div>
@@ -779,7 +779,7 @@
                 </div>
                 <p><strong>Operator: České dráhy (ČD).</strong> One coupon a year, employee only, 50% on the FIP Card.</p>
                 <div class="box box-red mt-8">
-                    <strong>⚠ The one country where a <em>leisure</em> coupon costs you money</strong>
+                    <strong>⚠ A <em>leisure</em> coupon pays a supplement here; a duty coupon does not</strong>
                     On trains ČD classifies as <strong>"commercial"</strong> a supplement of about <strong>€6</strong> is payable — but <strong>only</strong> when travelling on a <strong>FIP leisure coupon</strong>. It is <strong>not</strong> charged on a FIP duty coupon, and not on a ticket bought with a FIP Card. It covers <strong>48 hours</strong> (00:01 on the first day to midnight the next), is issued per traveller against your coupon number and is non-transferable. Buy it up to 60 days ahead at a ČD ticket office, a UNIPOK 2G counter, the ČD eShop, or on board where staff have the equipment.
                 </div>
                 <div class="box box-yellow">
@@ -1099,7 +1099,7 @@
             <summary>⛴️ Lake Constance (Bodensee) ferries <span class="chevron" aria-hidden="true">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
-                    <span class="tag tag-yes">Coupons: staff only</span>
+                    <span class="tag tag-warn">Coupons: staff only</span>
                     <span class="tag tag-note">Global fares</span>
                 </div>
                 <p><strong>Operator: BSB-VSU</strong> — the Lake Constance shipping companies, between Germany, Switzerland and Austria. One coupon a year, employee only.</p>
@@ -1145,7 +1145,7 @@
 
         <!-- ── FERRY SERVICES ─────────────────────── -->
         <h2 class="section-label" id="sec-ferries">Ferry services</h2>
-        <p class="section-intro">A small number of ferry operators take part in FIP — useful for reaching Ireland or Greece, whether you're travelling as a foot passenger or taking a car.</p>
+        <p class="section-intro">A small number of ferry operators take part in FIP — useful for reaching Ireland or Greece. On those routes FIP is for you, not a vehicle: a car gets no FIP discount.</p>
 
         <details id="ferry-stena-north-sea" data-guide-source="fip-stena-north-sea">
             <summary>⛴️ Stena Line — North Sea (Harwich–Hook of Holland) <span class="chevron" aria-hidden="true">▾</span></summary>

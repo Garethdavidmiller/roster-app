@@ -129,6 +129,11 @@ runs.
   what counts as done) to the 'ytd' route: the Taxable Pay on the LAST 2025/26 payslip (13 Mar 2026),
   whose Year to Date box holds the whole year. It ends the day before that January payslip can be in
   hand. The notice, the order and the tests: the new-notice skill's table.
+- **Last year's block works a premium out from its hours only while that year's source IS its hours**
+  (`updatePriorHpp`, 17 Nov 2026). A year whose member chose 'exact' or 'ytd' and has nothing in it
+  yet shows £– and asks for that source's figure: an hours figure stored there was read back under
+  the member's choice ("Your figure — Entered by you"), counted as done, and taken to the January
+  payslip (invariant 1).
 - **Each amount-source radio shows its CURRENT £** (`_updateModeAmounts`; "≈" marks the two
   estimates, the member's own figure shows plain, a source with nothing shows nothing). The hours
   estimate is computed in EVERY mode by the side-effect-free `_hoursEstimate` — only the active mode
@@ -159,7 +164,10 @@ whole mechanism — the field default and `calculate()`'s fallback (via `periodD
 HPP non-premium estimate and the year summary all route through it. **Why it is dated** (an undated
 flag zeroed every historic payslip's default — £160.78 → £0.00 on a 2025/26 payslip) **and why a
 timeline rather than one date** (auto-enrolment re-enrols opted-out staff about every three years):
-invariant 12, and the header of `paycalc-pension.js`, which holds the rules.
+invariant 12, and the header of `paycalc-pension.js`, which holds the rules. Inside a spell the
+pension box is locked at £0.00, and a figure the member typed on that payslip stays dormant behind
+it: every save keeps it as stored (`readFormData`'s `savedPension`, and Save settings), so
+correcting the date brings it back.
 
 **A grade this app has no confirmed rates for REFUSES.** `gradeForRole(role)` returns null for
 anything but CEA/CES. A member who held neither on any day of the payslips the page shows, or today
@@ -180,7 +188,8 @@ promotion is priced by days — paid 18 Dec 2026, 7 days as a CEA and 21 as a CE
 hours are an estimate on the same weighting, and the setting's shape: the header of
 `paycalc-grade.js`. VALIDATION_REGISTER.md holds the check against the real 18 Dec payslip.
 - **A grade chosen by hand** (CEA or CES, for acting up or a roster row not yet corrected) covers WHOLE
-  payslips from the one `#gradeFrom` names (`SK.gradeFrom`); earlier ones follow the roster.
+  payslips from the one `#gradeFrom` names (`SK.gradeFrom`); earlier ones follow the roster. A FIRST
+  choice starts from the payslip on screen, as the pension tick's date does (`saveGradeSetting`).
 - **A roster grade that differs from a CHOSEN one is ASKED about, never applied** (owner, 10 Nov
   2026): one line at the top (`gradeToOffer` / `renderGradePrompt`), for the payslip on screen
   (`rosterRolesOnScreen`), quiet while the chosen grade is any grade held on its days. "Keep" is
@@ -214,7 +223,9 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from th
 Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled fields turn gold.
 - **Viewing never persists:** the background fetch's auto-apply is DISPLAY-ONLY — the suggestion shows
   gold and feeds the live estimate (`_applyRosterSuggestion` + `calculate()`, no `autosave()`), but is
-  NOT written to the period blob (invariant 11). Persistence needs an explicit action: typing anything
+  NOT written to the period blob, nor to its calendar snapshot (invariant 11 — a snapshot written on a
+  look was pay data on a new phone; the next save records the gold pairs it saved,
+  `recordCalendarFigures`). Persistence needs an explicit action: typing anything
   into the period (autosave picks up the gold values too — implicit acceptance) or the "Fill from
   calendar" buttons — or merely VIEWING a period would mark it "entered" for HPP, year-so-far and
   back-pay counts.
@@ -508,7 +519,8 @@ default (owner, Jul 2026).** The tick is persisted in the bp blob (`inc`) and re
   excludes London too.
 - **The result banner on the paid-in period** — ticked "✓ Includes [estimated] back pay lump sum of
   £X", unticked "ℹ️ … could land on this payslip — not added to this estimate" ("will land" once the
-  award is confirmed) — keeps the estimate discoverable without inflating anyone's figure uninvited.
+  award is confirmed, "is on this payslip" once that payslip may be in hand) — keeps the estimate
+  discoverable without inflating anyone's figure uninvited.
   Its words, its three states and the rule that "Includes" only ever describes a sum in the figure
   are `paycalc-money-banner.js`'s header. The second line (`.bp-banner-note`, owner request Jul
   2026): "For the best estimate, fill in your hours on each payslip back to 1 April <award year>." —
@@ -696,8 +708,8 @@ exact payslip line name first and quote it.
 | Bank Holiday worked (rostered) | `Bank Holiday Rostered 1.25` | 1.25× |
 | Bank Holiday overtime | `Bank Holiday Overtime 1.25` | 1.25× |
 | Overtime | `Overtime 1.25` | 1.25× |
-| Rest Day Worked | `RDW 1.25` | 1.25× |
-| Rest Day Worked — Sunday | `RDW Sun 1.5` | 1.5× |
+| Rest Day Working | `RDW 1.25` | 1.25× |
+| Rest Day Working — Sunday | `RDW Sun 1.5` | 1.5× |
 | Boxing Day | `Bank Holiday Overtime 3.0` | 3.0× |
 | Holiday Pay Premium (annual January lump) | `Holiday Pay Premium` | 7.69% (4/52) of variable pay |
 | Peer training | shows as **extra basic pay** (no distinct line) | basic |

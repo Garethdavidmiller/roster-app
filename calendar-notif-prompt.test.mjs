@@ -51,8 +51,16 @@ globalThis.Notification = /** @type {any} */ ({ permission: 'default', requestPe
 globalThis.requestAnimationFrame = /** @type {any} */ ((/** @type {Function} */ f) => setTimeout(f, 0));
 
 mock.module('./install-prompt.js', { namedExports: { installNoticeHasTheVisit: () => false } });   // v24.96: the strip's yield, not under test here
+/** Who is signed in — the offer's wording asks (17 Nov 2026). @type {{ name: string } | null} */
+let session = null;
+mock.module('./session.js', { namedExports: { getSession: () => session } });
 const { initNotifPrompt } = await import('./calendar-notif-prompt.js');
 const { NOTIF_PROMPT_DONE } = await import('./storage-keys.js');
+// The REAL roster and the REAL audience rule (pay-audience.js), so the strip is asked exactly as the page
+// asks it. Members are chosen by grade here, never written down by name.
+const { teamMembers } = await import('./roster-data.js');
+/** The first current member of a grade, by name. @param {string} role */
+const aMemberOf = (role) => /** @type {string} */ (teamMembers.find(m => m.role === role && !m.hidden && !m.managerOnly)?.name);
 
 /** Let the authReady `.then` chains run. */
 const settle = () => new Promise(r => setTimeout(r, 0));
@@ -71,8 +79,35 @@ beforeEach(() => {
     store = {};
     els = { notifPrompt: btn(), notifPromptEnable: btn(), notifPromptDismiss: btn(),
             notifPromptOffer: btn(), notifPromptFailed: btn({ hidden: true }),
-            notifPromptFailedLine: btn({ textContent: FAILED_LINE }), ariaAnnouncer: btn() };
+            notifPromptFailedLine: btn({ textContent: FAILED_LINE }), ariaAnnouncer: btn(),
+            notifPromptOfferDocs: btn(), notifPromptOfferPay: btn({ hidden: true }) };   // as index.html starts them
     /** @type {any} */ (globalThis.Notification).permission = 'default';
+    session = null;
+});
+
+// ── THE PAY REMINDER IS OFFERED TO THE MEMBERS IT IS SENT TO (whole-app check, 17 Nov 2026) ────────
+// Since 10 Nov 2026 the reminder goes to CEA and CES only (functions/pay-reminder.js), and the strip went
+// on offering it to everybody: a Dispatcher or a manager turned notifications on for a reminder that
+// never comes. It shows the pay ending only where the Pay Calculator prices the member, as the server does.
+describe('the offer names the pay reminder only to a member it is sent to', () => {
+    for (const [role, gets] of /** @type {const} */ ([['CEA', true], ['CES', true], ['Dispatcher', false]])) {
+        test(`a ${role} member is offered ${gets ? 'the documents and the pay reminder' : 'the documents alone'}`, async () => {
+            const name = aMemberOf(role);
+            assert.ok(name, `premise: the roster has a current ${role} member`);
+            session = { name };
+            initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => 'named' });
+            await settle();
+            assert.equal(els.notifPrompt.style.display, 'flex', 'premise: the strip is shown');
+            assert.equal(els.notifPromptOfferPay.hidden, !gets, `${role}: the pay reminder ${gets ? 'was left out' : 'was promised'}`);
+            assert.equal(els.notifPromptOfferDocs.hidden, gets, 'and exactly one ending shows');
+        });
+    }
+
+    test('in the markup: the ending without the pay reminder shows until the module says otherwise', () => {
+        const offer = /<span class="top-prompt-text" id="notifPromptOffer">([\s\S]*?)<\/span>\s*\n/.exec(HTML)?.[1] ?? '';
+        assert.match(offer, /<span id="notifPromptOfferDocs"> and other documents<\/span>/);
+        assert.match(offer, /<span id="notifPromptOfferPay" hidden>, documents and pay reminders<\/span>/);
+    });
 });
 
 describe('rule 1 — renewal never runs under the shared viewer', () => {
@@ -142,6 +177,26 @@ describe('Enable is answered, not just acted on (cal-docs-5, whole-app review 10
         assert.equal(els.notifPromptFailed.hidden, false, 'the failure line is shown');
         assert.ok(FAILED_LINE.length > 0, 'the markup carries the line');
         assert.equal(els.ariaAnnouncer.textContent, FAILED_LINE, 'and the Calendar\'s announcer speaks it');
+    });
+
+    // WHO RECORDS THE ANSWER (17 Nov 2026 — the rule file said "both Enable and × set it", and this
+    // module sets it only on a no). Enable answers it for good in two places: here when the system
+    // says no, and in notif.js once the subscription is SAVED (notif.test.mjs pins that half). Never
+    // in between: a granted permission whose subscription failed must leave the strip free to return.
+    test('asked and declined: the answer is recorded here, so the strip is never offered again', async () => {
+        initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => 'named' });
+        await settle();
+        permissionAnswer = 'denied';
+        await els.notifPromptEnable.on.click();
+        assert.equal(store[NOTIF_PROMPT_DONE], '1', 'a member who said no would be asked again on every visit');
+        assert.equal(enables, 0, 'a declined permission must not try to subscribe');
+    });
+
+    test('granted but the subscription failed: nothing here records the answer', async () => {
+        enableResult = 'off-lapsed';
+        await tapEnable();
+        assert.equal(store[NOTIF_PROMPT_DONE], undefined,
+            'the answer was recorded before the subscription was saved — a failed one could not come back');
     });
 
     test('granted and switched on: the strip stays gone, and nothing is announced', async () => {

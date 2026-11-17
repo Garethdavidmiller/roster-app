@@ -112,11 +112,34 @@ export function showBootSkeleton() {
             '<div class="cal-boot-days" aria-hidden="true">' + '<span></span>'.repeat(7) + '</div>' +
             '<div class="cal-boot-grid" aria-hidden="true">' + '<span class="cal-boot-cell"></span>'.repeat(42) + '</div>',
     });
-    // The words go in AFTER the region is in the document (cal-data-11, 10 Nov 2026): a live region
-    // announces changes made while it is in the accessibility tree, and text it was created with is
-    // read by nobody — the rule login-overlay.js states and the PIN card's message channel follows.
+    // The words go in once the region has been DRAWN, not merely put in the document: see
+    // `speakAfterMount` below. Written on the next line, as they were until 17 Nov 2026, they arrived
+    // in the same task as the region itself, which a screen reader cannot tell from text it was
+    // created with — so "Loading the roster…" was never spoken.
     const status = card?.querySelector('[role="status"]');
-    if (status) status.textContent = 'Loading the roster…';
+    speakAfterMount(status, () => { if (status) status.textContent = 'Loading the roster…'; });
+}
+
+/**
+ * Write into a live region put on the page in THIS task — once the browser has drawn it empty.
+ *
+ * A live region announces what CHANGES while it is in the accessibility tree, and the tree catches
+ * up between tasks, never inside one. A card mounted and filled in one task therefore arrives with
+ * its words already in it, which is a region CREATED with text: read by nobody. Putting the write on
+ * the line after the mount does not change that, and three of this slot's messages were silent for
+ * exactly that reason (the skeleton's, the member card's reason, the PIN card's "expired" line). So
+ * the write waits for the next frame, where the tree is brought up to date, and then a task — the
+ * month announcer (`announceMonthChange`, calendar-app.js) writes a frame after it clears, for the
+ * same reason. Skipped when the region has left the page by then: its card was replaced, and the
+ * next card says its own words.
+ * @param {Element|null|undefined} region  the live region, or the box inside it that is written
+ * @param {() => void} write
+ */
+export function speakAfterMount(region, write) {
+    if (!region) return;
+    const later = () => setTimeout(() => { if (region.isConnected !== false) write(); }, 0);
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(later);
+    else later();
 }
 
 // ── The workspace the card stands in for ─────────────────────────────────────────────────────────

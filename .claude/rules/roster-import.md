@@ -122,9 +122,11 @@ maps it to an **UNREADABLE** review row.
   as "Rest"): the row shows what was read, and the entry below asks the swapped-day question. A rest
   day picked or entered over a base rest day writes nothing new, only clearing what the day held
   (`restOverRest`).
-- An EMPTY cell — nothing, `BLANK`, `EMPTY` or a lone dash (`BLANK_READINGS`, the one list every read
-  shares) — is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row
-  Monday to Saturday (below).
+- An EMPTY cell — nothing, `BLANK`, `EMPTY` or a lone dash, hyphen, en or em (`BLANK_READINGS`, the
+  one list every read shares) — is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an
+  UNREADABLE review row Monday to Saturday (below). The PDF grid asks the same of what is PRINTED: a
+  cell printing only a dash is empty to it (`printsNothing`), so a shift read onto a dash-printed
+  Sunday is refused, never written as a worked Sunday (review, Nov 2026).
 
 ## Day drift — a week written onto the wrong days
 
@@ -232,16 +234,27 @@ only genuinely independent evidence, so it must never be warn-only above a fully
 - **The review offers the original PDF**, because every message above ends in "check it against the
   PDF".
 
-## Phase 2 — the grid ASSIGNS the day, so nothing can shift it
+## Phase 2 — the grid ASSIGNS the day, so the model cannot shift it
 
 **The geometry witness (below) checks an answer the model is still free to get wrong. Phase 2 removes
 the freedom.** When the PDF's drawn grid can place every member the roster type covers, the cells are
 extracted by coordinate and the model is handed them already separated (`functions/roster-prompt.js`
-→ `buildCellTable` / `buildCellPrompt`). It never assigns a day, so a row cannot shift. `sundayScan`
-and `columnScan` are not asked for, because they exist to cross-check a day assignment nobody is
-making. **The witness alone is not enough**: on a row worked all seven days a shifted claim never
-lands in an empty cell, so most simulated one-day misreads pass it, and no tuning changes that
+→ `buildCellTable` / `buildCellPrompt`). The model never assigns a day, so it cannot shift a row.
+`sundayScan` and `columnScan` are not asked for, because they exist to cross-check a day assignment
+nobody is making. **The witness alone is not enough**: on a row worked all seven days a shifted claim
+never lands in an empty cell, so most simulated one-day misreads pass it, and no tuning changes that
 (measured: `functions/roster-prompt.js` header).
+
+**The day is the column's POSITION, so the column order is read, never assumed** (review, Nov 2026).
+Every roster measured prints Sunday first, and the header row used to be dropped unread as furniture —
+so a template printed Monday first would have handed every row over a day early, every check agreeing.
+`readGridPage` now reads the header (six of its seven day cells must name a day, through
+`headerToDayIndex`): a page whose header runs in any other order gives no rows, and the cell path runs
+only once a header has been read Sunday to Saturday (`no-day-header` otherwise). No real roster was to
+hand, so the first import after it shipped is the check: its path line must not say `no-day-header` —
+if it does, the sheet's header names no day the reader knows, and the cell path is off until it does. **And one row is one
+member's**: a row two names match — a member absent from the sheet whose name is part of a
+colleague's, or two people in one band — is `shared-row`, and the witness gives neither a signal.
 
 **ALL OR NOTHING, PER DOCUMENT.** `buildCellTable` returns `usable: false` unless the grid places
 every name in `relevantNames` (already scoped by roster type). A member the grid missed would arrive
@@ -258,8 +271,8 @@ model call; that is the cost of the guarantee.
 **`settledGeometry` re-asks on `wait-timeout` and ONLY on that.** `awaitGeometryWithin` is a
 `Promise.race`, so after a timeout the extraction is still running and reusing the fail-open object
 would lose BOTH the geometry path and the witness on a slow PDF. Every other fail-open reason
-(`no-grid`, `no-rows`, `pdfjs-unavailable`, `unreadable-pdf`, `no-text`, `work-budget`, `threw`) is a
-settled answer, and re-asking it would spend the whole budget again on every ordinary fallback. The
+(`no-grid`, `no-rows`, `day-order`, `pdfjs-unavailable`, `unreadable-pdf`, `no-text`, `work-budget`,
+`threw`) is a settled answer, and re-asking it would spend the whole budget again on every ordinary fallback. The
 full reasoning is beside `settledGeometry` in `functions/roster-geometry.js`.
 
 **A member legitimately absent from one week's sheet turns the geometry path OFF for that upload.**
@@ -309,7 +322,7 @@ in the PDF, so assigning each text run by coordinate places every cell — on th
 one text object sits in the Sunday column (the measurements are the module header's).
 `parseRosterPDF` reads that grid before the model call (phase 2 needs its cells) and applies it as the
 FINAL gate, after the column cross-check and the Sunday corrections: **an AI day landing in a
-physically EMPTY cell is refused, not weighed** — the cell becomes UNREADABLE and the row comes back
+physically EMPTY cell (or one printing only a dash) is refused, not weighed** — the cell becomes UNREADABLE and the row comes back
 as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift (unticked,
 and counted toward the breaker). Zero false refusals on the corpus. It fails open everywhere and says
 so (`geometry.status`), and it cannot see a fully occupied week or an `RD` in an occupied cell —

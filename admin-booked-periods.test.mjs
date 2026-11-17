@@ -19,7 +19,8 @@
  */
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods } from './admin-booked-periods.js';
+import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods, periodDelete } from './admin-booked-periods.js';
+import { isRestGap } from './admin-period-dates.js';
 
 // The delete control's "Confirm?" disarms itself after 5 s on a REAL timer, and nothing here waits
 // for it — so it held the process open after the last test, 5.1 s of wall for ~100 ms of tests
@@ -396,6 +397,47 @@ describe('the ✕, through the real pipeline, leaves nothing of the booking behi
         twoTaps(all(rows[0], e => e.className.split(' ').includes('btn-period-delete'))[0]);
         assert.deepEqual([...deleted[0]].sort(), ovs.map((/** @type {any} */ o) => o.id).sort(),
             `left on record: ${ovs.filter((/** @type {any} */ o) => !deleted[0].includes(o.id)).map((/** @type {any} */ o) => o.date)}`);
+    });
+});
+
+// ── A STORED CHRISTMAS DAY IS THE CHRISTMAS ROW'S, AND THE LINE SAYS WHAT WENT (review, Nov 2026) ─────
+// A December period's ✕ reached on through the rest days to a leave record stored on Christmas Day — a
+// day the Christmas row lists with a ✕ of its own — and took it unsaid; and every row's line counted only
+// the days it listed, never the uncounted ones it took with them.
+describe('a December period\'s ✕ leaves a stored Christmas day to the Christmas row', () => {
+    it('the reach stops short of Christmas Day: the leave stored there is not this row\'s', () => {
+        const DAYS = ['2026-12-21', '2026-12-22', '2026-12-23', '2026-12-24'];
+        const r = renderList({ entries: [...DAYS, '2026-12-25'].map(d => leaveOn(d)), counted: DAYS,
+            rest: ['2026-12-25', '2026-12-26'], sundays: ['2026-12-27'] });
+        twoTaps(r.xs()[0]);
+        assert.deepEqual(r.calls[0].slice(2, 4), ['2026-12-21', '2026-12-24']);
+    });
+});
+
+describe('periodDelete — what a row\'s ✕ deletes, and the line that says so', () => {
+    // An INVENTED member on fixed pattern 1, the Mon–Fri line: every weekend is a rest day.
+    const Q = { name: 'Q. Example', role: 'CEA', rosterType: 'fixed', currentWeek: 1 };
+    const rec = (/** @type {string} */ date) => ({ id: `q${date}`, memberName: Q.name, date, type: 'annual_leave', value: 'AL',
+        source: 'manual', createdAt: { seconds: 1 } });
+    const ask = (/** @type {any[]} */ overrides, /** @type {string} */ start, /** @type {string} */ end, /** @type {number} */ listedCount) =>
+        periodDelete({ overrides, type: 'annual_leave', memberName: Q.name, start, end, isRestGap: d => isRestGap(d, Q), listedCount });
+
+    it('a period spanning Christmas leaves the leave stored on Christmas Day; the Christmas row\'s own ✕ takes it', () => {
+        // Thu 24 and Mon 28 Dec listed as one run across the closure days; leave also stored on Fri 25.
+        const overrides = ['2026-12-24', '2026-12-25', '2026-12-28'].map(rec);
+        const period = ask(overrides, '2026-12-24', '2026-12-28', 2);
+        assert.deepEqual([...period.ids].sort(), ['q2026-12-24', 'q2026-12-28']);
+        assert.equal(period.said, '✓ Deleted 2 AL days for Q. Example');
+        assert.deepEqual(ask(overrides, '2026-12-25', '2026-12-25', 1).ids, ['q2026-12-25']);
+    });
+
+    it('the line names the uncounted days a row takes with the ones it listed', () => {
+        // Mon 1 – Fri 5 Mar 2027 listed; leave on Sat 6 Mar, a rest day, costs nothing and so is not listed.
+        const overrides = ['2027-03-01', '2027-03-02', '2027-03-03', '2027-03-04', '2027-03-05', '2027-03-06'].map(rec);
+        const r = ask(overrides, '2027-03-01', '2027-03-06', 5);
+        assert.equal(r.ids.length, 6);
+        assert.equal(r.said, '✓ Deleted 5 AL days for Q. Example, and 1 more day that was not counted');
+        assert.equal(ask(overrides, '2027-03-01', '2027-03-05', 5).said, '✓ Deleted 5 AL days for Q. Example', 'CONTROL: nothing more, nothing said');
     });
 });
 

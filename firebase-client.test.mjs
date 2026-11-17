@@ -48,6 +48,8 @@ let fetchReply = () => new Response(JSON.stringify({ ok: true }), { status: 200 
 globalThis.fetch = async (url, init = {}) => { fetches.push({ url: String(url), init }); return fetchReply(); };
 
 const fc = await import('./firebase-client.js');
+// The same module instance firebase-client.js imports, so its write gate is the one read here.
+const { hasUnconfirmedWrite, _resetUnconfirmedWrites } = await import('./claim-retry.js');
 
 const MEMBER = 'L. Springer';
 beforeEach(() => {
@@ -158,6 +160,34 @@ describe('a work email is written under the member it belongs to', () => {
         state.failNext.set('staffContact/', 'permission-denied');
         await assert.rejects(fc.saveStaffContact(MEMBER, 'a@chilternrailways.co.uk'));
         assert.equal(writes('staffContact/').length, 1);
+    });
+});
+
+// ── A WRITE THE RULES REFUSED STAYS A REFUSAL (review, 17 Nov 2026) ─────────────────────────────────
+// Refusal and revocation at once: the write is refused, the forced refresh is refused because the
+// account was disabled or its sessions revoked, and the SDK signs the account out BEFORE the refresh
+// re-throws. With the sign-out watch around the whole retry, that sign-out won: the refusal was
+// reported "not confirmed" and every later write on the page was refused until a reload, for a write
+// whose outcome was never in doubt. Through the real withClaimRetry, with the fake SDK in that order.
+describe('a write the rules refused stays a refusal when the token refresh signs the account out', () => {
+    test('the caller gets the refusal, nothing is retried, and the next write is let through', async () => {
+        const who = 'A. Person';
+        _resetUnconfirmedWrites();
+        try {
+            signIn({ refreshRefusedWith: 'auth/user-disabled' });
+            state.failNext.set('staffContact/', 'permission-denied');
+            await assert.rejects(fc.saveStaffContact(who, 'a.person@chilternrailways.co.uk'), (e) => e.code === 'permission-denied');
+            assert.equal(writes('staffContact/').length, 1, 'the refresh was refused, so the write was never retried');
+            assert.deepEqual(state.authOps.filter((o) => o.op === 'getIdToken'), [{ op: 'getIdToken', force: true }]);
+            assert.equal(state.currentUser, null, 'the refused refresh signed the account out, as the SDK does');
+            assert.equal(hasUnconfirmedWrite(), false,
+                'a refused write was counted as one of unknown outcome, so every later write on the page is refused until a reload');
+            signIn();
+            await fc.saveStaffContact(who, 'a.person@chilternrailways.co.uk');
+            assert.equal(writes('staffContact/').length, 2, 'signed in again, the next write goes out');
+        } finally {
+            _resetUnconfirmedWrites();
+        }
     });
 });
 
@@ -544,6 +574,7 @@ describe('the Error Log read', () => {
     });
 
     test('the retention sweep deletes only RESOLVED records past 90 days, never an open one', async () => {
+        signIn();   // the admin: the sweep's clock is their ID token's issue time, and signed out there is none
         seedError('ancient-open',  { ageMs: 400 * DAY });
         seedError('expired-fixed', { resolved: true, ageMs: 200 * DAY, resolvedAgoMs: 91 * DAY });
         seedError('recent-fixed',  { resolved: true, ageMs: 60 * DAY,  resolvedAgoMs: 30 * DAY });
@@ -562,6 +593,28 @@ describe('the Error Log read', () => {
         const { errors } = await fc.getClientErrors();
         await settle();
         assert.deepEqual(errors.map((e) => e.id), ['open']);
+    });
+
+    // ── THE SWEEP'S CLOCK IS THE TOKEN SERVICE'S (whole-app check, 17 Nov 2026) ──────────────────────
+    // It took its cut-off from this device: three months fast, a record resolved ten days before went.
+    // The cut-off is now when the admin's ID token was issued — the real wiring, through the real SDK
+    // shape — and with nobody signed in there is no such time, and no sweep.
+    test('a device three months fast deletes only what the ID token\'s issue time says has expired', async (t) => {
+        seedError('recent-fixed',  { resolved: true, ageMs: 20 * DAY,  resolvedAgoMs: 10 * DAY });
+        seedError('expired-fixed', { resolved: true, ageMs: 200 * DAY, resolvedAgoMs: 91 * DAY });
+        state.tokenIssuedAt = Date.now();
+        signIn();
+        t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 92 * DAY });
+        await fc.getClientErrors();
+        await settle();
+        assert.deepEqual(state.ops.filter((o) => o.op === 'delete').map((o) => o.path), ['clientErrors/expired-fixed']);
+    });
+
+    test('signed out, there is no server time to sweep by, and nothing is deleted', async () => {
+        seedError('expired-fixed', { resolved: true, ageMs: 200 * DAY, resolvedAgoMs: 91 * DAY });
+        await fc.getClientErrors();
+        await settle();
+        assert.deepEqual(state.ops.filter((o) => o.op === 'delete'), []);
     });
 });
 
@@ -623,6 +676,7 @@ describe('the Usage read', () => {
     test('the daily prune removes stale keys by FieldPath — a dotted path would break the whole card', async () => {
         // A day key like 2026-08-01 is an INVALID dotted field path; the real SDK throws synchronously
         // on `daily.2026-08-01` and the Usage card goes blank. So the delete must name its segments.
+        signIn();   // the admin: the prune's clock is their ID token's issue time
         state.docs.set('analytics/activeAccounts', { months: {}, daily: { [daysAgo(1)]: 2, [daysAgo(60)]: 7 } });
         await fc.getUsageStats();
         await settle();
@@ -633,6 +687,7 @@ describe('the Usage read', () => {
     });
 
     test('the per-address counters are read, summarised and pruned the same way', async () => {
+        signIn();
         state.docs.set('analytics/origins', { daily: {
             [originKey(daysAgo(2), 'web')]: 6, [originKey(daysAgo(2), 'web', true)]: 4,
             [originKey(daysAgo(3), 'pages')]: 9, [originKey(daysAgo(50), 'pages')]: 1, 'junk-key': 3,
@@ -642,6 +697,18 @@ describe('the Usage read', () => {
         assert.deepEqual(u.origins, [{ origin: 'pages', accounts: 9, installed: 0 }, { origin: 'web', accounts: 6, installed: 4 }]);
         const pruned = state.ops.filter((o) => o.op === 'update' && o.path === 'analytics/origins').map((o) => o.segments[1]).sort();
         assert.deepEqual(pruned, [originKey(daysAgo(50), 'pages'), 'junk-key'].sort());
+    });
+
+    test('a device six weeks fast prunes by the ID token\'s issue time, and keeps the live window', async (t) => {
+        state.docs.set('analytics/activeAccounts', { months: {}, daily: { [daysAgo(1)]: 2, [daysAgo(60)]: 7 } });
+        state.docs.set('analytics/origins', { daily: { [originKey(daysAgo(2), 'web')]: 6, [originKey(daysAgo(50), 'pages')]: 1 } });
+        state.tokenIssuedAt = Date.now();
+        signIn();
+        t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 42 * DAY });
+        await fc.getUsageStats();
+        await settle();
+        const pruned = state.ops.filter((o) => o.op === 'update').map((o) => o.segments[1]);
+        assert.deepEqual(pruned.sort(), [daysAgo(60), originKey(daysAgo(50), 'pages')].sort());
     });
 
     test('nothing recorded yet is the empty picture, not an error', async () => {

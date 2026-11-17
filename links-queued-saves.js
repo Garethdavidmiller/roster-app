@@ -10,7 +10,7 @@
  * the page, which had already called itself saved and kept no copy: an afternoon's grid, gone with a
  * closed tab. So until the server answers, the copy that save WROTE is kept as the unsaved-work draft
  * (unsaved-draft.js). This module decides which copy, on which baseline, and whether an answer still
- * counts; `links-app.js` owns what the page shows. Pure: no DOM, no Firebase, no storage.
+ * counts; `links-app.js` owns what the page shows, but for rule 7's two sentences. Pure: no DOM, no Firebase, no storage.
  *
  * ── THE RULES ───────────────────────────────────────────────────────────────────────────────────
  *
@@ -28,6 +28,10 @@
  *   6. A KEPT COPY ITS DESIGN NOW HOLDS EXACTLY IS NOT UNSAVED WORK (unsaved-draft.js rule 6) — a queued
  *      save that has since landed, from this tab's queue or the first tab's, which outlives a page.
  *      Compared as the page compares: canonical patterns and window.
+ *   7. A REFUSED WRITE THAT WOULD HAVE MADE THE DESIGN MADE NOTHING (17 Nov 2026) — a new design, a copy, an
+ *      import or a first save. The server holds no document, so a save queued behind it lands on nothing too,
+ *      and the mark outlives that answer; any write the server confirms made it. Heard as a plain answer, a
+ *      refused create left "Saved" on the pill and a later Save said "Someone removed this design for good".
  *
  * Tested by links-queued-saves.test.mjs; end to end in e2e/links.spec.js ("A SAVE ONLY THIS BROWSER
  * HOLDS IS KEPT UNTIL THE SERVER HAS IT").
@@ -45,6 +49,8 @@ import { normaliseWindow } from './links-window.js';
 export function createQueuedSaves() {
     /** @type {Map<string, QueuedSave>} */
     const saves = new Map();
+    /** The designs whose making the server refused (rule 7). @type {Set<string>} */
+    const unmade = new Set();
     let last = 0;
     return {
         /** The number of the save about to start (rule 1). */
@@ -77,6 +83,18 @@ export function createQueuedSaves() {
         },
         /** @param {string|null} id @returns {QueuedSave|null} */
         get: (id) => (id && saves.get(id)) || null,
+        /**
+         * Hear how a write ended, for whether its design EXISTS (rule 7). @param {string} id
+         * @param {string} how  'acked' | 'held' | 'failed' @param {boolean} made  the write would have MADE the design
+         * @returns {boolean} the server has never made it
+         */
+        heard(id, how, made) {
+            if (how === 'failed' && made) unmade.add(id);
+            if (how === 'acked') unmade.delete(id);
+            return unmade.has(id);
+        },
+        /** Did the server refuse to make this design (rule 7)? @param {string|null} id */
+        neverMade: (id) => !!id && unmade.has(id),
         /** The newest unconfirmed save, which a clean page keeps (rule 5). @returns {{ id: string, save: QueuedSave }|null} */
         newest() {
             /** @type {{ id: string, save: QueuedSave }|null} */ let found = null;
@@ -84,6 +102,17 @@ export function createQueuedSaves() {
             return found;
         },
     };
+}
+
+/**
+ * What the page says when the server refused to MAKE a design (rule 7), open on screen or not.
+ * @param {string} name  as it was listed; may be empty @param {boolean} open
+ */
+export function refusedMakeLine(name, open) {
+    const quoted = String(name ?? '').trim() ? `“${String(name).trim()}”` : '';
+    return open
+        ? `Not saved — the server refused ${quoted || 'this new design'}, so nobody else has it. It is still here: press Save as… to save it again. If that is refused too, contact the admin.`
+        : `${quoted || 'A new design'} was not saved — the server refused it, so it is no longer in the list. If making it again is refused too, contact the admin.`;
 }
 
 /**

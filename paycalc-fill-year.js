@@ -15,7 +15,10 @@
  * write; 7 — re-ask eligibility after the await):
  *
  *  1. NEVER A PERIOD WITH ENTERED DATA. Eligibility is the EXACT test the "Not entered yet" list
- *     uses (paid + employed + isDataEmpty), so the button fills precisely what that line names.
+ *     uses (priced + paid + employed + isDataEmpty), so the button fills precisely what that line
+ *     names. PRICED too (17 Nov 2026): a payslip worked under a role with no rates is left out of that
+ *     list, and the fill wrote it anyway — a member moved into management had a payslip from then
+ *     filled, and named in the receipt, that no surface of the page will ever price.
  *  2. A CORRUPT PERIOD IS NEVER WRITTEN. readSavedPeriod's error state means "something is here
  *     we could not read" — overwriting it destroys whatever it held. It is skipped and counted.
  *  3. NO BASE-ONLY FILLS. The single fill may fall back to the base roster because its result
@@ -56,13 +59,16 @@ export async function answerWithin(promise, ms) {
  * Which of the year's periods this action may touch — and what it must leave alone.
  *
  * @param {{ periods: any[], now: Date, proRateFactor: (p: any) => number,
+ *   priced: (p: any) => boolean,
  *   readSaved: (pNum: number) => {data: any, error?: any} }} arg
+ *   priced — can the page price this payslip (paycalc-settings.js → isPeriodPriced)?
  * @returns {{ fillable: any[], corrupt: any[] }}
  */
-export function fillablePeriods({ periods, now, proRateFactor, readSaved }) {
+export function fillablePeriods({ periods, now, proRateFactor, priced, readSaved }) {
     const fillable = [], corrupt = [];
     for (const p of periods) {
         if (!(p.payday <= now) || !(proRateFactor(p) > 0)) continue;   // unpaid, or pre-start
+        if (!priced(p)) continue;                                      // a role with no rates (rule 1)
         const parsed = readSaved(p.num);
         if (parsed.error) { corrupt.push(p); continue; }               // rule 2
         if (parsed.data && !isDataEmpty(parsed.data)) continue;        // rule 1
@@ -79,6 +85,7 @@ export function fillablePeriods({ periods, now, proRateFactor, readSaved }) {
  * @param {{ periods: any[], member: any, now: Date,
  *   deps: {
  *     proRateFactor: (p: any) => number,
+ *     priced: (p: any) => boolean,
  *     readSaved: (pNum: number) => {data: any, error?: any},
  *     fetchOverrides: (p: any, memberName: string) => Promise<string>,
  *     timeoutMs?: number,
@@ -91,7 +98,8 @@ export function fillablePeriods({ periods, now, proRateFactor, readSaved }) {
  *   (rule 2); unsaved — the write was attempted and did not persist (rule 6).
  */
 export async function fillYearFromCalendar({ periods, member, now, deps }) {
-    const { fillable, corrupt } = fillablePeriods({ periods, now, proRateFactor: deps.proRateFactor, readSaved: deps.readSaved });
+    const { fillable, corrupt } = fillablePeriods({ periods, now, proRateFactor: deps.proRateFactor, priced: deps.priced,
+        readSaved: deps.readSaved });
     const filled = [], unreached = [], nothing = [], unsaved = [];
     const timeoutMs = deps.timeoutMs ?? FETCH_TIMEOUT_MS;
     for (const p of fillable) {

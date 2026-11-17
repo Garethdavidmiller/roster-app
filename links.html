@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -385,6 +385,11 @@
                         <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
                     </div>
                     <button type="button" class="btn-save" id="linksEmptyRetry" style="display:none">Try again</button>
+                    <!-- What a design made from here says while nothing is open — a refused name, a create that
+                         failed, one still on its way. The save row carries that line once a design is open, and
+                         it is hidden until then, so the words went nowhere (17 Nov 2026). `_designActionStatus`
+                         writes to whichever of the two is on screen. -->
+                    <p class="links-save-status links-empty-status" id="linksEmptyStatus" aria-live="polite"></p>
                 </div>
 
                 <!-- A design saved against a LONGER rotation than the current one (v19.98). Written
@@ -530,7 +535,7 @@
                      desktop left-edge check in e2e/pages.spec.js measures it, and the standing rule
                      for its wording is the one in .claude/rules/links-design.md → "The generator
                      intro must not restate a guarantee". -->
-                <p class="links-desc">List the shifts you need and how many people on each — one row per start time, with weekday, Saturday and Sunday counted separately. A new design opens on a table built against the December 2026 service; the <strong>?</strong> above says what is in it, and the Design checks below say what the result actually came to.</p>
+                <p class="links-desc">List the shifts you need and how many people on each — one row per shift time, its start and finish, with weekday, Saturday and Sunday counted separately. A new design opens on a table built against the December 2026 service; the <strong>?</strong> above says what is in it, and the Design checks below say what the result actually came to.</p>
 
                 <div class="generator-form">
                     <div class="gen-slot-table-wrap">

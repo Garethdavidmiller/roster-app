@@ -13,7 +13,7 @@ import { LOST_PHONE } from '../operations-reset.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
 import { describeRefusal } from '../al-leave-file.js';
 import { manualOverrideId } from '../override-id.js';
-import { dayLabel, appWords, chipsFor, totalsLines, totalsEntries, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
+import { dayLabel, appWords, chipsFor, totalsEntries, CARD_WORDS, checkedWords, overallWords, appOnlyWords,
     moreDaysWords, notComparedWords, beyondHeadWords, SAVE_WORDS, questionWords, confirmWords, saveButtonWords, receiptWords,
     refusalWords, undoConfirmWords, undoneWords, savingWords, leftFreeWords } from '../al-leave-words.js';
 import { LEAVE_FILE_MAX_AGE_DAYS, LEAVE_FILE_MAX_BYTES } from '../al-leave-file.js';
@@ -1594,6 +1594,51 @@ test('operations error log: a batch failure that the row\'s own Resolve made goo
     await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
 });
 
+// ── "RESOLVE ALL SHOWN" SAYS WHAT IT RESOLVED (whole-app check, 17 Nov 2026) ─────────────────────
+// The chip and the strip leave slow-save diagnostics out of the error count, and the screen-reader line
+// after a Resolve all counted every entry as an error: "3 errors resolved" for two errors and a diagnostic.
+for (const [label, rows, said] of /** @type {const} */ ([
+    ['errors and a diagnostic', [{ id: 'e1', message: 'boom one' }, DIAG('d1'), { id: 'e2', message: 'boom two' }], '2 errors and 1 slow-save diagnostic resolved'],
+    ['diagnostics alone', [DIAG('d1'), DIAG('d2')], '2 slow-save diagnostics resolved'],
+    ['one error', [{ id: 'e1', message: 'boom one' }], '1 error resolved'],
+])) {
+    test(`operations error log: "Resolve all shown" over ${label} says what it resolved`, async ({ page }) => {
+        await stubErrorLog(page, [...rows]);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html#error-log');
+        await expect(page.locator('.error-row')).toHaveCount(rows.length);
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.errorRows = []; });   // what the refresh reads back
+        await page.locator('.error-resolve-all-btn').click();
+        await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
+        await expect(page.locator('#errorLogContent [role="status"]').first()).toHaveText(said);
+    });
+}
+
+// ── COPY DETAILS CARRIES NO NAME (whole-app check, 17 Nov 2026) ─────────────────────────────────
+// The block is for pasting into a chat outside the app. The row shows whose error it was; the copy has
+// the message, page, version, device and time, which are the diagnosis, and not the colleague's name.
+test('operations error log: Copy details leaves out the member the error happened to', async ({ page }) => {
+    await stubErrorLog(page, [{ id: 'e1', message: 'boom one' }]);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__copied = [];
+        Object.defineProperty(navigator, 'clipboard', { configurable: true,
+            value: { writeText: (/** @type {string} */ t) => { w.__copied.push(t); return Promise.resolve(); } } });
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const row = page.locator('.error-row').first();
+    await expect(row.locator('.error-member'), 'premise: the row names the member').toHaveText('A. Hared');
+    await row.locator('.error-copy-btn').click();
+    await expect(row.locator('.error-copy-btn')).toHaveText('✓ Copied');
+    const copied = await page.evaluate(() => /** @type {any} */ (window).__copied.join('\n'));
+    expect(copied).toContain('Error: boom one');
+    expect(copied).toContain('Page:        calendar');
+    expect(copied).toContain('App version: 25.64');
+    expect(copied).not.toContain('A. Hared');
+    expect(copied).not.toMatch(/Member/);
+});
+
 // ── A RESOLVE WAITING ON THE SERVER SAYS SO (Nov 2026 review) ───────────────────────────────────
 // Admin (v24.21) and Settings (v24.38) explain a write the server has not answered; Operations' writes
 // sat on a silently disabled button. Every one now goes through withSlowSaveNotice.
@@ -1838,6 +1883,47 @@ test('operations: a reset whose sign-out failed still says nobody told them, and
     await expect(dialog, 'they are not signed out yet, so nothing may say they are').not.toContainText('and they are signed out');
 });
 
+// WHAT BECAME OF A RESET IS A REPORT (whole-app check, 17 Nov 2026). It came in the question's dialog, "Cancel"
+// beside "OK" — and beside a reset that had already happened, Cancel read as a way to undo it. And once it was read,
+// focus went back to the button that opened it, which the list had re-drawn by then, so it fell to the page.
+test('operations: a reset\'s report has one button, OK — and closing it returns focus to that row\'s Reset', async ({ page }) => {
+    const { row, name } = await openForReset(page, { answer: { ok: true, revoked: true, stamped: true, notified: false } });
+    await row.locator('.btn-acct-reset').focus();
+    await page.keyboard.press('Enter');
+    await page.locator('.lb-overlay.open .dialog-btn-confirm').click();       // the question: Reset
+    const report = page.locator('.lb-overlay.open').filter({ hasText: 'they have NOT been told' });
+    await expect(report).toBeVisible();
+    await expect(report.locator('.dialog-btn-cancel'), 'nothing to cancel: the reset has happened').toHaveCount(0);
+    await expect(report.locator('.dialog-btn-confirm')).toHaveText('OK');
+    await expect(report.locator('.dialog-btn-confirm')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.lb-overlay.open')).toHaveCount(0);
+    await expect(page.locator(`.acct-row[data-member="${name}"] .btn-acct-reset`), 'focus fell to the page').toBeFocused();
+});
+
+// A NOTIFICATION TAP IS NOT A BACK PRESS (whole-app check, 17 Nov 2026). Tapped while Operations is open, a push is a
+// hash navigation of this page, which fires popstate before hashchange — and overlay.js reads every popstate as
+// Android Back, so the tap closed whatever was open: the "Reset password?" question vanished, and the entry the tap
+// pushed stayed behind as a Back press that did nothing. The Calendar's own hashes have been claimed since 10 Nov.
+test('operations: a notification tap leaves an open question open, and takes its own history entry back off', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } }; });
+    await page.route(/getAccountSetupGaps|getSignInStats/, route => route.abort('failed'));   // hermetic
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    await page.locator('.acct-row').first().locator('.btn-acct-reset').click();
+    const question = page.locator('.lb-overlay.open').filter({ hasText: 'Reset password?' });
+    await expect(question).toBeVisible();
+    await expect.poll(() => page.evaluate(() => history.state?.mybOverlay), 'premise: the question has its Back entry').toBe(true);
+    await page.evaluate(() => { location.hash = '#reset-requests'; });          // the reset-request push, tapped
+    await expect(page.locator('#resetRequestsBody'), 'the tap was followed').toHaveClass(/\bopen\b/);
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('');
+    await expect(question, 'the tap was read as Back, and closed the question').toBeVisible();
+    await expect.poll(() => page.evaluate(() => history.state?.mybOverlay), 'the tap\'s entry was left behind').toBe(true);
+    await page.evaluate(() => history.back());                                   // ONE Back closes the question
+    await expect(question).toBeHidden();
+});
+
 // A 500 SAYS WHAT THE SERVER SAID (sign-in audit, Nov 2026): the endpoint's 500 now carries a sentence — that it is not known
 // whether the password changed, or that nothing did — and it is shown as written, as the 503's has been, under a title
 // that claims neither. A page from in front of the function is still not a reason.
@@ -1933,10 +2019,13 @@ const setUploadDate = (/** @type {import('@playwright/test').Page} */ page, /** 
         const el = /** @type {HTMLInputElement} */ (document.getElementById(`${p}Date`));
         el.value = d; el.dispatchEvent(new Event('change', { bubbles: true }));
     }, [prefix, iso]);
+// An issue too old for the menu was sent to "the Calendar with #newsletter on the end of its address" — words for a
+// developer, and a link that opens the NEWEST issue, not the one just filed (whole-app check, 17 Nov 2026). A second
+// upload for the same date replaces the first, so that is the check offered now.
 for (const [prefix, drawer, issue] of /** @type {[string, string, string|null][]} */ ([
     ['circular', '☰ → Weekly Retail Circular', null],
     ['newsletter', '☰ → Marylebone Newsletter', isoDaysAgo(2)],
-    ['newsletter', 'the Calendar with #newsletter on the end of its address', isoDaysAgo(60)],
+    ['newsletter', 'whether it saved — the ☰ menu won’t offer an issue that old, so upload it again if you are not sure', isoDaysAgo(60)],
 ])) {
     test(`operations: a ${prefix} upload signed out mid-save says where to check${issue === null ? '' : issue === isoDaysAgo(60) ? ' — an issue too old for the ☰ menu' : ' — a recent issue'}`, async ({ page }) => {
         await page.addInitScript(() => {
@@ -1951,6 +2040,30 @@ for (const [prefix, drawer, issue] of /** @type {[string, string, string|null][]
         await page.locator(`#${prefix}UploadBtn`).click();
         await expect(page.locator(`#${prefix}Feedback`)).toHaveText(
             `You were signed out before this upload was confirmed. Sign in again, then check ${drawer}.`);
+    });
+}
+
+// ── A RECEIPT SAYS WHETHER STAFF WILL BE SHOWN IT (whole-app check, 17 Nov 2026) ────────────────────────
+// Staff are only ever shown the newest of each kind, so an upload dated before one already filed is kept and never
+// offered — and its receipt said they would see it. Each card now asks, as it uploads, for the newest of its kind.
+for (const [prefix, collection, noun] of /** @type {const} */ ([
+    ['huddle', 'huddles', 'Huddle'], ['circular', 'circulars', 'Circular'], ['newsletter', 'newsletters', 'Newsletter'],
+])) {
+    test(`operations: a ${noun} dated before the newest one filed says staff won't see it`, async ({ page }) => {
+        const newest = isoDaysAgo(0);
+        await page.addInitScript(([col, date]) => {
+            const w = /** @type {any} */ (window);
+            w.__E2E = { ...(w.__E2E || {}), docsByQuery: { [col]: [{ id: date, date, fileType: 'pdf',
+                storageUrl: `https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/${col}%2F${date}.pdf?alt=media` }] } };
+        }, [collection, newest]);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await page.evaluate((p) => document.getElementById(p === 'huddle' ? 'huddleBody' : `${p}UploadBody`)?.classList.add('open'), prefix);
+        await setUploadDate(page, prefix, isoDaysAgo(3));
+        await page.setInputFiles(`#${prefix}FileInput`, { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+        await page.locator(`#${prefix}UploadBtn`).click();
+        await expect(page.locator(`#${prefix}Feedback`)).toHaveText(new RegExp(
+            `^${noun} uploaded for \\d{1,2} [A-Z][a-z]{2} \\d{4} — but staff are shown the newest one, dated \\d{1,2} [A-Z][a-z]{2} \\d{4}, so they won’t see this one\\.$`));
     });
 }
 
@@ -3876,6 +3989,43 @@ test('operations: a staff PIN blocked for everyone reaches the strip and Staff L
     await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
 });
 
+// ASKED AGAIN WHEN THE PUSH LANDS (whole-app check, 17 Nov 2026). The audit was read once, at load, so the
+// "Staff PIN — blocked station-wide" push, tapped with Operations already open, opened Staff Login Accounts on
+// an answer from before the block: no line, no strip item. The tap and a return to the tab now ask again.
+/** Operations with the account audit answering whatever `answer()` says at the time. @param {import('@playwright/test').Page} page @param {() => any} answer */
+async function openWithAudit(page, answer) {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(answer()),
+    }));
+    await page.goto('/operations.html');
+    await expect(page.locator('#authSetupGaps')).toContainText('Everyone on the roster has a login');
+}
+const RUNNING_BLOCK = () => ({ active: true, blockedUntil: Date.now() + 10 * 60_000, lastBlockedAt: Date.now() - 60_000, blocks: 1 });
+
+test('operations: the staff-PIN push on an OPEN page asks the audit again, and the block is on the card it opens', async ({ page }) => {
+    let answer = { setUp: [], leavers: [], pinLockout: null };
+    await openWithAudit(page, () => answer);
+    await expect(page.locator('#authSetupGaps .auth-gap-line--pin')).toHaveCount(0);
+    answer = { setUp: [], leavers: [], pinLockout: RUNNING_BLOCK() };     // the block begins; its push is tapped
+    await page.evaluate(() => { location.hash = '#login-accounts'; });
+    await expect(page.locator('#authSetupBody')).toHaveClass(/open/);
+    await expect(page.locator('#authSetupGaps .auth-gap-line--pin')).toContainText(/The staff PIN is blocked for everyone until \d{2}:\d{2}/);
+    await expect(page.locator('#attentionStrip').getByRole('link', { name: 'Staff PIN blocked: 1 time in the last day' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => location.hash), 'followed, then taken off the address').toBe('');
+});
+
+test('operations: a return to the tab asks the account audit again', async ({ page }) => {
+    let answer = /** @type {any} */ ({ setUp: [], leavers: [] });
+    await openWithAudit(page, () => answer);
+    answer = { setUp: [], leavers: ['Z. Example'], pinLockout: RUNNING_BLOCK() };
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    const strip = page.locator('#attentionStrip');
+    await expect(strip.getByRole('link', { name: 'Leavers still active: 1' })).toBeVisible();
+    await expect(strip.getByRole('link', { name: 'Staff PIN blocked: 1 time in the last day' })).toBeVisible();
+});
+
 test('operations: an account check that says nothing about the PIN shows nothing about it', async ({ page }) => {
     await seedSession(page);
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
@@ -4556,7 +4706,7 @@ test('operations annual leave sheet: each person is checked against their own re
     await expect(result.locator('.al-sheet-age')).toContainText('(2 days ago)');
     await expect(result.locator('.al-sheet-warn'), 'a fresh copy saved by the clerks carries no warning').toHaveCount(0);
     await expect(result.locator('.al-sheet-overall')).toHaveText(overallWords(1, 2));
-    await expect(result.locator('.al-sheet-totals li')).toHaveText(totalsLines({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }));
+    await expect(result.locator('.al-sheet-totals li')).toHaveText(totalsEntries({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }).map(e => e.text));
     // …and each line carries its kind, which is what colours its bullet like the chips below it.
     await expect(result.locator('.al-sheet-totals li')).toHaveClass(
         totalsEntries({ 'not-in-app': 1, 'rest-day': 1, 'app-only': 1 }).map(e => new RegExp(`al-sheet-total--${e.key}`)));
@@ -4883,7 +5033,7 @@ test('operations annual leave sheet: an old copy is flagged, and an allowance th
     await expect(result.locator('#alSheetSaveBtn, .al-sheet-confirm, .al-sheet-answer'), 'a check only').toHaveCount(0);
     await expect(result.locator('.al-sheet-note').last()).toHaveText(CARD_WORDS.checkOnly);
     await expect(result.locator('.al-sheet-overall')).toHaveText(overallWords(2, 2));
-    await expect(result.locator('.al-sheet-totals li').first()).toHaveText(totalsLines({}, 1)[0]);
+    await expect(result.locator('.al-sheet-totals li').first()).toHaveText(totalsEntries({}, 1)[0].text);
     await expect(result.locator('.al-sheet-heading'), 'nobody agrees now').not.toContainText([CARD_WORDS.agree]);
     // B's only difference is the allowance, and their closed row still says so.
     const b = result.locator('.al-sheet-person').filter({ has: page.locator('.al-sheet-name', { hasText: fx.B.name }) });

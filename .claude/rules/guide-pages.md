@@ -143,6 +143,16 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   break a long word (`overflow-wrap: anywhere`), and the tips stack as the badge key does, under ONE
   rule after both grids' own (`staff-guide.css` has the measurements). Pinned by "enlarged text does not
   widen the column past a phone", at 375, 360 and 320px. Measure a size change at 1.5× on 320–412px.
+  **And nothing runs past a phone's edge on any guide** — no box and no word, because a word wider than
+  its box overflows it without moving the box. A status badge (the Rangers guide's "✓ National Rail
+  checked · Aug 2026") wraps its own words only when it alone is wider than the column: a 1em corner,
+  so two lines make a rounded rectangle rather than a bubble; `&nbsp;` keeping a month with its year and
+  the "·" with the word before it; and the key's badges never shrinking (their rows are flex rows).
+  FIP's "Amsterdam/Rotterdam/Antwerp" takes ONE `<wbr>`, after "Rotterdam/". **A `<wbr>` is not a last
+  resort**: line-wrapping uses it wherever it helps, and five of them re-broke the Eurostar sentence at
+  the default size on a 320px phone. Pinned by "<guide>: enlarged text runs nothing past a phone's
+  edge" (all five, at 375, 360 and 320px under 1.5× and 320px under 1.3×) and "rangers: a status badge
+  keeps to one line at the ordinary size, and wraps cleanly under large text".
 - **One sub-heading:** on screen an `<h3>` is the app's card title (body size, 700, navy, `-0.01em`); its
   paper size stays in the page's print block. The Railcard's and Rangers' card names are headings by
   ARIA, not `<h3>`s, so it does not reach them. Pinned by "a sub-heading on screen is the app's card
@@ -157,7 +167,10 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   does**: a `#fragment` link lights the chip of the section it lands in (a card's or sub-heading's
   section too) from the first paint, through the landing, until the reader moves on. A reload,
   Back/Forward or a hash changed in place holds nothing. A section headed inside a navy banner (the
-  Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing.
+  Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing. **A tap's jump is
+  judged when it ENDS** — at `scrollend` where the browser has it; the 1.5 s timer judges only where it
+  does not (run everywhere, it judged a slow jump in flight and let the chip go, Nov 2026).
+  `page-contract-parity.test.mjs` keeps the two scripts in step.
 - **A bar too long for its window WRAPS** from 641px in a window at least 600px tall, and from 1024px at
   any height — a desktop bar hides its scrollbar, so a chip past the edge would never be found, and a
   window snapped to half a laptop screen is 683–768px wide (`guide-shell.css` has the figures). The page
@@ -385,8 +398,9 @@ factual accuracy, source links, mobile layout, and the navy/gold palette.
 **Evidence is PER CARD, and there is deliberately no page-wide "last checked" date** — one date for
 thirty-odd claims is either stale or, once one card is re-verified, an over-claim for every other.
 Each country and ferry card shows its own `✓ Checked <Mon> <Year> against Rail Staff Travel` line and
-cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces that the date shown equals its
-row's `Reviewed`, that **every** country/ferry card carries a line *and* an anchor, and that the finder
+cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces that the date shown is the
+oldest `Reviewed` of the rows the card cites (as it does for the Railcard and Rangers guides' pills —
+a newer one claims a review nobody did), that **every** country/ferry card carries a line *and* an anchor, and that the finder
 note makes no page-wide claim. **Absence of a marker is a statement** (the page says an undated card
 is not re-verified), so it must never be an accident — which is why the invariant is structural.
 

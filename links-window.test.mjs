@@ -12,7 +12,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     DEFAULT_WINDOW, WINDOW_ROWS, windowMinutes, isValidWindowRow, normaliseWindow,
-    windowForDay, isHourStaffed, heatSpan, formatWindow, windowsDiffer, isDefaultWindow,
+    windowForDay, isHourStaffed, heatSpan, formatWindow, windowsDiffer, isDefaultWindow, windowEditRefusal,
 } from './links-window.js';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -126,6 +126,33 @@ describe('heatSpan', () => {
         const noWin = { monSat: { start: 'x', end: 'y' }, sun: { start: 'x', end: 'y' } };
         // normaliseWindow rescues that to the default, so the span is still the staffed day.
         assert.deepEqual(heatSpan(noWin, empty, DAYS), { minH: 6, maxH: 24 });
+    });
+});
+
+describe('windowEditRefusal — the reason that applies, not always the order', () => {
+    // What the editor's boxes hold once `finaliseClockInput` has settled them: "2500" is shaped to 25:00 as it is typed.
+    test('a time that is no time of day is named, and its order is not blamed', () => {
+        const why = windowEditRefusal('06:20', '25:00');
+        assert.match(String(why), /“25:00” is not a time of day — a time runs from 00:00 to 23:59/);
+        assert.doesNotMatch(String(why), /after its start/);
+        assert.match(String(windowEditRefusal('06:60', '23:55')), /“06:60” is not a time of day/, 'the start is asked too');
+    });
+    test('an emptied box is missing, not out of order', () => {
+        for (const [start, end] of [['', '23:55'], ['06:20', ''], ['   ', '23:55']]) {
+            assert.equal(windowEditRefusal(start, end), 'A start and a finish are both needed — that change wasn’t applied.',
+                `${JSON.stringify(start)} → ${JSON.stringify(end)}`);
+        }
+    });
+    test('two real times the wrong way round, or the same, are out of order', () => {
+        assert.equal(windowEditRefusal('23:55', '06:20'), 'A finish must be after its start — that change wasn’t applied.');
+        assert.equal(windowEditRefusal('06:20', '06:20'), 'A finish must be after its start — that change wasn’t applied.');
+    });
+    test('asked in order: not a time first, then missing, then the order', () => {
+        assert.match(String(windowEditRefusal('', '25:00')), /“25:00” is not a time of day/, 'a bad time is named before a missing one');
+    });
+    test('a usable row is not refused — an unpadded hour included', () => {
+        assert.equal(windowEditRefusal('06:20', '23:55'), null);
+        assert.equal(windowEditRefusal('6:20', '23:55'), null);
     });
 });
 

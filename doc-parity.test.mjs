@@ -243,32 +243,20 @@ test('every e2e spec is routed in CLAUDE.md', () => {
 // a doc and wiring it into a runner are different acts, and it only checks the first.
 //
 // Checked against package.json rather than against the doc, because the runner is what actually
-// runs. The exemptions are the suites with a home of their own, each named individually so a new
-// unrun file cannot arrive by matching a pattern.
-const RUNNER_EXEMPT = new Set([
-    'firestore.rules.test.mjs',       // npm run test:rules — needs the Firebase emulator binary
-    'storage.rules.test.mjs',         // npm run test:rules — same
-    'roster-parse-helpers.test.mjs',  // npm run test:functions — needs functions/node_modules
-    'functions-surface.test.mjs',     // npm run test:functions — requires functions/index.js
-    'overtime-endpoints.test.mjs',    // npm run test:functions — same
-]);
-
+// runs. THERE ARE NO EXEMPTIONS (review, 17 Nov 2026). Five suites were exempted as "having a home of
+// their own", but that home is an npm script too — `test:rules` names the two rules suites and
+// `test:functions` the three Functions suites — and every `test*` script is read here. So each
+// exemption only stopped this check looking: drop a suite from `test:functions` and it went green.
 test('every root TEST file is actually RUN by one of the npm scripts', () => {
     const pkg = read('./package.json');
     const scripts = JSON.parse(pkg).scripts;
     const wired = Object.entries(scripts)
         .filter(([name]) => name.startsWith('test'))
         .map(([, cmd]) => cmd).join(' ');
-    const unrun = tests.filter(f => !RUNNER_EXEMPT.has(f) && !listed(wired, f));
+    const unrun = tests.filter(f => !listed(wired, f));
     assert.deepEqual(unrun, [],
         'these test files exist but no npm script runs them — they pass by never executing:\n  ' +
         unrun.join('\n  '));
-});
-
-test('and every runner exemption still exists — guard the guard', () => {
-    // An exemption for a deleted file is a hole the next same-named file falls into silently.
-    const gone = [...RUNNER_EXEMPT].filter(f => !tests.includes(f));
-    assert.deepEqual(gone, [], 'exempted files that no longer exist: ' + gone.join(', '));
 });
 
 test('the file list itself is non-empty — guard the guard', () => {

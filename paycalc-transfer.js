@@ -41,6 +41,15 @@ export const BACKUP_VERSION = 1;
 const KEY_RE = /^myb_pc_[A-Za-z0-9_]+$/;
 
 /**
+ * A key from the FILE, as a refusal quotes it so the member can find it. The text is the file's, so it
+ * is rendered by textContent and cannot inject — but it is unbounded, and a pathological key would
+ * stretch the card, so it is capped as the owner's name is (17 Nov 2026). Long enough for any key the
+ * app writes, whole.
+ * @param {string} key @returns {string}
+ */
+const shownKey = (key) => (key.length > 60 ? `${key.slice(0, 60)}…` : key);
+
+/**
  * The keys eligible for backup: everything under the member's namespace EXCEPT the device-level
  * flags, which describe the browser rather than the member.
  *
@@ -172,11 +181,11 @@ export function validateBackup(text, { currentSlug }) {
     // shape, never a device flag, and only string values.
     const badKey = keys.find(k => !KEY_RE.test(k) || DEVICE_KEYS.has(k));
     if (badKey) {
-        return { ok: false, error: `That backup contains something that isn't pay data (${badKey}). Nothing was changed.` };
+        return { ok: false, error: `That backup contains something that isn't pay data (${shownKey(badKey)}). Nothing was changed.` };
     }
     const badValue = keys.find(k => typeof blob.data[k] !== 'string');
     if (badValue) {
-        return { ok: false, error: `That backup is damaged (${badValue}). Nothing was changed.` };
+        return { ok: false, error: `That backup is damaged (${shownKey(badValue)}). Nothing was changed.` };
     }
 
     // A slug that is PRESENT but not a string cannot be re-keyed from — `'myb_pc_' + 7 + '_'` names
@@ -216,7 +225,7 @@ export function validateBackup(text, { currentSlug }) {
         if (owned) {
             const ownerSlug = keyOwnerSlug(owned);
             if (ownerSlug === currentSlug) {
-                return { ok: false, error: `That backup is inconsistent (${owned}). Nothing was changed.` };
+                return { ok: false, error: `That backup is inconsistent (${shownKey(owned)}). Nothing was changed.` };
             }
             // keyOwnerSlug also names a FORMER member's slug (a key whose tail is one of our kinds), and
             // nobody can sign in as a name the roster no longer holds — so say what is true of it.
@@ -241,7 +250,7 @@ export function validateBackup(text, { currentSlug }) {
     const srcPrefix = `myb_pc_${srcSlug ? srcSlug + '_' : ''}`;
     const stray = keys.find(k => !k.startsWith(srcPrefix));
     if (stray) {
-        return { ok: false, error: `That backup is inconsistent (${stray}). Nothing was changed.` };
+        return { ok: false, error: `That backup is inconsistent (${shownKey(stray)}). Nothing was changed.` };
     }
 
     // SEMANTIC PREFLIGHT. Everything above is about the file's SHAPE; this is the first question
@@ -280,6 +289,17 @@ export function rekeyEntries(entries, fromSlug, toSlug) {
         out[to + k.slice(from.length)] = v;
     }
     return out;
+}
+
+/**
+ * The line a restore ends on: the payslips it brought back, the count a member reads back to us. A
+ * backup can hold none — settings and Year to Date figures only — and "Restored 0 payslips" read as a
+ * restore that did nothing (17 Nov 2026), so that one says what it was.
+ * @param {{ periods: number }} counts  `validateBackup`'s `counts` @returns {string}
+ */
+export function restoredLine(counts) {
+    const n = counts?.periods ?? 0;
+    return n > 0 ? `Restored ${n} payslip${n === 1 ? '' : 's'}. Reloading…` : 'Restored your backup — it held no payslips. Reloading…';
 }
 
 /**

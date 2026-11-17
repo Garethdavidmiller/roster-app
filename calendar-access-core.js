@@ -237,9 +237,11 @@ export function classifyUnlockFailure({ status = null, code = null, offline = fa
     // Offline is checked FIRST and beats any status, because a browser that is genuinely offline can
     // still surface a stale/synthesised response — and "check your connection" is actionable where
     // "PIN not recognised" would be a lie that costs somebody three more attempts.
+    // "Online ONCE" (until 17 Nov 2026) read as a one-time step. It is every unlock: the PIN is checked
+    // by the server each time, and a browser closed and reopened asks for it again.
     if (offline) {
         return { kind: 'offline', retryable: true,
-                 message: 'You need to be online once to unlock the Calendar. Reconnect and try again.' };
+                 message: 'You need to be online to unlock the Calendar. Reconnect and try again.' };
     }
     if (status === 429) {
         return { kind: 'throttled', retryable: true,

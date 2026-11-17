@@ -1010,6 +1010,9 @@ test('App Notices: an archive with a notice in it lists it', async ({ page }) =>
 // A TIPS TITLE STAYS CLEAR OF ITS ✕ (whole-app review, Nov 2026). The picker sheet's head reserves room for its ✕ and
 // the Tips panel's title did not: "🙋 Password Reset Requests" ran 8px under the glyph at 360px. Every line of the
 // title is measured, because the ✕ sits beside the first and a wrapped second line still reaches its target.
+// That title lost its emoji on 17 Nov 2026 (no other Operations panel's title wears one), and the shorter text no
+// longer reaches the ✕ at 360px, so it could not see the reserved room go. The room itself is measured as well: the
+// box a title wraps inside must end clear of the ✕, which holds for a title of any length.
 test('Tips: a long panel title stays clear of the panel\'s ✕ on a small phone', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 780 });
     await seedSession(page, 'G. Miller');   // admin — Operations lets them in
@@ -1017,12 +1020,18 @@ test('Tips: a long panel title stays clear of the panel\'s ✕ on a small phone'
     await page.locator('.btn-card-tips[data-card="reset-requests"]').click();
     await expect(page.locator('#tipsLbTitle')).toHaveText(/Password Reset Requests/);
     const m = await page.evaluate(() => {
+        const title = /** @type {HTMLElement} */ (document.getElementById('tipsLbTitle'));
         const range = document.createRange();
-        range.selectNodeContents(/** @type {HTMLElement} */ (document.getElementById('tipsLbTitle')));
+        range.selectNodeContents(title);
         const lines = [...range.getClientRects()];
-        return { textRight: Math.max(...lines.map(r => r.right)), closeLeft: /** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose')).getBoundingClientRect().left };
+        return {
+            textRight: Math.max(...lines.map(r => r.right)),
+            roomRight: title.getBoundingClientRect().right - parseFloat(getComputedStyle(title).paddingRight),
+            closeLeft: /** @type {HTMLElement} */ (document.getElementById('tipsLightboxClose')).getBoundingClientRect().left,
+        };
     });
     expect(m.textRight, `the title's text ends at ${m.textRight}, the ✕'s target starts at ${m.closeLeft}`).toBeLessThanOrEqual(m.closeLeft);
+    expect(m.roomRight, `a title may run to ${m.roomRight}, the ✕'s target starts at ${m.closeLeft}`).toBeLessThanOrEqual(m.closeLeft);
 });
 
 // A HIDDEN TOUCH-ONLY LINE STAYS HIDDEN ON A TOUCH SCREEN (whole-app review, Nov 2026). `.touch-only` shows itself on a

@@ -12,7 +12,7 @@
  * left the coordinator unchanged (14 Nov 2026). They were already pure configuration over a shared
  * engine, which is why they were the cheapest card to move.
  */
-import { uploadCircular, uploadNewsletter } from './firebase-client.js';
+import { uploadCircular, uploadNewsletter, getLatestCircular, getLatestNewsletter } from './firebase-client.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { NEWSLETTER_CARD } from './operations-tips.js';
 import { noteNewsletterUploaded } from './newsletter-recency.js';
@@ -32,6 +32,7 @@ export function initDocumentUploadCards({ currentUser }) {
         successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
         btnLabel: 'Upload Circular', logPrefix: 'Circular',
         whereToCheck: '☰ → Weekly Retail Circular',
+        noun: 'Circular', newest: getLatestCircular,   // a newer one filed hides this one — its receipt says so
     });
     initDocUploadCard({
         dateId: 'newsletterDate', fileId: 'newsletterFileInput',
@@ -44,5 +45,6 @@ export function initDocumentUploadCards({ currentUser }) {
         successMsg: (date, iso) => `Newsletter uploaded for ${date} — ${NEWSLETTER_CARD.told(iso)}`,
         btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter', onUploaded: noteNewsletterUploaded,   // this device's ☰ button at once
         whereToCheck: NEWSLETTER_CARD.whereToCheck,   // where a sign-out mid-upload is told to look
+        noun: 'Newsletter', newest: getLatestNewsletter,
     });
 }

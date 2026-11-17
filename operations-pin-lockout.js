@@ -47,29 +47,76 @@ export function readLockout(raw, now) {
     return { active, blockedUntil, lastBlockedAt, blocks: Math.max(1, Math.floor(num(r.blocks))) };
 }
 
-/** "14:05" in London, or "yesterday at 14:05". @param {number} ms @param {number} now @returns {string} */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The calendar day an instant falls on in London, as a whole number of days — so two compare by subtraction.
+ *  @param {number} ms @returns {number} */
+function londonDay(ms) {
+    /** @type {Record<string, string>} */ const p = {};
+    for (const { type, value } of new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', year: 'numeric', month: 'numeric', day: 'numeric' })
+        .formatToParts(new Date(ms))) p[type] = value;
+    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)) / DAY_MS;
+}
+
+/**
+ * "14:05" in London — "yesterday at 14:05" or "tomorrow at 00:05" on a day either side, and the date
+ * beyond that. The future has words too: a block that starts at 23:50 runs until 00:05, and until
+ * 17 Nov 2026 that end read "yesterday at 00:05", because only the past had been thought of.
+ * @param {number} ms @param {number} now @returns {string}
+ */
 function when(ms, now) {
-    const opts = /** @type {const} */ ({ timeZone: 'Europe/London' });
-    const time = new Date(ms).toLocaleTimeString('en-GB', { ...opts, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-    const day = (/** @type {number} */ t) => new Date(t).toLocaleDateString('en-GB', opts);
-    return day(ms) === day(now) ? time : `yesterday at ${time}`;
+    const time = new Date(ms).toLocaleTimeString('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const days = londonDay(ms) - londonDay(now);
+    if (days === 0) return time;
+    if (days === -1) return `yesterday at ${time}`;
+    if (days === 1) return `tomorrow at ${time}`;
+    return `${new Date(ms).toLocaleDateString('en-GB', { timeZone: 'Europe/London', day: 'numeric', month: 'long' })} at ${time}`;
 }
 
 /**
  * The card's words for a lockout: what happened, and what the admin can do. PURE.
+ * One block that has ended is given its start and its end; "most recently" belongs to several.
  * @param {PinLockout} l
  * @param {number} now
  * @returns {{ text: string, fix: string }}
  */
 export function lockoutWords(l, now) {
     const times = l.blocks === 1 ? '' : ` ${l.blocks} times in the last day`;
+    const once = l.blockedUntil > l.lastBlockedAt
+        ? `from ${when(l.lastBlockedAt, now)} to ${when(l.blockedUntil, now)}`
+        : `at ${when(l.lastBlockedAt, now)}`;
     const text = l.active
         ? `The staff PIN is blocked for everyone until ${when(l.blockedUntil, now)} — too many wrong entries${times ? `,${times}` : ''}.`
-        : `The staff PIN was blocked for everyone${times}, most recently from ${when(l.lastBlockedAt, now)} — too many wrong entries.`;
+        : times
+            ? `The staff PIN was blocked for everyone${times}, most recently from ${when(l.lastBlockedAt, now)} — too many wrong entries.`
+            : `The staff PIN was blocked for everyone ${once} — too many wrong entries.`;
     return {
         text,
         fix: 'It reopens by itself, and members can still sign in with their password. If it keeps happening, somebody may be guessing — consider changing the PIN.',
     };
+}
+
+/** The first moment after `now` that is a new day in London — when "14:05" becomes "yesterday at 14:05".
+ *  A London midnight is a UTC one, or the hour before it in summer time; the clocks change at 01:00 UTC,
+ *  so midnight itself is never inside a change. @param {number} now @returns {number} */
+function nextLondonMidnight(now) {
+    const midnightUtc = (londonDay(now) + 1) * DAY_MS;
+    const summer = midnightUtc - 60 * 60 * 1000;
+    return londonDay(summer) === londonDay(now) + 1 ? summer : midnightUtc;
+}
+
+/**
+ * When what the card says about this lockout next changes by the clock alone, in epoch ms, or `null`
+ * when nothing will: a running block ends, the day after the last one runs out, or London's day turns
+ * (its times then need "yesterday"). The card draws the line again then — drawn once and left, it went
+ * on saying "blocked until 14:20" at 15:00 (whole-app check, 17 Nov 2026). Always after `now`. PURE.
+ * @param {PinLockout|null|undefined} lockout  from `readLockout`, read at `now`
+ * @param {number} now
+ * @returns {number|null}
+ */
+export function lockoutChangesAt(lockout, now) {
+    if (!lockout) return null;
+    return Math.min(lockout.active ? lockout.blockedUntil : lockout.lastBlockedAt + RECENT_MS, nextLondonMidnight(now));
 }
 
 /**

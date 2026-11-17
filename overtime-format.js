@@ -513,8 +513,8 @@ export function submitFailureCopy(code, dayLabel) {
         // NOT a fault and NOT retryable, so it must not read like either (v21.20). The member is no
         // longer being asked for this week — somebody decided that, and telling them to "try again"
         // would send them round a loop the server will refuse every time.
-        case 'withdrawn':    return 'You\'re no longer being asked about this week. Speak to a Manager if that\'s wrong.';
-        case 'not-a-participant': return 'This week isn\'t open to you. Speak to a Manager if that\'s wrong.';
+        case 'withdrawn':    return 'You\'re no longer being asked about this week. Speak to your manager if that\'s wrong.';
+        case 'not-a-participant': return 'This week isn\'t open to you. Speak to your manager if that\'s wrong.';
         default:           return `Couldn't save (${code}). Try again in a moment.`;
     }
 }

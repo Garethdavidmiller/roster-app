@@ -112,6 +112,16 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *                  Dispatcher's bank holidays are covered by the rule that grants them (7 Nov 2026).
  *                  `projectAlOverage` costs it through the allowance; this names it for the preview.
  *
+ * And one more subset of `writing`, because a day can be written and change nothing:
+ *
+ *   `alreadyBooked` — a day that already HOLDS leave, which the save only writes again at the same
+ *                  cost it had (both costing a day, or both free). Counted in `consuming` or
+ *                  `freeWritten` as before, so the over-allowance check is unchanged (it never
+ *                  charged an existing day twice); named so the preview and the receipt can say
+ *                  "2 new days, 3 already booked" where they said "5 days" and the balance fell by 2
+ *                  (review, Nov 2026). A rest day's free leave answered "swapped" is NOT in it: its
+ *                  cost changes, so it is a new day spent.
+ *
  * @param {object} args
  * @param {any} args.member the team-member object; without it nothing can be judged
  * @param {string[]} args.dates every date the booking covers
@@ -120,11 +130,14 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *        `false` (genuine rest, free). A date ABSENT is unanswered, which is a state, not a default.
  * @returns {{asked: string[], unanswered: string[], consuming: string[], freeWritten: string[],
  *            skipped: string[], answeredFree: string[], christmas: string[], writing: string[], lieuLost: string[],
+ *            alreadyBooked: string[],
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
- *                     skipped:number, answeredFree:number, christmas:number, writing:number, lieuLost:number}}}
+ *                     skipped:number, answeredFree:number, christmas:number, writing:number, lieuLost:number,
+ *                     alreadyBooked:number}}}
  */
 export function projectAlBooking({ member, dates, ovByDate: given = null, swapAnswers = null }) {
-    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [], lieuLost: [] };
+    const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [], lieuLost: [],
+        alreadyBooked: [] };
     if (!member || !Array.isArray(dates)) return { ...empty, counts: _counts(empty) };
     // Omitted means "nothing in play", as it does for every rule below — `isWorkingDate` alone
     // dereferences the map, and threw on the first ordinary working day without one.
@@ -142,6 +155,7 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
     /** @type {string[]} */ const christmas = [];
     /** @type {string[]} */ const writing = [];
     /** @type {string[]} */ const lieuLost = [];
+    /** @type {string[]} */ const alreadyBooked = [];
 
     for (const date of all) {
         let swapped = false;
@@ -163,12 +177,15 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
         // ONE expression decides whether the day costs anything, for an answered swap and an
         // ordinary working day alike — `willConsume` is the rule, and there is no second copy of it.
         writing.push(date);
-        (willConsume({ member, date, ovByDate, swapped }) ? consuming : freeWritten).push(date);
+        const consumes = willConsume({ member, date, ovByDate, swapped });
+        (consumes ? consuming : freeWritten).push(date);
         // The work that day is what earns the day in lieu, and the leave replaces it.
         if (lowersAllowance(member, date, ovByDate)) lieuLost.push(date);
+        // Leave already there, written again at the cost it already had (the block comment above).
+        if (ovByDate.get(date)?.type === 'annual_leave' && consumesEntitlement(member, date, ovByDate) === consumes) alreadyBooked.push(date);
     }
 
-    const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost };
+    const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost, alreadyBooked };
     return { ...out, counts: _counts(out) };
 }
 
@@ -279,7 +296,7 @@ function _counts(sets) {
         asked: sets.asked.length, unanswered: sets.unanswered.length,
         consuming: sets.consuming.length, freeWritten: sets.freeWritten.length,
         skipped: sets.skipped.length, answeredFree: sets.answeredFree.length, christmas: sets.christmas.length,
-        writing: sets.writing.length, lieuLost: sets.lieuLost.length,
+        writing: sets.writing.length, lieuLost: sets.lieuLost.length, alreadyBooked: sets.alreadyBooked.length,
     };
 }
 

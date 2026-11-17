@@ -203,8 +203,9 @@ export function wirePensionControls({ autosave }) {
     amt.value = own != null ? String(own) : periodDefaultPension(p).toFixed(2);
   };
   // `autosave` persists the field and re-prices; the only re-price this module can reach. A locked
-  // field reads £0.00, which the round trip stores as "the default" — so the payslip's own figure is
-  // put back straight after, to lie dormant rather than be lost.
+  // field reads £0.00, and the round trip keeps the payslip's own figure behind it (`readFormData`'s
+  // `savedPension`, which the coordinator's saves pass); it is put back here too, so a figure lies
+  // dormant rather than lost whatever save this module is handed.
   const _persist = () => {
     const p = _viewed();
     const own = _amt()?.disabled ? _own(p) : null;
@@ -514,15 +515,17 @@ export function confirmSettings(calculate) {
       // Blank field → null (loadPeriodData re-applies the period default), NOT 0. Coercing blank to
       // 0 here persisted a permanent £0 pension for the period — the same overstatement the
       // readFormData/calculate null convention closes. A typed "0" is a genuine opt-out and is kept.
-      // Out of the scheme → null, NOT an explicit 0. Null means "use the period default", which
-      // for an opted-out member already IS 0 — and it keeps healing, so if she ever rejoins, the
-      // periods she never typed a figure into follow the scheme again instead of being frozen at
-      // a £0 nobody can see the reason for. Mirrors readFormData's self-heal for the same reason.
+      // Out of the scheme → the payslip's pension is LEFT AS IT IS, never an explicit 0. Nothing
+      // saved means "use the period default", which for an opted-out member already IS 0 — and it
+      // keeps healing, so if she ever rejoins, the periods she never typed a figure into follow the
+      // scheme again instead of being frozen at a £0 nobody can see the reason for. A figure she DID
+      // type stays too, dormant behind the lock (readFormData says why): this wrote null over it, so
+      // correcting the opt-out date brought the payslip back at the scheme default, not her figure.
       // `pensionToStore` — the autosave's own rule, not a second copy of it. A private
       // `parseFloat(raw) || 0` here stored the period default as a number (freezing the payslip onto
       // it, so the next pension step never reached it) and read a pasted "£151.86" as £0.
       const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value;
-      d.pension = isPensionOptedOut(curP) ? null : pensionToStore(_pRaw, curP ? periodDefaultPension(curP) : null);
+      if (!isPensionOptedOut(curP)) d.pension = pensionToStore(_pRaw, curP ? periodDefaultPension(curP) : null);
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch (err) {
       // A corrupt saved period must not break Save — but it must not be reported as a success

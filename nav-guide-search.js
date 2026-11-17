@@ -34,6 +34,15 @@ const EVIDENCE_LABELS = {
     unconfirmed: '⚠ Unconfirmed — check the retail system',
     draft:       'Draft — source not yet verified',
 };
+/**
+ * A guide whose page sends the reader somewhere else. The FIP guide's conflict (the Vilnius–Riga
+ * train) is a question for Rail Staff Travel, as its source banner says; a retail system sells no
+ * FIP coupon, so "check the retail system" was advice that could not be followed.
+ * @type {Record<string, Partial<Record<keyof typeof EVIDENCE_LABELS, string>>>}
+ */
+const PAGE_EVIDENCE_LABELS = {
+    'fip-guide.html': { conflict: '⚠ Source conflict — ask Rail Staff Travel' },
+};
 
 const RESULT_LIMIT = 8;
 
@@ -113,7 +122,8 @@ export function initGuideSearch({ guides }) {
         for (const state of r.evidence) {
             const flag = document.createElement('span');
             flag.className = `nav-gs-flag nav-gs-flag--${state}`;
-            flag.textContent = EVIDENCE_LABELS[/** @type {keyof typeof EVIDENCE_LABELS} */ (state)] || state;
+            const key = /** @type {keyof typeof EVIDENCE_LABELS} */ (state);
+            flag.textContent = (PAGE_EVIDENCE_LABELS[r.page]?.[key] ?? EVIDENCE_LABELS[key]) || state;
             text.append(flag);
         }
 

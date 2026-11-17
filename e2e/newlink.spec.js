@@ -442,6 +442,21 @@ test.describe('new link', () => {
         await expect(page.locator('#nlChangesList li').first()).toBeVisible();
     });
 
+    // PAPER HAS NO TAP-TO-EXPAND (17 Nov 2026). The two folded cards — what has changed, and how the figures are worked
+    // out, the method notes among them — printed as their headers alone. Asked through the cascade under print media, as
+    // the Links sheet is: a source scan would answer whether the rule is written, not whether it wins.
+    test('on paper the folded cards print open, and their chevrons do not print', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        await expect(page.locator('#nlHowBody'), 'premise: folded on screen').not.toHaveClass(/\bopen\b/);
+        await expect(page.locator('#nlHowList li').first()).toBeHidden();
+        await page.emulateMedia({ media: 'print' });
+        for (const id of ['#nlChangesList', '#nlHowList']) await expect(page.locator(`${id} li`).first(), `${id} on paper`).toBeVisible();
+        await expect(page.locator('#nlHowChevron')).toBeHidden();
+        await page.emulateMedia({ media: 'screen' });
+        await expect(page.locator('#nlHowList li').first(), 'and folded again on screen').toBeHidden();
+    });
+
     test('a pack file opens ON THE PAGE, drawn, with a ✕ that comes back — no tab, no leaving the app', async ({ page, context }) => {
         const errors = collectFatalErrors(page);
         const logged = consoleErrors(page);

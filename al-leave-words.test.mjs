@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     dayLabel, sheetWords, patternWords, drawnWords, appWords, figuresLine, personNotes,
-    chipsFor, totalsLines, totalsEntries, reasonWords, ageWords, CARD_WORDS, checkedWords, overallWords, oldWords,
+    chipsFor, totalsEntries, reasonWords, ageWords, CARD_WORDS, checkedWords, overallWords, oldWords,
     unplacedWords, appOnlyWords, moreDaysWords, notComparedWords, beyondHeadWords,
     SAVE_WORDS, questionWords, confirmWords, afterWords, stillDiffersWords, unansweredWords, saveButtonWords, savingWords,
     refusalWords, receiptWords, lastSaveWords, undoConfirmWords, undoneWords, leftFreeWords,
@@ -69,7 +69,7 @@ test('a pattern shift in words', () => {
     // An Other day reads as the Calendar's word for it, never as its code (review, 15 Nov 2026).
     assert.equal(patternWords('TRG'), 'Training');
     assert.equal(patternWords('MEET 09:00-12:00'), 'Meeting 09:00–12:00');
-    assert.equal(patternWords('IND RDW'), 'Induction (rest day worked)');
+    assert.equal(patternWords('IND RDW'), 'Induction (Rest Day Working)');
     assert.equal(drawnWords(day({ pattern: 'TRG' })), 'Training on their pattern');
     assert.equal(patternWords('XYZ'), 'XYZ', 'a value the app cannot read is shown as it is, not guessed');
 });
@@ -224,6 +224,9 @@ test('the chips, singular and plural — no "2 other year" or "2 work recorded"'
         '2 undated over quota', 'figures differ']);
 });
 
+/** The summary's words alone — the card prints `totalsEntries`' text, coloured by its key. */
+const totalsLines = (/** @type {Record<string, number>} */ totals, allowances = 0) => totalsEntries(totals, allowances).map(e => e.text);
+
 test('the summary lines, singular and plural, for differences only', () => {
     assert.deepEqual(totalsLines({ match: 400, sunday: 30, carried: 3, people: 40, needsALook: 0 }), []);
     assert.deepEqual(totalsLines({ 'not-in-app': 1 }), ['1 day of leave on the sheet is not in the app']);
@@ -246,7 +249,6 @@ test('each summary line carries the kind its chips wear, so the card can colour 
     const entries = totalsEntries(all, 3);
     assert.deepEqual(entries.map(e => e.key), chipsFor(all, true).map(c => c.key),
         'the summary lists its kinds in the chips’ order, the allowance first');
-    assert.deepEqual(entries.map(e => e.text), totalsLines(all, 3), 'the words are totalsLines’ own');
     assert.deepEqual(totalsEntries({ match: 9 }), []);
 });
 

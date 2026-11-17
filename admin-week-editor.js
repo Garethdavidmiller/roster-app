@@ -43,6 +43,9 @@ export { rosteredWords };   // its home is the row's own words now; exported her
 import { initTimeInputs } from './admin-time-inputs.js';
 import { setStatus } from './status-text.js';
 
+/** What a member still signed in after leaving the roster is told, on every card (admin-app.js). */
+export const NOT_ON_ROSTER_LINE = 'Your account is no longer on the roster — please contact the admin.';
+
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _canPickMember = false;   // admin or manager: the member field is theirs to change
 /** @type {(msg: string, lines?: string[], o?: { toast?: boolean }) => void} */   let _showSuccess  = () => {};
@@ -382,7 +385,11 @@ export function renderWeekGrid() {
     updateWeekNavLabel(dateStr ?? '');
 
     if (!memberName || !dateStr) {
-        if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_canPickMember ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
+        // Somebody who cannot pick a member has their own — unless they left the roster while signed in, and
+        // admin-app.js cleared the selects: "Select a date above" was untrue there, with a date showing.
+        const why = _canPickMember ? 'Select a staff member and date above to load the week.'
+            : !memberName ? NOT_ON_ROSTER_LINE : 'Select a date above to load the week.';
+        if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${why}</div>`;
         if (bulkBar)  bulkBar.style.display = 'none';
         updateSaveBtn();
         return;

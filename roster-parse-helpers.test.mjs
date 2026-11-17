@@ -47,7 +47,7 @@ const {
     shouldNotifyAdmin,
     summariseSignIns,} = require('./functions/roster-parse-helpers.js');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
-const { blankCellMeaning, isBlankReading } = require('./functions/cell-day-rules.js');
+const { blankCellMeaning, isBlankReading, printsNothing } = require('./functions/cell-day-rules.js');
 const { applyGeometryWitness } = require('./functions/roster-geometry.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -383,6 +383,21 @@ describe('normaliseShift', () => {
             assert.equal(lines.length, 2, 'and logs nothing');
         } finally { console.warn = real; }
     });
+    test('what it logs names no cell\'s text — an absence written as a word is its reason (review, Nov 2026)', () => {
+        // Beside the member a nearby line names, "hospital" or "compassionate" in the functions log is
+        // a reason for an absence, which the app never stores. The review row still carries the text.
+        /** @type {string[]} */
+        const lines = [];
+        const real = console.warn;
+        console.warn = (...a) => lines.push(a.join(' '));
+        try {
+            assert.equal(normaliseShift('06:00-12:00 hospital appt'), '06:00-12:00');
+            assert.equal(normaliseShift('06:00-12:00 RDW hospital appt'), 'RDW|06:00-12:00');
+            assert.equal(normaliseShift('compassionate'), 'UNKNOWN|COMPASSIONATE', 'the review still shows what was read');
+        } finally { console.warn = real; }
+        assert.equal(lines.length, 3, 'each still says what was done');
+        for (const line of lines) assert.doesNotMatch(line, /hospital|compassionate/i, `the log quoted the cell: ${line}`);
+    });
 });
 
 // ── functions/roster-other-days.js — the server's half of the Other-family grammar (v25.38) ─────
@@ -513,6 +528,48 @@ describe('extractAIJson', () => {
         // carries parsed[]/columnHeaders[], the first parsed object is returned exactly as before.
         assert.deepEqual(extractAIJson('{"foo": "bar"}'), { foo: 'bar' });
         assert.deepEqual(extractAIJson('note {} here\n{"foo": "bar"}'), {});
+    });
+
+    // ── THE SCANNER'S OWN STATE (review, Nov 2026) ───────────────────────────────────────────────
+    // Every line of the brace-and-string tracking could be broken with every test above still green:
+    // none of them put a brace or a quote inside a string, cut a reply short, or followed one with text.
+    test('a brace, or an escaped quote, inside a string is text — it neither ends the string nor the object', () => {
+        assert.deepEqual(extractAIJson('{"note": "a \\"}\\" here, and a } too", "columnHeaders": ["Sun"], "parsed": []}'),
+            { note: 'a "}" here, and a } too', columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('the scan starts outside any escape: an empty string first is still an empty string', () => {
+        assert.deepEqual(extractAIJson('{"": "", "columnHeaders": ["Sun"], "parsed": []}'), { '': '', columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('a reply cut off mid-object is refused whole — never mined for an object nested inside it', () => {
+        // A truncated answer (the token limit, a dropped stream) holds complete inner objects. One of
+        // them carrying `parsed` would be PART of the roster, returned as if it were all of it.
+        const cut = '{"columnHeaders": ["Sun"], "parsed": [{"memberName": "A. Person", "Sun": "RD"}], "draft": {"parsed": []}';
+        assert.throws(() => extractAIJson(cut), (/** @type {any} */ e) => e instanceof SyntaxError && /^No valid JSON object found in AI response$/.test(e.message));
+    });
+
+    test('an answer followed straight away by text is still read', () => {
+        assert.deepEqual(extractAIJson('{"columnHeaders": ["Sun"], "parsed": []}.'), { columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('an answer wrapped in a stray outer brace is still found', () => {
+        assert.deepEqual(extractAIJson('{{"columnHeaders": ["Sun"], "parsed": []}}'), { columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('of two { parsed } answers the FIRST is taken, as the first full-shape answer is', () => {
+        // One rule for both shapes: the first span that is the payload. A reply giving two is a model
+        // ignoring "return ONLY valid JSON", and neither is preferred for being later.
+        const two = 'One: {"parsed": [{"memberName": "A. Person"}]} Two: {"parsed": [{"memberName": "B. Example"}]}';
+        assert.deepEqual(extractAIJson(two), { parsed: [{ memberName: 'A. Person' }] });
+    });
+
+    test('when nothing parses, the error names the FIRST span\'s failure — the one worth reading in the log', () => {
+        let first = '';
+        try { JSON.parse('{bad one}'); } catch (e) { first = /** @type {Error} */ (e).message; }
+        assert.ok(first, 'premise: JSON.parse refused it');
+        assert.throws(() => extractAIJson('{bad one} then {worse two}'),
+            (/** @type {any} */ e) => e instanceof SyntaxError && e.message === `No valid JSON object found in AI response: ${first}`);
     });
 });
 
@@ -1011,9 +1068,10 @@ describe('Case A — a left-shifted row whose empty Saturday arrives as BLANK', 
 
     // R-A1 (re-review). The occupancy exemption above holds only when the scan saw a LITERALLY empty
     // cell: then the grid contradicts the scan and the row read wins. A printed rest code (NS, NA,
-    // RD, '-') is ink in the cell, so the grid's "occupied" AGREES with the scan and says nothing
-    // for the worked shift the row read put there.
-    for (const code of ['NS', 'NA', 'N.A.', 'RD', '-']) {
+    // RD) is ink in the cell, so the grid's "occupied" AGREES with the scan and says nothing for the
+    // worked shift the row read put there. A scan's dash is no "saw nothing" either: the grid reads a
+    // lone dash as EMPTY (Nov 2026), so beside an occupied cell the two readings disagree — a question.
+    for (const code of ['NS', 'NA', 'N.A.', 'RD', '-', '–']) {
         test(`a Sunday printed ${code}, grid occupied, row read a shift → a review question, not a worked Sunday`, () => {
             const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
             const scan = { 'X. Test': code };
@@ -1112,11 +1170,13 @@ describe('a correctly read week is never moved by the Sunday repair', () => {
     }
 
     test('the words for an empty cell are one list for every read', () => {
-        for (const w of ['', 'BLANK', 'blank', 'EMPTY', '-', ' - ', undefined, null]) {
+        // A lone en or em dash is the hyphen a word processor made of it (review, Nov 2026): the
+        // vocabulary's "only a dash", which the row read took for an unreadable value.
+        for (const w of ['', 'BLANK', 'blank', 'EMPTY', '-', ' - ', '–', ' — ', undefined, null]) {
             assert.equal(isBlankReading(w), true, `${JSON.stringify(w)} is an empty cell to the row read`);
             if (w !== undefined && w !== null) assert.equal(normaliseScanValue(w), 'RD', `${JSON.stringify(w)} is one to the column scan`);
         }
-        for (const w of ['RD', 'OFF', '--', 'AL', '06:00-14:00']) assert.equal(isBlankReading(w), false, `${w} is printed text`);
+        for (const w of ['RD', 'OFF', '--', '–-', 'AL', '06:00-14:00']) assert.equal(isBlankReading(w), false, `${w} is printed text`);
     });
 });
 
@@ -1444,11 +1504,11 @@ describe('buildPushPayload', () => {
     test('pay (event): caller-supplied headline + url, pay-reminder tag', () => {
         const p = buildPushPayload({
             feature: 'pay',
-            headline: 'Payday Friday — hours cutoff today',
+            headline: 'Payday Friday — hours cut-off today',
             body: 'Open the Pay Calculator to estimate your 28 March pay.',
             url: `${BASE}/paycalc.html?payday=2026-03-28`,
         });
-        assert.equal(p.title, '💷 Payday Friday — hours cutoff today');
+        assert.equal(p.title, '💷 Payday Friday — hours cut-off today');
         assert.equal(p.tag, 'pay-reminder');
         assert.equal(p.url, `${BASE}/paycalc.html?payday=2026-03-28`);
     });
@@ -1492,7 +1552,7 @@ describe('buildPushPayload', () => {
 
     test('design-language invariants hold for every feature: one leading emoji, no exclamation, title within budget', () => {
         for (const [key, f] of Object.entries(NOTIFICATION_FEATURES)) {
-            const title = f.defaultHeadline ? `${f.emoji} ${f.defaultHeadline}` : `${f.emoji} Payday Friday — hours cutoff today`;
+            const title = f.defaultHeadline ? `${f.emoji} ${f.defaultHeadline}` : `${f.emoji} Payday Friday — hours cut-off today`;
             assert.ok(title.startsWith(f.emoji), `${key} title must lead with its feature emoji`);
             assert.ok(!title.includes('!'), `${key} title must not use an exclamation mark`);
             assert.ok(title.length <= 40, `${key} title "${title}" exceeds the 40-char budget (${title.length})`);
@@ -2580,11 +2640,15 @@ describe('a physically blank weekday never becomes a rest day', () => {
         }
     });
 
-    test('a lone dash MEANS an empty cell, and is still ink in it (import-server-1, re-review R-A1)', () => {
+    test('a lone dash MEANS an empty cell — and a scan that wrote one answered about a mark (import-server-1, re-review R-A1)', () => {
         // The vocabulary calls a dash-only cell blank, so the row read gives it the day's blank
-        // meaning; the PDF grid sees it as occupied, so a reading weighed against the grid does not.
+        // meaning, and so does the PDF grid (`printsNothing`, Nov 2026). Where a SCAN's dash is weighed
+        // against an occupied cell it is not the "saw nothing" the grid can contradict.
         assert.equal(isBlankReading(' - '), true);
         assert.equal(isPhysicallyBlank(' - '), false);
+        assert.equal(isPhysicallyBlank('–'), false);
+        for (const t of ['', ' - ', '–', '—']) assert.equal(printsNothing(t), true, `${JSON.stringify(t)} prints nothing`);
+        for (const t of ['--', 'RD', '- | CEA 1']) assert.equal(printsNothing(t), false, `${JSON.stringify(t)} is printed text`);
         const s = buildSafeEntries([{ memberName: 'S. Horsman', Sun: '-', Mon: '-', Tue: 'EMPTY', Wed: 'RD', Thu: 'RD', Fri: 'RD', Sat: 'RD' }],
             HEADERS, DATES)[0].shifts;
         assert.equal(s[SUN], 'RD', 'a dashed Sunday is the rest day a blank Sunday is');

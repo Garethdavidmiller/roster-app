@@ -105,8 +105,11 @@ export function weekAfterDateChange(shown, { was, now, away }) {
  *   match what calendar-overrides.js recorded.
  * @param {Function} deps.clearFetchedMonth   clearFetchedMonth(key) — releases a month so it can be
  *   fetched again. Used by the week's "Try again".
- * @param {Function} deps.getSelectedMemberIndex Returns index of logged-in member in teamMembers
+ * @param {Function} deps.getSelectedMemberIndex Returns the index in teamMembers of the member the Calendar
+ *   is SHOWING — the picker's choice, a colleague as readily as the reader — which picks the opening grade
  * @param {Function} deps.isFirstRun             True for a brand-new visitor who hasn't picked a name
+ * @param {() => (string|null|undefined)} [deps.ownName]  The member SIGNED IN by name, whose row is marked
+ *   as the reader's own; nothing on the staff PIN. Omitted, no row is marked.
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
  * @param {Function} [deps.getDisplayedMonth]    () => ({ month, year }) — the month the CALENDAR is
  *   showing, so switching into the team grid opens on that month rather than dragging the reader
@@ -122,7 +125,7 @@ export function weekAfterDateChange(shown, { was, now, away }) {
  *   followDate: (change: { was: Date, now: Date, away: boolean }) => void, isOffThisWeek: () => boolean, isGridShown: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
-                                getSelectedMemberIndex, isFirstRun, renderCalendar, getDisplayedMonth,
+                                getSelectedMemberIndex, isFirstRun, ownName, renderCalendar, getDisplayedMonth,
                                 onMonthRead, _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
@@ -220,7 +223,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             // rdw override → shift 'RDW' + its time in rdwTime (a base 'RDW' never exists, so this
             // one path covers every RDW cell — it absorbs the old separate 'RDW|time' branch).
             const t = rdwTime || '';
-            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day worked${t ? ' ' + t : ''}` };
+            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day working${t ? ' ' + t : ''}` };
         }
         const _trg = parseOtherValue(shift);
         if (_trg) {
@@ -229,7 +232,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             const f = OTHER_FLAVOURS[_trg.flavour];
             // Derived RDW-ness comes from the shared resolver (explicit flag OR rest-day base) so it
             // matches the calendar + pay engine exactly.
-            const label = f.full + (derivedRdw ? ' — Rest Day Worked' : '')
+            const label = f.full + (derivedRdw ? ' — Rest Day Working' : '')
                 + (_trg.time ? ` ${_trg.time}` : '');
             return { text: `🏷️ ${f.badge}`, cls: 'tv-other', label };
         }
@@ -336,11 +339,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             `<th scope="col" class="tv-day-header${i === todayIndex ? ' tv-today-col' : ''}">${DAY_NAMES[i]}<span class="tv-day-num">${d.getDate()}</span></th>`
         ).join('');
 
-        // Identify the logged-in member so their row can be visually distinguished. On first run the
-        // member index falls back to the default member — that isn't "my" row, so suppress the
-        // highlight until the visitor has actually picked their name. (Onboarding H1.)
-        const myIdx  = getSelectedMemberIndex();
-        const myName = (!isFirstRun?.() && myIdx >= 0) ? teamMembers[myIdx].name : null;
+        // THE READER'S OWN ROW, distinguished — the member SIGNED IN, never the picker's choice (17 Nov
+        // 2026). It was the picker's: on a colleague's calendar that marked the colleague as "you", and
+        // on the staff PIN it marked whoever was chosen last on that machine. With nobody signed in by
+        // name there is no "you", so no row is marked — a first run's default member included.
+        const myName = ownName?.() || null;
 
         // ── May this week's shifts be drawn? (v20.40) ──────────────────────────────────────────
         //

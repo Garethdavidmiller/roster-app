@@ -124,7 +124,7 @@ export function entryControlHtml(key, s, date) {
                         data-key="${esc(key)}" data-entry-flavour="${k}" aria-pressed="${d.flavour === k}">${esc(f.full)}</button>`).join('')}
             </div>
             <label class="roster-entry-rdw"><input type="checkbox" class="roster-entry-rdw-cb" data-key="${esc(key)}"
-                ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled' : ''}> Rest day worked${
+                ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled' : ''}> Rest Day Working${
                 baseIsRd ? '<span class="roster-entry-lock">(automatic on a rest day)</span>' : ''}</label>
         </div>`;
     // The swap question, under the pills, only while the draft is leave or an absence on a base rest

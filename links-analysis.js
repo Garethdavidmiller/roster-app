@@ -34,7 +34,7 @@
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
-import { assessFatigue } from './links-fatigue.js';
+import { assessFatigue, COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
 import {
@@ -76,9 +76,9 @@ const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
 const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
 
 /** Rest between two duties, in words. Below zero it is an OVERLAP (imported data can run a duty past
- *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. */
+ *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. `hmFromHours`'s shape. */
 const restWords = (/** @type {number} */ m) => (m < 0
-    ? `overlapping by ${Math.floor(-m / 60)}h ${-m % 60}m` : `${Math.floor(m / 60)}h ${m % 60}m rest`);
+    ? `overlapping by ${hmFromHours(-m / 60)}` : `${hmFromHours(m / 60)} rest`);
 
 /**
  * @param {object} deps
@@ -429,8 +429,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 // figure most edits ever see, so a partial average must not wear the tick HERE
                 // either — that is the copy that would go on being trusted.
                 const ok = Math.abs(off) <= 0.5 && wh.complete;
+                // "(partial)", the row's own word — a bare "*" pointed at a footnote the strip lacks (17 Nov 2026).
                 return chip(ok ? 'ok' : 'warn', ok ? '✓' : '⚠',
-                    `${hmFromHours(wh.exSunday)}${wh.complete ? '' : '*'}`, 'a week');
+                    hmFromHours(wh.exSunday), wh.complete ? 'a week' : 'a week (partial)');
             })()
             + `<a class="sum-jump btn-text-link" href="#coverageCard">Full analysis ↓</a>`;
     }
@@ -459,6 +460,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         const { early, late, spare, worked } = balance;
         const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
         const latePct  = worked ? Math.round((late  / worked) * 100) : 0;
+        // Of every WORKED day, cover days included: with a cover week, the spare share says where the rest went.
+        const sparePct = worked ? Math.round((spare / worked) * 100) : 0;
 
         const tick  = `<span class="check-icon check-tick" aria-hidden="true">✓</span>`;
         const warn  = `<span class="check-icon check-warn" aria-hidden="true">⚠</span>`;
@@ -532,8 +535,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 `${cross}<div class="check-body">` +
                 `<strong>Short turnarounds</strong> — ${turnarounds.length} transition${turnarounds.length !== 1 ? 's' : ''} with less than ${MIN_REST_HOURS} rest` +
                 `<ul class="check-list">${cap.map((/** @type {any} */ t) =>
-                    `<li>Line ${t.fromLine} ${t.fromDay} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
-                    `Line ${t.toLine} ${t.toDay} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
+                    `<li>Line ${t.fromLine} ${DAY_NAME[t.fromDay] ?? escapeHtml(t.fromDay)} (ends ${escapeHtml(t.fromShift.split('-')[1] || '')}) → ` +
+                    `Line ${t.toLine} ${DAY_NAME[t.toDay] ?? escapeHtml(t.toDay)} (starts ${escapeHtml(t.toShift.split('-')[0] || '')}) — ` +
                     `${restWords(t.restMinutes)}</li>`
                 ).join('')}${more > 0 ? `<li>…and ${more} more</li>` : ''}</ul>` +
                 `</div></div>`
@@ -584,7 +587,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `${info}<div class="check-body">` +
             `<strong>Shift balance</strong> — ${early} early / ${late} late / ${spare} spare` +
             ` across the ${TOTAL_POS}-line rotation` +
-            `<span class="check-note"> (${earlyPct}% early, ${latePct}% late)</span>` +
+            `<span class="check-note"> (${earlyPct}% early, ${latePct}% late${spare ? `, ${sparePct}% spare` : ''})</span>` +
             `</div></div>`
         );
 
@@ -737,15 +740,13 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
             `conversation, not a fatigue risk assessment.</div></div>`,
             // The hours caveat, stated where the hours are read (v19.59). `assessFatigue` has always
-            // returned `hoursAreFloor` "so the UI can say so" and the UI never did. It matters more
-            // since spare became a whole WEEK: a spare line carries no times at all, so it now
-            // contributes seven worked days and ZERO hours, and every hours figure below understates
-            // by a whole standby week per spare line. Under-reporting hours in a fatigue panel is the
-            // flattering direction, which is the one thing this panel must not do quietly.
+            // returned `hoursAreFloor` "so the UI can say so" and the UI never did. Under-reporting hours is
+            // the flattering direction. Since 17 Nov 2026 the 55-hour row takes a cover week at its WORST,
+            // so the caveat says what each kind of figure does with one, not "every figure is a floor".
             ...(fat.hoursAreFloor ? [
                 `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
-                `<div class="check-body check-prose">Every hours figure here is a <strong>floor, not an estimate</strong>. A spare week ` +
-                `carries no times, so it counts as worked days but adds no hours — the real totals are higher.</div></div>`,
+                `<div class="check-body check-prose">A cover week carries <strong>no times</strong>. The runs below count its days at their worst, ` +
+                `and the 55-hour row counts each as ${COVER_DUTY_WORDS}. A count of long duties cannot see them, so it is a <strong>floor, not an estimate</strong>.</div></div>`,
             ] : [])
         );
 

@@ -1254,8 +1254,8 @@ export function repairShortRest(patterns, lines = ROTATING_LINES, minRest = MIN_
  * Generate a link, reporting WHICH construction produced it.
  *
  * `generatePatterns` is the thin wrapper that returns only the patterns; it keeps the older
- * signature because the docs, tests and every existing caller are written against it. Use this one
- * where the mode matters — the two constructions give visibly different designs, and a designer who
+ * signature, which the construction tests are written against — the page itself calls this one,
+ * because the mode matters — the two constructions give visibly different designs, and a designer who
  * is not told which they got cannot account for the difference.
  *
  * @param {Object} opts

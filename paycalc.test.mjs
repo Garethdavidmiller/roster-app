@@ -748,6 +748,40 @@ describe('computeTax', () => {
     approx(tax, 3020.00, '0T additional-rate boundary');
   });
 
+  test('0T past the additional-rate boundary: the 45% band is reached, at TAXABLE £125,140', () => {
+    // The third branch of the rUK bands, which no other case reaches. £10,000 of taxable pay on 0T:
+    //   basic   £37,700 ÷ 13             = £2,900.00         × 20% = £580.00
+    //   higher  (£125,140 − £37,700) ÷ 13 = £6,726.153846     × 40% = £2,690.461538
+    //   45%     £10,000 − £9,626.153846  = £373.846154       × 45% = £168.230769
+    //   total £3,438.692308, rounded DOWN to the penny = £3,438.69
+    assert.equal(computeTax(10000, '0T', T25).tax, 3438.69);
+    // …and on 1257L, whose allowance PAYE keeps whatever the pay (the taper is HMRC's, through the code):
+    //   taxable floor(£11,000 − £12,570 ÷ 13) = floor(£10,033.08) = £10,033
+    //   £580.00 + £2,690.461538 + (£10,033 − £9,626.153846) × 45% (£183.080769) = £3,453.542308 → £3,453.54
+    assert.equal(computeTax(11000, '1257L', T25).tax, 3453.54);
+  });
+
+  // THE SCOTTISH ADVANCED BAND ENDS AT £125,140 OF TAXABLE PAY (17 Nov 2026). HMRC's employer tables:
+  // 45% on £62,431–£125,140 of taxable pay, 48% above. The table held its top in INCOME space
+  // (£125,140 − £12,570 = £112,570), which started the 48% rate a whole allowance early on an S0T code.
+  test('S0T: the Scottish 48% rate starts at TAXABLE £125,140, not one allowance early', () => {
+    // £9,000 of taxable pay on S0T, 2026/27 (no allowance; bands ÷ 13):
+    //   starter      £3,967                 × 19% = £753.73    ÷ 13 = £57.979231
+    //   basic        £16,956 − £3,967       × 20% = £2,597.80  ÷ 13 = £199.830769
+    //   intermediate £31,092 − £16,956      × 21% = £2,968.56  ÷ 13 = £228.350769
+    //   higher       £62,430 − £31,092      × 42% = £13,161.96 ÷ 13 = £1,012.458462
+    //   advanced     £9,000 − £62,430 ÷ 13 = £4,197.692308     × 45% = £1,888.961538
+    //   total £3,387.580769 → £3,387.58. (The income-space top made it £3,397.80: £340.77 at 48%.)
+    assert.equal(computeTax(9000, 'S0T', T26).tax, 3387.58);
+    // 2025/26, the same arithmetic on its own Starter and Basic tops (£2,827 / £14,921):
+    //   £41.317692 + £186.061538 + £261.223846 + £1,012.458462 + £1,888.961538 = £3,390.023076 → £3,390.02
+    assert.equal(computeTax(9000, 'S0T', T25).tax, 3390.02);
+    // Past the boundary the 48% rate does apply: £10,000 on 2026/27 —
+    //   £1,498.619231 to the Higher top, + (£9,626.153846 − £4,802.307692) × 45% = £2,170.730769,
+    //   + (£10,000 − £9,626.153846) × 48% = £179.446154 → £3,848.796154 → £3,848.79
+    assert.equal(computeTax(10000, 'S0T', T26).tax, 3848.79);
+  });
+
   test('1257L: sacGross below PA → 0 tax', () => {
     // PA = 12570/13 ≈ 967.69
     const { tax } = computeTax(800, '1257L', T25);
@@ -1248,6 +1282,21 @@ describe('Year to Date figures must fit the tax code before the cumulative metho
     approx(r.tax, dueBy('1100L', T26, ytdPay + NINTH, 9) - normalWay + 300, 'the £300 short comes back on this payslip', 0.005);
   });
 
+  // THE SECOND PAYSLIP IS CHECKED TOO (17 Nov 2026). Only the year's FIRST payslip has nothing before
+  // it to compare; from the second on, the figures are one payslip's, and they must fit as much as a
+  // year's do. Every case above sits at period 9, so `N > 1` could become `N > 2` with this file green.
+  test('the year\'s second payslip is held to the first one\'s figures', () => {
+    // What 1257L takes on £3,000 by period 1, worked out the normal way (cumulative, +9):
+    //   taxable floor(£3,000 − £12,579 ÷ 13) = floor(£2,032.38) = £2,032 × 20% = £406.40
+    const over = computeTax(3000, '1257L', T25, { ytdPay: 3000, ytdTax: 600, periodN: 2 });
+    assert.equal(over.usingCumulative, false, '£600 on one payslip of £3,000 is not what 1257L took');
+    assert.deepEqual(over.ytdMisfit, { expected: 406.40, paid: 600 });
+    const fits = computeTax(3000, '1257L', T25, { ytdPay: 3000, ytdTax: 406.40, periodN: 2 });
+    assert.deepEqual([fits.usingCumulative, fits.ytdMisfit], [true, null], 'the figures 1257L did take are used');
+    // £6,000 by period 2: floor(£6,000 − £1,935.23) = £4,064 × 20% = £812.80, less the £406.40 already paid.
+    assert.equal(fits.tax, 406.40);
+  });
+
   test('nothing to fit: a week 1 / month 1 code, a half pair, or the year\'s first payslip', () => {
     const misfitPair = { ytdPay, ytdTax: eachOnItsOwn, periodN: 9 };
     assert.equal(computeTax(NINTH, '1100L M1', T26, misfitPair).ytdMisfit, null, 'the figures are never used');
@@ -1410,6 +1459,32 @@ describe('computeGross', () => {
       2 * 2 * 20.74 +        // peer (2 days × 2h × rate)
       276.16 - 25;           // London + adj
     approx(r.gross, expected, 'combined gross');
+  });
+
+  // EVERY BUCKET AT ONCE, AGAINST A FIGURE WORKED BY HAND (17 Nov 2026). The case above has no bank
+  // holiday or Boxing Day hours, and the cases that have them check the component on its own — so
+  // `gBankHol` or `gBoxing` could be dropped from the SUM, or subtracted, with every test green: eight
+  // bank-holiday hours about £215 short on a payslip. Here every term is non-zero and the total is a
+  // literal, so losing, negating or mis-rating any one of them moves it.
+  test('every bucket non-zero: the gross is the hand-worked figure, term by term', () => {
+    const r = computeGross({ effContr: 140, rate: 21.49, satHrs: 8, bhHrs: 7, bhOtHrs: 2, oHrs: 4,
+                             rHrs: 8, sHrs: 6, bHrs: 7.5, peerDays: 2, otherAdj: -25, london: 286.10 });
+    // The hours cascade: Saturday fills the contract first, the bank holiday takes from the rest.
+    //   satCapped 8 · normHrs 140 − 8 = 132 · bhCapped 7 · nonBhNorm 132 − 7 = 125
+    assert.deepEqual([r.satCapped, r.normHrs, r.bhCapped, r.nonBhNorm], [8, 132, 7, 125]);
+    // Rates at £21.49: 1.25× = £26.8625 · 1.5× = £32.235 · 3× = £64.47
+    approx(r.gBasicNorm, 2686.25,  'basic: 125 × £21.49', 1e-9);
+    approx(r.gBasicSat,  214.90,   'Saturday: 8 × £26.8625', 1e-9);
+    approx(r.gBankHol,   188.0375, 'bank holiday rostered: 7 × £26.8625', 1e-9);
+    approx(r.gBhOt,      53.725,   'bank holiday overtime: 2 × £26.8625', 1e-9);
+    approx(r.gOvertime,  107.45,   'overtime: 4 × £26.8625', 1e-9);
+    approx(r.gRdw,       214.90,   'rest day working: 8 × £26.8625', 1e-9);
+    approx(r.gSunday,    193.41,   'Sunday: 6 × £32.235', 1e-9);
+    approx(r.gBoxing,    483.525,  'Boxing Day: 7.5 × £64.47', 1e-9);
+    approx(r.gPeer,      85.96,    'peer training: 2 days × 2h × £21.49', 1e-9);
+    //   £2,686.25 + £214.90 + £188.0375 + £53.725 + £107.45 + £214.90 + £193.41 + £483.525 + £85.96
+    //   = £4,228.1575, + London Allowance £286.10 = £4,514.2575, + the −£25.00 adjustment = £4,489.2575
+    approx(r.gross, 4489.2575, 'every bucket, summed by hand', 1e-9);
   });
 });
 
@@ -1648,6 +1723,18 @@ describe('calcProRateFactor', () => {
     // In practice Chiltern would never start someone on the last day of a period.
     const factor = calcProRateFactor(new Date(2026, 4, 2), p51start, p51cut);
     assert.equal(factor, 2 / 28);
+  });
+
+  // THE CUT-OFF IS INSIDE THE PERIOD (17 Nov 2026). Only a start AFTER it is "not yet employed"; a
+  // start at the cut-off itself — the last moment the period covers — is employed for part of it.
+  // Every other case here is a midnight start, which is never the same instant as a noon cut-off, so
+  // `startDate > periodCutoff` could become `>=` with this file green. The formula's count at that
+  // instant: no whole days to the cut-off, + 1 = 1 day of 28.
+  test('a start AT the cut-off is inside the period — never 0', () => {
+    const atCutoff = new Date(p51cut);
+    assert.equal(calcProRateFactor(atCutoff, p51start, p51cut), 1 / 28);
+    const justAfter = new Date(p51cut.getTime() + 1);
+    assert.equal(calcProRateFactor(justAfter, p51start, p51cut), 0, 'a moment later, the next period');
   });
 
   test('Apr 19 midnight → 15/28 ≠ 0.5 (confirms Apr 20 is the correct startDate)', () => {

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com/firebasejs/ https://cdn.jsdelivr.net/npm/mammoth@1.13.0/; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net https://garethdavidmiller.github.io; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -413,7 +413,7 @@
       </div>
     </div>
     <div class="save-row">
-      <span class="save-status" id="saveStatus">No data saved for this period</span>
+      <span class="save-status" id="saveStatus">No entries saved for this period</span>
       <button type="button" class="clear-btn" id="clearBtn">Clear all entries</button>
     </div>
     <a class="roster-view-link" id="rosterViewLink" href="./">← View these dates in your roster calendar</a>
@@ -790,7 +790,7 @@
            notices; inside the breakdown they inform exactly when someone is reconciling. Static
            siblings of #bdRows so the innerHTML rebuild never touches them. -->
       <div class="payslip-note" id="payslipNote">
-        ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so your payslip's gross figure (your pay before tax) will be lower than the total above. This is normal.
+        ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so the <strong>Taxable Pay</strong> on your payslip (your pay before tax) will be lower than the total above. This is normal.
       </div>
       <div id="absenceCaveat" class="payslip-note">
         ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
@@ -905,8 +905,9 @@
       </div>
 
       <!-- Amount source (v18.32): the current-year estimate can come from the hours entered on each
-           payslip (default), a quick single "extra pay so far this year" figure × 7.69%, or a figure
-           the member enters themselves. Mirrors the back-pay card's compute/enter toggle. -->
+           payslip (default), a rough figure worked out from the Taxable Pay on the Year to Date
+           Figures card, or a figure the member enters themselves. Mirrors the back-pay card's
+           compute/enter toggle. -->
       <div class="field" id="hppModeRow">
         <label>Where should this year's estimate come from?</label>
         <div class="hpp-mode-toggle" role="radiogroup" aria-label="Holiday Pay Premium amount source">
@@ -977,7 +978,7 @@
           <!-- The manual option is DISABLED while the paid-in payslip is still in the future
                (v18.48) — there is no printed figure to copy until it exists; calcBackPay owns the
                disabled state and falls a restored manual selection back to compute. -->
-          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> <span class="bp-mode-text">Enter the amount from your payslip <span class="bp-mode-why" id="bpModeManualWhy" hidden>Available once the payslip carrying the lump sum has been paid</span></span></label>
+          <label class="bp-mode-opt"><input type="radio" name="bpMode" id="bpModeManual" value="manual"> <span class="bp-mode-text">Enter the amount from your payslip <span class="bp-mode-why" id="bpModeManualWhy" hidden>Available once the payslip carrying the lump sum arrives — from its cut-off date, before payday</span></span></label>
         </div>
       </div>
 
@@ -1126,7 +1127,7 @@
       <div class="sec-hd first">Save a copy</div>
       <p class="pt-summary" id="ptSummary"></p>
       <ul class="pt-inventory" id="ptInventory" hidden></ul>
-      <p class="card-explainer">The file is <strong>readable text</strong>. It holds your hours, tax code, pension and Year to Date figures &mdash; and, for any payslip you have checked against the real one, your actual <strong>gross pay, tax, National Insurance and take-home</strong>. Keep it private and delete old copies.</p>
+      <p class="card-explainer">The file is <strong>readable text</strong>. It holds your hours, tax code, pension and Year to Date figures &mdash; and, for any payslip you have checked against the real one, the <strong>Taxable Pay, pension, tax, National Insurance and take-home</strong> printed on it. Keep it private and delete old copies.</p>
       <div class="pt-actions">
         <button type="button" class="btn-action btn-primary" id="ptDownload">Download backup</button>
         <button type="button" class="btn-action btn-secondary" id="ptCopy">Copy as text</button>
@@ -1271,7 +1272,7 @@
       <div class="lightbox-app-name">Is this your pay data?</div>
     </div>
     <div class="notice-main">
-      <p class="notice-body">This device already has saved Pay Calculator data (tax code, Year to Date figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it will move into your account. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
+      <p class="notice-body">This device already has saved Pay Calculator data (tax code, Year to Date figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it stays in this browser on this device, kept as yours. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
     </div>
     <div class="notice-actions">
       <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>

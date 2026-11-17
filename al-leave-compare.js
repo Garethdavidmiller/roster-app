@@ -91,10 +91,14 @@ const WORK_TYPES = new Set(['rdw', 'other', 'spare_shift']);
  */
 export function leaveRecordability(member, year) {
     if (!member) return 'not-in-app';
-    // Management is hidden as well, so it is asked first: a manager is not a leaver.
-    if (member.managerOnly || member.role === 'Management') return 'manager';
+    const allowance = entitlementFor(member, year);
+    // Management is hidden as well, so it is asked first: a manager is not a leaver. And the YEAR
+    // decides, not today's grade (owner, 16 Nov 2026: "role at the time"): a member who moved into
+    // Management keeps the allowance of the graded post they held that year (`allowanceRole`), so that
+    // year's leave is checked like anybody's. Only a year with no figure on record is a manager's.
+    if (member.managerOnly || member.role === 'Management') return allowance === null ? 'manager' : null;
     if (member.hidden) return 'leaver';
-    if (entitlementFor(member, year) === null) return 'no-allowance';
+    if (allowance === null) return 'no-allowance';
     return null;
 }
 

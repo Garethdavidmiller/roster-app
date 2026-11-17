@@ -217,9 +217,15 @@ function foldSameTrains(out, nowRows, decRows, stations) {
         }
         const clauses = [...shares.entries()].sort((a, b) => b[0] - a[0]).map(([k, names]) => {
             const all = k === Infinity;
+            // Trains that GO are not given a tense: "they also stopped at" read, before the change, as if
+            // trains still running had gone, and the list is read on both sides of it. The station is
+            // named losing them instead, which holds on either side, as "Later last train" does.
+            if (y.tone === 'less') {
+                return `${andList(names)} ${names.length > 1 ? 'lose' : 'loses'} ${all ? (y.sig.size === 1 ? 'it' : 'them') : `${k === 1 ? 'one' : k} of them`} too`;
+            }
             const who = all ? (y.sig.size === 1 ? 'it' : 'they') : `${k === 1 ? 'one' : k} of them`;
             const plural = all ? y.sig.size > 1 : k > 1;
-            return `${who} also ${y.tone === 'less' ? 'stopped' : plural ? 'stop' : 'stops'} at ${andList(names)}`;
+            return `${who} also ${plural ? 'stop' : 'stops'} at ${andList(names)}`;
         });
         if (y.parts.length) {
             // Straight after the count it qualifies, before a line's onward clause: "they" is that count's trains.

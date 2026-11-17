@@ -16,6 +16,18 @@ import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
 
+/**
+ * What a saved booking says it recorded: `n` days written for `m`, `held` of them already leave, so not
+ * new (the preview's own count, renderReady). "Recorded 5 days" over three already booked said 5 where
+ * the balance fell by 2.
+ * @param {number} n @param {string} m @param {number} held
+ */
+function recordedWords(n, m, held) {
+    if (!held) return `Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`;
+    const fresh = n - held;
+    return `${fresh ? `Recorded ${fresh} new day${fresh > 1 ? 's' : ''} of Annual Leave` : 'No new days of Annual Leave'} for ${m} (${held} already booked)`;
+}
+
 // Module-level state for the AL over-entitlement confirmation flow.
 // triggerConfirmedALSave() is called by the confirm bar in admin-app.js when
 // the user accepts saving over their AL entitlement.
@@ -113,16 +125,23 @@ export function initALSection({
         // A day that is STILL Spare — not one a roster upload has since assigned (admin-al-spare-note.js).
         const spareCount = countSpareDays(memberObj, dates, memberOvByDate);
         const c = projection.counts;
+        // DAYS THAT ALREADY HOLD LEAVE ARE NOT NEW DAYS (review, Nov 2026). The save writes them again,
+        // at the cost they already had, so "5 days" over three days already booked was booked where the
+        // balance fell by 2. They are counted apart, by the projection's own `alreadyBooked`.
+        const held = new Set(/** @type {string[]} */ (projection.alreadyBooked ?? []));
+        const heldNote = held.size ? `${held.size} already booked` : '';
+        const days = (/** @type {number} */ n, /** @type {string} */ tail = '') =>
+            `${n}${held.size ? ' new' : ''} day${n === 1 ? '' : 's'}${tail}`;
         let label, restNote = '';
         if (c.unanswered > 0) {
             // Unanswered days are not counted in or out yet, so the total is deliberately withheld —
             // a figure that is about to change is worse than no figure.
-            const settled = c.consuming + c.freeWritten;
-            label = settled === 1 ? '1 day so far' : `${settled} days so far`;
-            restNote = ` <em>(+ ${c.unanswered} rest day${c.unanswered > 1 ? 's' : ''} to answer below)</em>`;
+            const settled = c.consuming + c.freeWritten - held.size;
+            label = days(settled, ' so far');
+            restNote = ` <em>(+ ${[heldNote, `${c.unanswered} rest day${c.unanswered > 1 ? 's' : ''} to answer below`].filter(Boolean).join(', ')})</em>`;
         } else {
-            label = c.consuming === 1 ? '1 day' : `${c.consuming} days`;
-            const parts = [];
+            label = days(projection.consuming.filter(/** @param {string} d */ d => !held.has(d)).length);
+            const parts = heldNote ? [heldNote] : [];
             // A written day that costs nothing is an RDW day — worked, but declining overtime is not
             // leave. It is reported because it IS being recorded, just not charged.
             // …EXCEPT A WORKED BOXING DAY (6 Nov 2026 review): its leave is free, but the work it
@@ -131,7 +150,7 @@ export function initALSection({
             // A Dispatcher's worked bank holiday is the same, and its leave is NOT free (7 Nov 2026
             // review), so only a lieu day that is also free comes out of "at no cost".
             const lieuDays = /** @type {string[]} */ (projection.lieuLost ?? []);
-            const free = c.freeWritten - lieuDays.filter(d => projection.freeWritten.includes(d)).length;
+            const free = projection.freeWritten.filter(/** @param {string} d */ d => !lieuDays.includes(d) && !held.has(d)).length;
             if (free > 0) parts.push(`${free} day${free > 1 ? 's' : ''} recorded at no cost`);
             if (lieuDays.length) parts.push(lieuGoesWords(lieuDays));
             // Christmas Day and Boxing Day are named as themselves (v25.37): never counted, and for a
@@ -173,8 +192,9 @@ export function initALSection({
             ? `That's ${dates.length} days — maximum range is 60 days.`
             : null,
         renderReady,
-        successFeedback: (n, m) => `✓ Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`,
-        successToast:    (n, m) => `Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`,
+        // A day that already held leave is written again but is not a new day (renderReady says why).
+        successFeedback: (n, m, held = 0) => `✓ ${recordedWords(n, m, held)}`,
+        successToast:    (n, m, held = 0) => recordedWords(n, m, held),
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
         // ASK ABOUT REST DAYS IN THE RANGE, AND REFUSE TO SAVE UNTIL EACH IS ANSWERED (v23.75).
