@@ -748,6 +748,12 @@ const _analytics = buildAnalyticsClient({
         serverTimestamp, increment, deleteField, FieldPath,
     },
     writeWithClaimRetry, appVersion: APP_VERSION,
+    // The prunes' clock: when this session's ID token was issued, by the token service's clock — never
+    // this device's (analytics-client.js header). No user or no token → null, and nothing is pruned.
+    trustedNow: async () => {
+        const t = await auth.currentUser?.getIdTokenResult();
+        return t ? Date.parse(t.issuedAtTime) : null;
+    },
 });
 
 export const logClientError      = _analytics.logClientError;

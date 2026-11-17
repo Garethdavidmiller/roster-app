@@ -1594,6 +1594,51 @@ test('operations error log: a batch failure that the row\'s own Resolve made goo
     await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
 });
 
+// ── "RESOLVE ALL SHOWN" SAYS WHAT IT RESOLVED (whole-app check, 17 Nov 2026) ─────────────────────
+// The chip and the strip leave slow-save diagnostics out of the error count, and the screen-reader line
+// after a Resolve all counted every entry as an error: "3 errors resolved" for two errors and a diagnostic.
+for (const [label, rows, said] of /** @type {const} */ ([
+    ['errors and a diagnostic', [{ id: 'e1', message: 'boom one' }, DIAG('d1'), { id: 'e2', message: 'boom two' }], '2 errors and 1 slow-save diagnostic resolved'],
+    ['diagnostics alone', [DIAG('d1'), DIAG('d2')], '2 slow-save diagnostics resolved'],
+    ['one error', [{ id: 'e1', message: 'boom one' }], '1 error resolved'],
+])) {
+    test(`operations error log: "Resolve all shown" over ${label} says what it resolved`, async ({ page }) => {
+        await stubErrorLog(page, [...rows]);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html#error-log');
+        await expect(page.locator('.error-row')).toHaveCount(rows.length);
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.errorRows = []; });   // what the refresh reads back
+        await page.locator('.error-resolve-all-btn').click();
+        await expect(page.locator('#errorLogContent')).toContainText('No errors recorded');
+        await expect(page.locator('#errorLogContent [role="status"]').first()).toHaveText(said);
+    });
+}
+
+// ── COPY DETAILS CARRIES NO NAME (whole-app check, 17 Nov 2026) ─────────────────────────────────
+// The block is for pasting into a chat outside the app. The row shows whose error it was; the copy has
+// the message, page, version, device and time, which are the diagnosis, and not the colleague's name.
+test('operations error log: Copy details leaves out the member the error happened to', async ({ page }) => {
+    await stubErrorLog(page, [{ id: 'e1', message: 'boom one' }]);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__copied = [];
+        Object.defineProperty(navigator, 'clipboard', { configurable: true,
+            value: { writeText: (/** @type {string} */ t) => { w.__copied.push(t); return Promise.resolve(); } } });
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const row = page.locator('.error-row').first();
+    await expect(row.locator('.error-member'), 'premise: the row names the member').toHaveText('A. Hared');
+    await row.locator('.error-copy-btn').click();
+    await expect(row.locator('.error-copy-btn')).toHaveText('✓ Copied');
+    const copied = await page.evaluate(() => /** @type {any} */ (window).__copied.join('\n'));
+    expect(copied).toContain('Error: boom one');
+    expect(copied).toContain('Page:        calendar');
+    expect(copied).toContain('App version: 25.64');
+    expect(copied).not.toContain('A. Hared');
+    expect(copied).not.toMatch(/Member/);
+});
+
 // ── A RESOLVE WAITING ON THE SERVER SAYS SO (Nov 2026 review) ───────────────────────────────────
 // Admin (v24.21) and Settings (v24.38) explain a write the server has not answered; Operations' writes
 // sat on a silently disabled button. Every one now goes through withSlowSaveNotice.

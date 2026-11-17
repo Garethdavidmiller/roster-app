@@ -1045,8 +1045,9 @@ describe('what a failed submit says', () => {
         assert.doesNotMatch(copy, /try again/i);
         assert.doesNotMatch(copy, /connection/i);
         // It has to say what to DO, and the wording rule is that a work matter goes to the
-        // manager — this is not a broken app, it is a decision somebody took.
-        assert.match(copy, /Manager/);
+        // manager — this is not a broken app, it is a decision somebody took. "your manager", the
+        // convention's words, not "a Manager" (whole-app check, 17 Nov 2026: this pinned the old form).
+        assert.match(copy, /your manager/);
         // And it must never leak the raw code, which is what the default branch would print.
         assert.doesNotMatch(copy, /withdrawn/);
     });
@@ -1054,11 +1055,20 @@ describe('what a failed submit says', () => {
     test('never having been asked is a DIFFERENT sentence from having been stood down', () => {
         const notAsked = submitFailureCopy('not-a-participant', null);
         assert.doesNotMatch(notAsked, /try again/i);
-        assert.match(notAsked, /Manager/);
+        assert.match(notAsked, /your manager/);
         assert.doesNotMatch(notAsked, /not-a-participant/);
         // Two codes exist so the member can be told which situation they are in. If these ever
         // collapse to one string, the second code has stopped earning its place on the wire.
         assert.notEqual(notAsked, submitFailureCopy('withdrawn', null));
+    });
+
+    // The form's own two closed lines (overtime-form.js) said "speak to a Manager" as well — a role,
+    // where the convention sends a work matter to the reader's own manager (whole-app check, 17 Nov 2026).
+    test('the closed form sends the member to their own manager, as the refusals do', () => {
+        const form = readFileSync('overtime-form.js', 'utf8');
+        assert.doesNotMatch(form, /to a Manager/i, 'overtime-form.js still sends the member to "a Manager"');
+        assert.equal((form.match(/If your circumstances have changed, speak to your manager\./g) ?? []).length, 2,
+            'the closed note and the line for a form that closed before the answers arrived');
     });
 });
 

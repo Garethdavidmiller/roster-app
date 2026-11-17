@@ -11,13 +11,15 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildAnalyticsClient } from './analytics-client.js';
-import { monthKey, prevMonthKey } from './usage-stats.js';
+import { monthKey, prevMonthKey, recentDayKeys, dayKey, originKey } from './usage-stats.js';
 
 const DAY = 86_400_000;
 const ts = (ms) => ({ toMillis: () => ms });
 
 /** A recording fake. `docs` maps a `collection/id` path to its data; `queryResults` answers getDocs;
- *  `fromCache(pathOrQuery)` marks that read as answered by the device's offline cache. */
+ *  `fromCache(pathOrQuery)` marks that read as answered by the device's offline cache; `trustedNow` is
+ *  the prunes' server clock — by default the test's own clock, so a test that does not name it reads
+ *  one time throughout, and a test of the device's clock gives the two different answers. */
 function harness(opts = {}) {
     const writes = [];
     const deletes = [];
@@ -61,6 +63,7 @@ function harness(opts = {}) {
         db: {}, collections: { clientErrors: 'clientErrors', analytics: 'analytics' }, fs,
         writeWithClaimRetry: (fn) => { gated.push(true); return fn(); },
         appVersion: '24.64',
+        trustedNow: 'trustedNow' in opts ? opts.trustedNow : async () => Date.now(),
     });
     return { client, writes, deletes, updates, gated };
 }
@@ -230,6 +233,59 @@ describe('the error log', () => {
         assert.equal(gated.length, 1, 'an unconfirmed write must be able to stop it');
         assert.deepEqual(writes[0], { path: 'clientErrors/e1', data: { resolved: true, resolvedAt: 'TS' }, merge: true });
     });
+});
+
+// ── A PRUNE TAKES THE SERVER'S CLOCK, NEVER THIS DEVICE'S (whole-app check, 17 Nov 2026) ─────────
+// The three prunes delete shared data, and took their cut-off from the admin device's clock: one six
+// weeks fast deleted the whole live usage window, and three months fast, a record resolved ten days
+// before. Each case runs the DEVICE clock fast (mock Date) while the trusted clock tells the truth.
+describe('a prune takes the server\'s clock, never this device\'s', () => {
+    const real = Date.now();
+    const isExpiry = (/** @type {any} */ q) => q.parts[0].where[0] === 'resolvedAt';
+
+    test('the Error Log: a device three months fast prunes nothing resolved ten days ago', async (t) => {
+        t.mock.timers.enable({ apis: ['Date'], now: real + 92 * DAY });
+        const recent = { id: 'recent', resolved: true, resolvedAt: ts(real - 10 * DAY), timestamp: ts(real - 11 * DAY) };
+        const seen = /** @type {any[]} */ ([]);
+        const { client, deletes } = harness({ trustedNow: async () => real,
+            queryResults: (q) => { seen.push(q); return !isExpiry(q) && q.parts[0].where[2] === true ? [recent] : []; } });
+        await client.getClientErrors();
+        assert.deepEqual(deletes, [], 'a record resolved ten days ago was deleted on the device\'s clock');
+        assert.equal(seen.find(isExpiry)?.parts[0].where[2].getTime(), real - 90 * DAY, 'the expiry read is cut off by the server\'s clock');
+    });
+
+    test('Usage: a device six weeks fast prunes none of the live window — and what is truly old still goes', async (t) => {
+        const keys = [...recentDayKeys(new Date(real), 30), dayKey(new Date(real - 60 * DAY))];
+        const old = keys[keys.length - 1];
+        t.mock.timers.enable({ apis: ['Date'], now: real + 42 * DAY });
+        const { client, updates } = harness({ trustedNow: async () => real, docs: {
+            'analytics/activeAccounts': { months: {}, daily: Object.fromEntries(keys.map(k => [k, 1])) },
+            'analytics/origins': { daily: Object.fromEntries(keys.map(k => [originKey(k, 'web'), 1])) },
+        } });
+        await client.getUsageStats();
+        assert.deepEqual(updates.map(u => u.field), [['daily', old], ['daily', originKey(old, 'web')]]);
+    });
+
+    for (const [label, trustedNow] of /** @type {const} */ ([
+        ['none given', undefined], ['null', async () => null], ['not a time', async () => NaN],
+        ['a refusal', async () => { throw new Error('no token'); }],
+    ])) {
+        test(`no server time (${label}), no prune — and both cards still load`, async () => {
+            const expired = { id: 'old', resolved: true, resolvedAt: ts(real - 120 * DAY), timestamp: ts(real - 121 * DAY) };
+            const seen = /** @type {any[]} */ ([]);
+            const e = harness({ trustedNow, queryResults: (q) => { seen.push(q); return !isExpiry(q) && q.parts[0].where[2] === true ? [expired] : []; } });
+            const { errors } = await e.client.getClientErrors();
+            assert.ok(Array.isArray(errors), 'the Error Log still loads');
+            assert.deepEqual(e.deletes, []);
+            assert.equal(seen.filter(isExpiry).length, 0, 'the expiry read is not even asked');
+            const u = harness({ trustedNow, docs: {
+                'analytics/activeAccounts': { months: {}, daily: { '2020-01-01': 3 } },
+                'analytics/origins': { daily: { '2020-01-01|web': 1 } },
+            } });
+            assert.equal(typeof (await u.client.getUsageStats()).accountsLast30, 'number', 'Usage still loads');
+            assert.deepEqual(u.updates, []);
+        });
+    }
 });
 
 // ── A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1, Nov 2026) ────────────────

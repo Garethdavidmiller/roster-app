@@ -212,7 +212,7 @@ export const CARD_TIPS = {
             { heading: 'What it captures', items: [
                 { icon: '🐛', html: 'Errors the app ran into on <strong>any of its pages</strong> — every page but the guides — across all staff, not just you' },
                 { icon: '🐢', html: '<strong>Slow save (diagnostic)</strong> entries are not errors: each records a save that waited a long time for the server. They are listed for you to read, and left out of the count on the card' },
-                { icon: '⎘', html: 'Use <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device, the time, and <strong>the name of the member it happened to</strong>. Unlike the Usage and App Speed cards, this one is not anonymous' },
+                { icon: '⎘', html: 'Use <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device and the time. It leaves out <strong>the name of the member it happened to</strong>: this card shows it, because unlike the Usage and App Speed cards it is not anonymous, but what you paste somewhere else does not need it' },
             ]},
             { heading: 'Resolving errors', items: [
                 { icon: '✓', html: '<strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then pruned automatically' },

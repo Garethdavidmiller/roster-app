@@ -175,9 +175,10 @@ export function createAttentionStrip({ container, onJump }) {
 
     host.addEventListener('click', (e) => {
         const a = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('a[href^="#"]'));
-        // The anchor's default sets the hash (deep-linkable, Back-friendly); the callback opens the
-        // card even when the hash is UNCHANGED — a second tap after closing the card must still work,
-        // and hashchange will not fire for it.
+        // The anchor's default sets the hash, which operations-app.js follows (re-reading the card) and
+        // then takes back off the history, so a tap leaves nothing for Back to step through. The
+        // callback opens the card at once whatever the page does with the hash: this module owns no
+        // navigation, and a page that kept the hash would fire no hashchange for a second tap.
         if (a) onJump?.(a.getAttribute('href') || '');
     });
 
