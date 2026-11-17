@@ -102,7 +102,8 @@ const NAV_INFORMATION = [
 /**
  * Guides — collapsible submenu (tap "📖 Guides" to expand). Static reference
  * pages, grouped together so the Information section stays focused on live docs.
- * Adding a guide = one entry here.
+ * Adding a guide = one entry here, with an `openId` — and that id in the `firestore.rules` analytics
+ * allowlist and in `OPEN_META` (operations-reports.js); firestore-contract-parity.test.mjs checks all three.
  *
  * `openId` is the anonymous open-counter id. It lives on the ENTRY and is stamped onto the rendered
  * link as `data-open-id`, so the click handler reads it off the element rather than inferring it from

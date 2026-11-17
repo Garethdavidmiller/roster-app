@@ -82,7 +82,7 @@ export function noteStaffPinEnded() {
 
 /**
  * A member has signed in on this page: the PIN's end is no longer its news (see the header). Called
- * by the sign-in core (`runNamedSignIn`, login-overlay.js) once a sign-in has succeeded.
+ * by the sign-in core (`runNamedSignIn`, login-core.js) once a sign-in has succeeded.
  */
 export function forgetStaffPinEnded() {
     ended = false;

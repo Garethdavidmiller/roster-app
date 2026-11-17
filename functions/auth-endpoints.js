@@ -96,7 +96,8 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  * disables accounts for anyone who has left. Run any time membership changes —
  * it is idempotent: an existing, enabled account that already carries claims is
  * re-claimed as it stands, and one that does not (registered from outside, or
- * disabled as a leaver's) is reset to the member's default first.
+ * disabled as a leaver's) is reset to the member's default first. Run it again too when a
+ * name joins or leaves the admin, manager or designer list, so the new claims land.
  *
  * B4: the member + role (admin/manager/linksDesigner) lists are SERVER-OWNED — read from
  * roster-members.json (generated from roster-data.js by generate-roster-members.mjs), NOT the
@@ -120,7 +121,8 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  * Response:
  *   { created, skipped, reclaimed, disabled, failed, demoted: string[],
  *     orphanSweepFailed?: true,
- *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
+ *     orphanDryRun?: true, orphansToDisable?: string[],   // these two: dry-run preview only
+ *     disabledLeaverPushRemoved?: number }   // a confirmed sweep: push records of leavers ALREADY disabled
  *   `reclaimed` names every member whose account this run put back on the surname default and
  *   signed out — an account registered from outside (taken back) or a disabled one re-enabled.
  *   The admin is the only person who can tell them, which is why they are named. `demoted` names

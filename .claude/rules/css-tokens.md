@@ -283,8 +283,8 @@ a token.
 `fonts/inter-latin.woff2` is served from origin, NOT the Google Fonts CDN. CSP is `font-src 'self'` — a
 CDN would mean loosening it, and self-hosting keeps the app offline-first (the SW precaches the file)
 with no third-party request. One variable woff2 (latin, wght 100–900) covers every weight.
-`@font-face` lives in `shared.css`; the `--font-sans` token in `:root` is the single place the stack is
-defined; every page's `body` uses `var(--font-sans)`. Do not re-add a Google Fonts `<link>`.
+`@font-face` and the `--font-sans` token in `:root` (the stack) are declared in `shared.css`, and again in
+`guide-shell.css` for the guide pages, which do not import it; every page's `body` uses `var(--font-sans)`. Do not re-add a Google Fonts `<link>`.
 
 **And every form control inherits it** — `button, input, select, textarea { font-family: inherit }` in
 `shared.css` and `guide-shell.css` — because a control does not inherit the page's font: the browser

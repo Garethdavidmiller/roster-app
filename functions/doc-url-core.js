@@ -2,7 +2,9 @@
 
 /**
  * functions/doc-url-core.js — who may be handed a document URL, for which document, and for how
- * long. No Firebase, no HTTP, no clock of its own. Imported by `functions/documents.js`.
+ * long. No Firebase, no HTTP, no clock of its own, and nothing from functions/node_modules (its two
+ * requires load none), which keeps `doc-url-core.test.mjs` in test:hygiene. Imported by
+ * `functions/documents.js` (`getDocumentUrl`), and by `functions/doc-link-rotation.js` for `DOC_KINDS`.
  *
  * ── WHY THIS EXISTS (v24.16, owner decision 19 Sep 2026) ────────────────────────────────────────
  *

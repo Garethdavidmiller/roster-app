@@ -166,6 +166,8 @@ export function withPensionChange(timeline, pNum, out) {
  * left her contributing from 45 for good. A rejoin recorded in error is undone where it was made:
  * untick, then tick again while viewing that payslip, which joins the two spells.
  *
+ * Idempotent: the same call made twice leaves the timeline as the first made it.
+ *
  * @param {PensionChange[]} timeline @param {number} pNum @returns {PensionChange[]}
  */
 export function withOptOutStartAt(timeline, pNum) {
@@ -188,7 +190,7 @@ export function withOptOutStartAt(timeline, pNum) {
  * Naming the start payslip (or an earlier one) still ERASES, deliberately — "I left at P40 and was
  * back by P40" is a member undoing a tick she should not have made, which is the commoner action
  * and the one the flow falls into naturally, since she is still looking at the payslip she ticked
- * on. Already contributing → nothing to end, and nothing recorded.
+ * on. Already contributing → nothing to end, and nothing recorded. Idempotent, as `withOptOutStartAt` is.
  *
  * @param {PensionChange[]} timeline @param {number} pNum @returns {PensionChange[]}
  */

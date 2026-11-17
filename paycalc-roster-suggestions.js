@@ -68,7 +68,8 @@ let _overridesFetchState = 'base-only';
 /** What the last reset said — the answer for a payslip with no fetch of its own back since. */
 let _resetState = 'base-only';
 
-/** Called from onPeriodChange to reset the cache before a new fetch starts. */
+/** Called from onPeriodChange, and by the year fill (paycalc-year-card.js), to reset the cache before a
+ *  new fetch starts — and to bump the fetch token, so a late fetch from before the reset writes nothing. */
 export function resetOverrides(/** @type {any} */ newState) {
   _overrideFetchToken++;
   _overridesByDate = new Map();

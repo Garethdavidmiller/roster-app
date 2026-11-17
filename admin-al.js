@@ -2,7 +2,9 @@
 // admin-al.js — Annual Leave Booking section for admin.html
 // Thin wrapper over the shared createRangeBookingSection factory (admin-range-booking.js):
 // it supplies the AL-specific config — the 60-day range cap, the 🏖️ preview with the
-// spare-shift warning, and the over-entitlement pre-save check that drives the confirm bar.
+// spare-shift warning, the swapped-day question (al-swapped-days.js), the projection of what
+// the save will write (admin-al-projection.js), and the over-entitlement pre-save check that
+// drives the confirm bar. It owns none of those rules; it brings them to the shared factory.
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initALSection(deps) to avoid circular imports.
 

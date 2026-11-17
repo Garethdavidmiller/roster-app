@@ -183,8 +183,8 @@ export function isChristmasIso(iso) {
 
 /**
  * Whole days from the clerks' last save to `todayStr`, or null when the file does not know it. The
- * save time is UTC; its date is taken as it stands, which can read a day early for a save in the hour
- * after midnight in summer — a day either way does not change what the age is for.
+ * save time is stored in UTC and counted from the clerks' LONDON day (`londonDayOf`), so a save in the
+ * hour after midnight on a summer night is not read as the day before.
  * @param {{ source?: { clerksLastSaved?: string|null } }} file
  * @param {string} todayStr `YYYY-MM-DD`
  * @returns {number|null}

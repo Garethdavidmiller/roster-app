@@ -22,6 +22,7 @@
     "bump": "node scripts/bump-version.mjs",
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
     "generate:guide-index": "node scripts/generate-guide-index.mjs",
+    "generate:ai-map": "node scripts/generate-ai-map.mjs",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "node scripts/typecheck.mjs",
     "check": "npm run lint && npm run typecheck && npm test",

@@ -246,9 +246,10 @@ export function _setSelectPeriod(/** @type {any} */ sel, /** @type {any} */ pNum
 /**
  * Append one option per payslip to `sel`, grouped by tax year, date first: "Paid 31 Jul 2026 · P20".
  * EVERY payslip list on the page is built here — the period picker, the Year to Date source, the
- * back-pay paid-in, the pension opt-out and the student-loan stop — so a member meets one way of
- * naming a payslip: staff remember paydates, not period numbers (owner, Jul 2026), and the printed
- * P-number stays as the cross-check against the payslip.
+ * back-pay paid-in, the pension opt-out, the student-loan stop and a chosen grade's first payslip
+ * (paycalc-grade-setting.js) — so a member meets one way of naming a payslip: staff remember
+ * paydates, not period numbers (owner, Jul 2026), and the printed P-number stays as the cross-check
+ * against the payslip.
  * @param {any} sel @param {any[]} periods
  * @param {{ currentPNum?: number }} [o]
  *   `currentPNum` marks the payslip being earned with "● ". Every list heads a tax year the same way,
@@ -595,6 +596,8 @@ export function buildBackPayPeriodSelect(minPNum = 0, maxPNum = Infinity) {
 }
 
 // ── TAX YEAR TABS ─────────────────────────────────────────────────────────────
+// The navigation below takes the coordinator's `onPeriodChange` as a callback rather than importing
+// it: it lives inside paycalc-app.js's init(), and paycalc-app.js imports this module.
 
 /** Highlight the active tax-year tab for the currently selected period. */
 export function updateTyTabs() {

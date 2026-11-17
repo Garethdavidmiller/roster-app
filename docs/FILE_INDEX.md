@@ -18,7 +18,7 @@ pointer.
 
 **When you add, remove or rename a module you must update this file AND `docs/AI_MAP.md`, in the same
 commit.** `githooks/pre-commit` checks both, and it now looks for a module here rather than in
-`CLAUDE.md`. Full descriptions and export lists are in `AI_MAP.md`; this says only what a file is.
+`CLAUDE.md`. `AI_MAP.md` holds each module's purpose and pointers, and a generated export line (`npm run generate:ai-map`); this says only what a file is.
 
 ```
 roster-app/
@@ -658,6 +658,7 @@ roster-app/
 │   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in the 2 runtime locations (roster-data.js + service-worker.js)
 │   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
 │   ├── generate-guide-index.mjs    ← `npm run generate:guide-index` — rebuilds guide-index.js from the guide pages (extraction shared with the parity test via scripts/guide-index-lib.mjs)
+│   ├── generate-ai-map.mjs         ← `npm run generate:ai-map` — rewrites the `- **Exports:**` line of every docs/AI_MAP.md entry from the module itself; nothing hand-written is touched (format and extraction in scripts/ai-map-lib.mjs, shared with doc-parity.test.mjs, which fails a stale line)
 │   ├── audit-functions-deps.sh ← the Cloud Functions' production-dependency audit, for `deploy-functions.yml` (the gate) and `functions-audit.yml` (the weekly monitor). It reads the REPORT, because `npm audit` fails alike for a FOUND advisory and an UNREACHABLE service; what an unknown means is the caller's `AUDIT_UNKNOWN_IS_FAILURE`. A real advisory fails either way
 │   ├── signed-in.mjs             ← `npm run test:signed-in`: a throwaway Firebase project folder in the temp directory (emulator settings built from firebase.json, functions copied, a random PIN and never the real one), the Auth, Firestore and Functions emulators, the accounts, then the Playwright command. Writes nothing into the checkout
 │   ├── test-nodeps.mjs           ← `npm run test:nodeps` — every suite that needs nothing installed, printing how many ran and what it skipped. Its exclusions are DERIVED from package.json's test:functions/test:rules scripts, so a new suite lands on the right side with no edit
