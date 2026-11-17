@@ -34,6 +34,8 @@ var noMatchEl    = document.getElementById('countryNoMatch');
 // count down** — it was "25" until the v20.25 audit made it 32, and a number in a comment is a
 // claim nobody re-checks. The finder counts the DOM. (Finder control ids
 // use no hyphen — countrySearch/countryClear/… — so they never match this "country-" selector.)
+// They are CARDS, and the count says so: one is Lake Constance's ferries, which is not a country,
+// so "3 of 32 countries" counted a lake (whole-app check, Nov 2026).
 var countryCards = Array.prototype.slice.call(document.querySelectorAll('[id^="country-"]'));
 // A–Z jump chips, kept in lockstep with their target card's visibility.
 var jumpChips = Array.prototype.slice.call(document.querySelectorAll('.country-jump a[href^="#country-"]'));
@@ -72,16 +74,17 @@ var printBtn = document.querySelector('.btn-print');
  * see, and WCAG 2.5.3 (Label in Name) needs that word inside the name — axe checks it from 4.14.
  *
  * No page count is written here. The guide's length is measured elsewhere and would rot in a string.
- * @param {number|null} shown — how many countries the filter is showing, or null when unfiltered.
+ * @param {number|null} shown — how many country cards the filter is showing, or null when unfiltered.
  */
 function describePrintScope(shown) {
     if (!printBtn) return;
     // "the guide with \u2026", not "the N countries": the general chapters print as well, and a name that
     // promised only countries would undersell the sheet by a dozen pages (whole-app review, Nov 2026).
+    // CARDS, as the finder's count line says (above `countryCards`): one of them is a lake's ferries.
     var label = shown === null ? 'PDF \u2014 save or print the whole FIP guide'
         : shown === 0          ? 'PDF \u2014 save or print the guide without countries, as none matches your search'
-        : shown === 1          ? 'PDF \u2014 save or print the guide with the 1 country shown'
-        :                        'PDF \u2014 save or print the guide with the ' + shown + ' countries shown';
+        : shown === 1          ? 'PDF \u2014 save or print the guide with the 1 card shown'
+        :                        'PDF \u2014 save or print the guide with the ' + shown + ' cards shown';
     printBtn.setAttribute('aria-label', label);
 }
 describePrintScope(null);
@@ -117,7 +120,7 @@ function applyCountryFilter(/** @type {string} */ raw) {
         // behaviour exists is a traveller who wants one country, not 25 pages. It states the RULE
         // rather than repeating the number, so it reads correctly at one country and at twelve.
         countEl.textContent = showCount
-            ? ('Showing ' + shown + ' of ' + countryCards.length + ' countries · the PDF saves what is shown')
+            ? ('Showing ' + shown + ' of ' + countryCards.length + ' cards · the PDF saves what is shown')
             : '';
     }
     if (noMatchEl) {

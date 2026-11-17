@@ -346,9 +346,11 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await expect(page.locator('#country-es')).toBeVisible();
     await expect(page.locator('#country-no')).toBeHidden();
     // Counted from the DOM, never written down. The literal 25 outlived the guide by one release:
-    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour.
-    const totalCountries = await page.locator('[id^="country-"]').count();
-    await expect(page.locator('#countryCount')).toContainText(`of ${totalCountries} countries`);
+    // the v20.25 country pass took it to 32 and this assertion failed on correct behaviour. CARDS,
+    // not countries (whole-app check, Nov 2026): one of them is Lake Constance's ferries.
+    const totalCards = await page.locator('[id^="country-"]').count();
+    await expect(page.locator('#countryCount')).toContainText(`of ${totalCards} cards`);
+    await expect(page.locator('#countryCount')).not.toContainText('countries');
     await expect(page.locator('#countryClear')).toBeVisible();
     // The A–Z chip for a hidden country is hidden too (kept in lockstep with its card).
     await expect(page.locator('.country-jump a[href="#country-no"]')).toBeHidden();
@@ -2264,4 +2266,55 @@ test('guide search: the FIP guide\'s Vilnius–Riga conflict is flagged on its c
     await input.fill('thames rover');
     await expect(page.locator('#navGuideSearchResults a[href*="rangers-guide.html#rr-thames"] .nav-gs-flag--conflict'))
         .toHaveText('⚠ Source conflict — check the retail system');
+});
+
+// A HOVER WAITS FOR A MOUSE ON EVERY GUIDE (whole-app check, Nov 2026). The FIP guide's "Print <country>"
+// button darkened its edge on any hover, so on a phone the tapped button kept the edge; every other hover
+// in these sheets waits for a mouse. Read from the stylesheets each page actually parsed, so a new rule is
+// held to it too.
+test('guides: every hover in a guide\'s stylesheets waits for a mouse', async ({ page }) => {
+    let total = 0;
+    for (const { file } of GUIDE_PAGES) {
+        await page.goto(`/${file}`);
+        const g = await page.evaluate(() => {
+            /** @type {string[]} */ const ungated = [];
+            let hovers = 0;
+            const walk = (/** @type {CSSRuleList} */ rules, /** @type {string[]} */ gates) => {
+                for (const r of rules) {
+                    if (r instanceof CSSMediaRule) walk(r.cssRules, [...gates, r.media.mediaText]);
+                    else if (r instanceof CSSStyleRule) {
+                        if (!r.selectorText.includes(':hover')) continue;
+                        hovers++;
+                        if (!gates.some(m => /\(hover:\s*hover\)/.test(m))) ungated.push(`${gates.join(' · ') || 'no gate'} → ${r.selectorText}`);
+                    } else if (r instanceof CSSGroupingRule) walk(r.cssRules, gates);
+                }
+            };
+            for (const s of document.styleSheets) if (s.href) walk(s.cssRules, []);
+            return { hovers, ungated };
+        });
+        total += g.hovers;
+        expect(g.ungated, `${file}: a hover not gated on (hover: hover)`).toEqual([]);
+    }
+    expect(total, 'premise: the guides\' hover rules were read').toBeGreaterThan(8);
+});
+
+// …and the same button had no ring of its own for the keyboard, where every other control on the page
+// draws the guide's navy one.
+test('fip: the "Print <country>" button wears the guide\'s focus ring', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard ring is a keyboard\'s');
+    await page.goto('/fip-guide.html');
+    await page.locator('#country-lc > summary').click();
+    const btn = page.locator('#country-lc .btn-print-country');
+    await expect(btn).toBeVisible();
+    for (let i = 0; i < 40 && !(await btn.evaluate(el => el === document.activeElement)); i++) await page.keyboard.press('Tab');
+    await expect(btn).toBeFocused();
+    const ring = await btn.evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { style: cs.outlineStyle, width: cs.outlineWidth, colour: cs.outlineColor,
+            navy: getComputedStyle(document.documentElement).getPropertyValue('--navy').trim() };
+    });
+    expect(ring.style).toBe('solid');
+    expect(ring.width).toBe('2px');
+    const rgb = (/** @type {string} */ hex) => `rgb(${[1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+    expect(ring.colour, 'the guide\'s navy').toBe(rgb(ring.navy));
 });
