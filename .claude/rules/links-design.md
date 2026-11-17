@@ -626,7 +626,7 @@ of every rule — read it before changing one. What governs it:
   chip and the sentence cannot drift), from `scoreOrder` over lines 1…lines — never the keys a design
   happens to carry. **Do not turn it `present` above some figure**: the ORR gives no FF18 threshold, and
   inventing one is the pass/fail rendering this panel forbids. The live main roster's step — typically
-  4h 0m, largest 8h 46m, 9 of 20 boundaries over two hours — is the baseline to quote. Measure the
+  4h 00m, largest 8h 46m, 9 of 20 boundaries over two hours — is the baseline to quote. Measure the
   default with `docs/links-26/tooling/default-baseline.mjs`, and quote any step figure with the
   switches and target set it was measured on.
 - **Every rule laps the rotation** (invariant 3): a block straddling the last line → line 1 must be
@@ -634,9 +634,10 @@ of every rule — read it before changing one. What governs it:
 - **FF11 is not the consecutive-worked-days check it resembles.** It counts shifts between two-day
   breaks: a single rest day is not counted as a 48-hour break (two together always are), so FF11 can
   only overstate, and a rotation with no two-day break at all returns every worked day.
-- **Hours totals are a FLOOR when the design has a spare day**: SPARE carries no times, so a standby
-  day adds no hours (`hoursAreFloor`, true only then), and the panel says so. With no spare day the
-  totals are exact, and the panel does not call them a floor.
+- **A spare day carries no times** (`hoursAreFloor`, true only when the design has one), and the
+  panel says what each kind of figure does with it: the runs and the 55-hour row count it at its
+  worst, and a count of long duties cannot see it, so that count is a floor. With no spare day every
+  figure is exact, and the panel says nothing.
 
 **A cover week is an unknown, not a no.** Every rule that counts a RUN measures it with
 `runLengthsWhere` — `workedRunLengths`'s spare-week budget with the question as a parameter — and never
@@ -645,6 +646,17 @@ Two bounds keep that honest: **`SPARE_WORKED_DAYS` duties a week, never seven**,
 blocks either side; and **extend, never create** (`requireMatch`) — a cover week may lengthen a run of,
 say, 12-hour duties, and never make one out of unknowns. Where the worst case and the certain figure
 differ, the row states both.
+
+**The 55-hour row takes a cover week at its worst too** (17 Nov 2026; DECISIONS.md). It took its
+verdict on the floor — a cover week as no hours — so it read CLEAR on designs that cross 55 when a
+cover week falls badly, and Links' Design checks counted one factor fewer than the New link page.
+`worstHoursInAny7Days` counts each worked day of a cover week — its four on Monday to Saturday, placed
+as badly as the window allows, and its Sunday — as a quarter of the contracted week
+(`COVER_DUTY_MINUTES`, 8h 45m: the app's own reading of a cover week as the contracted week). The
+figure shown is that worst case, with the floor beside it in the sentence, and **the row is never
+CLEAR while the worst case crosses 55**. The Design checks and the New link page count the same
+factors for the same rota (`newlink-data.test.mjs`); the pack's own tables keep their split, the
+duties the rota fixes and then "up to", so the pack's `report-data.mjs` reads the row at its floor.
 
 **A spare week is four duties of seven, from Monday to Saturday** (owner; `SPARE_WORKED_DAYS`,
 `spareDrawsOnFour`). It is marked SPARE on all seven days because the person is cover; four is what

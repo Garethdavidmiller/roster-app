@@ -1472,8 +1472,11 @@ not do, or cannot know:
     reading left 4 clear — so a manager quoting the FF19 figure should know whose reading it is. The
     other once-unsettled rows were checked against ORR's *Managing rail staff fatigue* (Aug 2024) on
     28 Sep 2026, and `links-fatigue.js` carries their readings.
-  - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
-    to "hours in any 7 days". The real total is higher, and the panel says so on the row.
+  - **A cover week's hours are an assumption, stated.** SPARE days carry no times. The 55-hour row
+    counts a cover week at its worst — each worked day, its Sunday included, as a quarter of the
+    contracted week (8h 45m) — and gives the floor beside it (17 Nov 2026; DECISIONS.md). A real cover
+    duty can run longer, so the worst case is a stated reading, not a ceiling. A count of long duties
+    cannot see a cover week at all, so it is a floor, and the panel says so.
   - **Coverage is not completeness.** The factors the panel asserts as not-applicable are the
     night-shift family, and that rests on CEAs working no nights. It flips to live the moment any
     duty reaches 00:00–05:00 — but the p3 list is a good-practice summary, not the whole of fatigue

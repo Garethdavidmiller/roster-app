@@ -74,13 +74,15 @@
  *    owner's choice and is more lenient than ORR's wording (see the row). Shipping a number whose
  *    definition is unagreed, unlabelled, is the false-assurance failure in miniature.
  *
- * Hours caveat: SPARE days carry no times, so they contribute ZERO to any hours total here. A
- * standby day is worked time, so on a design with a spare day every hours figure this module
- * produces is a FLOOR, not an estimate. `hoursAreFloor` says whether that is so, so the UI can say
- * it rather than imply precision — and not say it of a design whose totals are exact.
+ * Hours caveat: SPARE days carry no times, so they add nothing to a count of long duties, and on
+ * the duties the rota fixes they add no hours to the 55-hour row either. `hoursAreFloor` says
+ * whether a design has a spare day at all, so the UI can say so rather than imply precision — and
+ * not say it of a design whose figures are exact. The 55-hour row's VERDICT is not taken on that
+ * floor: like every run here, it is taken on a cover week's worst case (`worstHoursInAny7Days`),
+ * and the row states both figures.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour, isRest } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour, isRest, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
 // FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
@@ -96,15 +98,15 @@ const EARLY_FROM = 5 * 60;
 const EARLY_TO   = 7 * 60;      // exclusive — 07:00 itself is not an early start
 
 /**
- * Minutes as `"6h 25m"` — the shape this panel already used for FF13's shortest-rest figure, now
- * written once and shared with FF18's week-to-week step (v19.69). Deliberately keeps the `0m` tail
- * rather than trimming it, so adopting it changed no existing output.
+ * Minutes as `"6h 25m"` or `"4h 08m"` — FF13's shortest rest and FF18's week-to-week step. It is
+ * `hmFromHours`, the workspace's one hours-and-minutes formatter, since 17 Nov 2026: this panel
+ * printed "11h 5m" here while the hours row on the same card printed "34h 05m", two shapes for one
+ * kind of figure.
  * @param {number} mins
  * @returns {string}
  */
 function _hm(mins) {
-    const m = Math.round(mins);
-    return `${Math.floor(m / 60)}h ${m % 60}m`;
+    return hmFromHours(Math.round(mins) / 60);
 }
 
 // The rest predicate lives in links-design.js (v25.23), re-exported here for the readers that import it
@@ -349,10 +351,11 @@ export function earlyBlocksWithShortRecovery(seq) {
 }
 
 /**
- * Maximum hours worked in any rolling 7-day window.
+ * Maximum hours worked in any rolling 7-day window, on the duties the rota FIXES.
  *
- * FLOOR, not an estimate: SPARE contributes zero because it carries no times. MRSF's threshold is
- * 55h in a 7-day period.
+ * A FLOOR, not an estimate: SPARE contributes zero because it carries no times. MRSF's threshold is
+ * 55h in a 7-day period, and since 17 Nov 2026 the row's verdict is not taken on this figure but on
+ * `worstHoursInAny7Days` — this is the half of the row that is certain.
  * @param {Array<{shift:any}>} seq
  */
 export function maxHoursInAny7Days(seq) {
@@ -360,7 +363,7 @@ export function maxHoursInAny7Days(seq) {
 }
 
 /**
- * The same rolling week in whole MINUTES. The 55-hour verdict is taken on this, never on the
+ * The same rolling week in whole MINUTES. A 55-hour verdict is taken on minutes, never on the
  * rounded hours: 55h 02m rounds to 55.0, and "more than 55" asked of 55.0 said no (whole-app review,
  * Oct 2026).
  * @param {Array<{shift:any}>} seq
@@ -374,6 +377,70 @@ function maxMinutesInAny7Days(seq) {
         if (mins > best) best = mins;
     }
     return best;
+}
+
+/**
+ * What one worked day of a cover week counts for in the 55-hour worst case: a quarter of the
+ * contracted week — 8h 45m. A cover week IS the contracted week, Monday to Saturday (`weeklyHours`
+ * counts it as one, owner), and it is worked as four duties, so a quarter each is the app's own
+ * reading of the week rather than a figure chosen for this row. Its Sunday is overtime of unknown
+ * length on top, and counts the same: one assumption, stated on the row, rather than two.
+ */
+export const COVER_DUTY_MINUTES = CONTRACTED_HOURS_PER_WEEK * 60 / SPARE_WORKED_DAYS;
+
+/** The assumption in words, written once: the row, the Design checks note and the compare card all say it. */
+export const COVER_DUTY_WORDS = `a quarter of the contracted week (${hmFromHours(COVER_DUTY_MINUTES / 60)})`;
+
+/**
+ * Maximum hours in any rolling 7-day window at a cover week's WORST (17 Nov 2026) — the reading
+ * every run in this module already takes ("A cover week is an unknown, not a no", links-design.md).
+ *
+ * The floor above counts a cover week as no hours, so the row read CLEAR on designs that cross 55
+ * when a cover week falls badly — while the New link page, built from the pack's worst case,
+ * counted it. Here a spare day is a duty of `COVER_DUTY_MINUTES`, with the same two bounds the run
+ * rules keep: a cover week works FOUR of Monday to Saturday (`spareDrawsOnFour`), placed as badly
+ * as the window allows, and its Sunday is worked on top. Asking each window for its own worst is
+ * exact for a maximum, for the reason `worstCaseWorkedRun` gives: no two windows need one week's
+ * placement at once. And any four days a window can reach lie inside one block of four, so this is
+ * the pack's block-placement worst too.
+ *
+ * The budget is keyed on the UNMODDED position, as FF11's is: a window that laps the rotation
+ * meets the next week of a line, which has four duties of its own.
+ * @param {Array<{shift:any}>} seq
+ * @returns {number} hours, to one decimal
+ */
+export function worstHoursInAny7Days(seq) {
+    return Math.round((worstMinutesInAny7Days(seq) / 60) * 10) / 10;
+}
+
+/** `worstHoursInAny7Days` in whole minutes, which the verdict is taken on. @param {Array<{shift:any}>} seq */
+function worstMinutesInAny7Days(seq) {
+    const n = seq.length;
+    let best = 0;
+    for (let i = 0; i < n; i++) {
+        /** Duties this window has already given each cover week. @type {Map<number, number>} */
+        const spent = new Map();
+        let mins = 0;
+        for (let k = 0; k < 7; k++) {
+            const s = seq[(i + k) % n].shift;
+            if (s !== 'SPARE') { mins += dutyMinutes(s) ?? 0; continue; }
+            if (!spareDrawsOnFour(i + k)) { mins += COVER_DUTY_MINUTES; continue; }   // its Sunday: overtime on top of the four
+            const week = Math.floor((i + k) / 7), used = spent.get(week) || 0;
+            if (used < SPARE_WORKED_DAYS) { spent.set(week, used + 1); mins += COVER_DUTY_MINUTES; }
+        }
+        if (mins > best) best = mins;
+    }
+    return best;
+}
+
+/**
+ * Minutes as the 55-hour row prints them: hours to one decimal, gaining a second only where one
+ * decimal would read 55 beside a figure that is over it — 55h 02m prints as 55.03, never as 55.
+ * @param {number} mins
+ */
+function _hours55(mins) {
+    const one = Math.round((mins / 60) * 10) / 10;
+    return mins > 55 * 60 && one <= 55 ? Math.round(mins / 0.6) / 100 : one;
 }
 
 /**
@@ -568,15 +635,20 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 12 consecutive day shifts',
         status: consec > 12 ? 'present' : 'clear', value: consec, threshold: 12 });
 
-    // The verdict is on the MINUTES. The figure shown keeps one decimal, and gains a second only
-    // where one decimal would read 55 beside a "present" — 55h 02m shows as 55.03, never as 55.
-    const mins7 = maxMinutesInAny7Days(seq), over55 = mins7 > 55 * 60;
-    const hrs = maxHoursInAny7Days(seq);
+    // THE VERDICT IS ON A COVER WEEK'S WORST CASE (17 Nov 2026), as every run above is. It was on the
+    // FLOOR — a cover week as no hours — so Balanced V6 read CLEAR at 50.9 while one of its cover
+    // weeks falling badly comes to over 60, and Links' Design checks said 3 factors present where
+    // the New link page, from the pack's worst case, said 4. The figure shown is the worst case, the
+    // floor beside it in the sentence, as `_spareCaveat` does for a run. Both are MINUTES first:
+    // the verdict is never asked of a rounded figure (`_hours55`).
+    const floor7 = maxMinutesInAny7Days(seq), worst7 = worstMinutesInAny7Days(seq), over55 = worst7 > 55 * 60;
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 55 hours worked in any 7-day period',
-        status: over55 ? 'present' : 'clear', value: over55 && hrs <= 55 ? Math.round(mins7 / 0.6) / 100 : hrs, threshold: 55,
-        detail: hoursAreFloor
-            ? 'Spare days carry no times and count as zero hours, so this figure is a floor — the real total is higher.'
-            : undefined });
+        status: over55 ? 'present' : 'clear', value: _hours55(worst7), threshold: 55,
+        detail: !hoursAreFloor ? undefined
+            : worst7 === floor7
+                ? `A cover week's times are not yet assigned. Counted at its worst — its four duties on Monday to Saturday placed as badly as they can be, and its Sunday worked as overtime, each as ${COVER_DUTY_WORDS} — it makes no seven days longer than this.`
+                : `${_hours55(worst7)} hours in the worst case, and ${_hours55(floor7)} on the duties the rota fixes. A cover week's times are not yet assigned, so its four duties on Monday to Saturday are placed as badly as they can be and its Sunday is worked as overtime, each counted as ${COVER_DUTY_WORDS}.`
+                  + (over55 && floor7 <= 55 * 60 ? ' Over 55 only if a cover week falls that way — and the worst case is what is reported, as for every run in this panel.' : '') });
 
     // ── THE TWO ROWS THAT WERE MISSING (v21.97) ─────────────────────────────
     // Added when the ORR source was read for the first time. It carries FOUR MRSF rows in this

@@ -91,16 +91,17 @@ test('designed state renders the coverage heat map + the checks panel', () => {
     assert.match(els.checksContent.innerHTML, /Shift balance/);
 });
 
-test('the panel states that its hours figures are a FLOOR — when a spare week makes them one', () => {
+test('the panel says what a cover week does to its hours figures — when there is a cover week', () => {
     // `assessFatigue` has returned `hoursAreFloor` since v19.46 with a comment saying it exists "so
-    // the UI can say so" — and for thirteen versions the UI did not. It matters more since v19.58
-    // made spare a whole WEEK: a spare line carries no times, so it contributes seven worked days
-    // and ZERO hours, and every hours figure understates by a standby week per spare line.
-    // Under-reporting hours is the FLATTERING direction, which is the one thing this panel exists
+    // the UI can say so" — and for thirteen versions the UI did not. A spare line carries no times,
+    // and under-reporting hours is the FLATTERING direction, which is the one thing this panel exists
     // not to do quietly.
     //
     // …and only then (whole-app review, Nov 2026). The flag was the constant `true`, so a design
     // with no spare day was told its "real totals are higher" when they are exact.
+    //
+    // …and the 55-hour row is no longer a floor (17 Nov 2026): it takes a cover week at its worst,
+    // and says both figures. The caveat says so rather than calling every hours figure a floor.
     const withSpare = fullPatterns();
     withSpare['4'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
     for (const [label, patterns, floor] of /** @type {[string, any, boolean][]} */ ([
@@ -110,8 +111,12 @@ test('the panel states that its hours figures are a FLOOR — when a spare week 
         resetDom();
         initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
         const html = els.checksContent.innerHTML;
-        assert.equal(/floor, not an estimate/.test(html), floor, `${label}: the panel's floor line`);
-        assert.equal(/this figure is a floor/.test(html), floor, `${label}: the 55-hour row's floor line`);
+        assert.equal(/A cover week carries <strong>no times<\/strong>/.test(html), floor, `${label}: the panel's caveat`);
+        assert.equal(/the 55-hour row counts each of them as a quarter of the contracted week \(8h 45m\)/.test(html), floor,
+            `${label}: the caveat names what the 55-hour row counts a cover day as`);
+        assert.doesNotMatch(html, /Every hours figure here is a/, `${label}: the 55-hour figure is not a floor any more`);
+        assert.equal(/51\.8 hours in the worst case, and 40 on the duties the rota fixes/.test(html), floor,
+            `${label}: the 55-hour row gives the worst case and the floor`);
         assert.equal(assessFatigue(patterns, ROTATING_LINES).hoursAreFloor, floor, `${label}: the flag itself`);
     }
 });

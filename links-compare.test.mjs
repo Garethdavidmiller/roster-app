@@ -605,7 +605,10 @@ test('analysis: a factor whose finding changes is shown with BOTH readings', () 
     // v25.03 added one to each (8 → 9, 14 → 15): a cover week's Sunday is now overtime on top of its
     // four, so a run entering one takes five days of it (`spareDrawsOnFour`).
     assert.match(html, /FF11[\s\S]*?clear \(9\) → present \(15\)/, 'FF11 moves from clear to present');
-    assert.match(html, /Factors present[\s\S]*?0 → 7/);
+    // 1, not 0, since 17 Nov 2026: the 55-hour row takes a cover week at its worst, and Pinned Turns's
+    // comes to 59.9 hours that way — present on both sides, so it is named, not moved.
+    assert.match(html, /Factors present[\s\S]*?1 → 7/);
+    assert.match(html, /Present in both: MRSF More than 55 hours worked in any 7-day period/);
 });
 
 test('analysis: a factor present in both designs is NAMED, not folded into a count', () => {

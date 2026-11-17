@@ -34,7 +34,7 @@
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
-import { assessFatigue } from './links-fatigue.js';
+import { assessFatigue, COVER_DUTY_WORDS } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
 import {
@@ -737,15 +737,16 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
             `conversation, not a fatigue risk assessment.</div></div>`,
             // The hours caveat, stated where the hours are read (v19.59). `assessFatigue` has always
-            // returned `hoursAreFloor` "so the UI can say so" and the UI never did. It matters more
-            // since spare became a whole WEEK: a spare line carries no times at all, so it now
-            // contributes seven worked days and ZERO hours, and every hours figure below understates
-            // by a whole standby week per spare line. Under-reporting hours in a fatigue panel is the
-            // flattering direction, which is the one thing this panel must not do quietly.
+            // returned `hoursAreFloor` "so the UI can say so" and the UI never did. A spare line carries
+            // no times at all, and under-reporting hours in a fatigue panel is the flattering direction,
+            // which is the one thing this panel must not do quietly. Since 17 Nov 2026 the 55-hour row
+            // counts a cover week at its WORST (`worstHoursInAny7Days`), so the caveat no longer says
+            // "every hours figure is a floor": it says what each kind of figure does with a cover week.
             ...(fat.hoursAreFloor ? [
                 `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
-                `<div class="check-body check-prose">Every hours figure here is a <strong>floor, not an estimate</strong>. A spare week ` +
-                `carries no times, so it counts as worked days but adds no hours — the real totals are higher.</div></div>`,
+                `<div class="check-body check-prose">A cover week carries <strong>no times</strong>. The runs below count its ` +
+                `days at their worst, and the 55-hour row counts each of them as ${COVER_DUTY_WORDS}. A count of long duties ` +
+                `cannot see them, so it is a <strong>floor, not an estimate</strong>.</div></div>`,
             ] : [])
         );
 
