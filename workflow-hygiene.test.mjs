@@ -545,6 +545,55 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
 // job's is, and so did the two ways to lose tests without anything going red: a project missing, or
 // one shard of one. And the PR lane and the gate must run the SAME list the same way, or a PR goes
 // green on a suite cut differently from the one that decides the release.
+// ── EACH SHARD LIST CARRIES WHERE ITS CUTS FALL (17 Nov 2026) ────────────────────────────────────
+//
+// Playwright cuts a project into shards of equal COUNT, in file order, and the heavy files sit
+// together, so one shard ran twice as long as its siblings. Every entry now carries `weights`, which
+// Playwright reads as PWTEST_SHARD_WEIGHTS to place the cuts by measured time (e2e.yml's smoke job has
+// the account). An entry in any other shape is returned as `malformed`, never dropped: a parser that
+// skipped what it could not read would make every check below pass on a list it had not seen.
+/**
+ * Every "- { project, shard, shards, weights }" matrix entry in a job block.
+ * @param {string} block
+ * @returns {Array<{ project: string, shard: number, shards: number, weights: string } | { malformed: string }>}
+ */
+function parseShardEntries(block) {
+    return block.split('\n').filter(l => /^\s+- \{ project:/.test(l)).map(l => {
+        const m = /^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+), weights: '(\d+(?::\d+)*)' \}\s*$/.exec(l);
+        return m ? { project: m[1], shard: Number(m[2]), shards: Number(m[3]), weights: m[4] } : { malformed: l.trim() };
+    });
+}
+
+/**
+ * The weight checks every shard list owes, whichever job it is in.
+ * @param {string} label
+ * @param {ReturnType<typeof parseShardEntries>} entries
+ */
+function weightTests(label, entries) {
+    test('every entry parsed, weights included', () => {
+        const bad = entries.filter(e => 'malformed' in e).map(e => /** @type {{ malformed: string }} */ (e).malformed);
+        assert.deepEqual(bad, [],
+            `${label}: entries not in the form "- { project: …, shard: …, shards: …, weights: '…' }". `
+            + 'An entry these checks cannot read is one they cannot hold to the config either.');
+    });
+
+    test('each project names one set of weights, one weight per shard, none zero', () => {
+        const good = /** @type {Array<{ project: string, shards: number, weights: string }>} */ (entries.filter(e => !('malformed' in e)));
+        for (const project of new Set(good.map(e => e.project))) {
+            const mine = good.filter(e => e.project === project);
+            const sets = [...new Set(mine.map(e => e.weights))];
+            assert.equal(sets.length, 1,
+                `${label}, ${project}: its entries disagree on the weights (${sets.join(' / ')}). Each job hands Playwright `
+                + 'its own copy, so two copies place the cuts in two places, and the tests between them run twice or never.');
+            const w = sets[0].split(':').map(Number);
+            assert.equal(w.length, mine[0].shards,
+                `${label}, ${project}: ${w.length} weights for ${mine[0].shards} shards. Playwright refuses the run when they differ.`);
+            assert.ok(w.every(n => n > 0),
+                `${label}, ${project}: a weight of 0 gives its shard no tests, and that job goes green having run nothing.`);
+        }
+    });
+}
+
 /** The smoke job's block in a workflow file, its matrix entries and its test command. */
 function smokeJob(/** @type {string} */ file) {
     const src = readFileSync(join(WF_DIR, file), 'utf8');
@@ -553,8 +602,7 @@ function smokeJob(/** @type {string} */ file) {
     const rest = body.slice(start + 1);
     const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
     const block = next === -1 ? rest : rest.slice(0, next);
-    const entries = [...block.matchAll(/^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+) \}\s*$/gm)]
-        .map(m => ({ project: m[1], shard: Number(m[2]), shards: Number(m[3]) }));
+    const entries = parseShardEntries(block);
     const command = /^\s*run:\s*(npm run test:e2e\b.*)$/m.exec(block)?.[1]?.trim() ?? null;
     return { start, block, entries, command };
 }
@@ -566,6 +614,8 @@ for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
         const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
         const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
             .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+
+        weightTests(file, entries);
 
         test('both lists actually parsed', () => {
             assert.ok(start !== -1, `no smoke job in ${file}`);
@@ -598,6 +648,8 @@ for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
                 'each job must pass its project and its shard to Playwright, read from the entry, or jobs run the same tests twice');
             assert.match(smoke, /^\s+fail-fast:\s*false\s*$/m,
                 'with fail-fast on, one red shard cancels the others, and their reports are lost');
+            assert.match(smoke, /^\s+PWTEST_SHARD_WEIGHTS: \$\{\{ matrix\.weights \}\}\s*$/m,
+                'the test step must hand Playwright the entry\'s weights as PWTEST_SHARD_WEIGHTS, or the cuts fall by count again');
         });
 
         test('each shard uploads its report under its own name', () => {
@@ -609,11 +661,31 @@ for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
     });
 }
 
+// The variable is Playwright's own but not in its documentation, so an upgrade could drop it, and
+// nothing would fail: the cuts would quietly fall by count again. This fails instead. It reads the
+// INSTALLED Playwright, so it runs where the dependencies are (the unit lane) and stands aside where
+// they are not (the no-install lane, which has nothing to read).
+const PW_LIB = 'node_modules/playwright/lib';
+let pwInstalled = false;
+try { pwInstalled = readdirSync(PW_LIB).length > 0; } catch { /* not installed here */ }
+test('the installed Playwright still reads PWTEST_SHARD_WEIGHTS', { skip: !pwInstalled && 'Playwright is not installed here' }, () => {
+    /** @param {string} dir @returns {string[]} */
+    const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+        d.isDirectory() ? files(join(dir, d.name)) : d.name.endsWith('.js') ? [join(dir, d.name)] : []);
+    const readers = files(PW_LIB).filter(f => readFileSync(f, 'utf8').includes('process.env.PWTEST_SHARD_WEIGHTS'));
+    assert.ok(readers.length > 0,
+        'this Playwright no longer reads PWTEST_SHARD_WEIGHTS, so every shard list\'s `weights` is ignored and the '
+        + 'cuts fall by count again: the first shard of each project takes the heavy files and runs about twice as '
+        + 'long as its siblings. Find what the new version offers for weighting shards, or drop the weights and '
+        + 're-measure the shard counts (e2e.yml\'s smoke job).');
+});
+
 describe('the PR lane runs the Chromium suite exactly as the Hosting deploy\'s gate does', () => {
     const pr = smokeJob('e2e.yml'), gate = smokeJob('deploy-hosting.yml');
 
     test('the same shards of the same projects, and the same command', () => {
-        const key = (/** @type {{ project: string, shard: number, shards: number }} */ e) => `${e.project} ${e.shard}/${e.shards}`;
+        // The weights too: the same shard numbers cut in different places are different tests.
+        const key = (/** @type {any} */ e) => `${e.project} ${e.shard}/${e.shards} ${e.weights}`;
         assert.deepEqual(pr.entries.map(key).sort(), gate.entries.map(key).sort(),
             'e2e.yml and deploy-hosting.yml cut the suite differently: a PR can pass a shard the release gate never runs');
         assert.ok(pr.command, 'no npm run test:e2e command found in e2e.yml\'s smoke job');
@@ -815,13 +887,14 @@ describe('the WebKit lane runs every project, and every shard of each', () => {
     const rest = body.slice(start + 1);
     const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
     const job = next === -1 ? rest : rest.slice(0, next);
-    const entries = [...job.matchAll(/^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+) \}\s*$/gm)]
-        .map(m => ({ project: m[1], shard: Number(m[2]), shards: Number(m[3]) }));
+    const entries = parseShardEntries(job);
 
     const cfg = readFileSync('playwright.webkit.mjs', 'utf8');
     const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
     const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
         .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+
+    weightTests('e2e.yml webkit', entries);
 
     test('both lists actually parsed', () => {
         assert.ok(start !== -1, 'no webkit job in e2e.yml');
@@ -855,6 +928,8 @@ describe('the WebKit lane runs every project, and every shard of each', () => {
             'the command must read the shard count from the entry, or it disagrees with the number of jobs');
         assert.match(job, /^\s+fail-fast:\s*false\s*$/m,
             'with fail-fast on, one red shard cancels the others, and their reports are lost');
+        assert.match(job, /^\s+PWTEST_SHARD_WEIGHTS: \$\{\{ matrix\.weights \}\}\s*$/m,
+            'the test step must hand Playwright the entry\'s weights as PWTEST_SHARD_WEIGHTS, or the cuts fall by count again');
         assert.match(job, /name: playwright-report-webkit-\$\{\{ matrix\.project \}\}-shard\$\{\{ matrix\.shard \}\}/,
             'the report artifact must carry the project and the shard, or two jobs collide');
     });

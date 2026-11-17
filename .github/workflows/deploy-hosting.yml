@@ -186,12 +186,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: chromium, shard: 1, shards: 3 }
-          - { project: chromium, shard: 2, shards: 3 }
-          - { project: chromium, shard: 3, shards: 3 }
-          - { project: mobile-chrome, shard: 1, shards: 3 }
-          - { project: mobile-chrome, shard: 2, shards: 3 }
-          - { project: mobile-chrome, shard: 3, shards: 3 }
+          - { project: chromium, shard: 1, shards: 3, weights: '341:599:835' }
+          - { project: chromium, shard: 2, shards: 3, weights: '341:599:835' }
+          - { project: chromium, shard: 3, shards: 3, weights: '341:599:835' }
+          - { project: mobile-chrome, shard: 1, shards: 3, weights: '466:506:803' }
+          - { project: mobile-chrome, shard: 2, shards: 3, weights: '466:506:803' }
+          - { project: mobile-chrome, shard: 3, shards: 3, weights: '466:506:803' }
     # THE LIMIT FOLLOWS THE RUN. While the tests shared one job with the upload, it went 20 → 40 on
     # 2 Oct 2026: v24.43 released at 20m11s, and v24.44 was CANCELLED at exactly 20m00s — smoke alone
     # took 17m14s, so the clock ran out inside the CSP proof, before the deploy step, and production
@@ -249,6 +249,8 @@ jobs:
         run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
         env:
           CI: true
+          # Where the cut falls: the entry's `weights` (e2e.yml's smoke job says why and how they were measured).
+          PWTEST_SHARD_WEIGHTS: ${{ matrix.weights }}
 
       - name: Upload Playwright report on failure
         if: failure()
