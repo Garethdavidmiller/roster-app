@@ -385,6 +385,11 @@
                         <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
                     </div>
                     <button type="button" class="btn-save" id="linksEmptyRetry" style="display:none">Try again</button>
+                    <!-- What a design made from here says while nothing is open — a refused name, a create that
+                         failed, one still on its way. The save row carries that line once a design is open, and
+                         it is hidden until then, so the words went nowhere (17 Nov 2026). `_designActionStatus`
+                         writes to whichever of the two is on screen. -->
+                    <p class="links-save-status links-empty-status" id="linksEmptyStatus" aria-live="polite"></p>
                 </div>
 
                 <!-- A design saved against a LONGER rotation than the current one (v19.98). Written

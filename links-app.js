@@ -697,10 +697,14 @@ export function init() {
     /** Surface a design create/rename/duplicate outcome (or a client-side validation error) on the
      *  shared save-status line, so a rules rejection is never silent. `''` is the neutral voice: a write
      *  under way, or one queued in this browser — neither a success nor a failure.
+     *
+     *  ON THE LINE THAT IS ON SCREEN (17 Nov 2026). With no design open the save row is hidden
+     *  (`renderGrid`), and "Start with a blank grid" reported a refused name, a failed create and
+     *  "Creating…" into it — nothing visible. The empty state carries its own line for then.
      *  @param {string} msg @param {'ok'|'err'|''} [kind] */
     function _designActionStatus(msg, kind = 'err') {
-        const status = document.getElementById('linksSaveStatus');
-        if (status) { status.textContent = msg; status.className = 'links-save-status' + (kind ? ' ' + kind : ''); }
+        const status = document.getElementById(design ? 'linksSaveStatus' : 'linksEmptyStatus');
+        if (status) { status.textContent = msg; status.className = (design ? 'links-save-status' : 'links-save-status links-empty-status') + (kind ? ' ' + kind : ''); }
     }
 
     /** What a write QUEUED in this browser says — a save, a new design or a copy alike (links-app-4): it is
@@ -1439,6 +1443,10 @@ export function init() {
 
         if (emptyState) emptyState.style.display = 'none';
         if (saveRow)    saveRow.style.display    = '';
+        // A design is open, so the empty state's line has done its work: cleared, or it would come back
+        // with the empty state describing a press long since answered.
+        const emptyStatus = document.getElementById('linksEmptyStatus');
+        if (emptyStatus) { emptyStatus.textContent = ''; emptyStatus.className = 'links-save-status links-empty-status'; }
         _setGridHint(true);
 
         // In compare mode the main grid is hidden on SCREEN ONLY (body class +

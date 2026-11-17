@@ -184,6 +184,11 @@ body:not(.auth-ready) .app-header { display: none; }
     opacity: 0.35;
 }
 .links-empty-state .links-empty-msg { max-width: 46ch; }
+/* The empty state's own status line — `.links-save-status`'s type and colours, at the message's measure. Empty, it
+   is taken OUT of the column rather than hidden: `display: none` would take the live region out of the
+   accessibility tree, where a line arriving later may go unannounced, and in the column it would add a gap. */
+.links-empty-status { margin: 0; max-width: 46ch; }
+.links-empty-status:empty { position: absolute; }
 
 /* A design saved against a LONGER rotation than the current one (v19.98). Amber, not red: the
    design is intact and nothing is at risk — it simply describes a link that no longer exists, and

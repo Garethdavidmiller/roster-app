@@ -3645,6 +3645,38 @@ test('links: the empty state never splits the "N-line" phrase across lines', asy
     }
 });
 
+// ── WHAT A PRESS FROM THE EMPTY STATE SAYS, IT SAYS WHERE IT CAN BE SEEN (17 Nov 2026) ──────────────────
+// With no design open the save row is hidden, and "Start with a blank grid" reported into it: a refused name, a
+// failed create and "Creating…" all went nowhere. The empty state carries its own line now.
+test('links: "Start with a blank grid" says what happened on the empty state, and the line goes once a design opens', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksEmptyNew')).toBeVisible();
+    await expect(page.locator('#linksSaveRow'), 'premise: no design open, so the save row is hidden').toBeHidden();
+    const status = page.locator('#linksEmptyStatus');
+
+    await page.locator('#linksEmptyNew').click();
+    await page.locator('.dialog-overlay .dialog-input').fill(PROPOSALS[0].name.toUpperCase());
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toBeVisible();
+    await expect(status).toContainText(`There is already a shortlisted proposal called “${PROPOSALS[0].name}”`);
+    await expect(page.locator('.dialog-overlay'), 'the name prompt has closed').toHaveCount(0);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });   // the server is slow to answer
+    await page.locator('#linksEmptyNew').click();
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('Creating “Option N”…');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseAddDoc());
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    await expect(page.locator('#linksEmptyState')).toBeHidden();
+    await expect(status, 'answered, so the empty state keeps no old line').toHaveText('');
+});
+
 // ── The generator card has ONE left edge on desktop (v19.67)─────────────────────────────────────
 // v19.66 centred `.generator-form` to split the 440px of dead space beside it, and left the intro
 // prose where it was — so the card ended up with TWO left edges: the intro ran 122→778 while the
