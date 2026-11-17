@@ -27,6 +27,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { servedFiles } from './scripts/app-pages.mjs';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const json = (/** @type {string} */ f) => JSON.parse(read(f));
@@ -71,6 +72,29 @@ describe('mammoth — one converter version on both sides of the network', () =>
     test('the functions lockfile resolves the pinned version', () => {
         assert.equal(FN_LOCK.packages?.['node_modules/mammoth']?.version, server,
             'functions/package-lock.json is stale — run `npm install --package-lock-only` in functions/');
+    });
+
+    // THE CONTENT SECURITY POLICY NAMES THE VERSION TOO (review, 17 Nov 2026). `script-src` allows the
+    // converter's own folder on jsdelivr, `…/npm/mammoth@<version>/`, not the whole CDN, which serves any
+    // file of any package or repository to anyone. So a version moved in huddle.js and not in the policy
+    // is REFUSED by the browser, and the Huddle's conversion failing is deliberately non-fatal: the Word
+    // file would upload download-only, with nothing on screen to say why. The header is checked here,
+    // and every served page's <meta> copy, which is the only policy the Pages mirror applies.
+    test('the CSP allows exactly the mammoth version huddle.js loads, on Firebase and on every page', () => {
+        const browser = cdnVersions('./huddle.js');
+        const fb = json('./firebase.json');
+        const header = (fb.hosting?.headers ?? []).flatMap((/** @type {any} */ h) => h.headers ?? [])
+            .find((/** @type {any} */ kv) => kv.key === 'Content-Security-Policy')?.value ?? '';
+        const scriptSrc = (/** @type {string} */ csp) => (/(?:^|;)\s*script-src\s([^;]*)/.exec(csp) ?? [])[1] ?? '';
+        const allowed = (/** @type {string} */ csp) => [...scriptSrc(csp).matchAll(/cdn\.jsdelivr\.net\/npm\/mammoth@([^/\s]+)\//g)].map(m => m[1]);
+        assert.ok(scriptSrc(header), 'no script-src found in firebase.json — this check is reading nothing');
+        assert.deepEqual(allowed(header), browser,
+            `firebase.json's script-src allows mammoth@${allowed(header).join(', ') || '(none)'} but huddle.js loads mammoth@${browser.join(', ')} — move them together`);
+        for (const page of servedFiles()) {
+            const meta = (/<meta\s+http-equiv=["']Content-Security-Policy["']\s+content="([^"]+)"/i.exec(read(`./${page}`)) ?? [])[1] ?? '';
+            assert.deepEqual(allowed(meta), browser,
+                `${page}'s <meta> CSP allows mammoth@${allowed(meta).join(', ') || '(none)'} but huddle.js loads mammoth@${browser.join(', ')}`);
+        }
     });
 });
 

@@ -21,6 +21,11 @@
  * Files patched by --apply:
  *   huddle.js  — the mammoth loader's `.integrity` line (the URL is bumped by hand, here AND there;
  *                dependency-pin-parity.test.mjs fails until both match functions/package.json)
+ *
+ * The version is in the Content-Security-Policy as well: `script-src` allows the converter's own
+ * versioned folder on jsdelivr, never the whole CDN. Move it in firebase.json and in every page's
+ * <meta> copy in the same change, or the browser refuses the new script and the Huddle uploads
+ * download-only; dependency-pin-parity.test.mjs fails until they agree.
  */
 
 import { createHash }        from 'node:crypto';
