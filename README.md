@@ -130,8 +130,9 @@ behind them.
   in branch CI, for the same reason as the Chromium lane. It measured stable on a container (repeat
   runs green, a full regeneration byte-identical), which is why its tolerance is the Chromium lane's
   0.001 and not looser.
-- **`npm run test:webkit`** — the smoke suite under Safari's engine: branch CI, not the deploy gate
-  (`docs/DECISIONS.md` → WebKit stays out of the deploy gate). **The browser is not in a fresh dev
+- **`npm run test:webkit`** — the smoke suite under Safari's engine, in branch CI. The deploy gate runs
+  one file of it, `e2e/every-page.spec.js`, on the iPhone project (`docs/DECISIONS.md` → A few Safari
+  tests gate the release). **The browser is not in a fresh dev
   container:** `npx playwright install webkit && npx playwright install-deps webkit`. The second step
   is apt, so it needs root; without it the launch dies listing missing shared objects, which reads
   like "unsupported". The standing "do not run playwright install" advice is about CHROMIUM, which IS
@@ -158,11 +159,10 @@ behind them.
   a page brought back from the back/forward cache: Playwright launches Chrome with that cache off,
   so Back always loads afresh here. That guard is `page-session.test.mjs` and `e2e/auth.spec.js`,
   which send the restore event themselves.
-  Branch CI runs both engines as the `signed-in` job. Since 12 Nov 2026 its Android Chrome half also
-  gates the Hosting deploy, on the tree being released (`deploy-hosting.yml`); the iPhone half stays
-  out of that gate, as all of WebKit does (`docs/DECISIONS.md` → WebKit stays OUT of the deploy
-  gate). Behind a proxy, run `npx firebase setup:emulators:firestore` once first (the script's header
-  says why).
+  Branch CI runs both engines as the `signed-in` job. Both halves also gate the Hosting deploy, on the
+  tree being released (`deploy-hosting.yml`): Android Chrome in its `signed-in` job since 12 Nov 2026,
+  and the iPhone in its `safari` job since 17 Nov 2026. Behind a proxy, run
+  `npx firebase setup:emulators:firestore` once first (the script's header says why).
 - **`npm run test:live`** — the deployment health check in `CLAUDE.md`, run against the real site:
   both origins, the root and two sub-pages, asserting served, splash down, something usable and no
   console errors. Opt-in, and it gates nothing: the network and whatever is deployed right now are not

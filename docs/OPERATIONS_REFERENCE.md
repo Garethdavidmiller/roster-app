@@ -694,10 +694,11 @@ than leading it, so "both origins behind" during a release is not reported.
    branches to be up to date before merging**, and add the checks from a recent pull request run:
    `version`, `unit`, `nodeps`, `functions`, `rules`, `csp`, `signed-in` and every `smoke` entry (three
    per screen size since 12 Nov 2026: `smoke (chromium, 1/3)` to `3/3`, and the same for
-   `mobile-chrome`). `signed-in` is one check for both phone engines; its Android Chrome half has gated
-   the Hosting deploy since 12 Nov 2026. Leave out `guard` (it decides whether the others run), and
-   `visual` / `visual-webkit`, which are report-only by design. Whether the `webkit` entries gate
-   merging is your call: the deploy gate deliberately runs Chromium only (DECISIONS.md, 8 Sep 2026).
+   `mobile-chrome`). `signed-in` is one check for both phone engines; both halves also gate the Hosting
+   deploy (Android Chrome since 12 Nov 2026, the iPhone since 17 Nov 2026). Leave out `guard` (it
+   decides whether the others run), and `visual` / `visual-webkit`, which are report-only by design.
+   Whether the `webkit` entries gate merging is your call: the deploy gate runs a few Safari tests,
+   not that whole lane (DECISIONS.md → "A few Safari tests gate the release").
 2. **Require approval for outside contributors — made 10 Nov 2026.** Settings → Actions → General →
    "Approval for running fork pull request workflows from contributors" → **Require approval for all
    external contributors**. The mirror does not trust such runs anyway; this stops them running at all.
@@ -712,9 +713,10 @@ of CLAUDE.md).
 
 **What it means for a release.** The mirror updates after a Hosting deploy finishes, not a minute
 after the push. A deploy lasts as long as its slowest gate job plus about a minute. The gate jobs are
-`check`, the six `smoke` shards, `csp` and `signed-in` (Android Chrome only), and the slowest is a
-`smoke` shard: 5 to 8 minutes since each screen size was cut into three on 12 November 2026. The
-mirror's own publish then takes under a minute (40 and 55 seconds on 10 November 2026; the first,
+`check`, the six `smoke` shards, `csp`, `signed-in` (Android Chrome) and `safari` (the iPhone's
+engine, since 17 November 2026), and the slowest is a `smoke` shard. Since each screen size was cut
+into three on 12 November 2026 the shards take 5 to 10 minutes (5m 36s to 9m 36s in the release of
+17 November 2026). The mirror's own publish then takes under a minute (40 and 55 seconds on 10 November 2026; the first,
 v25.65, took about nine). A push that changes only docs or tests republishes neither
 origin, exactly as Hosting already behaves. A failed gate leaves BOTH origins on the previous release,
 and the issue says so.

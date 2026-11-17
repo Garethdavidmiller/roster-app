@@ -18,7 +18,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -665,31 +665,72 @@ describe('the Hosting deploy waits for its whole gate', () => {
             `found the gate jobs ${gate.join(', ') || 'none'}; expected at least check, smoke and csp`);
     });
 
-    // THE SIGNED-IN JOURNEYS ARE A GATE JOB, ON ANDROID CHROME ONLY (12 Nov 2026). The external review
-    // of v25.87 asked for them to be a release requirement, and the job is the whole of that: delete it
-    // and every contract here still passes, because `gate` is read from the file. Only the Chrome half,
-    // because WebKit stays out of this gate (owner, 8 Sep 2026; DECISIONS.md names what would reopen
-    // it), so a WebKit run appearing here would reverse that decision without anybody taking it.
+    // THE SIGNED-IN JOURNEYS ARE A GATE JOB (12 Nov 2026). The external review of v25.87 asked for them
+    // to be a release requirement, and the job is the whole of that: delete it and every contract here
+    // still passes, because `gate` is read from the file. Android Chrome runs them in `signed-in`, and
+    // since 17 Nov 2026 the iPhone half runs in `safari` with the gate's other WebKit check (the block
+    // below), so each job installs one browser and neither engine waits for the other.
     test('the signed-in journeys gate the release', () => {
         assert.ok(gate.includes('signed-in'),
             'deploy-hosting.yml has no signed-in job, so a release no longer waits for the real-SDK journeys. '
             + 'Taking them out of the gate is the owner\'s decision (DECISIONS.md → the 11 November 2026 external review).');
     });
 
-    test('and only their Android Chrome half: WebKit stays out of the deploy gate', () => {
+    test('on both phone engines: Android Chrome in signed-in, the iPhone in safari', () => {
         assert.match(jobs.get('signed-in') ?? '', /^\s*run: npm run test:signed-in -- --project=mobile-chrome[ \t]*$/m,
-            'the gate\'s signed-in job must name the Android Chrome project: without --project=mobile-chrome it runs the iPhone (WebKit) half too');
-        assert.match(readFileSync('e2e/playwright.signed-in.mjs', 'utf8'), /^\s*name: 'mobile-chrome',/m,
-            'the signed-in config no longer has a mobile-chrome project, so the gate\'s --project=mobile-chrome selects nothing');
-        const webkit = [...jobs].filter(([, block]) => /webkit|mobile-safari/i.test(block)).map(([n]) => n);
-        assert.deepEqual(webkit, [],
-            `${webkit.join(', ')} would run WebKit in the Hosting deploy's gate. WebKit stays OUT of it (owner, 8 Sep 2026): `
-            + 'DECISIONS.md says what would reopen that, and reopening it is the owner\'s call.');
+            'the gate\'s signed-in job must name the Android Chrome project: without --project=mobile-chrome it runs the iPhone (WebKit) half too, and twice');
+        assert.match(jobs.get('safari') ?? '', /^\s*run: npm run test:signed-in -- --project=mobile-safari[ \t]*$/m,
+            'the gate\'s safari job no longer runs the signed-in journeys on the iPhone, so a release can ship a sign-in or a save that breaks only in Safari');
+        const cfg = readFileSync('e2e/playwright.signed-in.mjs', 'utf8');
+        for (const name of ['mobile-chrome', 'mobile-safari']) {
+            assert.match(cfg, new RegExp(`^\\s*(?:\\{ )?name: '${name}',`, 'm'),
+                `the signed-in config has no ${name} project, so the gate's --project=${name} selects nothing`);
+        }
+    });
+});
+
+// ── A FEW SAFARI TESTS GATE THE RELEASE (owner, 17 Nov 2026) ─────────────────────────────────────
+//
+// Until 17 Nov 2026 WebKit stayed out of this gate (owner, 8 Sep 2026), and the test that held that is
+// replaced by these. The owner asked for a few Safari tests to gate every release, and they run in ONE
+// job on the iPhone's engine: every page opening (e2e/every-page.spec.js) and the signed-in journeys'
+// iPhone half. These hold its wiring. The job is there, and the deploy waits for it: the contracts
+// above read the gate from the file, so a deleted job would pass them. It runs exactly those two sets,
+// and the spec it names exists and is one the iPhone project runs: a renamed file, or one whose name
+// starts with "links", would select nothing. And WebKit runs in NO OTHER gate job: the whole WebKit
+// suite in the gate would make every release wait for its slowest shard, which is a decision of its own
+// (DECISIONS.md → "A few Safari tests gate the release").
+describe('a few Safari tests gate the Hosting release', () => {
+    const { jobs, gate, needsOf } = deployWorkflow('deploy-hosting.yml');
+    const SPEC = 'e2e/every-page.spec.js';
+
+    test('the safari job is in the gate, and the deploy waits for it', () => {
+        assert.ok(gate.includes('safari'),
+            'deploy-hosting.yml has no safari job, so no release waits for a Safari test. Taking them out is the owner\'s decision '
+            + '(DECISIONS.md → "A few Safari tests gate the release").');
+        assert.ok(needsOf('deploy').includes('safari'), 'the deploy does not wait for the safari job');
+    });
+
+    test('it opens every page on the iPhone\'s engine', () => {
+        assert.match(jobs.get('safari') ?? '', new RegExp(`^\\s*run: npm run test:webkit -- --project=mobile-safari ${SPEC.replace(/\./g, '\\.')}[ \\t]*$`, 'm'),
+            `the safari job no longer runs ${SPEC} on the iPhone project, so a page Safari will not start can be released`);
+        assert.ok(existsSync(SPEC), `${SPEC} is gone, so the gate's every-page step finds no tests`);
+        // The iPhone project runs every spec whose name does not start with "links" (playwright.webkit.mjs).
+        assert.match(readFileSync('playwright.webkit.mjs', 'utf8'), /name: 'mobile-safari', testMatch: NOT_LINKS_SPECS\b/,
+            'the mobile-safari project no longer selects its specs by NOT_LINKS_SPECS, so check it still runs ' + SPEC);
+        assert.ok(!/^links/.test(SPEC.split('/').pop() ?? ''), `${SPEC} would fall to the Links projects, and the gate's step would find no tests`);
+    });
+
+    test('and WebKit runs in no other gate job', () => {
+        const others = gate.filter(n => n !== 'safari' && /webkit|mobile-safari/i.test(jobs.get(n) ?? ''));
+        assert.deepEqual(others, [],
+            `${others.join(', ')} would run WebKit in the Hosting gate beyond the few tests in the safari job. The whole suite there `
+            + 'makes every release wait for its slowest shard: the owner\'s call (DECISIONS.md → "A few Safari tests gate the release").');
     });
 });
 
 for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
-    ['deploy-hosting.yml', ['check', 'smoke', 'csp', 'signed-in']],
+    ['deploy-hosting.yml', ['check', 'smoke', 'csp', 'signed-in', 'safari']],
     ['deploy-functions.yml', ['check']],
     ['deploy-rules.yml', ['check']],
 ])) {
@@ -2620,6 +2661,8 @@ describe('every CI lane runs the command it is there for', () => {
         ['deploy-hosting.yml', 'smoke', 'npm run test:e2e'],
         ['deploy-hosting.yml', 'csp', 'npm run test:csp'],
         ['deploy-hosting.yml', 'signed-in', 'npm run test:signed-in'],
+        ['deploy-hosting.yml', 'safari', 'npm run test:webkit'],
+        ['deploy-hosting.yml', 'safari', 'npm run test:signed-in'],
         ['deploy-functions.yml', 'check', 'npm run test:functions'],
         ['deploy-functions.yml', 'check', 'npm test'],
         ['deploy-rules.yml', 'check', 'npm run check'],

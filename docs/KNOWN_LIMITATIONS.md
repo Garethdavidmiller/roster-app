@@ -92,12 +92,16 @@ to name the test. Staff stay on the previous release meanwhile.
   workflow on `main` (Actions → Run workflow) instead of waiting; a re-run of an old run stops itself
   once a newer run exists.
 
-### The `webkit` job is intermittently red, and it is not a gate
+### The `webkit` job is intermittently red, and only a few of its tests gate a release
 
-`webkit` runs the smoke suite under Safari's engine in branch CI only. It is deliberately **not** in
-`deploy-hosting.yml` — `e2e.yml`'s own header says why: a second engine in the deploy gate lets a
-WebKit-only flake keep staff on a stale version (DECISIONS.md → "WebKit stays OUT of the deploy
-gate"). Merging with `webkit` red and the rest green is the designed behaviour, not a shortcut.
+`webkit` runs the smoke suite under Safari's engine in branch CI. The whole lane is deliberately
+**not** in `deploy-hosting.yml`: it would make every release wait for its slowest shard, and a
+WebKit-only flake would keep staff on a stale version. Since 17 Nov 2026 the deploy runs a few Safari
+tests instead, in its `safari` job: every page opening (`e2e/every-page.spec.js`) and the signed-in
+journeys' iPhone half, both on the iPhone's engine, each retried once on CI (DECISIONS.md → "A few
+Safari tests gate the release"). Merging with the `webkit` lane red and the rest green is still the
+designed behaviour, not a shortcut, unless the merge ruleset requires it (OPERATIONS_REFERENCE.md →
+"The Pages mirror", step 1).
 
 Its measured flake (Aug 2026: one test failing 1 run in 6 locally, and no overlap between the
 failing sets of two CI runs on one commit) is covered by one retry in CI (`playwright.webkit.mjs`).

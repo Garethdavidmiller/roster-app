@@ -295,10 +295,10 @@ npm run test:a11y           # that accessibility gate on its own (A11Y_BASELINE.
 npm run test:csp            # the real firebase.json CSP, served by the Hosting emulator; gated in CI (`csp` job)
 npm run test:visual         # Chromium visual baselines — REPORT-ONLY in branch CI
 npm run test:visual:webkit  # a small Safari-engine visual set — report-only
-npm run test:webkit         # the smoke suite under WebKit — branch CI, not the deploy gate
+npm run test:webkit         # the smoke suite under WebKit — branch CI; the deploy gate runs every-page.spec.js
 npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site, both origins; gates nothing
 npm run test:offline        # SW/offline paths with the network cut — weekly, non-blocking (offline.yml)
-npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; its Android half gates Hosting
+npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; both halves gate Hosting
 ```
 **Five traps, each in full in README.md → "The test lanes", beside its lane:** read the `visual
 baselines` CHECK, never the `visual` job (regenerate from CI's render with
@@ -474,10 +474,10 @@ Override cache key: `"memberName|YYYY-MM-DD"`
     Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a backgrounded tab.
     `install-prompt.js` and `notif.js` already branch correctly for both engines. **Oldest iOS
     supported: 16.4** (owner, 7 Nov 2026 — DECISIONS.md).
-  - **Chromium gates every deploy and WebKit does not** (`npm run test:webkit` is branch CI only) —
-    an unequal gate under equal service, weighed and left as it is (owner, 8 Sep 2026; DECISIONS.md,
-    with the trigger that would reopen it). **Weigh a WebKit failure on a branch accordingly**: it is
-    the only lane that sees Safari before release.
+  - **Every deploy runs the Chromium suite and a few Safari tests** (owner, 17 Nov 2026): every page
+    opening and the signed-in journeys, on the iPhone's engine. The whole WebKit suite runs on branches
+    only (DECISIONS.md → "A few Safari tests gate the release"). **Weigh a WebKit failure on a branch
+    accordingly**: it is still the only lane that sees most of Safari before release.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
 - **No `alert()`** — `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.

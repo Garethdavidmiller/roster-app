@@ -793,10 +793,10 @@ jobs:
   # manager recording on behalf, a save with no signal, the staff PIN, and Back after signing out
   # (e2e/signed-in.spec.js). scripts/signed-in.mjs builds everything it needs in a temp folder.
   #
-  # BOTH ENGINES HERE; THE ANDROID CHROME HALF ALSO GATES THE RELEASE (12 Nov 2026). deploy-hosting.yml
-  # runs `--project=mobile-chrome` on the tree being released, so a journey that breaks on Chrome holds
-  # the release as well as going red here; its comment has the record it joined on. The iPhone half
-  # runs only here, as all of WebKit does (DECISIONS.md → WebKit stays OUT of the deploy gate).
+  # BOTH ENGINES HERE, AND BOTH ALSO GATE THE RELEASE. deploy-hosting.yml runs `--project=mobile-chrome`
+  # in its `signed-in` job (12 Nov 2026) and `--project=mobile-safari` in its `safari` job (17 Nov 2026),
+  # on the tree being released, so a journey that breaks on either engine holds the release as well as
+  # going red here; those jobs' comments have the record each joined on.
   # NOT `continue-on-error`: a job marked that way reports success whether or not it failed (the
   # visual lanes needed a check of their own to be seen at all), and a lane nobody can see fail is
   # not a lane.

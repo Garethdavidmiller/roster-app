@@ -352,7 +352,8 @@ shown that yet.
   stop). **The full argument, including why the key is `head_ref || ref_name` and why the obvious
   `github.ref` recipe silently does nothing, lives in `e2e.yml` beside the config.**
 
-- **WebKit stays OUT of the deploy gate — LEAVE IT** (owner, 8 Sep 2026) · **Trigger to revisit: a
+- **WebKit stays OUT of the deploy gate — SUPERSEDED 17 Nov 2026** by "A few Safari tests gate the
+  release" (below), which keeps the whole suite out and lets a small part in. As first decided (owner, 8 Sep 2026) · **Trigger to revisit: a
   Safari-only regression actually reaching production, or the work-phone install being permitted (a
   second engine running the INSTALLED app changes the exposure, not just the browser mix).** The
   question was re-opened the same day the platform premise was corrected to *two platforms served
@@ -385,6 +386,25 @@ shown that yet.
   days later, before either half outgrew it** (owner, 12 Nov 2026), because the wait itself was the
   cost: three shards per project, the same list in both workflows, 5 to 8 minutes a job on the first
   run against 16 to 18. `fullyParallel` came with it, so a shard is a count of tests, not of files.
+
+- **A few Safari tests gate the release** (owner, 17 Nov 2026). Supersedes "WebKit stays OUT of the
+  deploy gate" (above). Every branch ran the WebKit suite, but the tree `main` RELEASES — two branches,
+  each green on its own, merged — was tested on Chromium alone, though the app serves iPhone and
+  Android equally (owner, 8 Sep 2026). **What
+  gates now:** one job, `safari` in `deploy-hosting.yml`, on the iPhone's engine: every page, guide and
+  old address opening with nothing thrown (`e2e/every-page.spec.js`), and the signed-in journeys'
+  iPhone half through the real SDK, rules and functions (90 branch runs green in a row when it joined,
+  none failed). **Why yes now, when 8 Sep said no:** that decision's cost was time, because the gate
+  ran its tests one after another. Since 10 Nov the gate's jobs run side by side (the entry above), and
+  this job should take about five minutes with its setup (its tests took two and a half locally),
+  against 9m 36s for the slowest smoke shard in the release of 17 Nov 2026, so a release waits no
+  longer. **What stays out, and why:** the whole WebKit suite, nine jobs with the
+  longest over twenty minutes, which every release would wait for. The 8 Sep objection to a hand-picked
+  subset still stands, so neither set is a list: one file whose pages come from `scripts/app-pages.mjs`,
+  so a new page joins by itself, and one whole lane. **The cost:** one more way for a release to be
+  held. Red here, nothing is uploaded; both sets retry once on CI, and a test added to
+  `every-page.spec.js` gates every release from then on. `workflow-hygiene.test.mjs` holds the wiring,
+  and that WebKit runs in no other gate job.
 
 - **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
   `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
@@ -733,7 +753,7 @@ pieces of work, each landing on its own:
 
 | | What | Where it lives |
 |---|---|---|
-| 1 | Signed-in journeys through the REAL Firebase SDK, rules and Cloud Functions, on Chrome's and Safari's engines at phone size | `npm run test:signed-in` (#1749); README → The test lanes. Its Android Chrome half gates the Hosting deploy (below) |
+| 1 | Signed-in journeys through the REAL Firebase SDK, rules and Cloud Functions, on Chrome's and Safari's engines at phone size | `npm run test:signed-in` (#1749); README → The test lanes. Both halves gate the Hosting deploy (below) |
 | 2 | A permanent seeded test of event SEQUENCES for the Calendar's access, reads and redraws | `calendar-sequences.test.mjs` (v25.79): its first run found a fault, fixed in the same release |
 | 3 | A real-Android release checklist beside the iPhone one, and a "sign out, then Back" check on both | `ANDROID_RELEASE_CHECKLIST.md` |
 
@@ -741,12 +761,12 @@ pieces of work, each landing on its own:
 asked for by the external review of v25.87 ("make the signed-in browser journeys a release
 requirement"). The test the maintenance calendar had set for 25 November, every run green and none
 re-run, was already met: 36 `signed-in` jobs, 28 completed and every one green, the other 8 cancelled
-by the Tests workflow's own concurrency, none failed and none re-run. **Its iPhone half stays out**:
-WebKit stays out of the deploy gate (owner, 8 Sep 2026, above), and neither trigger that decision
-names has fired. It still runs on every branch. In the gate it runs beside the smoke jobs, so a
+by the Tests workflow's own concurrency, none failed and none re-run. **Its iPhone half stayed out**
+then, because WebKit stayed out of the deploy gate (owner, 8 Sep 2026, above). **It joined on 17 Nov
+2026**, in the gate's `safari` job (above: "A few Safari tests gate the release"). In the gate it runs beside the smoke jobs, so a
 release waits no longer; the cost is one more way for a release to be held. The Rules and Functions
 deploys keep their own suites (`test:rules`, `test:functions`) and do not run it.
-`workflow-hygiene.test.mjs` holds both halves: the job is in the gate, and it runs one engine.
+`workflow-hygiene.test.mjs` holds both halves: each job is in the gate, and each runs one engine.
 
 **Weighed and NOT done**, recorded so they are not proposed again as unfinished business:
 
