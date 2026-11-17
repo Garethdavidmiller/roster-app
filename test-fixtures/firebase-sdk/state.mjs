@@ -33,13 +33,16 @@ export const state = {
     pendingWrites: /** @type {Promise<any>|null} */ (null),
     /** every live `onAuthStateChanged` subscriber, told when the fake signs the account out mid-refresh */
     authListeners: /** @type {Set<(u: any) => void>} */ (new Set()),
+    /** when the signed-in user's ID token was issued, in ms — the token service's clock, which a test
+     *  can hold apart from this device's (mocked) one; null = the moment `getIdTokenResult` is asked */
+    tokenIssuedAt: /** @type {number|null} */ (null),
 };
 
 /** Put the recorder back to empty between tests. */
 export function resetState() {
     state.ops.length = 0; state.reads.length = 0; state.docs.clear(); state.authOps.length = 0;
     state.currentUser = null; state.failNext.clear(); state.holdNext.clear(); state.reauthRejects.clear();
-    state.fromCache = false; state.pendingWrites = null; state.authListeners.clear();
+    state.fromCache = false; state.pendingWrites = null; state.authListeners.clear(); state.tokenIssuedAt = null;
 }
 
 /**
@@ -65,7 +68,9 @@ export function signIn({ uid = 'uid_member', email = 'l.springer@myb-roster.loca
             }
             return token;
         },
-        getIdTokenResult: async (force = false) => { state.authOps.push({ op: 'getIdTokenResult', force }); return { token, claims: {} }; },
+        // `issuedAtTime` as the real SDK spells it: the token's `iat`, as a UTC date string.
+        getIdTokenResult: async (force = false) => { state.authOps.push({ op: 'getIdTokenResult', force });
+            return { token, claims: {}, issuedAtTime: new Date(state.tokenIssuedAt ?? Date.now()).toUTCString() }; },
     };
     return state.currentUser;
 }

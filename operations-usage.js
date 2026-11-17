@@ -395,7 +395,8 @@ function _appendOriginSection(content, rows) {
     // clearing browser data allows another count, a shared device counts each member picked, and
     // somebody using both addresses appears in both bars — which is what half-migrated looks like
     // and is exactly why the figure must not claim to be a headcount. The EXACT unique count is a
-    // different measure altogether and sits in its own section below, from Firebase Auth.
+    // different measure altogether and sits in its own section above this one (`_appendSignInSection`,
+    // drawn first), from Firebase Auth.
     note.textContent = 'Member-devices over the last 30 days — a direction, not a headcount. '
         + 'One person can count on more than one device or address.';
     sec.appendChild(note);

@@ -699,4 +699,23 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
         assert.deepEqual(opened, [STORED], 'the blank tab waited past the 8 s budget for a link it does not need');
         assert.equal(link.classList.contains('nav-panel-link--loading'), false, 'and both document links are live again');
     });
+
+    // AN UPLOADED DOCUMENT WHOSE LINK THE APP REFUSES IS NOT "NONE UPLOADED" (whole-app check, 17 Nov 2026).
+    // The drawer's fallback said the link's own "No circular has been uploaded yet", which sent the member
+    // away believing there was nothing to read, and nobody told the admin the link was broken.
+    test('a Circular whose stored link is refused says it can\'t be opened, and to tell the admin', async () => {
+        const { $ } = mountLive();
+        let closed = 0;
+        /** @type {any} */ (global.window).open = () => ({ opener: null, close() { closed++; }, location: { set href(/** @type {string} */ _v) { throw new Error('a refused link was opened'); } } });
+        latestCircular = async () => ({ storageUrl: 'https://example.invalid/x.pdf', fileType: 'pdf', storagePath: 'circulars/x.pdf' });
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        link.dataset.csTitle = 'Weekly Retail Circular';
+        link.dataset.csBody = 'No circular has been uploaded yet — it\'s usually available on Friday.';
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        assert.equal(closed, 1, 'the blank tab is closed');
+        assert.equal($('navComingSoonBody').textContent, 'The latest Weekly Retail Circular can’t be opened — please tell the admin.');
+    });
 });

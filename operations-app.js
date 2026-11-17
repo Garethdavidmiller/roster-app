@@ -38,7 +38,7 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, leaveAfterAsking } from './page-session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
-import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox } from './overlay.js';
+import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox, registerPopInterceptor, suppressNextPop, whenHistorySettled } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './operations-tips.js';
@@ -200,20 +200,52 @@ export function init() {
     }
     /** A deep link has done its job once its card is open, so the hash is STRIPPED: a second tap on
      *  the same notification is then a hash CHANGE, where a repeat of an unchanged hash fired nothing.
-     *  And a reset-request tap while this page is open REFRESHES the queue, read before the request came. */
-    function followDeepLink(/** @type {boolean} */ refresh) {
-        if (!DEEP_LINK_CARDS[location.hash]) return;
-        const hash = location.hash;
+     *  A tap while this page is open (`refresh`) also re-reads what the card shows, which was read
+     *  before the push came: the reset queue here, and the account audit — where the staff-PIN
+     *  lockout's line is — through `authSetup` below. (The Error Log re-reads itself, from the event's
+     *  own hash: operations-errors.js.) @param {string} hash @param {boolean} refresh */
+    function followDeepLink(hash, refresh) {
         openDeepLinkedCard(hash);
-        history.replaceState(history.state, '', location.pathname + location.search);
-        if (refresh && hash === '#reset-requests') initResetRequests();
+        if (!refresh) return;
+        if (hash === '#reset-requests') initResetRequests();
+        if (hash === '#login-accounts') authSetup.refresh();
     }
-    followDeepLink(false);   // on load the queue's own first read (below) is the fresh one
-    window.addEventListener('hashchange', () => followDeepLink(true));
-    // Back to a tab left open: the queue may have grown while it was hidden.
+    // A COLD deep link: the hash is on the page's own history entry, so it is rewritten in place.
+    if (DEEP_LINK_CARDS[location.hash]) {
+        const hash = location.hash;
+        history.replaceState(history.state, '', location.pathname + location.search);
+        followDeepLink(hash, false);   // on load each card's own first read (below) is the fresh one
+    }
+    // ── A TAP ON AN OPEN PAGE IS NOT A BACK PRESS, AND LEAVES NO DEAD ENTRY (whole-app check, 17 Nov 2026) ──
+    // A notification tapped while Operations is open is a hash navigation of this page — as is a tap on
+    // the strip's links — and that fires `popstate` before `hashchange`. overlay.js reads every popstate
+    // as Android Back, so the tap closed whatever was open: "Reset password?" vanished under the
+    // admin's thumb. The tap's popstate is claimed here instead, and the history entry it pushed is taken
+    // back off (rewritten, it stayed behind as a Back press that did nothing). The Calendar's own hashes
+    // have done this since 10 Nov 2026 — calendar-huddle-viewer.js `_consumeHashEntry` has the argument,
+    // including why the card waits for the Back to land.
+    registerPopInterceptor(() => Object.hasOwn(DEEP_LINK_CARDS, location.hash));
+    window.addEventListener('hashchange', (e) => {
+        let hash = '';
+        try { hash = new URL(e.newURL).hash; } catch { /* not a URL: not a deep link */ }
+        // The hash the event CARRIED, and only while it is still the page's: two hash changes in one
+        // task each fire an event, and the earlier one must not take the later one's entry back.
+        if (!Object.hasOwn(DEEP_LINK_CARDS, hash) || location.hash !== hash) return;
+        try {
+            history.back();
+            suppressNextPop();   // the echo is ours, not a Back press
+        } catch {
+            history.replaceState(history.state, '', location.pathname + location.search);
+        }
+        whenHistorySettled(() => followDeepLink(hash, true));
+    });
+    // Back to a tab left open: the queue may have grown while it was hidden, and the audit's answer —
+    // gaps, leavers, a PIN block begun or ended — may be out of date.
     document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
         // A REFRESH, not a re-open: the admin may have closed the card. The list and the chip still update.
-        if (document.visibilityState === 'visible') initResetRequests({ autoOpen: false });
+        initResetRequests({ autoOpen: false });
+        authSetup.refresh();
     });
 
     // The Needs-attention strip — an index the cards feed; it runs no reads of its own (operations-attention.js).
@@ -225,7 +257,7 @@ export function init() {
     // Staff Login Accounts, AFTER the strip exists — not left to timing. The audit feeds the strip only
     // when it ANSWERED (unreported is UNKNOWN, absent reads as nothing to do), and a check that fails
     // after one that answered WITHDRAWS what that one reported.
-    initAuthSetup({
+    const authSetup = initAuthSetup({
         currentIsAdmin: true,
         onAttention: (counts) => reportLoginAccounts(attention, counts),   // with the PIN lockout's (operations-attention.js)
         onWithdraw: () => withdrawLoginAccounts(attention),
@@ -462,6 +494,24 @@ export function init() {
             }
         }
 
+        /** This member's Reset as the list holds it NOW — a re-draw replaces the row's button. @param {string} name */
+        const resetBtnOf = (name) => /** @type {HTMLElement|null|undefined} */ (
+            [...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset'));
+        /**
+         * Tell the admin what became of a reset, AFTER it: a report with one button, "OK". It had the
+         * question's "Cancel" beside it, which reads as a way to undo a reset that has already happened
+         * (whole-app check, 17 Nov 2026). Once it is read, focus goes back to the member's Reset: the
+         * dialog hands it to the button that opened it, which the list's re-draw has usually replaced by
+         * then, so it fell to the page — or, as the report closes, still sits on its hidden OK button.
+         * @param {string} name @param {{ title?: string, message: string }} note
+         */
+        const report = (name, note) => confirmDialog({ ...note, confirmLabel: 'OK', cancelLabel: null })
+            .then(() => {
+                const at = document.activeElement;
+                if (!at || at === document.body || at.closest('.dialog-overlay:not(.visible)')) resetBtnOf(name)?.focus();
+            })
+            .catch(() => {});
+
         async function doReset(/** @type {string} */ name, /** @type {HTMLButtonElement} */ btn) {
             // Every word the admin reads about a reset — the question, its lost-phone box, each failure and
             // each outcome — is operations-reset.js's, beside the reasoning for what each one may claim.
@@ -477,7 +527,7 @@ export function init() {
                 const { retry, note } = resetFailure(name, e);
                 btn.disabled = false;
                 if (retry) say(btn, 'Retry', `Retry resetting ${name}'s password`); else sayReset(btn, name);
-                if (note) confirmDialog({ ...note, confirmLabel: 'OK' }).catch(() => {});
+                if (note) report(name, note);
                 return;
             }
             // Built from the stages the answer reports — null when the row's receipt below says it all.
@@ -485,7 +535,7 @@ export function init() {
             if (outcome) {
                 console.warn('[Operations] resetMemberPassword partial for', name,
                              { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified, lostDevice: result?.lostDevice });
-                confirmDialog({ ...outcome, confirmLabel: 'OK' }).catch(() => {});   // informational; the reset itself already succeeded
+                report(name, outcome);   // informational; the reset itself already succeeded
             }
             // Reset SUCCEEDED. The status re-read is best-effort: if it fails, never show "Retry" (a
             // redundant second reset) — show done, and let the next load reconcile the table.
@@ -497,7 +547,7 @@ export function init() {
                 // page, as it does from a disabled button) follows the row rather than vanishing.
                 const follow = document.activeElement === btn || document.activeElement === document.body;
                 renderForGrade(filterSelect.value);   // re-rendered — and a row on its default looks just as it did, so it says so (whole-app review)
-                const again = /** @type {HTMLElement|null|undefined} */ ([...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset'));
+                const again = resetBtnOf(name);
                 if (again) { sayDone(again); if (follow) again.focus(); }
             } catch (e) {
                 console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);

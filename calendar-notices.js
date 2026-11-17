@@ -53,7 +53,7 @@ import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
 import { teamMembers } from './roster-data.js';
 import { payCalculatorPrices } from './pay-audience.js';   // the Pay page's own audience question
-import { installRoute, promptInstall, yieldToInstallNotice, retireInstallStrip } from './install-prompt.js';
+import { installRoute, promptInstall, yieldToInstallNotice, releaseInstallNoticeYield, retireInstallStrip } from './install-prompt.js';
 import { canOpenNewlink } from './auth-policy.js';   // the New link notice's audience — the drawer pill's own question
 
 /**
@@ -75,14 +75,17 @@ import { canOpenNewlink } from './auth-policy.js';   // the New link notice's au
  *
  * And ONE thing to do the moment a notice is decided, `whenDecided`, for a notice that makes the same
  * ask as something already on the page: the install notice takes the install strip down then
- * (v24.91), rather than 1500ms later, on top of it.
+ * (v24.91), rather than 1500ms later, on top of it. Its undo, `whenRefused`, runs if the notice then
+ * does not open — another notice or overlay has the screen, or access went in the wait — and gives
+ * back what the decision took (17 Nov 2026): the visit was otherwise left with no ask at all.
  *
  * @param {{ open: () => void }} lb
  * @param {'members'|'signed-out'|'everyone'} audience
  * @param {() => boolean} [alsoWhen]
  * @param {() => void} [whenDecided]
+ * @param {() => void} [whenRefused]
  */
-function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecided = () => {}) {
+function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecided = () => {}, whenRefused = () => {}) {
     // Access first, then whatever the coordinator asked us to queue behind (v23.21: the forced
     // set-password overlay a front-door sign-in may put up — see calendar-app.js). `_after` never
     // rejects and never hangs (the coordinator bounds it), so this cannot silence a notice.
@@ -98,8 +101,7 @@ function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecide
         // so `openNoticeIfClear` would open the notice over the very card this module waits for
         // access to keep it off. Refused here, it is refused like any other: not opened, not flagged.
         setTimeout(() => {
-            if (!addressed()) return;
-            openNoticeIfClear(lb);
+            if (!addressed() || !openNoticeIfClear(lb)) whenRefused();
         }, 1500);
     });
 }
@@ -416,8 +418,9 @@ export function initCalendarNotices({ after } = {}) {
     // of that is said there. The iOS route has no button to push out of sight; its card scrolls.
     //
     // ONE ASK AT A TIME with the strip: once this notice is decided, the strip and the notification
-    // ask leave the screen for the visit, and once it is answered the strip does not ask again on this
-    // device. Archived on OPEN, because two of its answers leave the page or the browser.
+    // ask leave the screen for the visit — and come back if the notice then cannot open, so a visit
+    // is never left with no ask at all (17 Nov 2026) — and once it is answered the strip does not ask
+    // again on this device. Archived on OPEN, because two of its answers leave the page or the browser.
     (function () {
         const NOTICE_ID   = 'install-app-2026';
         const NOTICE_DATE = '22 Oct 2026';
@@ -471,7 +474,8 @@ export function initCalendarNotices({ after } = {}) {
         // it (install-prompt.js says why). A PIN unlock is not flagged seen.
         _openWhenAudienceAllows(lb, 'members',
             () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),
-            () => { decided = installRoute() ?? decided; yieldToInstallNotice(); });
+            () => { decided = installRoute() ?? decided; yieldToInstallNotice(); },
+            releaseInstallNoticeYield);   // refused at the open: the strip and the ask come back for this visit
     }());
 
     // ── The New link page: three proposals, for the colleagues it is for (v25.61; owner, 9 Nov 2026) ──

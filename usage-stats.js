@@ -132,15 +132,29 @@ export function orderPageCounts(counts) {
 }
 
 /**
+ * The first day the retention window keeps — every day key older than it is stale.
+ * @param {Date} now @param {number} keepDays
+ */
+function oldestKeptDay(now, keepDays) {
+    return recentDayKeys(now, keepDays)[keepDays - 1];
+}
+
+/**
  * Daily counter keys outside the retention window — safe to prune.
+ *
+ * ONLY KEYS OLDER THAN THE WINDOW, and keys that are not a day at all (whole-app check, 17 Nov
+ * 2026). A key after `now` used to go too, and `now` was the admin device's clock: one running
+ * weeks fast deleted the whole live window. It is now the server's time as far as analytics-client.js
+ * can prove it, which is a LOWER bound — the true date may already be the next day — so a key at or
+ * after the window's first day is never stale, today's included, whatever `now` reads.
  * @param {Record<string, any>} daily
  * @param {Date} now
  * @param {number} [keepDays]
  * @returns {string[]}
  */
 export function staleDailyKeys(daily, now, keepDays = DAILY_RETENTION_DAYS) {
-    const keep = new Set(recentDayKeys(now, keepDays));
-    return Object.keys(daily || {}).filter(k => !keep.has(k));
+    const oldest = oldestKeptDay(now, keepDays);
+    return Object.keys(daily || {}).filter(k => !/^\d{4}-\d{2}-\d{2}$/.test(k) || k < oldest);
 }
 
 // ── ORIGIN / MIGRATION TRACKING (v19.23) ──────────────────────────────────────
@@ -243,7 +257,8 @@ export function summariseOrigins(daily, now, days = ROLLING_WINDOW_DAYS) {
 
 /**
  * Origin keys outside the retention window — pruned by the Operations card, exactly as the
- * activeAccounts daily buckets are. Keys that do not parse are ALSO returned: they are junk that
+ * activeAccounts daily buckets are: only a day OLDER than the window, never a later one
+ * (`staleDailyKeys` says why). Keys that do not parse are ALSO returned: they are junk that
  * `summariseOrigins` would ignore for ever, so sweeping them keeps the doc from growing without
  * bound if a future writer ever malforms a key.
  * @param {Record<string, any>} daily
@@ -251,9 +266,9 @@ export function summariseOrigins(daily, now, days = ROLLING_WINDOW_DAYS) {
  * @param {number} [keepDays]
  */
 export function staleOriginKeys(daily, now, keepDays = DAILY_RETENTION_DAYS) {
-    const keep = new Set(recentDayKeys(now, keepDays));
+    const oldest = oldestKeptDay(now, keepDays);
     return Object.keys(daily || {}).filter(k => {
         const p = parseOriginKey(k);
-        return !p || !keep.has(p.day);
+        return !p || p.day < oldest;
     });
 }

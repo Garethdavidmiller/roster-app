@@ -155,6 +155,7 @@ export async function assertFileSignature(file, expectedType) {
  *   uploadNewsletter: (date:string, file:any, uploadedBy:string) => Promise<string>,
  *   getLatestCircular: () => Promise<any>,
  *   getLatestNewsletter: () => Promise<any>,
+ *   getLatestHuddle: () => Promise<any>,
  *   subscribeToLatestHuddle: (onData:Function, onError:Function) => Function,
  * }}
  */
@@ -472,6 +473,11 @@ export function buildDocumentClient({
         /** @returns {Promise<any>} the latest Newsletter, or null if the server says none is uploaded;
          *  rejects when only an empty cache answered (`latestIn`) */
         getLatestNewsletter: () => latestIn(collections.newsletters),
+
+        /** @returns {Promise<any>} the latest Huddle, read ONCE — for Operations' upload receipt, which
+         *  asks whether a newer one hides the one just filed (doc-upload.js). The Calendar keeps its live
+         *  listener below; this does not replace it. Null, or a rejection, as `latestIn`. */
+        getLatestHuddle: () => latestIn(collections.huddles),
 
         /**
          * Subscribe to real-time updates for the latest Huddle document. Fires immediately with

@@ -10,7 +10,7 @@
  * Edit here for: notification subscribe/unsubscribe UI, Huddle file upload form, Huddle card toggle.
  */
 
-import { uploadHuddle } from './firebase-client.js';
+import { uploadHuddle, getLatestHuddle } from './firebase-client.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, isIOS, notifOffByChoice } from './notif.js';
 import { initCardCollapse } from './overlay.js';
@@ -28,21 +28,33 @@ export function initHuddleUpload({ currentIsAdmin, currentUser }) {
  * Initialises the Notifications card only.
  * Used by settings.html where notifications are available to all staff.
  *
- * @param {{ onState?: (state: 'ok'|'error'|'action'|'blocked'|'n/a', chip: string, tone?: 'plain') => void }} [opts]
+ * @param {{ onState?: (state: 'ok'|'error'|'action'|'blocked'|'n/a', chip: string, tone?: 'plain') => void, payReminders?: boolean }} [opts]
  *   `onState` is called whenever the card learns what state this device is in. It exists so
  *   Settings can put a chip in the header and count the card in its summary WITHOUT this module
  *   importing anything from that page — the words below are already the authority on what each
  *   state means, and a second reading of `peekNotifState` elsewhere could disagree with them.
  *   `tone` is passed only to stop the chip being coloured by its state (v25.14): Settings colours
  *   an `ok` chip green, which is right for "✓ On" and wrong for an "Off" the member chose.
+ *   `payReminders` — whether THIS member is sent the pay reminder. Only CEA and CES are
+ *   (`PAY_REMINDER_GRADES`, functions/pay-reminder.js), and the card promised it to everybody — its
+ *   subtitle, its list and both of its status lines (whole-app check, 17 Nov 2026). Without it the
+ *   card names documents alone, which is true for everyone.
  * @returns {{ setOpen(open: boolean): void }} the card's collapse handle, so a caller can open it
  *   once it knows the state warrants it.
  */
-export function initHuddleNotifications({ onState } = {}) {
+export function initHuddleNotifications({ onState, payReminders = false } = {}) {
     const statusMsg  = /** @type {HTMLElement|null} */ (document.getElementById('notifStatusMsg'));
     const enableBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifEnableBtn'));
     const disableBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifDisableBtn'));
     const deniedMsg  = /** @type {HTMLElement|null} */ (document.getElementById('notifDeniedMsg'));
+
+    // The pay reminder, where the card names it, is shown to the members it is sent to and nobody else —
+    // before the support check below, because the subtitle and the list show on every device.
+    for (const id of ['notifHintPay', 'notifKindPay']) {
+        const el = document.getElementById(id);
+        if (el) el.hidden = !payReminders;
+    }
+    const alerted = payReminders ? 'when a new document arrives and before the pay cut-off' : 'when a new document arrives';
 
     // Shared collapse helper — adds aria-expanded, role="button", and keyboard nav
     const collapse = initCardCollapse('notifToggleHeader', 'notifBody', 'notifChevron');
@@ -102,7 +114,7 @@ export function initHuddleNotifications({ onState } = {}) {
         _enableBtn.textContent  = 'Enable notifications';
         _disableBtn.textContent = 'Disable notifications';
         if (state === 'on') {
-            _statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when a new document arrives and before the pay cut-off.';
+            _statusMsg.textContent    = `Notifications are on — you’ll be alerted ${alerted}.`;
             _disableBtn.style.display = 'block';
             onState?.('ok', '✓ On');
         } else if (state === 'off-lapsed') {
@@ -116,7 +128,11 @@ export function initHuddleNotifications({ onState } = {}) {
                 // not under a browser (whole-app review, Oct 2026).
                 _deniedMsg.textContent = 'On iPhone or iPad: open Settings → Notifications, find this app by its Home Screen name, and turn on Allow Notifications.';
             } else if (/Android/i.test(navigator.userAgent)) {
-                _deniedMsg.textContent = 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
+                // The INSTALLED app has no address bar, so no padlock to tap (whole-app check, 17 Nov 2026):
+                // there the permission is the app's own, in the phone's settings — as on an iPhone.
+                _deniedMsg.textContent = window.matchMedia?.('(display-mode: standalone)').matches
+                    ? 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'
+                    : 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
             } else {
                 // The route is one unit (`.nav-path`), and the arrow into it keeps to the word before it
                 // (a no-break space): a line that starts "→" reads as broken punctuation. WebKit broke
@@ -136,7 +152,7 @@ export function initHuddleNotifications({ onState } = {}) {
             // a green "Off" would have the colour and the word disagree (v25.14).
             onState?.('ok', 'Off', 'plain');
         } else {
-            _statusMsg.textContent   = 'Select “Enable notifications” to get an alert when a new document arrives and before the pay cut-off.';
+            _statusMsg.textContent   = `Select “Enable notifications” to get an alert ${alerted}.`;
             _enableBtn.style.display = 'block';
             onState?.('action', 'Off');
         }
@@ -249,6 +265,8 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
         successMsg: date => `Huddle uploaded for ${date} — staff will see it on the main app`,
         btnLabel: 'Upload Huddle', logPrefix: 'Huddle',
         whereToCheck: '☰ → Daily Huddle',
+        // A later Huddle already filed — tomorrow's, sent the evening before — hides this one from staff.
+        noun: 'Huddle', newest: getLatestHuddle,
         maxDateOffsetDays: 1,
         isAccepted: f => isPdfFile(f) || isDocxFile(f),
         rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',

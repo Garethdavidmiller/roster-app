@@ -166,6 +166,17 @@ describe('staleDailyKeys', () => {
         const now = new Date(2026, 5, 30);
         assert.deepEqual(staleDailyKeys({ '2026-06-30': 1, '2026-06-29': 2 }, now), []);
     });
+    // The prune's `now` is a LOWER bound on the server's clock (analytics-client.js), so the true date may
+    // already be the next one: a later day is never stale (whole-app check, 17 Nov 2026). Only an older
+    // day goes — and a key that is not a day at all, which nothing counts.
+    test('a day after `now` is kept, today\'s included — the true date may already be the next one', () => {
+        const now = new Date(2026, 10, 17, 23, 30);
+        assert.deepEqual(staleDailyKeys({ '2026-11-18': 1, '2026-12-25': 1, '2026-11-17': 1 }, now), []);
+        assert.deepEqual(staleOriginKeys({ '2026-11-18|web': 1, '2026-11-18|web|pwa': 1 }, now), []);
+    });
+    test('a key that is not a day is still swept', () => {
+        assert.deepEqual(staleDailyKeys({ 'junk': 1, '2026-11-17': 1 }, new Date(2026, 10, 17)), ['junk']);
+    });
 });
 
 // ── ORIGIN / MIGRATION TRACKING (v19.23) ──────────────────────────────────────

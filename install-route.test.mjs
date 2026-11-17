@@ -43,7 +43,7 @@ installFakeBrowser();
 // notif.js (isIOS) imports firebase-client.js, which loads the Firebase SDK from gstatic — not importable
 // in Node. The only thing install-prompt.js takes from it is isIOS, answered from the same knob.
 mock.module('./notif.js', { namedExports: { isIOS: () => browser.ios } });
-const { installRoute, initInstallPrompt } = await import('./install-prompt.js');
+const { installRoute, initInstallPrompt, yieldToInstallNotice, releaseInstallNoticeYield, installNoticeHasTheVisit } = await import('./install-prompt.js');
 
 /**
  * Fire the browser's install offer at the module, as Chrome does, wiring the strip first if no test
@@ -159,5 +159,35 @@ describe('the strip, once answered, stays answered for the visit (cal-docs-9, wh
         await p.offer();
         await settleAll();
         assert.equal(p.els.installPrompt.style.display, 'none', 'remembered in memory, not only on disk');
+    });
+
+    // ── A NOTICE THAT CANNOT OPEN GIVES THE VISIT BACK (whole-app check, 17 Nov 2026) ─────────────────
+    // The install notice takes the strip and the notification ask off the screen the moment it is
+    // decided, and opens 1.5 s later — unless another notice has the screen by then, which from 6 Dec is
+    // the timetable notice. Refused, it left the visit with no ask at all. `releaseInstallNoticeYield`
+    // puts back what the yield took, as it was, and a strip the browser offered meanwhile shows then.
+    test('given back, what the yield took returns as it was — the strip up, the ask it outranks still down', async () => {
+        const p = stripPage();
+        await p.offer();
+        assert.equal(p.els.installPrompt.style.display, 'flex', 'premise: the strip is up');
+        p.els.notifPrompt.style.display = 'none';         // the strip outranks the ask (show())
+        yieldToInstallNotice();
+        assert.equal(p.els.installPrompt.style.display, 'none');
+        assert.equal(installNoticeHasTheVisit(), true);
+        releaseInstallNoticeYield();
+        assert.equal(p.els.installPrompt.style.display, 'flex', 'the strip stayed gone for a visit the notice never had');
+        assert.equal(p.els.notifPrompt.style.display, 'none', 'and the ask it outranks did not jump up beside it');
+        assert.equal(installNoticeHasTheVisit(), false, 'the Calendar\'s notification ask may show again');
+        releaseInstallNoticeYield();                       // a second call is no change
+        assert.equal(p.els.installPrompt.style.display, 'flex');
+    });
+
+    test('a strip the browser offered while the notice held the visit shows once it is given back', async () => {
+        const p = stripPage();
+        yieldToInstallNotice();
+        await p.offer();                                   // Chromium's offer arrives during the yield
+        assert.equal(p.els.installPrompt.style.display, 'none', 'premise: held back while the notice has the visit');
+        releaseInstallNoticeYield();
+        assert.equal(p.els.installPrompt.style.display, 'flex', 'the offer made during the yield was lost with it');
     });
 });

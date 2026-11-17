@@ -16,7 +16,7 @@ import { escapeHtml } from './roster-data.js';
 import { auth, getAccountSetupGaps } from './firebase-client.js';
 import { sessionReady, getFirebaseAuthError, restoreFirstAuthUser } from './session.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
-import { readLockout, renderLockoutLine, lockoutCount } from './operations-pin-lockout.js';
+import { readLockout, renderLockoutLine, lockoutCount, lockoutChangesAt } from './operations-pin-lockout.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -34,16 +34,22 @@ const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setup
  *        (whole-app check, 10 Nov 2026; settings-ops-6). Reporting nothing was right and was not
  *        enough: the strip kept "Leavers still active 2" beside a card saying it could not tell.
  *        As the Error Log's (`operations-errors.js`).
+ * @returns {{ refresh: () => Promise<void> }}  `refresh` asks the audit again — for the page to call
+ *        when the staff-PIN push lands on a page already open, and on a return to the tab (whole-app
+ *        check, 17 Nov 2026). The card read the audit once, at load, so that push opened Staff Login
+ *        Accounts on an answer from before the block; the reset queue and the Error Log had both been
+ *        given the same re-read before (Sep 2026, v26.04). A no-op where the card is not wired.
  */
 export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
-    if (!currentIsAdmin) return;
+    const unwired = { refresh: async () => {} };
+    if (!currentIsAdmin) return unwired;
 
     const card      = document.getElementById('authSetupCard');
     const btn       = document.getElementById('authSetupBtn');
     const orphansCb = document.getElementById('authSetupOrphans');
     const resultEl  = document.getElementById('authSetupResult');
     const gapsEl    = document.getElementById('authSetupGaps');
-    if (!card || !btn || !orphansCb || !resultEl) return;
+    if (!card || !btn || !orphansCb || !resultEl) return unwired;
 
     card.style.display = '';
 
@@ -116,8 +122,34 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
         return p;
     }
 
+    // ── THE LAST ANSWER, KEPT, AND THE PIN'S LINE JUDGED BY THE CLOCK (whole-app check, 17 Nov 2026) ──
+    // The audit is asked again now — after a run, on a Retry, on the PIN push, on a return to the tab —
+    // so two can be out at once, and only the one asked LAST may draw: an earlier answer landing after
+    // it painted the roster as it was before the run. And the lockout is kept as the server sent it and
+    // judged at each drawing, with the next drawing set for the moment its words change
+    // (`lockoutChangesAt`): judged once, at the answer, the line still said "blocked until 14:20" at 15:00.
+    let asked = 0;
+    /** The last answer's counts and its lockout as sent — what a drawing of the PIN's line works from.
+     *  @type {{ setUp: number, leavers: number, pinLockout: unknown }|null} */
+    let answered = null;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let lockoutTimer;
+
+    /** Draw the PIN's line, and report the card's three counts, as of NOW; then wait for the next change. */
+    function drawLockout() {
+        clearTimeout(lockoutTimer);
+        if (!answered || !gapsEl) return;
+        const now = Date.now(), lockout = readLockout(answered.pinLockout, now);
+        renderLockoutLine(gapsEl, lockout, now);
+        onAttention?.({ setUp: answered.setUp, leavers: answered.leavers, pinLockout: lockoutCount(lockout) });
+        const next = lockoutChangesAt(lockout, now);
+        // A quarter-second past the change, so the drawing it wakes for is on the far side of it.
+        if (next !== null) lockoutTimer = setTimeout(drawLockout, next - now + 250);
+    }
+
     async function loadGaps() {
         if (!gapsEl) return;
+        const mine = ++asked;
         gapsEl.setAttribute('aria-busy', 'true');
         /** @type {any} */ let gaps;
         try {
@@ -128,11 +160,13 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             if (!auth.currentUser) await restoreFirstAuthUser();
             gaps = await getAccountSetupGaps();
         } catch (err) {
+            if (mine !== asked) return;               // a later check is on its way: it has the last word
             console.warn('[authSetup] account check failed', err);
             gapsEl.removeAttribute('aria-busy');
             renderUnknown('Couldn’t check the accounts — check your connection.');
             return;                                   // report NOTHING: unknown is not "nothing to do"
         }
+        if (mine !== asked) return;
         gapsEl.removeAttribute('aria-busy');
         if (gaps && gaps.refused) {
             // The server could see no roster accounts at all and declined to name the whole roster
@@ -175,15 +209,17 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             }
         }
         // The staff PIN shut for everyone rides on this answer (operations-pin-lockout.js): absent is
-        // unknown, never "none", so the strip withdraws its item rather than reporting a zero.
-        const now = Date.now(), lockout = readLockout(gaps.pinLockout, now);
-        renderLockoutLine(gapsEl, lockout, now);
+        // unknown, never "none", so the strip withdraws its item rather than reporting a zero. Kept as
+        // sent, and judged at each drawing — the block above.
+        answered = { setUp: setUp.length, leavers: leavers.length, pinLockout: gaps.pinLockout };
         gapsEl.hidden = false;
-        onAttention?.({ setUp: setUp.length, leavers: leavers.length, pinLockout: lockoutCount(lockout) });
+        drawLockout();
     }
 
     /** Neither "gaps" nor "clean" — and it must not be mistaken for either, here or on the strip. */
     function renderUnknown(/** @type {string} */ message) {
+        answered = null;                 // nothing known any more, so no later drawing may report it
+        clearTimeout(lockoutTimer);
         onWithdraw?.();   // what an earlier answer reported is unknown again (see the JSDoc above)
         if (!gapsEl) return;
         gapsEl.textContent = '';
@@ -359,4 +395,6 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             btn.textContent = 'Set up accounts';
         }
     });
+
+    return { refresh: () => loadGaps().catch(() => {}) };
 }

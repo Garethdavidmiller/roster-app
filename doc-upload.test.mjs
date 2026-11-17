@@ -275,3 +275,56 @@ describe('what the admin is told is what the engine decided (cal-docs-12, cal-do
         assert.equal(els.feedback.textContent, 'You were signed out before this upload was confirmed. Sign in again, then check whether it saved.');
     });
 });
+
+// ── A RECEIPT SAYS WHETHER STAFF WILL BE SHOWN IT (whole-app check, 17 Nov 2026) ─────────────────────
+// Staff are only ever shown the newest of each kind — every viewer reads the latest date, and the server
+// announces nothing older — so an upload dated before one already filed is kept and never offered. Its
+// receipt still said "staff can open it". The card now asks for the newest as it uploads.
+describe('a receipt says whether staff will be shown the upload', () => {
+    beforeEach(() => claim._resetUnconfirmedWrites());
+    const CIRCULAR = (/** @type {string} */ date) => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`;
+    /** Upload a Circular dated 10 Nov 2026 (the fake page's today) with the newest of its kind answering `newest`. */
+    async function uploadWithNewest(/** @type {() => Promise<any>} */ newest) {
+        const els = card({ uploadFn: async () => 'url', noun: 'Circular', newest, successMsg: CIRCULAR });
+        await pick(els, pdf('circular.pdf'));
+        return els;
+    }
+
+    test('a newer one already filed: the receipt says this one is filed and which one staff see', async () => {
+        const els = await uploadWithNewest(async () => ({ date: '2026-11-14', storageUrl: 'x' }));
+        await els.btn.fire('click');
+        assert.equal(els.feedback.textContent,
+            'Circular uploaded for 10 Nov 2026 — but staff are shown the newest one, dated 14 Nov 2026, so they won’t see this one.');
+    });
+
+    for (const [what, newest] of /** @type {Array<[string, any]>} */ ([
+        ['it is the newest', { date: '2026-11-03' }],
+        ['it replaced the one filed for its date', { date: '2026-11-10' }],
+        ['none was filed before', null],
+        ['the answer carries no readable date', { date: 'soon' }],
+    ])) {
+        test(`${what}: the card's own receipt`, async () => {
+            const els = await uploadWithNewest(async () => newest);
+            await els.btn.fire('click');
+            assert.equal(els.feedback.textContent, CIRCULAR('10 Nov 2026'));
+        });
+    }
+
+    test('a read that fails costs only the check — the card\'s own receipt, and the upload is not reported as failed', async () => {
+        const els = await uploadWithNewest(async () => { throw new Error('offline'); });
+        await els.btn.fire('click');
+        assert.equal(els.feedback.textContent, CIRCULAR('10 Nov 2026'));
+        assert.match(els.feedback.className, /--ok/);
+    });
+
+    test('a read that never answers holds the receipt three seconds at most', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const els = await uploadWithNewest(() => new Promise(() => {}));
+        const done = els.btn.fire('click');
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+        assert.equal(els.feedback.textContent, '', 'premise: still waiting on the read');
+        t.mock.timers.tick(3000);
+        await done;
+        assert.equal(els.feedback.textContent, CIRCULAR('10 Nov 2026'));
+    });
+});

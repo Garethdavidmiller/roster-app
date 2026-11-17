@@ -174,8 +174,13 @@ async function initErrorLog(opts = {}) {
                 // finally removes it): setting it before the refresh put the message inside an
                 // aria-busy subtree that was then destroyed — screen readers heard nothing
                 // (v16.69 review fix).
+                // It names what it resolved: a slow-save diagnostic is not an error, and was counted as
+                // one here while the chip and the strip leave it out (whole-app check, 17 Nov 2026).
                 const freshStatus = content.querySelector('[role="status"]');
-                if (freshStatus) freshStatus.textContent = `${count} error${count !== 1 ? 's' : ''} resolved`;
+                const diag = batch.filter(isDiagnosticEntry).length;
+                const said = [[count - diag, 'error'], [diag, 'slow-save diagnostic']]
+                    .filter(([n]) => n).map(([n, what]) => `${n} ${what}${n === 1 ? '' : 's'}`);
+                if (freshStatus) freshStatus.textContent = `${said.join(' and ')} resolved`;
             });
             bar.appendChild(allBtn);
             content.appendChild(bar);
@@ -309,7 +314,11 @@ async function initErrorLog(opts = {}) {
     }
 }
 
-/** Build the plain-text block that gets pasted into Claude for diagnosis. */
+/**
+ * Build the plain-text block that gets pasted into Claude for diagnosis. It carries no member's name
+ * (whole-app check, 17 Nov 2026): the row shows whose error it was, and a block pasted into a chat
+ * outside the app does not need to — the message, page, version, device and time are the diagnosis.
+ */
 function _formatForClaude(/** @type {any} */ err) {
     const at = err.timestamp?.toDate ? err.timestamp.toDate() : null;
     const when = at ? `${formatDayMonthYear(at)}, ${formatClock(at)}` : 'unknown';
@@ -318,7 +327,6 @@ function _formatForClaude(/** @type {any} */ err) {
         '',
         `App version: ${err.appVersion ?? '—'}`,
         `Page:        ${err.page ?? '—'}`,
-        `Member:      ${err.memberName ?? '—'}`,
         `Time:        ${when}`,
         `Device:      ${err.userAgent ?? '—'}`,
         '',
