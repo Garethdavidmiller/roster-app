@@ -312,6 +312,11 @@ const press = () => els.compareDiffOnlyBtn._handler?.();
 
 test('filtered: the strip still says the figures and the cover row describe every line', () => {
     const c = comparing(3);
+    // The cover row BEFORE the filter, read before the press re-renders it. This assertion compared the
+    // footer with itself, so a footer counting only the lines left on screen passed (17 Nov 2026).
+    const footBefore = els.compareGridFootA.innerHTML;
+    assert.match(footBefore, new RegExp(`<span class="cov-num">${ROTATING_LINES}</span>`),
+        'premise: unfiltered, a weekday is on duty on every line');
     press();
     assert.ok(els.compareGridsWrap.classList.contains('compare-diff-only'),
         'the filter must actually be applied');
@@ -319,7 +324,7 @@ test('filtered: the strip still says the figures and the cover row describe ever
     assert.match(els.compareSummary.innerHTML, /still cover all/);
     assert.match(els.compareSummary.innerHTML, new RegExp(`all ${ROTATING_LINES} lines`));
     // And the cover row is untouched by the filter — it is a property of the design, not the view.
-    assert.equal(els.compareGridFootA.innerHTML, els.compareGridFootA.innerHTML);
+    assert.equal(els.compareGridFootA.innerHTML, footBefore, 'the filter changed the cover row');
     assert.match(els.compareGridFootA.innerHTML, /cov-cell/);
     assert.ok(c.isCompareMode());
 });
