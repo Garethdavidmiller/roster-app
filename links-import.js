@@ -378,15 +378,19 @@ function importName(v) {
  * @param {number} [lines]
  */
 export function summariseImport(patterns, lines = ROTATING_LINES) {
-    let worked = 0, spare = 0, rest = 0;
-    const filled = Object.keys(patterns || {}).length;
+    let worked = 0, spare = 0, rest = 0, filled = 0;
     for (const row of Object.values(patterns || {})) {
+        // A line is FILLED when it holds a day of work or cover — the reading the Design checks' "Lines not yet
+        // designed" takes. An empty week stays in its place (invariant 6), so it is a key here; counting the keys
+        // put "26 of 26 lines" above "Line 5 is empty in the paste" (17 Nov 2026).
+        let holds = false;
         for (const d of DAYS) {
             const s = row[d];
-            if (s === 'SPARE') spare++;
+            if (s === 'SPARE') { spare++; holds = true; }
             else if (s === 'RD' || s === 'OFF' || !s) rest++;
-            else worked++;
+            else { worked++; holds = true; }
         }
+        if (holds) filled++;
     }
     return { filled, lines, worked, spare, rest };
 }
