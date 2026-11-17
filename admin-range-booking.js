@@ -59,8 +59,10 @@ import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim
  *   sundayNote?: string }) => string} cfg.renderReady  Ready-state innerHTML. `sundays` are the Sundays
  *   this save will set as rest days (`rangeSundayCorrections`) — counted in `restCount`/`skipped`, but
  *   not skipped — and `sundayNote` says so in words, or is '' when there are none.
- * @param {(workingCount: number, member: string) => string} cfg.successFeedback  Inline ✓ feedback text.
- * @param {(workingCount: number, member: string) => string} cfg.successToast     Bottom-toast text.
+ * @param {(workingCount: number, member: string, alreadyBooked: number) => string} cfg.successFeedback  Inline ✓
+ *   feedback text. `alreadyBooked` is how many of the written days already held leave (`projection`'s,
+ *   only when the writer wrote exactly the days the plan did; 0 without a projection).
+ * @param {(workingCount: number, member: string, alreadyBooked: number) => string} cfg.successToast     Bottom-toast text.
  * @param {() => (string|null)} cfg.getCurrentUser  Live getter for the logged-in user name.
  * @param {Function}          [cfg.showInChangeAShift] Jumps Change a Shift to a member + date.
  * @param {Function}          [cfg.showSuccess]   Scroll-independent bottom success toast.
@@ -395,16 +397,19 @@ export function createRangeBookingSection(cfg) {
                 : sundayCount ? [`${sundayCount === 1 ? '1 Sunday' : `${sundayCount} Sundays`} in the range set as ${sundayCount === 1 ? 'a rest day' : 'rest days'}`] : [];
             // …and a change staged in Change a Shift on a booked day, which the booking cleared (admin-own-write.js).
             const lines = [...receipt.leftAlone, ...sundays, ...(cleared.length ? [clearedDaysLine(cleared)] : [])];
+            // Days that already held leave, as the preview counted them — only when the writer wrote the
+            // plan's days, for the Sundays' reason above: a receipt may not name a day it did not change.
+            const held = workingCount === plan.toWrite ? (plan.projection?.counts.alreadyBooked ?? 0) : 0;
             _say('success');
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
-            _showSaved(cfg.successFeedback(workingCount, member), member, lines);
+            _showSaved(cfg.successFeedback(workingCount, member, held), member, lines);
             // A receipt that names days does not time out — the week grid's rule (v21.38): a manager
             // checking it against a paper request can outlast any number picked here.
             if (!lines.length) fadeFeedback(feedbackEl, 'feedback', 7000);
             // The form resets and Change-a-Shift scrolls into view below, so also fire
             // the bottom toast — confirmation must be visible regardless of scroll.
-            cfg.showSuccess?.(cfg.successToast(workingCount, member));
+            cfg.showSuccess?.(cfg.successToast(workingCount, member, held));
 
             // The range clears; the MONTH stays (owner's decided default, 10 Nov 2026). Moving the
             // picker back to today crossed a year after a next-year booking, and the banner above

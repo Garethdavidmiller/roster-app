@@ -989,3 +989,69 @@ describe('K. a save keeps the picker on the month it was showing', () => {
         assert.deepEqual(_resetArgs, [{ keepView: true }]);
     });
 });
+
+// L. A DAY THAT ALREADY HOLDS LEAVE IS NOT A NEW DAY (review, Nov 2026). With three of five days
+// already leave, the preview said "5 days of Annual Leave" and the receipt "Recorded 5 days", while the
+// balance fell by 2. The REAL card and projection (`alreadyBooked`); the writer is the mock.
+describe('L. days that already hold leave are counted apart from the new ones', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    /** A member and five days in a row that they work, none a Sunday — found from the roster. */
+    const run = (() => {
+        for (const m of teamMembers.filter(x => !x.hidden && !x.managerOnly && !x.startDate)) {
+            /** @type {string[]} */ const days = [];
+            for (let i = 0; i < 25 && days.length < 5; i++) {
+                const d = new Date(2027, 2, 1 + i);   // March 2027, before Easter: no bank holiday in reach
+                if (d.getDay() === 0 || !works(m, iso10(d))) { days.length = 0; continue; }
+                days.push(iso10(d));
+            }
+            if (days.length === 5) return { m, days };
+        }
+        return null;
+    })();
+    /** @type {string[]} */ let toasts = [];
+    const deps = (/** @type {string} */ name) => ({
+        alMember: memberSelect(name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {},
+        getCurrentUser: () => 'A. Admin', showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {},
+        showSuccess: (/** @type {string} */ t) => { toasts.push(t); },
+    });
+    /** The card wired for `m`, the first three days already annual leave, the five on screen. */
+    const book = (/** @type {any} */ m, /** @type {string[]} */ days) => {
+        toasts = [];
+        _ovMap = new Map(days.slice(0, 3).map(date => [date, { id: `h${date}`, memberName: m.name, date, type: 'annual_leave',
+            value: 'AL', source: 'manual', createdAt: { seconds: 1_790_000_000 } }]));
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ (deps(m.name)));
+        el('alFrom').value = days[0]; el('alTo').value = days[4];
+        for (const fn of el('alTo')._on.change ?? []) fn();
+    };
+
+    test('premise: some member works five days in a row, none a Sunday', () => {
+        assert.ok(run, 'no such run on the roster — the cases below prove nothing');
+    });
+
+    test('the preview counts the two new days, and names the three already booked', () => {
+        const { m, days } = /** @type {any} */ (run);
+        book(m, days);
+        assert.match(el('alPreview').innerHTML, /<strong>2 new days<\/strong> of Annual Leave/);
+        assert.match(el('alPreview').innerHTML, /\(\+ 3 already booked\)/);
+        assert.doesNotMatch(el('alPreview').innerHTML, /<strong>5 days<\/strong>/);
+    });
+
+    test('the receipt and the toast say the same, when the writer wrote the days the preview counted', async () => {
+        const { m, days } = /** @type {any} */ (run);
+        book(m, days);
+        _record = async () => ({ workingCount: 5, sundayCount: 0 });
+        await save();
+        assert.equal(el('alFeedback').textContent, `✓ Recorded 2 new days of Annual Leave for ${m.name} (3 already booked)`);
+        assert.deepEqual(toasts, [`Recorded 2 new days of Annual Leave for ${m.name} (3 already booked)`]);
+    });
+
+    test('a writer that wrote other days than the plan is reported by its own count alone', async () => {
+        const { m, days } = /** @type {any} */ (run);
+        book(m, days);
+        _record = async () => ({ workingCount: 4, sundayCount: 0 });
+        await save();
+        assert.equal(el('alFeedback').textContent, `✓ Recorded 4 days of Annual Leave for ${m.name}`);
+    });
+});
