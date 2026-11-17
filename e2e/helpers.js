@@ -548,18 +548,25 @@ export async function clickInView(locator) {
  * @returns {Promise<boolean>} whether a dialog was found and clicked
  */
 export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm') {
-    const btn = page.locator(selector).first();
     // A COUNT IS A SNAPSHOT, and at some call sites the dialog is genuinely optional — the links
     // order-switch test only gets one when there is something to confirm. Under load the count and
     // the click straddle that: count sees a dialog mid-open, it never finishes arriving, and a
     // committed click then burns the whole test timeout waiting for an element that is not coming.
-    if (!await btn.count()) return false;
-    // The lifecycle adds `.open` on the frame after `.visible`, so its presence means the fade has
-    // begun; the geometry check below is what says it has finished.
-    await page.locator('.lb-overlay.open, .dialog-overlay.open').first()
-        .waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
+    if (!await page.locator(selector).count()) return false;
+    // THE BUTTON IN THE OPEN DIALOG, NOT THE FIRST IN THE PAGE (17 Nov 2026). A confirm or prompt
+    // dialog's node stays in the page for half a second after it closes (overlay.js, `_openDialog`),
+    // hidden, and AHEAD of a newer dialog in document order. When the steps between two dialogs ran
+    // faster than that, `.first()` pressed the closed one's button — "Element is not visible" — and
+    // the Links test of a refused create failed five runs in six. A closing overlay loses `.open` the
+    // moment it starts to close (`dismissOverlay`), and the lifecycle adds it to a new one on the frame
+    // after `.visible`, so waiting for a match inside an `.open` overlay waits for the fade to begin
+    // on the right dialog. The geometry check below is what says the fade has finished.
+    const inOpen = page.locator(selector).and(page.locator('.lb-overlay.open *, .dialog-overlay.open *')).first();
+    await inOpen.waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
+    const btn = (await inOpen.count()) ? inOpen : page.locator(selector).first();
     await page.waitForFunction((sel) => {
-        const el = document.querySelector(sel);
+        const all = [...document.querySelectorAll(sel)];
+        const el = all.find(e => e.closest('.lb-overlay.open, .dialog-overlay.open')) ?? all[0];
         if (!el) return false;
         const now = el.getBoundingClientRect();
         const prev = /** @type {any} */ (window).__dlgBox;
