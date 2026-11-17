@@ -7,15 +7,21 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 
 ## What an entry holds
 
-Each module entry says what the module is for, names every export with a short note, and lists the
-invariants an editor must not break, each as one line or as a pointer to where the module explains
-it. Design reasoning lives in the module's own header and comments; release history lives in git log
-and the plan docs (CLAUDE.md → "Current file structure", the three homes). An entry that restates its
-module drifts from it, so an entry points rather than argues.
+An entry is a routing card: what the module is FOR, in a sentence or three, and where its rules live —
+the rule file or contract that binds it and the tests that guard it. Then one line of its exports.
 
-`doc-parity.test.mjs` keeps the map honest: every root module has its own `###` entry, every root
-export is named somewhere in this file, a "`symbol` in `file.js`" claim must be true, and a
-backticked name the source no longer holds must be marked as gone where it is named.
+- **The purpose is written by hand.** It says enough to decide whether this is the file to open.
+- **The export line is generated** — `npm run generate:ai-map` writes `- **Exports:**` from the code
+  (`scripts/ai-map-lib.mjs`), and `doc-parity.test.mjs` fails a stale one. Never edit it by hand; run
+  the script after changing a module's exports or adding an entry.
+- **The reasoning is not here.** Invariants, the why, "never do X because Y", what an export returns:
+  the module's own header and JSDoc, where an editor is already looking and where it cannot drift from
+  the code. Release history is git log (CLAUDE.md → "Current file structure", the three homes). An
+  entry that restates its module is a second copy, and the second copy is the one that goes wrong.
+
+`doc-parity.test.mjs` also checks that every module has its own `###` entry, that a
+"`symbol` in `file.js`" claim is true, that a backticked name the source no longer holds is marked as
+gone, and that no card outgrows its cap.
 
 ---
 
@@ -24,48 +30,48 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Task | Primary file(s) |
 |------|----------------|
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
-| Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
+| Raw roster cycle patterns | `roster-cycle-data.js` |
 | The roster's people (`teamMembers`) | `roster-member-data.js` (re-exported by `roster-data.js`) |
 | Calendar coordinator — event wiring, month navigation, the access hooks | `calendar-app.js` |
-| Calendar display month and year — getDisplayMonth/Year, setDisplayMonth/Year, changeDisplay, addMonths, persistViewedMonth, watchLocalDate, BROWSED_MONTH_KEPT_MS | `calendar-state.js` |
-| Calendar swipe carousel — initSwipeHandler, isSwipeGestureActive, isSwipeCooldown | `calendar-swipe.js` |
-| Calendar annual-leave panel and day-detail panel — initCalendarLightboxes | `calendar-al-lightbox.js` |
-| Calendar first three-month read and the sync chip — initInitialFetch | `calendar-initial-fetch.js` |
-| Calendar keyboard navigation and hover tooltip — initCalendarKeyboard, initCalendarTooltip | `calendar-keyboard.js` |
-| Calendar override cache — rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth | `calendar-overrides.js` |
+| Calendar display month and year, and the browsed month kept across a reload | `calendar-state.js` |
+| Calendar swipe carousel | `calendar-swipe.js` |
+| Calendar annual-leave panel and day-detail panel | `calendar-al-lightbox.js` |
+| Calendar first three-month read and the sync chip | `calendar-initial-fetch.js` |
+| Calendar keyboard navigation and hover tooltip | `calendar-keyboard.js` |
+| Calendar override cache | `calendar-overrides.js` |
 | What the Calendar knows about each month, and so what it may show | `calendar-data-state.js` |
 | The Calendar's access gate, the cards that stand in for it, and its pure rules | `calendar-access.js` · `calendar-lock-cards.js` · `calendar-lock-slot.js` · `calendar-access-core.js` |
 | The member's own roster kept on the device, shown labelled before the sign-in check finishes | `calendar-snapshot.js` |
 | The Calendar page's one-time notices (which are live: the new-notice skill → "Current notices") | `calendar-notices.js` |
-| Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
-| The phone's text scale, measured rather than asked, for the Calendar's control rows — LARGE_FROM, LARGE_VALUE, COMPACT_FROM, COMPACT_VALUE, tierFor, measureTextScale, applyTextScale | `text-scale.js` |
-| Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, dayCellParts, dayCellName, getSwipeDirection | `calendar-renderer.js` |
+| Calendar member selection | `calendar-member.js` |
+| The phone's text scale, measured rather than asked, for the Calendar's control rows | `text-scale.js` |
+| Calendar rendering — the grid, the header and the day cells | `calendar-renderer.js` |
 | The month legend — which keys apply, and whether it shows at all | `calendar-legend.js` |
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
 | WHEN the Calendar page may draw — the start-up stage, the one wait for a swipe, the focus owed to the next grid | `calendar-redraw.js` |
-| The notification prompt strip and silent renewal on the Calendar — initNotifPrompt (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
-| The install strip on the Calendar, and the route the install notice asks of it — initInstallPrompt, installRoute, promptInstall, yieldToInstallNotice, releaseInstallNoticeYield, retireInstallStrip, installNoticeHasTheVisit | `install-prompt.js` |
+| The notification prompt strip and silent renewal on the Calendar (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
+| The install strip on the Calendar, and the route the install notice asks of it | `install-prompt.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
 | Which Huddle cells are physically in column 1 (`firstColumnMask`), for the sticky job column | `huddle-table-grid.js` |
 | Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
-| Team Week View — initTeamView, and `weekStartForMonth` (which week it opens on) | `calendar-team-view.js` |
-| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache (authoritative range refresh), isBeforeMemberStart, isRestShift, isOverrideDisplaySuppressed, resolveEffectiveShift (shared display ladder), computePeriodDeleteIds; training value grammar + pay resolver | `override-utils.js` |
-| Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
+| Team Week View, and which week it opens on | `calendar-team-view.js` |
+| Override priority, member start, rest shifts, the shared display ladder (`resolveEffectiveShift`), the Sunday rule, the training value grammar and its pay resolver | `override-utils.js` |
+| Body scroll lock, overlay history, focus trap, the lightbox lifecycle, the in-app dialogs, card collapse | `overlay.js` |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
 | Service worker registration + update lifecycle (every app page) | `sw-register.js` |
-| Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
+| Auth/session helpers — the local session and re-establishing Firebase on load | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` (+ `admin-boot.js`) + `admin.html` |
 | Settings page — Password, Work email, Notifications, Install, Pay Calculator data | `settings-app.js` + `settings.html` |
 | Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` (the Circular and Newsletter cards' configuration: `operations-doc-uploads.js`) |
-| Error Log card (ops page) — uncaught error capture, the card, Copy for Claude | `error-reporter.js`, `firebase-client.js` (logClientError/getClientErrors/resolveClientError), `client-errors.js` (ordering/retention policy), `operations-errors.js`, `operations.css` · the admin's phone told of new entries: `functions/error-log-notify.js` (the rules: `functions/error-log-notice.js`) |
-| Usage card (ops page) — anonymous page popularity + active-account counts | `usage-reporter.js` (recordUsage per page), `firebase-client.js` (recordPageView/recordActiveAccount/getUsageStats), `usage-stats.js` (date/aggregation maths), `operations-usage.js`, `operations.css`, `firestore.rules` (`analytics`) |
+| Error Log card (ops page) — uncaught error capture, the card, Copy for Claude | `error-reporter.js`, `firebase-client.js`, `client-errors.js` (ordering/retention policy), `operations-errors.js`, `operations.css` · the admin's phone told of new entries: `functions/error-log-notify.js` (the rules: `functions/error-log-notice.js`) |
+| Usage card (ops page) — anonymous page popularity + active-account counts | `usage-reporter.js`, `firebase-client.js`, `usage-stats.js` (date/aggregation maths), `operations-usage.js`, `operations.css`, `firestore.rules` (`analytics`) |
 | Document links card (ops page) — a new key for every stored Huddle, Circular and Newsletter file, so every old copy of a link stops working | `operations-doc-links.js` (the card) · `functions/documents.js` (`rotateDocumentLinks`, the endpoint) · `functions/doc-link-rotation.js` (the rules) |
 | Annual leave sheet card (ops page) — the clerks' workbook checked against the app, day by day, and the leave it is missing added for the people the admin confirms | `operations-al-sheet.js` (the card) · `operations-al-save.js` (the Save's answers, confirmations, receipt and Undo) · `al-leave-file.js` (the leave file and its seal) · `al-leave-compare.js` (each day, by the app's own leave rules) · `al-leave-plan.js` (what a Save would write, and its log) · `al-leave-save.js` (the Save, the log and the Undo, against Firestore) · `al-leave-words.js` (every sentence) · the file is made in a session by `scripts/make-leave-file.mjs` · plan of record `docs/AL_UPLOADER_PLAN.md` |
 | Links design workspace — the rotation design grid (`ROTATING_LINES` lines), paint mode, hourly coverage heat map, design checks, auto-generator UI | `links-app.js` + `links.html` + `links.css` |
-| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) · `runDesignChecks(patterns, rotatingLines)` returns `{ weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance }` |
+| Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
 | Which AL days consume entitlement, and a member's taken/booked/remaining position | `al-entitlement.js` (pure — no DOM/Firebase; tested by `al-entitlement.test.mjs`) |
 | CHRISTMAS LEAVE — who is shown on leave on 25/26 December, never counted, and the Boxing Day day in lieu | `christmas-leave.js` (pure; `christmas-leave.test.mjs`) · the whole allowance `entitlementFor` in `al-entitlement.js` |
@@ -77,7 +83,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-overrides.js` (save logic) |
-| An Admin save or delete must not overwrite a colleague's newer edit — the checked commit, and what counts as changed | `admin-override-store.js` (`commitChecked`, `commitIfUnchanged`, `deleteIfUnchanged`) · `override-compare.js` (`sameOverrideRecord`) · `admin-week-row-state.js` (what each row showed) · `admin-own-write.js` (the page's OWN write is not a colleague's: the rows it touched follow it) · the weekly roster import's Save: `roster-import-save.js` (`saveRosterWrites`) |
+| An Admin save or delete must not overwrite a colleague's newer edit — the checked commit, and what counts as changed | `admin-override-store.js` · `override-compare.js` · `admin-week-row-state.js` (what each row showed) · `admin-own-write.js` (the page's OWN write is not a colleague's: the rows it touched follow it) · the weekly roster import's Save: `roster-import-save.js` (`saveRosterWrites`) |
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` (`parseRosterPDF`) + `functions/roster-parse-helpers.js` + `functions/roster-prompt.js` |
@@ -101,8 +107,8 @@ backticked name the source no longer holds must be marked as gone where it is na
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
-| localStorage wrappers (lsGet, lsSet, lsDel, lsKeys) | `ls.js` |
-| Cross-file localStorage key constants (SELECTED_MEMBER, TEAM_VIEW and the rest) | `storage-keys.js` |
+| localStorage wrappers | `ls.js` |
+| Cross-file localStorage key constants | `storage-keys.js` |
 | Cloud Functions — the composition root (`functions/index.js`); documents (`functions/documents.js`), the Huddle ingest (`functions/huddle-ingest.js`), the Huddle's retention (`functions/huddle-retention.js`); accounts and the PIN (`functions/auth-endpoints.js` with `functions/account-lifecycle.js`, the reset-request doorbell `functions/reset-request.js`, and the PIN's `functions/calendar-viewer-auth.js`); push (`functions/push.js`, and what every payload looks like, `functions/push-notices.js`); the pay reminder's audience (`functions/pay-reminder.js`) and the admin's Error Log notification (`functions/error-log-notify.js`, its rules `functions/error-log-notice.js`) | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |

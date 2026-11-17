@@ -138,7 +138,7 @@ Cache freshness is `Cache-Control: no-cache` in `firebase.json` plus the version
 
 **Documentation update policy:** Update every **0.10 version** (e.g. 10.10 → 10.20), or immediately on: new pay grade, auth/Firestore model change, SW strategy change, new page or module, data model change.
 
-**Same-commit rule:** Any commit that adds, removes, or renames a JS module — **or removes/renames an exported symbol** from one — must also update `docs/FILE_INDEX.md` and `docs/AI_MAP.md` in the same commit. The pre-commit hook (`githooks/pre-commit`) enforces both (modules must be listed in both docs; a staged module whose exported surface changed vs `HEAD` requires `AI_MAP.md` to be staged too). It **also blocks** a commit when any stamped doc's "Last updated" line has fallen behind the latest 0.10 milestone (mirroring `sw-asset-check.test.mjs`), runs ESLint on staged JS files (if ESLint is installed), and checks that `firebase-client.js` does not import more than one Firebase SDK version.
+**Same-commit rule:** Any commit that adds, removes, or renames a JS module — **or removes/renames an exported symbol** from one — must also update `docs/FILE_INDEX.md` and `docs/AI_MAP.md` in the same commit (an entry's export line is written by `npm run generate:ai-map`, never by hand). The pre-commit hook (`githooks/pre-commit`) enforces both (modules must be listed in both docs; a staged module whose exported surface changed vs `HEAD` requires `AI_MAP.md` to be staged too). It **also blocks** a commit when any stamped doc's "Last updated" line has fallen behind the latest 0.10 milestone (mirroring `sw-asset-check.test.mjs`), runs ESLint on staged JS files (if ESLint is installed), and checks that `firebase-client.js` does not import more than one Firebase SDK version.
 
 ---
 
@@ -253,7 +253,7 @@ and it is not a changelog. Three homes, one fact each:
 
 A fact kept in two places drifts, and that drift is behind every stale doc claim this repo has had to
 correct. So when you add a module, give it a one-line entry in `FILE_INDEX.md` and put the argument
-in its header; see `AI_MAP.md` for full module descriptions and export lists. Reasoning leaves a doc
+in its header; see `AI_MAP.md` for each module's routing card and generated export list. Reasoning leaves a doc
 only after it is verified in the module header. `doc-parity.test.mjs` caps each catalogue entry and
 the version stamps in it, refuses a file routed twice, and caps this file's total size, because it is
 loaded into every session.

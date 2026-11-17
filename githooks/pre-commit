@@ -284,8 +284,8 @@ for (const f of jsFiles) {
 if (offenders.length && !aiMapStaged) {
     for (const o of offenders) process.stderr.write(`  export-drift: changed export(s) in ${o.f}: ${o.changes.join(', ')}\n`);
     process.stderr.write('\n  An added, removed or renamed export changes the module documented API.\n');
-    process.stderr.write(`  Update ${AI_MAP} (and CLAUDE.md if its file-structure line names the export)\n`);
-    process.stderr.write('  in the SAME commit, then re-commit.\n');
+    process.stderr.write(`  Run: npm run generate:ai-map — it rewrites the export lines in ${AI_MAP} from the code —\n`);
+    process.stderr.write('  and stage the result in the SAME commit (and CLAUDE.md if its file-structure line names the export).\n');
     process.exit(1);
 }
 
@@ -304,7 +304,7 @@ if (offenders.length) {
             process.stderr.write(`  export-drift: ${AI_MAP} is staged but never mentions ${o.f} or ${o.changes.join(', ')}\n`);
         }
         process.stderr.write(`\n  Staging ${AI_MAP} is not the same as documenting the change.\n`);
-        process.stderr.write('  Update the entry for the module whose exports changed.\n');
+        process.stderr.write('  Run: npm run generate:ai-map, and stage what it writes.\n');
         process.exit(1);
     }
 }

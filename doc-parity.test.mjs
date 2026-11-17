@@ -311,16 +311,17 @@ test('every module has its own AI_MAP entry, not just a mention', () => {
         '\nGive each one a `### ` entry, or add it to an existing grouped heading.');
 });
 
-// ── AN AI_MAP ENTRY IS A ROUTING CARD, NOT A HISTORY (7 Nov 2026) ────────────────────────────────
+// ── AN AI_MAP ENTRY IS A ROUTING CARD, NOT A HISTORY ────────────────────────────────────────────
 //
-// One pass took the map from about 757,000 characters to 326,000, and every entry it cut had grown
-// the same way: version stamps, "until vX it said" stories, measurements, and reasoning the module's
-// own header already held. An entry is the module's purpose, its exports with a short note each, and
-// its invariants as a line or a pointer; the argument lives beside the code, where it cannot drift.
+// An entry is the module's purpose and where its rules live; the reasoning is the module's own header,
+// the history is git log, and the export list is GENERATED (contract 1c). One pass on 7 Nov 2026 took
+// the map from about 757,000 characters to 326,000 and set a 5,000-character cap per entry; the second,
+// on 17 Nov 2026, cut every entry to a routing card, moving any reasoning the header lacked into it.
 //
-// The cap is the largest entry that survived the pass, rounded up, so it can only come DOWN. An
-// entry that needs more room is a module whose header should hold the rest. The cap bounds an
-// ENTRY, not the map, so a new module still gets a full entry of its own.
+// The cap counts only the HAND-WRITTEN text: a generated export line is as long as the module's surface,
+// which is not prose and not this test's business. It is the largest card that survived the second
+// pass, rounded up, so it can only come DOWN. An entry that needs more room is a module whose header
+// should hold the rest.
 const AIMAP_ENTRY_CAP = 5_000;
 test('no AI_MAP entry outgrows a routing card', () => {
     const entries = [];
@@ -339,7 +340,7 @@ test('no AI_MAP entry outgrows a routing card', () => {
     if (cur) entries.push(cur);
     assert.ok(entries.length > 150, `only ${entries.length} AI_MAP entries read — the splitter is broken`);
     const over = entries
-        .map(e => ({ head: e.head, size: [...e.text].length }))
+        .map(e => ({ head: e.head, size: [...e.text.split('\n').filter(l => !/^- \*\*Exports(?: of `[^`]+`)?:\*\* /.test(l)).join('\n')].length }))
         .filter(e => e.size > AIMAP_ENTRY_CAP)
         .map(e => `${e.head.slice(0, 80)} — ${e.size} characters`);
     assert.deepEqual(over, [],
