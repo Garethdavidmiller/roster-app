@@ -323,9 +323,9 @@ export function dispatcherBreakdown({ member, year, overrides }) {
  *
  * A Dispatcher: `22 + 4 for bank holidays worked`, with `(pro-rated)` after the 22 for a joining year
  * and `+ 1 for working Boxing Day 2026` when earned — the words, not "base" and "BH lieu", because the
- * line is read by colleagues who have not met the abbreviations (17 Nov 2026). Anybody else: a line only when they earned the Boxing Day day
- * (christmas-leave.js → `boxingDayLieuDays`), because a figure one higher than every colleague's needs
- * its reason beside it.
+ * line is read by colleagues who have not met the abbreviations (17 Nov 2026). Anybody else: a line
+ * only when they earned the Boxing Day day (christmas-leave.js → `boxingDayLieuDays`), because a
+ * figure one higher than every colleague's needs its reason beside it.
  *
  * THE LINE NAMES THE BOXING DAY'S YEAR (15 Nov 2026). The day is in the next year's allowance, so the
  * 2027 line is about December 2026. "For working Boxing Day" alone, under 2027, reads as a Boxing
