@@ -48,6 +48,16 @@
  * glyph is part of the control's accessible name, changing it changes what `getByRole(name:)`
  * matches, and a button is announced once on focus rather than interrupting whatever the user was
  * reading. Different problem, different risk, decided separately.
+ *
+ * ── AND WHEN A LINE IS HEARD AT ALL: `speakAfterMount` (17 Nov 2026) ──────────────────────────────
+ *
+ * A live region announces what CHANGES while it is in the accessibility tree, and the tree catches
+ * up between tasks, never inside one. So a region put on the page and filled in the same task is a
+ * region CREATED with its words, and nobody hears it — the line after the mount, a microtask, a
+ * promise that has already settled: all the same task. The Calendar's lock cards found this first
+ * (calendar-lock-slot.js, where the helper lived until it was needed off the Calendar); the sign-in
+ * card's notice and the "staff PIN ended" line were the same fault on every page. It lives here
+ * because this module is already loaded wherever a status line is written, and has no imports.
  */
 
 /**
@@ -109,4 +119,24 @@ export function setStatus(el, text) {
     span.textContent = glyph;
     el.appendChild(span);
     el.appendChild(el.ownerDocument.createTextNode(' ' + rest));
+}
+
+/**
+ * Write into a live region put on the page in THIS task — once the browser has drawn it empty.
+ *
+ * The write waits for the next frame, where the accessibility tree is brought up to date, and then
+ * a task (see the header) — the month announcer (`announceMonthChange`, calendar-app.js) writes a
+ * frame after it clears, for the same reason. It is skipped when the region has left the page by
+ * then: whatever replaced it says its own words. Where there is no `requestAnimationFrame` (a Node
+ * test), a task alone. Writing on the line after the mount, or in a microtask, is the SAME task, and
+ * silent: that is how the Calendar's skeleton, member-card and PIN-card lines, and the sign-in card's
+ * notice, all went unheard until 17 Nov 2026.
+ * @param {Element|null|undefined} region  the live region, or the box inside it that is written
+ * @param {() => void} write
+ */
+export function speakAfterMount(region, write) {
+    if (!region) return;
+    const later = () => setTimeout(() => { if (region.isConnected !== false) write(); }, 0);
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(later);
+    else later();
 }

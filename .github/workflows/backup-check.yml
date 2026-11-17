@@ -57,15 +57,19 @@ on:
     - cron: '12 6 * * 1'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  id-token: write        # the Workload Identity Federation exchange
-  issues: write          # to say so, once, on the thread the other checks already use
+# Nothing at the workflow level: the job asks for its own (17 Nov 2026). A Google sign-in granted here
+# would reach every job added to this file later, whatever it ran; held by the job, it reaches only the
+# steps written for it — the rule the deploy workflows keep (workflow-hygiene.test.mjs).
+permissions: {}
 
 jobs:
   backups:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write        # the Workload Identity Federation exchange
+      issues: write          # to say so, once, on the thread the other checks already use
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

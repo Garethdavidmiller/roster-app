@@ -52,7 +52,7 @@ import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './o
 import { enhanceSelect } from './select-sheet.js';
 import { markLoginStart, clearLoginStart, markAwaitingInput } from './perf-reporter.js';
 
-import { setStatus } from './status-text.js';
+import { setStatus, speakAfterMount } from './status-text.js';
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
 const GRADE_ORDER = CONFIG.GRADE_ORDER;   // single source (roster-data CONFIG) — shared with admin-app's selector
@@ -123,15 +123,17 @@ export function dismissLoginOverlay() {
 
 /**
  * Say on this card that arriving ended the staff PIN, and point its way back at the PIN box. The
- * notice line is in the card from the start (`overlayHtml`), empty, so writing it now is a change a
- * screen reader announces — text a live region is CREATED with is read by nobody.
+ * notice line is in the card from the start (`overlayHtml`), empty, and the words wait for the card
+ * to have been DRAWN (`speakAfterMount`, status-text.js): when the PIN had already ended, this runs
+ * on a microtask of the task that mounted the card, which is that same task — and a live region
+ * filled in the task that created it is read by nobody (17 Nov 2026). The way back changes at once.
  * @param {HTMLElement} overlay
  */
 function sayStaffPinEnded(overlay) {
     if (!overlay.isConnected) return;   // signed in past it, or rebuilt — a rebuilt card is told itself
-    const notice = overlay.querySelector('#loginNotice');
-    if (notice) notice.textContent = STAFF_PIN_ENDED_NOTICE;
     overlay.querySelector('a.login-back')?.setAttribute('href', BACK_TO_PIN);
+    const notice = overlay.querySelector('#loginNotice');
+    speakAfterMount(notice, () => { if (notice) notice.textContent = STAFF_PIN_ENDED_NOTICE; });
 }
 
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in".
@@ -295,11 +297,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // "A sample is time somebody spent waiting"): reading this card and typing a password is not the
     // app being slow, and the sign-in has a figure of its own.
     markAwaitingInput();
-    // The notice is written AFTER the card is in the document, not before: it is a `role="status"`
-    // live region, and a live region only announces CHANGES made while it is in the accessibility
-    // tree — text it was created with is read by nobody. The staff-PIN card's message channel
-    // follows the same rule (calendar-lock-cards.js → `say`).
-    if (notice) { const n = overlay.querySelector('#loginNotice'); if (n) n.textContent = notice; }
+    // The notice is written once the card has been DRAWN, not merely put in the document: it is a
+    // `role="status"` live region, and a live region only announces CHANGES made while it is in the
+    // accessibility tree, which catches up between tasks. Written here, on the line after the mount,
+    // it was the same task, so "Calendar access has expired" arrived as text the region was created
+    // with, and was read by nobody (17 Nov 2026). `speakAfterMount` (status-text.js) waits a frame
+    // and a task; the Calendar's own cards do the same.
+    if (notice) { const n = overlay.querySelector('#loginNotice'); speakAfterMount(n, () => { if (n) n.textContent = notice; }); }
     // Did arriving on this page end the staff PIN? Then say so — now if it already has, or when the
     // teardown lands, which can be after the card is up (see `sayStaffPinEnded`).
     if (!inline) onStaffPinEnded(() => sayStaffPinEnded(overlay));

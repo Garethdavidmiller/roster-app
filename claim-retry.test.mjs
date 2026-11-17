@@ -160,7 +160,14 @@ test('withClaimRetry is runWatchedClaimRetry, watching the live auth state for t
         'the watch is back around the whole run: a refused token refresh signs the account out, and a write the rules '
         + 'REFUSED is then reported "not confirmed" and blocks every later write until a reload');
     assert.match(body, /uid: auth\.currentUser\?\.uid/, 'the account is captured when the request starts');
+    assert.match(body, /currentUid: \(\) => auth\.currentUser\?\.uid/,
+        'the retry is not asked about the account signed in NOW, so it can go out as another member (17 Nov 2026)');
     assert.match(body, /watch: cb => onAuthStateChanged\(auth, cb\)/, 'the watch is the real auth state');
+    // The Storage upload's retry is the same runner, and owes the same check.
+    const up = src.slice(src.indexOf('async function _uploadBytesWithClaimRetry('));
+    const upBody = up.slice(0, up.indexOf('\n}\n'));
+    assert.match(upBody, /uid: auth\.currentUser\?\.uid,\s*currentUid: \(\) => auth\.currentUser\?\.uid/,
+        'an upload\'s retry can go out as an account that signed in during the refresh');
 });
 
 // ── runWatchedClaimRetry (review, 17 Nov 2026) — the watch covers each ATTEMPT, never the refresh ──
@@ -254,18 +261,53 @@ describe('runWatchedClaimRetry — a sign-out ends the wait only for a write on 
         _resetUnconfirmedWrites();
     });
 
-    it('the retry is watched for the account the call STARTED as', async () => {
-        // A shared PC: somebody else signs in on another tab while the token is refreshed. The retry
-        // cannot be confirmed for the account that asked, so it is reported as not confirmed.
+    it('ANOTHER ACCOUNT signed in during the refresh: no retry goes out as it, and the refusal stands (17 Nov 2026)', async () => {
+        // A shared PC: somebody else signs in on another tab while the token is refreshed. Until 17 Nov
+        // the retry went out AS them — a write nobody on that account asked for — and was then reported
+        // "not confirmed", shutting the page's writes. The first attempt was refused: nothing written.
+        _resetUnconfirmedWrites();
         const auth = sdkOrderedAuth('u1');
         let calls = 0;
-        const fn = () => (++calls === 1 ? Promise.reject(refusal()) : hangs());
-        const p = runWatchedClaimRetry(fn, {
+        const original = refusal();
+        const fn = () => (++calls === 1 ? Promise.reject(original) : hangs());
+        const err = await runGatedWrite(() => runWatchedClaimRetry(fn, {
             retryCode: 'permission-denied', hasUser: () => !!auth.user,
-            refresh: async () => { auth.switchTo('u2'); await Promise.resolve(); }, uid: auth.user?.uid, watch: auth.watch,
+            refresh: async () => { auth.switchTo('u2'); await Promise.resolve(); },
+            uid: auth.user?.uid, currentUid: () => auth.user?.uid, watch: auth.watch,
+        })).then(() => null, e => e);
+        assert.equal(calls, 1, 'the retry was sent as the account that signed in during the refresh');
+        assert.equal(err, original, `the caller must get the first attempt's refusal, as itself — it got ${err?.code}`);
+        assert.equal(hasUnconfirmedWrite(), false, 'a refused write, never retried, is not one of unknown outcome');
+        assert.match(saveFailureMessage(err), /sign in again/);
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(auth.listening, 0, 'no watch is left behind');
+        _resetUnconfirmedWrites();
+    });
+
+    it('an account that changed and came BACK during the refresh is the same account: the retry goes out', async () => {
+        const auth = sdkOrderedAuth('u1');
+        let calls = 0;
+        const out = await runWatchedClaimRetry(() => (++calls === 1 ? Promise.reject(refusal()) : Promise.resolve('saved')), {
+            retryCode: 'permission-denied', hasUser: () => !!auth.user,
+            refresh: async () => { auth.switchTo('u2'); auth.switchTo('u1'); await Promise.resolve(); },
+            uid: auth.user?.uid, currentUid: () => auth.user?.uid, watch: auth.watch,
         });
-        await assert.rejects(p, e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+        assert.equal(out, 'saved');
         assert.equal(calls, 2);
+    });
+
+    it('a call that STARTED with no account is not retried as one that signed in since', async () => {
+        // hasUser() is true by the time the refusal comes back, so the retry is attempted — but the
+        // page asked with nobody signed in, and the account now present is not its to write as.
+        let user = /** @type {{ uid: string }|null} */ (null);
+        let calls = 0;
+        const original = refusal();
+        const err = await runWithClaimRetry(async () => { calls++; if (calls === 1) { user = { uid: 'u9' }; throw original; } return 'saved'; }, {
+            retryCode: 'permission-denied', hasUser: () => !!user, refresh: async () => {},
+            uid: null, currentUid: () => user?.uid,
+        }).then(() => null, e => e);
+        assert.equal(err, original);
+        assert.equal(calls, 1);
     });
 
     it('a refusal that survives the refresh is passed on as the refusal, and no watch is left', async () => {

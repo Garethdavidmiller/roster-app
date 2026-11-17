@@ -772,6 +772,34 @@ for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
     });
 }
 
+// ── NO WORKFLOW HANDS A GOOGLE SIGN-IN TO EVERY JOB (17 Nov 2026) ────────────────────────────────────
+//
+// `id-token: write` lets a job ask GitHub for the run's identity token, which Workload Identity
+// Federation exchanges for a Google service account. Granted at the WORKFLOW level it reaches every job
+// in the file, including one added next year that runs a dependency's install script; granted by the
+// job, only the steps written for it. backup-check.yml was the one file that granted it at the top. The
+// files are read from the directory, so a workflow added later joins the check by existing.
+describe('no workflow grants id-token at the workflow level', () => {
+    const files = readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f)).sort();
+
+    test('the workflows were actually read', () => {
+        assert.ok(files.includes('backup-check.yml') && files.includes('deploy-hosting.yml'), `read: ${files.join(', ')}`);
+    });
+
+    for (const f of files) {
+        test(`${f}: a Google sign-in is asked for by the job that uses it`, () => {
+            const src = readFileSync(join(WF_DIR, f), 'utf8');
+            const at = src.search(/^permissions:/m);
+            if (at === -1) return;   // nothing at the top: each job asks for its own
+            const rest = src.slice(at);
+            const line = rest.slice(0, rest.indexOf('\n'));
+            const block = line + rest.slice(line.length).split(/\n(?=\S)/)[0];
+            assert.doesNotMatch(block, /id-token:\s*write/,
+                `${f} grants id-token: write to every job; move it to the job that signs in to Google`);
+        });
+    }
+});
+
 // ── THE WEBKIT LANE RUNS EVERY PROJECT, AND EVERY SHARD OF EACH (3 Nov 2026) ─────────────────────
 //
 // The webkit job lists its jobs one by one, each project cut its own number of ways — since 12 Nov
