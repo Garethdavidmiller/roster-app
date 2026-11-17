@@ -645,6 +645,17 @@ describe('a year before the member joined has no allowance on record', () => {
         assert.equal(entitlementFor(joiner, 2027, []), 32);
     });
 
+    test('a CEA or CES joining year says why its figure is lower, as a Dispatcher’s "(pro-rated)" does', () => {
+        // Invented members. A "9" beside a colleague's 32 or 34 read like a mistake on the Admin banner and
+        // the Calendar's leave panel, which both print this line, while a Dispatcher's said "(pro-rated)".
+        for (const [role, rosterType] of [['CEA', 'main'], ['CES', 'ces']]) {
+            const m = { name: 'Q. Example', role, rosterType, currentWeek: 1, startDate: new Date(2026, 8, 20), proRatedAL: { 2026: 9 } };
+            assert.equal(entitlementFor(m, 2026, []), 9, `${role}: premise — the joining year is the transcribed figure`);
+            assert.equal(entitlementNote({ member: m, year: 2026, overrides: [] }), 'Pro-rated for starting part way through 2026', role);
+            assert.equal(entitlementNote({ member: m, year: 2027, overrides: [] }), null, `${role}: the year after is the contract figure`);
+        }
+    });
+
     test('a Dispatcher too — the base and the earned days both start with them', () => {
         const disp = { name: 'D', role: 'Dispatcher', rosterType: 'dispatcher', currentWeek: 1,
                        startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 12 } };
