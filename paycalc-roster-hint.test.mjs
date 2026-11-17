@@ -187,6 +187,23 @@ describe('restoring the calendar-fill highlight after a reload', () => {
         assert.ok(cls.satH.has('roster-suggested'), 'the hours box is gold');
         assert.ok(cls.satM.has('roster-suggested'), 'and so is the minutes box beside it — "00" never matched a blank');
     });
+
+    test('a sub-hour fill (0h 30m) highlights the HOURS box too, which writeFormData left blank', () => {
+        setupDom('1');
+        /** @type {Record<string, Set<string>>} */ const cls = {};
+        for (const id of HM_IDS) {
+            cls[id] = new Set();
+            _els[id].classList = { add: (/** @type {string} */ c) => cls[id].add(c), remove: (/** @type {string} */ c) => cls[id].delete(c) };
+        }
+        _store.set(snapKey(1), JSON.stringify({ sunH: 0, sunM: 30 }));
+        // What writeFormData puts in the boxes for a saved 0h 30m: a BLANK hours box, and "30".
+        _els.peerVal = { textContent: '' }; _els.slSkipCheck = { checked: false }; _els.otherAdj = { value: '' };
+        writeFormData({ sunH: 0, sunM: 30 });
+        assert.deepEqual([_els.sunH.value, _els.sunM.value], ['', '30'], 'premise: a saved 0 hours comes back blank');
+        _restoreRosterSuggested(1);
+        assert.ok(cls.sunM.has('roster-suggested'), 'the minutes box is gold');
+        assert.ok(cls.sunH.has('roster-suggested'), 'and so is the hours box beside it — String(0) never matched a blank');
+    });
 });
 
 // ── ONE PAIR, ONE AUTHOR (whole-app review, Oct 2026) ──────────────────────────────────────────
@@ -483,10 +500,23 @@ describe('the background refresh never moves the snapshot of a saved figure', ()
             'one visit with no signal turned a calendar figure into a typed one for good');
     });
 
+    // VIEWING WRITES NOTHING (17 Nov 2026). The refresh used to add the pairs it filled from blank to
+    // the snapshot — pay data written on a look: a new phone grew "Roster-suggested figures" in the
+    // backup card a second after a blank payslip opened, and the next restore asked about it.
+    test('viewing a blank payslip writes nothing at all — not even the snapshot', () => {
+        assert.deepEqual(visit(58, {}, { rdwH: 8, rdwM: 0, sunH: 7, sunM: 30 }), { rdw: '8', gold: true },
+            'premise: the calendar fills the blank boxes, gold');
+        assert.deepEqual([..._store.keys()], [], 'a look wrote pay data to this device');
+    });
+
     test('CONTROL: a figure the refresh fills from blank, then saved by the member, stays linked', () => {
-        // Implicit acceptance (paycalc.md): typing anything else saves the gold figures with it.
+        // Implicit acceptance (paycalc.md): typing anything else saves the gold figures with it —
+        // autosave writes the payslip and then `recordCalendarFigures` records the gold pairs it saved.
         assert.deepEqual(visit(58, {}, { rdwH: 8, rdwM: 0 }), { rdw: '8', gold: true });
-        const savedByAutosave = { rdwH: 8, rdwM: 0 };
+        _els.otH.value = '2';                                               // the member types somewhere else…
+        const savedByAutosave = { rdwH: 8, rdwM: 0, otH: 2, otM: 0 };     // …and autosave saves the form
+        _store.set(periodKey(58), JSON.stringify(savedByAutosave));
+        recordCalendarFigures(58);
         assert.deepEqual(visit(58, savedByAutosave, { rdwH: 16, rdwM: 0 }), { rdw: '16', gold: true },
             'a figure the member accepted lost its calendar link');
     });

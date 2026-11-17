@@ -105,19 +105,17 @@ function renderRosterDayList(days) {
  * @param {any} mId
  * @param {any} hVal
  * @param {any} mVal
- * @returns {boolean} true only when the pair was BLANK and is now filled — the one case whose
- *   snapshot the display-only refresh may write (see `_applyRosterSuggestion`)
  */
 function _suggestIfBlank(hId, mId, hVal, mVal) {
   const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
   const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
-  if (!elH || !elM) return false;
+  if (!elH || !elM) return;
   // Nothing to suggest when the engine reports zero for BOTH hours and minutes — the
   // suggestion object uses numeric 0 (not null) for undetected categories, so guarding
   // only on `== null` stamped a gold "0" onto every empty category, making it look like a
   // confirmed "none" where the engine actually has no information. A real 0-in-one-field
   // pairing (e.g. 5h 0m, or 0h 30m) still passes because the other field is non-zero.
-  if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return false;
+  if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return;
   // ONE PAIR, ONE AUTHOR (whole-app review, Oct 2026). The hours and minutes boxes are one figure,
   // and this used to fill each independently — so a payslip saved as 8h 0m, which reloads as "8"
   // beside a BLANK minutes box, took the calendar's 30 into the blank and priced 8h 30m: a figure
@@ -125,8 +123,7 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   // 45 typed minutes did the same in reverse. If the member typed either box, the pair is theirs.
   const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
   const mEdited = elM.value !== '' && !elM.classList.contains('roster-suggested');
-  if (hEdited || mEdited) return false;
-  const wasBlank = elH.value === '' && elM.value === '';
+  if (hEdited || mEdited) return;
   if (hVal != null) {
     elH.value = hVal ?? '';
     elH.classList.add('roster-suggested');
@@ -135,7 +132,6 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
     elM.value = minutesFieldText(mVal);   // "00", not "0" — display only; the stored value is unchanged
     elM.classList.add('roster-suggested');
   }
-  return wasBlank;
 }
 
 // ── SNAP PERSISTENCE ──────────────────────────────────────────────────────────
@@ -214,10 +210,11 @@ export function _restoreRosterSuggested(pNum) {
     // it had no hours for — so a blank minutes box matched it and came back gold on every reload,
     // with "📅 Hours from calendar" under hand-typed hours (whole-app review, Oct 2026; since v24.35).
     if (!(+hVal > 0) && !(+mVal > 0)) continue;
-    // `hVal != null` (not `hVal ||`): a snapped value of 0 is a REAL roster suggestion (e.g. the
-    // hours half of a 0h30m fill) — coercing it to '' dropped the gold highlight on reload and made
-    // the field read as hand-edited, blocking future re-fills (review finding).
-    if (elH.value === (hVal != null ? String(hVal) : '')) elH.classList.add('roster-suggested');
+    // Hours compare as writeFormData writes them (`d.satH || ''`): a snapped 0 — the hours half of a
+    // 0h 30m fill — is a REAL roster suggestion, and a saved 0 comes back as a BLANK box, so it matches
+    // ''. Compared with String(0) it matched nothing, and a sub-hour fill came back with its minutes
+    // gold beside a plain hours box (17 Nov 2026) — the hours twin of the minutes case below.
+    if (elH.value === (hVal ? String(hVal) : '')) elH.classList.add('roster-suggested');
     // Minutes compare in their DISPLAY form: writeFormData shows a restored 5 as "05", exactly as
     // the fill did (minutesFieldText), so the unpadded String(5) would never match again.
     // …and exactly as writeFormData writes them, including a saved 0 as BLANK (48-hour review): the
@@ -442,7 +439,7 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
   // "✓ Filled" after a tap that wrote nothing is the difference between a member reporting
   // "nothing to fill this payslip" (true, diagnosable) and "the button doesn't work" (what got
   // reported, undiagnosable, and it outlived two fixes aimed at the tap itself).
-  const written = [], cleared = [], filledBlank = [];
+  const written = [], cleared = [];
   for (const { hId, mId, cat } of HM_PAIRS) {
     const hVal = s[hId], mVal = s[mId];
     if (force) {
@@ -472,19 +469,20 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
       elH.classList.add('roster-suggested');
       elM.classList.add('roster-suggested');
       written.push(cat);
-    } else if (_suggestIfBlank(hId, mId, hVal, mVal)) {
-      filledBlank.push({ hId, mId, hVal, mVal });
+    } else {
+      _suggestIfBlank(hId, mId, hVal, mVal);
     }
   }
   // THE SNAPSHOT DESCRIBES WHAT IS SAVED (paycalc-3-1). It is how a reload tells a saved figure that
   // came from the calendar (gold, and free to follow it) from one the member typed. An explicit fill
   // is saved straight after, so it writes the lot. The background refresh on view saves NOTHING
-  // (invariant 11) — so it must not move the entry of a figure that IS saved: it used to, and a
-  // payslip filled at 8h whose calendar later said 16h then showed 16 on one visit and, on the next,
-  // read its saved 8 as typed and showed that. It only adds the pairs it filled from BLANK, which is
-  // what lets a member's next edit — whose autosave keeps the gold figures — keep them gold.
+  // (invariant 11) — and that includes the snapshot. Moving the entry of a figure that IS saved made a
+  // payslip filled at 8h, whose calendar later said 16h, show 16 on one visit and its saved 8 on the
+  // next. Adding the pairs it filled from BLANK wrote pay data on a mere look (found 17 Nov 2026): a
+  // new phone grew a "Roster-suggested figures" entry a second after opening a blank payslip, offered
+  // it for download and asked about it on the next restore. Neither is needed: a member's next edit is
+  // saved by autosave, which records the gold pairs it saved (`recordCalendarFigures`).
   if (force) _saveRosterSnap(currentPeriodNum(), s);
-  else if (filledBlank.length) _mergeRosterSnap(currentPeriodNum(), filledBlank);
   return { written, cleared };
 }
 

@@ -626,6 +626,81 @@ describe('last year\'s premium says what it was built from (paycalc-2-4)', () =>
     });
 });
 
+// ── A CHOSEN SOURCE WITH NOTHING IN IT GETS NO FIGURE FROM HOURS (17 Nov 2026) ───────────────────
+// With nothing stored, the block worked last year's premium out from its saved hours and STORED it,
+// whatever source that year had chosen. The next render read the stored figure back under the
+// member's choice: one payslip of Sunday hours became "Your figure £23.93 — Entered by you", counted
+// as done for the January notice, and fed the January payslip — and viewing a 2025/26 payslip
+// deleted it again, so it came and went. A figure not on record, dressed as the member's own.
+describe('last year\'s chosen source, with nothing in it, gets no figure from hours', () => {
+    beforeEach(reset);
+    const NOT_JAN = 58;
+    const NOV17 = new Date(2026, 10, 17, 10);
+
+    test('"Enter the figure yourself" left empty: £–, the block asks for it, and nothing is stored — on every render', (t) => {
+        saveHours(45, { sunH: 10, sunM: 0 });                                       // 2025/26 hours exist …
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'exact', exact: '' }));   // … but the member chose to type it
+        paintAt(t, NOV17, NOT_JAN);
+        for (const render of ['first', 'second']) {
+            assert.equal(_els.priorHppAmt.textContent, '£–', `${render} render`);
+            assert.equal(_els.priorHppAmtLabel.textContent, 'Your figure');
+            assert.equal(_els.priorHppBasis.textContent,
+                'No figure yet — you chose to enter the 2025/26 figure yourself. Open any 2025/26 payslip and type it into this card.');
+            assert.equal(_ls.get(hppEstKey(TY25)), undefined, `${render} render: nothing stored for the January payslip`);
+            _resetDom();
+            updatePriorHpp(TY26);
+        }
+        assert.equal(premiumStillToEstimate(TY25), 'open', 'the January notice still has something to ask');
+    });
+
+    test('a rough estimate from Year to Date pay with no Taxable Pay yet: £–, naming the payslip to copy from', (t) => {
+        saveHours(45, { sunH: 10, sunM: 0 });
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'ytd', exact: '' }));
+        paintAt(t, NOV17, NOT_JAN);
+        assert.equal(_els.priorHppAmt.textContent, '£–');
+        assert.equal(_els.priorHppAmtLabel.textContent, 'Estimated');
+        assert.equal(_els.priorHppBasis.textContent, 'No figure yet — you chose a rough estimate from your 2025/26 Year to '
+            + 'Date pay. Open your 13 Mar 2026 payslip and copy its Year to Date Taxable Pay into Year to Date Figures.');
+        assert.equal(_ls.get(hppEstKey(TY25)), undefined);
+        _resetDom();
+        updatePriorHpp(TY26);
+        assert.doesNotMatch(_els.priorHppBasis.textContent, /Rough estimate from your 2025\/26 Year to Date pay ·/,
+            'an hours figure was read back as the rough Year to Date one');
+    });
+
+    test('a figure stored from hours beside an EMPTY "Enter the figure yourself" box is not the member\'s', (t) => {
+        // What the block used to leave behind on a device: the hours figure, under the member's choice.
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'exact', exact: '' }));
+        _ls.set(hppEstKey(TY25), '23.93');
+        assert.equal(premiumStillToEstimate(TY25), 'open', 'nothing typed is nothing done');
+        paintAt(t, NOV17, NOT_JAN);
+        assert.equal(_els.priorHppAmt.textContent, '£–');
+        assert.equal(_ls.get(hppEstKey(TY25)), undefined, 'and it no longer feeds the January payslip');
+    });
+
+    test('CONTROL: with the hours as the source — chosen, or never chosen — last year\'s hours still build it', (t) => {
+        saveHours(45, { sunH: 10, sunM: 0 });
+        for (const saved of [null, JSON.stringify({ mode: 'hours', exact: '' })]) {
+            _ls.delete(hppEstKey(TY25));
+            if (saved) _ls.set(hppModeKey(TY25), saved); else _ls.delete(hppModeKey(TY25));
+            _resetDom();
+            paintAt(t, NOV17, NOT_JAN);
+            t.mock.timers.reset();
+            assert.equal(_els.priorHppBasis.textContent, '1 of 13 2025/26 payslips entered · due January 2027', String(saved));
+            assert.ok(Number(_ls.get(hppEstKey(TY25))) > 0, `${saved}: stored for the January payslip`);
+        }
+    });
+
+    test('CONTROL: a figure the member typed is still theirs, and done', (t) => {
+        _ls.set(hppModeKey(TY25), JSON.stringify({ mode: 'exact', exact: '1,500' }));
+        _ls.set(hppEstKey(TY25), '1500.00');
+        assert.equal(premiumStillToEstimate(TY25), 'done');
+        paintAt(t, NOV17, NOT_JAN);
+        assert.equal(_els.priorHppAmt.textContent, '£1,500.00');
+        assert.equal(_els.priorHppBasis.textContent, 'Entered by you · due January 2027');
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THE ROUGH YEAR TO DATE PREMIUM AND THE BACK-PAY LUMP (paycalc-2-13, owner 10 Nov 2026)
 // ─────────────────────────────────────────────────────────────────────────────

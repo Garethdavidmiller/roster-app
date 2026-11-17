@@ -521,8 +521,8 @@ export function ytdSourceAfterRetype(raw, { p, ty, now = new Date(), firstPNum =
  *  - Otherwise it names the source payslip, date first. On the payslip straight after it, figures not
  *    in use say why (a code that works each payslip out alone, a pair that does not fit the code —
  *    `misfit`, computeTax's `ytdMisfit` — or a pair not yet complete); elsewhere it offers the payslip
- *    before this one to update from once that one has been paid — never one from before the member
- *    started.
+ *    before this one to update from once that one has been paid — only when that payslip is newer
+ *    than the source, and never one from before the member started.
  * @param {{ p: any, ty: { label: string, first: number }, src: number, hasFigures: boolean,
  *           inUse?: boolean, taxCode?: string, misfit?: boolean, now?: Date, firstPNum?: number }} a
  * @returns {{ note: string, noteLive: boolean, chip: string, chipLive: boolean }}
@@ -544,8 +544,12 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
       // (owner, 15 Nov 2026). The Income Tax line carries the two figures; this says what to check.
       ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip uses the standard method. Check the code in Your Settings is the one on that payslip.`
       : `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> to sharpen this payslip's tax estimate.` };
+  // Only a payslip NEWER than the source is worth updating from (17 Nov 2026). On the source itself, or
+  // one before it, the payslip before this one is OLDER than the figures already held — so the note
+  // asked the member to replace good figures with stale ones, the opposite of the January notice that
+  // had just sent them to the newest. The next payslip then found them misfitting its code.
   const prevP = getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1);
-  const upd = prevP && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
+  const upd = prevP && prevP.num > src && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
     ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
     : '';
   return { ...out, note: `Your Year to Date figures are from ${from}, so this payslip uses the standard method.${upd}` };

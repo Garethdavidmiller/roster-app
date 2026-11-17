@@ -624,3 +624,40 @@ describe('where focus goes when a fill ends', () => {
         assert.equal(doc.activeElement, elsewhere, 'the end of a fill must not pull focus out of a field in use');
     });
 });
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// F. THE FILL KEEPS TO THE PAYSLIPS THE PAGE CAN PRICE (17 Nov 2026)
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// "Not entered yet" leaves out a payslip worked under a role with no rates, and the fill wrote it
+// anyway: a member moved into management had the payslips from the move filled and named in the
+// receipt, though no surface of the page will ever price them. The rule is paycalc-fill-year.test.mjs's;
+// this is the WIRING — the real `isPeriodPriced`, asked by the real fill, for a member the roster gives
+// a role with no rates part-way through the year. An invented member, pushed for the case and taken away.
+
+describe('the fill keeps to the payslips the page can price', () => {
+    test('a member moved into management mid-year: payslips from the move are neither filled nor named', async () => {
+        const { teamMembers } = await import('./roster-data.js');
+        const until = new Date(2025, 9, 31);                                  // last day as a CEA: Fri 31 Oct 2025
+        const member = { name: 'Q. Example', currentWeek: 1, rosterType: 'fixed', role: 'Management',
+            roleHistory: [{ role: 'CEA', until }] };
+        teamMembers.push(member);
+        _session.name = member.name;
+        try {
+            _suggest = () => ({ otH: 3, otM: 0 });
+            render();
+            await clickFill(fillButton());
+            const written = TY_PERIODS.filter((/** @type {any} */ p) => localStorage.getItem(periodKey(p.num)) !== null);
+            const before = TY_PERIODS.filter((/** @type {any} */ p) => p.cutoff <= until);
+            assert.ok(before.length > 0 && before.length < TY_PERIODS.length, 'premise: the move falls inside the year');
+            assert.deepEqual(written.map((/** @type {any} */ p) => p.num), before.map((/** @type {any} */ p) => p.num),
+                'a payslip with a day under a role with no rates was written');
+            const receipt = _afterFillReceipts[0];
+            assert.ok(receipt, 'premise: the fill finished');
+            const named = [...receipt.filled, ...receipt.nothing, ...receipt.unreached, ...receipt.corrupt, ...receipt.unsaved];
+            assert.ok(named.every((/** @type {any} */ p) => p.cutoff <= until), 'the receipt named a payslip the page cannot price');
+        } finally {
+            teamMembers.splice(teamMembers.indexOf(member), 1);
+        }
+    });
+});

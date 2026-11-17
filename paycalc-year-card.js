@@ -30,7 +30,7 @@ import { computeYearSoFar } from './paycalc-year-summary.js';
 import { getPeriods, currentPeriodNum, CONFIG } from './paycalc-periods.js';
 import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import { resolveHppForPeriod } from './paycalc-hpp.js';
-import { getLoggedMember, getProRateFactor } from './paycalc-settings.js';
+import { getLoggedMember, getProRateFactor, isPeriodPriced } from './paycalc-settings.js';
 import { readSavedPeriod, periodKey, hppEstKey, hppActualKey, hppIncKey } from './paycalc-migrations.js';
 import { getRosterSuggestion, fetchOverridesForPeriod, resetOverrides } from './paycalc-roster-suggestions.js';
 import { snapKey, updateRosterHint } from './paycalc-roster-hint.js';
@@ -209,6 +209,7 @@ async function _runFill(btn) {
             deps: {
                 timeoutMs: _fetchTimeoutMs,
                 proRateFactor: getProRateFactor,
+                priced: isPeriodPriced,     // never a payslip the page cannot price — the "Not entered yet" list's own test
                 readSaved: readSavedPeriod,
                 fetchOverrides: (p, name) => fetchOverridesForPeriod(p, name),
                 suggest: (p) => getRosterSuggestion(p, member),

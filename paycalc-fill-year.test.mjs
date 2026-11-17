@@ -39,6 +39,7 @@ function makeDeps(saved = {}, { overrideState = 'loaded', suggestions = {} } = {
         writes, fetched,
         deps: {
             proRateFactor: () => 1,
+            priced: () => true,
             readSaved: (/** @type {number} */ n) => saved[n] ?? { data: null },
             fetchOverrides: async (/** @type {any} */ p) => { fetched.push(p.num); return typeof overrideState === 'function' ? overrideState(p) : overrideState; },
             suggest: (/** @type {any} */ p) => suggestions[p.num] ?? null,
@@ -61,14 +62,28 @@ describe('rule 1 — never a period with entered data', () => {
         const { fillable } = fillablePeriods({
             periods: PERIODS, now: NOW,
             proRateFactor: (/** @type {any} */ p) => (p.num === 1 ? 0 : 1),   // joiner: P1 pre-start
+            priced: () => true,
             readSaved: () => ({ data: null }),
         });
         assert.deepEqual(fillable.map(p => p.num), [2, 3]);                   // no P1, no future P4
     });
 
+    // PRICED, as "Not entered yet" is (17 Nov 2026): a payslip under a role with no rates is not in that
+    // list, and the fill wrote it anyway — filled and named in the receipt, though no surface prices it.
+    test('a payslip the page cannot price is out too — written by nothing, named in no receipt', async () => {
+        const priced = (/** @type {any} */ p) => p.num !== 3;                 // P3 worked under a role with no rates
+        const { fillable } = fillablePeriods({ periods: PERIODS, now: NOW, proRateFactor: () => 1, priced,
+            readSaved: () => ({ data: null }) });
+        assert.deepEqual(fillable.map(p => p.num), [1, 2]);
+        const { deps, writes } = makeDeps({}, { suggestions: { 1: { satH: 4 }, 2: { satH: 4 }, 3: { satH: 4 } } });
+        const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'A. Person' }, now: NOW, deps: { ...deps, priced } });
+        assert.deepEqual(writes.map(w => w.pNum), [1, 2]);
+        assert.deepEqual([...r.filled, ...r.nothing, ...r.unreached].map(p => p.num).sort(), [1, 2]);
+    });
+
     test('a period holding ONLY a non-hours entry (slSkip, an adjustment) still counts as entered', () => {
         const { fillable } = fillablePeriods({
-            periods: [PERIODS[0]], now: NOW, proRateFactor: () => 1,
+            periods: [PERIODS[0]], now: NOW, proRateFactor: () => 1, priced: () => true,
             readSaved: () => ({ data: { ...emptyPeriodData(), slSkip: true } }),
         });
         assert.equal(fillable.length, 0);
@@ -224,7 +239,7 @@ describe('rule 5 — a fill preserves every field the calendar does not own', ()
     test('a period with payslip figures and no hours is still FILLABLE', () => {
         // It has no calculation inputs, so filling it is right — it is the WRITE that must not destroy.
         const { fillable } = fillablePeriods({
-            periods: [PERIODS[0]], now: NOW, proRateFactor: () => 1,
+            periods: [PERIODS[0]], now: NOW, proRateFactor: () => 1, priced: () => true,
             readSaved: () => ({ data: actualsOnly() }),
         });
         assert.equal(fillable.length, 1);

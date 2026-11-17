@@ -308,8 +308,10 @@ function renderGradeNote() {
  * Build (and set) the "from which payslip?" control under the Grade box — the pension opt-out's
  * shape, because it is the same kind of question. Shown only while a grade is chosen by hand: the
  * roster needs no date, it has its own. Re-opening Settings shows the payslip ON RECORD (never
- * before the first one the member can see); a member choosing a grade for the first time is offered
- * the payslip on screen, or before the selector exists the one being earned today.
+ * before the first one the member can see); otherwise it names the payslip on screen, or before the
+ * selector exists the one being earned today. That last is what a page LOAD builds it with, because
+ * loadSettings runs before the payslip selector exists — so a grade chosen for the first time
+ * rebuilds it at the moment of choosing (`saveGradeSetting`), when the payslip on screen is known.
  * @param {import('./paycalc-grade.js').GradeSetting} setting
  */
 function buildGradeFromSelect(setting) {
@@ -339,11 +341,19 @@ function gradeFromShown() {
  * every payslip from the one #gradeFrom names, and a select with NOTHING chosen states nothing, so it
  * never overwrites the record (paycalc-3-8). A grade picked by hand answers the grade prompt's
  * question, so the prompt is hidden if the two now agree.
+ *
+ * A GRADE CHOSEN FOR THE FIRST TIME STARTS FROM THE PAYSLIP ON SCREEN (17 Nov 2026), as the pension
+ * tick's date does. While the box says "From the roster" its "from which payslip?" is hidden, so the
+ * member cannot have picked anything in it: it holds what the page load built it with, which is the
+ * payslip being earned TODAY (the selector did not exist yet). Saved as it stood, a member looking at
+ * an older payslip who chose CES saw that payslip stay at CEA rates, under a date naming another.
+ * So the move from the roster to a grade rebuilds it from the payslip on screen first.
  * @param {number} pNum  the payslip on screen (0 before the selector exists)
  */
 export function saveGradeSetting(pNum) {
   const saved = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
   if (saved === FROM_ROSTER || GRADES[saved]) {
+    if (GRADES[saved] && getGradeSetting().grade === FROM_ROSTER) buildGradeFromSelect(getGradeSetting());
     lsSet(SK.grade, saved);
     const fromEl = /** @type {HTMLSelectElement|null} */ (document.getElementById('gradeFrom'));
     if (saved === FROM_ROSTER) lsDel(SK.gradeFrom);
