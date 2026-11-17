@@ -793,8 +793,12 @@ had, and the payslip that spanned it was right for neither side. The roster now 
 3. **The grade history is published in the staff file**, which is world-readable: "a CEA until
    21 Nov 2026" can already be worked out from the line moves, and a private store would be a second
    copy of the roster to keep in step.
-4. **A member who moves into management keeps the refusal card.** The page prices nobody whose role
-   NOW has no confirmed rates; the payslips worked under the old grade are not offered.
+4. ~~**A member who moves into management keeps the refusal card.** The page prices nobody whose role
+   NOW has no confirmed rates; the payslips worked under the old grade are not offered.~~ **SUPERSEDED
+   16 Nov 2026 (owner, "role at the time"; v26.23).** The page now admits a member who held a priced
+   grade on any day of the payslips it shows, or today, and refuses each PAYSLIP with a day under a
+   role with no rates instead (`.claude/rules/paycalc.md` invariant 13; the header of `pay-audience.js`).
+   The same decision dates the leave allowance (`allowanceRole`, `al-contract.js`).
 
 **Considered and not done.** Asking "switch?" on each promotion — the v25.99 behaviour, which applies
 one answer to the whole history. Pricing by shifts — hours are stored per payslip, so nothing records

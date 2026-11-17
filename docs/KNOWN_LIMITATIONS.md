@@ -903,14 +903,15 @@ infrastructure.
 
 ## Pay calculator
 
-### The pay-period grid ends on 12 Mar 2027 — extend it at the tax-year rollover, not before
+### The pay-period grid ends on 12 Mar 2027 — extend it once the 2027/28 figures are out, before 7 March
 `CONFIG.LAST_OFFSET` (`paycalc-periods.js`) stops at the last 2026/27 payday. Extending it needs the
 2027/28 row in `TAX_YEARS`, the thresholds tables and the Student Loan tables, and most of those are
 not published until early 2027 — adding a year now would mean guessing figures the calculator then
 presents as fact, which is the one thing `.claude/rules/paycalc.md` forbids. The next pay award is not
 needed: the year is added without it, and the award's figures follow once it is announced. It
 is the existing "TAX YEAR ROLLOVER" step in `paycalc-periods.js`, due before the first 2027/28
-payday (~9 Apr 2027); `MAINTENANCE_CALENDAR.md` carries the date.
+payslip's shifts begin — Sunday 7 March 2027, for the payslip paid on 9 April — not at the tax year's
+start; `MAINTENANCE_CALENDAR.md` carries the date.
 
 ### Not a payslip replacement
 The calculator estimates take-home pay from staff-entered data. Actual payslips from
@@ -1213,6 +1214,12 @@ The app is served, identically, from **two** live origins:
 and re-bases the target page onto its **own** `registration.scope` (see `notificationclick` in
 `service-worker.js`). So a github.io install taps through to github.io, a web.app install to
 web.app — `STAFF_SITE_URL`'s origin only supplies the path + hash.
+
+**On the mirror, the installed app's identity is the bare origin.** `manifest.json`'s `id` (`"/"`)
+is read against the origin, so there it is `https://garethdavidmiller.github.io/`, not
+`/roster-app/`. Latent while nothing installable is published at that origin; another app there whose
+id also comes out as `/` would be the same app to the browser. It is left as it is on purpose —
+`.claude/rules/pwa.md` says why changing it would cost every install.
 
 **Both origins must stay in the GCP API-key referrer allowlist** (`web.app`,
 `firebaseapp.com`, `garethdavidmiller.github.io`) until github.io is deliberately retired —

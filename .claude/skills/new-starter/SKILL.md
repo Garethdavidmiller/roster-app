@@ -5,7 +5,9 @@ description: Full checklist for onboarding a new staff member. Invoke this skill
 
 # New starter checklist
 
-Run through every step in order. Do not skip steps.
+Run through the steps in the order they are numbered, and skip only a step whose heading limits it
+to some starters or calls it optional. The order matters most at step 3: the login can be made only
+once step 2's functions deploy has finished.
 
 ## Step 1 — `roster-member-data.js` (always required; re-exported by `roster-data.js`)
 
@@ -26,18 +28,10 @@ Run through every step in order. Do not skip steps.
   - **Do not add lieu days into `proRatedAL`.** A Dispatcher's bank-holiday lieu days are added on top of the pro-rated base by `getALEntitlement`, and the Boxing Day lieu day (for working a Boxing Day one was due to work) by `entitlementFor` (`al-entitlement.js`). Baking either in would count it twice. (Check the clerk has not already included them either.)
   - Record WHY beside the entry whenever the figure is not what a day-count would suggest — the agency-service starter's comment in `roster-member-data.js` is the model. The next reader's instinct is to "correct" it back to the formula, and that silently takes days off somebody.
 
-## Step 2 — Firebase Auth (always required — and only AFTER step 2b has been committed and DEPLOYED)
-
-- [ ] **Wait for step 2b's functions deploy to finish first.** `setupRosterAuth` creates accounts only
-      for names in the DEPLOYED `functions/roster-members.json` — it reads no names from the request —
-      so run before that deploy it creates nothing for the new starter and still reports success.
-- [ ] Admin → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
-- [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
-- [ ] **Record their work email** — Operations → Account status → Set email. Nothing prompts for this: a new starter's email is only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status card's "No work email" line is where you'd notice.
-
-## Step 2b — Regenerate `functions/roster-members.json` (ALWAYS — including Management)
+## Step 2 — Regenerate `functions/roster-members.json`, ship it, and wait for the functions deploy (ALWAYS — including Management)
 
 - [ ] Run `npm run generate:roster-members` — regenerates `functions/roster-members.json` from `roster-data.js`. **In the same commit as the `roster-member-data.js` change**; the sync is verified by `sw-asset-check.test.mjs`.
+- [ ] Bump the version, push, and once it is on `main` **wait for Deploy Firebase Functions to finish green** — step 3 reads what it deploys.
 
 That file carries **two** unrelated things, which is why this step is unconditional — Management included, because skipping it for them is the direction that costs an outage:
 
@@ -46,19 +40,43 @@ That file carries **two** unrelated things, which is why this step is unconditio
 | the AI parsing name lists | CEA / CES / Dispatcher | the member's shifts are silently excluded from every roster PDF import |
 | the **server-owned auth lists** — `activeMembers` and `roles.admin`/`manager`/`designer` | **everyone, Management included** | `setupRosterAuth` trusts THIS file, not the client's `CONFIG`, so the account is provisioned without its claim. A new manager can sign in, sees the pages, and every write on another member's behalf permission-denies |
 
-## Step 2c — Managers only: provision the claim
+## Step 3 — Firebase Auth (always required — and only once step 2's functions deploy has finished)
 
-- [ ] Deploy first, as step 2 says — `setupRosterAuth` reads the DEPLOYED `roster-members.json`, so running Set up accounts before the functions deploy stamps the old list
+- [ ] **Wait for step 2's functions deploy to finish first.** `setupRosterAuth` creates accounts only
+      for names in the DEPLOYED `functions/roster-members.json` — it reads no names from the request —
+      so run before that deploy it creates nothing for the new starter and still reports success.
+- [ ] ☰ → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
+- [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
+- [ ] **Record their work email** — Operations → Account status → Set email. Nothing prompts for this: a new starter's email is only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status card's "No work email" line is where you'd notice.
+
+## Step 4 — Managers only: provision the claim
+
+- [ ] Wait for the deploy first, as step 3 says — `setupRosterAuth` reads the DEPLOYED `roster-members.json`, so running Set up accounts before the functions deploy stamps the old list
 - [ ] Then Operations → **Set up accounts**, which creates the account AND sets the `manager` claim
 - [ ] The claim lands in the token, so an ALREADY-signed-in manager keeps a stale one until it refreshes. Writes self-heal through `writeWithClaimRetry` (permission-denied → force refresh → retry once), so this resolves itself — but a brand-new account has nothing to self-heal from until Set up accounts has run
 
-## Step 3 — Pay calculator verification (mid-year CEA and CES joiners only — the calculator does not open for a Dispatcher or a manager: `gradeForRole` returns null)
+## Step 5 — verify it actually took
+
+- [ ] Operations → Staff Login Accounts → read the block above the button
+
+It should say **“Everyone on the roster has a login, and no leaver still has one.”** If step 3 or 4
+was missed, it names the person and says which: *no account*, *account disabled*, or *wrong
+permissions* — and the **Needs attention** strip at the top of the page carries the item until it is
+fixed. Every one of those three is otherwise **silent**: the new starter appears correctly on every
+screen in the app and finds out when they try to sign in, and a manager without their claim signs in
+fine and then permission-denies on every write for somebody else.
+
+It checks only the names the DEPLOYED roster holds, so it cannot see a starter whose step 2 has not
+reached the server — read it once that deploy has finished, never before. If the block says it
+*couldn’t check*, that is neither answer. Retry it; do not read it as done.
+
+## Step 6 — Pay calculator verification (mid-year CEA and CES joiners only — the calculator does not open for a Dispatcher or a manager: `gradeForRole` returns null)
 
 - [ ] Log in as the new member, open pay calculator, check the joining period shows the info banner and correct pro-rated contracted hours
 - [ ] Joining period = the pay period whose cutoff is on or after the start date
 - [ ] Expected pro-rated hours = `Math.round(140 × daysEmployed / totalDays)`, the two counts as `proRateDays` (`paycalc-calc.js`) computes them — the period's days, and the days from the start date to the cut-off, both inclusive
 
-## Step 3b — tell them it exists (optional, but nothing else does)
+## Step 7 — tell them it exists (optional, but nothing else does)
 
 - [ ] Send the welcome email, from this folder. Which file depends on who they are:
 
@@ -91,8 +109,8 @@ cannot work.
 
 Two things to get right before sending:
 
-- **Send it AFTER step 2**, not before. An email that arrives ahead of the account tells somebody to
-  try a password that does not exist yet.
+- **Send it AFTER step 5 reads clean**, not before. An email that arrives ahead of the account tells
+  somebody to try a password that does not exist yet.
 - **Ask what they are called**, and put the roster name in as well. The sign-in list shows the
   published-roster form (an initial and a surname), so somebody looking for their first name does not
   find themselves.
@@ -102,19 +120,6 @@ secret. **Only the PIN box is checked**: `welcome-email-parity.test.mjs` fails i
 files, it holds anything but `{{STAFF_PIN}}`. No test can look for the digits themselves (a test that
 knew them would be the leak), so the PIN typed anywhere else would not be caught. Fill
 `{{STAFF_PIN}}` in the mail client.
-
-## Step 4 — verify it actually took
-
-- [ ] Operations → Staff Login Accounts → read the block above the button
-
-It should say **“Everyone on the roster has a login, and no leaver still has one.”** If step 2, 2b
-or 2c was missed, it names the person and says which: *no account*, *account disabled*, or *wrong
-permissions* — and the **Needs attention** strip at the top of the page carries the item until it is
-fixed. Every one of those three is otherwise **silent**: the new starter appears correctly on every
-screen in the app and finds out when they try to sign in, and a manager without their claim signs in
-fine and then permission-denies on every write for somebody else.
-
-If the block says it *couldn’t check*, that is neither answer. Retry it; do not read it as done.
 
 **That's everything** — calendar display, team view, override eligibility, roster-assist pre-fill, and all subsequent pay periods are automatic.
 

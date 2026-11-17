@@ -9,8 +9,9 @@ description: Full ordered checklist for offboarding a staff member who is leavin
 wrong order. Work down the list in order.
 
 This is the executable list. **The reasoning lives in `docs/OPERATIONS_REFERENCE.md` →
-"Removing a staff member"** — read it before deviating, and edit it rather than this file when
-something changes. A second copy of an argument is how one of the two goes quietly wrong.
+"Removing a staff member"**, under the same step numbers — read it before deviating, and edit it
+rather than this file when something changes (renumber both together). A second copy of an argument
+is how one of the two goes quietly wrong.
 
 Ask for the **leaving date** first, and do not run steps 2–5 before it: a member disabled early
 cannot open their own roster on their last week.
@@ -39,10 +40,11 @@ cannot open their own roster on their last week.
       step-6 audit reports nothing, because as far as the server is concerned they are still active.
       This is the one failure in the sequence that no check catches — check the lists by hand.
 
-- [ ] **3 · `npm run generate:roster-members`, in the SAME commit.** Bump the version, push, and
-      **wait for the functions deploy to finish** — step 5 reads the *deployed*
-      `roster-members.json`, and run before that it sweeps against the old list while reporting
-      success.
+- [ ] **3 · `npm run generate:roster-members`, in the SAME commit.** Bump the version, push, and once
+      it is on `main` **wait for Deploy Firebase Functions to finish green** — steps 5 and 6 read the
+      *deployed* `roster-members.json`, and run before that the sweep finds nobody to disable and the
+      audit reads clean, both against the old list, while the leaver's login keeps working. The
+      leaver gone from the app's pages is not the sign: Hosting deploys separately.
 
 - [ ] **4 · Overtime: every already-open week.** A window's participants are frozen when it opens,
       so this does not happen by itself. **Stop asking** beside their name, once per open week. A

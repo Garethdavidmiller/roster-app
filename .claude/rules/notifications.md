@@ -9,6 +9,8 @@ paths:
   - "functions/overtime*.js"
   - "functions/auth-endpoints.js"
   - "functions/reset-request.js"
+  - "functions/pin-lockout.js"
+  - "functions/admin-recipients.js"
   - "functions/index.js"
   - "service-worker.js"
   - "notif.js"
