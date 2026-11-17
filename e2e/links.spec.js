@@ -12,7 +12,7 @@ import { collectFatalErrors, clearNoticeFlags, seedSession, openGuideLink, seedC
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES, CONTRACTED_HOURS_PER_WEEK } from '../links-design.js';
-import { PROPOSALS } from '../links-proposals.js';
+import { PROPOSALS, proposalDisplayName } from '../links-proposals.js';
 import { describeSetList } from '../links-target-sets.js';
 
 /**
@@ -294,12 +294,15 @@ test('links: duplicating a design with unsaved changes says where they will end 
 // A SHORTLISTED PROPOSAL'S NAME is not a design's (links-design-6). The proposals sit in the same picker
 // and the same Compare chips, where two of one name cannot be told apart. The import refused one; New,
 // Save as…, Save a copy as… and Rename decide through one check, which now asks as well — in any case.
+// Since 17 Nov 2026 a proposal is SHOWN without its printed " — Dec 2026", and neither form may be taken.
 test('links: a design cannot take a shortlisted proposal\'s name, new or renamed', async ({ page }) => {
     await openLinksWithDesigns(page);
     const open = await activeDesignName(page).textContent();
-    const taken = PROPOSALS[0].name.toUpperCase();
+    const shown = proposalDisplayName(PROPOSALS[0]);
+    expect(shown, 'premise: the shown name is not the printed one').not.toBe(PROPOSALS[0].name);
+    const taken = shown.toUpperCase();
     const status = page.locator('#linksSaveStatus');
-    const refusal = `There is already a shortlisted proposal called “${PROPOSALS[0].name}”`;
+    const refusal = `There is already a shortlisted proposal called “${shown}”`;
 
     await sheetAction(page, 'newDesignBtn');
     await page.locator('.dialog-overlay .dialog-input').fill(taken);
@@ -309,9 +312,9 @@ test('links: a design cannot take a shortlisted proposal\'s name, new or renamed
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length)).toBe(0);
 
     await sheetAction(page, 'designRenameMenuBtn');
-    await page.locator('.dialog-overlay .dialog-input').fill(taken);
+    await page.locator('.dialog-overlay .dialog-input').fill(PROPOSALS[0].name);   // the printed name, date and all
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-    await expect(status).toContainText(refusal);
+    await expect(status).toContainText(`There is already a shortlisted proposal called “${PROPOSALS[0].name}”`);
     await expect(activeDesignName(page), 'and the open design keeps its name').toHaveText(String(open));
 });
 
@@ -1306,7 +1309,7 @@ test('links: the only saved design can be deleted — it goes to the bin and a p
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('#linksSaveStatus')).toHaveText('“Only design” is in Recently deleted. No saved design is left, so a shortlisted proposal is open.');
     await expect(designOptions(page)).toHaveCount(0);
-    await expect(activeDesignName(page)).toHaveText(PROPOSALS[0].name);
+    await expect(activeDesignName(page)).toHaveText(proposalDisplayName(PROPOSALS[0]));
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await sheetAction(page, 'designBinBtn');
     await expect(page.locator('#designBinList .bin-row')).toHaveCount(1);
@@ -2800,9 +2803,11 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(page.locator('#designPickerLb.visible')).toBeVisible();
     await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (three since v25.04)
     await expect(designOptions(page)).toHaveCount(0);
+    // Shown without the printed " — Dec 2026": the link starts in January 2027 (links-proposals.js).
+    await expect(proposalOptions(page).filter({ hasText: 'Dec 2026' }), 'the picker names none by it').toHaveCount(0);
     await proposalOptions(page).filter({ hasText: 'Level Crossing' }).click();   // the middle of the three, A to Z
 
-    await expect(activeDesignName(page)).toHaveText('Level Crossing — Dec 2026');
+    await expect(activeDesignName(page)).toHaveText('Level Crossing');
     await expect(page.locator('#designWhoRole')).toHaveText('LC-26-T10 · 32241e32');   // the printed sheet's ref
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);

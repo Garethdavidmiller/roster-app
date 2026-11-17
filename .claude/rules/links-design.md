@@ -1122,7 +1122,10 @@ the rule is held by hand, as is this file, which the test does not read.
 - **The shortlist is built in, and read-only** (owner decision, 3 Oct 2026: read-only proposals, not
   saved documents). `PROPOSALS` in `links-proposals.js` holds the current shortlist, listed A to Z with
   no recommendation (owner, 5 Nov 2026). Copy a design cell for cell from the pack and keep its printed
-  name; `links-proposals.test.mjs` says whether the copy is faithful and meets the hard limits. A proposal
+  name; `links-proposals.test.mjs` says whether the copy is faithful and meets the hard limits. **The
+  printed name is KEPT and shown without its " — Dec 2026"** (17 Nov 2026, `proposalDisplayName`): the link
+  starts in January 2027, and the date read as when it begins. Every surface shows the shorter name, the
+  ref beside it still matches the paper, and a saved design may take neither form. A proposal
   opens from its own group at the top of the picker as an UNSAVED working copy (`activeDesignId` null,
   `activeProposalId` set), so save, rename and delete all treat it as new: the first save asks for a name
   (`proposalCopyName`, "<name> — copy") and creates a design, and a proposal id never reaches Firestore.

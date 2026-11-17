@@ -45,6 +45,15 @@
  * If the shortlist changes, re-copy from the pack (the grids are the `patterns` of each `.json`, in
  * `docs/links-26/proposals/`, `docs/links-26/30-days-off/` or its `balanced/` subfolder), keep the printed
  * name, and the test will say whether the copy is faithful.
+ *
+ * ── THE NAME KEPT, AND THE NAME SHOWN (17 Nov 2026) ───────────────────────────────────────────
+ *
+ * The printed names end " — Dec 2026", and the new link starts in January 2027 (owner, 8 Nov 2026 —
+ * newlink-config.js → STARTS), so on screen and on a printout the date read as when it begins. The name
+ * is KEPT as printed — it is what the pack's files say — and SHOWN without the date, through
+ * `proposalDisplayName`, everywhere a proposal is named: the Links picker, masthead, compare chips and
+ * printed sheet, Keep only the shortlist and the New link page. The ref beside it still matches the paper.
+ * A saved design may take neither form (`PROPOSAL_NAMES`), or two of one name would sit in one list.
  */
 
 import { nameConflict } from './links-design-naming.js';
@@ -162,6 +171,18 @@ export const PROPOSALS = Object.freeze([
         ]),
     }),
 ].map(p => /** @type {Readonly<Proposal>} */ (p)));
+
+/** A proposal's name as it is SHOWN: the printed one without its " — Dec 2026". @param {{ name: string }} p */
+export function proposalDisplayName(p) {
+    return p.name.replace(/ — Dec 2026$/, '');
+}
+
+/** The names a saved design may not take, for `checkName`'s `existing`: each proposal's shown name, then its printed
+ *  one — shown first, so a refusal quotes what the picker lists. */
+export const PROPOSAL_NAMES = Object.freeze([
+    ...PROPOSALS.map(p => ({ id: p.id, name: proposalDisplayName(p) })),
+    ...PROPOSALS.map(p => ({ id: p.id, name: p.name })),
+]);
 
 /** Is this id a built-in proposal's? @param {unknown} id */
 export function isProposalId(id) {

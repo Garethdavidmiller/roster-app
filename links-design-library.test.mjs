@@ -45,7 +45,7 @@ mock.module('./overlay.js', {
 });
 
 const { createDesignLibrary } = await import('./links-design-library.js');
-const { PROPOSALS } = await import('./links-proposals.js');
+const { PROPOSALS, proposalDisplayName } = await import('./links-proposals.js');
 
 /** A recording store and context.
  *  @param {{ restore?: Function, create?: Function, purge?: Function, binIfStill?: Function, activeId?: () => any }} [over] */
@@ -322,6 +322,22 @@ describe('a saved design may not take a shortlisted proposal\'s name (links-desi
         lib.setBin([BINNED('b', name)]);
         await clickBin('.bin-restore', 'b');
         assert.equal(calls.add.length, 1);
+        assert.match(el('designBinStatus').textContent, /shortlisted proposal has the same name — rename/);
+    });
+
+    // A proposal is SHOWN without its printed " — Dec 2026" (17 Nov 2026), so the shown name is the one a design
+    // would be confused with in the list: both checks ask it too.
+    test('the name a proposal is shown under counts as well, for an import and for a restore', async () => {
+        const shown = proposalDisplayName(PROPOSALS[0]);
+        assert.notEqual(shown, PROPOSALS[0].name, 'premise: the shown name is not the printed one');
+        const imported = setup();
+        await importIt(imported.lib, shown.toUpperCase());
+        assert.deepEqual(imported.calls.create, []);
+        assert.match(el('linksImportStatus').textContent, new RegExp(`already a shortlisted proposal called “${shown}”`));
+
+        const restored = setup({ restore: async () => ({ status: 'ok', updatedAt: null, revision: 3, data: { name: shown, patterns: {}, window: null } }) });
+        restored.lib.setBin([BINNED('b', shown)]);
+        await clickBin('.bin-restore', 'b');
         assert.match(el('designBinStatus').textContent, /shortlisted proposal has the same name — rename/);
     });
 });

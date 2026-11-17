@@ -52,7 +52,7 @@ import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
 import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
-import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links-proposals.js';
+import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
 import { createTargetPanel, customShiftRefusal } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
@@ -302,7 +302,7 @@ export function init() {
      *  proposal is opened with NO activeDesignId, so no write path can ever address it. */
     /** @type {string|null} */ let activeProposalId = null;
     let binnedOnLoad = 0;
-    const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: p.name, ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
+    const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: proposalDisplayName(p), ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
     /** The import panel and the Recently deleted bin (links-design-library.js), built once the store
      *  exists. Null until then, so anything that renders before it reads an empty bin. @type {any} */
     let library = null;
@@ -804,7 +804,7 @@ export function init() {
         // picker and the same Compare chips, where two of one name cannot be told apart. The import
         // refused one (links-design-library.js); New, Save as…, Save a copy as… and Rename decide here.
         const asDesign = checkName(name, { existing: designs, exceptId, noun: 'design' });
-        const v = asDesign.ok ? checkName(name, { existing: [...PROPOSALS], noun: 'shortlisted proposal' }) : asDesign;
+        const v = asDesign.ok ? checkName(name, { existing: PROPOSAL_NAMES, noun: 'shortlisted proposal' }) : asDesign;
         if (!v.ok) _designActionStatus(v.message || 'That name cannot be used.');
         return !v.ok;
     }
