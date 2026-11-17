@@ -4106,6 +4106,22 @@ test('links window: an invalid finish is refused, never coerced', async ({ page 
     await expect(page.locator('#winStatus')).toContainText('after its start');
 });
 
+// THE REFUSAL GIVES THE REASON THAT APPLIES (17 Nov 2026). Every refused window said "A finish must be after its
+// start", so "2500" — shaped to 25:00 as it is typed, which is no time of day — was blamed on its order.
+test('links window: a refusal says why — not a time, a box left empty, or the wrong way round', async ({ page }) => {
+    await openWindowDesign(page);
+    const end = page.locator('#winMonSatEnd');
+    const status = page.locator('#winStatus');
+    await end.fill('2500');
+    await end.dispatchEvent('change');
+    await expect(end, 'refused, never coerced').toHaveValue('23:55');
+    await expect(status).toHaveText('“25:00” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.');
+    await end.fill('');
+    await end.dispatchEvent('change');
+    await expect(end).toHaveValue('23:55');
+    await expect(status).toHaveText('A start and a finish are both needed — that change wasn’t applied.');
+});
+
 test('links window: a time typed without a colon is shaped into one, so a phone keypad can fill the box', async ({ page }) => {
     // A numeric keypad has no colon (v24.61, iOS audit). Before this, "1420" typed on an iPhone was
     // refused as not a time and the box reverted — the window could not be edited from a phone at all.

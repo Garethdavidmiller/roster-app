@@ -418,8 +418,10 @@ export function init() {
             if (!design) return;
             // Pad what was typed — "6:20" and "06:20" are the same instruction, and the stored
             // value must be the one canonical form the rest of the workspace reads.
-            const start = canonicaliseWindowTime(finaliseClockInput(els[row].start?.value ?? '')) || '';   // "240" left as typed is 02:40
-            const end   = canonicaliseWindowTime(finaliseClockInput(els[row].end?.value ?? '')) || '';
+            const typedStart = finaliseClockInput(els[row].start?.value ?? '');   // "240" left as typed is 02:40
+            const typedEnd   = finaliseClockInput(els[row].end?.value ?? '');
+            const start = canonicaliseWindowTime(typedStart) || '';
+            const end   = canonicaliseWindowTime(typedEnd) || '';
             const candidate = { start, end };
             if (!isValidWindowRow(candidate)) {
                 // Put the stored value back so the field never sits showing something that is not
@@ -427,8 +429,15 @@ export function init() {
                 // ORDER MATTERS: paint() rewrites `status` from the stored window, so the message
                 // has to be written AFTER it or it is wiped in the same tick and the field appears
                 // to revert for no reason at all.
+                // THE REASON IS THE ONE THAT APPLIES (17 Nov 2026). Every refusal said "A finish must be after
+                // its start", so "2500" — shaped to 25:00, which is no time — was blamed on its order, and an
+                // emptied box on the same. Not a time, missing, and out of order are three answers.
+                const notATime = [typedStart, typedEnd].find(t => t.trim() && !canonicaliseWindowTime(t));
                 paint();
-                if (status) status.textContent = 'A finish must be after its start — that change wasn’t applied.';
+                if (status) status.textContent = notATime !== undefined
+                    ? `“${notATime.trim()}” is not a time of day — a time runs from 00:00 to 23:59. That change wasn’t applied.`
+                    : !start || !end ? 'A start and a finish are both needed — that change wasn’t applied.'
+                    : 'A finish must be after its start — that change wasn’t applied.';
                 return;
             }
             const next = normaliseWindow(design.window);
