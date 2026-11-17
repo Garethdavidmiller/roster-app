@@ -55,7 +55,7 @@ import { APP_VERSION, escapeHtml } from './roster-data.js';
 import { db, doc, addDoc, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { confirmDialog, promptDialog, createLightbox } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
-import { ROTATING_LINES, normaliseCustomShift, customShiftRefusal } from './links-design.js';
+import { ROTATING_LINES, normaliseCustomShift } from './links-design.js';
 import { buildRosterTargets } from './links-seed.js';
 import { buildDefaultTargets, sameTargetTable, isSupersededMemory } from './links-default-targets.js';
 import { assessTargetHours, targetHoursLines, targetProvenanceNote } from './links-target-hours.js';
@@ -64,6 +64,17 @@ import { unconfirmedWriteLine } from './claim-retry.js';
 import { createTargetSetStore } from './links-target-sets-store.js';
 import { isOfflineFailure } from './links-design-store.js';
 import { checkName } from './links-design-naming.js';
+
+/**
+ * What a Custom… prompt says when `normaliseCustomShift` refuses what was typed. Two prompts ask for a shift time —
+ * the grid's (links-app.js) and this table's — and this one dropped a refused time as it did a Cancel (17 Nov 2026).
+ * It names all three of the rule's conditions rather than work out which failed, which would copy its arithmetic.
+ * @param {string} raw  what was typed, shown back as typed
+ */
+export function customShiftRefusal(raw) {
+    return `“${String(raw ?? '').trim()}” wasn’t used — write a shift as its start and finish in 24-hour time, like 06:00-14:00. `
+        + 'It has to start between 04:00 and 20:59 and finish later the same day.';
+}
 
 /**
  * Build the generator's target-table panel and wire it to the card.

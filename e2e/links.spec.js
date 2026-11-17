@@ -5089,6 +5089,110 @@ test('links: a queued save the server REFUSES is unsaved again, says so, and is 
     await askedAboutTheOtherVersion();
 });
 
+// A NEW DESIGN THE SERVER REFUSES MADE NOTHING (17 Nov 2026). Heard as a plain answer, a create queued in this browser
+// and refused on sync left the pill saying "Saved" over a design nobody else had, and the next Save met no document and
+// said "Someone removed this design for good". It is an unsaved design again now, and its next Save makes it.
+test('links: a new design the server refuses on sync is unsaved again, and the next Save makes it', async ({ page }) => {
+    await openWindowDesign(page);
+    await pageSignal(page, false);
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    await expect(page.locator('#designStatusLong')).toHaveText('Saved in this browser');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = 'permission-denied'; });
+    await pageSignal(page, true);
+    await expect(status).toHaveText('Not saved — the server refused “Option N”, so nobody else has it. It is still here: press Save as… to save it again. If that is refused too, contact the admin.');
+    await expect(status).toHaveClass(/\berr\b/);
+    await expect(page.locator('#designStatusLong'), 'never "Saved"').toHaveText('Not saved yet');
+    await expect(activeDesignName(page)).toHaveText('Untitled design');
+    await expect(designOptions(page).filter({ hasText: 'Option N' }), 'not in the list: the server has no such design').toHaveCount(0);
+    await expect(page.locator('#linksSaveBtn')).toHaveText('Save as…');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = undefined; });
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Name this design');
+    await dialog.locator('.dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('✓ Saved');
+    await expect(activeDesignName(page)).toHaveText('Option N');
+    await expect(page.locator('.dialog-overlay'), 'no "This design was deleted" question').toHaveCount(0);
+    const made = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length);
+    expect(made, 'two creates: the refused one and the one that landed').toBe(2);
+});
+
+// …and a FIRST SAVE is a create too: a proposal's copy (or a generated design) saved offline and refused on sync made
+// nothing, though it travels the save path, with a save's number.
+test('links: a first save the server refuses on sync made nothing — the next Save makes it, never "removed for good"', async ({ page }) => {
+    await openWindowDesign(page);
+    await openDesignPicker(page);
+    await proposalOptions(page).first().click();
+    await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
+    await page.locator('#winMonSatEnd').fill('23:25');   // an edit, so it is a working copy to save
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await pageSignal(page, false);
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Name this design');
+    await dialog.locator('.dialog-input').fill('Proposal edit');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+    await expect(activeDesignName(page)).toHaveText('Proposal edit');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = 'permission-denied'; });
+    await pageSignal(page, true);
+    await expect(status).toHaveText(/^Not saved — the server refused “Proposal edit”, so nobody else has it\./);
+    await expect(page.locator('#designStatusLong')).toHaveText('Not saved yet');
+    await expect(page.locator('#winMonSatEnd'), 'the work is still on screen').toHaveValue('23:25');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.queuedSetRefusal = undefined; });
+    await page.locator('#linksSaveBtn').click();
+    await expect(dialog).toContainText('Name this design');
+    await dialog.locator('.dialog-input').fill('Proposal edit');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(status).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay'), 'no "This design was deleted" question').toHaveCount(0);
+});
+
+// …and a Save pressed while that refusal is still on its way. Its transaction waits for this browser's own queued
+// writes (store rule 5), so it reads the server only after the refusal, and finds no document: that is the design
+// never made, already said, and not a delete to report over it.
+test('links: a Save pressed while a refused create is on its way adds nothing to what the refusal says', async ({ page }) => {
+    await openWindowDesign(page);
+    await pageSignal(page, false);
+    await sheetAction(page, 'newDesignBtn');
+    await page.locator('.dialog-overlay .dialog-input').fill('Option N');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toHaveText('Saved in this browser — it uploads the next time Links is open here with a connection');
+
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.holdSetsWhenOnline = true; w.__E2E.queuedWrites = true; });
+    await pageSignal(page, true);   // the signal is back, and the create is not yet answered
+    await page.locator('#winMonSatEnd').fill('23:25');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    const waitsBefore = await page.evaluate(() => /** @type {any} */ (window).__E2E.queueWaits || 0);
+    await page.locator('#linksSaveBtn').click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__E2E.queueWaits || 0),
+        'premise: the save is waiting for the queued create, as store rule 5 has it').toBeGreaterThan(waitsBefore);
+
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.queuedSetRefusal = 'permission-denied'; w.__E2E.deliverQueuedSet(); });
+    const refused = 'Not saved — the server refused “Option N”, so nobody else has it. It is still here: press Save as… to save it again. If that is refused too, contact the admin.';
+    await expect(status).toHaveText(refused);
+    // The save's transaction runs now and meets no document. Everything from here to its end is promise work, so it
+    // is over once the page has run one more task.
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.sendQueuedWrites());
+    await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 50)));
+    await expect(status, 'never "deleted elsewhere while saving": nothing was there to delete').toHaveText(refused);
+    await expect(page.locator('.dialog-overlay'), 'no "This design was deleted" question').toHaveCount(0);
+    await expect(activeDesignName(page)).toHaveText('Untitled design');
+    await expect(page.locator('#winMonSatEnd'), 'the work is still on screen').toHaveValue('23:25');
+});
+
 test('links: a clean first tab does not throw away the copy a second tab kept of its queued save', async ({ page, context }) => {
     await openWindowDesign(page);                  // the first tab
     const second = await context.newPage();

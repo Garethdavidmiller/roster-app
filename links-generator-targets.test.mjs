@@ -111,8 +111,7 @@ mock.module('./overlay.js', { namedExports: {
 } });
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => {} } });
 
-const { createTargetPanel } = await import('./links-generator-targets.js');
-const { customShiftRefusal } = await import('./links-design.js');
+const { createTargetPanel, customShiftRefusal } = await import('./links-generator-targets.js');
 
 /** A fresh card for M. Robson (not the admin), with the setups list read and on screen. */
 async function openCard() {

@@ -1,6 +1,6 @@
 /**
  * links-queued-saves.test.mjs — which copy of a QUEUED Links save is kept, on which baseline, and whether
- * an answer still counts (links-queued-saves.js; v26.03). Organised by its six rules.
+ * an answer still counts (links-queued-saves.js; v26.03). Organised by its rules.
  *
  * Run: node scripts/run-tests.mjs links-queued-saves.test.mjs   (part of `npm run test:hygiene`)
  *
@@ -10,7 +10,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { createQueuedSaves, stillUnsaved } from './links-queued-saves.js';
+import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
 
 /** The version the designer's edits were made against — what the server is known to hold. */
 const KNOWN = { loadedRevision: 4, loadedUpdatedAt: null, baselineUnknown: false };
@@ -141,5 +141,58 @@ describe('rule 6 — a kept copy its design now holds exactly is not unsaved', (
     test('a design no longer in the list: all of it is unsaved', () => {
         assert.equal(stillUnsaved(kept, undefined), kept.data);
         assert.equal(stillUnsaved(kept, null), kept.data);
+    });
+});
+
+describe('rule 7 — a refused write that would have MADE the design made nothing', () => {
+    test('a refused create: the server never made it', () => {
+        const q = createQueuedSaves();
+        assert.equal(q.heard('d1', 'failed', true), true);
+        assert.equal(q.neverMade('d1'), true);
+        assert.equal(q.neverMade('d2'), false, 'per design');
+    });
+
+    test('a refused save of a design the server holds made nothing NEW: it still exists', () => {
+        const q = createQueuedSaves();
+        assert.equal(q.heard('d1', 'failed', false), false);
+        assert.equal(q.neverMade('d1'), false);
+    });
+
+    test('the mark outlives the answer of a save queued behind the create, which lands on nothing too', () => {
+        const q = createQueuedSaves();
+        q.heard('d1', 'failed', true);
+        assert.equal(q.heard('d1', 'failed', false), true, 'refused behind it');
+        assert.equal(q.heard('d1', 'held', false), true, 'held is no answer at all');
+        assert.equal(q.neverMade('d1'), true);
+    });
+
+    test('any write the server confirms made it', () => {
+        const q = createQueuedSaves();
+        q.heard('d1', 'failed', true);
+        assert.equal(q.heard('d1', 'acked', true), false, 'its next create, made');
+        assert.equal(q.neverMade('d1'), false);
+        q.heard('d2', 'failed', true);
+        assert.equal(q.heard('d2', 'acked', false), false, 'any confirmed write names a document that exists');
+    });
+
+    test('no id is never "never made"', () => {
+        assert.equal(createQueuedSaves().neverMade(null), false);
+    });
+
+    test('what the page says: open, it is unsaved again and one Save as… away; closed, it is gone from the list', () => {
+        const open = refusedMakeLine('Q. Example draft', true);
+        assert.match(open, /^Not saved — the server refused “Q\. Example draft”, so nobody else has it\./);
+        assert.match(open, /press Save as… to save it again\. If that is refused too, contact the admin\.$/);
+        const closed = refusedMakeLine('Q. Example draft', false);
+        assert.match(closed, /^“Q\. Example draft” was not saved — the server refused it, so it is no longer in the list\./);
+        assert.match(closed, /contact the admin\.$/);
+        for (const line of [open, closed]) {
+            assert.doesNotMatch(line, /removed|deleted|for good|!/, 'never made is not removed, and the tone stays calm');
+        }
+    });
+
+    test('a design with no name yet is still said', () => {
+        assert.match(refusedMakeLine('', true), /the server refused this new design,/);
+        assert.match(refusedMakeLine('   ', false), /^A new design was not saved/);
     });
 });

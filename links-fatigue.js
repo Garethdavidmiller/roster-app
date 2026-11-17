@@ -88,8 +88,9 @@ import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_R
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
 import { scoreOrder, GENTLE_THRESHOLD_MINUTES } from './links-adjacency.js';
 
-/** A day key as a reader names it, for the rows that say where something is. */
-const DAY_NAME = /** @type {Record<string, string>} */ ({
+/** A day key as a reader names it, for the rows that say where something is — FF8b here, and the Design checks'
+ *  short turnarounds (links-analysis.js), which printed the stored keys until 17 Nov 2026. */
+export const DAY_NAME = /** @type {Record<string, string>} */ ({
     sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday',
 });
 

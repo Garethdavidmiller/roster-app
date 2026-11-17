@@ -34,7 +34,7 @@
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
-import { assessFatigue, COVER_DUTY_WORDS } from './links-fatigue.js';
+import { assessFatigue, COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
 import {
@@ -50,11 +50,6 @@ import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
 // checks examine a different one, silently — and the rotation has since gone 28 -> 22 (v19.98),
 // which would have made all three wrong in three different ways.
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-/** A day key as a reader names it, in a sentence — "Line 3 Saturday", never the stored "sat" (17 Nov 2026: the
- *  short-turnaround rows printed the keys, on screen and on the sheet, where FF8b's row already named the day). */
-const DAY_NAME = /** @type {Record<string, string>} */ ({
-    sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday',
-});
 const TOTAL_POS = ROTATING_LINES;
 /** The minimum rest in words, from the generator's own gate figure — never typed as "12". */
 const MIN_REST_HOURS = `${MIN_REST_MINUTES / 60} hours`;
@@ -81,8 +76,7 @@ const DEMAND_PEAK = peakCars(DEC_2026_DEMAND);
 const hhmm = (/** @type {number|null} */ h) => `${String(h ?? 0).padStart(2, '0')}:00`;
 
 /** Rest between two duties, in words. Below zero it is an OVERLAP (imported data can run a duty past
- *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. In the workspace's
- *  one hours-and-minutes shape, `hmFromHours` — "11h 05m", as the hours row on the same card writes it. */
+ *  midnight into an earlier next-day start), and signed it read "-2h -30m rest" for 1h 30m. `hmFromHours`'s shape. */
 const restWords = (/** @type {number} */ m) => (m < 0
     ? `overlapping by ${hmFromHours(-m / 60)}` : `${hmFromHours(m / 60)} rest`);
 
@@ -435,8 +429,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 // figure most edits ever see, so a partial average must not wear the tick HERE
                 // either — that is the copy that would go on being trusted.
                 const ok = Math.abs(off) <= 0.5 && wh.complete;
-                // "(partial)" in words, as the row below says it (17 Nov 2026): a bare "*" pointed at a footnote
-                // the strip does not have.
+                // "(partial)", the row's own word — a bare "*" pointed at a footnote the strip lacks (17 Nov 2026).
                 return chip(ok ? 'ok' : 'warn', ok ? '✓' : '⚠',
                     hmFromHours(wh.exSunday), wh.complete ? 'a week' : 'a week (partial)');
             })()
@@ -467,8 +460,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         const { early, late, spare, worked } = balance;
         const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
         const latePct  = worked ? Math.round((late  / worked) * 100) : 0;
-        // The shares are of every WORKED day, cover days included, so with a cover week the early and late
-        // shares leave a gap; the spare share fills it rather than leaving a reader to wonder (17 Nov 2026).
+        // Of every WORKED day, cover days included: with a cover week, the spare share says where the rest went.
         const sparePct = worked ? Math.round((spare / worked) * 100) : 0;
 
         const tick  = `<span class="check-icon check-tick" aria-hidden="true">✓</span>`;
@@ -748,16 +740,13 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `the greater the need to justify, minimise, then assess and control the risk. This panel is an aid to that ` +
             `conversation, not a fatigue risk assessment.</div></div>`,
             // The hours caveat, stated where the hours are read (v19.59). `assessFatigue` has always
-            // returned `hoursAreFloor` "so the UI can say so" and the UI never did. A spare line carries
-            // no times at all, and under-reporting hours in a fatigue panel is the flattering direction,
-            // which is the one thing this panel must not do quietly. Since 17 Nov 2026 the 55-hour row
-            // counts a cover week at its WORST (`worstHoursInAny7Days`), so the caveat no longer says
-            // "every hours figure is a floor": it says what each kind of figure does with a cover week.
+            // returned `hoursAreFloor` "so the UI can say so" and the UI never did. Under-reporting hours is
+            // the flattering direction. Since 17 Nov 2026 the 55-hour row takes a cover week at its WORST,
+            // so the caveat says what each kind of figure does with one, not "every figure is a floor".
             ...(fat.hoursAreFloor ? [
                 `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
-                `<div class="check-body check-prose">A cover week carries <strong>no times</strong>. The runs below count its ` +
-                `days at their worst, and the 55-hour row counts each of them as ${COVER_DUTY_WORDS}. A count of long duties ` +
-                `cannot see them, so it is a <strong>floor, not an estimate</strong>.</div></div>`,
+                `<div class="check-body check-prose">A cover week carries <strong>no times</strong>. The runs below count its days at their worst, ` +
+                `and the 55-hour row counts each as ${COVER_DUTY_WORDS}. A count of long duties cannot see them, so it is a <strong>floor, not an estimate</strong>.</div></div>`,
             ] : [])
         );
 

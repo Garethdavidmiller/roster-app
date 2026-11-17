@@ -67,7 +67,7 @@ list.
 |--------|------|
 | `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore write of its own — designs go through `links-design-store.js` — and one direct read remains, `loadDesigns`, which needs `metadata.fromCache` (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and the refresh's read (`createDesignStore`) |
-| `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, and whether an answer still counts (v26.03) |
+| `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, whether an answer still counts (v26.03), and whether the server ever made the design |
 | `links-design-library.js` | the import panel, the Recently deleted bin and its list, and Keep only the shortlist (`createDesignLibrary`). Rename, duplicate and delete stay in `links-app.js`, because they change the open design's baseline |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the picker sheet, the Save buttons' label and the ··· More sheet |
 | `links-design.js` | the design maths — classification, coverage, hours, the generator and its rest repair, `runDesignChecks`, `endMinutesAbs` |
@@ -1225,7 +1225,10 @@ The workspace's own rules, in `saveChanges`:
   "in this browser" and the copy goes. Refused (`'failed'`), the design is unsaved again, on that earlier
   baseline, and says so — and again whenever it is reopened, because the list holds what the refused
   save wrote. A new design, a copy and an import clear the pill on their answer too, and keep no copy:
-  each is one press to make again.
+  each is one press to make again. **Refused, any of them — or a first save — made NOTHING** (17 Nov
+  2026, `_createRefused`; `links-queued-saves.js` rule 7): the server has no document, so the design
+  leaves the list, and if it is open it is an unsaved design again whose next Save makes it. Never
+  "Saved" over it, and never the "removed for good" a save meets when no document is there.
 - **`dirty` clears only if nothing was edited while the save was in flight**, and the payload recorded is
   the one actually WRITTEN, window and revision included.
 - **A save that finds its design deleted drops it from the live list even when the page has moved on**

@@ -112,7 +112,7 @@ test('the panel says what a cover week does to its hours figures — when there 
         initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
         const html = els.checksContent.innerHTML;
         assert.equal(/A cover week carries <strong>no times<\/strong>/.test(html), floor, `${label}: the panel's caveat`);
-        assert.equal(/the 55-hour row counts each of them as a quarter of the contracted week \(8h 45m\)/.test(html), floor,
+        assert.equal(/the 55-hour row counts each as a quarter of the contracted week \(8h 45m\)/.test(html), floor,
             `${label}: the caveat names what the 55-hour row counts a cover day as`);
         assert.doesNotMatch(html, /Every hours figure here is a/, `${label}: the 55-hour figure is not a floor any more`);
         assert.equal(/51\.8 hours in the worst case, and 40 on the duties the rota fixes/.test(html), floor,

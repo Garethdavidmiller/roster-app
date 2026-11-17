@@ -345,20 +345,6 @@ export function normaliseCustomShift(raw) {
 }
 
 /**
- * What a Custom… prompt says when `normaliseCustomShift` refuses what was typed — written once, beside
- * the rule it describes, because two prompts ask for a shift time: the grid's (its paint bar and cell
- * sheet) and the generator's. The grid's said why from the start; the generator's dropped a refused
- * time exactly as it did a Cancel (17 Nov 2026). It names all three rules rather than working out which
- * one failed, which would be the arithmetic above copied into a sentence.
- * @param {string} raw  what was typed, shown back as typed
- * @returns {string}
- */
-export function customShiftRefusal(raw) {
-    return `“${String(raw ?? '').trim()}” wasn’t used — write a shift as its start and finish in 24-hour time, like 06:00-14:00. `
-        + 'It has to start between 04:00 and 20:59 and finish later the same day.';
-}
-
-/**
  * Put ONE shift value into the module's canonical form, or return it unchanged when it is already
  * canonical / not a time. Applied to a whole design by `normalisePatterns` on load.
  *
