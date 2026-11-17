@@ -1052,6 +1052,16 @@ describe('silent-sign-in.js — what the sign-in nobody typed may try', () => {
         assert.deepEqual(plan('1'), { candidates: ['miller'], recheck: true, held: false });
     });
 
+    test('six hours means six hours, written out — the tests above lean on the constant (review, Nov 2026)', () => {
+        // Measured against the constant, a constant of a few milliseconds passed them all, and a
+        // flagged device asked on every load: from the station's one address, the request pattern
+        // Firebase throttles, refusing members' CORRECT typed passwords (this module's header).
+        const HOUR = 60 * 60 * 1000;
+        assert.equal(plan(String(NOW - HOUR)).recheck, false, 'asked again an hour after a refusal');
+        assert.equal(plan(String(NOW - 6 * HOUR)).recheck, false, 'asked again AT six hours — the rule is "more than"');
+        assert.equal(plan(String(NOW - 6 * HOUR - 1)).recheck, true, 'not asked once six hours had passed');
+    });
+
     test('a recheck this attempt already asked, unanswered, is held — but only a recheck', () => {
         assert.deepEqual(plan('1', true), { candidates: [], recheck: true, held: true });
         assert.deepEqual(plan(null, true), { candidates: ['miller'], recheck: false, held: false }, 'nothing remembered is not a recheck');

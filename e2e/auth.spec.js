@@ -838,6 +838,39 @@ test('login overlay: a new name starts a new failure streak', async ({ page }) =
     await expect(page.locator('#loginResetRequest'), 'a first failure is the mistype case').not.toHaveClass(/login-reset-request--prompted/);
 });
 
+test('login overlay: the 30-second lock is the person\'s who earned it, not the next person\'s (review, Nov 2026)', async ({ page }) => {
+    // At a shared PC the lock outlived a change of person: three wrong passwords by one colleague, and
+    // the button read "Try again in 30s" for whoever picked their own name next. The two people are
+    // the first two names the card offers, whoever they are.
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });   // → auth/invalid-credential
+    await page.goto('/settings.html');
+    await page.locator('#loginOverlay').waitFor({ state: 'visible' });
+    const grade = (await page.locator('#loginGrade option').evaluateAll(opts => opts.map(o => /** @type {HTMLOptionElement} */ (o).value).filter(Boolean)))[0];
+    await page.locator('#loginGrade').selectOption(grade);
+    const [first, second] = await page.locator('#loginName option').evaluateAll(opts => opts.map(o => /** @type {HTMLOptionElement} */ (o).value).filter(Boolean));
+    const submit = page.locator('#loginSubmit');
+    const signIns = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.signIns?.length ?? 0);
+    await page.locator('#loginName').selectOption(first);
+    for (let i = 1; i <= 3; i++) {
+        await page.locator('#loginPassword').fill(`not-the-password-${i}`);
+        await submit.click();
+        await expect(page.locator('#loginError')).toBeVisible();
+    }
+    await expect(submit, 'premise: three wrong passwords lock the button').toHaveText('Try again in 30s');
+    await page.locator('#loginName').selectOption(second);
+    await expect(submit, 'the next person was locked out for the last one\'s mistakes').toHaveText('Sign in →');
+    await expect(submit).toBeEnabled();
+    const before = await signIns();
+    await page.locator('#loginPassword').fill('second-person-typo');
+    await submit.click();
+    await expect.poll(signIns, { message: 'the next person\'s attempt never reached the sign-in' }).toBeGreaterThan(before);
+    await expect(page.locator('#loginError')).toBeVisible();
+    await expect(submit, 'and it was their first mistake, not a fourth').toHaveText('Sign in →');
+    await page.locator('#loginName').selectOption(first);
+    await expect(submit, 'the lock is still the first person\'s').toHaveText('Try again in 30s');
+    await expect(submit).toBeDisabled();
+});
+
 test('login overlay: a password left showing is masked again when the person in the card changes', async ({ page }) => {
     // At a shared PC the next person would otherwise type their own password in clear. Both handlers:
     // a new name, and a new grade.

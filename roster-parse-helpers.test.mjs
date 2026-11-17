@@ -529,6 +529,48 @@ describe('extractAIJson', () => {
         assert.deepEqual(extractAIJson('{"foo": "bar"}'), { foo: 'bar' });
         assert.deepEqual(extractAIJson('note {} here\n{"foo": "bar"}'), {});
     });
+
+    // ── THE SCANNER'S OWN STATE (review, Nov 2026) ───────────────────────────────────────────────
+    // Every line of the brace-and-string tracking could be broken with every test above still green:
+    // none of them put a brace or a quote inside a string, cut a reply short, or followed one with text.
+    test('a brace, or an escaped quote, inside a string is text — it neither ends the string nor the object', () => {
+        assert.deepEqual(extractAIJson('{"note": "a \\"}\\" here, and a } too", "columnHeaders": ["Sun"], "parsed": []}'),
+            { note: 'a "}" here, and a } too', columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('the scan starts outside any escape: an empty string first is still an empty string', () => {
+        assert.deepEqual(extractAIJson('{"": "", "columnHeaders": ["Sun"], "parsed": []}'), { '': '', columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('a reply cut off mid-object is refused whole — never mined for an object nested inside it', () => {
+        // A truncated answer (the token limit, a dropped stream) holds complete inner objects. One of
+        // them carrying `parsed` would be PART of the roster, returned as if it were all of it.
+        const cut = '{"columnHeaders": ["Sun"], "parsed": [{"memberName": "A. Person", "Sun": "RD"}], "draft": {"parsed": []}';
+        assert.throws(() => extractAIJson(cut), (/** @type {any} */ e) => e instanceof SyntaxError && /^No valid JSON object found in AI response$/.test(e.message));
+    });
+
+    test('an answer followed straight away by text is still read', () => {
+        assert.deepEqual(extractAIJson('{"columnHeaders": ["Sun"], "parsed": []}.'), { columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('an answer wrapped in a stray outer brace is still found', () => {
+        assert.deepEqual(extractAIJson('{{"columnHeaders": ["Sun"], "parsed": []}}'), { columnHeaders: ['Sun'], parsed: [] });
+    });
+
+    test('of two { parsed } answers the FIRST is taken, as the first full-shape answer is', () => {
+        // One rule for both shapes: the first span that is the payload. A reply giving two is a model
+        // ignoring "return ONLY valid JSON", and neither is preferred for being later.
+        const two = 'One: {"parsed": [{"memberName": "A. Person"}]} Two: {"parsed": [{"memberName": "B. Example"}]}';
+        assert.deepEqual(extractAIJson(two), { parsed: [{ memberName: 'A. Person' }] });
+    });
+
+    test('when nothing parses, the error names the FIRST span\'s failure — the one worth reading in the log', () => {
+        let first = '';
+        try { JSON.parse('{bad one}'); } catch (e) { first = /** @type {Error} */ (e).message; }
+        assert.ok(first, 'premise: JSON.parse refused it');
+        assert.throws(() => extractAIJson('{bad one} then {worse two}'),
+            (/** @type {any} */ e) => e instanceof SyntaxError && e.message === `No valid JSON object found in AI response: ${first}`);
+    });
 });
 
 // ── HEADER_TO_INDEX ───────────────────────────────────────────────────────────

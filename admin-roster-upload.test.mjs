@@ -1858,6 +1858,48 @@ describe('detectShiftedRow — the 5-of-7 floor, from both sides', () => {
     }
 });
 
+// ── A TIE IS A LEFT SLIDE, AT BOTH LEVELS (review, Nov 2026) ───────────────────────────────────
+//
+// Where both one-day-out alignments fit a row equally, or as many rows slide each way, the answer
+// is LEFT — the slide a skipped blank Sunday column produces, the failure this breaker was built for.
+// It decides which side of the breaker's count a tied row joins, and which cause the stop banner
+// names. Neither choice was pinned: either `>=` could become `>` with every test green.
+describe('detectShiftedRow / assessRosterAlignment — a tie is read as the left slide', () => {
+    const DATES = ['2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08'];
+    const baseOf = (/** @type {any} */ m, /** @type {string} */ d, off = 0) => {
+        const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + off);
+        const v = getBaseShift(m, x);
+        return v === 'OFF' ? 'RD' : v;
+    };
+
+    test('a row that fits a day early exactly as well as a day late is called left', () => {
+        // An invented member on a real line: the CES pattern's week 2 has the shape a tie needs.
+        const member = { name: 'A. Person', rosterType: 'ces', currentWeek: 2, role: 'CES' };
+        const read = ['RD', 'RD', '14:30-23:45', 'RD', '14:30-23:45', '15:30-00:30', 'RD'];
+        const row = Object.fromEntries(DATES.map((d, i) => [d, read[i]]));
+        // FIXTURE PREMISE, by plain counting — not the rule restated: equal at ±1, at least five, and
+        // three better than the honest alignment, so only the tie-break decides.
+        const score = (/** @type {number} */ off) => DATES.filter((d, i) => read[i] === baseOf(member, d, off)).length;
+        assert.deepEqual([score(0), score(1), score(-1)], [2, 5, 5], 'the line changed shape — find another tie, do not delete this');
+        assert.equal(detectShiftedRow(member, row, DATES), 'left');
+    });
+
+    test('three slide left and three slide right: the read is refused, and named as the left slide', () => {
+        const ROSTER = teamMembers.filter(/** @param {any} m */ m => !m.hidden && !m.managerOnly);
+        const shifted = (/** @type {any} */ m, /** @type {number} */ off) => Object.fromEntries(DATES.map(d => [d, baseOf(m, d, off)]));
+        const left = ROSTER.filter(m => detectShiftedRow(m, shifted(m, 1), DATES) === 'left').slice(0, 3);
+        const right = ROSTER.filter(m => !left.includes(m) && detectShiftedRow(m, shifted(m, -1), DATES) === 'right').slice(0, 3);
+        assert.deepEqual([left.length, right.length], [3, 3], 'fixture: the roster must have three of each');
+        const a = assessRosterAlignment({ dates: DATES, parsed: [
+            ...left.map(m => ({ memberName: m.name, shifts: shifted(m, 1) })),
+            ...right.map(m => ({ memberName: m.name, shifts: shifted(m, -1) })),
+        ] });
+        assert.equal(a.blocked, true);
+        assert.equal(a.direction, 'left');
+        assert.deepEqual(a.suspects, left.map(m => m.name));
+    });
+});
+
 // ── shiftDisplay / manualShiftDisplay — the review table's pure formatters (v18.85) ─────────────
 // Both were module-private and reachable only through the DOM-heavy review table, so their
 // branches (unreadable sentinel, RDW re-encoding, Other-family detail, Sunday promotion) went
@@ -1865,11 +1907,29 @@ describe('detectShiftedRow — the 5-of-7 floor, from both sides', () => {
 
 describe('shiftDisplay', () => {
     test('an UNREADABLE cell shows the raw text, escaped, and no badge', () => {
-        const html = shiftDisplay('UNKNOWN|<b>7A</b>');
+        // Upper case, as the server sends what it could not read (`normaliseShift` upper-cases it).
+        const html = shiftDisplay('UNKNOWN|<B>7A</B>');
         assert.match(html, /review-shift-unreadable/);
         assert.match(html, /couldn't read/);
-        assert.ok(!html.includes('<b>'), 'raw PDF text must be escaped, never injected as markup');
-        assert.match(html, /&lt;b&gt;7A&lt;\/b&gt;/);
+        assert.ok(!html.includes('<B>'), 'raw PDF text must be escaped, never injected as markup');
+        assert.match(html, /&lt;B&gt;7A&lt;\/B&gt;/);
+    });
+
+    test('a sentence the IMPORT wrote is shown as its own words, never quoted as the PDF\'s (review, Nov 2026)', async () => {
+        // Built by the server's own code, so a reworded sentence is still a sentence here.
+        const { createRequire } = await import('node:module');
+        const require = createRequire(import.meta.url);
+        const { normaliseShift } = require('./functions/roster-parse-helpers.js');
+        const { blankCellMeaning } = require('./functions/cell-day-rules.js');
+        const quiet = (/** @type {() => any} */ fn) => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
+        const unread = quiet(() => normaliseShift('see cem <i>x</i>'));
+        assert.match(shiftDisplay(unread), /couldn't read “SEE CEM &lt;I&gt;X&lt;\/I&gt;”/, 'what the PDF said is still quoted, escaped');
+        for (const sentence of [blankCellMeaning(1, 'Monday'), 'UNKNOWN|06:00-14:00 was read here, but this cell is empty on the PDF — the row may be a day out',
+            'UNKNOWN|Rest day or 10:00-18:00? (PDF unclear)']) {
+            const html = shiftDisplay(sentence);
+            assert.doesNotMatch(html, /couldn't read/, `the import's words were dressed as the PDF's: ${html}`);
+            assert.ok(html.includes(sentence.slice('UNKNOWN|'.length)), 'and they are shown whole');
+        }
     });
 
     test('an RDW-encoded value shows the RDW badge plus the plain time', () => {
