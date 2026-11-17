@@ -974,6 +974,20 @@ describe('15. a stored date is escaped where the row prints it', () => {
     });
 });
 
+describe('15b. an Other day is listed by its word, as the save receipt names it', () => {
+    test('"Training RDW 09:00-17:00" and "Meeting 10:00-14:00", never TRG or MEET', () => {
+        setup({ isAdmin: false, isManager: false });
+        selectMember('Q. Example');
+        _rows = [
+            { id: 'a', memberName: 'Q. Example', date: '2026-09-02', type: 'other', value: 'TRG RDW 09:00-17:00', source: 'manual' },
+            { id: 'b', memberName: 'Q. Example', date: '2026-09-01', type: 'other', value: 'MEET 10:00-14:00', source: 'roster_import' },
+        ];
+        renderTable();
+        const values = el('overrideTableBody')._kids.map((/** @type {any} */ c) => /<span class="oc-value">([^<]*)<\/span>/.exec(c.innerHTML)?.[1]);
+        assert.deepEqual(values, ['Training RDW 09:00-17:00', 'Meeting 10:00-14:00']);
+    });
+});
+
 // ── 16 · THE WEEK GRID FOLLOWS THE PAGE'S OWN DELETE (Nov 2026, review) ────────────────────────────────
 // Both controls used to leave the week grid alone whenever a change was staged there, so a row went on
 // comparing with a record this page had just deleted, and the week's next Save refused the admin's own

@@ -1703,11 +1703,11 @@ Say so when a save is waiting on the server. With `persistentLocalCache` a write
 - **It never says "saved"** (a held write can still be refused) **and never gives the button back** (a second tap repeats a write that is still held). `window.__E2E.slowSaveMs` is a test seam only. Wraps the Admin override writes and deletes, the leave-year save, the roster upload, the Settings work-email card, and Operations' own writes (a work email, a cleared reset request, a resolved error).
 
 ### `admin-shift-types.js`
-The shift-type table the Change a Shift surface is built from: pure data, no imports, so every consumer can read it without importing the coordinator back.
+The shift-type table the Change a Shift surface is built from: pure data, importing only the Other-day words from `override-utils.js` (a leaf), so every consumer can read it without importing the coordinator back.
 - `TYPES` — per-type metadata (`label`, `pill`, `fixed`, `fixedValue`; `other` adds `timesOptional`). No row exists for the retired `allocated` / `overtime` / `swap`.
 - `PILL_TYPES` — the ONE ordered declaration of which pills exist. Both pill rows are generated from it — the week editor's per-row pills and `admin-app.js`'s bulk bar — and neither may restate it. Spare is reached through the Other submenu but stays its own `spare_shift` type.
 - `WORKED_OVERRIDE_TYPES` — the types a Sunday RD correction must never overwrite. The retired types are not in it, because no record of them remains (owner, 7 Nov 2026; the comment beside it).
-- `rowValueText(type, value)` → what a Saved Changes row prints for a stored value, or `''` where it would only repeat the badge (so "Absent" never sits beside "SICK"). It fails toward SHOWING: an unknown type, or a value that disagrees with its type's fixed value, is printed.
+- `rowValueText(type, value)` → what a Saved Changes row prints for a stored value, or `''` where it would only repeat the badge (so "Absent" never sits beside "SICK"). An Other day prints its word through `OTHER_FLAVOURS` ("Training RDW 09:00-17:00", never "TRG …"), as the save receipt does. It fails toward SHOWING: an unknown type, or a value that disagrees with its type's fixed value or the Other grammar, is printed.
 
 ### `admin-week-editor.js`
 The seven-day Change a Shift grid, its pills, the bulk bar and everything staged but not saved; it ends where `executeSave` begins. Permissions, feedback, the dirty marker and `memberDateMap` arrive through `initWeekEditor`, which keeps it out of a cycle with the coordinator. Why staged edits count both ways, and why an unread member draws a loading or a failed state rather than seven base-roster days: the header.
