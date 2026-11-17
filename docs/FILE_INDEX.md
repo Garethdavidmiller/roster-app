@@ -298,7 +298,7 @@ roster-app/
 ├── guide-doc.css           ← shared styles for the two document-style guides (staff-guide.html, paycalc-guide.html): two-column print layout, info boxes, tables, numbered steps, banner. Loaded between guide-shell.css and page CSS. NOT linked by railcard-guide.html or fip-guide.html.
 ├── staff-guide.css / paycalc-guide.css / fip-guide.css ← page-specific guide CSS
 ├── purify.es.mjs           ← self-hosted DOMPurify v3.4.17. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
-├── pdfjs/                  ← PDF.js 4.10.38, the legacy build (Safari 16.4+), vendored for pdf-viewer.js: pdf.min.mjs, pdf.worker.min.mjs (same-origin, as a Worker must be) and Mozilla's LICENSE. Not precached. Upgrade: `npm pack pdfjs-dist@<ver>` and copy those two legacy/build files — dependency-pin-parity.test.mjs holds them to package.json's pin
+├── pdfjs/                  ← PDF.js, the legacy build (Safari 16.4+), vendored for pdf-viewer.js in a folder named for its version (`pdfjs/4.10.38/`): pdf.min.mjs, pdf.worker.min.mjs (same-origin, as a Worker must be) and Mozilla's LICENSE. Not precached. An upgrade is a NEW folder, never new bytes under old names; dependency-pin-parity.test.mjs has the steps and holds folder, files and viewer to one version
 ├── service-worker.js       ← single SW for all pages; cache name includes APP_VERSION
 ├── manifest.json           ← PWA manifest for all pages
 ├── guide.html · fip.html ← the two LEGACY guide URLs, kept as redirect stubs: `firebase.json` 301s both, but the GitHub Pages mirror serves no redirects, so the redirect is in the HTML too. page-contract-parity's LEGACY_REDIRECTS gives them their own contract; they go when the mirror does

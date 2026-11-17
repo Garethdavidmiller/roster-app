@@ -83,7 +83,10 @@ deep-link allowlist are `notifications.md`.
   the version-bump → new SW → new cache lifecycle (each deploy precaches fresh assets and the new SW
   claims immediately); roster DATA is always live from Firestore regardless of cached JS version.
 - **Cache-first:** icons, fonts, `manifest.json` — stable assets; and the gstatic Firebase SDK in its
-  own `myb-roster-sdk-v{ver}` cache (warmed with the app, swept on SDK bump only).
+  own `myb-roster-sdk-v{ver}` cache (warmed with the app, swept on SDK bump only). The vendored PDF.js
+  takes this branch too, unprecached, which is why each build lives in `pdfjs/<version>/` and a new
+  one goes into a new folder: like a font or an icon, a file kept here is matched by ADDRESS in any
+  version's cache, so new bytes under an old name could pair a new library with an old worker.
 - **Anything under `docs/` is left to the browser** (Nov 2026): the Pages mirror serves the whole
   repository, and caching the New link pack's PDFs kept a republished PDF stale until the next release.
 - **Cache name:** `myb-roster-v{APP_VERSION}` — a version bump auto-invalidates.

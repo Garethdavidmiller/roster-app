@@ -25,7 +25,7 @@
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
@@ -91,27 +91,50 @@ describe('pdfjs-dist — the geometry reader is tested on the version it runs on
 });
 
 describe('pdfjs-dist — the copy the PDF viewer loads is the version it declares, and its worker agrees', () => {
-    // The in-app PDF viewer (pdf-viewer.js, v25.67) loads PDF.js from pdfjs/ — the legacy build, VENDORED, so no package
-    // manager sees it. Until v25.91 it was the roster reader's version as well. It is NOT now, on purpose: PDF.js 6's
+    // The in-app PDF viewer (pdf-viewer.js, v25.67) loads PDF.js from pdfjs/<version>/ — the legacy build, VENDORED, so no
+    // package manager sees it. Until v25.91 it was the roster reader's version as well. It is NOT now, on purpose: PDF.js 6's
     // legacy build targets Safari 18, and the app supports iOS 16.4 (DECISIONS.md → "The oldest iOS supported is 16.4"),
     // so the viewer stays on a version whose legacy build reaches 16.4, while the server reads rosters with the first
     // version that bounds the Type 4 hang (functions/roster-geometry.js header). The viewer opens only the app's own PDFs.
-    // VIEWER is that decision, written once. Change it only by re-vendoring: `npm pack pdfjs-dist@<ver>`, copy
-    // legacy/build/pdf.min.mjs and pdf.worker.min.mjs into pdfjs/, check that version's legacy build still targets the
-    // app's oldest iOS, then run the viewer's e2e (e2e/newlink.spec.js) in both engines. Its two files must agree with
-    // EACH OTHER — PDF.js refuses a worker of another version outright, so a library updated alone opens no file at all.
+    // VIEWER is that decision, written once. Change it only by RE-VENDORING INTO A NEW FOLDER: `npm pack pdfjs-dist@<ver>`,
+    // copy legacy/build/pdf.min.mjs and pdf.worker.min.mjs, with the package's LICENSE, into pdfjs/<ver>/ — never over the
+    // old files — then point PDFJS_DIR in pdf-viewer.js at it, set VIEWER, delete the old folder, check that version's legacy
+    // build still targets the app's oldest iOS, and run the viewer's e2e (e2e/newlink.spec.js) in both engines. Why a new
+    // folder: the service worker keeps these files by ADDRESS, from any version's cache, and fetches a miss through the
+    // HTTP cache, so new bytes under an old name can reach a phone as a new library beside an old worker (pdf-viewer.js's
+    // header). Its two files must agree with EACH OTHER — PDF.js refuses a worker of another version outright, so a library
+    // updated alone opens no file at all.
     const VIEWER = '4.10.38';
+    const DIR = `./pdfjs/${VIEWER}/`;
     const found = (/** @type {string} */ f, /** @type {RegExp} */ re) => [...new Set([...read(f).matchAll(re)].map(m => m[1]))];
 
-    test('pdfjs/pdf.min.mjs is the version the viewer declares', () => {
-        const lib = found('./pdfjs/pdf.min.mjs', /apiVersion:"(\d+\.\d+\.\d+)"/g);
-        assert.deepEqual(lib, [VIEWER], `pdfjs/pdf.min.mjs is PDF.js ${lib.join(', ') || '(no version found)'}, the viewer declares ${VIEWER}`);
+    test('the viewer loads its library and worker from the folder named for the version', () => {
+        const dirs = found('./pdf-viewer.js', /const PDFJS_DIR = '([^']*)';/g);
+        assert.deepEqual(dirs, [DIR], `pdf-viewer.js loads PDF.js from ${dirs.join(', ') || '(no PDFJS_DIR found)'}, not ${DIR}`);
+        assert.match(read('./pdf-viewer.js'), /new URL\(`\$\{PDFJS_DIR\}pdf\.min\.mjs`, import\.meta\.url\)/, 'the library is not loaded from PDFJS_DIR');
+        assert.match(read('./pdf-viewer.js'), /new URL\(`\$\{PDFJS_DIR\}pdf\.worker\.min\.mjs`, import\.meta\.url\)/, 'the worker is not loaded from PDFJS_DIR');
     });
 
-    test('pdfjs/pdf.worker.min.mjs is the same version — or the library refuses it', () => {
-        const worker = found('./pdfjs/pdf.worker.min.mjs', /apiVersion:\w+\}=\w+,\w+="(\d+\.\d+\.\d+)"/g);
+    test('pdfjs/ holds that one folder and nothing loose — a re-vendor never writes over a name a phone has kept', () => {
+        const entries = readdirSync(new URL('./pdfjs/', import.meta.url)).sort();
+        assert.deepEqual(entries, [VIEWER],
+            `pdfjs/ holds ${entries.join(', ')}. Each PDF.js build lives in pdfjs/<version>/ alone: copy a new one into a NEW `
+            + 'folder, point pdf-viewer.js at it, and delete the old one (the comment above has the steps)');
+    });
+
+    test(`pdfjs/${VIEWER}/pdf.min.mjs is the version the folder and the viewer name`, () => {
+        const lib = found(`${DIR}pdf.min.mjs`, /apiVersion:"(\d+\.\d+\.\d+)"/g);
+        assert.deepEqual(lib, [VIEWER], `${DIR}pdf.min.mjs is PDF.js ${lib.join(', ') || '(no version found)'}, the folder and the viewer say ${VIEWER}`);
+    });
+
+    test(`pdfjs/${VIEWER}/pdf.worker.min.mjs is the same version — or the library refuses it`, () => {
+        const worker = found(`${DIR}pdf.worker.min.mjs`, /apiVersion:\w+\}=\w+,\w+="(\d+\.\d+\.\d+)"/g);
         assert.deepEqual(worker, [VIEWER],
-            `pdfjs/pdf.worker.min.mjs is PDF.js ${worker.join(', ') || '(no version found — a new build may write it differently; read the file and adjust the pattern)'}, the viewer declares ${VIEWER}`);
+            `${DIR}pdf.worker.min.mjs is PDF.js ${worker.join(', ') || '(no version found — a new build may write it differently; read the file and adjust the pattern)'}, the viewer declares ${VIEWER}`);
+    });
+
+    test('the build carries its licence', () => {
+        assert.match(read(`${DIR}LICENSE`), /Apache License/, `${DIR}LICENSE is missing or is not PDF.js's Apache licence`);
     });
 
     test('the viewer\'s header names the version it loads, and says why it is not the server\'s', () => {
