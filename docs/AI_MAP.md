@@ -38,7 +38,7 @@ backticked name the source no longer holds must be marked as gone where it is na
 | The member's own roster kept on the device, shown labelled before the sign-in check finishes | `calendar-snapshot.js` |
 | The Calendar page's one-time notices (which are live: the new-notice skill → "Current notices") | `calendar-notices.js` |
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
-| The phone's text scale, measured rather than asked, for the Calendar's control rows — LARGE_FROM, LARGE_VALUE, COMPACT_FROM, COMPACT_VALUE, tierFor, isCompact, measureTextScale, applyTextScale | `text-scale.js` |
+| The phone's text scale, measured rather than asked, for the Calendar's control rows — LARGE_FROM, LARGE_VALUE, COMPACT_FROM, COMPACT_VALUE, tierFor, measureTextScale, applyTextScale | `text-scale.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, dayCellParts, dayCellName, getSwipeDirection | `calendar-renderer.js` |
 | The month legend — which keys apply, and whether it shows at all | `calendar-legend.js` |
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
@@ -2659,7 +2659,7 @@ The one-off "add the roster to your home screen" strip on the Calendar. It share
 
 ### `text-scale.js`
 How much larger than the stylesheet's sizes the phone actually draws its text, and the two-tier stamp the Calendar's control rows key on. Android's font and display scaling enlarges text and leaves the viewport alone, so no width query can reach the state where five buttons stop fitting — and the owner did not want two rows. Tested by `text-scale.test.mjs`; the probe itself in `e2e/calendar.spec.js`.
-- `LARGE_FROM` / `LARGE_VALUE` · `COMPACT_FROM` / `COMPACT_VALUE` · `tierFor(scale)` → null · `'large'` · `'compact'` · `isCompact(scale)` · `measureTextScale(doc)` · `applyTextScale(doc)` (stamps `data-text-scale` on `<html>`).
+- `LARGE_FROM` / `LARGE_VALUE` · `COMPACT_FROM` / `COMPACT_VALUE` · `tierFor(scale)` → null · `'large'` · `'compact'` · `measureTextScale(doc)` · `applyTextScale(doc)` (stamps `data-text-scale` on `<html>`).
 - **The probe IS the measurement**: a hidden 16px element's rendered height is the scale, whatever the OS calls the setting. **It cannot throw** — `calendar-app.js` calls it at module scope, and every fallback returns a value that is never `'compact'`.
 - `'large'` tightens the month heading row; `'compact'` tightens the action row as well. **Compact is the step BEFORE the wrap, never instead of it.**
 

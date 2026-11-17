@@ -6,7 +6,10 @@
 // and the probe's fallbacks — the cases where it cannot measure and must never say "compact".
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { COMPACT_FROM, LARGE_FROM, isCompact, tierFor, measureTextScale, applyTextScale } from './text-scale.js';
+import { COMPACT_FROM, LARGE_FROM, tierFor, measureTextScale, applyTextScale } from './text-scale.js';
+
+/** The question the action row asks: is this scale in the compact tier? */
+const isCompact = (/** @type {number} */ scale) => tierFor(scale) === 'compact';
 
 describe('compacting too early — the default look on phones that fit', () => {
     test('the default size is not compact', () => assert.equal(isCompact(1), false));
@@ -43,15 +46,15 @@ describe('a probe that cannot measure never says compact', () => {
     });
 });
 
-// ── THE BOUNDARY WAS PINNED ON THE SIBLING NOBODY CALLS ─────────────────────────────────────────
+// ── THE BOUNDARIES OF THE SHIPPED DECISION ──────────────────────────────────────────────────────
 //
-// `isCompact(COMPACT_FROM)` is asserted above, and `isCompact` has no consumer outside this file.
-// The shipped decision is `applyTextScale → tierFor`, and `tierFor`'s own compact boundary was
-// unpinned: turning its `scale >= COMPACT_FROM` into `scale > COMPACT_FROM` left all 24 assertions
-// green (measured), while a phone reporting exactly 1.2× drew the action row uncompacted — the
-// "compacting too late" cost, on the one reading where the two tiers are a hair apart.
+// These were once pinned on a separate exported `isCompact`, which nothing in the app called: the
+// shipped decision is `applyTextScale → tierFor`, and `tierFor`'s own compact boundary was unpinned
+// (turning its `>=` into `>` left every assertion green while a phone at exactly 1.2× drew the row
+// uncompacted). The unused export was removed on 17 Nov 2026; `isCompact` above is now a local
+// reading OF `tierFor`, so every assertion in this file exercises the function the page calls.
 //
-// Both directions, on both rungs, on the function that is actually called.
+// Both directions, on both rungs.
 describe('the boundaries of the shipped decision — tierFor, not its sibling', () => {
     test('exactly the compact threshold IS compact', () => {
         assert.equal(tierFor(COMPACT_FROM), 'compact');
@@ -77,13 +80,6 @@ describe('the boundaries of the shipped decision — tierFor, not its sibling', 
             const doc = fakeDoc(16 * scale);
             applyTextScale(doc);
             assert.equal(doc.documentElement.attrs['data-text-scale'], expected, `at ${scale}×`);
-        }
-    });
-    test('isCompact and tierFor never disagree about what compact means', () => {
-        // Two answers to one question, kept apart because the stylesheet needs three states and the
-        // action row needs two. The divergence is the bug, not either rule on its own.
-        for (const s of [1, 1.05, LARGE_FROM, 1.15, COMPACT_FROM - 0.01, COMPACT_FROM, 1.3, 1.5, NaN, 0]) {
-            assert.equal(isCompact(s), tierFor(s) === 'compact', `at ${s}×`);
         }
     });
 });
