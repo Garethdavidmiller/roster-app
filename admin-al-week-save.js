@@ -162,3 +162,26 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         overage: projectAlOverage({ member, memberName, overrides, consuming: proj.consuming, exclude, after: afterOf(batch) }),
     };
 }
+
+/**
+ * The over-allowance question a DELETE owes — Saved Changes' ✕ and Delete selected (review, Nov 2026).
+ * Deleting a worked Boxing Day, or a Dispatcher's worked bank holiday, takes back the day in lieu its
+ * work earned; the week grid asked before that left somebody over, and the list did not. This is the
+ * planner's own delete-only path (`planAlWeekSave` with nothing to save), so the two cannot disagree,
+ * asked per member whose records `isRead` says have been read: a question asked of records that have
+ * not been is a guess (admin-range-booking.js refuses a save on them for the same reason).
+ * @param {{ rows: any[], members: any[], overrides: any[], isRead: (name: string) => boolean }} args
+ *   `rows` the records being deleted, as shown (an id where the page holds no record is skipped)
+ * @returns {{ headline: string, detail: string }|null} the first overage found, or null
+ */
+export function planAlDelete({ rows, members, overrides, isRead }) {
+    /** @type {Map<string, string[]>} */ const byMember = new Map();
+    for (const r of rows) if (r?.memberName) byMember.set(r.memberName, [...(byMember.get(r.memberName) ?? []), r.id]);
+    for (const [memberName, toDelete] of byMember) {
+        const member = members.find(m => m.name === memberName);
+        if (!member || !isRead(memberName)) continue;
+        const { overage } = planAlWeekSave({ member, memberName, toSave: [], toDelete, overrides });
+        if (overage) return overage;
+    }
+    return null;
+}

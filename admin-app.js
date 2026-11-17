@@ -1328,6 +1328,7 @@ export function init() {
             },
             markChanged,
             onEditRow: handleEdit,
+            showALConfirm,   // a Saved Changes delete that lowers an allowance asks first (admin-saved-changes.js)
         });
         // Each kept row carries the whole record its row was DRAWN from (readWeekDraft), checked on Restore.
         keepDraftWhenHidden(hasUnsavedChanges, {

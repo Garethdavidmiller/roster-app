@@ -15,10 +15,16 @@
  *
  * The renderers and permissions arrive through `initSavedChanges` rather than being imported, which
  * is what keeps this out of a cycle with the coordinator that wires it.
+ *
+ * A DELETE THAT LOWERS AN ALLOWANCE ASKS FIRST, AS THE WEEK GRID DOES (review, Nov 2026): deleting a
+ * worked Boxing Day takes back its day in lieu, and the list let a balance fall below zero without a
+ * word. Both controls ask `planAlDelete` (admin-al-week-save.js, the grid's own planner) and raise its
+ * over-allowance bar, in its words, before deleting anything; "Save anyway" deletes.
  */
 
-import { escapeHtml } from './roster-data.js';
+import { escapeHtml, teamMembers } from './roster-data.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
+import { planAlDelete } from './admin-al-week-save.js';
 
 const BULK_DELETE_CHUNK = 200;   // per transaction — under Firestore's 500, as the range booking
 import { TYPES, rowValueText } from './admin-shift-types.js';
@@ -49,6 +55,9 @@ let _currentIsManager = false;
 /** @type {() => void} */                     let _onAfterSave    = () => {};
 /** @type {(rows: any[]) => string[]} */      let _onOwnWrite     = () => [];
 /** @type {(iso: string) => string} */        let formatDisplay   = (s) => s;
+/** The page's over-allowance bar; without it (a page that has none) a delete asks nothing, as before.
+ *  @type {((msg: string, sub: string, pendingSave: null, pendingDelete: string[], resume: () => void) => void)|null} */
+let _showALConfirm = null;
 
 /** Delegated listeners are attached once per page life — see the note in initWeekEditor. */
 let _wired = false;
@@ -62,6 +71,7 @@ let _wired = false;
  * @param {() => void} deps.onAfterSave
  * @param {(rows: any[]) => string[]} deps.onOwnWrite  `syncWeekAfterOwnWrite`: the days whose staged change it cleared
  * @param {(iso: string) => string} deps.formatDate
+ * @param {typeof _showALConfirm} [deps.showALConfirm]  the over-allowance bar (header); its fifth argument is what "Save anyway" runs
  * @returns {void}
  */
 export function initSavedChanges(deps) {
@@ -72,6 +82,7 @@ export function initSavedChanges(deps) {
     _onAfterSave      = deps.onAfterSave;
     _onOwnWrite       = deps.onOwnWrite;
     formatDisplay     = deps.formatDate;
+    _showALConfirm    = deps.showALConfirm ?? null;
     // Deps every time; wiring once: a second attach would make one tap of the two-tap Delete arm AND execute.
     if (_wired) return;
     _wired = true;
@@ -238,18 +249,34 @@ function _refocusAfterDelete(pos) {
     /** @type {any} */ (left[Math.min(pos, left.length - 1)] ?? document.getElementById('listFeedback'))?.focus();
 }
 
+/** The over-allowance question a delete of `rows` (as shown) owes, or null (header). @param {any[]} rows */
+const _deleteOverage = (rows) => planAlDelete({ rows, members: teamMembers, overrides: getAllOverrides(), isRead: hasOverrideAuthorityFor });
+
 /** @param {MouseEvent} e */
 async function _handleDelete(e) {
     const btn     = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('.btn-delete'));
     if (!btn) return;
     if (!btn.classList.contains('confirming')) { armConfirm(btn, 'Delete?', '✕'); return; }
+    await _deleteRow(btn, false);
+}
+
+/** One row's delete; `confirmed` when "Save anyway" answered its question (header). @param {HTMLButtonElement} btn @param {boolean} confirmed */
+async function _deleteRow(btn, confirmed) {
     // Signed out: say so, not "check your connection" — the write would be refused anyway.
     if (!auth.currentUser) { disarmConfirm(btn, '✕'); _sayList("⚠ You've been signed out — please sign in again.", 'error'); return; }
     const deleted = getAllOverrides().find(o => o.id === btn.dataset.id);
     // The row AND any older manual copy of the day, or the older resurfaces — one transaction.
     const ids = [...withManualDuplicates([btn.dataset.id ?? ''])];
     const shown = asShown(ids);   // as on screen at the press: what the transaction compares the server with
-    const hadFocus = document.activeElement === btn;
+    const overage = confirmed || !_showALConfirm ? null : _deleteOverage(shown);
+    if (overage && _showALConfirm) {
+        disarmConfirm(btn, '✕');
+        btn.focus?.();   // the control the bar's Cancel goes back to (admin-app.js reads the focused element)
+        _showALConfirm(overage.headline, overage.detail, null, [], () => _deleteRow(btn, true));
+        return;
+    }
+    // "Save anyway" had focus, and the bar goes: focus follows the delete, as it would from the ✕.
+    const hadFocus = confirmed || document.activeElement === btn;
     const pos = [...(document.getElementById('overrideTableBody')?.querySelectorAll('.btn-delete') ?? [])].indexOf(btn);
     btn.disabled = true;
     btn.textContent = '…';
@@ -318,8 +345,6 @@ function _initOverridesTable() {
             const checkedRows = /** @type {HTMLElement[]} */ ([...(document.getElementById('overrideTableBody')?.querySelectorAll('.row-select:checked') ?? [])]);
             if (!checkedRows.length) return;
             const picked = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id ?? '');
-            const chunks = deleteChunks(picked, BULK_DELETE_CHUNK), ids = chunks.flat();   // with their older copies, a day never split
-            const shown = new Map(asShown(ids).map((r, i) => [ids[i], r]));
 
             // Two-tap confirm, ARMED FOR THIS SELECTION: the count asked about is the count deleted.
             if (!bulkDeleteBtn.classList.contains('confirming') || bulkDeleteBtn.dataset.armedFor !== picked.join('|')) {
@@ -328,56 +353,69 @@ function _initOverridesTable() {
                 return;
             }
             disarmConfirm(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
-            if (!auth.currentUser) {   // as the single delete
-                _sayList("⚠ You've been signed out — please sign in again.", 'error');
-                return;
-            }
-
-            // Focus, if it was here, goes afterwards to what happened — or back here when nothing went.
-            const hadFocus = document.activeElement === bulkDeleteBtn;
-            /** @type {HTMLElement|null|undefined} */ let refocus;
-            bulkDeleteBtn.disabled = true;
-            bulkDeleteBtn.textContent = `Deleting ${picked.length}…`;
-            /** @type {string[]} */
-            const committed = []; let landed = 0;   // ids, and whole chunks, already deleted
-            try {
-                // Re-runnable, resuming after the chunks committed; each chunk ONE transaction, several first
-                // checked WHOLE — so only an edit racing the chunks can leave it part done, said below.
-                await withSlowSaveNotice(writeWithClaimRetry(async () => {
-                    const stale = chunks.length > 1 && !landed ? await staleDeleteVerdict([...shown.values()]) : null;
-                    if (stale) throw Object.assign(new Error(stale), { code: DELETE_REFUSED, line: stale });
-                    for (const chunk of chunks.slice(landed)) {
-                        await deleteIfUnchanged(chunk.map(id => shown.get(id)));
-                        committed.push(...chunk); landed++;
-                    }
-                }), { batched: chunks.length > 1, held: false });
-                removeFromCache(ids);
-                renderTable();
-                const cleared = _onOwnWrite([...shown.values()]);   // the week follows, as after one delete (_handleDelete)
-                _onAfterSave();
-                _sayList(withClearedDays(`✓ Deleted ${picked.length} saved change${picked.length !== 1 ? 's' : ''}${_olderCopies(ids.length - picked.length)}`, cleared),
-                    'success', cleared.length ? 0 : 6000);
-                refocus = document.getElementById('listFeedback');
-            } catch (err) {
-                console.error('[Admin] Bulk delete failed:', err);
-                /** @type {string[]} */ let cleared = [];   // the week follows what did land, as on success
-                if (committed.length) { removeFromCache(committed); renderTable(); cleared = _onOwnWrite(committed.map(id => shown.get(id))); }
-                const refused = /** @type {any} */ (err)?.code === DELETE_REFUSED, cause = refused ? PART_REFUSED : _cause(err);
-                const unsure = unconfirmedWriteLine(err, 'this delete', 'Saved Changes');
-                // AN UNKNOWN OUTCOME FIRST (it may still land), then PART DONE (a refusal says "nothing was deleted").
-                _sayList(withClearedDays(unsure ? '⚠ ' + unsure
-                    : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
-                    : refused ? '⚠ ' + /** @type {any} */ (err).line
-                    : (/** @type {any} */ (err))?.code === 'unavailable' ? '⚠ You appear to be offline — reconnect and try again.'
-                    : '⚠ Bulk delete failed — ' + cause, cleared), 'error');
-                refocus = committed.length ? document.getElementById('listFeedback') : bulkDeleteBtn;
-            } finally {
-                // RESTORE THE LABEL ON EVERY PATH: no re-render replaces this button. Its VISIBILITY is renderTable's.
-                bulkDeleteBtn.disabled = false;
-                disarmConfirm(bulkDeleteBtn, 'Delete selected');
-            }
-            if (hadFocus) refocus?.focus();
+            await _bulkDelete(bulkDeleteBtn, picked, false);
         });
+    }
+
+    /** The ticked rows' delete, as one row's (`_deleteRow`). @param {HTMLButtonElement} bulkDeleteBtn @param {string[]} picked @param {boolean} confirmed */
+    async function _bulkDelete(bulkDeleteBtn, picked, confirmed) {
+        if (!auth.currentUser) {   // as the single delete
+            _sayList("⚠ You've been signed out — please sign in again.", 'error');
+            return;
+        }
+        const chunks = deleteChunks(picked, BULK_DELETE_CHUNK), ids = chunks.flat();   // with their older copies, a day never split
+        const shown = new Map(asShown(ids).map((r, i) => [ids[i], r]));
+        const overage = confirmed || !_showALConfirm ? null : _deleteOverage([...shown.values()]);
+        if (overage && _showALConfirm) {
+            bulkDeleteBtn.focus?.();   // what the bar's Cancel goes back to, as for one row
+            _showALConfirm(overage.headline, overage.detail, null, [], () => _bulkDelete(bulkDeleteBtn, picked, true));
+            return;
+        }
+
+        // Focus, if it was here, goes afterwards to what happened — or back here when nothing went.
+        const hadFocus = confirmed || document.activeElement === bulkDeleteBtn;
+        /** @type {HTMLElement|null|undefined} */ let refocus;
+        bulkDeleteBtn.disabled = true;
+        bulkDeleteBtn.textContent = `Deleting ${picked.length}…`;
+        /** @type {string[]} */
+        const committed = []; let landed = 0;   // ids, and whole chunks, already deleted
+        try {
+            // Re-runnable, resuming after the chunks committed; each chunk ONE transaction, several first
+            // checked WHOLE — so only an edit racing the chunks can leave it part done, said below.
+            await withSlowSaveNotice(writeWithClaimRetry(async () => {
+                const stale = chunks.length > 1 && !landed ? await staleDeleteVerdict([...shown.values()]) : null;
+                if (stale) throw Object.assign(new Error(stale), { code: DELETE_REFUSED, line: stale });
+                for (const chunk of chunks.slice(landed)) {
+                    await deleteIfUnchanged(chunk.map(id => shown.get(id)));
+                    committed.push(...chunk); landed++;
+                }
+            }), { batched: chunks.length > 1, held: false });
+            removeFromCache(ids);
+            renderTable();
+            const cleared = _onOwnWrite([...shown.values()]);   // the week follows, as after one delete (_handleDelete)
+            _onAfterSave();
+            _sayList(withClearedDays(`✓ Deleted ${picked.length} saved change${picked.length !== 1 ? 's' : ''}${_olderCopies(ids.length - picked.length)}`, cleared),
+                'success', cleared.length ? 0 : 6000);
+            refocus = document.getElementById('listFeedback');
+        } catch (err) {
+            console.error('[Admin] Bulk delete failed:', err);
+            /** @type {string[]} */ let cleared = [];   // the week follows what did land, as on success
+            if (committed.length) { removeFromCache(committed); renderTable(); cleared = _onOwnWrite(committed.map(id => shown.get(id))); }
+            const refused = /** @type {any} */ (err)?.code === DELETE_REFUSED, cause = refused ? PART_REFUSED : _cause(err);
+            const unsure = unconfirmedWriteLine(err, 'this delete', 'Saved Changes');
+            // AN UNKNOWN OUTCOME FIRST (it may still land), then PART DONE (a refusal says "nothing was deleted").
+            _sayList(withClearedDays(unsure ? '⚠ ' + unsure
+                : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. ${cause[0].toUpperCase()}${cause.slice(1)}`
+                : refused ? '⚠ ' + /** @type {any} */ (err).line
+                : (/** @type {any} */ (err))?.code === 'unavailable' ? '⚠ You appear to be offline — reconnect and try again.'
+                : '⚠ Bulk delete failed — ' + cause, cleared), 'error');
+            refocus = committed.length ? document.getElementById('listFeedback') : bulkDeleteBtn;
+        } finally {
+            // RESTORE THE LABEL ON EVERY PATH: no re-render replaces this button. Its VISIBILITY is renderTable's.
+            bulkDeleteBtn.disabled = false;
+            disarmConfirm(bulkDeleteBtn, 'Delete selected');
+        }
+        if (hadFocus) refocus?.focus();
     }
 
     if (overridesMonthFilter) {

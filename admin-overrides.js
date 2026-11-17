@@ -87,9 +87,11 @@ export { isWorkingDate } from './al-entitlement.js';
  * @param {() => void} opts.onAfterSave       Called after any write; refreshes AL/sick banners
  * @param {() => void} opts.markChanged       Marks the week grid as having unsaved changes
  * @param {(e: MouseEvent) => void} opts.onEditRow   handleEdit from admin-app.js - jumps to edit an override
+ * @param {(msg: string, sub: string, pendingSave: null, pendingDelete: string[], resume: () => void) => void} [opts.showALConfirm]
+ *        the over-allowance bar, which a Saved Changes delete raises when it lowers an allowance (admin-saved-changes.js)
  */
 export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = false, showSuccess, showError,
-                                 onAfterSave, markChanged, onEditRow }) {
+                                 onAfterSave, markChanged, onEditRow, showALConfirm }) {
     _currentUser    = currentUser;
     _showSuccess    = showSuccess;
     // The store owns the cache and the reads; it repaints through these. Injected rather than
@@ -106,6 +108,7 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
         onEditRow, onAfterSave: () => _onAfterSave(),
         onOwnWrite: syncWeekAfterOwnWrite,
         formatDate: formatDisplay,
+        showALConfirm,
     });
     initOverrideStore({
         renderTable, renderWeekGrid,
