@@ -23,6 +23,8 @@
 // `onViewYearChange` is deliberately not wired here — there is nothing on this card for it to correct.
 
 import { escapeHtml, parseISODate } from './roster-data.js';
+import { isBeforeMemberStart } from './override-utils.js';
+import { isChristmasClosureDate } from './christmas-leave.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { projectAbsenceRange, lieuGoesWords } from './admin-al-projection.js';
@@ -80,14 +82,26 @@ export function initSickSection({
             return to > maxTo ? 'Maximum range is 1 year.' : null;
         },
         renderReady: ({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount, sundays = [], sundayNote = '' }) => {
-            const label    = workDays === 1 ? '1 absence day' : `${workDays} absence days`;
-            // A worked Sunday in the range is not skipped: the save sets it as a rest day, beside the
-            // absence (the shared range writer's Sunday rule), so it is named, not counted as skipped.
-            const rest     = restCount - sundays.length;
-            // A day in lieu the absence takes back is named, as the AL card names it (header).
-            const lieu     = memberObj && memberOvByDate ? allowanceAfter(member, memberObj, dates, memberOvByDate).lieuLost : [];
-            const parts    = [...(rest > 0 ? [`${rest} rest day${rest > 1 ? 's' : ''} skipped`] : []), ...(sundayNote ? [sundayNote] : []),
-                ...(lieu.length ? [lieuGoesWords(lieu, 'absent')] : [])];
+            // What the save writes is the writer's own rule (`projectAbsenceRange` → `rangeWriteDates`), so
+            // the count and the days it leaves are read from it — and a day in lieu the absence takes back
+            // is named, as the AL card names it (header).
+            const absence  = memberObj && memberOvByDate ? allowanceAfter(member, memberObj, dates, memberOvByDate) : null;
+            const written  = absence ? absence.writing.length : workDays;
+            const label    = written === 1 ? '1 absence day' : `${written} absence days`;
+            // EVERY DAY LEFT ALONE IS NAMED FOR WHAT IT IS, as the AL card names them (review, Nov 2026):
+            // a worked Sunday is set as a rest day beside the absence (the shared range writer's Sunday
+            // rule), so it is named, not skipped; Christmas Day and Boxing Day are themselves — for a member
+            // due at work the Calendar shows them as leave, so "rest day" was the wrong word; and a day
+            // before the start date is not a rest day, it is before they started. The rest are rest days.
+            const left     = absence ? dates.filter(d => !absence.writing.includes(d) && !sundays.includes(d)) : [];
+            const xmas     = left.filter(d => isChristmasClosureDate(d));
+            const early    = left.filter(d => !xmas.includes(d) && isBeforeMemberStart(memberObj, parseISODate(d))).length;
+            const rest     = absence ? left.length - xmas.length - early : restCount - sundays.length;
+            const days     = [...new Set(xmas.map(d => (d.endsWith('-12-25') ? 'Christmas Day' : 'Boxing Day')))];
+            const parts    = [...(rest > 0 ? [`${rest} rest day${rest > 1 ? 's' : ''} skipped`] : []),
+                ...(early > 0 ? [`${early} day${early > 1 ? 's' : ''} skipped before the start date`] : []),
+                ...(sundayNote ? [sundayNote] : []), ...(days.length ? [`${days.join(' and ')} skipped`] : []),
+                ...(absence?.lieuLost.length ? [lieuGoesWords(absence.lieuLost, 'absent')] : [])];
             const restNote = parts.length ? ` <em>(+ ${parts.join(', ')})</em>` : '';
             return `🪑 <strong>${label}</strong> for ${esc(member)}: ${rangeStr}${restNote}`;
         },

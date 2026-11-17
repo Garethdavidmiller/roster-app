@@ -1055,3 +1055,39 @@ describe('L. days that already hold leave are counted apart from the new ones', 
         assert.equal(el('alFeedback').textContent, `✓ Recorded 4 days of Annual Leave for ${m.name}`);
     });
 });
+
+// M. THE ABSENCE PREVIEW NAMES THE DAYS IT LEAVES AS THE AL CARD DOES (review, Nov 2026). It called a day
+// before the member's start date, and Christmas Day and Boxing Day, "rest days skipped": the first had not
+// started, and for a member due at work the second pair is leave on the Calendar. The REAL card.
+describe('M. the Absence card names a day before the start date and the Christmas days as themselves', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    const deps = (/** @type {string} */ name) => ({
+        sickMember: memberSelect(name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+        updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin',
+        showInChangeAShift() {}, showSuccess() {}, showALConfirm() {}, hideALConfirm() {},
+    });
+    /** The Absence card for `name` with `from`–`to` on screen; its preview. */
+    const preview = (/** @type {string} */ name, /** @type {string} */ from, /** @type {string} */ to) => {
+        for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
+        initSickSection(/** @type {any} */ (deps(name)));
+        el('sickFrom').value = from; el('sickTo').value = to;
+        for (const fn of el('sickTo')._on.change ?? []) fn();
+        return el('sickPreview').innerHTML;
+    };
+    const joiner = teamMembers.find(m => !m.hidden && !m.managerOnly && m.startDate instanceof Date);
+
+    test('Christmas Day and Boxing Day are named, never counted as rest days', () => {
+        const html = preview(MEMBER, '2026-12-25', '2026-12-26');
+        assert.match(html, /\(\+ Christmas Day and Boxing Day skipped\)/);
+        assert.doesNotMatch(html, /rest day/);
+    });
+
+    test('days before the start date are named as that, never as rest days', () => {
+        assert.ok(joiner, 'premise: a member on the roster has a start date');
+        const s = /** @type {Date} */ (/** @type {any} */ (joiner).startDate);
+        const before = (/** @type {number} */ n) => iso10(new Date(s.getFullYear(), s.getMonth(), s.getDate() - n));
+        const html = preview(/** @type {any} */ (joiner).name, before(3), before(1));
+        assert.match(html, /\(\+ 3 days skipped before the start date\)/);
+        assert.doesNotMatch(html, /rest day/);
+    });
+});
