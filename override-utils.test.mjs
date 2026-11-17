@@ -284,6 +284,26 @@ describe('reconcileRangeIntoCache', () => {
         assert.equal(changed, true);
     });
 
+    it('the range is INCLUSIVE at both ends: a deleted record on its first or last day goes, the day either side stays', () => {
+        // A key ON the last day is as much the snapshot's as one inside it. Treated as outside, a record
+        // deleted on that day would go on being drawn until the page was reloaded.
+        const P = 'A. Person';
+        const before = rec('06:00-14:00', '', 100);
+        const after = rec('07:00-15:00', '', 100);
+        const cache = new Map([
+            [`${P}|2026-08-09`, before],
+            [`${P}|2026-08-10`, rec('06:00-14:00', '', 100)],
+            [`${P}|2026-08-16`, rec('06:00-14:00', '', 100)],
+            [`${P}|2026-08-17`, after],
+        ]);
+        const changed = reconcileRangeIntoCache(cache, [], '2026-08-10', '2026-08-16');
+        assert.equal(cache.has(`${P}|2026-08-10`), false, 'the first day of the range is the snapshot\'s');
+        assert.equal(cache.has(`${P}|2026-08-16`), false, 'the LAST day of the range is the snapshot\'s too');
+        assert.equal(cache.get(`${P}|2026-08-09`), before, 'the day before the range is not this snapshot\'s to delete');
+        assert.equal(cache.get(`${P}|2026-08-17`), after, 'nor the day after');
+        assert.equal(changed, true);
+    });
+
     // THIS TEST CHANGED ITS ANSWER AT v22.71, AND THE REASON IS THE POINT. It asserted `false` on
     // the reasoning that "the visible shift is identical" — true when it was written, because the
     // shift was the only thing on screen that came from an override. v22.69 put a PROVENANCE line on
@@ -597,6 +617,28 @@ describe('computePeriodDeleteIds', () => {
         assert.deepEqual(new Set(ids), new Set(['a22', 'a23', 'a24']));
     });
 
+    // ── THE WINDOW IS FOUR DAYS, AND EACH IS ITS OWN NUMBER ────────────────────────────────────
+    // "Still spans the Sunday" is a surviving leave day within two days either side. The tests above
+    // reach it through Monday, and through Friday with Thursday beside it, so any one of the four
+    // offsets could be lost — the Saturday's, say — or the window moved a day outward, with all of
+    // them still green. Here the period being deleted holds only the Sunday's correction, so a single
+    // surviving day decides, one day at a time, and the third day out on each side must not count.
+    it('one surviving leave day on any of the two days either side keeps the correction; the third day out does not', () => {
+        const P = 'A. Person';
+        const SUN = '2026-06-21';
+        const correction = { id: 'cS', memberName: P, date: SUN, type: 'correction', value: 'RD' };
+        const range = { type: 'annual_leave', memberName: P, start: SUN, end: SUN };
+        const leave = (/** @type {string} */ date) => ({ id: `al${date.slice(8)}`, memberName: P, date, type: 'annual_leave', value: 'AL' });
+        for (const [date, kept, day] of /** @type {[string, boolean, string][]} */ ([
+            ['2026-06-18', false, 'Thursday'], ['2026-06-19', true, 'Friday'], ['2026-06-20', true, 'Saturday'],
+            ['2026-06-22', true, 'Monday'], ['2026-06-23', true, 'Tuesday'], ['2026-06-24', false, 'Wednesday'],
+        ])) {
+            const ids = computePeriodDeleteIds([correction, leave(date)], range);
+            assert.equal(!ids.includes('cS'), kept,
+                `leave on the ${day} alone ${kept ? 'still spans the Sunday — the correction must stay' : 'is not beside the Sunday — the correction must go'}`);
+        }
+    });
+
     // ── THE EDGE SUNDAY (review A1) ────────────────────────────────────────────────────────────
     // The Recorded-dates list never shows a Sunday, so a booking that ENDS (or starts) on one is
     // listed — and its ✕ deletes — a range that stops short of it. The correction written on that
@@ -768,6 +810,13 @@ describe('resolveOtherPay — the pay mapping (single source)', () => {
     it('RDW duration wraps overnight ranges', () => {
         assert.deepEqual(resolveOtherPay(parse('TRG RDW 22:00-06:00'), 'RD'),
             { mode: 'rdw', mins: 480 });
+    });
+
+    it('RDW duration counts the MINUTES at both ends, by day and across midnight', () => {
+        // Every case above starts and ends on the hour, so the minutes could be dropped or subtracted
+        // and nothing noticed: 09:15–17:45 would pay as 7 hours or 9 instead of 8½.
+        assert.deepEqual(resolveOtherPay(parse('TRG RDW 09:15-17:45'), 'RD'), { mode: 'rdw', mins: 510 });
+        assert.deepEqual(resolveOtherPay(parse('IND RDW 21:45-06:15'), 'RD'), { mode: 'rdw', mins: 510 });
     });
 
     it('belt-and-braces: base is a rest day but the RDW flag is missing → still rdw', () => {

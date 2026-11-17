@@ -22,7 +22,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
-import { runWithClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent } from './claim-retry.js';
+import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent } from './claim-retry.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -343,14 +343,19 @@ export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthState
  */
 export async function withClaimRetry(fn) {
     // The retry DECISION (only `permission-denied` with a live user, at most once, preserve the
-    // original error if the refresh itself fails) is the pure runWithClaimRetry in claim-retry.js,
-    // unit-tested in claim-retry.test.mjs. abandonOnSignOut stops waiting on an account that has gone,
-    // whose commit Firestore never settles — the "stuck on Saving…" of v24.36 (claim-retry.js).
-    return abandonOnSignOut(runWithClaimRetry(fn, {
+    // original error if the refresh itself fails) and WHERE the sign-out watch sits are the pure
+    // runWatchedClaimRetry in claim-retry.js, unit-tested in claim-retry.test.mjs. Each attempt is
+    // watched by abandonOnSignOut, which stops waiting on an account that has gone, whose commit
+    // Firestore never settles (the "stuck on Saving…" of v24.36) — but not the token refresh between
+    // them: a refused refresh signs the account out on its own, after the server has ALREADY refused
+    // the write, and a refusal is not a write of unknown outcome (claim-retry.js says why).
+    return runWatchedClaimRetry(fn, {
         retryCode: 'permission-denied',
         hasUser: () => !!auth.currentUser,
         refresh: () => /** @type {any} */ (auth.currentUser).getIdToken(true),
-    }), { uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb) });
+        uid: auth.currentUser?.uid,
+        watch: cb => onAuthStateChanged(auth, cb),
+    });
 }
 
 /** withClaimRetry for WRITES, through `runGatedWrite` (claim-retry.js, v24.39): after an unconfirmed

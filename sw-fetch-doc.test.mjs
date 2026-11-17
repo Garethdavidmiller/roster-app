@@ -398,7 +398,7 @@ describe('service worker — a JS module (Oct 2026 production review)', () => {
 // (pdf-viewer.js) reads them from there. The worker's cache-first branch used to answer them — and keep
 // each one for the life of the release, so a pack file updated under the same name stayed old on that
 // phone until the next version. They are documents, not the app: the worker does not answer them at all.
-// The viewer's OWN files (pdfjs/) are app assets and stay with the worker.
+// The viewer's OWN files (pdfjs/<version>/) are app assets and stay with the worker.
 /**
  * Boot the real worker and send it one request; report whether it answered.
  * @param {{ origin: string, scope: string, path: string, destination?: string, mode?: string }} o
@@ -448,7 +448,7 @@ describe('service worker — the pack under docs/ goes to the network, never to 
     });
 
     test('the viewer\'s own library is still the worker\'s — it is part of the app', () => {
-        assert.equal(answers({ ...MIRROR, path: '/roster-app/pdfjs/pdf.min.mjs', destination: 'script' }), true);
+        assert.equal(answers({ ...MIRROR, path: '/roster-app/pdfjs/4.10.38/pdf.min.mjs', destination: 'script' }), true);
         assert.equal(answers({ ...FIREBASE, path: '/pdf-viewer.js', destination: 'script' }), true);
     });
 

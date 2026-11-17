@@ -833,15 +833,16 @@ self.addEventListener("message", event => {
 });
 
 // ============================================
-// PUSH — incoming notifications (Huddle + Pay reminder)
+// PUSH — incoming notifications (every notifying feature)
 // ============================================
 // Payload shape (sent by Cloud Functions via buildPushPayload):
 //   { title, body, url, tag }
-// tag is the feature's stable tag from notifications.md ('huddle', 'circular',
-// 'newsletter', 'pay-reminder') — or the SW-local fallback 'update' for a
-// data-less/unparseable push. Using the same tag for repeat notifications of the
-// same type means the new one replaces the old one in the Notification Centre
-// rather than stacking.
+// tag is the feature's stable tag — one per feature, from the table in
+// .claude/rules/notifications.md (the documents, the pay reminder, the account and
+// admin notices…; the list is kept there, not here) — or the SW-local fallback
+// 'update' for a data-less/unparseable push. Using the same tag for repeat
+// notifications of the same type means the new one replaces the old one in the
+// Notification Centre rather than stacking.
 self.addEventListener("push", event => {
     // Neutral defensive fallback for a data-less / unparseable push — we can't know the feature, so
     // do NOT assume a Huddle (it would collide with real Huddle notifications). Well-formed payloads

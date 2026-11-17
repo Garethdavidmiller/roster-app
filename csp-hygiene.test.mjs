@@ -59,6 +59,27 @@ function cspValue() {
     throw new Error('Content-Security-Policy header not found in firebase.json');
 }
 
+// ── SCRIPT-SRC NAMES THE FOLDERS THE APP LOADS FROM, NEVER A WHOLE CDN (review, 17 Nov 2026) ──────
+// The policy allowed all of https://www.gstatic.com and https://cdn.jsdelivr.net. Both serve far more
+// than the app's two libraries — jsdelivr any npm package or GitHub file, gstatic other Google
+// products' scripts — so one HTML injection anywhere (a single unescaped string into innerHTML) could
+// add an <iframe srcdoc>, which inherits the policy, and run a script from either. Measured in
+// Chromium with the header and with the <meta> copy: it ran under the whole-host policy, and under the
+// folder-narrowed one it was not even fetched, while the Firebase SDK's module chain and the
+// SRI-pinned Mammoth still loaded. A source with a path ending in `/` allows that folder alone (a
+// browser matches the host only after a redirect, which neither library's address makes).
+// dependency-pin-parity.test.mjs holds the Mammoth folder's version to huddle.js's.
+test('script-src allows remote scripts from named folders only, never a whole host', () => {
+    const scriptSrc = (/(?:^|;)\s*script-src\s([^;]*)/.exec(cspValue()) ?? [])[1] ?? '';
+    const remote = scriptSrc.trim().split(/\s+/).filter(s => /^(?:https?:|\*|\w+:\/\/)/.test(s) || s.includes('.'));
+    assert.ok(remote.length >= 2, `expected the Firebase SDK and Mammoth folders in script-src, found: ${scriptSrc}`);
+    const wholeHost = remote.filter(s => !/^https:\/\/[a-z0-9.-]+\/\S+\/$/.test(s));
+    assert.deepEqual(wholeHost, [],
+        `script-src allows ${wholeHost.join(', ')} — a whole host (or a source without a folder path). Name the folder the `
+        + 'app loads from, ending in "/" (https://www.gstatic.com/firebasejs/, https://cdn.jsdelivr.net/npm/mammoth@<version>/)');
+    assert.ok(remote.includes('https://www.gstatic.com/firebasejs/'), 'the Firebase SDK folder is missing from script-src');
+});
+
 test('every remote origin in the CSP is actually referenced by app code (no stale directives)', () => {
     const csp = cspValue();
     // All concrete https/wss hosts named in the CSP (ignores 'self'/'none'/data:/scheme-only).

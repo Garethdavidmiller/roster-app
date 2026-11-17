@@ -215,8 +215,8 @@ export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDa
 // ROSTER PATTERNS
 // ============================================
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
-// Imported here for getRosterForMember() and re-exported so consumers
-// (app.js etc.) can continue to import them from roster-data.js unchanged.
+// Imported here for getRosterForMember() and re-exported, so a module that already
+// imports from roster-data.js (the Links workspace does) need not import both files.
 import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS } from './roster-cycle-data.js';
 import { isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS };
@@ -825,7 +825,6 @@ export function getWeekNumberForDate(date, member) {
 /**
  * Returns the full roster descriptor for a member.
  * Returns an object with: type, data (the roster map), cycleLength, weekPrefix.
- * admin.html's simple getRosterData can be replaced by `.data` on this result.
  * @param {any} member  teamMembers entry
  * @param {Date}   [date]  Optional — when supplied, applies any scheduled
  *                         `rosterChanges` so the descriptor matches that date.

@@ -4,7 +4,12 @@ import { state } from './state.mjs';
 const auth = { get currentUser() { return state.currentUser; }, authStateReady: () => Promise.resolve() };
 export function getAuth() { return auth; }
 export function initializeAuth() { return auth; }   // what firebase-client.js calls since v24.65
-export function onAuthStateChanged(_auth, cb) { queueMicrotask(() => cb(state.currentUser)); return () => {}; }
+// The current account first, in a microtask, as the SDK does; then whatever `state.authListeners` is told.
+export function onAuthStateChanged(_auth, cb) {
+    state.authListeners.add(cb);
+    queueMicrotask(() => cb(state.currentUser));
+    return () => { state.authListeners.delete(cb); };
+}
 export const indexedDBLocalPersistence = { type: 'indexeddb' };
 export const browserLocalPersistence = { type: 'local' };
 export const browserSessionPersistence = { type: 'session' };
