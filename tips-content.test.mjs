@@ -302,6 +302,39 @@ describe('settings — the Work Email ? panel says what the card says the email 
     });
 });
 
+// ── …AND NEITHER DO THE CARD AND THE GUIDE (whole-app check, 17 Nov 2026) ─────────────────────────
+// The card's explainer added "saving your email means it will be ready when it is", and the Staff Guide
+// "worth adding now, ready for when it is" and "the surname default is on its way out": undated promises
+// a reader takes as a plan. The convention states what works today, and both now say exactly that.
+describe('the work email and password lines state today, and promise nothing', () => {
+    const settings = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
+    const guide = readFileSync('staff-guide.html', 'utf8').replace(/\s+/g, ' ');
+
+    test('the card and the guide both give today\'s route', () => {
+        assert.match(settings, /Self-service recovery isn’t available yet\. For now, ask the admin if you forget your password\./);
+        assert.match(guide, /Self-service recovery isn't available yet: for now, ask the admin if you forget your password\./);
+    });
+    test('neither makes an undated promise', () => {
+        for (const [where, text] of [['settings.html', settings], ['staff-guide.html', guide]]) {
+            assert.doesNotMatch(text, /ready (?:for )?when it is|on its way out|coming soon/i, `${where} promises a future it does not date`);
+        }
+    });
+});
+
+// ── THE DAY PANEL'S "CHANGED" LINE (whole-app check, 17 Nov 2026) ────────────────────────────────
+// The guide said a changed day shows "what your manager recorded instead", and members record their own
+// leave and absence — the guide says so itself a little further down.
+describe('the Staff Guide does not say only a manager changes a day', () => {
+    const guide = readFileSync('staff-guide.html', 'utf8').replace(/\s+/g, ' ');
+    test('premise: the guide says members record their own leave and absence', () => {
+        assert.match(guide, /You can record leave and absence for <strong>yourself<\/strong>/);
+    });
+    test('the day panel line says what was recorded, not who recorded it', () => {
+        assert.match(guide, /<strong>✓ As rostered<\/strong> if it still matches your pattern, or what was recorded instead/);
+        assert.doesNotMatch(guide, /what your manager recorded instead/);
+    });
+});
+
 // ── links-tips.js says what the Links page DRAWS (whole-app fix, Nov 2026 — links-app-13) ────────────
 // The structural checks below cannot see prose, and four Links panels had stopped describing the page:
 // a blank Coverage cell was "nobody on duty" and a red 0 a mid-day hole, after the staffed window made
