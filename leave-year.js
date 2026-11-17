@@ -119,7 +119,9 @@ export function leaveYearOf(o) {
  * A write is delete-then-set, so without this an ordinary edit of a moved day — a manager re-saving
  * the week it sits in, a roster import over it — would quietly put it back on its own year. Leave
  * stays leave ⇒ the choice is carried. The day stops being leave ⇒ the choice goes with it, and if
- * it becomes leave again that is a new booking, which starts from the default.
+ * it becomes leave again that is a new booking, which starts from the default. Every path that
+ * rewrites a day stamps it this way (Admin's week grid and range saves, the roster import, the leave
+ * sheet's Save); the leave-year panel's own move sets the year it was asked for.
  *
  * @param {{type?: string, leaveYear?: unknown}|null|undefined} existing the record being replaced
  * @param {string} newType the type being written

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.30 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -251,7 +251,7 @@ anything in the import.** This section is the request/response reference and the
 - **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates it via the Firebase Admin SDK and requires the admin custom claim, as `setupRosterAuth` does. There is no shared roster secret.
 - **CORS:** `cors: ADMIN_FUNCTION_ORIGINS` — an explicit origin allowlist (`functions/index.js`): `https://garethdavidmiller.github.io`, `https://myb-roster.web.app`, `https://myb-roster.firebaseapp.com`. This is defence-in-depth; the real control is the Firebase ID token + admin claim, so a browser from an unlisted origin is blocked at preflight *and* would fail auth. Add any new hosting domain to the `ADMIN_FUNCTION_ORIGINS` array. (`ingestHuddle` keeps `cors: false` — server-to-server.)
 - **AI model and settings:** `MODEL_REQUEST` in `functions/roster-prompt.js` — which model, how it may think, `max_tokens` — sent as one non-streaming `messages.create` through `@anthropic-ai/sdk`, `timeoutSeconds: 120`. Its header holds the reasoning: why thinking stays off as far as the model allows (it spends `max_tokens`, and truncated the roster JSON into "The AI returned an unreadable response"), why the model ID is complete as written, and why a newer API version is a migration rather than a dependency bump. `index-endpoints.test.mjs` pins the request shape through the real handler, and a decline (`stop_reason: 'refusal'`) is reported as a decline (`DECLINED_ERROR`) rather than as an unreadable answer to retry. **Re-enabling thinking through streaming failed in production** (v16.27, "Couldn't read the roster — unexpected error", rolled back at v16.28); day-column accuracy is protected by the server-side defences instead, which do not depend on the model.
-- **The defences, in one line each** (the contract is `.claude/rules/roster-import.md`): `applySundayScanCorrections` (the Sunday-anchored repair) and `applyColumnScanCrossCheck` (a second, column-by-column read cross-checked cell by cell) on the server; `assessRosterAlignment` (`roster-alignment.js`) on the client, which correlates each parsed week against the member's own base roster and REFUSES the whole read when three or more members drift the same way; and the PDF's own drawn grid (`functions/roster-geometry.js`), which refuses any AI day landing in a physically EMPTY cell. Before any of them, the sheet's own printed week (`functions/roster-week-heading.js`): a PDF whose `Week Ending: DD/MM/YYYY` heading names a Saturday other than `X-Week-Ending` is refused whole, before anything is written. **The row read and `columnScan` are not independent witnesses** — two readings by one model of one PDF in one call — which is why the alignment check compares against something the PDF cannot influence, and why the grid is the strong witness. When the grid places every member, the cells are extracted by coordinate and the model only normalises them (`buildCellTable`) — it never assigns a day and is sent no PDF; one unplaced name falls the whole document back to the PDF path.
+- **The defences, in one line each** (the contract is `.claude/rules/roster-import.md`): `applySundayScanCorrections` (the Sunday-anchored repair) and `applyColumnScanCrossCheck` (a second, column-by-column read cross-checked cell by cell) on the server; `assessRosterAlignment` (`roster-alignment.js`) on the client, which correlates each parsed week against the member's own base roster and REFUSES the whole read when three or more members drift the same way; and the PDF's own drawn grid (`functions/roster-geometry.js`), which refuses any AI day landing in a physically EMPTY cell. Before any of them, the sheet's own printed week (`functions/roster-week-heading.js`): a PDF whose `Week Ending: DD/MM/YYYY` heading names a Saturday other than `X-Week-Ending` is refused whole, before anything is written. **The row read and `columnScan` are not independent witnesses** — two readings by one model of one PDF in one call — which is why the alignment check compares against something the PDF cannot influence, and why the grid is the strong witness. When the grid places every member, the cells are extracted by coordinate and the model only normalises them (`buildCellTable`) — it never assigns a day and is sent no PDF; one unplaced name, a day header not read Sunday to Saturday, or one row matched by two members falls the whole document back to the PDF path.
 - **Why direct PDF input (the fallback path):** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
 **Request format:**
@@ -338,7 +338,7 @@ computeCellStates(parsedResult, existingOverrides)
                     and mask a future base-roster change)
     GUARDED       = the PDF said something the app's rules refuse to record on that day — leave or an
                     absence on a base REST day, anything on a Sunday, a training or meeting day on a
-                    Sunday. Shown and explained, never silently dropped. Leave or an absence on a rest
+                    Sunday, or anything but a rest day before the member's start date. Shown and explained, never silently dropped. Leave or an absence on a rest
                     day ASKS "Was it a swapped working day?": only "Swapped — record it" writes (stamped
                     `replacedType`); "Rest day — leave it" writes nothing and clears an earlier record
                     on that day; unanswered writes nothing. "Skip all" takes an answer back. On 25 and
@@ -533,8 +533,8 @@ unauthenticated endpoint (one of two, with `unlockCalendarViewer`) rather than a
 design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
 
 1. **Member** taps "Can't get in?" on the login overlay — **always available there**, under the Sign
-   in button → `requestPasswordReset` in `firebase-client.js` (the one caller there that sends **no**
-   auth token) → the `requestPasswordReset` Cloud Function.
+   in button → `requestPasswordReset` (`account-calls.js`, re-exported by `firebase-client.js`; the one account call
+   that sends **no** auth token) → the `requestPasswordReset` Cloud Function.
 2. **Function** (Admin SDK) upserts `resetRequests/{memberName}` — `requestedAt`, `count`,
    `provisioned` and `disabled` (no account, or a disabled one, ⇒ the remedy is **Set up accounts**,
    not Reset). The doc ID is the member name *deliberately*, so the collection can never exceed the
@@ -1095,7 +1095,8 @@ read, or when you are not signed in as yourself.
 of the sheet, who saved it, and which days it added. A Save that landed nothing records nothing, so the
 last Save keeps its Undo. When the record cannot be written, or the records cannot be read after the
 Save, the receipt says so, and the **next check of the same file** records it. The card names the
-newest Save of the year with an **Undo** beside it, which takes back only the days that Save added and
+latest Save of the year that added leave with an **Undo** beside it (a later Save that added none, only
+swaps, leaves that Undo in place), which takes back only the days that Save added and
 nobody has changed since; any others are kept, and named. Each record a Save writes carries its mark,
 which any later save of that day, by anybody, removes (v26.15); a Save made with v26.13 or v26.14 is
 judged by date instead (KNOWN_LIMITATIONS.md → "The leave sheet's Undo and a change made during its
@@ -1295,7 +1296,7 @@ both the unlock and the roster come back together.
   first rollout. Neither message names the cause on screen; the Cloud Function log does.
 - **Unlock succeeds, Calendar shows no shifts** → the token minted without its claim, or the rules
   and the client disagree about the claim name. `calendar-viewer-parity.test.mjs` is the guard for
-  the second; the Cloud Function log line `[unlockCalendarViewer] unlocked <hash>` confirms the first.
+  the second; the Cloud Function log line `[unlockCalendarViewer] unlocked` confirms the first (it names no source: a hash of an address can be reversed by trying addresses).
 - **Nothing in the Operations Error Log** → expected. A locked Calendar has no Firebase identity, so
   it cannot write client errors. Use the Cloud Function logs.
 

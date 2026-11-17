@@ -444,6 +444,8 @@ export function resolveLegacyMigration(memberName, choice) {
 // Called once at startup before loadSettings(). Order matters: key prefix
 // migration runs first so all subsequent migrations read the new key names.
 /**
+ * Passed in rather than imported: two of them live in modules that import this one (getPensionDefault
+ * in paycalc-settings.js, getLoggedMember in paycalc-grade-setting.js), so importing them would be a cycle.
  * @param {{ getPeriods: Function, getLoggedMember: Function, getPensionDefault: Function }} deps
  */
 export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }) {

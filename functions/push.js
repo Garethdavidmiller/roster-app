@@ -211,6 +211,9 @@ async function sendTargetedPush(payload, ownerUids, logTag, opts = {}) {
  * the account stops a sign-in; only this stops the broadcasts. A record with no owner (written
  * before v17.76) cannot be attributed and is left to the push service's eventual 410.
  *
+ * Also called when Set up accounts re-enables a disabled account, and by a lost-phone reset
+ * (`lostDevice`, resetMemberPassword). An empty uid touches nothing.
+ *
  * @param {string} uid
  * @returns {Promise<number>} how many records were deleted
  */

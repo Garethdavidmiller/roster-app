@@ -165,7 +165,9 @@ export function orderClientErrors(unresolved, resolved, now, { retentionMs = CLI
     return [...u, ...r];
 }
 
-/** The prefix every slow-save DIAGNOSTIC entry starts with (error-reporter.js, v24.55). */
+/** The prefix every slow-save DIAGNOSTIC entry starts with (error-reporter.js, v24.55). The admin's
+ *  Error Log notification counts these apart through a CommonJS copy in functions/error-log-notice.js,
+ *  held equal to this one by error-log-notice.test.mjs. */
 export const DIAGNOSTIC_PREFIX = 'Slow save (diagnostic)';
 
 /**

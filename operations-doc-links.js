@@ -77,7 +77,11 @@ export function docLinksRequestInFlight() {
 /** "1 file" / "3 files". @param {number} n @param {string} one @param {string} many */
 const count = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
-/** Files a link this cannot read may open: left exactly as they are, old links and all. @param {number} n */
+/**
+ * Files a link this cannot read may open: left exactly as they are, old links and all. Named in a
+ * preview and in a run's report alike, so nobody takes a held file for a replaced one.
+ * @param {number} n
+ */
 const heldLine = (n) => (n === 1
     ? '1 file is left as it is, old link and all: a document’s link this can’t read may open it.'
     : `${n} files are left as they are, old links and all: documents’ links this can’t read may open them.`);
@@ -206,7 +210,8 @@ export function describePreview(report) {
 }
 
 /**
- * What a run did. `null` for an answer that cannot be read.
+ * What a run did. `null` for an answer that cannot be read. A run that changed nothing does not
+ * begin "Done.".
  * @param {any} report
  * @returns {{ lines: string[], ok: boolean } | null}  ok: nothing failed
  */
@@ -292,7 +297,9 @@ export function runFailure(err) {
 /**
  * Wire the card. Called once by operations-app.js; its collapse is wired there, with the others.
  * `askToConfirm` is overlay.js's `confirmDialog`, passed in rather than imported because overlay.js
- * touches `window` as it loads, and this module's wording is tested in Node.
+ * touches `window` as it loads, and this module's wording is tested in Node. Replace stays after a
+ * run that failed on a file, or whose answer was lost or could not be read, so the retry is one press
+ * away; otherwise it goes, and a file changed mid-run is finished by checking again.
  * @param {{ auth: any, askToConfirm: (opts: any) => Promise<boolean>, fetchFn?: typeof fetchWithTimeout }} deps
  */
 export function initDocLinksCard({ auth, askToConfirm, fetchFn }) {

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.20 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.30 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -725,4 +725,4 @@ both would need the governance gate answered before that changed.
 | The annual leave uploader, phase by phase | `AL_UPLOADER_PLAN.md` |
 | Active constraints and accepted limitations | `KNOWN_LIMITATIONS.md` |
 | Backup, rollback and disaster recovery | `RECOVERY_RUNBOOK.md` |
-| Implementation specs (schema, functions, auth) | `docs/DATA_MODEL.md` (schema), `CLAUDE.md`, `AI_MAP.md`, `.claude/rules/*` |
+| Implementation specs (schema, functions, auth) | `docs/DATA_MODEL.md` (schema), `CLAUDE.md`, `.claude/rules/*`, and each module's header (`AI_MAP.md` routes to it) |

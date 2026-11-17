@@ -7,6 +7,12 @@
  * parseRosterPDF       — the admin's weekly roster PDF → each person's shifts for that week, for
  *                        review. Does NOT write to Firestore: the admin approves, then the browser writes.
  * unlockCalendarViewer — the staff Calendar PIN → a custom token carrying `calendarViewer` only.
+ *                        calendar-viewer-parity.test.mjs pins its handler source, the secret binding
+ *                        and the no-log rule to THIS file; the rules it applies are calendar-viewer-auth.js.
+ *
+ * Both are EXECUTED by index-endpoints.test.mjs; functions-surface.test.mjs proves only that they
+ * exist. parseRosterPDF's PDF-path prompt is written inline below, and roster-prompt-parity.test.mjs
+ * reads it from this file. The import's contract is .claude/rules/roster-import.md.
  *
  * Every other endpoint (ingestHuddle and the document triggers, the account endpoints, Overtime)
  * comes from a domain builder — documents.js, auth-endpoints.js, overtime.js — given the shared

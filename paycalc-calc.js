@@ -5,7 +5,8 @@
 
 export const P_YR = 13; // 13 four-weekly pay periods per year
 
-// Pay-rate multipliers — used by computeGross and imported by paycalc-app.js.
+// Pay-rate multipliers — used by computeGross and imported by paycalc-app.js, so a rate is never a
+// literal at a call site.
 export const RATE_125 = 1.25;
 export const RATE_150 = 1.50;
 export const RATE_300 = 3.00;

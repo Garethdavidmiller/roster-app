@@ -10,7 +10,7 @@
  * (coordinator-ratchet.test.mjs), and they are one subject: the member's own credential, changed from
  * the page they are signed in to.
  *
- * ── TWO PROPERTIES AN EDIT CAN SILENTLY BREAK ──────────────────────────────────────────────────
+ * ── THREE PROPERTIES AN EDIT CAN SILENTLY BREAK ────────────────────────────────────────────────
  *
  *   1. RE-AUTHENTICATION TRIES THE NEXT CANDIDATE ONLY ON A DEFINITIVE REJECTION. The candidate list is
  *      the sign-in's own (`credentialCandidatesFor`: the typed value, or — when it normalises to the

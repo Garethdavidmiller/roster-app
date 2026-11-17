@@ -242,8 +242,9 @@ export function commitFocusedField() {
  * stays up, and a field that commits only on leaving (the prior-year Holiday Pay Premium commits on
  * `change`) commits LATER, after the action has moved the page to another payslip or tax year. With
  * the option, the touch path lets go of the field first (`commitFocusedField`), as a native tap
- * would have. For navigation, Save and the take-home bar; NOT for the ± sign button, whose own field
- * the member is still typing in, nor the calendar fill, which leaves the keyboard where it was.
+ * would have. For navigation, the peer stepper, Save and the take-home bar; NOT for the ± sign button,
+ * whose own field the member is still typing in, nor the calendar fill, which leaves the keyboard
+ * where it was.
  *
  * @param {HTMLElement} el
  * @param {(e: Event) => void} action  Receives the triggering event (touchend or click), so

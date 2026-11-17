@@ -9,6 +9,10 @@
  * session.js imports it (its sign-in, `ensureFirebaseSession`, is the one caller) and re-exports it,
  * so session.test.mjs still drives it from there.
  *
+ * The ordering is AUTH_AND_SESSIONS.md invariant 8: `setPersistence` moves the CURRENT user between
+ * stores, so restoring member persistence with the viewer still signed in would carry it into IndexedDB
+ * (proven both ways in a real browser by experiments/viewer-persistence-proof/).
+ *
  * Owns: `shedCalendarViewer`. Does NOT own: when a viewer is kept (`reconcileExpiredIdentity`,
  * session.js), or the viewer's own persistence at unlock (`setViewerPersistence`, firebase-client.js).
  */

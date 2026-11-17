@@ -1,8 +1,8 @@
 /**
  * guide-back.js — points a guide's ← back arrow at the page you actually came FROM (v18.84).
  *
- * Loaded as a CLASSIC script by all five guide pages (the guides have no module graph and no
- * shared.css — see .claude/rules/guide-pages.md). No exports; it runs once on load.
+ * Loaded as a CLASSIC script by all five guide pages (the guides load no shared.css, and only
+ * guide-print.js as a module — see .claude/rules/guide-pages.md). No exports; it runs once on load.
  *
  * Why: each guide's ← is a hardcoded destination (guide/railcard/fip → the calendar,
  * paycalc-guide → the pay calculator). That was harmless while guides opened in a new tab, because
