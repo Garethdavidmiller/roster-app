@@ -8,9 +8,8 @@ paths:
 # Guide pages — full reference
 
 > **The `paths:` list above uses GLOBS, and must stay that way.** An enumerated list of filenames
-> falls behind (it once missed `guide-back.js`, so editing the file that owns the back arrow did not
-> surface this document). Three globs cover every guide page, stylesheet and script, including any
-> added later.
+> falls behind (it once missed `guide-back.js`); three globs cover every guide page, stylesheet and
+> script, including any added later.
 
 ## Shared rules (all five guide pages)
 
@@ -18,219 +17,182 @@ paths:
 > (owner, 3 Sep 2026). A page that is glanceable and teaches nothing misses it, and so does one that
 > explains everything at once.
 
-- **Write for the colleague who has never heard the term** (owner, 3 Sep 2026). Many colleagues do
-  not know what a FIP coupon is, or how to use a FIP card, and the guide's first job is to let them.
-  Plain language, one idea per line, the term expanded on first sight, and the real-world anchor
-  stated (what it looks like, where you get it, what the barrier or the payslip shows). If adding a
-  fact makes the page harder for that reader to use, leave it out or move it down. The app-wide
-  statement of this rule is CLAUDE.md → "Plain English that TEACHES".
-- **Teach the mental model before the exceptions, once.** Many staff open a guide because they do not
-  yet understand the *system* the rules belong to — what the thing is, when you would use it, what you
-  physically hold or show, what it gives you, what it does not, and what you do next at Marylebone.
-  Answer that near the top, in ordinary language beside the official term, and then let the individual
-  cards stay glanceable rather than repeating the concept thirty times. **`fip-guide.html` is the
-  worked example**: before either term is used in anger, a *"What do I need?"* table separates free
-  travel (coupons) from discounted fares (the Card), and a *"What you get"* pair explains each. Judge
-  a new guide against that opening. **The facts themselves stay governed by `GUIDE_SOURCES.md` and its
-  evidence classes** — this rule is about STRUCTURE, and no definition may be improved into the guide
-  without its source.
-- **Searchability is not discoverability.** The drawer's cross-guide search only helps a reader who
-  knows the words. Somebody who has never heard of an International Coupon cannot search for one. So a
-  guide still owes its reader an orientation, conceptual headings and "you may also need…" signposting;
-  search is for the reader who already knows what they want. Never close a discovery gap by pointing at
-  the search box.
-- **An example of a search is not an answer to it.** A search tip that names phrases to try puts those
-  phrases into the cross-guide index as ordinary body text, and a body match scores the same wherever
-  it appears — so the tip itself became the top hit for the phrase it suggested. Mark any such element
-  `data-gs-example`, and `scripts/guide-index-lib.mjs` drops it before extracting; pinned by contract 6
-  in `guide-index-parity.test.mjs`. The staleness contract cannot see this, because the index is
-  perfectly TRUE of the page.
-- **Keep it plain English, for the reader who knows nothing yet — and short** (owner, 12 Nov 2026,
-  on the v25.82 update: "Keep the clarity and for dummies nature of the guides. Plain English"). One
-  idea per sentence; a new fact goes in by tightening the words around it, not by adding a paragraph.
-  On the Staff & Admin Guide that is also a print rule: it prints one sheet per guide with a few
-  pixels to spare (`staff-guide.css`, the print block).
-- **A guide that lists something the app keeps in one place is held to it** (v25.82). The Staff &
-  Admin Guide fell behind three times unnoticed — the staff PIN began opening Trains, Trains joined
-  every member's menu, the "Rest Day" button kept the guide label "Rest" — so
-  `guide-app-parity.test.mjs` now reads the app's own lists (the PIN's pages in `auth-policy.js`, the
-  menu in `nav-panel.js`, the Admin type buttons in `admin-shift-types.js`) and fails on the guide
-  line that disagrees, in both directions. The Calendar sign-in card's PIN hint is held to the same
-  list. A new list a guide restates gets a check there, not a reminder.
+- **Write for the colleague who has never heard the term** (owner, 3 Sep 2026; the app-wide rule is
+  CLAUDE.md → "Plain English that TEACHES"). Many colleagues do not know what a FIP coupon is, or how to
+  use a FIP card, and the guide's first job is to let them: plain language, the term expanded on first
+  sight, and the real-world anchor stated (what it looks like, where you get it, what the barrier or
+  the payslip shows). **And short** (owner, 12 Nov 2026: "Keep the clarity and for dummies nature of
+  the guides. Plain English"): one idea per sentence, and a new fact goes in by tightening the words
+  around it, not by adding a paragraph. If a fact makes the page harder for that reader to use, leave
+  it out or move it down. On the Staff & Admin Guide that is also a print rule: it prints one sheet per
+  guide with a few pixels to spare (`staff-guide.css`, the print block).
+- **Teach the mental model before the exceptions, once.** Answer near the top, in ordinary language
+  beside the official term, what the thing is, when you would use it, what you physically hold or show,
+  what it gives you, what it does not, and what you do next at Marylebone — so the cards stay
+  glanceable rather than repeating the concept thirty times. **`fip-guide.html` is the worked
+  example**: a *"What do I need?"* table separates free travel (coupons) from discounted fares (the
+  Card), and a *"What you get"* pair explains each. Judge a new guide against that opening. **The facts
+  stay governed by `GUIDE_SOURCES.md` and its evidence classes** — this rule is about STRUCTURE, and no
+  definition may be improved into the guide without its source.
+- **Searchability is not discoverability** (CLAUDE.md, same heading). A guide still owes its reader an
+  orientation, conceptual headings and "you may also need…" signposting; never close a discovery gap by
+  pointing at the search box.
+- **An example of a search is not an answer to it.** A search tip naming phrases to try puts them into
+  the cross-guide index as body text, so the tip became the top hit for the phrase it suggested. Mark
+  any such element `data-gs-example`; `scripts/guide-index-lib.mjs` drops it before extracting (contract
+  6 in `guide-index-parity.test.mjs`). The staleness contract cannot see this: the index is TRUE of
+  the page.
+- **A guide that lists something the app keeps in one place is held to it.**
+  `guide-app-parity.test.mjs` reads the app's own lists (the PIN's pages in `auth-policy.js`, the menu
+  in `nav-panel.js`, the Admin type buttons in `admin-shift-types.js`) and fails on the guide line that
+  disagrees, in both directions; the Calendar sign-in card's PIN hint is held to the same list. A new
+  list a guide restates gets a check there, not a reminder.
 - **Draw an app control as the app draws it.** A reader matches the page to the screen by sight, so
   a depicted control wears the real one's colours AND shape: the Staff Guide's five Calendar buttons
-  are rounded rectangles at the real corner's proportion (v25.82 — they were pills, a shift badge's
-  shape), and the Pay Calculator Guide's rates are the Pay page's own rate badges, each in its row's
-  colours. `e2e/guides.spec.js` reads both off the real pages and compares them.
+  are rounded rectangles at the real corner's proportion (not pills, a shift badge's shape), and the
+  Pay Calculator Guide's rates are the Pay page's own rate badges, each in its row's colours.
+  `e2e/guides.spec.js` reads both off the real pages and compares them.
 - Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't
   use). All five share `guide-shell.css`; the two **document-style** guides (`staff-guide.html`,
   `paycalc-guide.html`) additionally load `guide-doc.css` (the shared two-column print layout + 760px
   content wrapper) between the shell and their own CSS. Each page then has its own external CSS file
   (`staff-guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip-guide.css`, `rangers-guide.css`).
   Do not add a `shared.css` import to any guide.
-- **The two OLD guide URLs are still served, as redirect stubs.** `guide.html` → `staff-guide.html`
-  and `fip.html` → `fip-guide.html`: `firebase.json` 301s both, but that covers only the canonical
-  origin. The GitHub Pages mirror serves no redirect rules and is where most staff open the app, so
-  the redirect is also written into the HTML, which both origins carry. The stubs hold no content and
-  no stylesheet, and ONE script, the shared `legacy-redirect.js` (owner, 10 Nov 2026): a meta refresh
-  goes to a fixed URL, so it dropped a bookmark's `#country` and `?from=`, and the script carries both,
-  with the refresh kept as the no-script fallback. They are NOT guides: they are declared as `REDIRECT_PAGES` in
-  `scripts/app-pages.mjs`, and `page-contract-parity.test.mjs` gives them a contract of their own
-  (`LEGACY_REDIRECTS`). **A future guide rename needs the same pair of things** — the Firebase
-  redirect and the stub — or it breaks old links for the larger half of the staff.
+- **The two OLD guide URLs are still served, as redirect stubs**: `guide.html` → `staff-guide.html`,
+  `fip.html` → `fip-guide.html`. `firebase.json` 301s both on the canonical origin only; the GitHub
+  Pages mirror (where most staff open the app) serves no redirects, so the redirect is also in the
+  HTML. No content, no stylesheet, ONE script — the shared `legacy-redirect.js` (owner, 10 Nov 2026),
+  which keeps a bookmark's `#country` and `?from=`, with a meta refresh as the no-script fallback. They
+  are NOT guides: `REDIRECT_PAGES` in `scripts/app-pages.mjs`, with their own contract
+  (`LEGACY_REDIRECTS`, `page-contract-parity.test.mjs`). **A future guide rename needs the same pair** —
+  the Firebase redirect and the stub — or it breaks old links for the larger half of the staff.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP
   (`script-src 'self'`) blocks them. All guide JS is in external files: `guide-back.js` and
   `guide-print.js` (loaded by every guide), and the chip bar's script — the shared `guide-chips.js` on
   the Railcard, Rangers, Staff and Pay Calculator guides, and `fip-guide.js`, which also opens the
   target country `<details>` on jump/deep-link. **Every guide has a chip bar and exactly one of those
   two drives it**: nothing else measures a guide's sticky stack, and two would bind every chip twice
-  (`page-contract-parity.test.mjs`). **Only `guide-print.js` prints**: a second `window.print()` handler would open two sheets or bypass the iOS 27 guard.
-- Back buttons link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
+  (`page-contract-parity.test.mjs`). **Only `guide-print.js` prints**: a second `window.print()` handler
+  would open two sheets or bypass the iOS 27 guard.
+- **Back buttons** link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
-  when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and the guide
-  points `←` back at that page instead of its hardcoded default, because guide links navigate in the
-  SAME tab. `from` is allowlisted against the app's own pages; an absent or unknown value leaves the
-  authored href alone.
+  when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and `←` points
+  back at that page, because guide links navigate in the SAME tab. `from` is allowlisted against the
+  app's own pages; an absent or unknown value leaves the authored href alone.
 
 ## Unified guide shell
 
 All five guide pages share one chrome for consistent behaviour on iOS, Android, desktop and print.
-The common chrome lives in **`guide-shell.css`** (linked by every one of them, before each page's
-CSS). Edit the shell there once — do not re-inline it. `guide-shell.css` defines the shared brand
-palette tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) in its own `:root`; guide pages do
-not redefine them.
+It lives in **`guide-shell.css`** (linked by every guide, before each page's CSS) — edit it there once,
+do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (`--navy`,
+`--navy-dark`, `--navy-mid`, `--gold`) in its own `:root`; guide pages do not redefine them. Each
+"ONE …" rule below has its reasoning in the matching `guide-shell.css` block.
 
 **In `guide-shell.css` (shared — change once):**
-- **Typeface:** the shared Inter `@font-face` (the same self-hosted `fonts/inter-latin.woff2` the app
-  uses — SW-precached, CSP-clean) + the `--font-sans` token. Every guide body uses `var(--font-sans)`
-  (railcard/fip/rangers in their own CSS; staff-guide/paycalc-guide via `guide-doc.css`) so the guides
-  render the same brand typeface as the app. Every form control inherits it too
-  (`button, input, select, textarea { font-family: inherit }`), because a control does not inherit
-  the page's font: the FIP country finder's clear ✕ was Arial.
-- **Header:** full-bleed sticky navy `.page-header`, `align-items: center`, `top: 0`, with `←`
-  `.btn-back` (left) · title `<h1>` + `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top
-  padding `max(14px, env(safe-area-inset-top))` for the iOS notch. **3px gold bottom rule** — the
-  navy-and-gold brand echo; it prints too (the header doubles as the railcard/fip/rangers print
-  banner).
+- **Typeface:** the app's self-hosted Inter (`@font-face` + `--font-sans`; css-tokens.md → "Self-hosted
+  Inter typeface"). Every guide body uses `var(--font-sans)` (railcard/fip/rangers in their own CSS;
+  staff-guide/paycalc-guide via `guide-doc.css`), and every form control inherits it
+  (`button, input, select, textarea { font-family: inherit }`), because a control does not take the
+  page's font by itself.
+- **Header:** full-bleed sticky navy `.page-header` (`top: 0`): `←` `.btn-back` (left) · title `<h1>` +
+  `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top padding
+  `max(14px, env(safe-area-inset-top))` for the iOS notch. **3px gold bottom rule** — the navy-and-gold
+  brand echo; it prints too (the header doubles as the railcard/fip/rangers print banner).
 - **Chip bar and header alignment:** from 800px the chip bar's inline padding — and the header's, whose
   navy band stays full-bleed — is the 760px content column's own text edge, so the first chip and the
   `←` start, and `⤓ PDF` ends, where the text does. It restates the 760/16 pair the three page CSS
   files and `guide-doc.css` declare — change them together, with the railcard and rangers source
   banners' 728px (760 less its two 16px sides).
-- **The `←` has one hover, gold, on every guide** (fine pointers only). Its selector outranks a page's
-  own `a:hover`, which once turned it amber on navy.
-- **Footer back link:** `.guide-back-link` is ONE recipe for railcard, rangers and FIP — centred,
-  44px tall, "← Back to calendar" to `./`, the last element of `<main>`, hidden in print by the
-  shell — and ONE hover (navy words, gold underline), at (0,2,0) so no page's `a:hover` reaches it. Do
-  not restyle it per page; `e2e/guides.spec.js` fails if the three diverge.
-- **Chips:** desktop hover feedback (border-darken + soft shadow, colour-fade only — no transform) on
-  the shared `.chip`, so a mouse gets an affordance as well as `:active`.
-- **The chosen chip is GOLD with navy words, on all five guides** (owner, 12 Nov 2026, v25.83 — picked
-  from three, with screenshots: navy as it was, each guide in its app page's colour, or gold on every
-  guide). Navy is the app's colour for a button that DOES something; the app colours a choice by its
-  page, but three of the five guides belong to no page, so the guides wear their own accent — the gold
-  of the header's rule and the section dashes — as one family. A press is gold too, so a tap shows one
-  colour. `e2e/guides.spec.js` → "the chosen section chip is gold with navy words" reads it off every
-  guide. Giving one guide its app page's colour is a fresh decision, not a tidy-up. **Under Windows High
-  Contrast it is RINGED** (13 Nov 2026): the theme repaints the gold as `Canvas`, and the app's ring for a
-  chosen control is in `shared.css`, which no guide loads, so `guide-shell.css` states the same two lines
-  for the chip (2px `Highlight` inside; `6px double` when focused). Pinned by `native-surface-parity.test.mjs`
-  contract 14 and `e2e/forced-colors.spec.js` → "a guide: the chosen section chip".
-- **One section heading on all five guides** (v25.84, the owner's "must be consistent with the rest of
-  the app"). There were three: the document guides' gold dash (with a hairline that was the page's own
-  colour, so it never showed), the Railcard and FIP guides' hairline with a gold bar under it, and the
-  Rangers guide's grey words with no gold. Now ONE rule on `h2` in guide-shell.css — navy words, the gold
-  dash before them, a hairline after them that keeps 24px when a heading wraps — and a page sets only
-  its margins. Every `<h2>` in a guide is a section heading (`scripts/guide-index-lib.mjs` refuses one
-  with no id), which is why the element is the selector; guide-doc.css takes it all back off the banner
-  title. The dash and hairline are BORDERS, so paper keeps them without "Background graphics".
-  `e2e/guides.spec.js` → "every guide draws its section headings the same way" reads it off all five,
-  and measures the hairline against the ground it sits on: the old one passed every check of the rule
-  while invisible, and the visual baselines cannot see it either (the step is under their per-pixel
-  threshold). `--rule` is its own token for that reason — never point it at a page ground.
-- **One link on all five guides** (v25.84): navy at 600 with an underline tinted from the link's own
-  colour, gold under a mouse — the app's prose link. guide-doc.css and FIP each kept a copy, the Railcard
-  guide turned a link amber under a mouse (amber there means a morning rule), and Rangers had none.
-- **Three text sizes, on screen only** (v26.24, owner, 16 Nov 2026 — 14px picked over 13px). The app's
-  own steps under the app's own names, declared in guide-shell.css's `:root`: `--type-body` 14px for
-  reading (paragraphs, lists, steps), `--type-label` 13px for anything dense (boxes and callouts, card
-  rows, tables, keys), `--type-small` 12px for sources, sub-lines and footers. Before, the guides ran
-  from 10.5px to 15px, and four of the five read smaller than the app. Reading text is in the text
-  colour, not the grey. **Each page applies them in ONE `@media screen` block at the end of its own
-  CSS**, so a printed sheet keeps the sizes it was composed at — the Staff Guide still prints on one
-  sheet. A new rule that sets a size goes in that block, never in the base rule above the print block.
-  Labels, pills and tags, card names and figures, the app's drawn badges (`.sb`, `.pay-rate`) and the
-  controls keep their own sizes; `KEEPS_ITS_OWN_SIZE` in `e2e/guides.spec.js` names them, and
-  "every word on … is in one of the app's three sizes on screen" fails on anything else.
-  "every printed sheet keeps its own" reads a sample on paper.
-  **Bigger words raise a block's narrowest width**, and on a phone under a larger text size that is
-  where they bite: the Staff Guide's Shift Types table ran 17px past a 360px phone at 1.5×, and its
-  tips' grid past a 320px one. So the table's middle column may break a long word
-  (`overflow-wrap: anywhere` — nothing breaks at the default size, because the two one-word columns
-  beside it keep their widths), and the tips stack as the badge key does, under ONE rule written after
-  both grids' own. Pinned by "enlarged text does not widen the column past a phone", at 375, 360 and
-  320px. Measure a size change at 1.5× on 320–412px before trusting it.
-  **And nothing runs past a phone's edge on ANY guide** (v26.26): every element and every run of text,
-  because a word wider than its box overflows it without moving the box. What that found, both older
-  than v26.24: the Rangers guide's status badges, which were `nowrap` — a badge now wraps its own words
-  only when it alone is wider than the column, with a 1em corner so a two-line badge is a rounded
-  rectangle, `&nbsp;` keeping a month with its year and the "·" with the word before it, and the key's
-  badges never shrinking (their rows are flex rows); and FIP's "Amsterdam/Rotterdam/Antwerp", which
-  takes ONE `<wbr>`, after "Rotterdam/". **A `<wbr>` is not a last resort**: line-wrapping uses it
-  wherever it helps, so five of them re-broke the Eurostar sentence at the default size on a 320px
-  phone; one keeps every default line as it was. Pinned by "<guide>: enlarged text runs nothing past a
-  phone's edge" (all five, at 375, 360 and 320px under 1.5× and 320px under 1.3×) and "rangers: a status
-  badge keeps to one line at the ordinary size, and wraps cleanly under large text".
-- **One sub-heading** (v26.24): on screen an `<h3>` is the app's card title — the body size, 700, navy,
-  `-0.01em`. Its paper size stays in the page's print block. The Railcard's and Rangers' card names are
-  headings by ARIA, not `<h3>`s, so the rule does not reach them. Pinned by "a sub-heading on screen is
-  the app's card title", which builds the app's card title on the Pay page and compares.
-- **One top gap** (v26.24): `--guide-top` (20px) from the bottom of the header and chips to a guide's
-  first line, on all five, at every width. It was 14 to 22px. Pinned by "every guide starts its first
-  line the same space below the header and chips", at 390 and 1280px.
-- **The two document guides' bar** (v25.80): their sections sit in two columns from 641px, where two
-  share a line and no scroll position says which is being read, so there a chip is lit only by a jump
-  or a link to it, until the reader moves ON — what the jump or link put in place moving, not the
-  scroll position, so a resize that reflows the page lets go too; on a phone's one column the bar
-  follows the reader, as every guide's does. From 641px in a window at least 600px tall, and from 1024px at any height, a bar too long for its window WRAPS
-  (theirs take two rows; Railcard's and Rangers' fit one, and FIP's fits everywhere but the narrow end,
-  where the engine's text widths decide): a desktop bar hides its scrollbar, so a chip past the edge
-  would never be found, and a window snapped to half a laptop screen is 683–768px wide. The page scripts watch the bar's own size as well as the header's, because
-  a wrapping bar gains or loses a row with no change to the header. Chip labels are short forms of
-  their headings, "Holiday Pay Premium" spelt out. guide-doc.css draws the bar on `--page-bg`, the
-  page's own ground.
-- **A link holds its chip the way a tap does** (v25.81, the four guides on `guide-chips.js`): a search
-  result or shared link opened at a `#fragment` lights the chip of the section it lands in — a card's
-  or a sub-heading's section too — from the first paint, through the landing, until the reader moves
-  on. So a link near the end of a page no longer lights the last chip ("If it's wrong" lit "Digital"),
-  and on the document guides' two columns a link lights its chip as a tap does. A reload, Back/Forward
-  or a hash changed in place holds nothing: the position then comes from history, not from the link.
-  A section headed inside a navy banner (the Staff Guide's Admin Guide) starts at its banner, for the
-  bar as for the landing.
-- **With no script the chip bar is not sticky** (`@media (scripting: none)`): its `top` is the page
-  script's measurement, and no single fallback fits every header — the chips do nothing without script
-  either.
-- **Print:** `.page-header { position: static; print-color-adjust: exact }`, and `.btn-back`,
+- **The `←` has one hover, gold, on every guide** (fine pointers only), at a specificity no page's own
+  `a:hover` reaches.
+- **Footer back link:** `.guide-back-link` is ONE recipe for railcard, rangers and FIP — centred, 44px
+  tall, "← Back to calendar" to `./`, the last element of `<main>`, hidden in print — with ONE hover
+  (navy words, gold underline) at (0,2,0). Do not restyle it per page; `e2e/guides.spec.js` fails if the
+  three diverge.
+- **Chips:** desktop hover feedback on the shared `.chip` (border-darken + soft shadow, colour-fade
+  only — no transform), so a mouse gets an affordance as well as `:active`.
+- **The chosen chip is GOLD with navy words, on all five guides** (owner, 12 Nov 2026 — picked from
+  three, with screenshots: navy, each guide in its app page's colour, or gold on every guide). Navy is
+  the app's colour for a button that DOES something, and three of the five guides belong to no page.
+  A press is gold too, so a tap shows one colour. Giving one guide its app page's colour is a fresh
+  decision, not a tidy-up. **Under Windows High Contrast it is RINGED** (13 Nov 2026; 2px `Highlight`,
+  `6px double` when focused). Pinned by `e2e/guides.spec.js` → "the chosen section chip is gold with
+  navy words", `native-surface-parity.test.mjs` contract 14 and `e2e/forced-colors.spec.js` → "a guide:
+  the chosen section chip".
+- **One section heading on all five guides** (the owner's "must be consistent with the rest of the
+  app"): ONE rule on `h2` — navy words, a gold dash before, a hairline after that keeps 24px when a
+  heading wraps — and a page sets only its margins. The element is the selector because every guide
+  `<h2>` is a section heading (`scripts/guide-index-lib.mjs` refuses one with no id). Dash and hairline
+  are BORDERS, so paper keeps them. `e2e/guides.spec.js` → "every guide draws its section headings the
+  same way" also measures the hairline against its ground (an invisible one passed every other check);
+  `--rule` is its own token for that reason — never point it at a page ground.
+- **One link on all five guides:** the app's prose link — navy at 600, an underline tinted from the
+  link's own colour, gold under a mouse. Never amber under a mouse (on the Railcard guide amber means a
+  morning rule).
+- **Three text sizes, on screen only** (owner, 16 Nov 2026 — 14px picked over 13px): the app's own steps
+  under its own names in guide-shell.css's `:root` — `--type-body` 14px for reading (paragraphs, lists,
+  steps), `--type-label` 13px for anything dense (boxes and callouts, card rows, tables, keys),
+  `--type-small` 12px for sources, sub-lines and footers. Reading text is in the text colour, not the
+  grey. **Each page applies them in ONE `@media screen` block at the end of its own CSS**, so a printed
+  sheet keeps the sizes it was composed at (the Staff Guide still prints on one sheet); a new size rule
+  goes in that block, never in the base rule above the print block. Labels, pills and tags, card names
+  and figures, the app's drawn badges (`.sb`, `.pay-rate`) and the controls keep their own sizes —
+  `KEEPS_ITS_OWN_SIZE` in `e2e/guides.spec.js`; "every word on … is in one of the app's three sizes on
+  screen" fails on anything else, and "every printed sheet keeps its own" reads a sample on paper.
+  **Bigger words raise a block's narrowest width**: so the Staff Guide's Shift Types middle column may
+  break a long word (`overflow-wrap: anywhere`), and the tips stack as the badge key does, under ONE
+  rule after both grids' own (`staff-guide.css` has the measurements). Pinned by "enlarged text does not
+  widen the column past a phone", at 375, 360 and 320px. Measure a size change at 1.5× on 320–412px.
+  **And nothing runs past a phone's edge on any guide** — no box and no word, because a word wider than
+  its box overflows it without moving the box. A status badge (the Rangers guide's "✓ National Rail
+  checked · Aug 2026") wraps its own words only when it alone is wider than the column: a 1em corner,
+  so two lines make a rounded rectangle rather than a bubble; `&nbsp;` keeping a month with its year and
+  the "·" with the word before it; and the key's badges never shrinking (their rows are flex rows).
+  FIP's "Amsterdam/Rotterdam/Antwerp" takes ONE `<wbr>`, after "Rotterdam/". **A `<wbr>` is not a last
+  resort**: line-wrapping uses it wherever it helps, and five of them re-broke the Eurostar sentence at
+  the default size on a 320px phone. Pinned by "<guide>: enlarged text runs nothing past a phone's
+  edge" (all five, at 375, 360 and 320px under 1.5× and 320px under 1.3×) and "rangers: a status badge
+  keeps to one line at the ordinary size, and wraps cleanly under large text".
+- **One sub-heading:** on screen an `<h3>` is the app's card title (body size, 700, navy, `-0.01em`); its
+  paper size stays in the page's print block. The Railcard's and Rangers' card names are headings by
+  ARIA, not `<h3>`s, so it does not reach them. Pinned by "a sub-heading on screen is the app's card
+  title", which builds the app's card title on the Pay page and compares.
+- **One top gap:** `--guide-top` (20px) from the bottom of the header and chips to a guide's first
+  line, on all five, at every width. Pinned by "every guide starts its first line the same space below
+  the header and chips", at 390 and 1280px.
+- **The chip bar's hold** (`guide-chips.js` header has the argument; `fip-guide.js` mirrors it). On the
+  document guides' two columns (from 641px) no scroll position says which section is being read, so a
+  chip is lit only by a jump or a link to it, until the reader moves ON (the SECTION moving, so a
+  reflow lets go too); on one column the bar follows the reader. **A link holds its chip the way a tap
+  does**: a `#fragment` link lights the chip of the section it lands in (a card's or sub-heading's
+  section too) from the first paint, through the landing, until the reader moves on. A reload,
+  Back/Forward or a hash changed in place holds nothing. A section headed inside a navy banner (the
+  Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing.
+- **A bar too long for its window WRAPS** from 641px in a window at least 600px tall, and from 1024px at
+  any height — a desktop bar hides its scrollbar, so a chip past the edge would never be found, and a
+  window snapped to half a laptop screen is 683–768px wide (`guide-shell.css` has the figures). The page
+  scripts watch the bar's own size as well as the header's: a wrapping bar gains or loses a row with no
+  change to the header. Chip labels are short forms of their headings, "Holiday Pay Premium" spelt out.
+  guide-doc.css draws the bar on `--page-bg`, the page's own ground.
+- **With no script the chip bar is not sticky** (`@media (scripting: none)`): its `top` is the script's
+  measurement, no single fallback fits every header, and the chips do nothing without script either.
+- **Print:** `.page-header` goes `position: static` with `print-color-adjust: exact`; `.btn-back`,
   `.btn-pdf`, `.chip-bar`, `.guide-back-link` and `.print-unavailable` are hidden. railcard/fip/rangers
-  print the sticky header as their title banner; on staff-guide/paycalc-guide the header is
-  `.no-print`, so these rules are inert there (they print their own in-document `.guide-header` banner
-  instead — `print-color-adjust: exact` on that banner stays inline).
+  print the sticky header as their title banner; staff-guide/paycalc-guide mark it `.no-print` and print
+  their own in-document `.guide-header` banner (its `print-color-adjust: exact` stays inline).
 
 **Still per-page in each page's own CSS file (keep aligned by eye):**
 - **Background:** flat, edge-to-edge — `#f4f5f8` on the FIP, Railcard and Rangers guides, `#eef1f6`
-  (`--page-bg`, `guide-doc.css`) on the Staff and Pay Calculator guides. No white "page" card. Left
-  apart on purpose in v25.84: the Railcard's Marylebone panel and the Rangers guide's quick answer are
-  tinted exactly `#eef1f6`, so one ground for all five would erase them, and the two shades are a
-  hair apart.
-- **Card corner:** 12px on every guide's cards (v25.84 — the Railcard's were 10px, the Rangers' 8px); a
-  box nested in a card keeps a smaller one.
-- **The Pay Calculator Guide's rate cards are one column on screen** (v26.24) and two on paper. Two to
-  a row left each card about 120px of text at the new sizes, on a phone and in the desktop's half-page
-  column alike, so a description ran to nine lines. A4 has the width for two.
-- **Content width:** `max-width: 760px`, centred. For `staff-guide.html`/`paycalc-guide.html` the
-  760px wrapper **and** the two-column `.cols` print grid live in the shared **`guide-doc.css`** (not
-  the page's own file); `railcard-guide.html`/`fip-guide.html`/`rangers-guide.html` set their own 760px
-  single-column width in their page CSS.
+  (`--page-bg`, `guide-doc.css`) on the Staff and Pay Calculator guides. No white "page" card. Apart on
+  purpose: the Railcard's Marylebone panel and the Rangers guide's quick answer are tinted exactly
+  `#eef1f6`, so one ground for all five would erase them, and the two shades are a hair apart.
+- **Card corner:** 12px on every guide's cards; a box nested in a card keeps a smaller one.
+- **The Pay Calculator Guide's rate cards are one column on screen** and two on paper: two to a row
+  left each card about 120px of text, on a phone and in the desktop's half-page column alike (a
+  description ran to nine lines); A4 has the width for two.
+- **Content width:** `max-width: 760px`, centred — in the shared **`guide-doc.css`** for the two
+  document guides (with the two-column `.cols` print grid), in each page's own CSS for railcard, FIP and
+  rangers (single column).
 - **Reading measure:** from 1024px (screen only) the railcard, rangers and FIP guides hold a paragraph
   or note to 64ch — the low end of the app's 64–72ch (`css-tokens.md` → "Reading measure"); 68ch
   measured 102 characters a line on CI's render, over the e2e's 100. Boxes, tables, cards and rows
@@ -253,22 +215,21 @@ that register structurally (part of `npm run test:hygiene`) — every row must k
 
 - **Before changing a high-risk claim**, update its register row (Source + `Reviewed`), then the guide.
 - **Block ↔ source linkage:** each high-risk railcard/fip block carries a
-  `data-guide-source="<register-id>"` attribute wiring it to its register row. `guide-sources.test.mjs`
-  enforces both directions — an attribute pointing at a missing row fails, and a railcard/fip row with
-  no anchoring block fails. Adding a high-risk row therefore means anchoring it in the HTML (and
-  removing a block means removing or re-homing its row). The attribute is inert (no CSS/JS reads it),
-  so it needs no version bump. A block may cite multiple rows (space-separated).
-- The **National vs Local** flag is the anti-drift control: it is what stops a Marylebone shortcut
-  being restated as a universal national rule (see the three-layer format below).
+  `data-guide-source="<register-id>"` attribute (several space-separated ids allowed).
+  `guide-sources.test.mjs` enforces both directions — an attribute pointing at a missing row fails, and
+  a railcard/fip row with no anchoring block fails — so adding a row means anchoring it in the HTML,
+  and removing a block means removing or re-homing its row. The attribute is inert (no CSS/JS reads
+  it), so it needs no version bump.
+- The **National vs Local** flag is the anti-drift control: it stops a Marylebone shortcut being
+  restated as a universal national rule (see the three-layer format below).
 - The test is a **structural** guard, NOT a date tripwire (a today-driven failure would break unrelated
   commits). Review cadence is manual, driven by the `Next` column — re-check a section when its month
   arrives; full pass at least yearly (railcards each spring; tax before 6 April).
 
 ## What adding a guide page touches
 
-Adding a guide is not "write a page". Every place below knows the guide list, and most fail loudly —
-which is the good case. Listed so the work is estimated honestly; each row was checked against the
-code.
+Every place below knows the guide list, and most fail loudly — the good case. Listed so the work is
+estimated honestly; each row was checked against the code.
 
 | # | File | What |
 |---|---|---|
@@ -312,7 +273,7 @@ this mid-transaction and get the right answer fast?"
 - **Chiltern-specific callouts** (`rc-chiltern`) are amber banners inside the card — keep them.
 - **Photo-check is a table, not prose.** The `.photo-table`, in its own block after the six check steps, gives colour-coded rows by card type. Distinguish physical vs digital explicitly.
 - **Selling essentials live in gotchas.** Minimum-fare mechanic, First Class eligibility per card, season-ticket exceptions. Do not move these to card rows.
-- **Three-layer breakdown for "varies by route" time rules.** Where a card's Mon–Fri cutoff is really a *local shortcut* for a national "morning-peak, off-peak-varies-by-route" rule, the card carries a `.rc-layers` block of three labelled rows instead of a `.rc-chiltern` prose note — `.rc-layer-lbl official` (navy: the national rule) / `local` (amber: Chiltern's directional Off-Peak rule, set out in the "Marylebone mornings" panel — never a clock time) / `check` (red: what the retail system confirms). A Chiltern-only rule wears the one `.tl-tag local` chip ("Marylebone"), explained in the source banner and worn by the Marylebone mornings panel; the national and retail-system layers are the cards' `.rc-layer-lbl` labels. **Applied ONLY to the genuinely-varies cards — Family & Friends and Senior.** Do NOT blanket every card with it: cards whose time IS fixed (Network 10:00, Gold Card 04:30–09:29) keep the simple note, and three layers everywhere would wreck the glanceable one-card scan the guide depends on. This is the durable fix for a local shortcut masquerading as a universal rule.
+- **Three-layer breakdown for "varies by route" time rules** — the durable fix for a local shortcut masquerading as a universal rule. Where a card's Mon–Fri cutoff is really a *local shortcut* for a national "morning-peak, off-peak-varies-by-route" rule, the card carries a `.rc-layers` block of three labelled rows instead of a `.rc-chiltern` prose note: `.rc-layer-lbl official` (navy: the national rule) / `local` (amber: Chiltern's directional Off-Peak rule, set out in the "Marylebone mornings" panel — never a clock time) / `check` (red: what the retail system confirms). A Chiltern-only rule wears the one `.tl-tag local` chip ("Marylebone"), explained in the source banner and worn by the Marylebone mornings panel. **Applied ONLY to the genuinely-varies cards — Family & Friends and Senior.** Cards whose time IS fixed (Network 10:00, Gold Card 04:30–09:29) keep the simple note; three layers everywhere would wreck the glanceable one-card scan.
 
 **What to care about:**
 - Factual accuracy per card — verify against nationalrail.co.uk before changing any rule.
@@ -340,9 +301,9 @@ that is **three questions that must not be collapsed into one**:
 | **C** | if something is wrong, what do we **do**? | Chiltern's |
 
 Collapsing A into B produces a legend like *"£ = travel OK, but a minimum fare applies"*, which reads
-as though a Railcard settles whether somebody may travel. It does not; it settles the price.
-Collapsing B into A invents Marylebone times (`~10:00`, `~09:30`) on Family & Friends and Senior,
-which have **no Railcard time of their own at all**.
+as though a Railcard settles whether somebody may travel; it settles the price. Collapsing B into A
+invents Marylebone times (`~10:00`, `~09:30`) on Family & Friends and Senior, which have **no Railcard
+time of their own at all**.
 
 **The morning rules come in kinds that must stay visibly different:** no limit (16-17, Disabled) ·
 a minimum fare, which is *not* a ban (16-25, 26-30, HM Forces, Veterans) · a fixed Railcard cutoff
@@ -361,10 +322,10 @@ The Network Railcard area ends at **Banbury (the boundary station)**: Kings Sutt
 Marylebone and Reading are inside; Leamington Spa, Warwick, Solihull, Coventry and Birmingham are
 outside. It was settled from the boundary polygon in the railcard's own area-map PDF (a 41-vertex
 filled shape drawn immediately before the six `NETWORK RAILCARD AREA` labels, tested point-in-polygon)
-— **not from the map's station index**, which is the index of the whole *London & the South East*
-map the area is drawn on, and also lists Bristol, Taunton, Weston-super-Mare and Exeter. A
-"correction" that read the index as the boundary, extending the area to Birmingham, was wrong, and
-was caught by the owner's operational knowledge. Two rules came out of it:
+— **not from the map's station index**, which indexes the whole *London & the South East* map and also
+lists Bristol, Taunton, Weston-super-Mare and Exeter. A "correction" that read the index as the
+boundary, extending the area to Birmingham, was wrong, and was caught by the owner's operational
+knowledge. Two rules came out of it:
 
 - **Direction of failure.** "Not valid past Banbury" refuses valid tickets; "valid to Birmingham"
   accepts invalid ones. On a revenue-facing page the second is worse, so a claim that loosens a
@@ -416,15 +377,14 @@ The "must not say" guards therefore skip those blocks — and a separate test fa
 block lacks an explicit negation, so the class cannot become somewhere to park a live claim. The
 exemption is **earned, not granted by the class name**.
 
-**And the rule comes first, the history after it** (review, 15 Nov 2026). Three boxes opened on the
-date and the old wording ("Changed Aug 2026: this guide used to say the Saver was digital only…"), so a
-reader at the gateline met the wrong rule before the right one. Each box that tells of this guide's
-past wording — a correction or an unsourced note alike — now opens with the rule as its label, and the
-history follows on a line of its own under a dated label (`<br><span class="ct-label">Changed Aug
-2026:</span>`, the page's existing two-label shape). The history is **not collapsed**: it is for the
-member who learned the old rule here, and a note they must open to find out it changed is one they will
-not open. `guide-sources.test.mjs` → "a box that tells of this guide's old wording leads with the rule,
-and its history follows". When the history lines may go altogether is an open owner question.
+**And the rule comes first, the history after it** (review, 15 Nov 2026), so a reader at the gateline
+never meets the wrong rule before the right one. Each box that tells of this guide's past wording — a
+correction or an unsourced note alike — opens with the rule as its label, and the history follows on
+a line of its own under a dated label (`<br><span class="ct-label">Changed Aug 2026:</span>`, the
+page's existing two-label shape). The history is **not collapsed**: it is for the member who learned
+the old rule here, and a note they must open to find out it changed is one they will not open.
+`guide-sources.test.mjs` → "a box that tells of this guide's old wording leads with the rule, and its
+history follows". When the history lines may go altogether is an open owner question.
 
 ## FIP guide
 
@@ -432,17 +392,13 @@ and its history follows". When the history lines may go altogether is an open ow
 article-like reference page. Do not flag reference-page format as a design defect. Care about
 factual accuracy, source links, mobile layout, and the navy/gold palette.
 
-**Evidence is PER CARD, and there is deliberately no page-wide "last checked" date.** A single date
-standing in for thirty-odd separate claims can only ever be wrong in one of two directions: stale, or,
-the moment one card is re-verified, an over-claim covering every card nobody looked at. Each country
-and ferry card therefore shows its own `✓ Checked <Mon> <Year> against Rail Staff Travel` line and
-cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces three things: the date shown
-equals its register row's `Reviewed`; **every** country/ferry card carries a line *and* an anchor; and
-the finder note makes no page-wide claim.
-
-**Absence of a marker is a statement, so it must never be an accident.** The page tells readers an
-undated card has not been re-verified, so a fully sourced card with no line tells staff to trust it
-less than it deserves — and nothing renders wrong or throws. That is why the invariant is structural.
+**Evidence is PER CARD, and there is deliberately no page-wide "last checked" date** — one date for
+thirty-odd claims is either stale or, once one card is re-verified, an over-claim for every other.
+Each country and ferry card shows its own `✓ Checked <Mon> <Year> against Rail Staff Travel` line and
+cites its own `data-guide-source` row. `guide-sources.test.mjs` enforces that the date shown equals its
+row's `Reviewed`, that **every** country/ferry card carries a line *and* an anchor, and that the finder
+note makes no page-wide claim. **Absence of a marker is a statement** (the page says an undated card
+is not re-verified), so it must never be an accident — which is why the invariant is structural.
 
 **The country audit's standing rules** (every card was read against its live Rail Staff Travel
 country page):
@@ -452,7 +408,7 @@ country page):
   Czech "ARRIVA vlaky and Trilex", Croatia bookable "via Trainseurope", Romania's "trains are slow".
 - **But "I could not find it" is NOT "it is not published."** A citation framework proves a claim has
   a source; it can never prove the search was complete, so "nobody publishes this" is the one
-  conclusion this register cannot safely reach on its own. Before recording an absence, enumerate the
+  conclusion the register cannot safely reach on its own. Before recording an absence, enumerate the
   site's pages (the RST nav lists them) rather than the pages you happen to have open, and prefer "we
   could not find X" in the register over "X does not exist". (The "you generally qualify after 12
   months' service" rule was once struck out this way; it is published, under "When am I eligible for
@@ -480,13 +436,12 @@ country page):
   with its own register row, so a member planning a trip learns which trains in that country their
   coupon will not cover. A list the page calls not exhaustive is said to be not exhaustive.
 
-**Its controls are the app's** (v25.84). The country finder is the app's field — sunken, a 2px edge, the
-12px corner, white with a soft ring while you are in it; the chips under it are the guide bar's chip; and
-the "What you get" emoji lead their titles with no tile, as on every app card since the owner took the
-tiles away (v25.16). Its notes keep their FULL OUTLINE, deliberately, where every other guide's note has a
-coloured left edge: on this page an edge is the mark of an unresolved source (`.fip-unresolved`), so an
-edged box would read as one. They take the guide family's amber and info blue instead of a dark gold ring
-and a second blue, and the source banner takes the Railcard and Rangers banner's amber.
+**Its controls are the app's.** The country finder is the app's field — sunken, a 2px edge, the 12px
+corner, white with a soft ring while you are in it; the chips under it are the guide bar's chip; and
+the "What you get" emoji lead their titles with no tile, as on every app card. Its notes keep their
+FULL OUTLINE, deliberately, where every other guide's note has a coloured left edge: on this page an
+edge marks an unresolved source (`.fip-unresolved`), so an edged box would read as one. They take the
+guide family's amber and info blue, and the source banner the Railcard and Rangers banner's amber.
 `e2e/guides.spec.js` → "the finder is the app's field, the chips under it are the bar's, and no tile sits
 behind an emoji".
 
@@ -501,12 +456,10 @@ hide the table that answers the question about that country.
 `rangers-guide.html` — the ranger and rover area passes staff accept or refuse at the gateline. A
 sibling of the railcard guide and deliberately a **dialect of it**, not a new language: the colour
 stripe (green = any time, amber = a morning bar), the `⊘` token, the card/row rhythm and the amber
-Chiltern callout mean here exactly what they mean there. The two pages are read by the same people
-minutes apart; a second vocabulary would slow both down. **Since v25.84 it also LOOKS like it**: the
-Railcard's card (white, shadowed, a 4px stripe, the 12px corner) where it drew outlined cards with a 5px
-stripe and 8px corners, and the Railcard's amber Chiltern note with its amber edge. `e2e/guides.spec.js`
-→ "the Rangers guide draws its cards and its Chiltern note as the Railcard guide does" compares the two
-pages' computed card and note.
+Chiltern callout mean here exactly what they mean there, because the same people read both minutes
+apart. **It also LOOKS like it**: the Railcard's card (white, shadowed, a 4px stripe, the 12px corner)
+and amber Chiltern note with its amber edge. `e2e/guides.spec.js` → "the Rangers guide draws its cards
+and its Chiltern note as the Railcard guide does" compares the two pages' computed card and note.
 
 ### It answers the MARYLEBONE question first
 
@@ -571,16 +524,17 @@ class?*
 
 **A Conflict is not a stronger Draft, and they must never share a marker.** Draft means nobody has
 looked; Conflict means somebody did and the publisher contradicts itself. Re-reading fixes the first
-and cannot fix the second — a staff member sent back to a page that has already been read learns
-nothing and loses time at a gateline. Conflict takes RED because red is already this page's *stop*
-token (the near-miss stripe, `.tok-no`), which is right for *stop and check* and wrong for *nobody
-has looked yet*.
+and cannot fix the second — a staff member sent back to a page already read learns nothing and loses
+time at a gateline. Conflict takes RED because red is already this page's *stop* token (the near-miss
+stripe, `.tok-no`): right for *stop and check*, wrong for *nobody has looked yet*.
 
 **Never resolve a conflict by picking the likelier reading.** Both live cases refuse somebody either
-way: Shakespeare Explorer's break of journey (National Rail's description permits it, the detailed
-conditions on the same page do not) and Thames Rover **7 Day** (the current 7-Day promotion lists
-Chiltern; the older TR3/TR7 formal page says GWR only — and the 3-Day promotion lists GWR only, so the
-two durations must never be merged into one card). Report both readings and say what to do meanwhile.
+way: Shakespeare Explorer's break of journey (`rr-shakespeare-boj` — National Rail's description
+permits it, the detailed conditions on the same page do not) and whether Chiltern is an operator on
+the Thames Rover **7 Day** (`rr-thames-7-operator` — the current 7-Day promotion lists Chiltern; the
+older TR3/TR7 formal page says GWR only; the Marylebone answer is a clean no either way). The 3-Day
+promotion lists GWR only, so the two durations must never be merged into one card. Report both
+readings and say what to do meanwhile.
 
 **The `✓ checked` pill's green is DARKER than the page's `--green` token, and that is measured** — the
 token on its own 10% tint is 4.49:1, under the AA floor (the comment beside `.pill-checked` in
@@ -596,18 +550,16 @@ its marker. The banner goes when the last provisional row does.
 ### Design decisions
 
 - **It leads with "usually no" — but the products listed are a SHORTLIST, never a rule of
-  exclusion.** ~90 products exist nationally and a handful touch Chiltern, so a page that opens with a
-  long list makes the common case slow and the rare case ambiguous. But of the two failures available
-  at a gateline, refusing a valid pass is the worse one and the only one this page can cause. **Not on
-  the list means CHECK** — the page says so where a reader who scrolled past the top meets it
-  (`#rr-reported`, "Anything else — check, don't refuse"). A product reported to reach us becomes a
-  full card, never a bare list entry: a card states days, area, time bars and break of journey, each a
-  rule a passenger could be refused travel by.
+  exclusion.** ~90 products exist nationally and a handful touch Chiltern, so opening with a long list
+  makes the common case slow and the rare case ambiguous. But refusing a valid pass is the worse
+  gateline failure, and the only one this page can cause. **Not on the list means CHECK** — the page
+  says so where a reader who scrolled past the top meets it (`#rr-reported`, "Anything else — check,
+  don't refuse"). A product reported to reach us becomes a full card, never a bare list entry: a card
+  states days, area, time bars and break of journey, each a rule a passenger could be refused by.
 - **An unresolved rule is rendered as unresolved, and it does not wear the amber Chiltern callout**
   (`.rr-unresolved`, red). Amber means "here is the local answer no national page gives" — something
-  to act on. A rule whose published wording contradicts itself is the opposite. Two live cases: the
-  Shakespeare Explorer break of journey (`rr-shakespeare-boj`), and whether Chiltern is an operator on
-  the Thames Rover 7 Day (`rr-thames-7-operator` — the Marylebone answer is a clean no either way).
+  to act on; a rule whose published wording contradicts itself is the opposite. The two live cases are
+  the conflicts above.
 - **The near-misses section is the point of the page**, not an appendix. Cotswolds Discoverer and
   Freedom of Severn & Solent both reach stations on our map and are not valid on us; saying so quickly
   is the answer no national page gives.

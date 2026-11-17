@@ -22,15 +22,13 @@ paths:
 # Weekly roster import — the parse, and every defence against a wrong week
 
 **This is the authoritative contract for the roster PDF import.** `CLAUDE.md` keeps the pipeline in
-four lines and points here; the `paths:` list above loads this file whenever one of the import's
-modules is opened.
+four lines and points here.
 
 > **The `paths:` list is deliberately BELT AND BRACES, and the duplicates are not an oversight.**
-> Several of these files live under `functions/`, and whether the matcher reads a path or a basename
-> has never been exercised for a subdirectory here. Getting it wrong is SILENT: nothing errors, the
-> contract simply never loads. Both spellings are listed so one of them matches either way. **The
-> real safety net is not the glob**: each of these modules names this file in its own header, so a
-> reader who opens the code is told the contract exists even if nothing auto-loaded it.
+> Whether the matcher reads a path or a basename has never been exercised for a `functions/` file
+> here, and getting it wrong is SILENT: the contract simply never loads. Both spellings are listed so
+> one of them matches either way. **The real safety net is not the glob**: each of these modules
+> names this file in its own header.
 
 Request/response format and the review pipeline: **`docs/OPERATIONS_REFERENCE.md`**. What the
 geometry gate still cannot see: **`docs/KNOWN_LIMITATIONS.md`**.
@@ -47,30 +45,29 @@ time on save. **Do not strip `RDW` from the AI return value.**
 **`source: 'roster_import'`** on all roster-upload overrides — used by `computeCellStates()` for
 COVERED / DIFF / CONFLICT classification.
 
-**The Save is checked against what the review LOADED (v25.92)** — `saveRosterWrites`,
-`roster-import-save.js`, whose header carries the reasoning. Each part that DELETES a record is one
-transaction, refused (nothing written, the days named) when a record it deletes changed after the
-read; a part that only adds stays a plain batch, because a manual record outranks an import. A
-refusal re-reads the week and redraws the review rather than closing it, and **every row the re-read
-leaves unchanged keeps the admin's answers, Skip all included** (`carryReviewAnswers`, v25.94):
-reset to their defaults, a second Save wrote rows the admin had unticked. **Do not mint the new
-records' ids inside the transaction** — a re-run would write a second copy of every row — and do
-not turn a deleting part back into a batch. A deleting part waits for this device's own unsent saves
-before its transaction (v25.95, `whenOwnWritesSent`), and one that gives up has sent nothing, so it
-is not `partialCommit`. The review's week read holds a record this device saved but has not yet
-sent as its own copy (`overrideFromSnapshot`, v25.96), or the check would refuse it once it landed.
+**The Save is checked against what the review LOADED** — `saveRosterWrites`, `roster-import-save.js`,
+whose header carries the reasoning. Each part that DELETES a record is one transaction, refused
+(nothing written, the days named) when a record it deletes changed after the read; a part that only
+adds stays a plain batch, because a manual record outranks an import. A refusal re-reads the week and
+redraws the review rather than closing it, and **every row the re-read leaves unchanged keeps the
+admin's answers, Skip all included** (`carryReviewAnswers`): reset to their defaults, a second Save
+wrote rows the admin had unticked. **Do not mint the new records' ids inside the transaction** — a
+re-run would write a second copy of every row — and do not turn a deleting part back into a batch. A
+deleting part waits for this device's own unsent saves before its transaction (`whenOwnWritesSent`),
+and one that gives up has sent nothing, so it is not `partialCommit`. The review's week read holds a
+record this device saved but has not yet sent as its own copy (`overrideFromSnapshot`), or the check
+would refuse it once it landed.
 
 ## The review
 
-**An unreadable cell can be ANSWERED IN THE REVIEW.** Real rosters carry cells no parser will ever
-read as a shift (the Supervisor sheet has `SEE NATHAN` and `See CEM`), so the row offers type pills —
-generated from `PILL_TYPES`, so this control and Change a Shift cannot drift — plus 24-hour `HH:MM`
-boxes for Shift/RDW. The composed value goes through `manualCellValue` (override-utils.js) and then
-the SAME `normaliseCellValue` guards as any parsed value, so entering a value is never a route to
-write something the parsed path would have refused. Sunday exclusions are read from
-`isForbiddenOnSunday`, not restated. `other` is offered with the week editor's own flavour chips and
-optional times (generated from `OTHER_FLAVOURS`, composed by `composeOtherValue`); Spare is the one
-flavour not offered here. The control's own rules are in `roster-entry-control.js`'s header.
+**An unreadable cell can be ANSWERED IN THE REVIEW**, because real rosters carry cells no parser will
+ever read as a shift: type pills plus 24-hour `HH:MM` boxes for Shift/RDW. The three rules are
+`roster-entry-control.js`'s header — the pills are generated from `PILL_TYPES` (so this control and
+Change a Shift cannot drift; `other` comes with the week editor's flavour chips from `OTHER_FLAVOURS`,
+composed by `composeOtherValue`, and Spare is the one flavour not offered); Sunday exclusions are read
+from `isForbiddenOnSunday`, not restated; and the value goes through `manualCellValue`
+(override-utils.js) and then the SAME `normaliseCellValue` guards as any parsed value, so **entering a
+value is never a route to write something the parsed path would have refused**.
 
 **A member the model lists twice keeps ONE row, and the review names them.** `memberRows`
 (`functions/roster-parse-helpers.js`) keeps the first row that is not empty, as the grid matcher does
@@ -82,12 +79,11 @@ and the review gives each one a line asking the admin to check them against the 
 ### A day the guards REFUSE to record is SHOWN — the `GUARDED` row
 
 Leave or an absence on a base REST day, and anything on a Sunday, is normalised to `RD` by
-`normaliseCellValue` BEFORE `computeCellStates` picks a state, so without this row the cell compares
-equal to base, comes out `MATCH` ("nothing to do") and is never rendered — the PDF said leave and the
-admin would see nothing. **The write behaviour is right**: the overpay guard means full-pay absence
-applies only to days the member was rostered to WORK. What the row prevents is the app silently
-ANSWERING a question it asks a manager out loud everywhere else (`AL on a rest day is ASKED about,
-never defaulted`) just because the fact arrived by PDF.
+`normaliseCellValue` BEFORE `computeCellStates` picks a state, so without this row the cell comes out
+`MATCH` and is never rendered — the PDF said leave and the admin would see nothing. **The write
+behaviour is right** (the overpay guard: full-pay absence applies only to days the member was rostered
+to WORK); what the row prevents is the app silently ANSWERING a question it asks a manager out loud
+everywhere else (`AL on a rest day is ASKED about, never defaulted`) just because the fact arrived by PDF.
 
 - A `GUARDED` row carries no tick, writes nothing, is excluded from the person's pending badge, and
   says which guard fired (`normaliseCellValue` returns `guarded`, so the reason is derived once rather
@@ -104,10 +100,10 @@ never defaulted`) just because the fact arrived by PDF.
   Christmas leave decides those days, so their rows start unticked and say so (owner, 10 Nov 2026).
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
-- **A day before the member's `startDate` writes nothing** (16 Nov 2026, `isBeforeMemberStart`):
-  anything but a rest day there is a GUARDED row under its own reason (`before-start`), asking nothing,
-  whatever is saved on the day; a rest day with nothing saved is a MATCH. Checked before every other
-  branch, unreadable cells included, so no answer or pick can write it either.
+- **A day before the member's `startDate` writes nothing** (`isBeforeMemberStart`): anything but a
+  rest day there is a GUARDED row under its own reason (`before-start`), asking nothing, whatever is
+  saved on the day; a rest day with nothing saved is a MATCH. Checked before every other branch,
+  unreadable cells included, so no answer or pick can write it either.
 
 ### The `UNKNOWN|<raw>` sentinel
 
@@ -125,17 +121,17 @@ maps it to an **UNREADABLE** review row.
 - A reading of leave or an absence on a base REST day is not offered at all (the guard would show it
   as "Rest"): the row shows what was read, and the entry below asks the swapped-day question. A rest
   day picked or entered over a base rest day writes nothing new, only clearing what the day held
-  (`restOverRest`; whole-app fix, Nov 2026).
+  (`restOverRest`).
 - An EMPTY cell — nothing, `BLANK`, `EMPTY` or a lone dash (`BLANK_READINGS`, the one list every read
   shares) — is decided by the DAY (`blankCellMeaning`): `RD` on a Sunday, an UNREADABLE review row
   Monday to Saturday (below).
 
 ## Day drift — a week written onto the wrong days
 
-**Day-drift defence — four layers; a week must never be silently written onto the wrong days.** The
-only entry point for a ONE-day shift is the AI's visual ROW read (date assignment is deterministic:
-day-name keys → server dates), and layers 1–3 guard it. A WHOLE week out enters through the week
-chosen on the form instead, and only layer 4 can see it.
+**Four layers; a week must never be silently written onto the wrong days.** The only entry point for
+a ONE-day shift is the AI's visual ROW read (date assignment is deterministic: day-name keys → server
+dates), and layers 1–3 guard it. A WHOLE week out enters through the week chosen on the form instead,
+and only layer 4 can see it.
 
 1. **`applySundayScanCorrections`** (`functions/roster-sunday-repair.js`) — the Sunday-anchored Case
    A/B repair. Its clean right-shift needs an EMPTY Saturday slot, and **only the blank-Saturday
@@ -243,12 +239,9 @@ the freedom.** When the PDF's drawn grid can place every member the roster type 
 extracted by coordinate and the model is handed them already separated (`functions/roster-prompt.js`
 → `buildCellTable` / `buildCellPrompt`). It never assigns a day, so a row cannot shift. `sundayScan`
 and `columnScan` are not asked for, because they exist to cross-check a day assignment nobody is
-making.
-
-**Why the witness alone is not enough** (measured on three real rosters, WE 26/09/2026, all three
-types): it refuses only 19 of 47 simulated one-day-left misreads. 23 of those 47 rows work all seven
-days, so a shifted claim never lands in an empty cell and there is nothing to contradict. No tuning
-changes that — it is what a witness can see.
+making. **The witness alone is not enough**: on a row worked all seven days a shifted claim never
+lands in an empty cell, so most simulated one-day misreads pass it, and no tuning changes that
+(measured: `functions/roster-prompt.js` header).
 
 **ALL OR NOTHING, PER DOCUMENT.** `buildCellTable` returns `usable: false` unless the grid places
 every name in `relevantNames` (already scoped by roster type). A member the grid missed would arrive
@@ -263,11 +256,11 @@ three roster types plus the hidden Management accounts, so it could never be sat
 model call; that is the cost of the guarantee.
 
 **`settledGeometry` re-asks on `wait-timeout` and ONLY on that.** `awaitGeometryWithin` is a
-`Promise.race`: when the early wait times out, the extraction is still running and the caller holds a
-fail-open object, so reusing it for the witness would lose BOTH the geometry path and the witness on a
-slow PDF. Every other fail-open reason (`no-grid`, `no-rows`, `pdfjs-unavailable`, `unreadable-pdf`,
-`no-text`, `work-budget`, `threw`) is a settled answer, and re-asking those would spend the whole budget again on
-every ordinary fallback. The full reasoning is beside `settledGeometry` in `functions/roster-geometry.js`.
+`Promise.race`, so after a timeout the extraction is still running and reusing the fail-open object
+would lose BOTH the geometry path and the witness on a slow PDF. Every other fail-open reason
+(`no-grid`, `no-rows`, `pdfjs-unavailable`, `unreadable-pdf`, `no-text`, `work-budget`, `threw`) is a
+settled answer, and re-asking it would spend the whole budget again on every ordinary fallback. The
+full reasoning is beside `settledGeometry` in `functions/roster-geometry.js`.
 
 **A member legitimately absent from one week's sheet turns the geometry path OFF for that upload.**
 `parseRosterPDF` treats an absent member as advisory (`missingMembers`) — a leaver, a starter not yet
@@ -285,22 +278,21 @@ A cell that SAYS rest is left alone, and the rule feeds nothing to the drift bre
 
 **And a REST DAY read for an EMPTY weekday cell is a question too** (`reviewRestReadsOfEmptyCells`,
 beside it). Monday to Saturday a blank is never a rest day, and a model that answered `RD` for it
-would otherwise be believed, because the witness refuses only claims — the second-roster case above:
-`RD` across a Monday to Friday, written over the primary roster's import, with nothing on the review.
+would otherwise be believed, because the witness refuses only claims — the second-roster case above.
 Sunday is left alone (a blank Sunday IS a rest day), and like its twin the rule feeds nothing to the
 drift breaker.
 
 **The cell table is JSON, one object per member, and that is a safety property.** A roster cell
 legitimately contains a pipe (`06:00-14:00 | CEA 1` is one cell's two printed lines), so a delimited
-table would draw its structure and its data from the same alphabet. As JSON the framing and the
-escaping are one mechanism, and a cell carrying newlines or quotes cannot forge a row or a day —
-pinned by the injection block in `roster-cell-read.test.mjs`.
+table would draw its structure and its data from the same alphabet; as JSON a cell carrying newlines
+or quotes cannot forge a row or a day (`roster-prompt.js` header; pinned by the injection block in
+`roster-cell-read.test.mjs`).
 
-**LINES are read by CONTENT, never by position.** On the real files every value on a non-first line
-of a cell is a DUTY code (`CEA 10`, `SUP 1`, `Dispatch`, `Shadow Nights`); no status code sits on a
-second line, because a non-worked day has no time line above its code. So the rule is: drop what
-looks like a duty code, normalise what remains — never "take the first line", which is the same
-positional reasoning that failed before.
+**LINES are read by CONTENT, never by position**: drop what looks like a duty code, normalise what
+remains — never "take the first line", the same positional reasoning that failed before. On the real
+files every non-first line of a cell is a DUTY code (`CEA 10`, `SUP 1`, `Dispatch`, `Shadow
+Nights`), because a non-worked day has no time line above its code (measured: `roster-prompt.js`
+header).
 
 **ONE code table, and both prompts interpolate it.** `SHIFT_VOCABULARY` lives in `roster-prompt.js`;
 two prompts with two copies would leave one unguarded. `roster-prompt-parity.test.mjs` reads the
@@ -313,22 +305,20 @@ does real work: the parser reads `06:00-12:00 GER` but not `GER 06:00-12:00`).
 ## The geometry gate — the one independent witness
 
 `functions/roster-geometry.js` (ROADMAP "Roster import" phase 1). The roster's table rules are DRAWN
-in the PDF, at nine fixed x positions on every content page of every roster type measured, and
-assigning each text run by coordinate places every cell — on the row that drifts, not one text object
-sits in the Sunday column. `parseRosterPDF` reads that grid before the model call (phase 2 needs its
-cells) and applies it as the FINAL gate, after the column cross-check and the Sunday corrections: **an AI day
-landing in a physically EMPTY cell is refused, not weighed** — the cell becomes UNREADABLE and the row
-comes back as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift
-(unticked, and counted toward the breaker). Zero false refusals on the corpus. It fails open
-everywhere and says so (`geometry.status`), and it cannot see a fully occupied week or an `RD` in an
-occupied cell — those are phases 2 and 3, and KNOWN_LIMITATIONS says so. `pdfjs-dist@6.5.438` (v25.91) is a
-dependency of `functions/` (server-side; the fourth vetted library — the owner's call to keep, and one
-line to remove). Never pin it below 6.5.438, and run the real-pdfjs tests before moving it: the module
-header of `functions/roster-geometry.js` says why for both. **The move to 6.x was proven on synthetic
-pages only** (no real roster was to hand, 13 Nov 2026), and v25.91 misread every path painted with
-`s`, `b` or `b*` until v25.94 — at worst a row highlight that emptied a Sunday cell, a worked Sunday
-dropped with nothing on the review. Against v4 on thirty-five drawings it now reads the same rows on
-all but three — rows as closed boxes in a `re`'s own corner order, and a rule closed before its
-stroke (`m l h S`, `m l h s`) — and on those it reads no grid rather than a different one. So if an
-import's review says "The extra PDF layout check couldn't run for this file", read that roster's
-operator list before assuming the file is at fault.
+in the PDF, so assigning each text run by coordinate places every cell — on the row that drifts, not
+one text object sits in the Sunday column (the measurements are the module header's).
+`parseRosterPDF` reads that grid before the model call (phase 2 needs its cells) and applies it as the
+FINAL gate, after the column cross-check and the Sunday corrections: **an AI day landing in a
+physically EMPTY cell is refused, not weighed** — the cell becomes UNREADABLE and the row comes back
+as `geometryRefused`, which `roster-alignment.js` treats exactly like a base-roster drift (unticked,
+and counted toward the breaker). Zero false refusals on the corpus. It fails open everywhere and says
+so (`geometry.status`), and it cannot see a fully occupied week or an `RD` in an occupied cell —
+those are phases 2 and 3, and KNOWN_LIMITATIONS says so.
+
+`pdfjs-dist@6.5.438` is a dependency of `functions/` (server-side; the fourth vetted library — the
+owner's call to keep, and one line to remove). Never pin it below 6.5.438, and run the real-pdfjs
+tests before moving it: the module header of `functions/roster-geometry.js` says why for both. **The
+move to 6.x was proven on synthetic pages only** — no real roster was to hand — and on the three
+drawings it cannot tell from a `re` (named in `isRectangleOp`) it reads no grid rather than a
+different one. So if an import's review says "The extra PDF layout check couldn't run for this file",
+read that roster's operator list before assuming the file is at fault.
