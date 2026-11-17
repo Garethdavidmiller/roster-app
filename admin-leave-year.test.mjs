@@ -134,6 +134,47 @@ describe('the wiring, with a stand-in page', () => {
         }
     });
 
+    test('a member picked while the save is out: the line says whose day it was, and their panel is not held', async () => {
+        // Invented members. A manager who switched member mid-save had "Saved — Tue 5 Jan …" drawn under the
+        // next member's panel, about a day that was not theirs, and that member's same day greyed out.
+        const g = /** @type {any} */ (globalThis);
+        const was = g.__E2E;
+        g.__E2E = { leaveYearChoice: true };
+        try {
+            const A = { ...MEMBER, name: 'A. Person' }, B = { ...MEMBER, name: 'B. Person' };
+            let shown = A;
+            /** @type {() => void} */ let land = () => {};
+            /** @type {() => void} */ let refuse = () => {};
+            const d = deps({
+                getMember: () => shown,
+                getOverrides: () => [A, B].map(m => ({ memberName: m.name, date: '2027-01-05', type: 'annual_leave', value: 'AL' })),
+                save: () => new Promise((resolve, reject) => { land = () => resolve([]); refuse = () => reject(new Error('x')); }),
+            });
+            const panel = initLeaveYearPanel(d);
+            panel.refresh();
+            const tap = () => d.body.listeners[0]({ target: { closest: () =>
+                ({ disabled: false, dataset: { date: '2027-01-05', year: '2026' }, getAttribute: () => 'false' }) } });
+            let saving = tap();
+            shown = B; panel.refresh();   // the page's member switch
+            assert.doesNotMatch(button(d.body.innerHTML, '2027-01-05', 2026), / disabled/, 'B\'s day is not the one being saved');
+            land(); await saving;
+            assert.equal(d.feedback.textContent, 'Saved — A. Person’s Tue 5 Jan now comes out of 2026’s allowance.');
+            // …and a refusal, the same: it is about A's day.
+            shown = A; panel.refresh();
+            saving = tap();
+            shown = B; panel.refresh();
+            refuse(); await saving;
+            assert.equal(d.feedback.textContent, 'A. Person’s Tue 5 Jan: failed');
+            // CONTROL: on the member's own panel the line is as it always was.
+            shown = A; panel.refresh();
+            saving = tap();
+            land(); await saving;
+            assert.equal(d.feedback.textContent, 'Saved — Tue 5 Jan now comes out of 2026’s allowance.');
+        } finally {
+            if (was === undefined) delete g.__E2E; else g.__E2E = was;
+        }
+    });
+
     test('unread records show nothing — an unread member and one with no leave look alike', () => {
         const g = /** @type {any} */ (globalThis);
         const was = g.__E2E;
