@@ -1045,6 +1045,23 @@ describe('a day before the start date earns no lieu day', () => {
     });
 });
 
+// ── A DISPATCHER'S DAYS IN LIEU ARE EARNED ON THEIR OWN RECORDS (review, Nov 2026) ──────────────
+// Admin hands the allowance EVERY member's records (projectAlOverage, the leave banner's cache), so the
+// member filter is the only thing keeping a colleague's worked bank holiday off this member's allowance.
+describe('a Dispatcher\'s bank holidays are counted from their own records alone', () => {
+    test('another member\'s record is ignored', () => {
+        // INVENTED Dispatchers on one line; a bank holiday the line rests on (found, not written down).
+        const P = { name: 'P. Invented', role: 'Dispatcher', rosterType: 'fixed', currentWeek: 2 };
+        const Q = { ...P, name: 'Q. Invented' };
+        const rest = getBankHolidays(2026).find(bh => isRestShift(getBaseShift(P, bh)));
+        assert.ok(rest, 'premise: the line rests on some 2026 bank holiday');
+        const worked = { memberName: Q.name, date: formatISO(/** @type {Date} */ (rest)), type: 'rdw', value: '09:00-16:00', source: 'manual' };
+        const base = countDispatcherBankHolidaysWorked(P, 2026, []);
+        assert.equal(countDispatcherBankHolidaysWorked(Q, 2026, [worked]), base + 1, 'premise: worked, it is Q\'s day in lieu');
+        assert.equal(countDispatcherBankHolidaysWorked(P, 2026, [worked]), base, 'and never P\'s');
+    });
+});
+
 // ── A TRAINEE'S ROSTERED TRAINING ON A BANK HOLIDAY EARNS THE DAY (owner, 16 Nov 2026) ──────────
 describe('a Dispatcher trainee on fixedRoster[3]', () => {
     test('TRG on a bank holiday is worked, and earns the day in lieu — deliberate', () => {
