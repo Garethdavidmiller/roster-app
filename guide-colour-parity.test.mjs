@@ -66,6 +66,27 @@ test('the guides\' placeholder clears 4.5:1 on white and on every guide field fi
     }
 });
 
+// THE TWO REDIRECT STUBS WEAR THE BRAND (whole-app check, Nov 2026). guide.html and fip.html show for an instant on
+// the Pages mirror, which serves no redirects. Their inline style carried a gold that is no brand colour (#c8a951)
+// and a system font, and css-hex-parity.test.mjs reads no HTML, so nothing saw either. Every colour a stub's style
+// names is the brand's, its link is the brand gold, and its font is the guides' own stack.
+test('the legacy redirect stubs use the brand colours and the app\'s font stack', async () => {
+    const { REDIRECT_PAGES } = await import('./scripts/app-pages.mjs');
+    assert.ok(REDIRECT_PAGES.length >= 2, 'premise: the redirect stubs are declared');
+    const BRAND = new Set(['#001e3c', '#f5c800', '#fff', '#ffffff']);   // css-tokens.md → "Brand colours", and white
+    const stack = tokenValue(shell, '--font-sans');
+    assert.ok(stack, 'guide-shell.css no longer declares --font-sans');
+    for (const { file } of REDIRECT_PAGES) {
+        const style = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8').match(/<style>([\s\S]*?)<\/style>/)?.[1];
+        assert.ok(style, `${file}: no inline style was found — read it from wherever it went`);
+        const css = style.replace(/\/\*[\s\S]*?\*\//g, ' ');
+        const hexes = (css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).map(h => h.toLowerCase());
+        assert.deepEqual(hexes.filter(h => !BRAND.has(h)), [], `${file}: a colour that is not the brand's`);
+        assert.match(css, /\ba\s*\{[^}]*color:\s*#f5c800/i, `${file}: its link is not the brand gold`);
+        assert.equal(css.match(/font-family:\s*([^;]+);/)?.[1].trim(), stack, `${file}: its font is not the app's stack (guide-shell.css → --font-sans)`);
+    }
+});
+
 test('guide-doc defines the complete --sb-* shift palette', () => {
     const REQUIRED = ['early', 'late', 'night', 'rest', 'spare', 'rdw', 'al', 'absent', 'other'];
     const missing = REQUIRED.filter(k => !tokenValue(doc, `--sb-${k}`));

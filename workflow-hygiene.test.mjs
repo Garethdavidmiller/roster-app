@@ -18,7 +18,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdtempSync, mkdirSync, rmSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -475,8 +475,17 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
     });
 
     test('every job is gated on the guard — including one added later', () => {
-        // `needs: guard`, or a list that starts with it (`tested` also waits for the jobs it vouches for).
-        const ungated = jobs.filter(n => n !== 'guard' && !/^ {4}needs: (?:guard|\[guard(?:, [\w-]+)*\])[ \t]*$/m.test(blockOf(n)));
+        // `needs: guard`, or a list that names it: a job that also waits for siblings is still gated
+        // (each visual lane's report job waits for its lane; `tested` waits for the jobs it vouches
+        // for), and the test below holds its `if`.
+        /** @param {string} block */
+        const namesGuard = (block) => {
+            const m = /^ {4}needs: (.+?)[ \t]*$/m.exec(block);
+            if (!m) return false;
+            const list = m[1].startsWith('[') ? m[1].slice(1, -1).split(',').map(s => s.trim()) : [m[1]];
+            return list.includes('guard');
+        };
+        const ungated = jobs.filter(n => n !== 'guard' && !namesGuard(blockOf(n)));
         assert.deepEqual(ungated, [],
             `e2e.yml job(s) ${ungated.join(', ')} do not declare 'needs: guard', so they run on a `
             + 'commit that is already on main. Add the needs + if pair used by every sibling job.');
@@ -522,7 +531,10 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
         // 17 Nov 2026 (the guard's comment has the account). Two ways this goes wrong silently: a job
         // that starts a browser and forgets the condition runs for nothing, and one that does NOT start
         // a browser and takes it on stops running the documentation's own tests on a docs-only PR.
-        const startsBrowser = (/** @type {string} */ name) => /install-browser-deps|npm run test:(?:e2e|webkit|csp|signed-in|visual)/.test(blockOf(name));
+        // A heredoc's body is text a step WRITES, not a command it runs, so it is taken out first: each
+        // visual report job names `npm run test:visual` in the comment it posts, and starts no browser.
+        const commands = (/** @type {string} */ block) => block.replace(/<<-?['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n[ \t]*\1[ \t]*(?=\n|$)/g, '');
+        const startsBrowser = (/** @type {string} */ name) => /install-browser-deps|npm run test:(?:e2e|webkit|csp|signed-in|visual)/.test(commands(blockOf(name)));
         for (const name of jobs.filter(n => n !== 'guard')) {
             const gate = /^ {4}if: (.+)$/m.exec(blockOf(name))?.[1] ?? '';
             if (startsBrowser(name)) {
@@ -788,31 +800,72 @@ describe('the Hosting deploy waits for its whole gate', () => {
             `found the gate jobs ${gate.join(', ') || 'none'}; expected at least check, smoke and csp`);
     });
 
-    // THE SIGNED-IN JOURNEYS ARE A GATE JOB, ON ANDROID CHROME ONLY (12 Nov 2026). The external review
-    // of v25.87 asked for them to be a release requirement, and the job is the whole of that: delete it
-    // and every contract here still passes, because `gate` is read from the file. Only the Chrome half,
-    // because WebKit stays out of this gate (owner, 8 Sep 2026; DECISIONS.md names what would reopen
-    // it), so a WebKit run appearing here would reverse that decision without anybody taking it.
+    // THE SIGNED-IN JOURNEYS ARE A GATE JOB (12 Nov 2026). The external review of v25.87 asked for them
+    // to be a release requirement, and the job is the whole of that: delete it and every contract here
+    // still passes, because `gate` is read from the file. Android Chrome runs them in `signed-in`, and
+    // since 17 Nov 2026 the iPhone half runs in `safari` with the gate's other WebKit check (the block
+    // below), so each job installs one browser and neither engine waits for the other.
     test('the signed-in journeys gate the release', () => {
         assert.ok(gate.includes('signed-in'),
             'deploy-hosting.yml has no signed-in job, so a release no longer waits for the real-SDK journeys. '
             + 'Taking them out of the gate is the owner\'s decision (DECISIONS.md → the 11 November 2026 external review).');
     });
 
-    test('and only their Android Chrome half: WebKit stays out of the deploy gate', () => {
+    test('on both phone engines: Android Chrome in signed-in, the iPhone in safari', () => {
         assert.match(jobs.get('signed-in') ?? '', /^\s*run: npm run test:signed-in -- --project=mobile-chrome[ \t]*$/m,
-            'the gate\'s signed-in job must name the Android Chrome project: without --project=mobile-chrome it runs the iPhone (WebKit) half too');
-        assert.match(readFileSync('e2e/playwright.signed-in.mjs', 'utf8'), /^\s*name: 'mobile-chrome',/m,
-            'the signed-in config no longer has a mobile-chrome project, so the gate\'s --project=mobile-chrome selects nothing');
-        const webkit = [...jobs].filter(([, block]) => /webkit|mobile-safari/i.test(block)).map(([n]) => n);
-        assert.deepEqual(webkit, [],
-            `${webkit.join(', ')} would run WebKit in the Hosting deploy's gate. WebKit stays OUT of it (owner, 8 Sep 2026): `
-            + 'DECISIONS.md says what would reopen that, and reopening it is the owner\'s call.');
+            'the gate\'s signed-in job must name the Android Chrome project: without --project=mobile-chrome it runs the iPhone (WebKit) half too, and twice');
+        assert.match(jobs.get('safari') ?? '', /^\s*run: npm run test:signed-in -- --project=mobile-safari[ \t]*$/m,
+            'the gate\'s safari job no longer runs the signed-in journeys on the iPhone, so a release can ship a sign-in or a save that breaks only in Safari');
+        const cfg = readFileSync('e2e/playwright.signed-in.mjs', 'utf8');
+        for (const name of ['mobile-chrome', 'mobile-safari']) {
+            assert.match(cfg, new RegExp(`^\\s*(?:\\{ )?name: '${name}',`, 'm'),
+                `the signed-in config has no ${name} project, so the gate's --project=${name} selects nothing`);
+        }
+    });
+});
+
+// ── A FEW SAFARI TESTS GATE THE RELEASE (owner, 17 Nov 2026) ─────────────────────────────────────
+//
+// Until 17 Nov 2026 WebKit stayed out of this gate (owner, 8 Sep 2026), and the test that held that is
+// replaced by these. The owner asked for a few Safari tests to gate every release, and they run in ONE
+// job on the iPhone's engine: every page opening (e2e/every-page.spec.js) and the signed-in journeys'
+// iPhone half. These hold its wiring. The job is there, and the deploy waits for it: the contracts
+// above read the gate from the file, so a deleted job would pass them. It runs exactly those two sets,
+// and the spec it names exists and is one the iPhone project runs: a renamed file, or one whose name
+// starts with "links", would select nothing. And WebKit runs in NO OTHER gate job: the whole WebKit
+// suite in the gate would make every release wait for its slowest shard, which is a decision of its own
+// (DECISIONS.md → "A few Safari tests gate the release").
+describe('a few Safari tests gate the Hosting release', () => {
+    const { jobs, gate, needsOf } = deployWorkflow('deploy-hosting.yml');
+    const SPEC = 'e2e/every-page.spec.js';
+
+    test('the safari job is in the gate, and the deploy waits for it', () => {
+        assert.ok(gate.includes('safari'),
+            'deploy-hosting.yml has no safari job, so no release waits for a Safari test. Taking them out is the owner\'s decision '
+            + '(DECISIONS.md → "A few Safari tests gate the release").');
+        assert.ok(needsOf('deploy').includes('safari'), 'the deploy does not wait for the safari job');
+    });
+
+    test('it opens every page on the iPhone\'s engine', () => {
+        assert.match(jobs.get('safari') ?? '', new RegExp(`^\\s*run: npm run test:webkit -- --project=mobile-safari ${SPEC.replace(/\./g, '\\.')}[ \\t]*$`, 'm'),
+            `the safari job no longer runs ${SPEC} on the iPhone project, so a page Safari will not start can be released`);
+        assert.ok(existsSync(SPEC), `${SPEC} is gone, so the gate's every-page step finds no tests`);
+        // The iPhone project runs every spec whose name does not start with "links" (playwright.webkit.mjs).
+        assert.match(readFileSync('playwright.webkit.mjs', 'utf8'), /name: 'mobile-safari', testMatch: NOT_LINKS_SPECS\b/,
+            'the mobile-safari project no longer selects its specs by NOT_LINKS_SPECS, so check it still runs ' + SPEC);
+        assert.ok(!/^links/.test(SPEC.split('/').pop() ?? ''), `${SPEC} would fall to the Links projects, and the gate's step would find no tests`);
+    });
+
+    test('and WebKit runs in no other gate job', () => {
+        const others = gate.filter(n => n !== 'safari' && /webkit|mobile-safari/i.test(jobs.get(n) ?? ''));
+        assert.deepEqual(others, [],
+            `${others.join(', ')} would run WebKit in the Hosting gate beyond the few tests in the safari job. The whole suite there `
+            + 'makes every release wait for its slowest shard: the owner\'s call (DECISIONS.md → "A few Safari tests gate the release").');
     });
 });
 
 for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
-    ['deploy-hosting.yml', ['check', 'smoke', 'csp', 'signed-in']],
+    ['deploy-hosting.yml', ['check', 'smoke', 'csp', 'signed-in', 'safari']],
     ['deploy-functions.yml', ['check']],
     ['deploy-rules.yml', ['check']],
 ])) {
@@ -843,12 +896,19 @@ for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
             // Hosting names every gate job's result (17 Nov 2026): it must also run when they stood aside
             // for a proven tree, which the implicit success() would refuse. So the condition is written
             // out, built here from the gate list read from the file: a gate job added later and left out
-            // of it would be one the deploy no longer waits to see succeed.
-            const green = gate.filter(n => n !== 'tested').map(n => `needs.${n}.result == 'success'`).join(' && ');
+            // of it would be one the deploy no longer waits to see succeed. A job whose condition never
+            // reads the proof runs on every release, so it must succeed on BOTH paths and sits outside
+            // the alternative: `safari` (18 Nov 2026 — the block below the next one says why).
+            const readsProof = (/** @type {string} */ n) => /needs\.tested\.outputs\.tested/.test(/^ {4}if:.*$/m.exec(jobs.get(n) ?? '')?.[0] ?? '');
+            const succeeded = (/** @type {string[]} */ names) => names.map(n => `needs.${n}.result == 'success'`).join(' && ');
+            const tests = gate.filter(n => n !== 'tested');
+            const always = succeeded(tests.filter(n => !readsProof(n)));
+            const green = succeeded(tests.filter(readsProof));
             assert.equal(cond,
-                `\${{ !cancelled() && github.ref == 'refs/heads/main' && ((needs.tested.result == 'success' && needs.tested.outputs.tested == 'true') || (${green})) }}`,
-                'deploy-hosting.yml\'s deploy must run only from main, never on a cancelled run, and only when every gate job '
-                + 'succeeded or `tested` proved the tree. Anything looser lets a red, skipped or cancelled gate job through.');
+                `\${{ !cancelled() && github.ref == 'refs/heads/main' && ${always ? `${always} && ` : ''}((needs.tested.result == 'success' && needs.tested.outputs.tested == 'true') || (${green})) }}`,
+                'deploy-hosting.yml\'s deploy must run only from main, never on a cancelled run, only when every job that never '
+                + 'stands aside succeeded, and only when every other gate job succeeded or `tested` proved the tree. Anything '
+                + 'looser lets a red, skipped or cancelled gate job through.');
         });
 
         test('the failure reporter waits for every gate job as well as the deploy', () => {
@@ -868,9 +928,11 @@ for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
         test('every gate job runs only from main', () => {
             // Hosting's test jobs also stand aside for a proven tree, and run when `tested` itself failed:
             // `!cancelled()` and `!= 'true'`, so a broken `tested` costs a full gate, never a skipped one.
+            // `safari` never stands aside (18 Nov 2026), so it keeps the plain condition, as `tested` does.
             const aside = /^ {4}if: \$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main' && needs\.tested\.outputs\.tested != 'true' \}\}[ \t]*$/m;
             const plain = /^ {4}if: github\.ref == 'refs\/heads\/main'[ \t]*$/m;
-            const open = gate.filter(n => !(file === 'deploy-hosting.yml' && n !== 'tested' ? aside : plain).test(jobs.get(n) ?? ''));
+            const neverAside = file === 'deploy-hosting.yml' ? ['tested', 'safari'] : gate;
+            const open = gate.filter(n => !(neverAside.includes(n) ? plain : aside).test(jobs.get(n) ?? ''));
             assert.deepEqual(open, [],
                 `${open.join(', ')} would run on a run started from a branch, which deploys nothing (not-main says why)`);
         });
@@ -918,6 +980,8 @@ for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
 // way round itself, so every link in it is pinned: the record is made only after the PR lane's
 // counterparts of ALL FOUR gate jobs succeeded, the counterparts run the same commands, the deploy
 // looks for exactly the name the PR lane writes, and it believes only e2e.yml in this repository.
+// The fifth gate job, `safari`, NEVER stands aside (18 Nov 2026): the record covers no WebKit check but
+// signed-in's iPhone half, so the every-page check on the iPhone's engine runs on every release.
 describe('the Hosting deploy skips only what the PR lane proved, on the same tree', () => {
     const hosting = deployWorkflow('deploy-hosting.yml');
     const e2eSrc = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
@@ -932,12 +996,28 @@ describe('the Hosting deploy skips only what the PR lane proved, on the same tre
     };
     // Hosting's gate job → the PR lane's job that runs the same thing.
     const COUNTERPART = { check: 'unit', smoke: 'smoke', csp: 'csp', 'signed-in': 'signed-in' };
-    const hostingTests = hosting.gate.filter(n => n !== 'tested');
+    /** A gate job stands aside when its condition reads the proof. @param {string} n */
+    const standsAside = (n) => /needs\.tested\.outputs\.tested/.test(/^ {4}if:.*$/m.exec(hosting.jobs.get(n) ?? '')?.[0] ?? '');
+    const hostingTests = hosting.gate.filter(n => n !== 'tested' && standsAside(n));
 
-    test('every Hosting gate job has a counterpart in the PR lane', () => {
+    test('every Hosting gate job that stands aside has a counterpart in the PR lane', () => {
         assert.deepEqual([...hostingTests].sort(), Object.keys(COUNTERPART).sort(),
-            `deploy-hosting.yml's gate is ${hostingTests.join(', ')}. A gate job with no counterpart here would be skipped `
-            + 'on a proof that never ran it: give it one in e2e.yml, make `tested` there wait for it, and add it to this map.');
+            `deploy-hosting.yml's gate jobs that stand aside for a proven tree are ${hostingTests.join(', ')}. One with no `
+            + 'counterpart here would be skipped on a proof that never ran it: give it one in e2e.yml, make `tested` there '
+            + 'wait for it, and add it to this map.');
+    });
+
+    test('the safari job never stands aside: no proof covers it', () => {
+        // The PR lane's record covers the iPhone's signed-in half (its signed-in job runs both phones) but
+        // no other WebKit check: `tested` there waits for neither the webkit shards nor every-page.spec.js
+        // on the iPhone. So a proven release still waits for this job, about five minutes.
+        const job = hosting.jobs.get('safari') ?? '';
+        assert.ok(job, 'deploy-hosting.yml has no safari job');
+        assert.ok(hosting.gate.includes('safari') && !standsAside('safari'),
+            'the safari job reads the proof, so a release could ship on a record that never opened a page in Safari\'s engine. '
+            + 'Letting it stand aside needs a WebKit counterpart that e2e.yml\'s tested job waits for — the owner\'s call.');
+        assert.ok(!hosting.needsOf('safari').includes('tested'),
+            'the safari job waits for `tested`, so a failed proof check would skip it, and the release with it: a broken `tested` must cost a full gate, never a held one');
     });
 
     test('the PR lane records a tree only after all four counterparts succeeded', () => {
@@ -1553,26 +1633,43 @@ describe('a re-run never puts an older tree live', () => {
 // posture and NEITHER voice, so a drifted Safari baseline was exactly the unread artifact this block
 // was written about. Same contracts, its own marker and check name so the two lanes never overwrite
 // each other's report.
-for (const [JOB, MARKER, CHECK] of [
-    ['visual', '<!-- visual-baseline-drift -->', 'visual baselines'],
-    ['visual-webkit', '<!-- visual-baseline-drift-webkit -->', 'visual baselines (webkit)'],
+//
+// THE TWO VOICES ARE A JOB OF THEIR OWN (review, 18 Nov 2026). Each lane is now two jobs. The lane
+// (`visual`, `visual-webkit`) installs, takes the screenshots and compares them, and holds no write.
+// Its report job installs nothing and holds the writes the comment and the check run need, because
+// an install script can put a program of its own on the PATH of every later step in its job, so a
+// token handed to any step of the job that installs is in its reach. The contracts follow each voice
+// into the job it now lives in; the last one keeps the split.
+for (const [JOB, REPORT, MARKER, CHECK] of [
+    ['visual', 'visual-report', '<!-- visual-baseline-drift -->', 'visual baselines'],
+    ['visual-webkit', 'visual-webkit-report', '<!-- visual-baseline-drift-webkit -->', 'visual baselines (webkit)'],
 ]) describe(`the ${JOB} lane never gates, and never goes quiet`, () => {
     const src = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
-    const jobsAt = src.search(/^jobs:/m);
-    const body = src.slice(jobsAt);
-    const start = body.search(new RegExp(`^ {2}${JOB}:[ \\t]*$`, 'm'));
-    const rest = start === -1 ? '' : body.slice(start + 1);
-    const nextJob = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
-    const job = nextJob === -1 ? rest : rest.slice(0, nextJob);
+    const body = src.slice(src.search(/^jobs:/m));
+    /** One job's block, up to the next job; empty when there is no such job. @param {string} name */
+    const blockOf = (name) => {
+        const start = body.search(new RegExp(`^ {2}${name}:[ \\t]*$`, 'm'));
+        if (start === -1) return '';
+        const rest = body.slice(start + 1);
+        const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        return next === -1 ? rest : rest.slice(0, next);
+    };
+    const job = blockOf(JOB);
+    const report = blockOf(REPORT);
+    /** A job's own permissions entries, or '' when it declares none. @param {string} block */
+    const permissionsOf = (block) => /^ {4}permissions:[^\n]*\n((?: {6,}[^\n]*\n)*)/m.exec(block + '\n')?.[1] ?? '';
 
-    test(`the ${JOB} job exists`, () => {
-        assert.ok(start > -1, `e2e.yml has no \`${JOB}:\` job`);
+    test(`the ${JOB} job and its ${REPORT} job exist`, () => {
+        assert.ok(job, `e2e.yml has no \`${JOB}:\` job`);
+        assert.ok(report, `e2e.yml has no \`${REPORT}:\` job, so the lane's comment and check run have nowhere to run`);
     });
 
     test('it cannot fail a build on a rendering difference', () => {
         assert.match(job, /^ {4}continue-on-error: true[ \t]*$/m,
             `the ${JOB} job must stay continue-on-error. Baselines are captured on one machine and `
             + 'compared on another; making them blocking gates every release on renderer noise.');
+        assert.match(report, /^ {4}continue-on-error: true[ \t]*$/m,
+            `the ${REPORT} job must stay continue-on-error too: a broken notifier must never become a broken build`);
     });
 
     test('the comparison CAPTURES its outcome instead of swallowing it', () => {
@@ -1583,17 +1680,31 @@ for (const [JOB, MARKER, CHECK] of [
         assert.match(job, /drifted=true[\s\S]{0,200}GITHUB_OUTPUT|GITHUB_OUTPUT[\s\S]{0,200}drifted=true/,
             'the comparison step must write a `drifted` output — otherwise its result is discarded '
             + 'and the run is green whether or not the baselines matched');
+        // And hands it on, with WHICH baselines differ: the report job has no test results of its own.
+        assert.match(job, /^ {6}drifted: \$\{\{ steps\.compare\.outputs\.drifted \}\}[ \t]*$/m,
+            `${JOB} must hand the compare step's outcome to ${REPORT} as a job output`);
+        assert.match(job, /^ {6}names: \$\{\{ steps\.result\.outputs\.names \}\}[ \t]*$/m,
+            `${JOB} must hand the names of the baselines that differ to ${REPORT} as a job output`);
+        for (const [env, output] of [['DRIFTED', 'drifted'], ['NAMES', 'names']]) {
+            const read = new RegExp(`^ {10}${env}: \\$\\{\\{ needs\\.${JOB}\\.outputs\\.${output} \\}\\}[ \\t]*$`, 'gm');
+            assert.equal(report.match(read)?.length ?? 0, 2,
+                `both of ${REPORT}'s steps must read ${env} from ${JOB}'s \`${output}\` output`);
+        }
     });
 
     test('and it says so where somebody is already looking', () => {
-        assert.match(job, /^ {6}pull-requests: write[ \t]*$/m,
+        assert.match(report, /^ {6}pull-requests: write[ \t]*$/m,
             'without pull-requests:write the notifier runs and the API call fails — a notifier that '
             + 'reports nothing is worse than none, because the run still goes green');
-        assert.ok(job.includes(`MARKER='${MARKER}'`),
+        assert.ok(report.includes(`MARKER='${MARKER}'`),
             'the notifier must carry a stable HTML marker, or it posts a fresh comment per push '
             + 'instead of updating one');
-        assert.match(job, /gh pr comment/,
-            `the ${JOB} job must actually say something on the pull request`);
+        assert.match(report, /gh pr comment/,
+            `the ${REPORT} job must actually say something on the pull request`);
+        // gh finds its repository from a checkout, and this job has none: without GH_REPO every
+        // `gh pr` command fails (race-detector.yml did exactly that until 10 Nov 2026).
+        assert.match(report, /^ {10}GH_REPO: \$\{\{ github\.repository \}\}[ \t]*$/m,
+            `${REPORT} has no checkout, so its gh pr commands need GH_REPO to know the repository`);
     });
 
     test('the notifier cannot become the failure it is reporting', () => {
@@ -1602,23 +1713,39 @@ for (const [JOB, MARKER, CHECK] of [
         // GitHub runs `run:` steps as `bash -e {0}`, so a script that simply omits `set -e` still
         // gets it: the first draft of this contract asserted the absence of `set -e` and was
         // therefore checking nothing at all. Only an explicit `set +e` is load-bearing.
-        assert.match(job, /^ {10}set \+e\b/m,
+        assert.match(report, /^ {10}set \+e\b/m,
             'the notifier must `set +e` explicitly — GitHub invokes run: steps as `bash -e`, so '
             + 'without it an unguarded gh failure abandons the rest of the report');
         for (const call of ['gh pr comment', 'gh api --method PATCH']) {
             const re = new RegExp(`${call}[\\s\\S]{0,400}?\\|\\| echo "::warning::`);
-            assert.match(job, re,
+            assert.match(report, re,
                 `${call} must end in \`|| echo "::warning::…"\` — this step must never turn a `
                 + 'reportable drift into a failed one');
         }
     });
 
     test('and it says so to a machine, as a check whose conclusion IS the drift', () => {
-        // The job is continue-on-error, so its own conclusion is `success` either way. The check
+        // The lane is continue-on-error, so its own conclusion is `success` either way. The check
         // run is the only field a script can read the drift from; `neutral` keeps it non-blocking.
-        assert.ok(job.includes(`-f name='${CHECK}'`), `the ${JOB} job must publish its own "${CHECK}" check run`);
-        assert.match(job, /^ {6}checks: write[ \t]*$/m, 'publishing a check run needs checks: write');
-        assert.match(job, /CONCLUSION=neutral/, 'a drift must conclude neutral — visible, never blocking');
+        assert.ok(report.includes(`-f name='${CHECK}'`), `the ${REPORT} job must publish its own "${CHECK}" check run`);
+        assert.match(report, /^ {6}checks: write[ \t]*$/m, 'publishing a check run needs checks: write');
+        assert.match(report, /CONCLUSION=neutral/, 'a drift must conclude neutral — visible, never blocking');
+    });
+
+    test('the job that installs holds no write, and the job that writes installs nothing', () => {
+        const lanePermissions = permissionsOf(job);
+        assert.ok(lanePermissions, `${JOB} must declare its own permissions, not run on the default token`);
+        assert.doesNotMatch(lanePermissions, /\bwrite\b/,
+            `${JOB} runs every dependency's install script, so it must hold no write: an install script `
+            + `can reach a token handed to any later step of its job. The writes belong to ${REPORT}.`);
+        assert.doesNotMatch(report, /^[ \t]+(?:run:[ \t]+)?(?:npm (?:ci|install)|npx)\b/m,
+            `${REPORT} holds the writes, so it must install and run nothing from npm`);
+        assert.doesNotMatch(report, /uses: actions\/checkout@/,
+            `${REPORT} needs no checkout: what it says comes from ${JOB}'s outputs`);
+        assert.match(report, new RegExp(`^ {4}needs: \\[guard, ${JOB}\\][ \\t]*$`, 'm'),
+            `${REPORT} must wait for ${JOB}, whose outputs it reads`);
+        assert.match(report, new RegExp(`^ {4}if: .*needs\\.${JOB}\\.outputs\\.drifted != ''`, 'm'),
+            `${REPORT} must run only when ${JOB} reached an outcome: a failed install has nothing to report`);
     });
 });
 
@@ -2408,10 +2535,22 @@ describe('the live check looks twice before it reports', () => {
     const lines = script.split('\n').map(l => l.trim()).filter(Boolean);
     const limitOf = (block, indent) =>
         Number((new RegExp(`^ {${indent}}timeout-minutes:\\s*(\\d+)\\s*$`, 'm').exec(block) || [])[1]);
+    /** One job's block, to the next job's key. @param {string} name */
+    const jobBlock = (name) => {
+        const at = code.search(new RegExp(`^ {2}${name}:[ \\t]*$`, 'm'));
+        if (at === -1) return '';
+        const next = code.slice(at + 1).search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        return code.slice(at, next === -1 ? code.length : at + 1 + next);
+    };
+    // The check and its alert are two jobs (18 Nov 2026 — the guard at the end of this file says why).
+    const live = jobBlock('live');
+    const report = jobBlock('report');
 
-    test('the site step is found, and keeps the id the alert step reads', () => {
+    test('the site step is found, and keeps the id the alert reads', () => {
+        assert.ok(live && report, `${LIVE_WF}: the live job and the alert job (\`report\`) must both be found`);
         assert.ok(step, `${LIVE_WF}: the "Open the live site on both origins" step was not found`);
-        assert.match(body, /^\s*id:\s*site\s*$/m, 'the site step must keep `id: site`: the alert step reads its outcome');
+        assert.ok(live.includes(step[0]), 'the site step must be a step of the live job');
+        assert.match(body, /^\s*id:\s*site\s*$/m, 'the site step must keep `id: site`: the live job hands its outcome to the alert');
         assert.ok(lines.length > 0, 'the site step\'s `run: |` script was not found');
         assert.doesNotMatch(body, /continue-on-error/,
             'no continue-on-error on the site step: a failure would then read as success to `failure()`, and the alert would never run');
@@ -2454,29 +2593,33 @@ describe('the live check looks twice before it reports', () => {
         // A step that installs or runs something must carry its own limit, and the job must cover
         // all of them plus the site step and five minutes for the quick steps and the alert.
         //
-        // AND SO MUST EVERY OTHER STEP BUT THE ALERT (7 Nov 2026 review). Counting only `run:` and
-        // local actions left out the checkout, setup-node's npm cache and the browser cache — all
-        // downloads, none limited — and the report upload, which runs AFTER the site step and BEFORE
-        // the alert. Any of them stalling in a GitHub-side incident spent the job's time unseen.
+        // AND SO MUST EVERY OTHER STEP (7 Nov 2026 review). Counting only `run:` and local actions
+        // left out the checkout, setup-node's npm cache and the browser cache — all downloads, none
+        // limited — and the trace upload, which runs AFTER the site step. Any of them stalling in a
+        // GitHub-side incident spent the job's time unseen.
+        //
+        // THE ALERT IS A JOB OF ITS OWN NOW (18 Nov 2026), so it is not counted here: its job has its
+        // own limit, and only starts once this one has ended. The five minutes kept over are for what
+        // runs after the last step, the browser cache's save among it.
         const stepLimit = limitOf(body, 8);
-        const jobLimit = limitOf(code, 4);
+        const jobLimit = limitOf(live, 4);
         assert.ok(stepLimit >= 10,
             `the site step needs its own timeout-minutes of at least 10 (found ${stepLimit}): two looks and the pause take about three minutes, and a hung site must still be cut off by THIS limit`);
-        const steps = code.slice(code.indexOf('steps:')).split(/\n(?=\s*- (?:name|uses):)/)
+        const steps = live.slice(live.indexOf('steps:')).split(/\n(?=\s*- (?:name|uses):)/)
             .filter(s => /^\s*- (?:name|uses):/.test(s));
         const nameOf = (/** @type {string} */ s) => s.match(/- (?:name|uses): (.*)/)?.[1] ?? s.trim().slice(0, 60);
-        const alertAt = steps.findIndex(s => /- name: Say so, once, in an issue/.test(s));
-        assert.equal(alertAt, steps.length - 1, 'the alert step must be found, and must be the last step');
-        const others = steps.slice(0, alertAt).filter(s => !/- name: Open the live site on both origins/.test(s));
+        assert.ok(!steps.some(s => /- name: Say so, once, in an issue/.test(s)),
+            'the alert is a step of the live job again: it belongs in its own job, where no install script can reach its token');
+        const others = steps.filter(s => !/- name: Open the live site on both origins/.test(s));
         for (const want of ['actions/checkout', 'actions/setup-node', 'actions/cache', 'npm ci', 'actions/upload-artifact']) {
             assert.ok(others.some(s => s.includes(want)), `the ${want} step must be found among the steps counted`);
         }
         const unbounded = others.filter(s => !(limitOf(s, 8) > 0)).map(nameOf);
         assert.deepEqual(unbounded, [],
-            `every step but the alert needs its own timeout-minutes; these have none, so the job can run out before the site step does: ${unbounded.join(', ')}`);
+            `every step of the live job needs its own timeout-minutes; these have none, so the job can run out before the site step does: ${unbounded.join(', ')}`);
         const rest = others.reduce((n, s) => n + limitOf(s, 8), 0);
         assert.ok(rest + stepLimit + 5 <= jobLimit,
-            `the job limit (${jobLimit}) must cover every other step (${rest} minutes between them), the site step's ${stepLimit} and five minutes for the alert. Otherwise the job runs out first, and a hung site is never reported.`);
+            `the job limit (${jobLimit}) must cover every other step (${rest} minutes between them), the site step's ${stepLimit} and five minutes for what runs after the last step. Otherwise the job runs out first, and a hung site is never reported.`);
     });
 
     test('the scheduled looks demand a DIRECT connection — the value live.spec.js reads', () => {
@@ -2506,9 +2649,25 @@ describe('the live check looks twice before it reports', () => {
 
     test('only a failure of the site check itself reaches the issue', () => {
         // The whole-app review's fix (Oct 2026): a runner that could not install used to post "the
-        // live site failed" about a site nobody had opened.
-        assert.match(code, /if:\s*failure\(\)\s*&&\s*steps\.site\.outcome\s*==\s*'failure'/,
-            'the alert step must run only when the site step itself failed');
+        // live site failed" about a site nobody had opened. Since the alert became its own job (18 Nov
+        // 2026) the site step's outcome crosses to it as a job output, and each end of that wire is one
+        // line: without the output the alert never fires, and without the outcome test it fires for a
+        // failed install again.
+        assert.match(live, /^ {4}outputs:\n {6}site: \$\{\{ steps\.site\.outcome \}\}[ \t]*$/m,
+            'the live job must hand over its site step\'s outcome as the `site` output');
+        assert.match(report, /^ {4}needs: live[ \t]*$/m, 'the alert job must wait for the live job');
+        assert.match(report, /^ {4}if: failure\(\) && needs\.live\.outputs\.site == 'failure'[ \t]*$/m,
+            'the alert job must run only when the live job\'s site step itself failed');
+        assert.match(report, /- name: Say so, once, in an issue/, 'the alert step must be in the alert job');
+    });
+
+    test('the alert job can say which repository its issue is for', () => {
+        // gh finds the repository from a git checkout. The alert job has none — it needs none, and a
+        // checkout is one more thing on its runner — so it must name the repository, or every issue
+        // command fails and the step's own warnings are all that is left (race-detector.yml, until 10
+        // Nov 2026: no issue could ever appear, which read exactly like "nothing found").
+        assert.ok(/uses: actions\/checkout@/.test(report) || /^\s+GH_REPO: \$\{\{ github\.repository \}\}[ \t]*$/m.test(report),
+            'the alert job has no checkout and no GH_REPO, so gh cannot tell which repository to file the issue in');
     });
 
     test('a person running the check by hand still gets the first answer', () => {
@@ -2834,6 +2993,8 @@ describe('every CI lane runs the command it is there for', () => {
         ['deploy-hosting.yml', 'smoke', 'npm run test:e2e'],
         ['deploy-hosting.yml', 'csp', 'npm run test:csp'],
         ['deploy-hosting.yml', 'signed-in', 'npm run test:signed-in'],
+        ['deploy-hosting.yml', 'safari', 'npm run test:webkit'],
+        ['deploy-hosting.yml', 'safari', 'npm run test:signed-in'],
         ['deploy-functions.yml', 'check', 'npm run test:functions'],
         ['deploy-functions.yml', 'check', 'npm test'],
         ['deploy-rules.yml', 'check', 'npm run check'],
@@ -3062,6 +3223,106 @@ describe('a deploy job leaves no git token on disk', () => {
             const step = tail.slice(0, tail.search(/\n\s*- (name|uses):/));
             assert.match(step, /^\s+persist-credentials: false[ \t]*$/m,
                 `${wf}: the deploy job's checkout leaves the token on disk for every install script in the job to read`);
+        });
+    }
+});
+
+// ── NO INSTALL SCRIPT RUNS BESIDE A TOKEN IT COULD USE (review, 18 Nov 2026) ───────────────────────
+//
+// The deploy workflows were made safe a job at a time (the blocks above); the others were not.
+// live-health.yml checked out with the token kept on disk and then ran `npm ci` — every dependency's
+// install script — in its one job, under an `issues: write` granted at the top of the file. e2e.yml's
+// branch jobs, offline.yml, warm-browser-cache.yml and functions-audit.yml kept the token on disk
+// through their installs too. Every workflow in the directory is read, so one added later joins the
+// check by existing:
+//
+//   1. A job that runs install scripts keeps no token on disk: `persist-credentials: false` on each
+//      of its checkouts. A job that needs git credentials can use them before it installs anything,
+//      or be two jobs.
+//   2. No workflow grants a write at the top, where every job inherits it, and no job is left on the
+//      repository's default token, which can be write-all: the job says, or the top does.
+//   3. A job that can write anything runs no install script. Off the disk is not enough on its own:
+//      an install script can put a program of its own on the PATH of every later step in its job,
+//      the step that is handed the token included. So whatever writes is a job of its own, on a
+//      fresh runner — each deploy workflow's `report-failure`, live-health.yml's `report`, and
+//      e2e.yml's `visual-report` and `visual-webkit-report`. The visual lanes held
+//      `pull-requests: write` and `checks: write` in the job that installs until they were split
+//      the same way (18 Nov 2026), which is when this rule widened from issues to every write. A
+//      deploy job is no exception: it mints its credential with `id-token: write`, which is why it
+//      installs with `--ignore-scripts`.
+describe('no install script runs beside a token it could use', () => {
+    const files = readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f)).sort();
+    /** An install line that runs dependencies' install scripts: `npm ci` or `npm install` without
+     *  `--ignore-scripts`, as a `run:` value or a line of a `run: |` script. @param {string} job */
+    const runsInstallScripts = (job) => [...job.matchAll(/^[ \t]+(?:run:[ \t]+)?npm (?:ci|install)\b.*$/gm)]
+        .some(m => !/(^|\s)--ignore-scripts(\s|$)/.test(m[0]));
+    /** Each checkout step of a job, to the next step. @param {string} job */
+    const checkoutsOf = (job) => [...job.matchAll(/^[ \t]+- uses: actions\/checkout@.*$/gm)].map(m => {
+        const tail = job.slice(m.index);
+        const next = tail.slice(1).search(/\n[ \t]*- (?:name|uses):/);
+        return next === -1 ? tail : tail.slice(0, next + 1);
+    });
+    /** A job's own permissions block, or null when it has none. @param {string} job */
+    const ownPermissions = (job) => {
+        const m = /^ {4}permissions:([^\n]*)\n((?: {6,}[^\n]*\n)*)/m.exec(job + '\n');
+        return m ? `${m[1]}\n${m[2]}` : null;
+    };
+    /** The workflow's own top-level permissions block, or null. @param {string} src */
+    const topPermissions = (src) => {
+        const m = /^permissions:([^\n]*)\n((?:[ \t]+[^\n]*\n)*)/m.exec(src + '\n');
+        return m ? `${m[1]}\n${m[2]}` : null;
+    };
+    /** A workflow with its comment lines dropped: the prose names everything it explains. @param {string} f */
+    const read = (f) => readFileSync(join(WF_DIR, f), 'utf8').split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+
+    test('the workflows were actually read, and the readers find what they look for', () => {
+        assert.ok(files.includes('live-health.yml') && files.includes('e2e.yml'), `read: ${files.join(', ')}`);
+        // Guard the guard: each reader, on the shapes the workflows use and the ones it must refuse.
+        assert.ok(runsInstallScripts('      - name: x\n        run: npm ci\n'), 'a bare `run: npm ci` runs install scripts');
+        assert.ok(runsInstallScripts('        run: |\n          npm ci\n'), 'so does `npm ci` inside a run script');
+        assert.ok(!runsInstallScripts('        run: npm ci --ignore-scripts\n'), '`--ignore-scripts` runs none');
+        assert.ok(!runsInstallScripts('        run: echo "npm ci failed"\n'), 'a message that names npm ci is not an install');
+        const job = '    steps:\n      - uses: actions/checkout@abc # v7\n        with:\n          persist-credentials: false\n\n      - name: Next\n        run: npm ci\n';
+        assert.deepEqual(checkoutsOf(job).map(s => /persist-credentials: false/.test(s)), [true], 'one checkout, read to the next step');
+        assert.equal(ownPermissions('    runs-on: x\n    permissions:\n      contents: read\n      issues: write\n    steps:\n'),
+            '\n      contents: read\n      issues: write\n', 'a job\'s permissions block is read to its last entry');
+        assert.equal(ownPermissions('    permissions: {}\n'), ' {}\n', 'and an empty one is a block too');
+        assert.equal(topPermissions('on: push\npermissions:\n  contents: read\n  issues: write\njobs:\n'),
+            '\n  contents: read\n  issues: write\n', 'the top-level block is read to its last entry');
+    });
+
+    for (const f of files) {
+        const src = read(f);
+        const body = src.slice(src.search(/^jobs:/m));
+        const heads = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)];
+        /** @type {[string, string][]} */
+        const jobs = heads.map((h, i) => [h[1], body.slice(h.index, heads[i + 1]?.index ?? body.length)]);
+        const top = topPermissions(src.slice(0, src.search(/^jobs:/m)));
+
+        test(`${f}: a job that runs install scripts keeps no git token on disk`, () => {
+            const leaky = jobs.filter(([, job]) => runsInstallScripts(job)
+                && checkoutsOf(job).some(step => !/^[ \t]+persist-credentials: false[ \t]*$/m.test(step)))
+                .map(([name]) => name);
+            assert.deepEqual(leaky, [],
+                `${f}: ${leaky.join(', ')} check out with the token kept on disk and then run every dependency's install script, which can read it. Add \`persist-credentials: false\` to the checkout.`);
+        });
+
+        test(`${f}: no write is granted at the top, and no job is left on the default token`, () => {
+            if (top !== null) {
+                assert.doesNotMatch(top, /\bwrite\b/,
+                    `${f} grants a write to every job at the top of the file; give it to the job that writes, and \`permissions: {}\` up here`);
+                return;
+            }
+            const unset = jobs.filter(([, job]) => !/^ {4}uses:/m.test(job) && ownPermissions(job) === null).map(([name]) => name);
+            assert.deepEqual(unset, [],
+                `${f} has no permissions at the top, and ${unset.join(', ')} declare none either, so they run on the repository's default token, which can write everything. Give each its own, or \`permissions: {}\` at the top.`);
+        });
+
+        test(`${f}: a job that can write runs no install script`, () => {
+            const writers = jobs.filter(([, job]) => /^[ \t]+[\w-]+:[ \t]*write\b/m.test(ownPermissions(job) ?? top ?? ''));
+            const mixed = writers.filter(([, job]) => runsInstallScripts(job)).map(([name]) => name);
+            assert.deepEqual(mixed, [],
+                `${f}: ${mixed.join(', ')} can write and run dependencies' install scripts in the same job. Off the disk is not enough: an install script can put its own program on a later step's PATH. Move whatever writes into a job of its own that installs nothing (live-health.yml's \`report\` and e2e.yml's \`visual-report\` are the pattern).`);
         });
     }
 });

@@ -49,7 +49,8 @@
  * back into view, so the station computer's tab, never hidden, kept yesterday's kind of day — the
  * lookup answered a Sunday morning from Saturday's trains — and its countdown, its Christmas line and
  * its folded overview, past 03:00 and past the end of the books. So the page asks once a minute, and
- * before a key in either box redraws one card, whether the railway day has turned (`turnIfNewDay`).
+ * before a key in either box redraws one card, whether the railway day has turned (`turnIfNewDay`) —
+ * or the calendar date, at midnight, which the countdown's words count from (`timetablePhase`).
  *
  * What comes after the preview — the teaching extras, and the at-a-glance page it becomes on
  * 13 December: docs/ROADMAP.md → "Trains page — what comes after the preview".
@@ -91,6 +92,12 @@ const todayDay = () => { const dow = railwayToday().getDay(); return dow === 6 ?
 let dayPinned = false;   // set once a day tab is pressed: the chosen day then survives the tab's sleep
 /** The railway day and the phase the page last drew (`render`) — how a page left open notices either turn. */
 const drawn = { day: '', phase: '' };
+/**
+ * The day the page was drawn for: the railway day, which says which timetable runs, AND the calendar date, which the
+ * countdown's words count from (`timetablePhase`). Keyed on the railway day alone, a page left open over midnight said
+ * "Starts tomorrow" until 03:00 on the day itself.
+ */
+const dayDrawn = () => `${railwayToday().toDateString()} · ${new Date().toDateString()}`;
 /** The overview's collapse, opened by `render` when the page turns to both timetables having ended. */
 let overviewCard = { setOpen(/** @type {boolean} */ _open) {} };
 
@@ -122,7 +129,7 @@ export function init() {
         return;
     }
     // Tear down a lingering privileged Firebase identity whose local session has expired.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
     start(/** @type {string} */ (currentUser));
 }
 
@@ -209,7 +216,10 @@ function start(member) {
             recordUsage('trains', member);
             recordPageLatency('trains', member);
         });
-        sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+        // Called now, with the session as its barrier: a sign-in's one-shot marker is spent as the page opens,
+        // never only once the session is confirmed (password-force.js, "consume BEFORE any await"). It fails open by
+        // itself; the `.catch` only keeps an unexpected rejection from going unhandled.
+        initPasswordForce(member, { ready: sessionReady }).catch(() => {});
         return;
     }
     // The station PIN is already the current Firebase user (holdsStaffPin read it), and the rules take
@@ -235,7 +245,7 @@ function render(state) {
     // Both timetables ending is the overview's one message, so the card opens for it: on the first draw,
     // which a return visit had folded, and on the draw that finds the page has turned to it while open.
     if (p.phase === 'ended' && drawn.phase !== 'ended') overviewCard.setOpen(true);
-    drawn.day = railwayToday().toDateString();
+    drawn.day = dayDrawn();
     drawn.phase = p.phase;
     renderOverview(p);
     for (const b of /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('[data-day],[data-view],[data-sdir],[data-grid]')])) {
@@ -264,9 +274,9 @@ function render(state) {
     syncGridMirror(state.view === 'grid' ? el('trPattern') : null);
 }
 
-/** Redraw the whole page if the railway day has turned since it was drawn (the header). @param {PageState} state @returns {boolean} whether it did */
+/** Redraw the whole page if the railway day, or the calendar date, has turned since it was drawn (the header). @param {PageState} state @returns {boolean} whether it did */
 function turnIfNewDay(state) {
-    if (railwayToday().toDateString() === drawn.day) return false;
+    if (dayDrawn() === drawn.day) return false;
     render(state);
     return true;
 }

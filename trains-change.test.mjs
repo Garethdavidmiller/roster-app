@@ -240,9 +240,37 @@ describe('timetablePhase — what the page calls things, on which day (v24.83)',
         assert.equal(at(2027, 1, 10, 23).festive, true);
         assert.equal(at(2027, 1, 11, 0).festive, false);
     });
-    test('once December\'s books expire, the page says the timetable has ended', () => {
+    test('once December\'s books expire, the page says the timetables have ended', () => {
         assert.equal(at(2027, 5, 15, 23).phase, 'running');
-        assert.deepEqual([at(2027, 5, 16).phase, at(2027, 5, 16).countdown], ['ended', 'Timetable ended']);
+        // Plural, as the overview says it: "Both timetables on this page have ended" (trains-cards.js).
+        assert.deepEqual([at(2027, 5, 16).phase, at(2027, 5, 16).countdown], ['ended', 'Timetables ended']);
+    });
+    // THE COUNTDOWN COUNTS CALENDAR DAYS (whole-app check, Nov 2026). Counted from the railway day, which runs to 03:00,
+    // 00:30 on Sunday 13 December said "Starts tomorrow" — read as the Monday — and 01:00 on the Monday "Starts today".
+    // Everything else still follows the railway day: at 00:30 on the 13th Saturday night's trains are the ones running.
+    test('for three hours after midnight the countdown names the calendar day, and the rest stays on the railway day', () => {
+        const page = (/** @type {Date} */ now) => timetablePhase(railwayToday(now), D, now);
+        const sun = page(new Date(2026, 11, 13, 0, 30));
+        assert.deepEqual([sun.countdown, sun.phase, sun.started, sun.oldLabel], ['Starts today', 'before', false, 'Now']);
+        assert.equal(page(new Date(2026, 11, 13, 2, 59)).countdown, 'Starts today');
+        assert.equal(page(new Date(2026, 11, 13, 3, 0)).countdown, 'Starts today');
+        const mon = page(new Date(2026, 11, 14, 1, 0));
+        assert.deepEqual([mon.countdown, mon.phase, mon.started], ['Now running', 'running', true]);
+        assert.equal(page(new Date(2026, 11, 12, 0, 30)).countdown, 'Starts tomorrow', 'Saturday 00:30');
+        assert.equal(page(new Date(2026, 11, 11, 0, 30)).countdown, '2 days to go', 'Friday 00:30');
+        // The end is the railway day's: "Timetables ended" from 03:00 on 16 May, as the overview's own line.
+        assert.equal(page(new Date(2027, 4, 16, 2, 59)).phase, 'running');
+        assert.equal(page(new Date(2027, 4, 16, 3, 0)).countdown, 'Timetables ended');
+        // Given one date, both answers come from it — as every caller before this one passed.
+        assert.equal(at(2026, 12, 12, 23).countdown, 'Starts tomorrow');
+    });
+    // The page's own `phase` is the entry point: it must hand `timetablePhase` the calendar date as well as the railway day.
+    test('the page\'s phase() counts its countdown from the calendar date', async (t) => {
+        const { phase } = await import('./trains-cards.js');
+        t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 11, 13, 0, 30) });
+        assert.deepEqual([phase().countdown, phase().phase], ['Starts today', 'before']);
+        t.mock.timers.setTime(new Date(2026, 11, 14, 1, 0).getTime());
+        assert.deepEqual([phase().countdown, phase().phase], ['Now running', 'running']);
     });
     test('dates are derived, never typed', () => {
         assert.equal(dateWords('2026-12-13'), '13 December');

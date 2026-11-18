@@ -68,12 +68,12 @@ const LEGACY_OPT_OUT_YEAR = '2026/27';
 
 /** The member's pension-status timeline, read fresh (it is small, and a stale copy is how a
  *  Settings save and the next recompute disagree). @returns {import('./paycalc-pension.js').PensionChange[]} */
-export function getPensionTimeline() {
+function getPensionTimeline() {
   return parsePensionTimeline(lsGet(SK.pensionTimeline));
 }
 
 /** @param {import('./paycalc-pension.js').PensionChange[]} timeline */
-export function savePensionTimeline(timeline) {
+function savePensionTimeline(timeline) {
   lsSet(SK.pensionTimeline, serialisePensionTimeline(timeline));
 }
 
@@ -111,6 +111,12 @@ export function applyPensionOptOutUI(pObj) {
     if (out) amt.value = '0.00';
   }
   document.getElementById('pensionAmt')?.closest('.pfx')?.classList.toggle('is-disabled', out);
+  // A payslip worked as a CES starts at the CEA figure: every step in PENSION_STEPS was read off CEA
+  // payslips, and no CES payslip's pension line is on record (VAL-PAY-007). Kept rather than left
+  // blank — no figure would be further out — and SAID beside the box, which asks for the payslip's
+  // own. Not inside an opt-out spell, where the box is locked at £0.00 and there is nothing to check.
+  const cesNote = document.getElementById('pensionCesNote');
+  if (cesNote) cesNote.hidden = out || !pObj || !gradeDaysFor(pObj).some(x => x.grade === 'ces');
 }
 
 /**

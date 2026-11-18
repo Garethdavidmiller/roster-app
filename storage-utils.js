@@ -51,8 +51,8 @@ export function isSafeStorageUrl(url) {
 }
 
 /**
- * True if this upload should be treated as a Word (.docx) file. Matches the accept predicates
- * (`isDocxFile` in doc-upload.js / `_isDocx` in huddle.js) — extension OR the exact docx MIME — so
+ * True if this upload should be treated as a Word (.docx) file. Matches the accept predicate
+ * (`isDocxFile` in doc-upload.js, which huddle.js uses too) — extension OR the exact docx MIME — so
  * upload-side type detection agrees with what the picker accepted. Detecting by extension alone
  * would mis-classify a .docx picked with a correct MIME but a name lacking the extension (cloud /
  * Android content-URI pickers) as a PDF, then reject it at the signature check.

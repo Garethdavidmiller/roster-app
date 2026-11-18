@@ -951,9 +951,10 @@ body.auth-ready .container { display: grid; }
     outline-offset: 1px;
     background-color: white;
 }
-/* Green "all done" confirmation line — used by the Error Log empty state ("✓ No errors recorded.")
-   in operations-reports.js. (Kept when the work-email chip CSS was removed at the v18.65 card merge —
-   it looked dead from operations-app.js's side but operations-reports.js still applies it.) */
+/* Green "all done" confirmation line — the Error Log's empty state ("✓ No errors recorded.",
+   operations-errors.js) and the reset queue's ("✓ No outstanding requests.", operations-app.js).
+   (Kept when the work-email chip CSS was removed at the v18.65 card merge; the name is older than
+   both of its users.) */
 .email-count-done {
     font-size: var(--type-small);
     color: var(--success-green);
@@ -1585,10 +1586,11 @@ body.auth-ready .container { display: grid; }
 .al-sheet-save-intro, .al-sheet-last p { font-size: var(--type-label); color: var(--text-dark); }
 
 @media print {
-    /* Operations is an interactive-only page (Huddle upload, Roster upload,
-       Staff Logins) — nothing here is meaningful on paper. Reset the navy
-       body to white, hide every interactive surface, and show one
-       clear branded notice in its place. */
+    /* Operations is an interactive-only page — nothing here is meaningful on
+       paper. Reset the navy body to white, hide every interactive surface, and
+       show one clear branded notice in its place. The notice says what KIND of
+       page this is rather than listing its cards: a list named the first three
+       and went stale as every card after them was added (18 Nov 2026). */
     html, body { background: white !important; }
     .container,
     .app-header,
@@ -1597,7 +1599,7 @@ body.auth-ready .container { display: grid; }
     .nav-panel,
     .nav-panel-overlay { display: none !important; }
     body::before {
-        content: "🔧 Operations\A\A This is an interactive page — Daily Huddle upload, Weekly Roster upload and Staff Login accounts. There is nothing here to print.";
+        content: "🔧 Operations\A\A This is an interactive page — uploads, staff accounts and the app’s own reports. There is nothing here to print.";
         white-space: pre-line;
         display: block;
         max-width: 16cm;

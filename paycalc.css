@@ -1049,8 +1049,8 @@
        Hours, Settings) across the two wide work columns, .pc-side (the result and the occasional
        cards) in col 3. One row, so neither column's height can inflate the other's spacing — a
        sidebar spanning the left items' rows opened a navy void between the period band and Hours.
-       Both wrappers are display: contents on mobile, so nothing here reaches mobile or tablet.
-       Rationale: .claude/rules/paycalc.md → Desktop workspace. */
+       Below 1024px .pc-side is display: contents and .pc-work a plain block (the base rules say why),
+       so nothing here reaches mobile or tablet. Rationale: .claude/rules/paycalc.md → Desktop workspace. */
     @media (min-width: 1024px) {
       /* The 1100px band: two work columns + a ~400px sidebar (1400px ran descriptions unreadably long). */
       .app { max-width: var(--content-max-width); }
@@ -1158,7 +1158,8 @@
       #settingsCard { order: 2 !important; }
 
       /* EVERY overlay (an open lightbox must never print over the page), the interactive-only
-         chrome and the occasional cards. */
+         chrome and the occasional cards. The no-special-rate-hours tick prints only as a fact, when
+         ticked: its teaching line and the unticked row are for the screen. */
       .lb-overlay,
       #iconLightbox, #helpLightbox, .setup-banner, .period-controls, .save-row,
       #saveSettingsBtn, #actualsImportBtn,
@@ -1166,6 +1167,7 @@
       #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,
       #payTransferCard,
       .field-hint, .net-hint, .net-ytd, .check-actual,
+      .no-special-row .h-sub, .no-special-row:not(:has(input:checked)),
       .privacy-note-standalone, .guide-footer-link,
       #rosterHintBar, .joiner-notice, #stickyTotal,
       #payBreakBar, #payBreakLegend { display: none !important; }
@@ -1393,6 +1395,12 @@
   /* Same rhythm for the dated opt-out question that the pension tick reveals: it is a nested
      `.field` directly after a hint, so its label sat hard under "…Railways Pension Scheme." */
   #pensionOptOutField { margin-top: 14px; }
+
+  /* The Hours card's "No special-rate hours on this payslip" tick carries a teaching line under its
+     label, so the box sits by the label's first line rather than centred on two, and the line wears
+     the hours rows' own explainer look (.h-sub, a block here inside the label's text). */
+  .no-special-row { align-items: flex-start; margin-top: 8px; }
+  .no-special-row .h-sub { display: block; }
 
   /* ── STICKY TAKE-HOME BAR (all widths; desktop capped and centred below) ── */
   #stickyTotal {
@@ -1690,7 +1698,10 @@
   .adj-controls { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
 
   /* The inline `display:none` left in paycalc.html on conditionally-shown elements stays there:
-     it is the initial state the script flips. Everything else presentational lives here. */
+     it is the initial state the script flips — and only where the script writes `style.display`. An
+     element the script shows by removing the `hidden` CLASS must start with that class instead:
+     #resultRateNotice carried an inline style its class toggle could never clear, so the pay-award
+     warning on the result card never showed. Everything else presentational lives here. */
   .settings-save-feedback {
     font-size: var(--type-small); color: var(--success-text);
     text-align: center; min-height: 18px; margin-top: 6px;

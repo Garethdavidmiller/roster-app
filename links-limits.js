@@ -300,7 +300,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
             // what to check, never "cannot be run".
             detail: over
                 ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Confirm the rule before treating that as a decision.`
-                : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Monday to Saturday count; a cover week counts four days; Sunday is overtime.`,
+                : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Monday to Saturday count; a cover week counts ${SPARE_WORKED_DAYS} days; Sunday is overtime.`,
         });
     }
 

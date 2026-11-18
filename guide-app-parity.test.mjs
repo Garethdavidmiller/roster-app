@@ -30,6 +30,10 @@
 //     owner, 14 Nov 2026), and static copy cannot read a date, so both say so in the same words, and
 //     every place that states the window says the number of weeks NEWSLETTER_RECENT_DAYS holds.
 //     (welcome-email-parity.test.mjs carries the general template's line to the three ready copies.)
+//  5. THE CALENDAR KEY. calendar-legend.js → legendVisibility: the guide's key sentence names exactly the items a
+//     month brings, and none the key always shows.
+//  6. THE TICK STEP. admin.css decides what ticking a day shows — the type buttons at once, the time boxes only
+//     once a type is chosen — and the Change a Shift step says what it shows.
 //
 // Part of `npm run test:hygiene`. A failure here means the GUIDE is out of date, or the app changed
 // on purpose and the guide must follow in the same release — never "loosen the test".
@@ -215,6 +219,23 @@ test('3. the Change a Shift and Apply to Several Days steps list the buttons as 
     // The bulk bar is PILL_TYPES less Other (admin-app.js filters it; .claude/rules/admin.md says why).
     assert.deepEqual(list(/<li><strong>Choose type<\/strong>\s*—\s*([^<]+)<\/li>/, 'Apply to Several Days "Choose type"'),
         PILLS.filter(l => l !== TYPES.other.pill));
+});
+
+// 6. THE TICK STEP (whole-app check, Nov 2026). "Tick the day you want to change — its type buttons and time boxes
+//    appear": only the type buttons do. The time boxes wait for a type, deliberately since v21.40 — a ticked row with
+//    no type yet reserved their space, 170px on a Mon–Fri selection (admin.css). The step is held to the two rules
+//    that decide what a tick shows: `.selected` is a ticked row with no type, `.active` one with a type.
+test('6. the Change a Shift tick step says what ticking a day shows, as admin.css shows it', () => {
+    const css = read('admin.css');
+    assert.match(css, /\.day-row:not\(\.active\):not\(\.selected\) \.col-pills\s*\{\s*display:\s*none;\s*\}/,
+        'admin.css no longer shows the type buttons on a ticked row the way this test reads it — re-read the guide\'s tick step');
+    const timeWaitsForType = /\.day-row:not\(\.active\) \.col-time\s*\{\s*display:\s*none;\s*\}/.test(css);
+    const li = GUIDE.match(/<li><strong>Tick the day<\/strong>([^<]*)<\/li>/)?.[1];
+    assert.ok(li, 'the Change a Shift "Tick the day" step was not found in staff-guide.html — re-anchor this test');
+    assert.match(text(li), /its type buttons appear/, 'the tick step must say the type buttons appear');
+    assert.equal(/\btime/i.test(li), !timeWaitsForType, timeWaitsForType
+        ? `the tick step promises time boxes, which wait for a type (admin.css): "${text(li)}"`
+        : 'admin.css now shows the time boxes on a ticked row — the tick step should say so');
 });
 
 // 5. THE CALENDAR KEY (whole-app check, Nov 2026). The guide said the key "lists only what is actually in

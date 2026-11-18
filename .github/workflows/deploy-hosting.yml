@@ -108,19 +108,22 @@ jobs:
   # own, side by side, as e2e.yml's pull-request checks have since 3 Nov 2026, where the same two
   # halves took 16 to 18 minutes each on 10 Nov 2026:
   #
-  #     tested ─► (each gate job below stands aside when it proves the tree; its comment says how)
+  #     tested ─► (each gate job below but `safari` stands aside when it proves the tree; its comment says how)
   #     check ──────────────────────────┐
   #     smoke (chromium, 1/3 … 3/3) ────┤
   #     smoke (mobile-chrome, 1/3 … 3/3) ┼──► deploy ──► the Pages mirror (deploy-mirror.yml)
   #     csp ────────────────────────────┤
-  #     signed-in ──────────────────────┘   (since 12 Nov 2026; its own comment says why, and why one engine)
+  #     signed-in ──────────────────────┤   (since 12 Nov 2026; Android Chrome — its own comment says why)
+  #     safari ─────────────────────────┘   (since 17 Nov 2026; the iPhone's engine — its own comment says what)
   #
   # A release now waits for the slowest job instead of the sum. Three things keep it the same gate,
   # and workflow-hygiene.test.mjs holds each one:
   #   1. `deploy` NEEDS EVERY GATE JOB, and its `if:` lets it run only when every one of them
   #      SUCCEEDED, or when `tested` (below) found this exact tree already passed the same gate on a
   #      pull request: one gate job red, cancelled or skipped without that, and nothing is uploaded.
-  #      Needing `smoke` waits for every shard of it.
+  #      `safari` must succeed either way: the pull request's record covers no WebKit check but the
+  #      iPhone's signed-in half, so the proof cannot stand in for it. Needing `smoke` waits for
+  #      every shard of it.
   #   2. THE SMOKE LIST NAMES EXACTLY playwright.config.mjs's PROJECTS, AND EVERY SHARD OF EACH, and
   #      it is e2e.yml's list. `npm run test:e2e` read the project list for itself; a project or a
   #      shard now missing would never gate a release, and a list that differed from the PR lane's
@@ -390,10 +393,10 @@ jobs:
   # alone from 11 Nov 2026; this one joined the gate the next day, asked for by the external review of
   # v25.87, on a record of 28 completed runs, every one green and none re-run.
   #
-  # ANDROID CHROME ONLY (`--project=mobile-chrome`). The lane's iPhone half stays in branch CI, because
-  # WebKit stays out of this gate (owner, 8 Sep 2026; DECISIONS.md says what would reopen it), and
-  # workflow-hygiene.test.mjs fails if a WebKit run is added here. The SDK, the rules and the functions
-  # are the same on both engines, which is most of what this lane is for.
+  # ANDROID CHROME HERE (`--project=mobile-chrome`). The lane's iPhone half joined the gate on 17 Nov
+  # 2026 in the `safari` job below, with the gate's other WebKit check, so each job installs one browser
+  # and neither engine waits for the other. workflow-hygiene.test.mjs holds the split, and fails if
+  # WebKit runs in any gate job but `safari`.
   #
   # What it costs is not time — about three minutes, beside the smoke shards' five to eight — but one
   # more way for a release to be held: red here, and nothing is uploaded, as for any gate job. The Rules
@@ -463,13 +466,111 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+  # ── SAFARI'S ENGINE, ON THE TREE BEING RELEASED (owner, 17 Nov 2026) ───────────────────────────
+  #
+  # The app serves iPhone and Android equally, yet until now a release was tested on Chrome alone:
+  # the WebKit suite ran on every branch, never on main after the merge, so two changes that were
+  # each green on their branch could still ship a page Safari will not start. This job runs two
+  # small sets on the iPhone's engine (WebKit at iPhone size), and the deploy waits for both:
+  #   1. EVERY PAGE OPENS (e2e/every-page.spec.js): each app page, guide and old address, past its boot
+  #      with nothing thrown. Its pages come from scripts/app-pages.mjs, so a new page joins by itself.
+  #   2. THE SIGNED-IN JOURNEYS' IPHONE HALF: the `signed-in` job's journeys, through the real SDK,
+  #      rules and functions on the emulators. 90 branch runs in a row green when it joined.
+  # NOT the whole WebKit suite: in branch CI that is nine jobs, the longest over twenty minutes, and
+  # every release would wait for it (DECISIONS.md → "A few Safari tests gate the release" has what was
+  # weighed). Locally the two sets' tests took about two and a half minutes (every page 10 seconds,
+  # the journeys 2.2 minutes), so with its setup this job should take about five, against 9m 36s for
+  # the slowest smoke shard in the release of 17 Nov 2026: a release waits no longer than it did.
+  #
+  # IT NEVER STANDS ASIDE FOR A PROVEN TREE (18 Nov 2026). `tested` lets check, smoke, csp and
+  # signed-in stand aside when a pull request already passed them on this exact tree, but its record
+  # covers no WebKit check except signed-in's iPhone half: on a pull request the WebKit suite gates
+  # nothing, so a tree whose WebKit jobs were red still carries the proof. So this job runs on every
+  # release and `deploy` waits for it either way; a proven release then waits for this job alone.
+  #
+  # Every page first: it is the quick one, and a page that cannot start would fail the journeys
+  # too, less clearly. A red step stops the job, so the report uploaded is the failing step's.
+  # workflow-hygiene.test.mjs holds the two commands, the spec's name, and that WebKit runs in no other
+  # gate job. One cost to know: a test added to every-page.spec.js gates every release from then on.
+  safari:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    # The test steps carry their budgets; this is the backstop: two installs, Java, WebKit's system
+    # libraries on a slow mirror (8 minutes at worst, e2e.yml's smoke job says why) and both test steps.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # The Firestore emulator is a Java program (the signed-in journeys).
+      - name: Install Java 21 (Firebase emulators)
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      # The Functions emulator loads the real functions, so their packages must be installed.
+      - name: Install function dependencies
+        run: npm ci
+        working-directory: functions
+
+      # One engine, so the cache entry e2e.yml's webkit jobs use.
+      - name: Restore Playwright WebKit from the cache
+        id: pw-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-webkit-${{ hashFiles('node_modules/@playwright/test/package.json') }}
+      - name: Install Playwright WebKit
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install webkit
+      - name: Install WebKit's system libraries
+        timeout-minutes: 8
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: webkit
+
+      - name: Every page opens on the iPhone's engine
+        timeout-minutes: 10
+        run: npm run test:webkit -- --project=mobile-safari e2e/every-page.spec.js
+        env:
+          CI: true
+
+      - name: Run the signed-in journeys on the iPhone's engine
+        timeout-minutes: 15
+        run: npm run test:signed-in -- --project=mobile-safari
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-safari
+          path: playwright-report/
+          retention-days: 7
+
   deploy:
     # The whole gate above. The `if:` below runs this job only when every gate job SUCCEEDED, or when
     # `tested` proved this tree already passed them on a pull request (its comment says how): one gate
-    # job red, cancelled or skipped without that proof, and this job does not run. It names each
-    # result rather than leaning on the implicit `success()`, because that would also stop it when
-    # the gate jobs stood aside for a proven tree. `!cancelled()` keeps a cancelled run from deploying.
-    needs: [tested, check, smoke, csp, signed-in]
+    # job red, cancelled or skipped without that proof, and this job does not run. `safari` is the one
+    # it never stands in for: no pull request's record covers it, so it runs on every release and must
+    # succeed either way (its own comment says why). It names each result rather than leaning on the
+    # implicit `success()`, because that would also stop it when the gate jobs stood aside for a
+    # proven tree. `!cancelled()` keeps a cancelled run from deploying.
+    needs: [tested, check, smoke, csp, signed-in, safari]
     # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
     #
     # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
@@ -491,7 +592,7 @@ jobs:
     # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
     # explicit input and widen this condition to name it. Do not simply delete the check. The gate
     # jobs above carry the same condition, so a branch run spends no time testing either.
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((needs.tested.result == 'success' && needs.tested.outputs.tested == 'true') || (needs.check.result == 'success' && needs.smoke.result == 'success' && needs.csp.result == 'success' && needs.signed-in.result == 'success')) }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.safari.result == 'success' && ((needs.tested.result == 'success' && needs.tested.outputs.tested == 'true') || (needs.check.result == 'success' && needs.smoke.result == 'success' && needs.csp.result == 'success' && needs.signed-in.result == 'success')) }}
     # The image it has always deployed from. Nothing in this job starts a browser any more, so the pin
     # is kept for continuity rather than for the visual baselines; moving it is a change of its own.
     runs-on: ubuntu-24.04
@@ -656,7 +757,7 @@ jobs:
   # that, so this lists them all. The notice says "cut off part-way" only when `deploy` itself was
   # cancelled: a gate job cut off means nothing was uploaded, which is the plain "did not deploy".
   report-failure:
-    needs: [tested, check, smoke, csp, signed-in, deploy]
+    needs: [tested, check, smoke, csp, signed-in, safari, deploy]
     if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5

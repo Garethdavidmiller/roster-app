@@ -622,6 +622,29 @@ describe('a damaged saved card state is reset ALOUD, until the member re-checks 
     });
 });
 
+// …and on a card with no figures the reset is ALL it says (18 Nov 2026). That exit hid the notice
+// without clearing it, so the warning was appended to whatever an earlier render had left there. The
+// state is a year flagged as accepted with nothing on record, the one way a card has no figures.
+describe('a reset warning on a card with no figures follows nothing an earlier render left', () => {
+    test('the no-figures card clears the notice before the warning joins it', () => {
+        TY.rateUnconfirmed = true;   // restored below
+        try {
+            openCard();
+            for (const id of ['oldRate', 'newRateInput', 'oldLondon', 'newLondon', 'bpRisePct']) els[id].value = '';
+            _ls.set(bpKey(TY), '"hello"');                     // damaged, so the reset is said aloud
+            assert.equal(restoreBpState(), false);
+            els.backPayNotice.innerHTML = 'ℹ️ Words an earlier render left.';
+            const out = calcBackPay();
+            assert.equal(out.bpAmount, 0, 'premise: a card with no figures prices nothing');
+            assert.match(els.backPayNotice.innerHTML, /couldn't be read and were reset/, 'premise: the reset is said');
+            assert.doesNotMatch(els.backPayNotice.innerHTML, /earlier render/, 'the warning landed after stale words');
+            cardEvent('change', true);                           // leave the module as later cases expect
+        } finally {
+            delete TY.rateUnconfirmed;
+        }
+    });
+});
+
 // ── A GRADE CHANGE NEVER PRICES ONE GRADE'S FIGURE IN ANOTHER'S BOX (paycalc-2-9) ────────────────
 // The CES 2025/26 award has no old rate on record, so that box keeps what it holds — and after a
 // change from CEA it held CEA's £20.06, unlocked, against CES's £21.81: "Yours is roughly £1,569.85"

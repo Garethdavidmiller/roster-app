@@ -94,6 +94,8 @@ mock.module('./nav-panel.js', {
 let _screenTaken = false;
 /** The first notice to open takes the screen, so every later one is refused — the real helper on one load. */
 let _oneScreen = false;
+/** Every click a notice's link handed to `followLinkOutOf`, with the notice it was handed for (18 Nov 2026). @type {Array<{ lb: any, e: any }>} */
+let _followed = [];
 mock.module('./overlay.js', {
     namedExports: {
         createLightbox: (/** @type {any} */ cfg) => ({
@@ -101,6 +103,8 @@ mock.module('./overlay.js', {
             open() { _directOpens += 1; },      // must never be reached — see the v19.53 rule
             close() { _closed.push(cfg.overlay.id); },
         }),
+        // The real one replaces the notice's history entry with the link's page; that is overlay-history.test.mjs's.
+        followLinkOutOf: (/** @type {any} */ lb, /** @type {any} */ e) => { _followed.push({ lb, e }); return true; },
         // Its real contract: true when it opened the notice, false when the screen was not clear.
         openNoticeIfClear: (/** @type {any} */ lb) => {
             if (_screenTaken) return false;
@@ -151,7 +155,7 @@ async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay)
     _route = route;
     _store = { ...store };
     _reads = []; _writes = []; _archived = []; _openedViaHelper = []; _directOpens = 0; _listeners = new Map();
-    _els = new Map(); _closed = []; _installCalls = []; _screenTaken = false; _oneScreen = false;
+    _els = new Map(); _closed = []; _installCalls = []; _screenTaken = false; _oneScreen = false; _followed = [];
     _expired = expired;
     _access = newAccessGate();
     const mod = await import(`./calendar-notices.js?n=${++_n}`);
@@ -709,9 +713,10 @@ describe('5 · the install notice: a phone browser, third in line, and the right
         const go = _listeners.get('installNoticeGo:click');
         assert.ok(go, 'the link has a click handler');
         _installCalls = [];
-        go();
+        go({ type: 'click', button: 0 });
         assert.deepEqual(_writes, [[DONE, '1']]);
         assert.deepEqual(_installCalls, ['retire']);
+        assert.equal(_followed.length, 1, 'the mirror\'s link to the main address replaces the notice\'s history entry too');
     });
 
     test('every close — the ×, the backdrop, Escape, "Not now" — answers it, and the strip does not ask again', async () => {
@@ -882,8 +887,9 @@ describe('6 · the timetable notice: a one-off from the start, offered to the en
         await settleAccess();
         const go = _listeners.get(`${GO_ID}:click`);
         assert.ok(go, `the link (#${GO_ID}) has a click handler`);
-        go();
+        go({ type: 'click', button: 0 });
         assert.deepEqual(_writes, [[DONE, '1']]);
+        assert.deepEqual(_followed.map(f => f.lb), [_openedViaHelper[0]], 'followed by replacing the notice\'s own history entry');
     });
 
     test('archived on OPEN, so the drawer keeps it after the link has taken the member away', async () => {
@@ -1000,8 +1006,9 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
         await settleAccess();
         const go = _listeners.get(`${GO_ID}:click`);
         assert.ok(go, `the link (#${GO_ID}) has a click handler`);
-        go();
+        go({ type: 'click', button: 0 });
         assert.deepEqual(_writes, [[DONE, '1']]);
+        assert.deepEqual(_followed.map(f => f.lb), [_openedViaHelper[0]], 'followed by replacing the notice\'s own history entry');
     });
 
     test('archived on OPEN, so the drawer keeps it after the link has taken the member away', async () => {
@@ -1498,8 +1505,13 @@ describe('11 · the New link notice: only where the page would let them in, afte
         await settleAccess();
         const lb = opened();
         assert.ok(lb);
-        _listeners.get('newlinkNoticeGo:click')?.();
+        const click = { type: 'click', button: 0 };
+        _listeners.get('newlinkNoticeGo:click')?.(click);
         assert.deepEqual(_writes, [[DONE, '1']], 'the link marks it done before the page is left');
+        // …and is followed by REPLACING this notice's history entry, never left to stack the page on top of it.
+        assert.equal(_followed.length, 1, 'the link was left to the browser, which leaves a dead step in Back');
+        assert.equal(_followed[0].lb, lb, 'handed over with its OWN notice, whose entry it replaces');
+        assert.equal(_followed[0].e, click);
         _writes = [];
         lb._cfg.onClose();
         assert.deepEqual(_writes, [[DONE, '1']], 'so does a close');
@@ -1592,5 +1604,28 @@ describe('12 · a follower never waits on a retired notice\'s code (16 Nov 2026)
                      store: { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' } });
         await settleAccess();
         assert.ok(opened(), 'premise: with both flags it opens');
+    });
+});
+
+// ── A NOTICE'S LINK LEAVES NO DEAD STEP IN BACK (18 Nov 2026) ─────────────────────────────────────────────
+// A notice's call to action was a plain <a href> whose listener only answered the notice, so the page it opened
+// stacked on top of the notice's own history entry, and one Back from there landed on a step of the Calendar that
+// nothing answered. Every link is wired through `_wireNoticeLink` now, which hands the click to `followLinkOutOf`
+// (overlay.js: replace that entry with the page — overlay-history.test.mjs drives it). Read from the MARKUP, so a
+// notice added later is held to it; the browser journey is e2e/calendar.spec.js.
+describe('13 · every notice\'s link replaces the notice\'s history entry rather than stacking on it', () => {
+    const page = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+    const links = [...page.matchAll(/<a [^>]*\bid="(\w+NoticeGo)"/g)].map(m => m[1]);
+
+    test('premise: the notices carry links', () => {
+        assert.ok(links.length >= 2, `index.html: found ${links.length} notice links`);
+    });
+    for (const id of links) {
+        test(`#${id} is wired through _wireNoticeLink, with its own notice`, () => {
+            assert.match(SOURCE, new RegExp(`_wireNoticeLink\\('${id}', lb, \\w+\\);`), `#${id} is not wired through the one helper`);
+        });
+    }
+    test('no notice wires its link by hand', () => {
+        assert.doesNotMatch(SOURCE, /NoticeGo'\)\?\.addEventListener\(/, 'a hand-wired link is left to the browser, which stacks the page on the notice');
     });
 });

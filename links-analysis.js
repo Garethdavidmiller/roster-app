@@ -33,7 +33,7 @@
  * list while making the identical claim.
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
-    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
+    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours, SPARE_WORKED_DAYS } from './links-design.js';
 import { assessFatigue, COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
@@ -457,10 +457,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
 
         const checks = runDesignChecks(design.patterns, ROTATING_LINES);
         const { weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
-        const { early, late, spare, worked } = balance;
+        const { early, late, spare, worked, coverWeeks } = balance;
         const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
         const latePct  = worked ? Math.round((late  / worked) * 100) : 0;
-        // Of every WORKED day, cover days included: with a cover week, the spare share says where the rest went.
+        // Of every WORKED day, cover duties included (a cover week's SPARE_WORKED_DAYS): the spare share says where the rest went.
         const sparePct = worked ? Math.round((spare / worked) * 100) : 0;
 
         const tick  = `<span class="check-icon check-tick" aria-hidden="true">✓</span>`;
@@ -578,7 +578,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // Say what the number is once a spare week can affect it. It is the WORST CASE over
             // every placement of that week's four duties, and a reader who assumes otherwise will
             // read it as a fact about the design rather than a ceiling on it.
-            (hasSpare ? `<div class="check-sub">A spare week is 4 duties on Monday to Saturday, which can fall on any of them, and its Sunday can be worked as overtime on top, so this is the worst case.</div>` : '') +
+            (hasSpare ? `<div class="check-sub">A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, which can fall on any of them, and its Sunday can be worked as overtime on top, so this is the worst case.</div>` : '') +
             `</div></div>`
         );
 
@@ -588,7 +588,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `<strong>Shift balance</strong> — ${early} early / ${late} late / ${spare} spare` +
             ` across the ${TOTAL_POS}-line rotation` +
             `<span class="check-note"> (${earlyPct}% early, ${latePct}% late${spare ? `, ${sparePct}% spare` : ''})</span>` +
-            `</div></div>`
+            (coverWeeks ? `<div class="check-sub">A cover week counts as the ${SPARE_WORKED_DAYS} duties it works, Monday to Saturday — not every day it is marked spare.</div>` : '') + `</div></div>`
         );
 
         // ── HOURS A WEEK (v20.04) ────────────────────────────────────────────

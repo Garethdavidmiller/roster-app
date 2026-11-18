@@ -1170,7 +1170,7 @@
             .al-confirm-bar, .al-confirm-bar.visible, #saveToast { transition: none; }
         }
 
-        /* .card-collapsible-header/.card-collapsible-body/.collapse-chevron — consolidated into shared.css */
+        /* .card-collapsible-body and .collapse-chevron live in shared.css (.card-collapsible-header is retired) */
 
         /* Cultural calendar + login overlay CSS moved to shared.css (v11.06) */
 
@@ -2019,9 +2019,6 @@
 
         }
 
-        /* .btn-signout defined in shared.css */
-
-        /* ---- Login overlay ---- */
         /* ---- Unsaved changes confirmation banner ---- */
         #unsavedBanner {
             position: fixed;

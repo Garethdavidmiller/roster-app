@@ -27,7 +27,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { headlineLabels, renderResultHeadline, renderYtdLine } from './paycalc-result-headline.js';
+import { headlineLabels, renderResultHeadline, renderYtdLine, renderUnpricedPayslip } from './paycalc-result-headline.js';
 
 const PAYDAY = new Date(2026, 8, 25);          // Fri 25 Sep 2026
 const ACTUAL = { gross: 4200, tax: 700, ni: 300, sl: 0, net: 3200 };
@@ -154,6 +154,22 @@ describe('a stale target — the silent way the two get crossed', () => {
     test('a missing element does not throw — the sticky bar is not on every layout', () => {
         globalThis.document = /** @type {any} */ ({ getElementById: () => null });
         assert.doesNotThrow(() => renderResultHeadline({ actual: null, net: 10, payday: PAYDAY }));
+    });
+
+    // A PAYSLIP WITH NO FIGURE (18 Nov 2026). calculate() stops before the headline on a payslip it
+    // cannot price, so "£–" kept the previous payslip's label — "(inc. back pay)" over no figure at all.
+    test('a payslip with no figure keeps no other payslip\'s label — the slot is named plainly', () => {
+        const els = fakeDom();
+        els.unpricedPayslipNote = { textContent: '', hidden: true };
+        /** @type {any} */ (globalThis.document).body = { classList: { toggle() {} } };
+        renderResultHeadline({ actual: null, net: 2900, payday: PAYDAY, bpThisPeriod: 512.34 });
+        assert.match(els.netLabel.textContent, /inc\. back pay/, 'premise: the payslip before said what it includes');
+        renderUnpricedPayslip('No estimate for this payslip.');
+        assert.equal(els.netLabel.textContent, headlineLabels({ hasActual: false, payday: null }).netLabel);
+        assert.doesNotMatch(els.netLabel.textContent, /inc\./);
+        assert.equal(els.netDisplay.textContent, '£–');
+        assert.equal(els.stickyAmount.textContent, '£–');
+        assert.equal(els.unpricedPayslipNote.hidden, false, 'and the line says why');
     });
 });
 

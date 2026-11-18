@@ -251,8 +251,10 @@ export function parseGrid(text, { lines = ROTATING_LINES } = {}) {
     }
     // SHORT is a warning, not a refusal: a half-drafted proposal is a real thing to want in the
     // workspace, and the design panels already report an unfilled line better than this could.
+    // The count is the summary's own (`summariseImport`): an empty week keeps its place as a key, and counting
+    // keys put "Only 20 of 26 lines are filled" under a summary of "19 of 26 lines" (whole-app check, Nov 2026).
     if (count < lines) {
-        warnings.push(`Only ${count} of ${lines} lines are filled — the rest stay empty, and the `
+        warnings.push(`Only ${summariseImport(patterns).filled} of ${lines} lines are filled — the rest stay empty, and the `
             + 'design checks will flag them.');
     }
     if (emptyLines.length === 1) {
@@ -350,8 +352,8 @@ export function parseDesignImport(text, { lines = ROTATING_LINES } = {}) {
             patterns[pos] = out;
         }
         const count = Object.keys(patterns).length;
-        const warnings = count < lines
-            ? [`Only ${count} of ${lines} lines are filled — the rest stay empty, and the design checks will flag them.`]
+        const warnings = count < lines   // the summary's count, as for a grid: a week of rest days is a key, not a filled line
+            ? [`Only ${summariseImport(patterns).filled} of ${lines} lines are filled — the rest stay empty, and the design checks will flag them.`]
             : [];
         for (const a of assumptions) warnings.push(a);
         const night = nightDutyWarning(patterns);

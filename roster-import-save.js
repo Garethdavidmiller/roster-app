@@ -99,7 +99,8 @@ function planChunk(chunk, currentUser) {
         };
         if (deleteOnly) { drop(); continue; }   // REMOVE_IMPORT, or a rest day over a base rest day: clear, write nothing
         if (typeof value === 'string' && isZeroLengthRange(value)) {
-            console.warn(`[roster-upload] Refused zero-length shift "${value}" for ${memberName} ${date} — not written`);
+            // No name (the device may be shared, and its console is readable by whoever opens it next).
+            console.warn(`[roster-upload] Refused a zero-length shift "${value}" on ${date} — not written`);
             continue;
         }
         // Sunday shifts save as 'rdw' and an explicit RDW| prefix is honoured (the date decides).

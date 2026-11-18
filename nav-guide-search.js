@@ -38,10 +38,16 @@ const EVIDENCE_LABELS = {
  * A guide whose page sends the reader somewhere else. The FIP guide's conflict (the Vilnius–Riga
  * train) is a question for Rail Staff Travel, as its source banner says; a retail system sells no
  * FIP coupon, so "check the retail system" was advice that could not be followed.
+ *
+ * And a guide whose draft means something else. The Railcard guide's one draft (how long a
+ * Jobcentre Plus card lasts) WAS read at its source, which simply does not say — its page says
+ * "not established" — so "source not yet verified", the Rangers guide's meaning of a draft, told a
+ * member nobody had looked (whole-app check, Nov 2026). Its only draft marker is `rc-unsourced`.
  * @type {Record<string, Partial<Record<keyof typeof EVIDENCE_LABELS, string>>>}
  */
 const PAGE_EVIDENCE_LABELS = {
     'fip-guide.html': { conflict: '⚠ Source conflict — ask Rail Staff Travel' },
+    'railcard-guide.html': { draft: 'Draft — the source does not say' },
 };
 
 const RESULT_LIMIT = 8;

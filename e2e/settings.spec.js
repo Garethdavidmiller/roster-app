@@ -200,6 +200,24 @@ test('settings: a saved work email says so before it offers to remove it', async
     expect(f.y + f.height, 'the confirmation must sit above the Remove action').toBeLessThanOrEqual(r.y);
 });
 
+// TYPED BEFORE THE SAVED ADDRESS LOADED (18 Nov 2026). On a slow first read the card keeps what the member has typed,
+// and it told the summary "✓ Saved" — but left Remove hidden and the subtitle asking for an email, so a member with
+// an address saved could neither see which one it was nor remove it.
+test('settings: an email typed before the saved one loads is kept — and the card still names the saved one and offers Remove', async ({ page }) => {
+    await page.addInitScript(() => { (globalThis.__E2E || (globalThis.__E2E = {})).getDocHold = true; });
+    await openSettings(page, { configured: true, noPush: true });
+    await expect.poll(() => page.evaluate(() => typeof /** @type {any} */ (window).__E2E?.releaseGetDoc),
+        { message: 'premise: the saved email is still being read' }).toBe('function');
+    if (!(await cardOpen(page, 'contactBody'))) await page.locator('#contactChevron').click();
+    await page.locator('#workEmailInput').fill('q.example');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseGetDoc());
+    await expect(page.locator('#contactStatusChip')).toHaveText('✓ Saved');
+    await expect(page.locator('#workEmailInput'), 'what the member typed is kept').toHaveValue('q.example');
+    await expect(page.locator('#contactFeedback'), 'no "✓ Saved" for a Save they have not pressed').toHaveText('');
+    await expect(page.locator('#contactHint'), 'the collapsed card names the address that IS saved').toHaveText('g.miller@chilternrailways.co.uk');
+    await expect(page.locator('#workEmailRemoveBtn'), 'and the saved address can be removed').toBeVisible();
+});
+
 for (const [label, missingId, chipId, noPush, forcePush] of [
     // `noPush` false for notifications ON PURPOSE: with push unsupported the card answers 'n/a' at
     // the SUPPORT check and never reaches the markup guard, so the test would pass without
@@ -1096,12 +1114,13 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
     });
 }
 
-// THE INSTALLED APP HAS NO PADLOCK (whole-app check, 17 Nov 2026). On Android the blocked route said "tap the padlock in
-// Chrome" — and the home screen app has no address bar to tap. There the permission is the app's own, in the phone's
-// settings, as an iPhone's is; a browser tab keeps the padlock.
+// THE INSTALLED APP HAS NO ADDRESS BAR (whole-app check, 17 Nov 2026). On Android the blocked route said "tap the padlock
+// in Chrome" — and the home screen app has no address bar to tap. There the permission is the app's own, in the phone's
+// settings, as an iPhone's is; a browser tab keeps the address bar's site icon — described, not named a padlock, since
+// Chrome drew it as two sliders from 2023 (18 Nov 2026).
 for (const [where, installed, says] of /** @type {const} */ ([
     ['the home screen app', true, 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'],
-    ['a browser tab', false, 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.'],
+    ['a browser tab', false, 'On Android: tap the icon at the left of Chrome’s address bar (a padlock or two sliders) → Site settings → Notifications → Allow.'],
 ])) {
     test(`settings: blocked on Android, ${where} is told the route that exists there`, async ({ page }) => {
         await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied', installed });
@@ -1110,7 +1129,9 @@ for (const [where, installed, says] of /** @type {const} */ ([
 }
 
 // A BLOCKED BELL SAYS SO WHEN TAPPED (whole-app check, 17 Nov 2026). It wore 🔕 — the same as "off" — and a tap did
-// nothing: the browser will not ask again, and only a screen reader heard "blocked". It now says where it is fixed.
+// nothing: the browser will not ask again, and only a screen reader heard "blocked". It now says where it is fixed:
+// on Settings, the card on the page under the drawer (18 Nov 2026 — it gave the menu route to the page the reader
+// was already on); anywhere else, the menu route there.
 test('settings: the drawer\'s bell, blocked, says where notifications are allowed again', async ({ page }) => {
     await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied' });
     await page.locator('#navMenuBtn').click();
@@ -1120,6 +1141,13 @@ test('settings: the drawer\'s bell, blocked, says where notifications are allowe
     const panel = page.locator('#navComingSoonLightbox');
     await expect(panel).toHaveClass(/\bopen\b/);
     await expect(page.locator('#navComingSoonTitle')).toHaveText('Notifications blocked');
+    await expect(page.locator('#navComingSoonBody')).toContainText('the bell can’t switch them on. The Notifications card on this page says how to allow them.');
+    await expect(page.locator('#navComingSoonBody')).not.toContainText('☰ → Settings');
+
+    await page.goto('/');                                       // the same device, on the Calendar
+    await page.locator('#navMenuBtn').click();
+    await expect(bell).toHaveAttribute('data-notif-state', 'denied');
+    await bell.click();
     await expect(page.locator('#navComingSoonBody')).toContainText('the bell can’t switch them on. ☰ → Settings → Notifications says how to allow them.');
 });
 
@@ -1156,4 +1184,29 @@ test('settings: a blocked notification\'s route never starts a line with an arro
     });
     expect(lines.length, 'premise: the message wraps at 1280px').toBeGreaterThan(1);
     expect(lines.filter(l => l.startsWith('→')), `a line starts with an arrow: ${JSON.stringify(lines)}`).toEqual([]);
+});
+
+// ── THE ABOUT PANEL'S PAGE LINKS LEAVE NO DEAD STEP IN BACK (18 Nov 2026) ───────────────────────────────────────
+// "View staff roster" was a plain link inside the open panel, which holds a history entry with this page's address:
+// the Calendar stacked on top of it, and Back from there came back to that entry — Settings again, with the next Back
+// doing nothing. The panel's page links now REPLACE its entry, on every page that has one (about-lightbox.js, through
+// overlay.js `followLinkOutOf`). Playwright runs with the back/forward cache off, so Back reloads here, as a phone
+// does whenever the page holds a database connection.
+test('settings: the About panel\'s "View staff roster" — one Back returns to Settings, and the next leaves it', async ({ page }) => {
+    await page.goto('/railcard-guide.html');                   // where the member came from
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanelBrand').click();               // the drawer's head opens About
+    const about = page.locator('#iconLightbox');
+    await expect(about).toHaveClass(/\bopen\b/);
+    await expect.poll(() => page.evaluate(() => history.state?.mybOverlay ?? null),
+        { message: 'premise: the panel holds its own Back entry' }).toBe(true);
+    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await expect(page.locator('.calendar-day').first(), 'the link opened the Calendar').toBeVisible({ timeout: 15_000 });
+    await page.goBack();
+    await expect(page).toHaveURL(/\/settings\.html$/);
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null),
+        'Back landed on the panel\'s own entry, whose next Back nothing answers').toBeNull();
+    await page.goBack();
+    await expect(page, 'one more Back leaves Settings').toHaveURL(/\/railcard-guide\.html$/);
 });

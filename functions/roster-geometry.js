@@ -291,7 +291,11 @@ function rulesFromOperatorList(ops, OPS) {
 // placed, and each row handed over a day early — Monday's duties as Sunday's — with nothing on the
 // review to say so. The header is now read before it is dropped: a page whose header names the days in
 // any other order gives no rows (`extractRosterGeometry`), and the cell path runs only once a header
-// has been read in order (`buildCellTable`, roster-prompt.js).
+// has been read in order (`buildCellTable`, roster-prompt.js). A page printing no header of its own is
+// still read Sunday first, the measured order — until another page of the same file prints its days
+// in another order. Then it gives no rows either, to the witness as much as to the cell path: a
+// Monday-first file whose second page repeats no header would otherwise refuse a correctly read
+// Saturday as "a day out", and keep a disputed Sunday a slid read put there.
 
 /** A header cell's day — `headerToDayIndex` of a line or a word of it — or undefined when it names
  *  none, or more than one. "Sunday", "Sun 30/08" and "30/08 | Sun" all name Sunday.
@@ -330,8 +334,9 @@ const inWeekOrder = (/** @type {Array<number|undefined>} */ days) => days.every(
  * Assign every text run on one page to its physical (row, column) cell — the page's member rows.
  *
  * PURE: takes the runs and the rules, returns member rows. The pdfjs shapes are flattened first so
- * this can be driven from a JSON fixture without a PDF. `readGridPage` is the same read with the
- * page's day header counted too.
+ * this can be driven from a JSON fixture without a PDF. **Exported for the tests, which build pages
+ * of rows; production never calls it** — `extractRosterGeometry` reads each page through
+ * `readGridPage`, the same read with the page's day header counted too, and this is its rows.
  *
  * @param {{ items: Array<{ str: string, x: number, y: number }>, vx: number[], hy: number[] }} page
  * @returns {Array<{ name: string, cells: string[], occupancy: boolean[] }>|null}
@@ -412,7 +417,8 @@ function readGridPage({ items, vx, hy }) {
  * this witness existed. It also gathers the sheet's own `Week Ending:` headings (`weekEndings`) from
  * every page with text, grid or not: the heading sits above the grid (roster-week-heading.js). And it
  * counts the day headers read Sunday to Saturday (`dayHeaders`): a page whose header runs in another
- * order is REJECTED, rows and all (`pagesMisordered`; section 2 says why).
+ * order is REJECTED, rows and all (`pagesMisordered`; section 2 says why), and once one is, a page
+ * that prints no header of its own gives no rows either.
  *
  * @param {Buffer|Uint8Array} pdfBytes
  * @param {{ loadPdfjs?: () => Promise<any> }} [deps]   injectable for tests; default imports the pinned pdfjs-dist (6.5.438)
@@ -421,6 +427,10 @@ function readGridPage({ items, vx, hy }) {
 async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOMETRY_WORK_BUDGET_MS, now = Date.now } = {}) {
     /** @type {RosterGeometry} */
     const result = { available: false, rows: [], pagesRead: 0, pagesRejected: 0, weekEndings: [], dayHeaders: 0, pagesMisordered: 0 };
+    /** Each page's rows, kept apart until every page is read: whether a page with no day header of its
+     *  own can be believed depends on the OTHER pages (below the loop). */
+    /** @type {Array<{ page: number, rows: RosterGeometry['rows'], headed: boolean }>} */
+    const pageRows = [];
     const deadline = now() + workBudgetMs;
     let pdfjs;
     try {
@@ -467,7 +477,7 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
                 }
                 result.pagesRead++;
                 result.dayHeaders = (result.dayHeaders || 0) + read.headers;
-                result.rows.push(...read.rows);
+                pageRows.push({ page: p, rows: read.rows, headed: read.headers > 0 });
             } catch (err) {
                 result.pagesRejected++;
                 console.warn(`[roster-geometry] page ${p} could not be read: ${err && err.message}`);
@@ -479,6 +489,19 @@ async function extractRosterGeometry(pdfBytes, { loadPdfjs, workBudgetMs = GEOME
         return result;
     } finally {
         try { if (task) await task.destroy(); } catch { /* nothing left to free */ }
+    }
+    // A page that prints no day header of its own — a continuation page — is read in the order every
+    // roster measured prints, Sunday first. Once a page of the SAME file has printed its days in
+    // another order, that is no longer a safe assumption about the rest of the file, and nothing on
+    // such a page says which order it is in: its rows are left out too. Not only of the cell path,
+    // which already needs a header, but of the witness and the disputed-Sunday settlement, which read
+    // these rows by position just the same (section 2).
+    for (const { page, rows, headed } of pageRows) {
+        if (!headed && result.pagesMisordered && rows.length) {
+            console.warn(`[roster-geometry] page ${page}: no day header, and another page's runs in another order — no row on it is read`);
+            continue;
+        }
+        result.rows.push(...rows);
     }
     result.available = result.rows.length > 0;
     // A page READ is a page with text and the nine-column grid, so when such a page placed no member

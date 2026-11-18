@@ -928,6 +928,40 @@ describe('the pension controls keep a payslip\'s own figure (paycalc-3-3)', () =
     });
 });
 
+// ── A CES PAYSLIP'S PENSION IS THE CEA FIGURE, AND SAYS SO (18 Nov 2026) ─────────────────────────
+// PENSION_STEPS is one table for both grades, and every step in it was read off CEA payslips
+// (VAL-PAY-007). It stays the default — no figure at all would be further out — but on a payslip
+// worked as a CES the line beside the box says so and asks for the payslip's own. The member is the
+// invented `beMember` row; the grade comes from the roster, as it does for every member by default.
+describe('a payslip worked as a CES says its pension figure is the CEA one', () => {
+    /** @type {any} */ let P = null;
+    /** @type {any} */ let S = null;
+    before(async () => { P = await import('./paycalc-periods.js'); S = await import('./paycalc-settings.js'); });
+    beforeEach(() => { _ls.clear(); _ls.set(SK.grade, 'roster'); _ls.set(SK.setup, '1'); });
+    afterEach(beNobody);
+
+    /** Paint today's payslip for a member of `role`, as loadPeriodData does; is the line hidden? */
+    async function noteHidden(/** @type {string} */ role, /** @type {any[]|null} */ timeline = null) {
+        beMember({ role });
+        if (timeline) _ls.set(SK.pensionTimeline, JSON.stringify(timeline));
+        const V = P.todaysPeriodNum();
+        await settingsCard(V);
+        S.loadSettings();
+        S.applyPensionOptOutUI(getPeriods().find((/** @type {any} */ x) => x.num === V));
+        return card.pensionCesNote.hidden;
+    }
+
+    test('a CES payslip says the figure is the CEA one', async () => {
+        assert.equal(await noteHidden('CES'), false, 'a CES member was shown the CEA figure as though it were theirs');
+    });
+    test('a CEA payslip has nothing to say — the table is read off CEA payslips', async () => {
+        assert.equal(await noteHidden('CEA'), true);
+    });
+    test('inside an opt-out spell there is no deduction, so nothing to check', async () => {
+        assert.equal(await noteHidden('CES', [{ from: P.todaysPeriodNum() - 2, out: true }]), true);
+    });
+});
+
 // ── A REFUSED START IS NOT LEFT ON SCREEN (paycalc-1-10; whole-app check, 10 Nov 2026) ───────────
 // A start moved at or before an earlier rejoin is refused — a spell that has already ENDED is left
 // alone (`withOptOutStartAt`). The date's change handler saved, nothing moved, and the select went on

@@ -74,10 +74,16 @@ import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim
  * @param {Function}          [cfg.onClick]       Runs at the very top of the save click, before the member/dates
  *   guard (AL: captures + resets the over-limit-confirmed flag, exactly as the old top-of-handler code did).
  * @param {(ctx: { member: string, dates: string[], memberObj: any, ovByDate: Map<string, any>|null,
- *   swapAnswers: Map<string, boolean> }) => any} [cfg.project]  WHAT THIS SAVE WILL DO (v23.79, AL only) —
+ *   swapAnswers: Map<string, boolean> }) => any} [cfg.project]  WHAT THIS SAVE WILL DO (v23.79) —
  *   given the stored state AND the admin's current swap answers. Its result is handed to `renderReady`
- *   as `projection` so the preview can describe the save truthfully rather than describing the roster.
- *   Omit it (the absence card does) and `projection` is null.
+ *   as `projection` so the preview can describe the save truthfully rather than describing the roster,
+ *   and its `counts.writing` decides whether Save has anything to record. Both cards supply one (the
+ *   Absence card since Nov 2026, so a range whose days are all left as they are cannot be saved);
+ *   omitted, `projection` is null and the rest-day count decides.
+ * @param {(projection: any, ovByDate: Map<string, any>|null) => string[]} [cfg.leftAloneLines]  Receipt
+ *   lines for days this card's save leaves alone that the shared receipt does not word — the Absence
+ *   card's rest days holding Rest Day Working or leave, where an absence would never show (admin-sick.js).
+ *   Read from the plan the click checked, as every other receipt line is.
  * @param {(ctx: { member: string, dates: string[], memberObj: any, swapAnswers: Map<string, boolean> })
  *   => boolean} [cfg.preSave]  Runs after the
  *   member/dates guard; return true to abort the save (AL: the over-entitlement check that shows the confirm bar; Absence: the same bar when it takes back a day in lieu).
@@ -246,7 +252,8 @@ export function createRangeBookingSection(cfg) {
      * rest days answered "Rest day — free" (.claude/rules/admin.md → "AL on a rest day is ASKED
      * about": the receipt names the days it left alone, on BOTH surfaces) — named differently when
      * leave already stands on one — and the worked Sundays set as rest days (whole-app check: the
-     * preview called those "skipped" and the receipt said nothing).
+     * preview called those "skipped" and the receipt said nothing). A card adds lines of its own for
+     * days only it knows how to word (`cfg.leftAloneLines`: the Absence card's, review Nov 2026).
      *
      * Read from the SAME plan the click checked, so it cannot disagree with what the write does.
      * Built BEFORE the write, because a day named as already holding leave is a fact about the
@@ -261,7 +268,7 @@ export function createRangeBookingSection(cfg) {
         const lines = (/** @type {any} */ args) => buildSaveReceipt({ toSave: [], removed: [], memberName: member,
             formatDate: formatDisplay, describe: () => 'Sunday, set as a rest day', ...args }).lines;
         return {
-            leftAlone: skipped.length ? lines({ skipped, keptLeave }) : [],
+            leftAlone: [...(skipped.length ? lines({ skipped, keptLeave }) : []), ...(cfg.leftAloneLines?.(plan.projection, plan.ovByDate) ?? [])],
             sundays: plan.sundays.length ? lines({ toSave: plan.sundays.map(date => ({ date, type: 'correction', value: 'RD' })) }) : [],
         };
     }
@@ -327,7 +334,9 @@ export function createRangeBookingSection(cfg) {
     updatePreview();
 
     saveBtn.addEventListener('click', async () => {
-        if (saving) return;   // a disabled button cannot be tapped, but it can be .click()ed
+        // A disabled button ignores a tap AND `.click()` (HTML), so "Save anyway" pressed while this is
+        // disabled never arrives here (the cards clear their flag after the press); this guards the listener.
+        if (saving) return;
         // onClick runs before the guard so a section (AL) can capture + reset per-click state
         // even on an early return, exactly as the old top-of-handler code did.
         cfg.onClick?.();

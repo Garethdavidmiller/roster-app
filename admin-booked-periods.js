@@ -53,8 +53,9 @@
  */
 
 import { carriedFrom } from './leave-year.js';
-import { computePeriodDeleteIds } from './override-utils.js';
+import { computePeriodDeleteIds, withOutrankedManualCopies } from './override-utils.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
+import { namedDays } from './admin-period-dates.js';
 
 /**
  * What a row's ✕ deletes, and the line that then says so (review, Nov 2026). The records are
@@ -63,6 +64,17 @@ import { isChristmasClosureDate } from './christmas-leave.js';
  * took it unsaid. The line counts the days the row LISTED, and names the uncounted days of the same
  * type the delete takes with them (leave on a rest day, which costs nothing and so is not listed; a
  * Sunday's), which it used to leave out.
+ *
+ * …AND THE OLDER COPIES THOSE RECORDS OUTRANK GO WITH THEM (review, Nov 2026), as in every other Admin
+ * delete since v24.48 (`withOutrankedManualCopies`). Left behind, a copy from before the fixed per-day
+ * ids shows as the day's value the moment the record above it goes: an absence deleted from over an
+ * older leave copy brought the leave back, and the allowance fell by a day under "Deleted 1 absence
+ * day". The line names the days those copies were on.
+ *
+ * …AND A SUNDAY THE BOOKING SET AS A REST DAY IS SAID TO BE BACK (review, Nov 2026). A booking over a
+ * worked Sunday wrote a rest-day correction beside it, and its receipt named that Sunday; deleting the
+ * period deletes the correction too, so the rostered shift shows on the Calendar again, and the line
+ * said only "Deleted 5 AL days".
  * @param {{ overrides: any[], type: string, memberName: string, start: string, end: string,
  *           isRestGap: (d: string) => boolean, listedCount?: number }} args
  * @returns {{ ids: string[], said: string }}
@@ -70,16 +82,26 @@ import { isChristmasClosureDate } from './christmas-leave.js';
 export function periodDelete({ overrides, type, memberName, start, end, isRestGap, listedCount }) {
     const christmasRow = isChristmasClosureDate(start) && isChristmasClosureDate(end);
     const byId = new Map(overrides.map(o => [o.id, o]));
-    const ids = computePeriodDeleteIds(overrides, { type, memberName, start, end, isRestGap }).filter(id => {
+    const own = computePeriodDeleteIds(overrides, { type, memberName, start, end, isRestGap }).filter(id => {
         const o = byId.get(id);
         return christmasRow || !(o?.type === type && isChristmasClosureDate(o.date));
     });
-    const days = new Set(ids.map(id => byId.get(id)).filter(o => o?.type === type).map(o => o.date)).size;
+    const ids = [...withOutrankedManualCopies(overrides, own)];
+    /** The records behind some ids, each day once, in date order. @param {string[]} list @param {(o: any) => boolean} which */
+    const datesOf = (list, which) => [...new Set(list.map(id => byId.get(id)).filter(o => o && which(o)).map(o => o.date))].sort();
+    const days = datesOf(own, o => o.type === type).length;
     const listed = listedCount ?? days;
     const more = days - listed;
+    const older = ids.filter(id => !own.includes(id));
+    const olderOn = datesOf(older, () => true);
+    const sundays = datesOf(own, o => o.type === 'correction');
     const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
+    const one = sundays.length === 1;
     return { ids, said: `✓ Deleted ${listed} ${noun}${listed !== 1 ? 's' : ''} for ${memberName}`
-        + (more > 0 ? `, and ${more} more day${more === 1 ? ' that was' : 's that were'} not counted` : '') };
+        + (more > 0 ? `, and ${more} more day${more === 1 ? ' that was' : 's that were'} not counted` : '')
+        + (older.length ? `, and ${older.length === 1 ? 'an older copy' : `${older.length} older copies`} of ${namedDays(olderOn)}` : '')
+        + (sundays.length ? `. ${namedDays(sundays)}, set as ${one ? 'a rest day' : 'rest days'} for this `
+            + `${type === 'annual_leave' ? 'leave' : 'absence'}, ${one ? 'is' : 'are'} back on the roster.` : '') };
 }
 
 /**
@@ -250,7 +272,7 @@ export function pickBookedYear({ pinned, preferred, years }) {
  *   memberFor: (name: string) => any,
  *   isSunday: (iso: string) => boolean,
  *   mergePeriods: (dates: string[], isRestGap: (d: string) => boolean, addDay: (d: string) => string) => any[],
- *   isRestGap: (iso: string, memberObj: any) => boolean,
+ *   isRestGap: (iso: string, memberObj: any, ovByDate?: Map<string, any>|null) => boolean,
  *   addDays: (iso: string, n: number) => string,
  *   monthAbb: string[],
  *   memberDateMap?: (name: string) => Map<string, any>,
@@ -332,7 +354,9 @@ export function createBookedPeriods(deps) {
         //
         // The map is built ONCE per render. `consumesEntitlement` needs it to read `replacedType`,
         // which is the only surviving record of what an AL doc replaced — without it a swapped-in
-        // day reads as a rest day and would be filtered out of a list it belongs in.
+        // day reads as a rest day and would be filtered out of a list it belongs in. The MERGE reads it
+        // too: a rest day the member WORKED splits two runs of leave (review, Nov 2026). The ✕'s reach
+        // below does not — it walks out over the rest days the booking itself spanned, worked since or not.
         const ovByDate  = deps.memberDateMap ? deps.memberDateMap(memberName) : null;
         const dateList  = [...new Set(entries.map(e => e.date))]
             .filter(d => !deps.isSunday(d))
@@ -340,7 +364,7 @@ export function createBookedPeriods(deps) {
             .sort();
         if (!dateList.length && !hasXmas) return hide();
         const periods = dateList.length ? deps.mergePeriods(dateList,
-            d => deps.isRestGap(d, memberObj), d => deps.addDays(d, 1)) : [];
+            d => deps.isRestGap(d, memberObj, ovByDate), d => deps.addDays(d, 1)) : [];
 
         // A ROW'S ✕ ALSO TAKES THE UNCOUNTED LEAVE AT ITS EDGES (whole-app check, 10 Nov 2026). Leave
         // on a rest day costs nothing, so it is not listed — and the ✕ deletes from its first listed

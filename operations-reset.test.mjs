@@ -15,6 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resetQuestion, resetFailure, resetOutcome, LOST_PHONE } from './operations-reset.js';
 import { FETCH_TIMEOUT_CODE } from './fetch-timeout.js';
+import { buildAccountCalls } from './account-calls.js';
 
 const NAME = 'A. Member';
 const LANDED = Object.freeze({ success: true, revoked: true, stamped: true, notified: true });
@@ -66,6 +67,27 @@ test('a 503 and a 500 answered in a sentence are shown as written, beside Retry'
     assert.equal(fivehundred.note?.message, unknown);
 });
 
+// A RESET THAT WAS NEVER SENT SAYS SO (18 Nov 2026). The admin's sign-in is renewed before the request, and a renewal
+// that failed (offline, most often) reached the page unmarked: a bare "Retry" with no reason, though it is the one
+// failure that knows nothing changed. Through the REAL caller (account-calls.js), as the page calls it.
+test('a reset whose admin sign-in could not be renewed was never sent: Retry, and a reason that says nothing changed', async () => {
+    const realFetch = globalThis.fetch;
+    let fetched = 0;
+    globalThis.fetch = /** @type {any} */ (async () => { fetched++; throw new Error('sent'); });
+    try {
+        const offline = Object.assign(new Error('Firebase: Error (auth/network-request-failed).'), { code: 'auth/network-request-failed' });
+        const { resetMemberPassword } = buildAccountCalls({ auth: { currentUser: { getIdTokenResult: async () => { throw offline; } } } });
+        const err = await resetMemberPassword(NAME).then(() => null, (/** @type {any} */ e) => e);
+        assert.ok(err, 'premise: the call failed');
+        assert.equal(fetched, 0, 'premise: nothing was sent');
+        const { retry, note } = resetFailure(NAME, err);
+        assert.equal(retry, true, 'nothing changed, so trying again is the right offer');
+        assert.equal(note?.title, 'The reset wasn’t sent', 'a bare Retry gave the admin no reason');
+        assert.match(note?.message ?? '', new RegExp(`nothing was sent and ${NAME.replace('.', '\\.')}'s password has not changed`));
+        assert.equal(err.cause, offline, 'the renewal\'s own error is kept, for the console');
+    } finally { globalThis.fetch = realFetch; }
+});
+
 test('a 5xx with no sentence, or a network failure, is a bare Retry with nothing to say', () => {
     for (const err of [
         answered(500, '<html><body>Internal error</body></html>'),
@@ -86,7 +108,9 @@ test('a reset that did everything says nothing more than the row', () => {
 test('a member nobody told is the admin\'s errand, whether or not the sign-out worked (E2)', () => {
     const untold = resetOutcome(NAME, { ...LANDED, notified: false });
     assert.equal(untold?.title, 'Password reset — tell them yourself');
-    assert.match(untold?.message ?? '', /has no notifications on this app, so they have NOT been told/);
+    // `notified: false` is also a send that failed, so the line says what happened, never that the member has no notifications.
+    assert.match(untold?.message ?? '', new RegExp(`No reset notice reached ${NAME.replace('.', '\\.')}'s devices, so they have NOT been told`));
+    assert.doesNotMatch(untold?.message ?? '', /has no notifications/, 'a send that failed is blamed on the member\'s phone');
     assert.match(untold?.message ?? '', /their password is now their surname and they are signed out\./);
     assert.match(untold?.message ?? '', /Their other sessions were signed out\./);
     assert.doesNotMatch(untold?.message ?? '', /lost phone/, 'an ordinary reset never speaks of a lost phone');
@@ -106,7 +130,7 @@ test('a lost-phone reset says what it did, that nobody was told, and that the su
     assert.match(m, /notifications are now off on every device/);
     assert.match(m, new RegExp(`No reset notice was sent\\. Tell ${NAME.replace('.', '\\.')} yourself`));
     assert.match(m, /their surname signs in to their account — on the lost phone too/);
-    assert.doesNotMatch(m, /has no notifications on this app/, 'the lost-phone reset says it in its own words');
+    assert.doesNotMatch(m, /No reset notice reached/, 'the lost-phone reset says it in its own words');
 });
 
 test('a lost-phone reset whose notifications could not be switched off says so', () => {

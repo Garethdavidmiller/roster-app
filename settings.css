@@ -166,11 +166,12 @@ body {
 }
 
 @media print {
-    /* Settings is an interactive-only page (notifications, work email)
-       — nothing here is meaningful on paper. Reset the navy body
-       to white (so the message stays legible even with "Background graphics"
-       enabled), hide every interactive surface, and show one clear branded
-       notice in its place. */
+    /* Settings is an interactive-only page — nothing here is meaningful on
+       paper. Reset the navy body to white (so the message stays legible even
+       with "Background graphics" enabled), hide every interactive surface, and
+       show one clear branded notice in its place. The notice names every card
+       (18 Nov 2026): it named two, from before Password, Install and Pay
+       Calculator Data were added. */
     html, body { background: white !important; }
     .app,
     .app-header,
@@ -179,7 +180,7 @@ body {
     .nav-panel,
     .nav-panel-overlay { display: none !important; }
     body::before {
-        content: "⚙ Settings\A\A This is an interactive page — work email and notification preferences. There is nothing here to print.";
+        content: "⚙ Settings\A\A This is an interactive page — your work email, password and notifications, and what is saved on this device. There is nothing here to print.";
         white-space: pre-line;
         display: block;
         max-width: 16cm;

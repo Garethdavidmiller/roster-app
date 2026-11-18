@@ -35,7 +35,9 @@ const { buildPushPayload } = require('./push-notices');
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { enabledAdminUids } = require('./admin-recipients');
 const {
+    GLOBAL_SOURCE_KEY,
     LOCKOUT_RECORD_KEY,
+    throttleDecision,
     isThrottleStateStale,
     noteGlobalBlock,
     lockoutSummary,
@@ -109,6 +111,16 @@ function buildPinLockoutNotifier({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SI
  * Record a station-wide block that THIS wrong PIN imposed, and tell the admin if no notice has gone
  * in the last day. The record and the decision are one transaction, so two instances that trip the
  * block a moment apart cannot both ring the phone. Never throws; bounded by LOCKOUT_NOTICE_BUDGET_MS.
+ *
+ * **The block may already have gone, and then nothing is recorded or sent.** A right PIN is charged
+ * before its compare and refunded after it, and its refund takes a block back with the charge when
+ * the failures left would not have tripped it (`refundAttempt`). So a right PIN charged a moment
+ * before the wrong one that reached the limit can open the door again behind it: 199 wrong entries,
+ * not 200, and a notice and an Operations strip about a block nobody meets. The all-sources row IS
+ * the door, so the transaction reads it beside the record, and records nothing unless the door is
+ * still shut (`throttleDecision`). A refund that lands after this transaction cannot take the notice
+ * back; the strip then shows a block until the end it named — the safe direction, and the rarer order,
+ * since the sweep runs first.
  * @param {{ now: number, blockedUntil: number, notify: (blockedUntil: number) => Promise<number>, budgetMs?: number }} o
  * @returns {Promise<{ recorded: boolean, alert: boolean, accepted: number }>}
  */
@@ -117,12 +129,20 @@ async function noteStationBlock({ now, blockedUntil, notify, budgetMs = LOCKOUT_
     /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
     const work = (async () => {
         const ref = attempts().doc(LOCKOUT_RECORD_KEY);
-        outcome.alert = await db().runTransaction(async tx => {
-            const snap = await tx.get(ref);
+        const doorRef = attempts().doc(GLOBAL_SOURCE_KEY);
+        const told = await db().runTransaction(async tx => {
+            // Every read before any write, as Firestore requires.
+            const [snap, door] = await Promise.all([tx.get(ref), tx.get(doorRef)]);
+            if (throttleDecision(door.exists ? door.data() : null, now).allowed) return null;
             const { next, alert } = noteGlobalBlock(snap.exists ? snap.data() : null, now, blockedUntil);
             tx.set(ref, next);
             return alert;
         });
+        if (told === null) {
+            console.warn('[unlockCalendarViewer] the station-wide block was lifted before it was recorded (a right PIN\'s refund took its charge back) — nothing recorded, nobody told');
+            return;
+        }
+        outcome.alert = told;
         outcome.recorded = true;
         console.warn('[unlockCalendarViewer] the station-wide block was tripped; the admin',
             outcome.alert ? 'is told' : 'was already told today');

@@ -74,8 +74,8 @@ breakage".
 
 **After every merge that deploys, run `npm run test:live` once Deploy Firebase Hosting, and the
 mirror's deploy that follows it, have FINISHED** — not at the merge. The deploy runs the whole
-browser suite before it releases anything (about two minutes, not ten, when the PR's own run already
-passed it on the identical tree — `deploy-hosting.yml`'s `tested` job), so a check started at the
+browser suite before it releases anything (about five minutes, not ten, when the PR's own run already
+passed it on the identical tree — `deploy-hosting.yml`'s `tested` job; `safari` runs either way), so a check started at the
 merge reads the previous release, and its pass says nothing about the new one. A merge whose files all sit in that workflow's
 `paths-ignore` (docs, tests, workflows, Functions, rules) starts no Hosting deploy, so there is
 nothing to wait for.
@@ -228,14 +228,14 @@ regression somewhere the author was not looking.
 | `christmas-leave.js` (`resolveDayShift`, `boxingDayLieuDays`) | 25/26 December on the Calendar, Team Week, the legend, Overtime's roster and Admin's week grid, the leave records, the allowance (`entitlementFor`) and Admin's save checks | `christmas-leave.test.mjs` · `admin-al-projection.test.mjs` · the `christmas` e2e in `calendar.spec.js` and `admin.spec.js` |
 | `session.js` · `silent-sign-in.js` · `login-overlay.js` · `auth-policy.js` · `page-session.js` | every app page at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (the overlay on every sign-in page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
 | `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, what it reports when its outcome is unknown, and when any page may reload for an update | `claim-retry.test.mjs` · `sw-register.test.mjs` · `e2e/admin.spec.js` · `e2e/operations.spec.js` |
-| a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` — for `overrides` it writes the REAL `buildOverrideWrite` output; for every other collection check the writer's keys against the rule's `hasOnly()` BY HAND (`firestore-contract-parity.test.mjs` checks ids and allowlists, not field sets) |
+| a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` — it runs the REAL writers of `overrides` (`buildOverrideWrite`), `analytics`, `clientErrors`, `linkTargetSets` and the three documents, and `al-leave-save.test.mjs` pins the `alUploads` writer to the rule's own list; for `staffContact`, `passwordStatus`, `pushSubscriptions` and `linkDesigns` check the writer's keys against the rule's `hasOnly()` BY HAND (`firestore-contract-parity.test.mjs` checks ids and allowlists, not field sets) |
 | `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |
 | `firebase.json` CSP header | every page's `<meta>` CSP, because the Pages mirror serves no headers | `csp-meta-parity.test.mjs` · `npm run test:csp` |
 | the Mammoth version (`huddle.js`) | the CSP `script-src` in `firebase.json` and every page's `<meta>`, which name that version's folder | `dependency-pin-parity.test.mjs` |
 | any `overlay.js` lifecycle | every lightbox in the app, including the one-time notices | `overlay.test.mjs` · `overlay-history.test.mjs` |
 | adding a PAGE | ONE entry in `scripts/app-pages.mjs` — the test suites read their pages from it — plus the app's own lists (SW, auth policy, nav pill, rules analytics id, report names, guide back-arrow), which stay hand-written because there is no build step | `page-contract-parity.test.mjs` — it names each app-side list the page has not joined, and checks the page list against the files on disk |
 | adding a MODULE or changing its exports | `docs/FILE_INDEX.md` + `docs/AI_MAP.md`, same commit | `githooks/pre-commit` · `doc-parity.test.mjs` |
-| `CONFIG.LINKS_DESIGNERS` / `OVERTIME_BETA` / `OVERTIME_ENABLED` / `MAX_YEAR` | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
+| `CONFIG.ADMIN_NAMES` / `MANAGER_NAMES` / `LINKS_DESIGNERS` / `OVERTIME_BETA` / `OVERTIME_ENABLED` / `MAX_YEAR` | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
 | a Firebase SDK bump (`firebase-client.js`) | `FIREBASE_SDK_VERSION` in `service-worker.js` | `sw-asset-check.test.mjs` |
 | the VAPID key | `functions/index.js` **and** `notif.js` — a mismatch is silent AND permanent | `sw-asset-check.test.mjs` |
 
@@ -296,10 +296,10 @@ npm run test:a11y           # that accessibility gate on its own (A11Y_BASELINE.
 npm run test:csp            # the real firebase.json CSP, served by the Hosting emulator; gated in CI (`csp` job)
 npm run test:visual         # Chromium visual baselines — REPORT-ONLY in branch CI
 npm run test:visual:webkit  # a small Safari-engine visual set — report-only
-npm run test:webkit         # the smoke suite under WebKit — branch CI, not the deploy gate
+npm run test:webkit         # the smoke suite under WebKit — branch CI; the deploy gate runs every-page.spec.js
 npm run test:live           # the DEPLOYMENT HEALTH CHECK against the real site, both origins; gates nothing
 npm run test:offline        # SW/offline paths with the network cut — weekly, non-blocking (offline.yml)
-npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; its Android half gates Hosting
+npm run test:signed-in      # the real SDK on the emulators: signed-in journeys, both phones; both halves gate Hosting
 ```
 **Five traps, each in full in README.md → "The test lanes", beside its lane:** read the `visual
 baselines` CHECK, never the `visual` job (regenerate from CI's render with
@@ -349,7 +349,7 @@ These bind more than one area. A decision that binds only one area is in that ar
 | 3-digit time input auto-correction — `formatClockInput` / `finaliseClockInput` in `clock-input.js` | While typing, three digits whose FIRST is 3–9 take a leading `'0'` (`"630"` → `"06:30"`, never `"63:0"`). A first pair of 24–29 (`"240"`) may be the start of `"2400"`, so it waits for the box to be LEFT; every consumer calls both. One rule for every text clock box — no page keeps its own copy. |
 | **Calendar access: a named session OR the staff PIN** | `overrides` reads need a bound member (`isMember()`), `admin` or the shared `calendarViewer` capability. **Sign-in card first, PIN one tap behind** — an order, not a grant. **Anonymous grants nothing**, which is the substance: the Calendar used to sign every visitor in anonymously, so `request.auth != null` would re-admit exactly the people it closes out — ask for a CLAIM, never a session. The PIN is the real boundary; rollback is reverting a release. **The invariants are NOT restated here**, because two contracts own them and both require linking rather than repeating: `CALENDAR_DATA.md` 3/4/11/12 and `AUTH_AND_SESSIONS.md` 7–10, 19–20, **18** (the PIN is a barrier, not authentication — and what no surface may say about it) and **24** (the pages it may read). Before the grant, a member may see their own stored roster, labelled (owner, 5 Oct 2026 — `CALENDAR_DATA.md` 17, DECISIONS.md). Rollout, rollback, the caching caveat and the standing GCP IAM prerequisite: RECOVERY_RUNBOOK.md → "The Calendar PIN"; operations: OPERATIONS_REFERENCE.md. |
 | `cors: ADMIN_FUNCTION_ORIGINS` on every endpoint the browser calls | Each restricts CORS to the explicit origin allowlist `ADMIN_FUNCTION_ORIGINS` in `functions/index.js` — defence-in-depth on top of the real control, each endpoint's own check (an ID token and claim for all but the two public ones). Add any new hosting domain to that array, with the API key allowlist (Project identity). `ingestHuddle` keeps `cors: false` (server-to-server). |
-| Canonical lightbox lifecycle | Every `.lb-overlay` lightbox is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. It owns focus save/restore, the scroll lock, Android Back, Escape (the topmost overlay only), the Tab trap, backdrop/close-button close and the mandatory `transitionend` fallback. Close controls are `<button class="lb-close">`, never `<span>` — not keyboard-focusable. **A one-time notice opens through `openNoticeIfClear(lightbox)`, never `lightbox.open()`.** **Three exceptions, each with its reason: `createLightbox`'s JSDoc in `overlay.js`** — the drawer's two lightboxes (they share the drawer's history entry, which is why they hand-roll it) and the huddle viewer (a full-bleed panel). The mechanism: `.claude/rules/nav-drawer.md`. |
+| Canonical lightbox lifecycle | Every `.lb-overlay` lightbox is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. It owns focus save/restore, the scroll lock, Android Back, Escape (the topmost overlay only), the Tab trap, backdrop/close-button close and the mandatory `transitionend` fallback. Close controls are `<button class="lb-close">`, never `<span>` — not keyboard-focusable. **A one-time notice opens through `openNoticeIfClear(lightbox)`, never `lightbox.open()`.** **A link that leaves the page from inside a lightbox goes through `followLinkOutOf(lightbox, click)`**, which replaces the lightbox's history entry, so Back never lands on a step nothing answers. **Three exceptions, each with its reason: `createLightbox`'s JSDoc in `overlay.js`** — the drawer's two lightboxes (they share the drawer's history entry, which is why they hand-roll it) and the huddle viewer (a full-bleed panel). The mechanism: `.claude/rules/nav-drawer.md`. |
 | Page chrome — the header and the drawer | Every app page has the burger `#navMenuBtn` and the shared drawer (`initNavPanel`), passing its pill gates, `onLogoClick: () => openAboutLightbox?.()` and its `onSignOut`. Sign-out lives only in the drawer footer and About opens from the drawer head. A sub-page's header logo goes back to the calendar (`wireHeaderLogo`, `about-lightbox.js`) and there is no header back button; the Calendar's own header logo opens About and must not navigate. Detail: `.claude/rules/nav-drawer.md`. |
 | Overtime page — the two audiences | **PAUSED**: `CONFIG.OVERTIME_ENABLED` false closes it to all, admin included (OVERTIME_AVAILABILITY.md → Paused). **Reviewing** (`isOvertimeReviewer`, the `admin`/`manager` claim) sees everybody's declarations; **participating** (a name in `CONFIG.OVERTIME_BETA` — **regenerate in the same commit**) answers only for oneself. The pill and the page policy gate on `canOpenOvertime` (either). **Never widen `isOvertimeReviewer` to make the pill work** — it hands a beta tester everybody's availability (AUTH_AND_SESSIONS.md 14). |
 | Huddle notification → `#huddle` hash pattern | The viewer opens **only** via the `#huddle` hash (`calendar-huddle-viewer.js`; `calendar-doc-viewer.js` for `#circular`/`#newsletter`), from the drawer link and a notification tap alike. **Two viewer paths — do not unify, and never revert to a direct `window.open`/`location.href`:** DOCX `htmlContent` renders inline; without it the in-overlay "📄 Open Huddle" button supplies the real gesture a hash-open lacks. **The three documents are behind the PIN or a password (owner, 7 Sep 2026)**: viewers and drawer links consult `calendar-doc-access.js`, and a locked tap issues no read. Why: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
@@ -366,7 +366,7 @@ current-notices table**, which is kept current there.
 - **Every notice declares an AUDIENCE** — `'members'` (the default), `'signed-out'` or `'everyone'`
   (`noticeAudienceAllows`, `calendar-access-core.js`). A `'signed-out'` notice brings back two tests:
   the skill → "Audience".
-- **A notice opens through `openNoticeIfClear(lightbox)`** (Canonical lightbox lifecycle, above).
+- **A notice opens through `openNoticeIfClear(lightbox)`**, and its link leaves through `followLinkOutOf` (on the Calendar, `_wireNoticeLink` in `calendar-notices.js`) — Canonical lightbox lifecycle, above.
 - **A notice goes INERT the moment `isNoticeExpired` fires** — it is marked seen *without being
   shown*, long before the removal rule below — so the table's Status column must say so.
 - **Monthly cleanup:** on the 1st of each month, remove every notice where `(today − Posted) > 180 days`
@@ -475,10 +475,11 @@ Override cache key: `"memberName|YYYY-MM-DD"`
     Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a backgrounded tab.
     `install-prompt.js` and `notif.js` already branch correctly for both engines. **Oldest iOS
     supported: 16.4** (owner, 7 Nov 2026 — DECISIONS.md).
-  - **Chromium gates every deploy and WebKit does not** (`npm run test:webkit` is branch CI only) —
-    an unequal gate under equal service, weighed and left as it is (owner, 8 Sep 2026; DECISIONS.md,
-    with the trigger that would reopen it). **Weigh a WebKit failure on a branch accordingly**: it is
-    the only lane that sees Safari before release.
+  - **Every release passes the Chromium suite** (on the deploy, or on its PR for the identical tree)
+    **and a few Safari tests, on the deploy itself** (owner, 17 Nov 2026): every page
+    opening and the signed-in journeys, on the iPhone's engine. The whole WebKit suite runs on branches
+    only (DECISIONS.md → "A few Safari tests gate the release"). **Weigh a WebKit failure on a branch
+    accordingly**: it is still the only lane that sees most of Safari before release.
 - **Print CSS** — any new shift type, cell class, or badge needs `@media print` rules.
 - **No `alert()`** — `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.
@@ -605,7 +606,8 @@ working notes are `.claude/rules/sessions.md`, which loads with the session and 
   an `admin`/`manager` claim writing on behalf (AUTH_AND_SESSIONS 4, 19).
 - **Three claim tiers** from `setupRosterAuth` — admin, manager, member, `linksDesigner` on top
   (AUTH_AND_SESSIONS 3). **The `manager` tier is load-bearing** (on-behalf edits, daily); **do NOT
-  grant managers `admin: true`.** A newly listed manager needs Set up accounts and a token refresh.
+  grant managers `admin: true`.** A newly listed manager needs `npm run generate:roster-members` in the same
+  commit, then — once Deploy Firebase Functions has finished — Set up accounts and a token refresh.
 
 **New starter:** invoke `/new-starter` — the skill has the full checklist, in the order it must run (the account step comes only after the roster change has deployed), the mid-year field reference and the pro-rata formula invariant.
 

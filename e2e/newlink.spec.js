@@ -698,6 +698,25 @@ test.describe('new link', () => {
         });
     }
 
+    // A SIGN-IN'S SET-PASSWORD MARKER IS SPENT AS THE PAGE OPENS — on this door too (whole-app check, Nov 2026). The card
+    // above ran the forced set-password step behind `sessionReady.then`, as the proposals did, so a colleague who left
+    // while their session was still being confirmed was asked on a later ordinary load. The restore is held, so it
+    // still is being confirmed here; e2e/auth.spec.js holds the proposals' door, and every other page, to the same rule.
+    test('a colleague it is not for spends a sign-in\'s set-password marker as the page opens', async ({ page }) => {
+        const { PW_FORCE_PENDING_PREFIX } = await import('../storage-keys.js');
+        const marker = PW_FORCE_PENDING_PREFIX + someone('a CES', m => m.role === 'CES');
+        await seedSession(page, someone('a CES', m => m.role === 'CES'));
+        await page.addInitScript((key) => {
+            localStorage.setItem(key, '1');
+            const w = /** @type {any} */ (window);
+            w.__E2E = Object.assign(w.__E2E || {}, { authRestoreDelayMs: 15_000 });
+        }, marker);
+        await page.goto('/newlink.html');
+        await expect(page.locator('#nlNotForYou')).toBeAttached();
+        await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), marker),
+            { message: 'the marker is still there while the session is being confirmed', timeout: 4000 }).toBeNull();
+    });
+
     // The sign-in card says what the page is and who it is for BEFORE anybody signs in, and a CES or a Dispatcher who signs
     // in on it — "Signed in — opening New link…" — lands on the card above, not on the Calendar.
     for (const [who, fits] of /** @type {const} */ ([

@@ -1868,6 +1868,28 @@ describe('applyColumnScanCrossCheck', () => {
             'the right-shift repair must restore the true week, its empty Wednesday a question and not a rest day');
     });
 
+    test('the scan’s columns are found by DAY, as the row’s cells are — a scan keyed "Sunday" beside headers "Sun" still checks the row', () => {
+        // The model writes the headers and the scan's keys itself, and the row read was made tolerant of
+        // exactly this drift in v16.84. Read by the header's exact spelling, no column gave a signal, the
+        // check never ran, and a drifted row reached the review unrepaired.
+        const FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const keyedFull = Object.fromEntries(FULL.map((h, i) => [h, { 'A. Person': TRUE_SCAN[i] }]));
+        const entries = [{ memberName: 'A. Person', shifts: shiftsOf(DRIFTED) }];
+        const w = console.warn; console.warn = () => {};
+        try {
+            const st = applyColumnScanCrossCheck(entries, keyedFull, HEADERS, DATES);
+            assert.equal(st.checked, 1, 'the scan gave no signal on any day — the check did not run');
+            assert.deepEqual(entries[0].shifts, shiftsOf(TRUE_ROW), 'the drift was not repaired');
+            // The header's own spelling still comes first, as the row read's does: a column under that
+            // exact key is the one read, whatever another key naming the same day says.
+            const both = { ...keyedFull, ...Object.fromEntries(HEADERS.map((h, i) => [h, { 'A. Person': TRUE_SCAN[i] }])) };
+            for (const day of FULL) both[day] = { 'A. Person': 'AL' };
+            const agreeing = [{ memberName: 'A. Person', shifts: shiftsOf(TRUE_ROW) }];
+            applyColumnScanCrossCheck(agreeing, both, HEADERS, DATES);
+            assert.deepEqual(agreeing[0].shifts, shiftsOf(TRUE_ROW));
+        } finally { console.warn = w; }
+    });
+
     test('RIGHT drift is repaired too (the direction the Sunday pass never caught)', () => {
         // A ghost Monday pushed every value a day late. The true Saturday is EMPTY, so the vacated
         // Saturday is the question an honest read gives — never the rest day the scan's "blank" became.

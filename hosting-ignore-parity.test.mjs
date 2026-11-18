@@ -35,9 +35,13 @@
  * and the reason `npm run test:csp` exists beside it. There is no emulator equivalent for the
  * ignore list; the live-URL check above is the only proof, and it is a manual one.
  *
- * And it governs ONE of the app's two origins. The GitHub Pages mirror serves the repo root with no
- * ignore list at all, so both directories stay published there whatever this file says — measured
- * the same day, `.claude/settings.json` returns 200 on the mirror. That is the standing limitation
+ * And it governs ONE of the app's two origins. The GitHub Pages mirror has no ignore list. Built
+ * from the branch, it served the whole committed tree — measured the same day,
+ * `.claude/settings.json` returned 200 there. Since 10 Nov 2026 it is published by
+ * `deploy-mirror.yml`, whose artifact step (`actions/upload-pages-artifact`) leaves out every
+ * dot-file and dot-directory, so `.claude` and `.github` are off the mirror too. Everything else in
+ * the tree is still served there, `docs/` and the test files included, and if Pages is ever set back
+ * to building from the branch, the dot-directories return with it. That is the standing limitation
  * already recorded for the payslip fixture (AUTH_ARCHITECTURE.md → PAYSLIP_ACTUALS) — which is why
  * that file left the repository altogether at v23.71 rather than relying on this list:
  * the exclusion list expresses a decision for Firebase Hosting and cannot express it for the

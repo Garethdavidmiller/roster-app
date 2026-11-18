@@ -662,7 +662,7 @@ describe('the 48-hour review\'s Trains findings, on the real books (v24.89)', ()
 
     test('the lookup says when a train that leaves on time gets there at a different time — as the station card does', () => {
         assert.match(look('SX', '21:02'), /<strong>The 21:02 to Stourbridge Junction:<\/strong> Same time, gets there 6 mins later\./);
-        assert.match(look('SX', '09:10'), /Same time, gets there 5 mins earlier\. From 13 December it does not stop at Beaconsfield\./);
+        assert.match(look('SX', '09:10'), /Same time, gets there 5 mins earlier\. From 13 December it no longer stops at Beaconsfield\./);
         assert.match(look('SU', '12:38'), /<strong>The 12:38 to Birmingham Moor Street:<\/strong> Same time, gets there 6 mins earlier\./);
         assert.match(look('SX', '21:02', true), /Same time as before 13 December, but gets there 6 mins later than it did\./);
         // And still "No change" where nothing did.
@@ -720,7 +720,9 @@ describe('the station card, the lookup and the totals as a member reads them (v2
         assert.match(html, /<strong>Leaf fall:<\/strong> until 10 January, trains to London on this line leave up to 3 minutes earlier than usual\./);
         // It names the columns as the table above it does, so it stays true when they are renamed on 13 December.
         // Only a LATER December time can be the season — leaf fall moves today's trains earlier (v24.89).
-        assert.match(html, /The Until 12 Dec column includes that and the From 13 Dec column does not, so a train up to 3 minutes later in the From 13 Dec column may only be leaf fall\. Check the journey planner before 10 January\./);
+        // The planner line takes in the last leaf-fall day: "before 10 January" read as a deadline and left the 10th out.
+        assert.match(html, /The Until 12 Dec column includes that and the From 13 Dec column does not, so a train up to 3 minutes later in the From 13 Dec column may only be leaf fall\. For trains up to and including 10 January, check the journey planner\./);
+        assert.doesNotMatch(html, /before 10 January/);
         assert.doesNotMatch(html, /a change of 3 minutes or less/);
         assert.match(view.verdict.text, /they leave at :14 past the hour, was :08/, 'Saturday Amersham, timed at Amersham');
         assert.doesNotMatch(renderStation(stationView(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, 'AMR', 'dep'),
@@ -731,7 +733,7 @@ describe('the station card, the lookup and the totals as a member reads them (v2
             renderLookup({ at: time, day, nowRows: TIMETABLES.now[day].dep, decRows: TIMETABLES.dec[day].dep, started,
                 labels: started ? { old: 'Until 12 Dec', new: 'From 13 Dec' } : { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS });
         assert.match(look('SO', '10:36'), /No Saturday train leaves at exactly 10:36 in today’s timetable\./);
-        assert.match(look('SX', '10:36'), /<strong>The 10:36 to Banbury:<\/strong> Will run to Birmingham Snow Hill\. From 13 December it does not stop at Kings Sutton\./);
+        assert.match(look('SX', '10:36'), /<strong>The 10:36 to Banbury:<\/strong> Will run to Birmingham Snow Hill\. From 13 December it no longer stops at Kings Sutton\./);
         assert.match(look('SX', '17:37'), /<strong>The 17:37 to Birmingham Snow Hill \(Mon and Fri only\):<\/strong> 4 mins earlier \(17:33\)\./);
         assert.match(look('SX', '17:37'), /17:37<\/span> Birmingham Moor Street <span class="tr-near-on">on to Snow Hill<\/span> <span class="tr-days">Mon and Fri only<\/span>/);
         // From the change, "the 15:38" is December's — it used to answer "No train leaves at exactly 15:38 today".
@@ -747,12 +749,12 @@ describe('the station card, the lookup and the totals as a member reads them (v2
         const decRows = [row('07:57', 'AVP', '', '', 'HOH0810 AMR0835 WND0852 SKM0858 AYS0905 AVP0911')];
         for (const started of [false, true]) {
             const html = renderLookup({ at: '07:57', day: 'SX', nowRows, decRows, started, labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS });
-            assert.match(html, /From 13 December it does not stop at Great Missenden\./, started ? 'after the change' : 'before the change');
+            assert.match(html, /From 13 December it no longer stops at Great Missenden\./, started ? 'after the change' : 'before the change');
         }
         // Across Aylesbury's two routes the route is still the story, and no stops are compared.
         const viaWycombe = [row('07:57', 'AYS', 'H', '', 'HWY0830 PRR0845 AYS0905')];
         assert.doesNotMatch(renderLookup({ at: '07:57', day: 'SX', nowRows, decRows: viaWycombe, started: false,
-            labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS }), /does not stop at|also stops at/);
+            labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS }), /no longer stops at|also stops at/);
     });
     test('the totals count one real day of each kind, a cell each under one label', () => {
         const html = renderTotals(TIMETABLES);
@@ -861,6 +863,9 @@ describe('the UX pass (v24.92): leads and chips, the two lines, one train at a t
             { crs: 'OXF', tone: 'less', text: 'Bare' }], { showAll: true, partial: false });
         assert.match(html, /<span class="tr-chip tr-chip--new">\+6 a day<\/span><span class="tr-head-text"><span class="tr-head-lead">Lead<\/span><span class="tr-head-detail">Detail<\/span><\/span>/);
         assert.match(html, /<span class="tr-chip tr-chip--gone">Fewer trains<\/span><span class="tr-head-text"><span class="tr-head-lead">Bare<\/span><\/span>/);
+        // A row is "a change", as the ? panel calls it: on a railway page "choose a line" read as a railway line.
+        assert.match(html, /is on its station’s card — choose a change above, or use Stations\./);
+        assert.doesNotMatch(html, /choose a line/);
     });
 
     test('coming back on a leaf-fall line, a shift within the leaf-fall minutes is quiet text that says why — never via Wycombe, earlier, or going there', () => {
@@ -1011,7 +1016,16 @@ describe('the 72-hour review (v24.96): one train is one train, "Same time" over 
         assert.match(a, /<strong>The 09:02 to Birmingham Moor Street:<\/strong> Same time\. From 13 December it also stops at Kings Sutton\./);
         assert.doesNotMatch(a, /No change\. From 13 December/);
         const sat = renderLookup(args('08:02', 'SO'));
-        assert.match(sat, /Same time\. From 13 December it does not stop at Kings Sutton, Hatton and Lapworth\./);
+        // "Or", not "and": it stops at none of the three, and "does not stop at A and B" read as "not at both".
+        assert.match(sat, /Same time\. From 13 December it no longer stops at Kings Sutton, Hatton or Lapworth\./);
+        assert.match(renderLookup(args('08:35', 'SX')), /From 13 December it no longer stops at Haddenham &amp; Thame Parkway or Kings Sutton\./);
+        for (const time of ['08:35', '17:07', '17:45', '18:07']) {
+            const html = renderLookup(args(time, 'SX'));
+            assert.doesNotMatch(html, /does not stop at/, `the ${time}: the old wording`);
+            const lost = html.match(/no longer stops at (.*?)(?:, and also stops at |\.<\/p>)/)?.[1];
+            assert.ok(lost, `premise: the ${time} loses a stop on the way`);
+            assert.doesNotMatch(lost, / and /, `the ${time}: its lost stops are listed with "and" — "${lost}"`);
+        }
         // Somewhere in the weekday book a train neither moves nor changes a stop: its answer is still "No change."
         const untouched = TIMETABLES.now.SX.dep.map(r => renderLookup(args(r[0], 'SX'))).find(h => /No change\.<\/p>/.test(h));
         assert.ok(untouched, 'a train with nothing changed keeps the plain answer');
@@ -1073,5 +1087,84 @@ describe('the whole-app fix (Nov 2026): the overview\'s words by date, and the s
         assert.match(words, /choose Trains from its menu/, 'and how to come back once the PIN is in');
         assert.doesNotMatch(`${words} ${SIGN_IN_ABOUT.link.label}`, /sign(?:s|ed|ing)? (?:you |them )?in|log(?:s|ged|ging)? in|account/i);
         assert.equal(SIGN_IN_ABOUT.link.href, './#staff-pin', 'the Calendar\'s PIN-first hash, so its PIN card is the one that opens');
+    });
+});
+
+// ── WHAT THE ? PANELS AND THE CARDS SAY ABOUT WHAT THE PAGE DRAWS (whole-app check, Nov 2026) ──────────────
+describe('the panels name what the page draws, and an ended timetable says so where it answers', () => {
+    /** A panel's items, as the lightbox renders them. @param {keyof typeof CARD_TIPS} key */
+    const panel = (key) => CARD_TIPS[key].sections.flatMap(s => s.items.map(i => i.html)).join(' ');
+
+    // The panel explained "More trains", "Fewer trains" and "Times move" while the list showed "+6 a day", "−2 a day"
+    // and "New route": the two words are for a change whose count a day stays put, which no line of the real books has.
+    // Every kind of chip `headlineChanges` writes is made here — from the books, and from hand-made rows for the kinds
+    // the books do not hold — and the panel must quote each; a chip of a kind this test does not know fails it.
+    test('the changes panel quotes every kind of chip the list can show', () => {
+        const words = panel('changes');
+        const twoAnHour = [...hourly(6, 'OXF'), ...hourly(36, 'OXF')];
+        const sameDayFewerHourly = [...hourly(6, 'OXF'), ...['06:05', '06:35', '07:05', '07:35', '08:05', '08:35'].map(t => row(t, 'OXF'))];
+        const chips = new Set([
+            ...headlineChanges(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, STATIONS),
+            ...headlineChanges(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, STATIONS),
+            ...headlineChanges([row('10:00', 'SAV', '', '', 'WRW1101 SAV1131')], [], STATIONS),   // a direct service withdrawn
+            ...headlineChanges(twoAnHour, sameDayFewerHourly, STATIONS),                           // the same count a day, fewer an hour
+            ...headlineChanges(sameDayFewerHourly, twoAnHour, STATIONS),                           // …and more an hour
+        ].map(h => h.chip));
+        const FIXED = ['New route', 'No direct trains', 'Times move', 'More trains', 'Fewer trains'];
+        for (const chip of FIXED) {
+            assert.ok(chips.has(chip), `premise: no line was made with the chip "${chip}"`);
+            assert.ok(words.includes(`<strong>${chip}</strong>`), `the changes panel does not explain the chip "${chip}"`);
+        }
+        const counted = [...chips].filter(c => !FIXED.includes(c));
+        assert.deepEqual(counted.filter(c => !/^[+−]\d+ a day$/.test(c)), [], 'a chip of a kind this test does not know — explain it in the panel, then here');
+        for (const sign of ['+', '−']) {
+            assert.ok(counted.some(c => c.startsWith(sign)), `premise: no "${sign}N a day" chip was made`);
+            assert.match(words, new RegExp(`<strong>\\${sign}\\d+ a day</strong>`), `the panel does not show a "${sign}N a day" chip as the list writes it`);
+        }
+    });
+
+    // Since the whole-app review the grid draws a stop gained as a ring with a plus and one lost as a ring struck
+    // through — as a green ring and a red one they were 1.04:1 apart in lightness — and the panel went on teaching
+    // the colours, the one cue the page had stopped relying on. The shapes are read off trains.css.
+    test('the pattern panel names a stop gained and a stop lost by the shapes the grid draws', () => {
+        const css = readFileSync(new URL('./trains.css', import.meta.url), 'utf8');
+        const rule = (/** @type {string} */ cls) => css.match(new RegExp(`\\.${cls}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+        const gained = rule('tr-dot--new'), lost = rule('tr-dot--lost');
+        assert.match(gained, /inset 0 0 0 2px/, 'premise: a stop gained is drawn as a ring');
+        assert.match(gained, /6px 2px[\s\S]*2px 6px/, 'premise: with a plus in it — a bar each way');
+        assert.match(lost, /inset 0 0 0 2px/, 'premise: a stop lost is drawn as a ring');
+        assert.match(lost, /linear-gradient\(135deg/, 'premise: struck through — one diagonal bar');
+        const words = panel('pattern');
+        assert.match(words, /A ring with a plus is a stop a train gains/);
+        assert.match(words, /a ring struck through is one it loses/);
+        assert.doesNotMatch(words, /green ring|hollow|red dot/i, 'the colours the marks no longer rely on');
+    });
+
+    // From the end of December's books only the overview said the timetables had ended; the lookup and the station card
+    // answered from them in the present tense — "The 17:15 to Oxford: Same time as before 13 December".
+    const ENDED = /^<p class="card-explainer tr-lead"><strong>These times come from timetables that have ended\.<\/strong> Check <a href="([^"]+)" target="_blank" rel="noopener noreferrer">the journey planner<\/a> for today’s trains\.<\/p>/;
+    const labels = { old: 'Until 12 Dec', new: 'From 13 Dec' };
+
+    test('once both timetables have ended, a station card says so before anything else — and only then', () => {
+        for (const dir of /** @type {const} */ (['dep', 'arr'])) {
+            const view = stationView(TIMETABLES.now.SX[dir], TIMETABLES.dec.SX[dir], 'BCF', dir, { change: CHANGE_DATE, started: true });
+            const ctx = { stations: STATIONS, dir, showTrains: false, labels, started: true };
+            assert.equal(renderStation(view, { ...ctx, ended: true }).match(ENDED)?.[1], JOURNEY_PLANNER_URL, `${dir}: the line, first, linking the planner`);
+            assert.doesNotMatch(renderStation(view, ctx), /timetables that have ended/, `${dir}: not while the books run`);
+        }
+        // A station no train reaches that day, whose verdict is the whole card, says it too.
+        const none = stationView(TIMETABLES.now.SU.dep, TIMETABLES.dec.SU.dep, 'BER', 'dep', { change: CHANGE_DATE, started: true });
+        assert.ok(none.dec && !none.now.total && !none.dec.total, 'premise: no Sunday train from Marylebone calls at Bearley, in either timetable');
+        assert.match(renderStation(none, { stations: STATIONS, dir: 'dep', showTrains: false, labels, started: true, ended: true }), ENDED);
+    });
+
+    test('once both timetables have ended, the lookup says so before its answer — with a train at that time and without', () => {
+        const look = (/** @type {'SX'|'SO'} */ day, /** @type {string} */ at, ended = true) => renderLookup({ at, day, nowRows: TIMETABLES.now[day].dep,
+            decRows: TIMETABLES.dec[day].dep, started: true, ended, labels, change: CHANGE_DATE, stations: STATIONS });
+        assert.match(look('SX', '17:15'), ENDED);
+        assert.match(look('SX', '17:15'), /<\/p><p class="tr-answer"><strong>The 17:15 to Oxford:<\/strong>/, 'and then the answer');
+        assert.match(look('SO', '17:16'), ENDED, 'no train at exactly that time, and the near lists shown once');
+        assert.match(look('SX', '10:36'), ENDED, 'the near lists in two columns');
+        assert.doesNotMatch(look('SX', '17:15', false), /timetables that have ended/);
     });
 });

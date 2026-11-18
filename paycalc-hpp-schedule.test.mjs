@@ -13,6 +13,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
     periodsInTaxYear, hppPayslipForTaxYear, hppTaxYearForPayslip, hppPaidInTaxYear,
@@ -30,18 +31,43 @@ const TY_26 = TAX_YEARS.find(t => t.label === '2026/27');
 // Fail loudly rather than silently skipping if the table is re-labelled at the April rollover.
 assert.ok(TY_25 && TY_26, 'TAX_YEARS must still carry 2025/26 and 2026/27 — update this fixture');
 
-// ── The period grid, still mirrored ───────────────────────────────────────────────────────────
-// paycalc-periods.js DOES pull in Firebase transitively, so its grid can't be imported into a plain
-// Node test. Mirrors its CONFIG: anchor 13 Feb 2026 = num 48, 28-day periods, offsets −11…14. This
-// remains a mirror, so a change to the real anchor/offsets is NOT caught here — the properties the
-// tests assert (13 payslips per year, one January each, no overlap) are what pin its shape.
-const ANCHOR = new Date(2026, 1, 13, 12, 0, 0);
-const PERIODS = [];
-for (let offset = -11; offset <= 14; offset++) {
-    const payday = new Date(ANCHOR);
-    payday.setDate(payday.getDate() + offset * 28);
-    PERIODS.push({ num: 48 + offset, payday });
-}
+// ── The period grid, READ from paycalc-periods.js (18 Nov 2026) ─────────────────────────────────
+// paycalc-periods.js pulls in Firebase transitively, so it cannot be imported into a plain Node test
+// — but its CONFIG can be read as text. The grid here used to be a hand-copy of it (anchor, offsets
+// −11…14), and a copy ends where the page's list ends: 2026/27's premium, paid in January 2028, was
+// never looked for, so changing that year's hppPaidJan left this file green. Now the anchor and the
+// offsets are the page's own, built as getPeriods() builds them, and the grid is also run one tax
+// year further (BEYOND), which is where every year on record must find the payslip carrying it.
+const CONFIG_SRC = (() => {
+    const src = readFileSync(new URL('./paycalc-periods.js', import.meta.url), 'utf8');
+    return src.slice(src.indexOf('export const CONFIG = {'));
+})();
+/** A whole-number CONFIG entry, as paycalc-periods.js writes it. @param {string} name */
+const configNumber = (name) => {
+    const m = CONFIG_SRC.match(new RegExp(`\\b${name}:\\s*(-?\\d+)`));
+    assert.ok(m, `paycalc-periods.js CONFIG no longer writes ${name} as a number — re-read this reader`);
+    return Number(m[1]);
+};
+const ANCHOR_ARGS = CONFIG_SRC.match(/\bANCHOR_DATE:\s*new Date\(([\d,\s]+)\)/)?.[1].split(',').map(Number);
+assert.ok(ANCHOR_ARGS && ANCHOR_ARGS.length >= 3,
+    'paycalc-periods.js CONFIG no longer writes ANCHOR_DATE as new Date(y, m, d, …) — re-read this reader');
+const ANCHOR = new Date(...ANCHOR_ARGS);
+const PERIOD_DAYS = configNumber('PERIOD_DAYS');
+const FIRST_OFFSET = configNumber('FIRST_OFFSET');
+const LAST_OFFSET = configNumber('LAST_OFFSET');
+/** The page's payslips from offset `first` to `last`, as getPeriods() builds them.
+ *  @param {number} first @param {number} last */
+const grid = (first, last) => {
+    const out = [];
+    for (let offset = first; offset <= last; offset++) {
+        const payday = new Date(ANCHOR);
+        payday.setDate(payday.getDate() + offset * PERIOD_DAYS);
+        out.push({ num: 48 + offset, payday });
+    }
+    return out;
+};
+const PERIODS = grid(FIRST_OFFSET, LAST_OFFSET);        // the payslips the page offers today
+const BEYOND  = grid(FIRST_OFFSET, LAST_OFFSET + 13);   // and the following tax year's thirteen
 
 describe('periodsInTaxYear', () => {
     test('returns the year’s own 13 payslips, in payday order', () => {
@@ -74,8 +100,13 @@ describe('hppPayslipForTaxYear', () => {
             'the carrier belongs to the FOLLOWING tax year — searching a year’s own paydays never finds it');
     });
     test('returns null when the grid does not reach that January yet', () => {
-        // 2026/27's premium is paid in January 2028; the current grid ends March 2027.
-        assert.equal(hppPayslipForTaxYear(TY_26, PERIODS), null);
+        // The LAST tax year on record is paid in the January after the page's last payslip (2026/27's
+        // in January 2028, past a grid that ends in March 2027): until the April rollover extends the
+        // grid there is no payslip to name.
+        const lastTy = TAX_YEARS[TAX_YEARS.length - 1];
+        assert.ok(PERIODS[PERIODS.length - 1].payday < new Date(lastTy.hppPaidJan, 0, 1),
+            `premise: the page's grid ends before January ${lastTy.hppPaidJan}`);
+        assert.equal(hppPayslipForTaxYear(lastTy, PERIODS), null);
     });
     test('tolerates junk', () => {
         assert.equal(hppPayslipForTaxYear(null, PERIODS), null);
@@ -142,6 +173,29 @@ describe('the two directions are inverses (the v18.84 regression guard)', () => 
         }
         assert.ok(checked > 0, 'at least one tax year must be exercised, or this guard proves nothing');
     });
+    test("the grid is the page's own: 13 payslips for every tax year on record, num 48 on the anchor", () => {
+        assert.equal(PERIODS.length, LAST_OFFSET - FIRST_OFFSET + 1);
+        assert.equal(PERIODS.find(p => p.num === 48)?.payday.getTime(), ANCHOR.getTime());
+        for (const ty of TAX_YEARS) assert.equal(periodsInTaxYear(ty, PERIODS).length, 13, ty.label);
+    });
+
+    test('every tax year on record is paid on the FIRST January payslip after its own thirteen', () => {
+        // Invariant 4, asked of each year in turn on the grid run one year on — 2026/27 included, whose
+        // January 2028 payslip the page does not list yet. A hppPaidJan a year late finds no payslip
+        // there; one a year early lands inside the year's own window.
+        for (const ty of TAX_YEARS) {
+            const own = periodsInTaxYear(ty, BEYOND);
+            const lastOwn = own[own.length - 1].num;
+            const firstJan = BEYOND.find(p => p.num > lastOwn && p.num <= lastOwn + 13 && p.payday.getMonth() === 0);
+            assert.ok(firstJan, `${ty.label}: premise — the following tax year holds a January payslip`);
+            const carrier = hppPayslipForTaxYear(ty, BEYOND);
+            assert.ok(carrier, `${ty.label}: hppPaidJan ${ty.hppPaidJan} names a January the following year does not hold`);
+            assert.equal(carrier.num, firstJan.num,
+                `${ty.label}: its premium is due on the ${firstJan.payday.toDateString()} payslip`);
+            assert.equal(hppTaxYearForPayslip(carrier, BEYOND, TAX_YEARS), ty, `${ty.label}: and that payslip names it back`);
+        }
+    });
+
     test('hppPaidInTaxYear agrees with hppPayslipForTaxYear', () => {
         for (const ty of TAX_YEARS) {
             const paid = hppPaidInTaxYear(ty, PERIODS, TAX_YEARS);

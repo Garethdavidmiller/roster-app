@@ -1168,10 +1168,10 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     test('on any other payslip they are not, and the note offers the payslip before it once that is paid', () => {
         const later = status({ p: dec18 });
         assert.deepEqual([later.chip, later.chipLive, later.noteLive], ['not in use', false, false]);
-        assert.equal(later.note, `Your Year to Date figures are from ${from}, so this payslip uses the standard method.`,
+        assert.equal(later.note, `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax is worked out from this payslip alone.`,
             'on 7 Nov the 20 Nov payslip has not been paid, so there is nothing newer to copy');
-        assert.equal(status({ p: dec18, now: NOV21 }).note, `Your Year to Date figures are from ${from}, so this payslip uses the `
-            + `standard method. Update them from your <strong>20 Nov payslip</strong> (P${payslipPeriodNum(nov20)}) to sharpen it.`);
+        assert.equal(status({ p: dec18, now: NOV21 }).note, `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax `
+            + `is worked out from this payslip alone. Update them from your <strong>20 Nov payslip</strong> (P${payslipPeriodNum(nov20)}) to sharpen it.`);
     });
 
     // ── NEVER AN OLDER PAYSLIP THAN THE SOURCE (17 Nov 2026) ──────────────────────────────────────
@@ -1179,7 +1179,7 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     // held. The note told a member with 23 Oct figures, looking back at 23 Oct, to update them from
     // 25 Sep — and following it put stale totals in, which the next payslip then found misfitting.
     test('on the source payslip or an earlier one, nothing older is offered to update from', () => {
-        const plain = `Your Year to Date figures are from ${from}, so this payslip uses the standard method.`;
+        const plain = `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax is worked out from this payslip alone.`;
         for (const p of [oct23, byNum(56), byNum(55)]) {
             assert.equal(status({ p, now: NOV21 }).note, plain, `viewing ${p.payday.toDateString()} with figures from 23 Oct`);
         }
@@ -1244,9 +1244,19 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     test('figures that do not fit the tax code: not in use, and the note says to check the code', () => {
         const s = status({ misfit: true });
         assert.deepEqual([s.chip, s.chipLive, s.noteLive], ['not in use', false, false]);
-        assert.equal(s.note, `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip `
-            + 'uses the standard method. Check the code in Your Settings is the one on that payslip.');
+        assert.equal(s.note, `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip's tax `
+            + 'is worked out from this payslip alone. Check the code in Your Settings is the one on that payslip.');
         assert.match(status({ misfit: true, taxCode: '1257L M1' }).note, /W1, M1 or X/, 'a week 1 / month 1 code is the stronger reason');
+    });
+
+    // "THE STANDARD METHOD" WAS NEVER EXPLAINED (18 Nov 2026): three of these notes ended on a term a
+    // member had no way to know. Each now says what happens instead.
+    test('no note names "the standard method" — each says what happens to this payslip\'s tax', () => {
+        for (const o of [{ p: dec18 }, { p: dec18, now: NOV21 }, { misfit: true }, { taxCode: '1257L M1' }, { p: oct23, now: NOV21 }]) {
+            const note = status(o).note;
+            assert.doesNotMatch(note, /standard method/, JSON.stringify(o));
+            assert.match(note, /worked out from this payslip alone|works out each payslip on its own/, JSON.stringify(o));
+        }
     });
 
     test('no source on record: no note and no chip — the card already asks for one three times', () => {

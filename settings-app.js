@@ -64,7 +64,7 @@ const CARD_TIPS = {
             { items: [
                 { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong> — the one the company already sends things to.' },
                 { icon: '🔑', html: 'It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet. For now, ask the admin if you forget your password — the <strong>“Can’t get in?”</strong> link on the sign-in screen asks them for you.' },
-                { icon: '🔒', html: 'Only you and the admin can see it. It is not shown to your manager or to anyone else.' },
+                { icon: '🔒', html: 'Only you and the admin can see this email. It is not shown to your manager or to anyone else.' },
             ]},
         ],
     },
@@ -199,7 +199,7 @@ export function init() {
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
     // ── Check session ─────────────────────────────────────────────────────────────
     // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these are refreshed
@@ -236,16 +236,12 @@ export function init() {
 
     // ── Wired BEFORE the sign-in decision, as Operations does (Nov 2026 review) ──────────────────────
     // initAuthorised() has no try/catch on the signed-in path, so a throw in any card's wiring used to
-    // skip all four of these. Hold a release's reload while a save is on its way (v24.61): the contact
+    // skip all of these (the set-password step now runs first in initAuthorised). Hold a release's reload while a save is on its way (v24.61): the contact
     // card's writes are counted by slow-save, the password card's two-step write by `_passwordSaving`.
     // writesInFlight also counts the "own password" record (claim-retry.js → trackBackgroundWrite).
     const _busy = () => writesInFlight() > 0 || _passwordSaving;
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
-    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
-    // critical path. `currentUser` is read LATE, inside the callback: on the in-place sign-in path it is
-    // refreshed only inside initAuthorised(), so passing it now would pass null and never compel anyone.
-    sessionReady.then(() => initPasswordForce(currentUser));
     initTipsLightbox(CARD_TIPS);   // the ? buttons are static markup, signed in or not
 
     // Page-access via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7). Settings'
@@ -288,6 +284,10 @@ export function init() {
         // can import sessionReady instead of reading window._mybSession.
         const _setAuth = ensureNamedSession(currentUser);
         resolveSession(_setAuth);
+        // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2), fire-and-forget: HERE, where `currentUser` is right on both
+        // paths and before any card can throw, and NOW with the session as its barrier, so the sign-in's one-shot marker is
+        // spent as the page opens (password-force.js) — behind `sessionReady.then`, a member who left first was asked later.
+        initPasswordForce(currentUser, { ready: sessionReady });
         // B1.2 enforcement, decided via the policy: once the named session resolves, the store (fed by the
         // Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
         // `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN named
@@ -440,6 +440,12 @@ export function init() {
         function showSavedState(/** @type {any} */ dateStr, /** @type {string} */ fullEmail) {
             userSaved = true;
             setFeedback(dateStr ? `✓ Saved — last updated ${dateStr}` : '✓ Saved', 'ok');
+            markSaved(fullEmail);
+        }
+
+        /** An address IS saved: the card offers to remove it, its subtitle names it, and the summary counts it done.
+         *  @param {string} fullEmail */
+        function markSaved(fullEmail) {
             if (removeBtn) removeBtn.style.display = '';
             if (hintEl && fullEmail) hintEl.textContent = fullEmail;
             reportSetting('work-email', 'ok', '✓ Saved');
@@ -463,10 +469,12 @@ export function init() {
                 emailInput.value = workEmailLocalPart(data.workEmail);
                 showSavedState(formatDate(data.updatedAt), data.workEmail);
             } else if (data?.workEmail && userHasTyped) {
-                // User started typing before the load finished — keep their input,
-                // just clear the loading message.
+                // User started typing before the load finished — keep their input, and clear the loading message
+                // without a "✓ Saved" that would answer a Save they have not pressed. But an address IS saved, so the
+                // card says which and offers Remove (18 Nov 2026): it told the summary "✓ Saved" and left the
+                // subtitle asking for an email and Remove hidden.
                 setFeedback('', '');
-                reportSetting('work-email', 'ok', '✓ Saved');
+                markSaved(data.workEmail);
             } else {
                 clearSavedState();
             }

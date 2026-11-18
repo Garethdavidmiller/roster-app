@@ -47,8 +47,8 @@
 import { projectAnnualLeaveOverage, parseISODate, isSunday, getBaseShift } from './roster-data.js';
 import { isRestShift, isBeforeMemberStart } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
-import { swapDecisionDates, rangeWriteDates } from './al-swapped-days.js';
-import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
+import { swapDecisionDates, rangeWriteDates, absenceHiddenDates } from './al-swapped-days.js';
+import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType, lowersAllowance } from './al-entitlement.js';
 import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 
@@ -190,33 +190,6 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
 }
 
 /**
- * Does leave written on `date` lower the member's allowance — the day in lieu its work earned going
- * with the work? Asked of `entitlementFor` with and without the leave, so every rule that earns a day
- * in lieu (a worked Boxing Day, a Dispatcher's worked bank holiday) answers through the one that
- * grants it, rather than a second copy of either.
- *
- * In EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), not just its own: a
- * worked Boxing Day's day in lieu is in the NEXT year's allowance (owner, 15 Nov 2026), so leave over
- * that work leaves its own year where it was and takes the day from the year after.
- *
- * `written` is the record the save puts there — leave by default; an absence takes the day in lieu
- * back exactly as leave does, because it too replaces the work (`projectAbsenceRange`).
- * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
- * @param {{type: string, value: string}} [written]
- * @returns {boolean}
- */
-function lowersAllowance(member, date, ovByDate, written = { type: 'annual_leave', value: 'AL' }) {
-    const held = ovByDate && typeof ovByDate.values === 'function' ? [...ovByDate.values()].filter(Boolean) : [];
-    const leave = { memberName: member.name, date, ...written, createdAt: { seconds: 4102444800 } };
-    const withLeave = [...held.filter(o => o.date !== date), leave];
-    return allowanceYearsOf(member, date).some(year => {
-        const before = entitlementFor(member, year, held);
-        const after = entitlementFor(member, year, withLeave);
-        return before !== null && after !== null && after < before;
-    });
-}
-
-/**
  * The Sundays a RANGE booking — leave or absence — sets as rest days. A Sunday in the range whose
  * BASE roster is a worked shift gets a `correction`/RD written beside the booking, so the shift does
  * not show through the leave on the Calendar (.claude/rules/admin.md → "Sunday RD corrections") —
@@ -249,28 +222,36 @@ export function rangeSundayCorrections({ dates, memberObj, ovByDate = null }) {
  * whose allowance FALLS is checked, and an absence elsewhere never raises the bar. `exclude` is every
  * written date: leave the absence replaces is no longer counted.
  *
+ * …AND THE DAYS IT LEAVES AS THEY ARE, BECAUSE AN ABSENCE WOULD NOT SHOW THERE (review, Nov 2026):
+ * `leftAlone`, the rest days holding a record the Calendar DOES show — Rest Day Working, leave — which
+ * the writer passes over (`absenceHiddenDates`, al-swapped-days.js), named so the manager can deal
+ * with each in Change a Shift.
+ *
  * @param {object} args
  * @param {any} args.member the team-member object; without it nothing is judged
  * @param {string} args.memberName the name, for the message
  * @param {Array<any>} args.overrides every override the page holds
  * @param {Map<string, any>|null} [args.ovByDate] the member's overrides in play, keyed by date
  * @param {string[]} args.dates every date the range covers
- * @returns {{ writing: string[], lieuLost: string[], overage: {over:number, projectedTotal:number, headline:string, detail:string}|null }}
+ * @returns {{ writing: string[], lieuLost: string[], leftAlone: string[],
+ *             overage: {over:number, projectedTotal:number, headline:string, detail:string}|null }}
  *   `writing` the dates recorded as absent; `lieuLost` those whose day in lieu goes, for the preview;
- *   `overage` the confirmation message, its detail naming the days in lieu, or null.
+ *   `leftAlone` the days named as left as they are (above); `overage` the confirmation message, its
+ *   detail naming the days in lieu, or null.
  */
 export function projectAbsenceRange({ member, memberName, overrides, ovByDate = null, dates }) {
-    if (!member || !Array.isArray(dates)) return { writing: [], lieuLost: [], overage: null };
+    if (!member || !Array.isArray(dates)) return { writing: [], lieuLost: [], leftAlone: [], overage: null };
     const ov = ovByDate ?? new Map();
     const absent = { type: 'sick', value: 'SICK' };
     const writing = rangeWriteDates({ type: absent.type, dates, memberObj: member, ovByDate: ov });
-    if (!writing.length) return { writing, lieuLost: [], overage: null };
+    const leftAlone = absenceHiddenDates({ dates, memberObj: member, ovByDate: ov });
+    if (!writing.length) return { writing, lieuLost: [], leftAlone, overage: null };
     const writes = [...writing.map(date => ({ date, ...absent })),
         ...rangeSundayCorrections({ dates, memberObj: member, ovByDate: ov }).map(date => ({ date, type: 'correction', value: 'RD' }))];
     const lieuLost = writing.filter(date => lowersAllowance(member, date, ov, absent));
     const overage = projectAlOverage({ member, memberName, overrides, consuming: [], exclude: new Set(writing),
         after: overridesAfterSave(overrides, { memberName, writes }) });
-    return { writing, lieuLost,
+    return { writing, lieuLost, leftAlone,
         overage: overage && lieuLost.length ? { ...overage, detail: `${lieuGoesWords(lieuLost, 'absent')} · ${overage.detail}` } : overage };
 }
 

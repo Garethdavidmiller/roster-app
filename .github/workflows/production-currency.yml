@@ -55,18 +55,23 @@ on:
     - cron: '17 * * * *'
   workflow_dispatch:
 
-# Least privilege: read the repo, READ the workflow runs (to see whether a deploy is in flight —
-# see the stand-down below), and open an issue when production is stale. No deploy rights — this
-# workflow observes and reports, it never fixes.
-permissions:
-  contents: read
-  actions: read
-  pages: read   # whether the mirror deploys from deploy-mirror.yml — see the second stand-down
-  issues: write
+# Nothing at the top: the job asks for what it uses (review, 18 Nov 2026), so a job added here later
+# starts with no token rather than inheriting a write.
+permissions: {}
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Least privilege: read the repo, READ the workflow runs (to see whether a deploy is in flight —
+    # see the stand-down below), and open an issue when production is stale. No deploy rights — this
+    # workflow observes and reports, it never fixes. ONE job may hold `issues: write` here because it
+    # runs no dependency code at all — no install, only curl, grep, jq and gh — which is why it is
+    # not split the way live-health.yml's alert is.
+    permissions:
+      contents: read
+      actions: read
+      pages: read   # whether the mirror deploys from deploy-mirror.yml — see the second stand-down
+      issues: write
     # The poll below may run for DEPLOY_WINDOW_S; this must exceed it, or a slow-but-successful
     # deploy turns into a cancelled run that reports nothing either way. Raised with the window.
     # At 35 the job could be CANCELLED mid-poll, and a cancelled job skips the `if: failure()` step
@@ -78,7 +83,11 @@ jobs:
     # then a minute short of it. workflow-hygiene.test.mjs computes it from the script's own numbers.
     timeout-minutes: 62
     steps:
+      # No token left on disk: nothing here needs git credentials. The API calls pass the token
+      # themselves, and gh reads the repository from the remote, which the checkout still sets.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Compare every served origin against main
         id: compare

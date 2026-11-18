@@ -33,11 +33,17 @@ import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
 import {
     SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseEarlyRoster, earlyRosterShareLabel,
-    summariseUpdateOpens, UPDATE_OPENS_FROM, CLEAN_TIMINGS_FROM, shareMeasuredBefore, perfRecordFullness,
+    summariseUpdateOpens, CLEAN_TIMINGS_FROM, shareMeasuredBefore, perfRecordFullness,
     compactPct, THIN_SAMPLE,
 } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
+
+/** WHEN THE TIMING CHANGED, in the card's words: v24.98, the release `CLEAN_TIMINGS_FROM` and `UPDATE_OPENS_FROM`
+ *  name, shipped on 26 October 2026. The card says the time rather than the version, which is developer-speak that
+ *  goes stale (operations-usage.js says why); only the version split keeps the number, because its rows are
+ *  versions. A new value for either constant needs new words here — perf-stats.test.mjs pins it and says so. */
+const TIMING_CHANGED = 'late October 2026';
 
 /** @typedef {{ quick: number, ok: number, slow: number, total: number, pctQuick: number, pctOk: number, pctSlow: number }} Bands */
 /** @typedef {Bands & { label: string, sub?: string }} BandRow */
@@ -298,7 +304,7 @@ async function initPageSpeedCard() {
         const frag = document.createDocumentFragment();
         frag.appendChild(blockHeading('After a release'));
         frag.appendChild(noteLine(
-            `When an update installs, the page reloads onto it — on the Calendar while nobody is looking, so nobody is interrupted mid-read. Counted from v${UPDATE_OPENS_FROM}.`));
+            `When an update installs, the page reloads onto it — on the Calendar while nobody is looking, so nobody is interrupted mid-read. Counted since ${TIMING_CHANGED}.`));
         frag.appendChild(rowList(rows));
         return frag;
     };
@@ -317,7 +323,7 @@ async function initPageSpeedCard() {
         // side of the change still differ by method as well as by release, so the note says which.
         if (dimension === 'version' && rows.some(r => r.afterSplit) && rows.some(r => !r.afterSplit)) {
             frag.appendChild(noteLine(
-                `From v${CLEAN_TIMINGS_FROM} the app leaves out loads nobody was watching and time spent typing, so those versions read faster for that reason as well. No row mixes the two.`));
+                `Since ${TIMING_CHANGED} (v${CLEAN_TIMINGS_FROM} onwards in these rows) the app leaves out loads nobody was watching and time spent typing, so those versions read faster for that reason as well. No row mixes the two.`));
         }
         frag.appendChild(rowList(rows));
         return frag;
@@ -357,8 +363,8 @@ async function initPageSpeedCard() {
         const p = document.createElement('p');
         p.className = 'speed-note speed-note--transition';
         p.innerHTML = before >= 0.95
-            ? `<strong>Timed the older way.</strong> Before v${CLEAN_TIMINGS_FROM} the app also counted loads nobody was watching, and time spent typing a password or the staff PIN. Later figures leave both out, so they will read faster for that reason alone.`
-            : `<strong>Two ways of timing ${windowLabel}.</strong> From v${CLEAN_TIMINGS_FROM} the app leaves out loads nobody was watching and time spent typing a password or the staff PIN. ${Math.round(before * 100)}% of these opens were timed the older way, which counted both, so the figures read slower than the app now is.`;
+            ? `<strong>Timed the older way.</strong> Until ${TIMING_CHANGED} the app also counted loads nobody was watching, and time spent typing a password or the staff PIN. Later figures leave both out, so they will read faster for that reason alone.`
+            : `<strong>Two ways of timing ${windowLabel}.</strong> Since ${TIMING_CHANGED} the app leaves out loads nobody was watching and time spent typing a password or the staff PIN. ${Math.round(before * 100)}% of these opens were timed the older way, which counted both, so the figures read slower than the app now is.`;
         return p;
     };
 

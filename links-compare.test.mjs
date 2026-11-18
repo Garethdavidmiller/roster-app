@@ -264,6 +264,29 @@ test('the hours figure is HOURS — it agreed with nothing, and read as minutes'
     // worse than saying so; the equality above catches every divergence that CAN occur.
 });
 
+test('an hours figure that leaves a line out says "(partial)", as the Design checks row and the chip do', () => {
+    // Whole-app check, Nov 2026. A whole line with no readable time drops out of the average, which is then
+    // over fewer lines than the design has: the checks row marks it "(partial)" and withholds its tick, the
+    // summary chip says "a week (partial)" — and this strip stated the bare figure, on the surface a choice
+    // between two proposals is made on.
+    resetDom();
+    const a = fullPatterns('06:00-14:00');
+    const b = fullPatterns('06:00-14:00');
+    b['2'] = { sun: 'RD', mon: 'TBC', tue: 'TBC', wed: 'TBC', thu: 'TBC', fri: 'TBC', sat: 'RD' };   // worked, unreadable
+    assert.equal(weeklyHours(b, ROTATING_LINES).complete, false, 'premise: B\'s average leaves line 2 out');
+    assert.equal(weeklyHours(a, ROTATING_LINES).complete, true, 'premise: A\'s covers every line');
+    const api = initLinksCompare(makeDeps({
+        getDesigns: () => [{ id: 'a', name: 'A', patterns: a }, { id: 'b', name: 'B', patterns: b }],
+        getDesign:  () => ({ id: 'a', name: 'A', patterns: a }),
+    }).deps);
+    api.toggleCompareMode(); api.selectCompareDesign('b'); api.renderCompare();
+    const hours = /Hours a week[^<]*<\/span><span[^>]*>([^<]*)<\/span>/.exec(els.compareSummary.innerHTML)?.[1] ?? '';
+    const [ha, hb] = hours.split(' → ');
+    assert.equal(ha, hmFromHours(weeklyHours(a, ROTATING_LINES).exSunday ?? 0), 'A\'s figure is complete and plain');
+    assert.equal(hb, `${hmFromHours(weeklyHours(b, ROTATING_LINES).exSunday ?? 0)} (partial)`,
+        `a partial average is stated as though it covered the whole design: ${hours}`);
+});
+
 test('the compare grid renders no operable control — those cells cannot be pressed', () => {
     // `.links-grid--compare` sets `pointer-events: none` and every cell carried `tabindex="-1"`,
     // so 336 <button> elements were announced to a screen reader and did nothing when reached.

@@ -71,19 +71,32 @@ const HTML = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const FAILED_LINE = (/<span id="notifPromptFailedLine">([\s\S]*?)<\/span><\/span>/.exec(HTML)?.[1] ?? '')
     .replace(/<[^>]+>/g, '').trim();
 
+/** The strip's elements as index.html starts them. */
+const freshEls = () => ({ notifPrompt: btn(), notifPromptEnable: btn(), notifPromptDismiss: btn(),
+    notifPromptOffer: btn(), notifPromptFailed: btn({ hidden: true }),
+    notifPromptFailedLine: btn({ textContent: FAILED_LINE }), ariaAnnouncer: btn(),
+    notifPromptOfferDocs: btn(), notifPromptOfferPay: btn({ hidden: true }) });
+
 beforeEach(() => {
     renewals = 0;
     enables = 0;
     enableResult = 'on';
     permissionAnswer = 'denied';
     store = {};
-    els = { notifPrompt: btn(), notifPromptEnable: btn(), notifPromptDismiss: btn(),
-            notifPromptOffer: btn(), notifPromptFailed: btn({ hidden: true }),
-            notifPromptFailedLine: btn({ textContent: FAILED_LINE }), ariaAnnouncer: btn(),
-            notifPromptOfferDocs: btn(), notifPromptOfferPay: btn({ hidden: true }) };   // as index.html starts them
+    els = freshEls();
     /** @type {any} */ (globalThis.Notification).permission = 'default';
     session = null;
 });
+
+/** Show the strip to `name`, signed in, and say whether it promised the pay reminder. @param {string} name */
+async function promisesPay(name) {
+    els = freshEls();
+    session = { name };
+    initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => 'named' });
+    await settle();
+    assert.equal(els.notifPrompt.style.display, 'flex', 'premise: the strip is shown');
+    return !els.notifPromptOfferPay.hidden;
+}
 
 // ── THE PAY REMINDER IS OFFERED TO THE MEMBERS IT IS SENT TO (whole-app check, 17 Nov 2026) ────────
 // Since 10 Nov 2026 the reminder goes to CEA and CES only (functions/pay-reminder.js), and the strip went
@@ -102,6 +115,45 @@ describe('the offer names the pay reminder only to a member it is sent to', () =
             assert.equal(els.notifPromptOfferDocs.hidden, gets, 'and exactly one ending shows');
         });
     }
+
+    // AS THE SERVER DECIDES IT (18 Nov 2026). The strip asked the grade held TODAY; the server sends to
+    // the RECORDED role of a visible row (functions/pay-reminder.js). So a CES whose move into
+    // management was released was promised the reminder until the move's first day, and a hidden leaver
+    // for good. Invented members, added to the real roster for the one test, so the rule is pinned
+    // whatever the roster holds this week.
+    test('a released move out of a priced grade, a hidden leaver and a login-only row are not promised it — a visible CEA is', async () => {
+        const later = new Date(); later.setHours(0, 0, 0, 0); later.setDate(later.getDate() + 3);
+        const invented = [
+            { name: 'A. Person', role: 'Management', hidden: true, rosterType: 'fixed', currentWeek: 1,
+              roleHistory: [{ role: 'CES', until: later }] },   // still CES today, by the dates
+            { name: 'Q. Example', role: 'CEA', hidden: true, rosterType: 'main', currentWeek: 1 },
+            { name: 'C. Login', role: 'CES', managerOnly: true, rosterType: 'fixed', currentWeek: 1 },   // a login-only row
+            { name: 'B. Sample', role: 'CEA', rosterType: 'main', currentWeek: 1 },
+        ];
+        teamMembers.push(...invented);
+        try {
+            assert.equal(await promisesPay('A. Person'), false, 'a member whose move into management is released was promised the pay reminder');
+            assert.equal(await promisesPay('Q. Example'), false, 'a hidden leaver was promised the pay reminder');
+            assert.equal(await promisesPay('C. Login'), false, 'a login-only row is on neither of the server\'s lists');
+            assert.equal(await promisesPay('B. Sample'), true, 'premise: a visible CEA is promised it');
+        } finally {
+            teamMembers.splice(teamMembers.length - invented.length, invented.length);
+        }
+    });
+
+    test('every row on the roster is promised the pay reminder exactly where the server\'s own list sends it', async () => {
+        // The server's lists are generated from the same table (scripts/generate-roster-members.mjs) and
+        // checked against it by sw-asset-check.test.mjs, so this is the server's answer, read as it reads
+        // it. A disagreement is reported by row and shape, never by name.
+        const server = JSON.parse(readFileSync(new URL('./functions/roster-members.json', import.meta.url), 'utf8'));
+        const sentTo = new Set([...server.cea, ...server.ces]);
+        assert.ok(sentTo.size > 0, 'premise: the server sends the reminder to somebody');
+        const wrong = [];
+        for (const [i, m] of teamMembers.entries()) {
+            if (await promisesPay(m.name) !== sentTo.has(m.name)) wrong.push(`row ${i} (${m.role}${m.hidden ? ', hidden' : ''}${m.managerOnly ? ', login only' : ''})`);
+        }
+        assert.deepEqual(wrong, [], 'the strip and the server disagree about who is sent the pay reminder');
+    });
 
     test('in the markup: the ending without the pay reminder shows until the module says otherwise', () => {
         const offer = /<span class="top-prompt-text" id="notifPromptOffer">([\s\S]*?)<\/span>\s*\n/.exec(HTML)?.[1] ?? '';

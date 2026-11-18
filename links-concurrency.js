@@ -178,3 +178,44 @@ export function canAdvanceBaseline(preTs, ourBaseline, preReadOk = true) {
     if (!preReadOk) return false;
     return preTs === ourBaseline;
 }
+
+/**
+ * What a save, a rename or a delete changes about a list row (a design, or a bin entry) — compared to tell
+ * whether the page changed the row while a read of the collection was out (`mergeListAnswer`).
+ * @param {any} row
+ * @returns {string}
+ */
+export function listRowSig(row) {
+    return JSON.stringify([row?.name ?? null, row?.revision ?? null, row?.updatedBy ?? null, row?.updatedAt?.toMillis?.() ?? null,
+        row?.savedAt instanceof Date ? row.savedAt.getTime() : null, row?.deletedBy ?? null, row?.deletedAt?.toMillis?.() ?? null]);
+}
+
+/**
+ * A list as the page holds it NOW, with a collection read SINCE applied to it (whole-app check, Nov 2026).
+ *
+ * The answer describes the collection as it was when the read went out, and the page goes on meanwhile: a
+ * refused save re-reads the list while its "Save mine as new" makes a copy, and a designer can save, rename
+ * or delete. Replacing the list with the answer would drop that copy, list again a design the page had just
+ * binned, and hand a design just saved here its version from before the save — a silent loss of the
+ * designer's own work on the next reopen. So the answer is applied to the rows the page LEFT ALONE, and a row
+ * new to the page joins; a row the page ADDED meanwhile is kept, one it REMOVED stays removed, and one it
+ * CHANGED, or `holds`, is the page's own, at least as new as the answer's. Nothing changed meanwhile, the
+ * result is the answer, row for row.
+ *
+ * @template {{ id: string }} T
+ * @param {T[]} now  the list as the page holds it when the answer lands
+ * @param {T[]} answer  the rows the read returned
+ * @param {Map<string, string>} asked  each id listed when the read went out → its `listRowSig` then
+ * @param {(id: string) => boolean} [holds]  a row whose page copy wins however the answer reads it
+ * @returns {T[]}
+ */
+export function mergeListAnswer(now, answer, asked, holds = () => false) {
+    const mine = new Map(now.map(x => [x.id, x])), inAnswer = new Set(answer.map(x => x.id));
+    const fromAnswer = answer.flatMap(x => {
+        const own = mine.get(x.id);
+        if (!asked.has(x.id)) return [own ?? x];   // new to the page: a colleague's, or made here and already on the server
+        if (!own) return [];                         // removed here meanwhile
+        return [listRowSig(own) !== asked.get(x.id) || holds(x.id) ? own : x];
+    });
+    return [...fromAnswer, ...now.filter(x => !asked.has(x.id) && !inAnswer.has(x.id))];
+}

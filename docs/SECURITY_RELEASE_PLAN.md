@@ -125,9 +125,9 @@ of this doc is the **ordering and go/no-go gates**, not feature detail. Three du
 
 **Hard ordering constraints (still govern the remaining C/D/E work — violating these re-introduces the
 v10.94 class of outage):** **D2 (App Check enforce) must not overlap a rules cutover** — separate by a
-stabilisation window. · C5 (retire surname) is irreversible, gated on ≥90% migration. · Keep Track-A
-infra (WIF, the Functions dependencies) **out** of the authz release — different failure domains,
-bundling only widens the blast radius.
+stabilisation window. · C5 (retire surname) is irreversible, gated on ≥90% migration and on Track E
+(the track table's C row). · Keep Track-A infra (WIF, the Functions dependencies) **out** of the
+authz release — different failure domains, bundling only widens the blast radius.
 
 ---
 

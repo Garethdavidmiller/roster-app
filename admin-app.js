@@ -22,8 +22,9 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
+import { typePillHtml } from './admin-shift-types.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
@@ -425,7 +426,7 @@ export function init() {
         _leaveYearPanel?.refresh();   // the same moment as this banner, before any exit below
 
         /** Hide every figure this card states — the banner AND the header chip, or the previous
-         *  member's "AL left" sits under the new member's name. ONE exit for every way to have nothing
+         *  member's leave left sits under the new member's name. ONE exit for every way to have nothing
          *  truthful to say. */
         const showNothing = () => {
             banner.hidden = true;
@@ -488,6 +489,10 @@ export function init() {
         const headerRemEl = document.getElementById('alHeaderRemaining');
         if (headerBalEl && headerRemEl) {
             headerRemEl.textContent = String(remaining);
+            // …AND WHICH YEAR (review, Nov 2026): the banner's, which can be next year's in December. "2026: 12
+            // left" rather than "2026 AL left: 12", which wrapped the card's title onto two lines at 375px.
+            const headerYearEl = document.getElementById('alHeaderYear');
+            if (headerYearEl) headerYearEl.textContent = yearStr;
             headerBalEl.hidden = false;
             // The shared .card-year-chip; .al-left-chip modifiers colour the low/none states.
             headerBalEl.className = 'card-year-chip al-left-chip'
@@ -689,6 +694,12 @@ export function init() {
             return showError(alPlan.unanswered
                 .map(d => `${formatDisplay(d)}: say whether this rest day was a swapped working day`)
                 .join(' · '));
+        }
+        // …and a day answered about a record that has changed since, which the planner withholds too: refused
+        // in the words the commit's own check uses for a day changed under the page (admin-overrides.js).
+        if (alPlan.changedUnder.length) {
+            alPlan.changedUnder.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
+            return showError(refusedLine(alPlan.changedUnder));
         }
         toSave = alPlan.toSave;
         _alPendingSkipped = alPlan.skipped;      // the receipt names them: never a silent drop
@@ -1309,9 +1320,7 @@ export function init() {
         // bulk Other ALWAYS failed at save. A bulk flavour sub-selector, never the bare pill, if needed.
         const _bulkPillsContainer = document.getElementById('bulkTypePills');
         if (_bulkPillsContainer) {
-            _bulkPillsContainer.innerHTML = PILL_TYPES.filter(t => t !== 'other').map(t =>
-                `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`
-            ).join('');
+            _bulkPillsContainer.innerHTML = PILL_TYPES.filter(t => t !== 'other').map(t => typePillHtml(t)).join('');
         }
         // UNSAVED WEEK EDITS OUTLIVE THE PAGE (iPhone audit, Nov 2026): iOS discards a hidden page and a swipe back asks
         // nothing, so the staged rows are kept whenever the page is hidden and offered on the next load (unsaved-draft.js).

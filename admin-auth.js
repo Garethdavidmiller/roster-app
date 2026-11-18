@@ -236,7 +236,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
         gapsEl.hidden = false;
     }
 
-    sessionReady.then(loadGaps).catch(() => {});
+    sessionReady.then(loadGaps).catch(() => {});   // loadGaps shows its own failures; this only stops an unhandled rejection
 
     btn.addEventListener('click', async () => {
         /** @type {HTMLButtonElement} */ (btn).disabled    = true;
@@ -362,7 +362,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                             confirmBtn.textContent = 'Disabling…';
                             try {
                                 renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true }), true);
-                                loadGaps().catch(() => {});   // the leavers line above should now clear
+                                loadGaps().catch(() => {});   // the leavers line above should now clear (loadGaps shows its own failures)
                             } catch (e) {
                                 // Re-enable so a transient/expired-token failure (the dry-run may be
                                 // confirmed >1h later, after the ID token expired) is retryable — don't
@@ -385,7 +385,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             renderResult(await doSetup({ removeOrphans: /** @type {HTMLInputElement} */ (orphansCb).checked }));
             // Re-audit, so the block above states what is true AFTER the run rather than what was
             // true when the page loaded. Best-effort: the run itself already reported what it did.
-            loadGaps().catch(() => {});
+            loadGaps().catch(() => {});   // loadGaps shows its own failures; this only stops an unhandled rejection
         } catch (err) {
             resultEl.innerHTML = `<p class="auth-result-error">❌ ${escapeHtml(/** @type {any} */ (err).message)}</p>`;
             resultEl.classList.add('visible');
@@ -396,5 +396,5 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
         }
     });
 
-    return { refresh: () => loadGaps().catch(() => {}) };
+    return { refresh: () => loadGaps().catch(() => {}) };   // loadGaps shows its own failures; this only stops an unhandled rejection
 }

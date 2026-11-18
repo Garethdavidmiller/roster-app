@@ -7,7 +7,8 @@
  * previously copy-pasted into every page coordinator (and had drifted —
  * missing focus traps, missing initial focus on some pages).
  *
- * Owns: open/close lifecycle (via createLightbox), SW status refresh, bug link,
+ * Owns: open/close lifecycle (via createLightbox), SW status refresh, bug link, the panel's
+ *   page links (each replaces the panel's history entry — `followLinkOutOf`, overlay.js),
  *   and `wireHeaderLogo` — the sub-page header logo's back-to-calendar wiring.
  * Does NOT own: the trigger that OPENS About — each page wires its drawer logo
  *   to the returned `.open` (pages differ: the calendar header logo opens About;
@@ -19,7 +20,7 @@
  */
 
 import { APP_VERSION, CONFIG } from './roster-data.js';
-import { createLightbox, confirmDialog, whenHistorySettled } from './overlay.js';
+import { createLightbox, confirmDialog, whenHistorySettled, followLinkOutOf } from './overlay.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { setStatus } from './status-text.js';
 import { hasPendingUpdate } from './sw-register.js';
@@ -31,15 +32,20 @@ import { hasPendingUpdate } from './sw-register.js';
  * @param {object} [opts]
  * @param {string}   [opts.appLabel='Marylebone Roster'] - App name used in the bug-report subject/body
  * @param {string}   [opts.bugLinkId='bugReportLink'] - id of the bug-report <a> in this page's markup
- * @param {Function} [opts.getUserName] - Returns the logged-in user's name for the bug report;
- *                                        omit on pages without a session (no User line is added)
+ * @param {Function} [opts.getUserName] - Returns who is reporting, for the bug report's User line:
+ *                                        the signed-in user's name (the Calendar also says how it was
+ *                                        opened without one); omit on pages without a session (no
+ *                                        User line is added)
+ * @param {() => string[]} [opts.getReportLines] - Further auto-filled lines for the bug report, each
+ *                                        "Label: value", after the User line (the Calendar's says whose
+ *                                        calendar was on screen, which need not be the reporter's)
  * @param {Function} [opts.onOpen]      - Page-specific extra work on open (e.g. calendar's
  *                                        team-view content swap), run before the panel shows
  * @param {() => void} [opts.printFn] - Replaces window.print() for the optional
  *                                        #lightboxPrintBtn (e.g. calendar's landscape team print)
  * @returns {{ open: () => void, close: () => void }|null}
  */
-export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 'bugReportLink', getUserName, onOpen, printFn } = {}) {
+export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 'bugReportLink', getUserName, getReportLines, onOpen, printFn } = {}) {
     const lightbox = document.getElementById('iconLightbox');
     if (!lightbox) return null;
     const content  = document.getElementById('iconLightboxContent');
@@ -74,6 +80,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
         if (!bugLink) return;
         const date  = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         const user  = getUserName?.();
+        const more  = getReportLines?.() ?? [];
         // TWO THINGS AN iPHONE'S REPORT CANNOT SAY FOR ITSELF (iPhone audit, 7 Nov 2026). Whether it came
         // from the home-screen app — half the iOS behaviour differs there, and the user agent is the same
         // either way — and which iOS: from iOS 26 Safari freezes the version in the user agent at 18_7,
@@ -89,6 +96,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
             + '— Auto-filled —\n'
             + `App: ${appLabel} Version ${APP_VERSION}\n`
             + (user ? `User: ${user}\n` : '')
+            + more.map(line => `${line}\n`).join('')
             + `Date: ${date}\nInstalled app: ${installed ? 'yes' : 'no'}\nBrowser: ${ua}`;
         bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — ${appLabel} Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
     }
@@ -111,6 +119,14 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
 
     // Bug link opens the mail app — must not bubble to the backdrop close check.
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
+
+    // A PAGE LINK REPLACES THE PANEL'S HISTORY ENTRY (18 Nov 2026) — "View staff roster", a guide, Admin,
+    // Operations: followed as plain links, the page they opened sat on top of the panel's own entry, and one
+    // Back from it landed on a step of this page that nothing answered (`followLinkOutOf`, overlay.js, says
+    // why). On the PANEL, so every page's links are covered. The unsaved-work question still comes first: it
+    // listens on the document in the capture phase and re-clicks the link on "Leave" (page-session.js). Mail,
+    // a new tab and an external `_blank` link are left to the browser.
+    content?.addEventListener('click', e => { followLinkOutOf(lb, /** @type {MouseEvent} */ (e)); });
 
     // Optional print button — close first so the lightbox doesn't appear in the
     // output, then print after the exit transition. The 500 ms delay matches the

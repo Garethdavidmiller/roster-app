@@ -157,6 +157,42 @@ describe('UNANSWERED: the question the planner used to compute and throw away', 
             ovByDate: NO_OV, swapAnswers: new Map(), overrides: [],
         });
         assert.deepEqual(plan.unanswered, [], 'the early return carries the key too');
+        assert.deepEqual(plan.changedUnder, [], 'and the other refusal\'s');
+    });
+});
+
+describe('CHANGED UNDER AN ANSWER: the mirror of the unanswered day (review, Nov 2026)', () => {
+    // The row asked about its rest day when it was drawn, and was answered; a read landing while it sat
+    // staged put a record on the day that SETTLES the question. The projection, reading the fresh map,
+    // stopped asking and dropped the answer — so "Rest day — free" was written and cost a day, and a stale
+    // "Swapped — counts" still recorded a swap (the row's `swapped` flag) the allowance check counted free.
+    const imported = { id: 'imp', memberName: 'F. Fixture', date: SAT, type: 'shift', value: '07:00-15:00', source: 'roster_import' };
+    const rdw = { ...imported, id: 'rdw', type: 'rdw' };
+
+    test('answered "free", and a shift has been recorded there since: withheld and named, never written', () => {
+        const ov = new Map([[SAT, imported]]);
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: [al(SAT, { existingId: null })],
+            ovByDate: ov, swapAnswers: new Map([[SAT, false]]), overrides: [imported] });
+        assert.ok(consumesEntitlement(fixedCea, SAT, ov), 'premise: leave over that shift would cost a day');
+        assert.deepEqual(plan.changedUnder, [SAT]);
+        assert.deepEqual(plan.toSave, [], 'the answer said nothing is written');
+    });
+
+    test('answered "swapped", and Rest Day Working has been recorded there since: withheld, never written as a swap', () => {
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: [al(SAT, { existingId: null, swapped: true })],
+            ovByDate: new Map([[SAT, rdw]]), swapAnswers: new Map([[SAT, true]]), overrides: [rdw] });
+        assert.deepEqual(plan.changedUnder, [SAT]);
+        assert.deepEqual(plan.toSave, []);
+    });
+
+    test('CONTROL: an answer the day is still asked about is applied, and the rest of the batch saves', () => {
+        const plan = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: [al(MON), al(SAT)],
+            ovByDate: NO_OV, swapAnswers: new Map([[SAT, true]]), overrides: [] });
+        assert.deepEqual(plan.changedUnder, []);
+        assert.deepEqual(plan.toSave.map(e => e.date), [MON, SAT]);
+        const mixed = planAlWeekSave({ member: fixedCea, memberName: 'F. Fixture', toSave: [al(MON), al(SAT, { existingId: null })],
+            ovByDate: new Map([[SAT, imported]]), swapAnswers: new Map([[SAT, false]]), overrides: [imported] });
+        assert.deepEqual(mixed.toSave.map(e => e.date), [MON], 'a changed day does not take the working day with it');
     });
 });
 

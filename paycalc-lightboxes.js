@@ -12,7 +12,7 @@
  *   and its words are `decimalHoursText`, paycalc-inputs.js, which is pure and unit-tested).
  */
 
-import { createLightbox, initCardCollapse, openNoticeIfClear } from './overlay.js';
+import { createLightbox, initCardCollapse, openNoticeIfClear, followLinkOutOf } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
@@ -200,14 +200,19 @@ export function initPaycalcLightboxes() {
           title:   'Estimate your January Holiday Pay Premium',
           section: 'Pay',
           date:    NOTICE_DATE,
-          body:    'This January’s Holiday Pay Premium is for 2025/26, a year the Pay Calculator has no hours for. '
+          body:    'This January’s Holiday Pay Premium is for the 2025/26 tax year. '
                  + 'Your 13\u00a0Mar\u00a02026 payslip gives a rough figure: copy its Year to Date Taxable Pay into '
                  + '📊\u00a0Year to Date Figures, then choose the rough estimate in 🏖️\u00a0Holiday Pay Premium.',   // no name or date breaks
         });
       },
       onClose: markDone,
     });
-    document.getElementById('noticeHppGo')?.addEventListener('click', markDone);
+    // The link leaves for the payslip by REPLACING the notice's history entry (`followLinkOutOf`, overlay.js),
+    // or Back from that payslip lands on the notice's entry, which nothing answers once the page reloads.
+    document.getElementById('noticeHppGo')?.addEventListener('click', e => {
+      markDone();
+      followLinkOutOf(notice, /** @type {MouseEvent} */ (e));
+    });
     document.getElementById('noticeHppLater')?.addEventListener('click', () => notice.close());
     return () => openNoticeIfClear(notice);
   })();

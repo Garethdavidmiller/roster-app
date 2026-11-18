@@ -809,6 +809,6 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // Never let it navigate — `action="#"` exists for the password manager, not for the browser.
     /** @type {HTMLFormElement} */ (overlay.querySelector('#loginForm')).addEventListener('submit', e => {
         e.preventDefault();
-        attempt().catch(() => {});
+        attempt().catch(() => {});   // attempt() shows and logs its own failures; this only stops an unhandled rejection
     });
 }

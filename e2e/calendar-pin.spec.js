@@ -381,6 +381,42 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
     await expect(page.locator('#calendarLock')).toHaveCount(0);
 });
 
+// A RE-LOCK TAKES THE GRID OFF THE PAGE, NOT ONLY OUT OF SIGHT (18 Nov 2026). Before the first grant
+// nothing is built; after one, a re-lock hid the workspace and left what the grant drew in
+// #calendarDisplay — every day of the month, or every row of the Team View week, in the page behind
+// the card, for a screen reader, a devtools pane or one CSS rule going missing. Emptied on the loss,
+// and the PIN draws it again. Both surfaces, because Team View draws into the same element.
+// ONE-SHOT, read as the card arrives: the loss empties the grid before the card goes up, and nothing
+// redraws it while locked, so an auto-retrying assertion would add nothing but a way to pass late.
+for (const surface of /** @type {const} */ (['month', 'Team View'])) {
+    test(`a re-lock empties the ${surface} grid behind the card — and the PIN draws it again`, async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // the first read: Aug–Oct
+        await seedMember(page);
+        await stubPinExchange(page);
+        await page.goto('/index.html');
+        await enterPin(page, '1234');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        if (surface === 'month') {
+            await page.locator('#nextMonth').click();   // October: the first read's, so nothing is read
+        } else {
+            await page.locator('#teamViewBtn').click();
+            for (let i = 0; i < 6; i++) await page.locator('#tvNextWeek').click();
+            await expect(page.locator('#tvWeekJump'), 'premise: the last week the first read holds').toHaveText('25–31 Oct 2026');
+        }
+        // From here every read is refused, as revoked tokens are. One step on reaches November, which is read.
+        await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
+        await page.locator(surface === 'month' ? '#nextMonth' : '#tvNextWeek').click();
+        await expect(page.locator('#calendarLock')).toBeVisible();
+        expect(await page.locator('#calendarDisplay').evaluate(el => el.childElementCount),
+            'what the grant drew stayed in the page behind the card').toBe(0);
+
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
+        await enterPin(page, '1234');
+        await expect(page.locator(surface === 'month' ? '#calendarDisplay .calendar-day' : '#calendarDisplay .team-week-text').first(),
+            'the PIN did not draw the grid again').toBeVisible();
+    });
+}
+
 test('a day panel open when access is lost closes with it — it does not stay over the lock card (sign-in check, 11 Nov 2026)', async ({ page }) => {
     // The panel shows what only access may show, and until v25.77 the lock card went up UNDERNEATH it.
     await seedMember(page);
@@ -1216,6 +1252,26 @@ test('the nav drawer shows NO footer while the Calendar is locked', async ({ pag
     await expect(page.locator('#navPanel')).toBeVisible();
     await expect(page.locator('.nav-panel-footer')).toBeHidden();
     await expect(page.locator('#navNotifBell')).toHaveCount(0);
+});
+
+// ONE TAB NEVER LEAVES THE DRAWER FROM ITS SEARCH BOX (18 Nov 2026). The drawer's Tab trap counted links and buttons
+// and not the guide search box, so here — a drawer with no footer — a search that matched nothing made the box the
+// last stop Tab could reach, and one Tab from it walked out of the drawer onto the locked page behind.
+test('locked: with the guide search matching nothing, Tab from its box stays in the drawer', async ({ page }) => {
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('.nav-panel-footer'), 'premise: a locked visitor\'s drawer has no footer').toBeHidden();
+    const input = page.locator('#navGuideSearchInput');
+    await input.click();                                         // the first focus loads the search
+    await input.fill('zzzqxv');
+    await expect(page.locator('#navGuideSearchStatus')).toHaveText('No matches in the guides');
+    await input.press('Tab');
+    expect(await page.evaluate(() => !!document.getElementById('navPanel')?.contains(document.activeElement)),
+        'one Tab from the box left the drawer').toBe(true);
+    await page.keyboard.press('Shift+Tab');
+    await expect(input, 'and Shift+Tab comes back round to it').toBeFocused();
 });
 
 test('a VIEWER gets the footer for Lock Calendar — but still no bell', async ({ page }) => {

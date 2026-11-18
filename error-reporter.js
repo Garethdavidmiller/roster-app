@@ -46,7 +46,7 @@ import { APP_VERSION } from './roster-data.js';
 import { logClientError, auth } from './firebase-client.js';
 import { lsGet } from './ls.js';
 import { AUTH_KEY } from './session.js';
-import { shouldReport, APP_SCRIPT_ORIGINS, DIAGNOSTIC_PREFIX } from './client-errors.js';
+import { shouldReport, DIAGNOSTIC_PREFIX } from './client-errors.js';
 import { SLOW_SAVE_EVENT } from './slow-save.js';
 
 // Deduplicate within the current page session — one Firestore write per distinct message.
@@ -70,12 +70,12 @@ function _report(err, src = '') {
                 ? (() => { try { return JSON.stringify(err).slice(0, 300); } catch { return String(err); } })()
                 : String(err ?? '')).trim();
 
-        // An unhandledrejection carries no filename, so `src` is the pathname — which would hide
-        // the SDK origin the IndexedDB filter keys off. Recover it from the stack, which for an
-        // SDK-internal throw names the gstatic file on every frame.
+        // An unhandledrejection carries no filename, so `src` is the pathname, and the STACK is the
+        // only thing that says which script threw: for an SDK-internal throw it names the gstatic file
+        // on every frame. The filter is handed both, unaltered — the IndexedDB rule keys off the Auth
+        // script's NAME (until 18 Nov 2026 this passed the bare SDK origin instead, which named no file).
         const stackText = err instanceof Error ? (err.stack ?? '') : '';
-        const origin = APP_SCRIPT_ORIGINS.find(o => src.includes(o) || stackText.includes(o));
-        if (!shouldReport(message, origin || src, location.hostname)) return;
+        if (!shouldReport(message, src, location.hostname, stackText)) return;
 
         // One report per distinct message per page session — don't flood Firestore if
         // the same bug fires on every keypress or scroll event.

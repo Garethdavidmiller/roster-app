@@ -1,13 +1,14 @@
 // @ts-check
 /**
- * huddle.js — Huddle upload, Huddle card toggle, and notification card wiring.
+ * huddle.js — the Daily Huddle's manual upload, and the Notifications card's wiring.
  *
- * Owns: Notifications card (all staff), daily Huddle manual upload (admin only),
- *   Huddle viewer card collapse/expand toggle.
+ * Owns: Notifications card (Settings, all staff), daily Huddle manual upload (Operations, admin only),
+ *   including the browser's own DOCX→HTML conversion of a manually uploaded Word Huddle.
  * Does NOT own: Huddle ingest Cloud Function (functions/huddle-ingest.js), Firestore huddles
  *   collection writes (uploadHuddle, via firebase-client.js), the VAPID key and re-subscription
- *   (notif.js), roster data (roster-data.js).
- * Edit here for: notification subscribe/unsubscribe UI, Huddle file upload form, Huddle card toggle.
+ *   (notif.js), roster data (roster-data.js), the Huddle card's collapse toggle (operations-app.js,
+ *   with the page's other cards).
+ * Edit here for: notification subscribe/unsubscribe UI, Huddle file upload form.
  */
 
 import { uploadHuddle, getLatestHuddle } from './firebase-client.js';
@@ -16,8 +17,8 @@ import { notifSupported, peekNotifState, enableNotifications, disableNotificatio
 import { initCardCollapse } from './overlay.js';
 
 /**
- * Initialises the Huddle upload card and the Huddle collapse toggle.
- * Used by operations.html where the card is always present (admin-only page).
+ * Wires the Huddle upload card. Used by operations.html, an admin-only page whose markup always holds
+ * the card; its collapse toggle is operations-app.js's, wired with the page's other cards.
  * @param {{ currentIsAdmin: boolean, currentUser: string|null }} cfg
  */
 export function initHuddleUpload({ currentIsAdmin, currentUser }) {
@@ -128,16 +129,19 @@ export function initHuddleNotifications({ onState, payReminders = false } = {}) 
                 // not under a browser (whole-app review, Oct 2026).
                 _deniedMsg.textContent = 'On iPhone or iPad: open Settings → Notifications, find this app by its Home Screen name, and turn on Allow Notifications.';
             } else if (/Android/i.test(navigator.userAgent)) {
-                // The INSTALLED app has no address bar, so no padlock to tap (whole-app check, 17 Nov 2026):
+                // The INSTALLED app has no address bar, so no icon there to tap (whole-app check, 17 Nov 2026):
                 // there the permission is the app's own, in the phone's settings — as on an iPhone.
+                // IN A TAB THE ICON IS DESCRIBED, NOT NAMED A PADLOCK (18 Nov 2026): Chrome replaced the padlock
+                // with a "two sliders" site icon in 2023, so a member looking for a padlock found none. Both are
+                // said, because an older Chrome still draws the padlock.
                 _deniedMsg.textContent = window.matchMedia?.('(display-mode: standalone)').matches
                     ? 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'
-                    : 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
+                    : 'On Android: tap the icon at the left of Chrome’s address bar (a padlock or two sliders) → Site settings → Notifications → Allow.';
             } else {
                 // The route is one unit (`.nav-path`), and the arrow into it keeps to the word before it
                 // (a no-break space): a line that starts "→" reads as broken punctuation. WebKit broke
                 // before that arrow where Chromium broke after it, so the space is what holds it.
-                _deniedMsg.replaceChildren('In Chrome: click the padlock in the address bar\u00a0→ ',
+                _deniedMsg.replaceChildren('In Chrome: click the icon at the left of the address bar (a padlock or two sliders)\u00a0→ ',
                     Object.assign(document.createElement('span'), { className: 'nav-path', textContent: 'Site settings → Notifications → Allow' }), '.');
             }
             _deniedMsg.style.display = 'block';
@@ -188,9 +192,9 @@ export function initHuddleNotifications({ onState, payReminders = false } = {}) 
 // ============================================
 // DAILY HUDDLE UPLOAD — admin only
 // ============================================
-// The card HTML is always in the DOM but hidden via style="display:none".
-// This block reveals it and wires up the upload flow only when the signed-in
-// user is an admin. Non-admins never see the card.
+// The card is in operations.html's markup, shown: the page itself is admin-only, so its one caller
+// passes `currentIsAdmin: true`. The admin check below stays as a guard for any other caller, and the
+// `display` it clears is a leftover — the markup sets none (the card was once hidden inline).
 
 /** Inline-HTML cap for a converted DOCX — the SAME number, and the same `<=` boundary, as
  *  `MAX_HUDDLE_HTML_CHARS` in functions/index.js (upload-cap-parity.test.mjs pins both). */

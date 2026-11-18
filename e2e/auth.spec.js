@@ -525,6 +525,33 @@ test('forced password overlay: never appears while the kill switch is off', asyn
     await expect(page.locator('#pwForceOverlay')).toHaveCount(0);
 });
 
+// ── A SIGN-IN'S MARKER IS SPENT AS THE PAGE OPENS (whole-app check, Nov 2026) ─────────────────────
+// A sign-in leaves a one-shot marker and the page that opens next spends it, so "set your own password" is asked
+// after a SIGN-IN and never on an ordinary load (password-force.js: "consume BEFORE any await"). Five pages ran the
+// step only once the session had been confirmed (`sessionReady.then`), so a member who left while that was still
+// under way carried the marker to a later ordinary load, which then asked out of nowhere. The restore is held for
+// the whole test, so each page is asked while its session is still being confirmed — which, held, takes
+// session.js's whole AUTH_RESTORE_TIMEOUT_MS. Every page that runs the step on `sessionReady`, from the one page
+// list; not the Calendar or the Pay Calculator, which run it from sign-in chains of their own (calendar-app.js
+// `_runPasswordForce`, paycalc-app.js `afterAuth`). The suite's kill switch is off, which changes nothing here:
+// the marker is spent before the switch is read, on purpose (password-force.js).
+for (const p of APP_PAGES.filter(pg => !['index.html', 'paycalc.html'].includes(pg.file))) {
+    test(`forced password overlay: ${p.file} spends a sign-in's marker as it opens, not once the session is confirmed`, async ({ page }) => {
+        const { PW_FORCE_PENDING_PREFIX } = await import('../storage-keys.js');
+        const marker = PW_FORCE_PENDING_PREFIX + 'G. Miller';
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript((key) => {
+            localStorage.setItem(key, '1');
+            // Overtime is paused for everyone; its test seam opens it, so the step it runs is reached (overtime.spec.js).
+            const w = /** @type {any} */ (window);
+            w.__E2E = Object.assign(w.__E2E || {}, { authRestoreDelayMs: 15_000, overtimeEnabled: true });
+        }, marker);
+        await page.goto(p.url);
+        await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), marker),
+            { message: `${p.file} still holds the marker while its session is being confirmed`, timeout: 4000 }).toBeNull();
+    });
+}
+
 // ── RESET REQUEST LINK (PASSWORD_DESIGN.md — the request queue) ─────────────────────────────────
 // ALWAYS ON SCREEN since v20.48. It was revealed only after two credential failures, on the
 // reasoning that the remedy for a mistype is to try again — true, but it made the member who KNOWS

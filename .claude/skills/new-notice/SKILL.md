@@ -159,7 +159,11 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
         onClose() { _snooze(7); },
     });
 
-    goLink?.addEventListener('click', () => _snooze(1));  // acted — shorter snooze
+    // Acted — shorter snooze. The link REPLACES the notice's history entry with its page (`followLinkOutOf`,
+    // overlay.js — import it): left a plain link, the page stacked on top of the notice's entry, and one Back
+    // from it landed on a step nothing answered (18 Nov 2026). On index.html use calendar-notices.js's
+    // `_wireNoticeLink('[Name]NoticeGo', lb, markDone)` instead — calendar-notices.test.mjs block 13 requires it.
+    goLink?.addEventListener('click', (e) => { _snooze(1); followLinkOutOf(lb, e); });
     laterBtn?.addEventListener('click', () => lb.close());
 
     // Guard: skip if another overlay (e.g. Huddle viewer) opened in the 1500ms window.

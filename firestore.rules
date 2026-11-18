@@ -603,7 +603,8 @@ service cloud.firestore {
         // all, and `legacyDocPath` is what finds its object. `is string` is checked first
         // so .matches() is never called on a non-string. Every write this app makes today
         // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
-        // not for anything new.
+        // not for anything new. The circulars and newsletters blocks hold the same rule for
+        // their own folders, and point here rather than repeating this.
         (!('storagePath' in request.resource.data) ||
          (request.resource.data.storagePath is string &&
           request.resource.data.storagePath.matches('huddles/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&
@@ -797,8 +798,11 @@ service cloud.firestore {
     }
 
     // passwordStatus/{memberName} — the per-member password-migration record (PASSWORD_DESIGN.md §6).
-    //   resetAt       : written ONLY by the resetMemberPassword Cloud Function (Admin SDK bypasses
-    //                   these rules) — no client path can set or change it.
+    //   resetAt       : written ONLY by the Cloud Functions (the Admin SDK bypasses these rules), on
+    //                   every path that puts an account on its surname default — the admin reset
+    //                   (resetMemberPassword), and Set up accounts (setupRosterAuth) on a new account,
+    //                   a take-back and a re-enable (`stampResetAt`, functions/auth-endpoints.js). No
+    //                   client path can set or change it.
     //   passwordSetAt : the member stamps their OWN record after a successful updatePassword.
     // Migrated ⇔ passwordSetAt newer than any resetAt. Read = owner or admin (the Operations
     // account-status table). A member may only touch `passwordSetAt`, pinned to the server clock so
@@ -902,24 +906,9 @@ service cloud.firestore {
         // well-formed but non-existent day (e.g. 2026-02-31); the client date paths prevent those.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
-        // ── storagePath IS BOUND TO ITS OWN COLLECTION (v24.18, external review of v24.17) ──
-        // This field was in `hasOnly` with no type check and no shape check, which was a fair
-        // reading while a bad value could only produce a broken link. `getDocumentUrl` (v24.16)
-        // changed that: it hands this path to the Admin Storage API, which bypasses storage.rules
-        // and will sign ANY object it is given. A circulars document carrying some other collection's
-        // path would then be a privileged server minting a read URL for a file this rule never
-        // meant to release.
-        // The signer checks the same thing itself (`isSignablePathForKind`) — this is the second
-        // layer, and it is the one that stops the bad value being STORED rather than merely
-        // refusing to act on it afterwards. Both must agree; doc-url-core.test.mjs pins them.
-        // The pattern admits every path this app has ever written — `versionedDocPath`'s
-        // `circulars/{date}-{id}.{ext}` and the pre-v13.99 `circulars/{date}.{ext}` — and nothing with a
-        // second slash, so a nested or traversing path cannot be written in the first place.
-        // OPTIONAL — a pre-v13.99 document has no storagePath at
-        // all, and `legacyDocPath` is what finds its object. `is string` is checked first
-        // so .matches() is never called on a non-string. Every write this app makes today
-        // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
-        // not for anything new.
+        // storagePath is bound to its OWN collection — `circulars/` and one more segment, `.pdf` or
+        // `.docx` — and is optional for a document from before v13.99. Why, and why a second check
+        // beside the signer's: the huddles block above, which says it once for all three.
         (!('storagePath' in request.resource.data) ||
          (request.resource.data.storagePath is string &&
           request.resource.data.storagePath.matches('circulars/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&
@@ -949,24 +938,9 @@ service cloud.firestore {
         // well-formed but non-existent day (e.g. 2026-02-31); the client date paths prevent those.
         request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
-        // ── storagePath IS BOUND TO ITS OWN COLLECTION (v24.18, external review of v24.17) ──
-        // This field was in `hasOnly` with no type check and no shape check, which was a fair
-        // reading while a bad value could only produce a broken link. `getDocumentUrl` (v24.16)
-        // changed that: it hands this path to the Admin Storage API, which bypasses storage.rules
-        // and will sign ANY object it is given. A newsletters document carrying some other collection's
-        // path would then be a privileged server minting a read URL for a file this rule never
-        // meant to release.
-        // The signer checks the same thing itself (`isSignablePathForKind`) — this is the second
-        // layer, and it is the one that stops the bad value being STORED rather than merely
-        // refusing to act on it afterwards. Both must agree; doc-url-core.test.mjs pins them.
-        // The pattern admits every path this app has ever written — `versionedDocPath`'s
-        // `newsletters/{date}-{id}.{ext}` and the pre-v13.99 `newsletters/{date}.{ext}` — and nothing with a
-        // second slash, so a nested or traversing path cannot be written in the first place.
-        // OPTIONAL — a pre-v13.99 document has no storagePath at
-        // all, and `legacyDocPath` is what finds its object. `is string` is checked first
-        // so .matches() is never called on a non-string. Every write this app makes today
-        // sets it (`versionedDocPath`), so the optionality is for what already EXISTS,
-        // not for anything new.
+        // storagePath is bound to its OWN collection — `newsletters/` and one more segment, `.pdf` or
+        // `.docx` — and is optional for a document from before v13.99. Why, and why a second check
+        // beside the signer's: the huddles block above, which says it once for all three.
         (!('storagePath' in request.resource.data) ||
          (request.resource.data.storagePath is string &&
           request.resource.data.storagePath.matches('newsletters/[A-Za-z0-9._-]+[.](pdf|docx)'))) &&

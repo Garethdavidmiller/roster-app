@@ -80,9 +80,11 @@ const PIN_LENGTH = 4;
  *     A correct PIN never stays counted, so ordinary use can never approach the limit however busy the
  *     office is.
  *
- * The block EXPIRES on its own. There is no permanent or global lock, deliberately: a shared-source
- * control that can be driven into a permanent state by any passer-by is a denial-of-service handle
- * pointed at the staff it exists to protect.
+ * The block EXPIRES on its own. There is no PERMANENT lock, deliberately: a shared-source control
+ * that can be driven into a permanent state by any passer-by is a denial-of-service handle pointed at
+ * the staff it exists to protect. The one station-wide lock (`GLOBAL_THROTTLE`, below) expires by
+ * itself too — anybody can close it for fifteen minutes, as often as they like, and the header says
+ * why that trade is kept and who is told when it happens.
  */
 const DEFAULT_THROTTLE = Object.freeze({
     maxFailures:  30,

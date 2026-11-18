@@ -154,7 +154,7 @@ let openAboutLightbox = null;
 // `initCalendarTooltip`/`initCalendarKeyboard` further down — with
 // `#calendarDisplay` empty they have nothing to act on, and the keyboard ACTS only inside it, so the
 // stored copy painted in the lock slot before the grant (v24.59) is read, never used.
-const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc });
+const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc, isTeamView: () => teamView.isTeamViewMode() });
 
 // (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
 
@@ -208,15 +208,15 @@ function changeMonth(delta) {
     dismissSwipeHint();
 }
 
+// The phone's text scale, stamped on <html> before anything is laid out, so the action row can go
+// compact where five buttons would otherwise wrap (text-scale.js has the reasoning and the numbers).
+applyTextScale(document);
+
 // Show a one-time swipe hint on the calendar for first-time visitors.
 // Only shown on touch devices — desktop users navigate with Prev/Next buttons.
 // Dismissed permanently on the first month navigation (swipe or button), or
 // auto-dismissed after 6s — without the timer, a user who saw the hint but
 // didn't navigate would be shown it again on every reload.
-// The phone's text scale, stamped on <html> before anything is laid out, so the action row can go
-// compact where five buttons would otherwise wrap (text-scale.js has the reasoning and the numbers).
-applyTextScale(document);
-
 (function initSwipeHint() {
     if (lsGet('myb_swipe_hint_seen')) return;
     if (!window.matchMedia('(pointer: coarse)').matches) return;
@@ -332,7 +332,9 @@ function _showStaleMemberBanner(staleName, fallbackName) {
     // 30-second timer then hid the banner with that warning gone too. Now only this line times out,
     // and the banner goes with it only when nothing else is left in it.
     const line = document.createElement('div');
-    line.textContent = `"${staleName}" is no longer in the roster — showing ${fallbackName}'s calendar. Use the dropdown to select the correct person.`;
+    // The signed-in member's OWN name (a row hidden after a move into management, say) is said to them,
+    // not about them in quotes (18 Nov 2026).
+    line.textContent = `${staleName === getSession()?.name ? 'Your name' : `"${staleName}"`} is no longer in the roster — showing ${fallbackName}'s calendar. Choose a name from the list above.`;
     banner.appendChild(line);
     banner.classList.add('visible');
     setTimeout(() => {
@@ -471,7 +473,7 @@ function renderCalendar() {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
             errDiv.setAttribute('role', 'alert');
-            errDiv.innerHTML = '<h2><span aria-hidden="true">⚠️</span> Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin.</p>';
+            errDiv.innerHTML = '<h2><span aria-hidden="true">⚠️</span> Couldn\'t display this roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -645,10 +647,11 @@ try {
     //
     // Everything that puts ROSTER DATA on screen lives in here, and none of it runs until
     // `calendar-access.js` says this browser may see it. That is the primary gate, and it is a
-    // structural one: while the Calendar is locked there is no member dropdown, no rendered grid, no
+    // structural one: until the first grant there is no member dropdown, no rendered grid, no
     // Team View and no override fetch — not hidden ones, ABSENT ones. Hiding a rendered Calendar
     // behind an overlay would leave the data in the DOM for a screen reader, a devtools pane, or one
-    // CSS rule going missing; there is nothing to reveal here because nothing was built.
+    // CSS rule going missing; there is nothing to reveal here because nothing was built. A re-lock
+    // cannot un-build the workspace, so it hides it and EMPTIES the grid (the listeners at the foot).
     //
     // The SECOND gate is in calendar-overrides.js (THE ACCESS GATE), which refuses the reads at
     // source. Both exist because they fail differently: this one is a call-ORDER property that a
@@ -756,6 +759,7 @@ try {
             updateNavButtonState,
             openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
             onRetryMonth: retryMonth,
+            announceMonthChange,
         });
     };
 
@@ -789,7 +793,12 @@ try {
 
             const about = initAboutLightbox({
                 appLabel: 'Marylebone Roster',
-                getUserName: () => isFirstRun() ? 'Not selected' : ((/** @type {any} */ (getCurrentMember()))?.name || 'Not selected'),
+                // WHO IS REPORTING, as every other page says it: the signed-in member, or how the
+                // Calendar was opened without one (18 Nov 2026). It named the member on screen, which
+                // is a colleague's calendar as often as the reader's own — so that has a line of its own.
+                getUserName: () => getSession()?.name || (isViewerMode() ? 'Staff PIN' : 'Not signed in'),
+                getReportLines: () => [`Calendar shown: ${getAccessType() === 'none' ? 'None (locked)'
+                    : isFirstRun() ? 'Not selected' : ((/** @type {any} */ (getCurrentMember()))?.name || 'Not selected')}`],
                 onOpen() {
                     // Swap content based on current view mode
                     const inTeam = teamView.isTeamViewMode();
@@ -1219,11 +1228,13 @@ function _saveOwnSnapshot() {
 // (navigation and Team View, through calendar-overrides.js — the likelier one, v20.15). Both end in
 // ONE call, `handleAccessLost`, which shuts the one access state and THEN puts the card up. What must
 // follow a loss listens for that write in the module that owns it; this file shuts no gate, and
-// calendar-access-state.js says why. The member's stored copy is this file's: a Calendar that has
-// lost access keeps none (v24.59). Wired before access is decided, so neither can be missing when a
-// read is refused.
+// calendar-access-state.js says why. The member's stored copy and the grid are this file's: a Calendar
+// that has lost access keeps neither — not the copy (v24.59), nor the month or week the grant drew,
+// which the card hides but the page still holds (18 Nov 2026); the next grant repaints it
+// (`onEveryGrant`). Wired before access is decided, so neither can be missing when a read is refused.
 setOverrideAccessLostHandler(handleAccessLost);
 onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
+onCalendarAccess(({ open }) => { if (!open) document.getElementById('calendarDisplay')?.replaceChildren(); });
 
 initCalendarAccess({
     paintBeforeDecision: _paintSnapshotBeforeGrant,

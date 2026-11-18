@@ -523,7 +523,7 @@ function log — counts only.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. The client never CREATES a missing account: one that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js`.
 
-**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value, and when it spells the member's surname it tries the surname default first, because nobody can choose a password that spells their own surname (v26.12); the default works only while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **A DISABLED account is refused** (v25.77): a reset would leave it unable to sign in, so Reset says so and changes nothing, and the reset-request card marks it "Account disabled — run Set up accounts", which re-enables it on the surname default. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's — unless you tick *Their phone is lost or stolen*, which sends nothing (below, step 5). It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
+**Chosen passwords (PASSWORD_DESIGN.md — Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value, and when it spells the member's surname it tries the surname default first, because nobody can choose a password that spells their own surname (v26.12); the default works only while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **A DISABLED account is refused** (v25.77): a reset would leave it unable to sign in, so Reset says so and changes nothing, and the reset-request card marks it "Account disabled — run Set up accounts", which re-enables it on the surname default. **The member is told:** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's — unless you tick *Their phone is lost or stolen*, which sends nothing (below, step 5). It never names the new password (a push renders on a lock screen). If no reset notice reaches their devices — they have no notifications on this app, or the send failed — the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. **Signed out means signed out:** a silent sign-in on a session older than the reset is refused and the session ended (`sessionPredatesReset`, auth-identity.js), so every device the member was signed in on must type a password — otherwise a device still holding the 60-day session would sign itself straight back in with the surname the reset had just restored (AUTH_AND_SESSIONS.md 23). Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
 
 ### Locked-out member → reset request queue
 
@@ -694,10 +694,11 @@ than leading it, so "both origins behind" during a release is not reported.
    branches to be up to date before merging**, and add the checks from a recent pull request run:
    `version`, `unit`, `nodeps`, `functions`, `rules`, `csp`, `signed-in` and every `smoke` entry (three
    per screen size since 12 Nov 2026: `smoke (chromium, 1/3)` to `3/3`, and the same for
-   `mobile-chrome`). `signed-in` is one check for both phone engines; its Android Chrome half has gated
-   the Hosting deploy since 12 Nov 2026. Leave out `guard` (it decides whether the others run), and
-   `visual` / `visual-webkit`, which are report-only by design. Whether the `webkit` entries gate
-   merging is your call: the deploy gate deliberately runs Chromium only (DECISIONS.md, 8 Sep 2026).
+   `mobile-chrome`). `signed-in` is one check for both phone engines; both halves also gate the Hosting
+   deploy (Android Chrome since 12 Nov 2026, the iPhone since 17 Nov 2026). Leave out `guard` (it
+   decides whether the others run), and `visual` / `visual-webkit`, which are report-only by design.
+   Whether the `webkit` entries gate merging is your call: the deploy gate runs a few Safari tests,
+   not that whole lane (DECISIONS.md → "A few Safari tests gate the release").
 2. **Require approval for outside contributors — made 10 Nov 2026.** Settings → Actions → General →
    "Approval for running fork pull request workflows from contributors" → **Require approval for all
    external contributors**. The mirror does not trust such runs anyway; this stops them running at all.
@@ -712,11 +713,14 @@ of CLAUDE.md).
 
 **What it means for a release.** The mirror updates after a Hosting deploy finishes, not a minute
 after the push. A deploy lasts as long as its slowest gate job plus about a minute. The gate jobs are
-`check`, the six `smoke` shards, `csp` and `signed-in` (Android Chrome only), and the slowest is a
-`smoke` shard: about 7 minutes since the shards were cut by measured time (17 November 2026). **Most
-releases skip them**: when the pull request's own Tests run passed the same four jobs on the identical
-tree (a branch up to date with main when it merged), the gate jobs stand aside and the deploy takes
-about two minutes. The deploy run's `tested` job says which way it went, and why. The
+`check`, the six `smoke` shards, `csp`, `signed-in` (Android Chrome) and `safari` (the iPhone's
+engine, since 17 November 2026), and the slowest is a `smoke` shard: about 7 minutes since the shards
+were cut by measured time (17 November 2026). **Most releases skip the first four**: when the pull
+request's own Tests run passed them on the identical tree (a branch up to date with main when it
+merged), they stand aside, and the deploy waits for `safari` alone: about five minutes by estimate
+(its tests take two and a half locally; the first release with it will measure it). `safari` never
+stands aside: the pull request's record covers no WebKit check but signed-in's iPhone half.
+The deploy run's `tested` job says which way it went, and why. The
 mirror's own publish then takes under a minute (40 and 55 seconds on 10 November 2026; the first,
 v25.65, took about nine). A push that changes only docs or tests republishes neither
 origin, exactly as Hosting already behaves. A failed gate leaves BOTH origins on the previous release,
@@ -1193,21 +1197,24 @@ that shows every staff phone a roster that is wrong rather than obviously broken
 ### Setting the PIN (do this FIRST — the function will not work without it)
 
 The value lives only in Secret Manager. It is deliberately **not** in the repository, in any
-documentation, in any test, or in any client asset.
-
-```
-firebase functions:secrets:set CALENDAR_VIEWER_PIN
-# paste the four digits when prompted, then redeploy the function so it picks the version up:
-firebase deploy --only functions:unlockCalendarViewer
-```
+documentation, in any test, or in any client asset. Setting it takes the two steps of rotating it,
+below: the secret, then a redeploy so the function picks the value up.
 
 ### Rotating the Calendar PIN
 
 No client release is needed — the client never knows the value.
 
-1. `firebase functions:secrets:set CALENDAR_VIEWER_PIN` (enter the new value).
-2. Redeploy the bound function so it picks up the new secret version:
-   `firebase deploy --only functions:unlockCalendarViewer`.
+1. `firebase functions:secrets:set CALENDAR_VIEWER_PIN --project myb-roster`, and enter the four
+   digits when prompted. This uploads no code, so it is safe from any folder. If it then offers to
+   "re-deploy the functions" that use the secret, yes is safe too: it moves `unlockCalendarViewer`
+   onto the new value in place, without uploading code, and step 2 is then done.
+2. Otherwise redeploy, so the function picks up the new value: **Actions → Deploy Firebase
+   Functions → Run workflow, on `main`**. It deploys the functions `main` holds, after the same tests
+   as a push. Only if Actions itself is down, run
+   `firebase deploy --only functions:unlockCalendarViewer`, and only from a checkout of today's
+   `main` (`git pull` first). The same goes for the `firebase deploy --only functions` that step 1
+   suggests if you say no: `firebase deploy` uploads the `functions/` folder it runs in, so an old
+   clone puts old code back on the PIN endpoint.
 3. Tell staff the new code.
 
 New unlock attempts use the new PIN immediately. **Sessions already unlocked are not affected** —
@@ -1274,7 +1281,8 @@ TOLD instead (`functions/pin-lockout.js`; the trade-off is `functions/calendar-v
   (`getAccountSetupGaps`), so it appears when the card's check answers; a check that could not read the
   record shows nothing about the PIN rather than an all-clear.
 - **What to do**: nothing, if it was once — the block clears itself, and members can still sign in with
-  their password. If it keeps happening, somebody is guessing: rotate the PIN (below).
+  their password. If it keeps happening, somebody is guessing: rotate the PIN ("Rotating the
+  Calendar PIN", above).
 - **The record** is one document in `viewerAttempts` (`_lockout-record`: the block times of the last day,
   when the latest ends, when the admin was last told). Server-only, like the rest of the collection; the
   sweep never removes it. Deleting it by hand in the console only makes the next block notify again.
@@ -1289,7 +1297,7 @@ both the unlock and the roster come back together.
 
 - **"PIN not recognised" for everybody** → the PIN was rotated without redeploying the function,
   which still holds the old value. Check `firebase functions:secrets:access CALENDAR_VIEWER_PIN` and
-  redeploy.
+  redeploy ("Rotating the Calendar PIN", step 2).
 - **"Calendar couldn't be unlocked. Try again shortly." for everybody** → the function is failing,
   not refusing. A 503 whose body and log say "Calendar access is not configured" is an unset or
   malformed secret; a 500 on every CORRECT PIN is the missing IAM grant (`roles/iam.serviceAccountTokenCreator`
@@ -1477,7 +1485,7 @@ standing "Submitted · updated …" line so a member returning to it can see it 
 
 After the final deadline the member's form goes read-only and states the deadline it closed at.
 Availability recorded before the cut-off is what the roster is planned from; confirm directly with
-the employee before arranging short-notice cover.
+the person before arranging short-notice cover.
 
 ### Printing it
 

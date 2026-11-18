@@ -464,10 +464,11 @@ function _show(member) {
  *
  * @param {string|null|undefined} member
  * @param {{ ready?: Promise<any> }} [opts]  `ready` is a barrier that resolves once the Firebase session is
- *   settled. Admin passes its `sessionReady`, and the Calendar its own `ensureNamedSession` (see the
- *   header); the other named pages call this only once `sessionReady` has settled, and paycalc from
- *   inside its own post-auth callback, so they pass nothing. Raced with a timeout so a page whose
- *   barrier never resolves degrades to "don't show" instead of hanging.
+ *   settled. The named pages call this as they open and pass their `sessionReady`, so the marker is spent
+ *   at once, not only after the session settles (whole-app check, Nov 2026); the Calendar passes its own
+ *   `ensureNamedSession` (see the header), and paycalc calls it from inside its own post-auth callback and
+ *   passes nothing. Raced with a timeout so a page whose barrier never resolves degrades to "don't show"
+ *   instead of hanging.
  * @returns {Promise<boolean>} whether the overlay was shown. It settles only once the overlay has closed
  *   (or was never shown), which is why the Calendar and the Pay Calculator queue their own notices
  *   behind it.

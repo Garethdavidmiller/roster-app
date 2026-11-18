@@ -30,6 +30,7 @@ import {
     dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
+    SPARE_WORKED_DAYS,
 } from './links-design.js';
 import { CONFIG, weeklyRoster } from './roster-data.js';
 import { buildDefaultTargets } from './links-default-targets.js';
@@ -671,6 +672,27 @@ test('runDesignChecks reports no unfilled lines when every line works at least o
     assert.deepEqual(runDesignChecks(patterns, 5).unfilledLines, []);
 });
 
+// ── THE SHIFT BALANCE COUNTS A COVER WEEK AS ITS DUTIES (whole-app check, Nov 2026) ──────────────
+// Every other reading of a cover week here — the runs, the hours, the contracted-days ceiling — takes it as
+// its SPARE_WORKED_DAYS duties. The balance counted every day marked SPARE, so the shortlisted proposals read
+// 26% spare where their cover is 17% of the duties worked.
+test('runDesignChecks: the shift balance counts a cover week as its SPARE_WORKED_DAYS duties, never every day marked spare', () => {
+    const E = '06:20-14:20', L = '15:45-23:55';
+    const spareWeek = Object.fromEntries(DAYS.map(d => [d, 'SPARE']));
+    const patterns = {
+        '1': { sun: 'RD', mon: E, tue: E, wed: E, thu: E, fri: E, sat: 'RD' },                // five earlies
+        '2': spareWeek,                                                                     // a cover week, its Sunday spare too
+        '3': { ...spareWeek, sun: 'RD' },                                                   // a cover week whose Sunday is a rest day
+        '4': { ...spareWeek, sun: L },                                                      // a cover week with a Sunday duty, a late
+        '5': { sun: 'RD', mon: 'SPARE', tue: L, wed: L, thu: 'RD', fri: 'RD', sat: 'RD' },   // ONE spare day on an ordinary line
+    };
+    const { balance } = runDesignChecks(patterns, 5);
+    assert.equal(balance.coverWeeks, 3, 'a cover week is Mon–Sat spare, whatever its Sunday holds (isCoverWeek)');
+    const spare = 3 * SPARE_WORKED_DAYS + 1;   // the cover weeks' duties, and the one spare day on line 5
+    assert.deepEqual({ ...balance }, { early: 5, late: 3, spare, worked: 5 + 3 + spare, coverWeeks: 3 },
+        `a cover week is counted by the days it is MARKED again — six or seven of them, where it works ${SPARE_WORKED_DAYS}`);
+});
+
 // ── The two readers of a shift string must agree about what a time IS (v19.38) ──────────────────
 describe('canonical shift form', () => {
     test('classifyShift and startMinutes can no longer disagree — for ANY input', () => {
@@ -1131,6 +1153,30 @@ describe('minimum rest between turns', () => {
         assert.deepEqual(remaining, [], 'the breach was moved rather than removed');
         assert.ok(restBetween(patterns['2'].sun, patterns['2'].mon) >= MIN_REST_MINUTES,
             'line 2 was handed a turnaround it cannot rest');
+    });
+
+    test('either duty of a short turnaround can move — the EARLIER one when no swap of the later one works', () => {
+        // Whole-app check, Nov 2026: it only ever moved the LATER duty, so a table that one swap of the earlier
+        // duty fixes was refused as "short rest" (invariant 4 is refusing what it CANNOT repair). Line 1's
+        // Saturday close runs into line 2's Sunday open. No swap of that Sunday works — the other openers are the
+        // same duty, and the one close would follow it into line 2's Monday open — but line 3's Saturday open can
+        // trade places with the close, because what follows line 3 is another close.
+        const E = '06:20-14:20', L = '15:45-23:55';
+        const patterns = {
+            1: rowOf3({ sun: E, sat: L }), 2: rowOf3({ sun: E, mon: E }),
+            3: rowOf3({ sun: E, sat: E }), 4: rowOf3({ sun: L }),
+        };
+        const before = JSON.parse(JSON.stringify(patterns));
+        assert.equal(runDesignChecks(patterns, 4).turnarounds.length, 1, 'premise: one short turnaround');
+        const { repaired, remaining } = repairShortRest(patterns, 4);
+        assert.deepEqual(remaining, [], 'refused a table that one swap of the earlier duty fixes');
+        assert.equal(repaired, 1);
+        assert.deepEqual(runDesignChecks(patterns, 4).turnarounds, [], 'the breach was moved rather than removed');
+        // Still a swap within one day column, so every day's headcount on every time is exactly as it was.
+        for (const d of DAY_KEYS3) {
+            assert.deepEqual(Object.values(patterns).map(r => r[d]).sort(), Object.values(before).map(r => r[d]).sort(),
+                `${d}: a duty moved between days`);
+        }
     });
 
     test('a whole SPARE week is never touched', () => {

@@ -29,6 +29,14 @@
  *     _saveRosterSnap writes), so opening it shows the gold roster-suggested state and the
  *     result card's provenance chip, exactly like the single fill.
  *
+ * A QUIET PAYSLIP IS AN ANSWER (18 Nov 2026). On the calendar's COMPLETE answer (rule 3: recorded
+ * changes loaded from the server) a payslip with no special-rate day has no special-rate hours, and
+ * basic pay needs nothing typed. It used to be left alone ("No special-rate hours to add"), so it
+ * stayed "Not entered yet" for good — on a Monday-to-Friday line, the whole year, out of the year so
+ * far, the Holiday Pay Premium and back pay. It is now written CHECKED (`noSpecialHours`, which counts
+ * as entered — isDataEmpty), under the same rules as a fill: never on a cached, base-only or late
+ * answer, a verified write, and a snapshot holding the calendar's "none".
+ *
  * Pure orchestration over INJECTED deps (fetch, suggest, read, write), so the interleavings and
  * all seven rules run in Node — paycalc-fill-year.test.mjs, a describe block per rule. The DOM
  * button and the post-fill refresh live in paycalc-year-card.js.
@@ -92,15 +100,16 @@ export function fillablePeriods({ periods, now, proRateFactor, priced, readSaved
  *     suggest: (p: any, member: any) => any,
  *     write: (pNum: number, data: Record<string, any>, snap: Record<string, any>) => boolean,
  *   } }} arg
- * @returns {Promise<{ filled: any[], unreached: any[], nothing: any[], corrupt: any[], unsaved: any[] }>}
+ * @returns {Promise<{ filled: any[], unreached: any[], checked: any[], corrupt: any[], unsaved: any[] }>}
  *   filled — written AND verified; unreached — skipped, recorded changes could not be loaded
- *   (rule 3); nothing — eligible but no premium hours to add; corrupt — skipped unreadable
- *   (rule 2); unsaved — the write was attempted and did not persist (rule 6).
+ *   (rule 3); checked — no special-rate hours on the calendar's complete answer, written AND verified
+ *   as checked (see the header); corrupt — skipped unreadable (rule 2); unsaved — the write was
+ *   attempted and did not persist (rule 6).
  */
 export async function fillYearFromCalendar({ periods, member, now, deps }) {
     const { fillable, corrupt } = fillablePeriods({ periods, now, proRateFactor: deps.proRateFactor, priced: deps.priced,
         readSaved: deps.readSaved });
-    const filled = [], unreached = [], nothing = [], unsaved = [];
+    const filled = [], unreached = [], checked = [], unsaved = [];
     const timeoutMs = deps.timeoutMs ?? FETCH_TIMEOUT_MS;
     for (const p of fillable) {
         let state = 'base-only';
@@ -114,8 +123,9 @@ export async function fillYearFromCalendar({ periods, member, now, deps }) {
         const fresh = deps.readSaved(p.num);
         if (fresh?.error) { corrupt.push(p); continue; }
         if (fresh?.data && !isDataEmpty(fresh.data)) continue;         // now entered — theirs, not ours
+        // No suggestion on this complete answer is the calendar saying NONE: the payslip is written as
+        // checked rather than left out (the header — a quiet payslip is an answer).
         const s = deps.suggest(p, member);
-        if (!s) { nothing.push(p); continue; }                         // a quiet period is not an error
         // RULE 5 — PRESERVE WHAT THE CALENDAR DOES NOT OWN (v22.13).
         //
         // This used to be `{ ...emptyPeriodData() }` — a fresh object — and that was silent data
@@ -135,26 +145,29 @@ export async function fillYearFromCalendar({ periods, member, now, deps }) {
         const data = /** @type {Record<string, any>} */ ({ ...emptyPeriodData(), ...(savedData || {}) });
         const snap = /** @type {Record<string, any>} */ ({});
         for (const { hId, mId } of HM_PAIRS) {
-            data[hId] = s[hId] ?? 0;
-            data[mId] = s[mId] ?? 0;
-            snap[hId] = s[hId]; snap[mId] = s[mId];                    // rule 4 — same shape as _saveRosterSnap
+            data[hId] = s?.[hId] ?? 0;
+            data[mId] = s?.[mId] ?? 0;
+            snap[hId] = s ? s[hId] : 0; snap[mId] = s ? s[mId] : 0;   // rule 4 — same shape as _saveRosterSnap
         }
+        if (!s) data.noSpecialHours = true;                            // the calendar's none, checked
         // RULE 6 — A RECEIPT ONLY COUNTS A VERIFIED WRITE (v22.13). `lsSet` is deliberately
         // forgiving: iOS private mode, a full quota and a locked-down browser all throw, and a
         // preference that fails to save is not worth crashing a page over. A BULK write onto pay
         // data reads that silence as success and then tells the member "Filled 5 payslips" when
         // some were not saved at all — the same shape as the migration defect `lsSetVerified`
-        // exists for. `write` therefore returns a boolean, and only a true lands in `filled`.
-        if (deps.write(p.num, data, snap)) filled.push(p);
-        else unsaved.push(p);
+        // exists for. `write` therefore returns a boolean, and only a true lands in `filled` (or, for
+        // the calendar's none, in `checked`).
+        if (!deps.write(p.num, data, snap)) unsaved.push(p);
+        else if (s) filled.push(p);
+        else checked.push(p);
     }
-    return { filled, unreached, nothing, corrupt, unsaved };
+    return { filled, unreached, checked, corrupt, unsaved };
 }
 
 /**
  * The receipt, in words — a count cannot answer "which ones?", and the commonest follow-up
  * question ("why not that one?") gets its answer by NAME.
- * @param {{ filled: any[], unreached: any[], nothing: any[], corrupt: any[], unsaved?: any[] }} r
+ * @param {{ filled: any[], unreached: any[], checked: any[], corrupt: any[], unsaved?: any[] }} r
  * @param {(d: Date) => string} fd  short date formatter
  * @returns {string[]} lines; empty when there was nothing eligible at all
  */
@@ -165,7 +178,12 @@ export function fillYearReceipt(r, fd) {
         lines.push(`Filled ${r.filled.length} payslip${r.filled.length === 1 ? '' : 's'} from your calendar — ${list(r.filled)}. `
             + 'Review the suggested hours (shown in gold) before relying on them.');
     }
-    if (r.nothing.length) lines.push(`No special-rate hours to add for ${list(r.nothing)}.`);
+    // What was done, and what to do if the calendar is wrong: the tick it set is on each payslip.
+    if (r.checked.length) {
+        const one = r.checked.length === 1;
+        lines.push(`No special-rate hours on your calendar for ${list(r.checked)}, so ${one ? 'that payslip now counts' : 'those payslips now count'} `
+            + `as entered. If you did work extra hours on ${one ? 'it' : 'one'}, type them in on that payslip.`);
+    }
     // Singular for one payslip: a receipt naming "15 Jan" and then "each of those payslips" reads as
     // though some were left out of the list (paycalc-2-20).
     if (r.unreached.length) {

@@ -190,6 +190,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     //     bar is the live answer to "how much is left?" — and, pressed while incomplete, the way to
     //     the first unanswered day. Its position lives in CSS; the member's view does not print
     //     (overtime.css prints a notice in its place).
+    //   · THE CLOSED NOTE says "recorded" only over a submission, never above seven unanswered days.
     function shell() {
         return `<div class="ot-form-head">${headInner()}</div>
             ${ctx.knowledge === 'error' ? `
@@ -204,7 +205,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             <div class="ot-days"></div>
             ${closed ? `
                 <div class="ot-closed-note">
-                    <strong>Final availability recorded.</strong>
+                    <strong>${win.submission ? 'Final availability recorded.' : 'Nothing was submitted for this week.'}</strong>
                     This form is now closed. If your circumstances have changed, speak to your manager.
                 </div>` : `
                 <div class="ot-submit-bar">

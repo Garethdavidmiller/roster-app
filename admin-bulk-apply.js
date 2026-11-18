@@ -18,14 +18,16 @@
  * TWO MORE DAYS APPLY LEAVES ALONE, each said as the Sunday is, named in the line Apply leaves:
  *   'rest'  — Absent on a rest day (owner, 10 Nov 2026: "Skip rest days"), as the Absence card and the
  *             roster import already do, in their words: "rest days skipped", "a rest day on the base
- *             roster, so nothing is recorded".
+ *             roster, so nothing is recorded". 'setRest' is the same rest day reached the other way: a
+ *             working day a SAVED change has set as a rest day, which the line must not call a rest day
+ *             "on the base roster" (review, Nov 2026).
  *   'start' — any type before the member's start date, which the Calendar never shows (Nov 2026).
  * Which days those are is the caller's (`leftAlone`): it needs the member and their records.
  */
 import { isForbiddenOnSunday } from './override-utils.js';
 import { isSunday } from './roster-data.js';
 
-/** @typedef {'' | 'rest' | 'start'} LeftAlone */
+/** @typedef {'' | 'rest' | 'setRest' | 'start'} LeftAlone */
 
 /**
  * @param {string[]} tickedDates  the ticked rows' dates, YYYY-MM-DD
@@ -41,7 +43,7 @@ export function bulkApplyWaitingFor(tickedDates, type, leftAlone = () => '') {
     if (tickedDates.every(sunday)) return 'Sunday isn’t a contracted day — tick a working day';
     const why = tickedDates.filter(d => !sunday(d)).map(leftAlone);
     if (!why.every(Boolean)) return '';
-    if (why.every(w => w === 'rest')) return 'An absence isn’t recorded on a rest day — tick a working day';
+    if (why.every(w => w === 'rest' || w === 'setRest')) return 'An absence isn’t recorded on a rest day — tick a working day';
     if (why.every(w => w === 'start')) return 'Nothing is recorded before the start date — tick a later day';
     return 'None of the ticked days can take it — tick a working day';
 }
@@ -49,7 +51,7 @@ export function bulkApplyWaitingFor(tickedDates, type, leftAlone = () => '') {
 /**
  * What Apply says about the ticked days it left alone — each named, with why — or '' when it left none.
  * @param {number} applied  how many days took the type
- * @param {Array<{ date: string, why: 'sunday' | 'rest' | 'start' }>} skipped
+ * @param {Array<{ date: string, why: 'sunday' | 'rest' | 'setRest' | 'start' }>} skipped
  * @param {(iso: string) => string} fmt  a date as the page writes it
  * @returns {string}
  */
@@ -57,9 +59,10 @@ export function bulkSkippedLine(applied, skipped, fmt) {
     if (!skipped.length) return '';
     const of = (/** @type {string} */ w) => skipped.filter(s => s.why === w).map(s => fmt(s.date));
     const list = (/** @type {string[]} */ a) => (a.length > 1 ? `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}` : a[0]);
-    const rest = of('rest'), start = of('start'), parts = [];
+    const rest = of('rest'), setRest = of('setRest'), start = of('start'), parts = [];
     if (of('sunday').length) parts.push('Sunday skipped (not a contracted day)');
     if (rest.length) parts.push(`${list(rest)} skipped: ${rest.length > 1 ? 'rest days' : 'a rest day'} on the base roster, so nothing is recorded`);
+    if (setRest.length) parts.push(`${list(setRest)} skipped: set as ${setRest.length > 1 ? 'rest days' : 'a rest day'} by a saved change, so nothing is recorded`);
     if (start.length) parts.push(`${list(start)} skipped: before the start date, so nothing is recorded`);
     return `Set ${applied} day${applied !== 1 ? 's' : ''} — ${parts.join('; ')}.`;
 }

@@ -52,8 +52,9 @@
 
 import { isSunday, getBaseShift, parseISODate } from './roster-data.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
-import { isRestShift, isContractedWorkOverride, contractEvidence, nextReplacedType, isBeforeMemberStart } from './override-utils.js';
-import { isWorkingDate } from './al-entitlement.js';
+import { isRestShift, isContractedWorkOverride, contractEvidence, nextReplacedType, isBeforeMemberStart,
+         isOverrideDisplaySuppressed } from './override-utils.js';
+import { isWorkingDate, lowersAllowance } from './al-entitlement.js';
 
 /**
  * The dates in a booking that need the swap question, in order.
@@ -114,6 +115,44 @@ export function replacedTypeForSwap(existing, newType) {
     return 'shift';
 }
 
+/** The record an absence range writes. */
+const ABSENT = { type: 'sick', value: 'SICK' };
+
+/**
+ * The days of an ABSENCE range where the absence would HIDE what the day holds — a record the Calendar
+ * shows, replaced by one it never shows — so the range leaves them as they are (review, Nov 2026).
+ *
+ * The Calendar hides an absence on a base rest day unless what it replaced was contracted work — a
+ * swapped-in shift, an Other day or a Spare turn (`isOverrideDisplaySuppressed`, override-utils.js:
+ * being off on a day you were not due in is not an absence). The range's filter was `isWorkingDate`,
+ * which reads a record's VALUE, so a rest day holding RDW, or leave that cost nothing, passed it: the
+ * absence replaced a record that showed with one that never does, while the preview and the receipt
+ * counted it as an absence day. Rest showed where 🏖️ or the RDW had been. The card names each such
+ * day, so the manager can deal with it in Change a Shift (`projectAbsenceRange`).
+ *
+ * ONE KIND OF SUCH DAY IS STILL WRITTEN: work that earned a day in lieu — a worked Boxing Day, a
+ * Dispatcher's worked bank holiday. The absence there takes the day back (`lowersAllowance`), which
+ * the card names and checks against the allowance (review of v26.22, `projectAbsenceRange`); what the
+ * Calendar shows there is unchanged by this. Nor is a rest day already holding a hidden absence left
+ * out: nothing on it shows, before or after.
+ *
+ * Only absences: leave on a rest day shows, and its question is `swapDecisionDates`'s.
+ * @param {{ dates: string[], memberObj: any, ovByDate?: Map<string, any>|null }} args
+ * @returns {string[]} the dates, in the order given
+ */
+export function absenceHiddenDates({ dates, memberObj, ovByDate = null }) {
+    if (!memberObj || !Array.isArray(dates)) return [];
+    return dates.filter(d => {
+        if (isSunday(d) || isBeforeMemberStart(memberObj, parseISODate(d))) return false;
+        const existing = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(d) : null;
+        if (!existing || !isWorkingDate(memberObj, d, ovByDate)) return false;
+        const base = getBaseShift(memberObj, parseISODate(d));
+        const absence = { type: ABSENT.type, replacedType: nextReplacedType(existing, ABSENT.type) };
+        return isOverrideDisplaySuppressed(absence, base, false) && !isOverrideDisplaySuppressed(existing, base, false)
+            && !lowersAllowance(memberObj, d, ovByDate, ABSENT);
+    });
+}
+
 /**
  * Which dates of a RANGE booking are written — the range writer's filter (`recordRangeOverrides`).
  *
@@ -121,9 +160,10 @@ export function replacedTypeForSwap(existing, newType) {
  * was `isWorkingDate`, which reads the override's VALUE: a rest day holding an absence ('SICK') is
  * not a rest value, so it passed, and leave was written over the absence on a day the admin had
  * just answered "Rest day — free" — which means NOTHING IS WRITTEN, on both surfaces (CLAUDE.md).
- * Every other date is `isWorkingDate`'s, as before (Sundays never). Absence is never asked about,
- * so an absence range is unchanged. A date before the member's start date is never written, for
- * either type — the Calendar shows nothing there (whole-app check, 10 Nov 2026; admin-1-11).
+ * Every other date is `isWorkingDate`'s, as before (Sundays never) — less, for an absence, a day where
+ * it would never show (`absenceHiddenDates`). Absence is never asked about. A date before the member's
+ * start date is never written, for either type — the Calendar shows nothing there (whole-app check,
+ * 10 Nov 2026; admin-1-11).
  *
  * @param {object} args
  * @param {string} args.type `'annual_leave'` | `'sick'`
@@ -137,6 +177,7 @@ export function rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates
     if (!memberObj || !Array.isArray(dates)) return [];
     const swapped = new Set(swappedDates.filter(d => !isSunday(d)));
     const asked = new Set(type === 'annual_leave' ? swapDecisionDates({ dates, memberObj, ovByDate }) : []);
-    return dates.filter(d => !isBeforeMemberStart(memberObj, parseISODate(d))
+    const hidden = new Set(type === ABSENT.type ? absenceHiddenDates({ dates, memberObj, ovByDate }) : []);
+    return dates.filter(d => !isBeforeMemberStart(memberObj, parseISODate(d)) && !hidden.has(d)
         && (asked.has(d) ? swapped.has(d) : isWorkingDate(memberObj, d, ovByDate) || swapped.has(d)));
 }

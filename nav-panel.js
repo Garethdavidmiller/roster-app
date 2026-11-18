@@ -93,14 +93,15 @@ const NAV_INFORMATION = [
         heading: 'Workplace',
         links: [
             { icon: '📋', label: 'Daily Huddle',           url: './#huddle' },
-            { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No circular has been uploaded yet — it\'s usually available on Friday.' },
-            { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No newsletter has been uploaded yet — check back soon.' },
+            // Each document by its whole name, as the in-app viewer says it (calendar-doc-viewer.js `DOCS`).
+            { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No Weekly Retail Circular has been uploaded yet — it\'s usually available on Friday.' },
+            { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No Marylebone Newsletter has been uploaded yet — check back soon.' },
         ],
     },
 ];
 
 /**
- * Guides — collapsible submenu (tap "📖 Guides" to expand). Static reference
+ * Reference — collapsible submenu (tap "Reference" to fold or unfold it). Static reference
  * pages, grouped together so the Information section stays focused on live docs.
  * Adding a guide = one entry here, with an `openId` — and that id in the `firestore.rules` analytics
  * allowlist and in `OPEN_META` (operations-reports.js); firestore-contract-parity.test.mjs checks all three.
@@ -116,7 +117,9 @@ const NAV_INFORMATION = [
 // it — CLAUDE.md → "Plain English that TEACHES". `sub` is the question, in the reader's words, never
 // a description of the document.
 const NAV_GUIDES = [
-    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Booking leave, absence, using the app', url: './staff-guide.html',    openId: 'guide-staff'    },
+    // "Recording", never "Booking": the app records leave already agreed, and absence — it books nothing (admin.html's
+    // "Record Annual Leave"; the guide's own "record annual leave that's already been agreed").
+    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Recording leave and absence, using the app', url: './staff-guide.html',    openId: 'guide-staff'    },
     { icon: '💷', label: 'Pay Calculator Guide', sub: 'What your payslip figures mean',        url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
     { icon: '🎫', label: 'Railcard Guide',       sub: 'Which railcard gives what discount',    url: './railcard-guide.html', openId: 'guide-railcard' },
     { icon: '🗺️', label: 'Rangers & Rovers',     sub: 'Area passes at the gateline',           url: './rangers-guide.html',  openId: 'guide-rangers'  },
@@ -146,11 +149,35 @@ let _historyPushed  = false;
  *  drawer (a dialog), so the drawer stays. Per opening, so a pre-reload leftover never passes for it. */
 let _navEntry = 0;
 const _landedOnOwnEntry = () => history.state?.mybNavPanel === _navEntry;
+/** This page's address, read where the module may run without one (the unit tests' fake window). */
+const _hereHref = () => String(globalThis.location?.href ?? '');
+/** The address the drawer's entry was pushed at — so the entry BENEATH it has it too, and a Back lands there. */
+let _entryHref = '';
 /** Push the drawer's ONE entry — shared by the panel and its two lightboxes — with a fresh marker. */
 function _pushDrawerEntry() {
     _navEntry = Date.now() + Math.random();
+    _entryHref = _hereHref();
     history.pushState({ mybNavPanel: _navEntry }, '');
     _historyPushed = true;
+}
+
+// ── A NOTIFICATION TAPPED WITH THE DRAWER OPEN (18 Nov 2026) ─────────────────────────────────────────────
+// A tap is a hash navigation of this page (`#huddle`, `#circular`, an Operations card), pushed ON TOP of the
+// drawer's entry, and a hash navigation fires popstate. The drawer read that as Back and closed — but its entry
+// was still in the history, under the tap's. The page then takes the tap's entry back off (its viewer or card
+// opens once that lands), which leaves the reader ON the drawer's entry: after the viewer closed, one Back did
+// nothing at all. A Back lands on the entry the drawer was pushed from, at the address it was pushed at; a tap
+// lands somewhere else. So a pop at another address marks the entry as LEFT BEHIND, and a pop that later lands on
+// it — while nothing has been pushed above it — steps off it again, as if it had never been there.
+/** The marker of a drawer entry a tap left in the history beneath it, or 0. */
+let _leftBehind = 0;
+/** Step off the drawer's left-behind entry when a pop lands on it. Never on any other entry: the marker is
+ *  per opening, and a viewer pushed above it in the meantime has its own Back. */
+function _stepOffLeftBehind() {
+    if (!_leftBehind || history.state?.mybNavPanel !== _leftBehind) return;
+    _leftBehind = 0;
+    suppressNextPop();   // the echo is ours, not a Back press
+    history.back();
 }
 let _comingSoonOpen = false;
 let _noticesOpen    = false;
@@ -178,9 +205,16 @@ const DOC_AUTH_WAIT_MS = 2000;
 /** The most a drawer document tap waits, from the tap, before it gives its answer: the read and the
  *  short-lived link race this one budget, and past it the stored url (or the fallback) is used. */
 const DOC_FETCH_BUDGET_MS = 8000;
-/** What a tap on a BLOCKED bell says (its title and icon are the bell's `data-cs-*`). */
-const BLOCKED_BELL = 'Notifications are blocked for this app in your phone’s or browser’s settings, so the bell can’t switch '
-    + 'them on. ☰ → Settings → Notifications says how to allow them.';
+/**
+ * What a tap on a BLOCKED bell says (its title and icon are the bell's `data-cs-*`). On Settings the card it sends
+ * the reader to is on the page under the drawer, so it says so rather than giving the menu route to the page they
+ * are already reading (18 Nov 2026).
+ * @param {string} currentPage
+ */
+const blockedBellText = (currentPage) => 'Notifications are blocked for this app in your phone’s or browser’s settings, so the bell can’t switch '
+    + 'them on. ' + (currentPage === 'settings'
+        ? 'The Notifications card on this page says how to allow them.'
+        : '☰ → Settings → Notifications says how to allow them.');
 
 /**
  * Tear down an already-initialised nav panel so initNavPanel() can rebuild it from scratch with a
@@ -706,7 +740,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // that looks exactly like "off" (whole-app check, 17 Nov 2026); the aria-label said "blocked"
         // to a screen reader only. Settings' card has each phone's own steps. 'loading' is a no-op:
         // toggling then would re-subscribe a device that may already be subscribed.
-        if (state === 'denied') { _closePanelVisualOnly(); _openComingSoon(bell, BLOCKED_BELL); return; }
+        if (state === 'denied') { _closePanelVisualOnly(); _openComingSoon(bell, blockedBellText(currentPage)); return; }
         if (state === 'loading') return;
         _bellBusy = true;
         bell.dataset.notifState = 'loading';
@@ -939,8 +973,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (document.querySelector('.lb-overlay.open')) return;
         if (e.key === 'Escape') { closePanel(); return; }
         if (e.key === 'Tab') {
+            // The guide search box is a stop too (18 Nov 2026). Left out, a search matching nothing in a drawer with
+            // no footer (a locked Calendar's) made it the last thing Tab could reach, and one Tab from it left the drawer.
             const focusable = /** @type {HTMLElement[]} */ (Array.from(panel.querySelectorAll(
-                'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
             ))).filter(el => el.offsetParent !== null); // visible only — skip the collapsed Guides links
             if (focusable.length === 0) return;
             const first  = focusable[0];
@@ -965,11 +1001,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // panel's single history entry, so check them first. Stored module-level so resetNavPanel() can
     // remove it (the keydown handler's stale-copy hazard).
     _popstateHandler = () => {
-        if (!_historyPushed) return;
+        if (!_historyPushed) { _stepOffLeftBehind(); return; }
         // What was popped sat ABOVE the drawer's entry — a dialog over the drawer or over one of its two
         // lightboxes, by Back or by the echo of its own Cancel, which overlay.js absorbs but cannot stop
         // reaching this listener too. It is the dialog's pop, not ours.
         if (_landedOnOwnEntry()) return;
+        // Not at the address the entry was pushed at: a tap's hash navigation pushed above it, so the entry is
+        // still there beneath — the drawer closes all the same, and steps off the entry later (above).
+        if (_hereHref() !== _entryHref) _leftBehind = _navEntry;
         if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
         if (_noticesOpen)   { _closeNoticesFromBack(); return; }
         closePanelFromBack();

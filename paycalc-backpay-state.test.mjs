@@ -111,9 +111,12 @@ describe('authoritative rate figures', () => {
         // earlier version locked a box when its value was non-empty, so a recompute triggered
         // mid-typing froze whatever fragment the member had got as far as.
         assert.equal(resolveAuthoritativeRates.length, 2);
-        // …and the same award gives the same answer regardless of anything else in play.
-        assert.deepEqual(resolveAuthoritativeRates(TY_SETTLED, AWARD),
-                         resolveAuthoritativeRates(TY_SETTLED, AWARD));
+        // …and the answer is the RECORD's figures whatever else is in play: objects that also carry a
+        // saved card's half-typed fragments (its oldR/newR/oldL/newL keys) change nothing. This
+        // compared a call with itself until 18 Nov 2026, which no version of the function could fail.
+        const fragments = { oldR: '2', newR: '21.4', oldL: '', newL: '0' };
+        assert.deepEqual(resolveAuthoritativeRates({ ...TY_SETTLED, ...fragments }, { ...AWARD, ...fragments }),
+            { oldRate: 20.74, newRateInput: 21.49, oldLondon: 276.16, newLondon: 286.10 });
     });
 
     test('a figure NOT on record stays null — the box must remain editable', () => {

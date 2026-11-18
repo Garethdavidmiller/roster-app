@@ -765,6 +765,30 @@ describe('a stored link that no longer opens its file is counted, and a run mend
             { held: 1, linked: 0, recordsDeadLink: 0 }, 'counted as something Replace mends, on a file Replace never touches');
     });
 
+    test('a file that becomes held between the first look and its new key is counted ONCE — the boxes add up to the files', async () => {
+        // In use at the first look; by the time the run looks again, a key a link it cannot read holds
+        // is on it too. It is left alone, and it moves from "in use" to "held" rather than being both.
+        const FP = 'huddles/2026-11-12-a1.pdf';
+        let looks = 0;
+        /** @type {any} */ let w;
+        w = world({
+            files: { [FP]: ['old-h'] },
+            records: {
+                'huddles/2026-11-12': { storageUrl: link(FP, 'old-h') },
+                'newsletters/2026-09-01': { storageUrl: 'https://cdn.example.com/n.pdf?alt=media&token=held-k' },
+            },
+            onGet: (p) => { if (p === FP && ++looks === 2) w.otherWrite(FP, ['old-h', 'held-k']); },
+        });
+        const r = await rotateDocumentLinks({ bucket: w.bucket, db: w.db, newKey: w.newKey, rotate: true });
+        assert.equal(looks, 2, 'premise: the run looked at the file twice');
+        assert.deepEqual({ linked: r.linked, held: r.held, rotated: r.rotated }, { linked: 0, held: 1, rotated: 0 });
+        const boxes = r.linked + r.unlinkedWithKey + (r.unlinkedTooNew ?? 0) + r.unlinkedWithoutKey + r.held
+            + r.failed.filter(f => f.step === 'read').length;
+        assert.equal(boxes, r.files, 'a file was counted in two boxes');
+        assert.deepEqual(w.keysNow(FP), ['old-h', 'held-k'], 'a held file was touched');
+        assert.equal(w.store.get('huddles/2026-11-12').storageUrl, link(FP, 'old-h'));
+    });
+
     test('the keys come from each file, not the listing: a listing without them breaks no link', async () => {
         // A listing that arrived without the keys — a narrower field list, a library change — would
         // otherwise report every stored link in the app as broken (the module header).

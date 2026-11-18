@@ -92,12 +92,16 @@ to name the test. Staff stay on the previous release meanwhile.
   workflow on `main` (Actions → Run workflow) instead of waiting; a re-run of an old run stops itself
   once a newer run exists.
 
-### The `webkit` job is intermittently red, and it is not a gate
+### The `webkit` job is intermittently red, and only a few of its tests gate a release
 
-`webkit` runs the smoke suite under Safari's engine in branch CI only. It is deliberately **not** in
-`deploy-hosting.yml` — `e2e.yml`'s own header says why: a second engine in the deploy gate lets a
-WebKit-only flake keep staff on a stale version (DECISIONS.md → "WebKit stays OUT of the deploy
-gate"). Merging with `webkit` red and the rest green is the designed behaviour, not a shortcut.
+`webkit` runs the smoke suite under Safari's engine in branch CI. The whole lane is deliberately
+**not** in `deploy-hosting.yml`: it would make every release wait for its slowest shard, and a
+WebKit-only flake would keep staff on a stale version. Since 17 Nov 2026 the deploy runs a few Safari
+tests instead, in its `safari` job: every page opening (`e2e/every-page.spec.js`) and the signed-in
+journeys' iPhone half, both on the iPhone's engine, each retried once on CI (DECISIONS.md → "A few
+Safari tests gate the release"). Merging with the `webkit` lane red and the rest green is still the
+designed behaviour, not a shortcut, unless the merge ruleset requires it (OPERATIONS_REFERENCE.md →
+"The Pages mirror", step 1).
 
 Its measured flake (Aug 2026: one test failing 1 run in 6 locally, and no overlap between the
 failing sets of two CI runs on one commit) is covered by one retry in CI (`playwright.webkit.mjs`).
@@ -156,6 +160,13 @@ when the booking started, so a read landing between the card's preview and its s
 window in which it compares with newer data than the reader saw. Revisit if a lost edit is ever
 reported from either.
 
+**What the week grid's check does not see (review, Nov 2026).** A roster import that reaches a day
+after its row was drawn sits at an id of its own, not the day's fixed one, and the check compares it
+with the copy the page has read since — so a change staged on that day before the import arrived is
+saved over it without a warning. One case is refused instead: a rest day whose swapped-day question
+was answered before such a record settled it (`planAlWeekSave`, `admin-al-week-save.js`, names the
+day as changed). Revisit if an import is ever reported lost under a manager's change.
+
 **The weekly roster import is covered differently, since v25.92** (`saveRosterWrites`,
 `roster-import-save.js`). A manual record always outranks an import, so a record the import ADDS can
 never hide a colleague's day; what can lose their edit is a record the import DELETES ("Use new
@@ -176,7 +187,8 @@ records take random ids, which a transaction cannot look up without a query. Onl
 so that is two tabs of one person.
 
 **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
-saved or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete.
+saved or deleted from Admin — the week editor, a leave/absence range, either Saved Changes delete, or
+the ✕ on a Recorded Annual Leave or Recorded Absence dates row.
 Each path clears the MANUAL copies Admin has loaded for that member and day; an import is never
 treated as a duplicate. On the capped All-staff list a very old day may not be loaded, so selecting
 the member first is the complete route. None has been counted; nothing in the app reports them (see
@@ -391,7 +403,7 @@ Safari's engine. The reproduction is in `ROADMAP_HISTORY.md`.
 >
 > | | |
 > |---|---|
-> | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% — `MAINTENANCE_CALENDAR.md` → Trigger points) |
+> | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% **and** on Track E — `MAINTENANCE_CALENDAR.md` → Trigger points) |
 
 ### The document FILES are protected by a bearer URL, not by auth
 `storage.rules` gates direct Storage SDK reads, but staff never read Huddles, Circulars or Newsletters
@@ -568,7 +580,7 @@ subsumes the targeted fix. The master admin account has its own password
 account can write only its own overrides, so its blast radius is one person's roster. Closing it
 needs no code — each manager opening Settings → Password — and Operations → Account status shows who
 has migrated; verify there rather than trusting this paragraph. The surname is not *retired* until
-Track C5 (≥90% migrated).
+Track C5 (≥90% migrated, and Track E — `SECURITY_RELEASE_PLAN.md`).
 
 **Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
 infrastructure — then confirm the admin and manager accounts have set their own passwords, and
@@ -641,8 +653,9 @@ read only to compare with the member's last reset (`sessionPredatesReset`).
 
 **What reads FROM this number, and gets further away as it grows:**
 - **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_DESIGN Track C) is driven
-  by sign-ins, so full coverage takes up to 60 days — the C5 exit metric converges at the session's
-  pace.
+  by sign-ins, so it takes up to 60 days to reach everybody who signs in — the C5 exit metric moves
+  at the session's pace, and never reaches a member who only opens the roster with the staff PIN
+  (Track E).
 - **Operations → Usage, "Accounts that have signed in — last 30 days"** counts sign-ins, not people:
   someone can sign in once and use the app daily for two months without re-entering the window. The
   card's note says "counts sign-ins, not opens", and the reasoning beside `_appendSignInSection`
@@ -920,7 +933,11 @@ Chiltern may differ due to arrears, adjustments, and deductions not captured her
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from calendar" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
-Standard weekday contracted hours are not pre-filled — staff enter those manually.
+Standard weekday contracted hours are not pre-filled, and need no entry: the contracted hours are
+paid as basic pay automatically, and there is no box for them. A payslip with no special-rate hours
+at all is marked by the "No special-rate hours on this payslip" tick on the Hours card — or by
+"Fill these from your calendar", on a payslip whose recorded changes loaded and show none — and then
+counts as entered (`noSpecialHours`, `paycalc-format.js` → `isDataEmpty`).
 The suggestion is advisory; staff should verify it against their actual payslip.
 
 ### A backup made under a member's old name does not restore under the new one
@@ -1311,11 +1328,15 @@ population this check cannot speak for.
 
 **What still covers them is the PDF's own grid.** On the geometry path the grid assigns every day by
 coordinate (`functions/roster-prompt.js`), so the model cannot shift a row; the day is the column's
-position, and that order is read from the sheet's own header row and must run Sunday to Saturday, or
-the upload takes the PDF path (`readGridPage`, `functions/roster-geometry.js`). When an upload falls back to
-the PDF path — any member the grid cannot place turns it off for that document — the geometry witness
-(`functions/roster-geometry.js`) is positional rather than pattern-based and still refuses a claim in
-an empty cell; and when `geometry.status` comes back `unavailable` these members have **no
+position, and that path runs only once the sheet's own header row has been read naming the days
+Sunday to Saturday, or the upload takes the PDF path (`readGridPage`, `functions/roster-geometry.js`).
+When an upload falls back to the PDF path — any member the grid cannot place turns it off for that
+document — the geometry witness (`functions/roster-geometry.js`) is positional rather than
+pattern-based and still refuses a claim in an empty cell. **Its column order is read only where a page
+prints a header**: a page whose header runs in another order gives the witness no rows, and nor then
+does any page of the same file that prints no header of its own; but a page with no header, in a file
+where no page contradicts it, is read Sunday first — the order of every roster measured — on that
+assumption alone. And when `geometry.status` comes back `unavailable` these members have **no
 independent check at all**, which the review states (`geometryCopy`, `roster-alignment.js`) rather
 than leaving silent.
 
@@ -1563,10 +1584,11 @@ not do, or cannot know:
 - **EVERY line rotates and must be filled.** In a rotating link everyone passes through every line,
   so an all-rest line is an *unfinished* line, not a vacancy — the link can't be authorised then
   re-cut each time a post is filled. The link is designed as a full rotation so it survives staff
-  changes; C. Reen's adjusted fixed shifts are handled as overrides on the base roster, not in this
-  designer. A Design-checks row and amber grid marker (`.row-unfilled`) flag any unfilled line until
-  it is designed. The auto-generator produces a complete rotation in one step, and "Start with a
-  blank grid" (`#linksEmptyNew`) and the importer (`links-import.js`) create a design without it.
+  changes; a member on fixed hours sits outside it, on a fixed pattern of their own
+  (`rosterType: 'fixed'`), not in this designer. A Design-checks row and amber grid marker
+  (`.row-unfilled`) flag any unfilled line until it is designed. The auto-generator produces a
+  complete rotation in one step, and "Start with a blank grid" (`#linksEmptyNew`) and the importer
+  (`links-import.js`) create a design without it.
 - **The rotation LENGTH is hardcoded by design.** `ROTATING_LINES` reflects the agreed link concept —
   deliberately not derived from roster data — and is declared once, in `links-design.js`, and
   imported. If the link concept changes, the constant changes with it. **Do not write the number down
@@ -1717,33 +1739,51 @@ Not every uncaught error is a fault in this app, so several classes are suppress
 Firestore write by the pure `shouldReport` in `client-errors.js`: the opaque cross-origin
 `Script error.`, browser-extension URL schemes, `ResizeObserver loop`, the declarative view transition
 the browser abandoned, a service-worker background-update failure accompanied by a network phrase,
-WebKit's IndexedDB teardown messages when they come from the SDK origin, and a cross-origin script
-that is not one of the app's CDN origins. Each rule's reasoning is beside it in `shouldReport`. The
-accepted cost is that a real fault worded exactly like one of these is not logged — which is why each
-is matched as narrowly as it can be (exact phrases, an anchored match, the SDK origin only).
+WebKit's IndexedDB teardown messages when they come from Firebase Auth's script (`firebase-auth.js`,
+named in the source URL or the stack — not the SDK's origin, which Firestore's offline cache shares),
+and a cross-origin script that is not one of the app's CDN origins. Each rule's reasoning is beside it
+in `shouldReport`. The accepted cost is that a real fault worded exactly like one of these is not
+logged — which is why each is matched as narrowly as it can be (exact phrases, an anchored match, one
+named script).
 
 **Do not add a filter without a test on BOTH sides.** The failure directions are not symmetric: too
 narrow leaves noise you can see and complain about, too broad silently swallows real errors and the
 log looks healthy *because* it is broken. `error-reporter.test.mjs` pins each rule against the thing
 it must suppress AND the neighbouring real error it must not.
 
-## Error handling — silent catches audit
+## Error handling — the silent catches
 
-These silent catches are intentional. **Do not add new silent catches** — use
-`catch(e => console.warn('[tag] message:', e))` for fire-and-forget paths so failures
-appear in DevTools and the Operations Error Log.
+**A catch that does nothing is right only where its failure changes nothing a person needs to
+know.** The served code has a great many, and they come in a few kinds:
 
-### Intentional silent-catch patterns (correct)
+- **Best-effort extras** — telemetry (usage, latency, analytics, the Error Log's own writes and
+  pruning), a warm-up request, an early token refresh, a repaint. The app works the same without
+  them, and a failed log write cannot itself be logged.
+- **Browser storage refused** — `localStorage` and `sessionStorage` throw in private mode or when
+  full, and the page carries on as if nothing were stored.
+- **An optional platform call** — releasing a pointer, an install prompt the browser withdrew, a
+  focus or history call refused, a timing or media-query API that is not there.
+- **Reported elsewhere** — the function called shows or logs its own failure (the forced password
+  step, a member's roster load with its retry line, the sign-in attempt), so the catch only stops an
+  unhandled rejection.
+- **A barrier** — waiting for an earlier step to settle, whose failure is that step's business; the
+  check straight after it reads the real outcome.
+- **An answer that may not be there** — an error body that is not JSON, nothing cached: the catch
+  gives `null`, and the caller treats that as no answer.
+- **Clean-up** — unsubscribing, signing out or aborting something already gone.
+- **The service worker's cache and update checks** — a failed cache read or write falls back to the
+  network, and a failed update check leaves the running worker in place.
 
-| File | Location | Why silent is correct |
-|------|----------|-----------------------|
-| `nav-panel.js` | Circular / Newsletter fetch | The `.finally()` handler resets `_docFetching` and the `.catch()` renders "Couldn't connect" — the error is surfaced to the user; logging would be noise |
-| `operations-errors.js` | Clipboard copy in Error Log | `.catch()` shows '✗ Copy failed' inline — user-visible fallback; no logging needed |
-| `analytics-client.js` | `logClientError` call inside `error-reporter.js` | Logging a logging failure would recurse; the silent swallow is the correct terminal handler |
-| `firebase-client.js` | Firestore persistence setup chain | Persistence is best-effort; the fallback to the memory cache is the documented Firebase pattern (it logs a `console.warn`) |
-| `analytics-client.js` | `getClientErrors` resolved-record cleanup | Expired resolved records are pruned fire-and-forget; individual delete failures are inconsequential |
-| `paycalc-app.js` | Firebase session failure before `initErrorReporter` | Error reporter is not yet initialised at this point; the silent fallback is the only safe option |
-| `sw-register.js` | `registration.update()` calls (hourly interval, visibility-change, a bfcache restore) | SW update failures are not actionable — the existing SW stays active and the user experience is unaffected. Chrome also fires its own background update check that produces "Failed to update a ServiceWorker" unhandled rejections (suppressed by `shouldReport`); logging our own update attempts would add noise without benefit |
+**How to tell an intended one: its reason is written beside it** — usually inside the braces,
+`catch { /* storage unavailable */ }`, or in the comment just above. Most carry one; where one does
+not, the call it wraps usually shows the kind (a pointer release, a storage write, an error body read
+as JSON). **Give a new one its reason.** If none of these kinds fits, it is not a silent catch: log
+it (`console.warn('[tag] message:', e)`), and where a member has lost something — a save, a document
+they asked for — the screen says so.
+
+**`console.warn` reaches DevTools, not the Error Log.** The Operations Error Log records what
+escapes — an uncaught error or an unhandled rejection — and the slow-save notices
+(`error-reporter.js`), so a catch keeps a failure out of it whether it logs or not.
 
 ## Time-boxed maintenance (deadlines, not bugs)
 

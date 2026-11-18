@@ -46,6 +46,7 @@ import {
     lineTotals,
     weeklyHours,
     MIN_REST_MINUTES,
+    SPARE_WORKED_DAYS,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
@@ -60,7 +61,7 @@ import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
-import { baselineFromEntry } from './links-concurrency.js';
+import { baselineFromEntry, listRowSig, mergeListAnswer } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
@@ -110,7 +111,7 @@ export function init() {
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
     // ============================================
     // SESSION — guard access to LINKS_DESIGNERS only
     // ============================================
@@ -848,9 +849,9 @@ export function init() {
     /** Duplicate the current design as a new named design.
      * Copies the LIVE in-memory patterns, so unsaved edits are included —
      * "duplicate what I'm looking at", not "duplicate the last save".
-     * @param {boolean} [originalGone] the copy rescues a design deleted elsewhere — there is no
-     *   original to "go back to its last save", so that confirm would describe a thing not there. */
-    async function duplicateDesign(originalGone = false) {
+     * @param {boolean} [chosen] the designer has just pressed "Save mine as new" (a save that met a deletion or someone else's
+     *   version): "goes back to its last save" would ask again about a choice made, or about an original not there. */
+    async function duplicateDesign(chosen = false) {
         if (!activeDesignId || !design) return;
         if (making !== null) { if (making) _designActionStatus(`“${making}” is still being created — try again once it is in the list.`, ''); return; }
         making = '';
@@ -860,7 +861,7 @@ export function init() {
             // from the LIVE patterns, so the work goes INTO it and the original reverts to its last
             // save. Full reasoning: `.claude/rules/links-design.md`. Asked before the name prompt, per
             // `createDesign`: the decision that might cancel the action must not come last.
-            if (dirty && !originalGone && !await confirmDialog({
+            if (dirty && !chosen && !await confirmDialog({
                 message: 'Your unsaved changes will go into the copy, and "' + (design.name || 'this design')
                        + '" will go back to its last save. Duplicate anyway?',
                 confirmLabel: 'Duplicate',
@@ -1051,8 +1052,10 @@ export function init() {
             // target — otherwise a design would be compared against ITSELF (every cell "identical",
             // its compare chip filtered out) until the user manually toggles compare off. Deleting
             // the ACTIVE design while comparing also used to leave a <2-design self-compare soft-lock.
+            // Nothing opening in its place ends it only when the design was open (edited meanwhile): on another design, the
+            // comparison is the designer's own and holds the deleted one only as `cmpId` (whole-app check, Nov 2026).
             const cmpId = compare.getCompareId();
-            if (id === cmpId || designs.length + PROPOSAL_ENTRIES.length < 2 || (newActive && newActive.id === cmpId) || !newActive) {
+            if (id === cmpId || designs.length + PROPOSAL_ENTRIES.length < 2 || (newActive && newActive.id === cmpId) || (wasOpen && !newActive)) {
                 compare.resetCompare();
             }
             if (newActive) {
@@ -2259,13 +2262,21 @@ export function init() {
                     danger: true,
                 });
             };
+            // Not "Refreshing the page would discard them": a hidden page keeps unsaved work (keepDraftWhenHidden).
             const markNotSaved = () => {
                 updateSaveBtn();
                 if (status) {
-                    status.textContent = 'Not saved — your changes are still here. Refreshing the page would discard them.';
+                    status.textContent = 'Not saved — your changes are still here. Save asks again, and can keep them as a new design.';
                     status.className   = 'links-save-status err';
                 }
             };
+            // A refused save is news about the LIST, read only at load: compare and reopening showed the designer's own old copy
+            // as the colleague's (Nov 2026). Entries only, never the working copy or its baseline, so a later Save still asks;
+            // the save row's "Last saved" reads the refreshed entry, as the masthead does.
+            const refreshAfterRefusal = () => _refreshLists().then(() => {
+                const entry = here() ? designs.find(x => x.id === savingId) : null;
+                if (entry) updateLastSaved(entry.updatedBy, lastSaveTime(entry));
+            }).catch((/** @type {any} */ err) => console.error('[Links] Refreshing the list after a refused save failed:', err));
             // Declining the overwrite used to be a dead end: the status said "refresh to see the
             // latest version", and refreshing THROWS AWAY everything you just did. The only two
             // outcomes were clobber your colleague or lose your own work. Offer the third (v19.38) —
@@ -2286,6 +2297,7 @@ export function init() {
             };
             const deletedElsewhere = async (/** @type {any} */ data) => {
                 markNotSaved();
+                refreshAfterRefusal();   // asked BEFORE the drop, so an answer that has not heard of the delete cannot list it again
                 dropDeleted(data);
                 const by = (data?.deletedBy || '').trim();
                 if (await confirmDialog({
@@ -2299,15 +2311,17 @@ export function init() {
                 return true;
             };
 
-            // Worded like the conflict dialog it answers: with your OWN name on it, there is no "them".
+            // Worded like the conflict dialog it answers: with your OWN name on it, there is no "them". Its "Save mine as new"
+            // is the choice made, so the copy asks nothing more, as after a deletion.
             const declineOrFork = async (/** @type {any} */ c) => {
                 markNotSaved();
+                refreshAfterRefusal();
                 if (await confirmDialog({
                     title: 'Keep your version too?',
                     message: `${c?.by === currentUser ? 'That' : 'Their'} version stays as it is. Yours can be saved as a NEW design, so nothing is lost either way.`,
                     confirmLabel: 'Save mine as new',
                     cancelLabel: 'Not now',
-                })) await duplicateDesign();
+                })) await duplicateDesign(true);
             };
 
             // ── THE PROTOCOL LIVES IN links-design-store.js (v21.87) ────────────────────────
@@ -2329,6 +2343,7 @@ export function init() {
             // Nothing written, and another design is open now: the conversation below would act on
             // THAT one, so say so and stop.
             if (!here() && (res.status === 'conflict' || res.status === 'deleted-elsewhere')) {
+                refreshAfterRefusal();   // so "Open it to check" opens the version it changed to; asked before the drop, as in deletedElsewhere
                 if (res.status === 'deleted-elsewhere') dropDeleted(res.deletedData);
                 _designActionStatus(`“${dsn.name}” was not saved — it ${res.status === 'conflict' ? 'changed elsewhere while saving. Open it to check.' : 'was deleted elsewhere while saving.'}`);
                 return;
@@ -2448,9 +2463,14 @@ export function init() {
      *  `loadDesigns`, which rebuilt the working copy — discarding unsaved edits — and blanked the
      *  grid if the read failed. The open design, its baseline and `dirty` are not a bin row's. */
     async function _refreshLists() {
+        // The answer is older than the page, which goes on meanwhile: applied only to rows the page left alone (Nov 2026).
+        const listed = new Map(designs.map(d => [d.id, listRowSig(d)]));
+        const binnedThen = new Map(library.binList().map((/** @type {any} */ b) => [b.id, listRowSig(b)]));
         try {
             const { named, binned } = _splitDocs(await store.loadAll(), (id) => binMoves.has(id));
-            designs = named; _sortDesigns(); library.setBin(sortByDeleted(binned));
+            // A save only this browser has — queued, or refused and kept (links-queued-saves.js rule 4) — keeps its row.
+            designs = mergeListAnswer(designs, named, listed, (id) => !!queuedSaves.get(id)); _sortDesigns();
+            library.setBin(sortByDeleted(mergeListAnswer(library.binList(), binned, binnedThen)));
         } catch (err) { console.error('[Links] List refresh failed:', err); }
         renderDesignPicker(); library.renderBinList(); compare.renderCompare();
     }
@@ -2575,6 +2595,9 @@ export function init() {
     // …and the minimum rest the reorder is held to, in the line-order card's load-bearing note, from the
     // generator's own MIN_REST_MINUTES (links-analysis-14's twin): a typed "12" outlives a moved minimum.
     for (const el of document.querySelectorAll('.js-min-rest-hours')) el.textContent = String(MIN_REST_MINUTES / 60);
+    // …and a cover week's duties, which move if the cover model does; a run can add its Sunday on top (spareDrawsOnFour).
+    for (const el of document.querySelectorAll('.js-spare-worked-days')) el.textContent = String(SPARE_WORKED_DAYS);
+    for (const el of document.querySelectorAll('.js-cover-week-run')) el.textContent = String(SPARE_WORKED_DAYS + 1);
     // Same for the two numeric ceilings the markup carries. A spare week is a whole line, so at
     // least one line has to be left to work — hence TOTAL_POS - 1 rather than TOTAL_POS.
     document.getElementById('genSpareLines')?.setAttribute('max', String(TOTAL_POS - 1));
@@ -2729,7 +2752,7 @@ export function init() {
     // `sessionReady.then` it was spent only once the session was confirmed, so a designer who left
     // first carried it to a later ordinary load, which then asked out of nowhere. `currentUser` is
     // already the signed-in designer here: an in-place sign-in runs init() again with the new session.
-    initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});
+    initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});   // it fails open itself; this only stops an unhandled rejection
 
     // ============================================
     // BOOT

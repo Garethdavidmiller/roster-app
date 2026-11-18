@@ -739,6 +739,8 @@ describe('shareMeasuredBefore — the month the measurement changed', () => {
         const samples = Object.fromEntries([at('v24.97', 'domReady', 300), at('v24.98', 'domReady', 60), at('v24.99', 'domReady', 40, 'paycalc')]);
         assert.equal(shareMeasuredBefore(samples, '24.98'), 0.75);
         assert.equal(shareMeasuredBefore(samples), 0.75, 'CLEAN_TIMINGS_FROM by default');
+        // The App Speed card names this release by WHEN it shipped, "late October 2026" (`TIMING_CHANGED`,
+        // operations-speed.js): a new value here needs new words there.
         assert.equal(CLEAN_TIMINGS_FROM, '24.98', 'the release that stopped counting unwatched loads and typing');
     });
 

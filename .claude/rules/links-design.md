@@ -79,7 +79,7 @@ list.
 | `links-grid-input.js` | how the grid is OPERATED — one Tab stop and the arrow keys, a mouse stroke that paints every cell it crosses, the paint bar's height for the sticky header; what a cell MEANS stays in the coordinator |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-compare-analysis.js` | what the difference between two designs MEANS — cover, limits and fatigue for both (pure, `compareDesigns`) |
-| `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each) |
+| `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each), and how a list read answered after the page changed the list is applied (`mergeListAnswer`) |
 | `links-deletion.js` | the soft-delete rules: what counts as deleted, its label and order, and what a delete or a rename that found the design already gone says |
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in |
 | `links-seed.js` | the roster SEED — read today's main cycle and produce a target table |
@@ -552,7 +552,8 @@ an edit's effect was out of sight.
 - Short turnarounds (under `MIN_REST_MINUTES` between consecutive timed shifts, round the whole circular
   rotation)
 - Longest run of consecutive worked days (`worstCaseWorkedRun`)
-- Early/late balance
+- Early/late balance — a cover week counts as its `SPARE_WORKED_DAYS` duties, never the six or seven days
+  it is marked spare, as the runs, the hours and the contracted-days ceiling count it (Nov 2026)
 
 with the hours row beside them (`weeklyHours`; Hours a week, below). Plain-English traffic-light rows,
 completeness first, updated live on every edit. Every line rotates and is checked.
@@ -833,8 +834,11 @@ refusing it.
 
 - **The repair (`repairShortRest`) swaps two lines' duties within one day column.** That day's headcount
   on every shift time is unchanged, so the targets, the contract, the heat map and the demand fit are
-  untouched by construction rather than by re-checking. Timed↔timed swaps come first (both lines keep
-  their days worked), timed↔rest only if none fixes it. **Whole spare weeks are never touched**: a duty
+  untouched by construction rather than by re-checking. Either duty of a short turnaround may move — the
+  later one first, the earlier only when no swap of the later one works, so a table the later-only repair
+  fixed comes out exactly as it did (Nov 2026: a table one swap of the earlier duty fixes was refused).
+  Timed↔timed swaps come first (both lines keep their days worked), timed↔rest only if none fixes it.
+  **Whole spare weeks are never touched**: a duty
   swapped into one turns a cover week into a working week with six spare days. A swap is accepted only
   when **all four** adjacencies it can affect come out legal, or the repair walks the breach onto
   another line and reads as success.
@@ -928,8 +932,10 @@ finish runs into Sunday's start.
   reading with the longest blocks, so the same rotation is charged the same however it is numbered.
   Walked from one place, it charged one design two ways and a gradual drift as a single long block.
 - **Most shifts in a row (`maxRun`)** aims at `DEFAULT_MAX_RUN`, the same number the "Longest run" row
-  reads. `longestRunFor` counts a spare week as four worked days by delegating to `worstCaseWorkedRun`;
-  counting seven is the mistake anything measuring runs repeats first.
+  reads. `longestRunFor` counts a spare week as its `SPARE_WORKED_DAYS` duties, and its Sunday on top as
+  overtime, by delegating to `worstCaseWorkedRun` — so the switch's hint says a cover week counts as "up
+  to" one more, both figures stamped from the constant; counting seven is the mistake anything measuring
+  runs repeats first.
   **`runExcess` is a gradient, never a statistic**: it sums the excess over every start, because a
   maximum is a plateau a 2-opt cannot climb. Do not report it, or any total derived from it. **Its
   weight is a firm preference, not a near-absolute**: reaching the target with every switch on costs
@@ -1160,10 +1166,11 @@ the rule is held by hand, as is this file, which the test does not read.
   are kept, and every rule reads only lines 1…`ROTATING_LINES`, never the keys a design carries. Keep only
   the shortlist is the way to bin them.
 
-**C. Reen is NOT a special case**: the link is designed as a full rotation so it still works if she
-ever leaves, and her adjusted fixed shifts are applied as overrides on the base roster. The fixed-position
-model (`FIXED_POS`, `fixed-link-separator`, `fixed-cell`) and the vacant-placeholder model
-(`VACANT_FROM`) were both removed; do not add them back. Every row is a normal, editable, rotating row.
+**A member on fixed hours is NOT a special case**: they sit outside the rotation, on a fixed pattern of
+their own (`rosterType: 'fixed'`), so the link is designed as a full rotation that does not depend on any
+one person staying. The fixed-position model (`FIXED_POS`, `fixed-link-separator`, `fixed-cell`) and the
+vacant-placeholder model (`VACANT_FROM`) were both removed; do not add them back. Every row is a normal,
+editable, rotating row.
 
 ## Concurrency and load safety
 
@@ -1210,7 +1217,8 @@ The workspace's own rules, in `saveChanges`:
 - **Consent is per VERSION.** "Replace their changes" names the one version the dialog showed; if
   somebody saves while it is open, the store refuses, and the question is asked again about the new
   version (a bounded number of times). Declining offers "Save mine as new", worded like the conflict
-  dialog it answers — "That version" for your own name, "Their" otherwise.
+  dialog it answers — "That version" for your own name, "Their" otherwise. That press is the choice, so
+  the copy then asks only for its name, as after a deletion (`duplicateDesign(true)`).
 - **"Saving" is PER DESIGN** (`savingKeys` — by id, or `'unsaved'` for any first save, never the design
   object). A write that cannot finish must not lock every other design's Save, and a window edit or a
   generator apply that replaces the object mid-save must not let a second press create a second design.
@@ -1236,6 +1244,15 @@ The workspace's own rules, in `saveChanges`:
   the one actually WRITTEN, window and revision included.
 - **A save that finds its design deleted drops it from the live list even when the page has moved on**
   to another design; only the conversation is skipped.
+- **A refused save re-reads the LIST** (Nov 2026) — a conflict or a design deleted elsewhere, on the open
+  design or after the page moved on — because the list is otherwise read only at load, and compare,
+  reopening and "Open it to check" showed the designer's own old copy as the colleague's version. It
+  replaces list entries only, never the working copy or its baseline, so a later Save still asks. The
+  page is still in use while the read is out, so `_refreshLists` applies its answer only to the rows the
+  page left alone (`mergeListAnswer`, `links-concurrency.js`), in the live list and the bin alike: a row the page MADE meanwhile is
+  kept (the copy "Save mine as new" makes), one it REMOVED stays removed, and one it CHANGED, or holds a
+  save of that only this browser has — queued, or refused and kept (`links-queued-saves.js` rule 4) — is
+  the page's own. It is asked before the page drops a design found deleted, so that drop counts.
 - **An online save that cannot confirm its outcome** (a sign-out mid-save) says to check, and the work
   stays unsaved (`unconfirmedWriteLine`).
 

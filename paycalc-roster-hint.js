@@ -156,7 +156,7 @@ function _saveRosterSnap(pNum, s) {
       otH: s.otH, otM: s.otM, rdwH: s.rdwH, rdwM: s.rdwM,
       boxH: s.boxH, boxM: s.boxM,
     }));
-  } catch {}
+  } catch { /* storage refused: the hours are saved apart; only their calendar mark is lost */ }
 }
 
 /**
@@ -169,7 +169,7 @@ function _mergeRosterSnap(pNum, pairs) {
     const snap = JSON.parse(lsGet(snapKey(pNum)) || '{}');
     for (const { hId, mId, hVal, mVal } of pairs) { snap[hId] = hVal ?? ''; snap[mId] = mVal ?? ''; }
     lsSet(snapKey(pNum), JSON.stringify(snap));
-  } catch {}
+  } catch { /* storage refused or a corrupt snapshot: only the calendar mark is lost */ }
 }
 
 /**
@@ -189,7 +189,7 @@ export function recordCalendarFigures(pNum) {
     const gold = [hId, mId].some(id => document.getElementById(id)?.classList.contains('roster-suggested'));
     if (gold) { snap[hId] = data[hId] ?? 0; snap[mId] = data[mId] ?? 0; }
   }
-  try { lsSet(snapKey(pNum), JSON.stringify(snap)); } catch {}
+  try { lsSet(snapKey(pNum), JSON.stringify(snap)); } catch { /* storage refused: only the calendar mark is lost */ }
 }
 
 /** Re-adds roster-suggested to any field whose current value still matches the last
@@ -199,7 +199,7 @@ export function recordCalendarFigures(pNum) {
  */
 export function _restoreRosterSuggested(pNum) {
   let snap;
-  try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch {}
+  try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch { /* unreadable or corrupt: nothing is marked */ }
   if (!snap) return;
   for (const { hId, mId } of HM_PAIRS) {
     const hVal = snap[hId], mVal = snap[mId];

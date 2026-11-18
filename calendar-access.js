@@ -21,11 +21,12 @@
  * CACHE: `getDocsFromCache` is served from IndexedDB without contacting the server, so security
  * rules are never consulted. A browser that unlocked yesterday still holds every override it saw.
  *
- * So the gate is structural, not cosmetic: while access is `none`, `calendar-app.js` does not
- * initialise the Calendar AT ALL — no member dropdown, no fetch, no render, no Team View — and
- * `calendar-overrides.js` independently refuses to serve the cache. Two gates, because the first is
- * a call-order property that a future edit could quietly break and the second is a hard refusal
- * that it could not.
+ * So the gate is structural, not cosmetic: until access is first granted, `calendar-app.js` does not
+ * initialise the Calendar AT ALL — no member dropdown, no fetch, no render, no Team View — and after a
+ * re-lock (`handleAccessLost`), which cannot un-build it, the workspace is hidden and the grid the
+ * grant drew is emptied; and `calendar-overrides.js` independently refuses to serve the cache. Two
+ * gates, because the first is a call-order property that a future edit could quietly break and the
+ * second is a hard refusal that it could not.
  *
  * ── WHAT THE VIEWER IS ──────────────────────────────────────────────────────────────────────────
  *

@@ -36,17 +36,21 @@ on:
     - cron: '43 * * * *'
   workflow_dispatch:
 
-# Least privilege: read the repo, write the one issue. It observes and reports; it never re-runs a
-# workflow, never pushes, and never touches a deploy.
-permissions:
-  contents: read
-  actions: read
-  issues: write
+# Nothing at the top: the job asks for what it uses (review, 18 Nov 2026), so a job added here later
+# starts with no token rather than inheriting a write.
+permissions: {}
 
 jobs:
   detect:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Least privilege: read the repo, write the one issue. It observes and reports; it never re-runs a
+    # workflow, never pushes, and never touches a deploy. It may hold `issues: write` because it runs
+    # no dependency code: no checkout, no install, only gh and the script below.
+    permissions:
+      contents: read
+      actions: read
+      issues: write
     steps:
       - name: Find commits where the branch-head run beat the merge-result run
         env:

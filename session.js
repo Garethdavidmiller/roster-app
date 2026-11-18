@@ -153,7 +153,7 @@ let _fbIdentity = 'none';
 let _fbAuthError;
 
 /** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
-export const AUTH_READY_TIMEOUT_MS = 20000;
+const AUTH_READY_TIMEOUT_MS = 20000;
 /** Monotonic auth-attempt generation (stale-completion guard, SECURITY_RELEASE_PLAN.md prep for B1/B3).
  *  `runNamedSignIn` time-boxes the auth promise but cannot CANCEL the underlying Firebase work, so a
  *  timed-out attempt can resolve LATE — after the user retried and a newer attempt already won. A
@@ -172,13 +172,14 @@ let _genName = null;
 
 /**
  * The Firebase identity `ensureFirebaseSession` last established on a write page.
+ * Exported for the tests (session.test.mjs), which read the outcome through it; nothing else imports it.
  * @returns {'named' | 'none'}
  */
 export function getFirebaseIdentity() { return _fbIdentity; }
 
 /**
  * True only when the active write-page Firebase session is the member's own named account.
- * This is the signal per-member write isolation (B2) depends on.
+ * Exported for the tests; in the app only this module asks it (the claim-refresh sweep below).
  * @returns {boolean}
  */
 export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
@@ -501,7 +502,9 @@ export async function ensureFirebaseSession(name, _gen, password) {
         } catch (e) {
             const _e = /** @type {any} */ (e);
             lastError = _e.code;
-            console.warn('[Auth] signIn failed:', _e.code, 'for', email);
+            // The code only: the account's email IS the member's name, and the console of a shared PC
+            // is readable by whoever opens its developer tools next.
+            console.warn('[Auth] signIn failed:', _e.code);
             // The surname default was definitively REJECTED for an account that exists — a migrated
             // member. Remember it, so later implicit attempts stop repeating a doomed request.
             if (candidate === surnamePassword(name) && remembersRefusal(_e.code)) lsSet(noDefaultKey(name), String(Date.now()));

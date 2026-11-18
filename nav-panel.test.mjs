@@ -606,6 +606,58 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
     }
 });
 
+// ── A NOTIFICATION TAPPED WITH THE DRAWER OPEN (18 Nov 2026) ─────────────────────────────────────────────
+// A tap is a hash navigation of the page, pushed ON TOP of the drawer's entry, and it fires popstate. The drawer
+// took that for Back and closed, leaving its entry beneath the tap's; the page then took the tap's entry back off,
+// so the reader was left ON the drawer's entry, and after the viewer closed one Back did nothing. Driven through
+// the drawer's own popstate listener: `land` makes an entry current at an address, as the browser does, and pops.
+describe('a notification tapped with the drawer open leaves no dead Back', () => {
+    const HOME = 'https://example.test/';
+    /** The drawer opened on the Calendar; `entry` is the state of the history entry it pushed. */
+    function openOnCalendar() {
+        const live = mountLive();
+        /** @type {any} */ (global).location = { href: HOME, pathname: '/', hash: '' };
+        /** @type {any} */ (live.$('navMenuBtn')).fire('click');
+        live.page.backs = 0;
+        return { ...live, entry: history.state };
+    }
+    /** @param {ReturnType<typeof openOnCalendar>} live @param {any} state @param {string} href */
+    const land = (live, state, href) => {
+        /** @type {any} */ (history).state = state;
+        /** @type {any} */ (global.location).href = href;
+        live.page.popstate();
+    };
+
+    test('the tap closes the drawer, and when the page\'s Back lands on the drawer\'s entry the drawer steps off it', () => {
+        const live = openOnCalendar();
+        assert.ok(live.entry?.mybNavPanel, 'premise: the drawer pushed its own entry');
+        land(live, null, `${HOME}#circular`);                    // the tap: a hash pushed above the drawer's entry
+        assert.equal(live.$('navPanel').classList.contains('open'), false, 'the tap closes the drawer, as before');
+        assert.equal(live.page.backs, 0, 'nothing is stepped on the tap itself: the page takes the tap\'s entry off');
+        land(live, live.entry, HOME);                            // the page's Back lands on the drawer's entry
+        assert.equal(live.page.backs, 1, 'left there, the next Back press would do nothing');
+        land(live, null, HOME);                                  // the step lands
+        assert.equal(live.page.backs, 1, 'one step, once');
+    });
+
+    test('a viewer the page opened above the entry keeps its own Back: the drawer\'s entry goes when the viewer closes', () => {
+        const live = openOnCalendar();
+        land(live, null, `${HOME}#huddle`);
+        land(live, { mybOverlay: true }, HOME);                  // the page's Back landed, and its viewer pushed at once
+        assert.equal(live.page.backs, 0, 'a step now would close the viewer the page has just opened');
+        land(live, live.entry, HOME);                            // the viewer closes: its Back lands on the drawer's entry
+        assert.equal(live.page.backs, 1);
+    });
+
+    test('a real Back with the drawer open closes it and leaves nothing to step off', () => {
+        const live = openOnCalendar();
+        land(live, null, HOME);                                  // Back: the entry beneath, at the address it was pushed at
+        assert.equal(live.$('navPanel').classList.contains('open'), false);
+        land(live, live.entry, HOME);                            // Forward onto the entry Back took
+        assert.equal(live.page.backs, 0, 'an entry Back already took is never stepped off');
+    });
+});
+
 // ── A CLOSE BEFORE THE FIRST FRAME (15 Nov 2026) ─────────────────────────────────────────────────────
 // Each panel fades in on the next frame and moves focus to its ✕ 60 ms later, and a close can come
 // first: an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run late, the
@@ -701,7 +753,7 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
     });
 
     // AN UPLOADED DOCUMENT WHOSE LINK THE APP REFUSES IS NOT "NONE UPLOADED" (whole-app check, 17 Nov 2026).
-    // The drawer's fallback said the link's own "No circular has been uploaded yet", which sent the member
+    // The drawer's fallback said the link's own "No Weekly Retail Circular has been uploaded yet", which sent the member
     // away believing there was nothing to read, and nobody told the admin the link was broken.
     test('a Circular whose stored link is refused says it can\'t be opened, and to tell the admin', async () => {
         const { $ } = mountLive();
@@ -711,7 +763,7 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
         /** @type {any} */ ($('navMenuBtn')).fire('click');
         const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
         link.dataset.csTitle = 'Weekly Retail Circular';
-        link.dataset.csBody = 'No circular has been uploaded yet — it\'s usually available on Friday.';
+        link.dataset.csBody = 'No Weekly Retail Circular has been uploaded yet — it\'s usually available on Friday.';
         /** @type {any} */ ($('navPanel')).fire('click', {
             target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
         await flush();

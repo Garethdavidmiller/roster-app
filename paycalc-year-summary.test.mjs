@@ -155,6 +155,21 @@ describe('computeYearSoFar', () => {
         assert.ok(Math.abs(y.projectedNet - (y.net / 2) * 4) < 0.01, 'projection = avg × year total');
     });
 
+    // ── A PAYSLIP WITH NO SPECIAL-RATE HOURS IS ENTERED WHEN SAID SO (18 Nov 2026) ─────────────
+    // Basic pay needs nothing typed, so on a Monday-to-Friday line every payslip saved only zeros —
+    // "Not entered yet" for good, and its pay left out of these totals. Checked (the tick, or a fill on
+    // the calendar's complete answer), it is entered, at its basic pay and London Allowance.
+    test('a payslip checked as having no special-rate hours is counted, at its basic pay', () => {
+        _ls.set('myb_pc_p60', JSON.stringify({ otH: 0, otM: 0, satH: 0, noSpecialHours: true }));
+        _ls.set('myb_pc_p61', JSON.stringify({ otH: 0, otM: 0, satH: 0 }));   // zeros, NOT checked
+        const y = computeYearSoFar(TY, OPTS);
+        assert.equal(y.entered, 1, 'the checked payslip is entered; the bare zeros are not');
+        assert.deepEqual(y.missing, [P61.payday, P62.payday]);
+        const basic = mirror({});
+        assert.ok(Math.abs(y.taxable - basic.sacGross) < 0.01, `taxable ${y.taxable} is not the basic payslip's ${basic.sacGross}`);
+        assert.ok(Math.abs(y.net - basic.net) < 0.01);
+    });
+
     // ── AN OPT-OUT SPELL OUTRANKS A FIGURE SAVED BEFORE IT (whole-app review, Oct 2026) ────────
     // The result card prices a payslip inside an opt-out spell with no pension — the field is locked
     // at £0.00 — even when the payslip still holds a figure saved while she was contributing. This

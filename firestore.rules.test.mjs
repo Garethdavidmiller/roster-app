@@ -883,6 +883,18 @@ describe('huddles', () => {
         await setDoc(doc(adminDb(), 'huddles', id), VALID_HUDDLE());
         await assertFails(deleteDoc(doc(staffDb(), 'huddles', id)));
     });
+
+    // A COLLEAGUE AND A MANAGER, not only a claim-less session. Every refusal above used `staffDb`, a
+    // token that fails every identity check, so a rule widened to any named member, or to a manager,
+    // left this suite green — and any member could then have erased the day's Huddle record.
+    test('a named member and a manager can neither create nor delete a huddle — the admin alone', async () => {
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example')]) {
+            await assertFails(setDoc(doc(db, 'huddles', uid()), VALID_HUDDLE()));
+            const id = uid();
+            await setDoc(doc(adminDb(), 'huddles', id), VALID_HUDDLE());
+            await assertFails(deleteDoc(doc(db, 'huddles', id)));
+        }
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1032,6 +1044,17 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         // The soft-delete pair widened the allowlist; this pins that it widened by exactly two.
         await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()),
             { ...DESIGN(), deletedAt: serverTimestamp(), archived: true }));
+    });
+    test('a NON-designer cannot hard-delete a design in the bin — a member, a manager or a bare session', async () => {
+        // The bin check above is only half of the delete rule; the other half is WHO. A design in the
+        // bin is the one a hard delete is aimed at, so it is the one a non-designer must be refused.
+        const id = uid();
+        await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'Q. Example' }));
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example'), staffDb()]) {
+            await assertFails(deleteDoc(doc(db, 'linkDesigns', id)));
+        }
+        await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));   // the control
     });
     test('a NON-designer cannot soft-delete either (same gate as a hard delete)', async () => {
         const id = uid();
@@ -1204,6 +1227,23 @@ describe('staffContact', () => {
         await setDoc(doc(namedDb(member, 'uid_tstaff'), 'staffContact', member), VALID_CONTACT(member));
         await assertFails(deleteDoc(doc(staffDb(), 'staffContact', member)));
     });
+
+    // A COLLEAGUE AND A MANAGER, not only a claim-less session: with `staffDb` the only refusal, the
+    // delete rule widened to any named member (`memberName() != null`) left every test here green,
+    // and any member could have erased a colleague's saved work email. The read rule had a manager
+    // test since the 7 Nov audit; the writes did not.
+    test('a colleague and a manager can neither delete nor replace another member\'s work email', async () => {
+        const owner = 'R. Sample';
+        await setDoc(doc(namedDb(owner, 'uid_rsample'), 'staffContact', owner), VALID_CONTACT(owner));
+        for (const db of [namedDb('A. Person', 'uid_aperson'), managerDb('Q. Example', 'uid_qexample')]) {
+            await assertFails(deleteDoc(doc(db, 'staffContact', owner)));
+            await assertFails(setDoc(doc(db, 'staffContact', owner), VALID_CONTACT(owner)));
+        }
+        // …nor create one for a member who has none yet.
+        await assertFails(setDoc(doc(namedDb('A. Person', 'uid_aperson'), 'staffContact', 'S. Nobody'), VALID_CONTACT('S. Nobody')));
+        // The owner still can (the control): the refusals above are about WHO, not the record.
+        await assertSucceeds(deleteDoc(doc(namedDb(owner, 'uid_rsample'), 'staffContact', owner)));
+    });
 });
 
 // ── resetRequests — the reset-request queue (PASSWORD_DESIGN.md, the request work) ─────────────────
@@ -1252,6 +1292,16 @@ describe('resetRequests (the reset-request queue)', () => {
         });
         await assertFails(deleteDoc(doc(namedDb(NAME), 'resetRequests', NAME)));
         await assertSucceeds(deleteDoc(doc(adminDb(), 'resetRequests', NAME)));
+    });
+
+    // A manager may not read the queue (above), and may not clear a request from it either: a cleared
+    // row is a locked-out member the admin is no longer told about.
+    test('a manager cannot clear a reset request', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'resetRequests', 'R. Sample'), { memberName: 'R. Sample', count: 1 });
+        });
+        await assertFails(deleteDoc(doc(managerDb('Q. Example'), 'resetRequests', 'R. Sample')));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'resetRequests', 'R. Sample')));
     });
 });
 
@@ -1417,6 +1467,16 @@ describe('clientErrors', () => {
         await assertFails(
             updateDoc(doc(memberDb(), 'clientErrors', ref.id), { resolved: true })
         );
+    });
+
+    // DELETE had no test at all. The admin alone may remove an entry: a reporter who could delete
+    // theirs, or a manager, could empty the log the admin learns of a fault from.
+    test('only the admin may delete an error report — not its reporter, a manager or the staff PIN', async () => {
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
+        for (const db of [memberDb(), managerDb('Q. Example'), viewerDb(), staffDb()]) {
+            await assertFails(deleteDoc(doc(db, 'clientErrors', ref.id)));
+        }
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'clientErrors', ref.id)));
     });
 
     // THE REAL WRITER (test audit, 7 Nov 2026). Every case above writes VALID_ERROR. This is the
@@ -1810,6 +1870,16 @@ describe('circulars', () => {
         await setDoc(doc(adminDb(), 'circulars', id), VALID_CIRCULAR());
         await assertFails(deleteDoc(doc(staffDb(), 'circulars', id)));
     });
+
+    // A colleague and a manager, as for huddles above (whose comment says why `staffDb` was not enough).
+    test('a named member and a manager can neither create nor delete a circular — the admin alone', async () => {
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example')]) {
+            await assertFails(setDoc(doc(db, 'circulars', uid()), VALID_CIRCULAR()));
+            const id = uid();
+            await setDoc(doc(adminDb(), 'circulars', id), VALID_CIRCULAR());
+            await assertFails(deleteDoc(doc(db, 'circulars', id)));
+        }
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2008,6 +2078,16 @@ describe('newsletters', () => {
         const id = uid();
         await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
         await assertFails(deleteDoc(doc(staffDb(), 'newsletters', id)));
+    });
+
+    // A colleague and a manager, as for huddles (whose comment says why `staffDb` was not enough).
+    test('a named member and a manager can neither create nor delete a newsletter — the admin alone', async () => {
+        for (const db of [namedDb('A. Person'), managerDb('Q. Example')]) {
+            await assertFails(setDoc(doc(db, 'newsletters', uid()), VALID_CIRCULAR()));
+            const id = uid();
+            await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
+            await assertFails(deleteDoc(doc(db, 'newsletters', id)));
+        }
     });
 });
 

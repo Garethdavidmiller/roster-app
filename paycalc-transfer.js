@@ -20,7 +20,7 @@
 
 import { DEVICE_KEYS, memberSlug, PAY_DATA_GENERATION, keyOwnerSlug } from './paycalc-migrations.js';
 import { inventoryOf, damagedEntries, classifyPayKey } from './paycalc-inventory.js';
-import { formatISO } from './roster-data.js';
+import { formatISO, teamMembers } from './roster-data.js';
 
 /** Identifies our own blobs. A file that does not carry this is not ours, whatever its extension. */
 export const BACKUP_FORMAT = 'myb-paycalc-backup';
@@ -29,6 +29,13 @@ export const BACKUP_FORMAT = 'myb-paycalc-backup';
  *  as, and the one owner who can fix it — a member renamed since — needs the admin. */
 const NOT_ON_ROSTER = "That backup was saved under a name this device doesn't recognise, so it can't be restored "
     + 'as yours. Nothing was changed. If it is yours from before a change of name, contact the admin.';
+
+/** The ROSTER's name for a member slug `keyOwnerSlug` has matched — never the file's words for it. A
+ *  slug two names share (memberSlug's doc says it can happen) gives the first; the refusal stands
+ *  either way, so the name only says who to sign in as. @param {string|null} slug @returns {string} */
+function _rosterName(slug) {
+    return teamMembers.find(m => memberSlug(m.name) === slug)?.name ?? 'someone else';
+}
 
 /** Schema version. Bump when the blob's SHAPE changes; a newer blob is refused by an older app. */
 export const BACKUP_VERSION = 1;
@@ -204,12 +211,11 @@ export function validateBackup(text, { currentSlug }) {
         // nobody could follow (paycalc-2-19). Still refused: whose figures these are is exactly what
         // cannot be told.
         if (keyOwnerSlug(`myb_pc_${srcSlug}_`) === null) return { ok: false, error: NOT_ON_ROSTER };
-        // `member` is attacker-controlled text from the file. It is only ever rendered via
-        // textContent, so it cannot inject — but it is unbounded, so cap it rather than let a
-        // pathological string stretch the card.
-        const named = typeof blob.member === 'string' && blob.member.trim();
-        const who = named ? named.slice(0, 40) : 'someone else';
-        return { ok: false, error: `That backup belongs to ${who}. Sign in as them to restore it.` };
+        // NAMED FROM THE ROSTER, NEVER FROM THE FILE (18 Nov 2026). The slug matched a roster member,
+        // so the roster says whose this is. `member` is free text the file carries, and quoting it let a
+        // made-up backup put any words it liked into "That backup belongs to …" — rendered as text, so
+        // no injection, but words in the app's own voice that the app never chose.
+        return { ok: false, error: `That backup belongs to ${_rosterName(srcSlug)}. Sign in as them to restore it.` };
     }
 
     // Legacy data saved before per-member namespacing has no owner recorded. Allowed, but the caller
@@ -230,7 +236,7 @@ export function validateBackup(text, { currentSlug }) {
             // keyOwnerSlug also names a FORMER member's slug (a key whose tail is one of our kinds), and
             // nobody can sign in as a name the roster no longer holds — so say what is true of it.
             if (keyOwnerSlug(`myb_pc_${ownerSlug}_`) === null) return { ok: false, error: NOT_ON_ROSTER };
-            return { ok: false, error: 'That backup belongs to someone else. Sign in as them to restore it.' };
+            return { ok: false, error: `That backup belongs to ${_rosterName(ownerSlug)}. Sign in as them to restore it.` };
         }
         // …NOR AN OWNER THIS ROSTER DOES NOT HOLD (paycalc-2-19). `keyOwnerSlug` knows only the names
         // on the roster, so a file saved under any other, its slug stripped (`myb_pc_formername_p50`),

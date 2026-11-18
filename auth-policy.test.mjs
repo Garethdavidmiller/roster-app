@@ -241,6 +241,18 @@ describe('the Overtime beta participant — invited to ANSWER, never to look', (
         assert.equal(canOpenOvertime(manager), true);
     });
 
+    test('the page itself admits the admin and a manager, as the pill does — the door and the pill agree', () => {
+        // `canOpenOvertime` is the pill's question; the page's `role` list is the door's, and nothing
+        // asked the door about a reviewer. Either role taken off the list left the pill offering a page
+        // that then refused the very people it was built for, with this file green.
+        for (const reviewer of [(CONFIG.ADMIN_NAMES || [])[0], (CONFIG.MANAGER_NAMES || [])[0]]) {
+            assert.ok(reviewer, 'no reviewer to pin');
+            assert.equal(canOpenOvertime(reviewer), true);
+            assert.equal(requirePage({ status: 'named', member: reviewer }, 'overtime').decision, 'allow',
+                'a reviewer the pill offers Overtime to was refused at the door');
+        }
+    });
+
     test('the beta list opens no OTHER role-gated page', () => {
         // It is not a role, and a page policy that happened to accept it would be a privilege
         // escalation through a list nobody thinks of as one.

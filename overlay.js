@@ -258,6 +258,67 @@ window.addEventListener('popstate', () => {
     try { fn?.(); } finally { _handlingPop = false; }
 });
 
+// ── A LINK OUT OF THE PAGE FROM INSIDE A LIGHTBOX (18 Nov 2026) ──────────────────────────────────────
+//
+// An open lightbox holds a history entry with THIS page's address (`_pushOverlayState`), and a plain link
+// followed from inside it — a one-time notice's call to action, an About panel's page link — stacked the
+// next page on top of that entry. Back from there came back to it: from the back/forward cache with the
+// lightbox still up although it had been answered, or, reloaded (as a page holding a database connection
+// usually is), to a page whose stack is empty — so the NEXT Back was a step within the page that nothing
+// answered, and an installed app took one press more to leave. The drawer met this first and REPLACES its
+// entry with the destination (nav-panel.js); this is that move for a lightbox. The lightbox's entry leaves
+// the stack WITHOUT a `history.back()` — the replace is what removes it — the lightbox closes as any close
+// does (its `onClose` runs), and `location.replace` puts the destination where the entry was. Back from
+// there lands on the page as it was before the lightbox opened.
+//
+// Taken over only for a plain click on a link to ANOTHER document in this tab: a new tab or window, a
+// download, mail or another scheme, a fragment of this page and a click the page has already handled
+// (`defaultPrevented`) are left to the browser. And two cases keep the link's own push:
+//   · an echo still on its way is waited for first (`whenHistorySettled`) — "Leave" on the unsaved-work
+//     question re-clicks the link as that dialog closes (page-session.js), and a replace issued while the
+//     dialog's `history.back()` is pending would land on the wrong entry;
+//   · a lightbox that no longer holds the TOP entry — closed by then (a ✕ or Back during the fade, when the
+//     card can still be tapped), or under another overlay — has no entry of its own to replace.
+
+/**
+ * Is this a link to another document, opened in this tab — not a fragment of this page, mail or another
+ * scheme, a new window or a download?
+ * @param {HTMLAnchorElement} link
+ */
+function _leavesThisDocument(link) {
+    const raw = link.getAttribute('href') ?? '';
+    if (!raw || raw.startsWith('#') || link.hasAttribute('download')) return false;
+    if (link.target && link.target !== '_self') return false;
+    let to;
+    try { to = new URL(link.href); } catch { return false; }
+    if (to.protocol !== 'https:' && to.protocol !== 'http:') return false;
+    const here = new URL(location.href);
+    return to.origin !== here.origin || to.pathname !== here.pathname || to.search !== here.search;
+}
+
+/**
+ * Follow a click on a link inside an open lightbox by REPLACING the lightbox's history entry with the
+ * link's page (the reasoning is above). Wire it as the link's click listener, or the panel's: it finds the
+ * link from the event's target.
+ * @param {{ close: () => unknown }} lightbox  the `createLightbox` handle the link sits in
+ * @param {MouseEvent} e  the click
+ * @returns {boolean} true when it took the click over; false when the browser follows the link as it would
+ */
+export function followLinkOutOf(lightbox, e) {
+    const link = /** @type {HTMLAnchorElement|null} */ (/** @type {any} */ (e?.target)?.closest?.('a[href]') ?? null);
+    if (!link || e.defaultPrevented || !_leavesThisDocument(link)) return false;
+    if ((e.button ?? 0) !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return false;   // a new tab or window
+    e.preventDefault();
+    const href = link.href;
+    whenHistorySettled(() => {
+        if (_backHandlers[_backHandlers.length - 1] !== lightbox.close) { location.assign(href); return; }
+        _backHandlers.pop();   // its entry becomes the destination below, so nothing is left to pop it
+        lightbox.close();      // the close every lightbox makes, without the history.back() it has no entry for
+        location.replace(href);
+    });
+    return true;
+}
+
 /**
  * What Tab can reach in `container` (enabled, rendered, in the Tab order) — one list for the trap and
  * the focus guard. A NEGATIVE tabindex takes a control out of the Tab order whatever its tag, and the

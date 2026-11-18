@@ -5,8 +5,9 @@
  * Not the Password Reset Requests card (the queue members file from the sign-in screen): this is the break-glass Reset
  * on each member's row, which puts their password back to the surname default through the `resetMemberPassword`
  * endpoint (functions/auth-endpoints.js). The coordinator (operations-app.js) owns the row's button, the request and
- * the re-read after a reset; this owns the words, and is pure — it imports only fetch-timeout.js — so a reader can
- * check every outcome without a page. The outcomes are driven on the real page by e2e/operations.spec.js.
+ * the re-read after a reset; this owns the words, and is pure — it imports only fetch-timeout.js and one constant of
+ * account-calls.js — so a reader can check every outcome without a page. The outcomes are driven on the real page by
+ * e2e/operations.spec.js.
  *
  * ── THE LOST PHONE (sign-in audit D1/A1, Nov 2026) ─────────────────────────────────────────────────────────────────
  *
@@ -41,8 +42,11 @@
  *    that it is not known whether the password changed, or that nothing did. Each is shown as written, under a title
  *    that claims neither, beside Retry.
  *  - A body that is MARKUP — an HTML error page from in front of the function — is never shown as a reason.
+ *  - A failure BEFORE ANYTHING WAS SENT — the admin's own sign-in could not be renewed (`RESET_NOT_SENT`) — is the one
+ *    that knows nothing changed, so it says so beside Retry (18 Nov 2026: it was a bare Retry with no reason).
  */
 import { isFetchTimeout, serverRefusal } from './fetch-timeout.js';
+import { RESET_NOT_SENT } from './account-calls.js';
 
 /** @typedef {{ title: string, message: string }} ResetNote  a dialog's title and message; the coordinator adds "OK" */
 
@@ -91,6 +95,12 @@ function endpointSentence(body) {
  * @returns {{ retry: boolean, note: ResetNote|null }}
  */
 export function resetFailure(name, err) {
+    if (err?.code === RESET_NOT_SENT) {
+        return { retry: true, note: {
+            title: 'The reset wasn’t sent',
+            message: `This device couldn’t renew your admin sign-in — usually because there is no signal — so nothing was sent and ${name}'s password has not changed.\n\nCheck the connection, then press Retry.`,
+        } };
+    }
     if (isFetchTimeout(err?.cause)) {
         return { retry: false, note: {
             title: 'Couldn’t confirm the reset',
@@ -155,7 +165,10 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
             : 'The lost-phone step DIDN’T run. Reset again with the box ticked.');
     }
     if (untold) {
-        parts.push(`${name} has no notifications on this app, so they have NOT been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
+        // WHAT HAPPENED, NOT WHY (18 Nov 2026). `notified: false` comes back for a member with no notifications on this
+        // app, and just as much for a send that failed or that no push service accepted — so the line said the member
+        // had none when the fault was the server's. The admin's errand is the same either way.
+        parts.push(`No reset notice reached ${name}'s devices, so they have NOT been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
     }
     parts.push('Resetting again is safe.');
     return {

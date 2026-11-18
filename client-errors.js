@@ -29,9 +29,11 @@ export const APP_SCRIPT_ORIGINS = ['www.gstatic.com', 'cdn.jsdelivr.net'];
  * @param {string} message trimmed error message
  * @param {string} src     source URL (window.onerror) or the current pathname
  * @param {string} hostname `location.hostname`
+ * @param {string} [stack] the error's stack, when it has one. An unhandled rejection carries no
+ *                         source URL, so its stack is the only place that names the script it came from
  * @returns {boolean} true → write it to Firestore
  */
-export function shouldReport(message, src, hostname) {
+export function shouldReport(message, src, hostname, stack = '') {
     // Cross-origin script errors arrive as the literal string "Script error." with no useful
     // stack — useless and very frequent from browser extensions.
     if (!message || message === 'Script error.') return false;
@@ -84,10 +86,15 @@ export function shouldReport(message, src, hostname) {
     // spent the rejection escapes to us. The identity is already restored by then and the connection
     // reopens on the next foreground, so it is environmental noise — but it recurs on every iPhone.
     //
-    // Scoped to the SDK on purpose. The same phrases from OUR OWN origin would mean the Firestore
-    // persistent cache is failing, which is a real fault worth seeing, so those still log.
+    // SCOPED TO THE AUTH SCRIPT BY NAME, NOT TO THE SDK'S ORIGIN (review, 18 Nov 2026). It used to
+    // drop these phrases from anything on www.gstatic.com, on the reasoning that the same words from
+    // our own origin would mean Firestore's persistent cache was failing, and those would still log.
+    // They never could: the app's own code does not touch IndexedDB. Firestore's cache does, from
+    // firebase-firestore.js on the same origin as Auth, so the origin rule swallowed exactly the
+    // failure it said it kept — the cache the Calendar's offline-first paint depends on. The noise
+    // comes from one file, so the rule names that file, in the source URL or anywhere in the stack.
     if (_IDB_TEARDOWN.some(p => message.includes(p)) &&
-        APP_SCRIPT_ORIGINS.some(o => src.includes(o))) return false;
+        (_AUTH_SDK_SCRIPT.test(src) || _AUTH_SDK_SCRIPT.test(stack))) return false;
 
     // Browser extensions inject scripts under their own URL scheme. Matched EXPLICITLY rather than
     // by "not http", because an unhandledrejection passes `location.pathname` (e.g. "/index.html"),
@@ -112,6 +119,10 @@ const _IDB_TEARDOWN = [
     'Connection to Indexed Database server lost',
     'An internal error was encountered in the Indexed Database server',
 ];
+
+/** The Firebase Auth SDK script, as a source URL or a stack frame names it (any SDK version) —
+ *  the one file the IndexedDB teardown noise comes from. Firestore's file is never this. */
+const _AUTH_SDK_SCRIPT = /www\.gstatic\.com\/firebasejs\/[^/\s]+\/firebase-auth\.js/;
 
 /** Retention window for resolved records (ms) — measured from RESOLUTION, not the error time. */
 export const CLIENT_ERROR_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;

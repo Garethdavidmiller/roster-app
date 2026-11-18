@@ -10,7 +10,8 @@
  *
  * Two render paths — do NOT collapse into one, do NOT revert to opening the
  * file with window.open/location.href at viewer-open time:
- *   htmlContent present (DOCX converted server-side) → render inline in viewer.
+ *   htmlContent present (a DOCX converted to HTML — by ingestHuddle for Power Automate's
+ *     upload, in the admin's browser for a manual one, huddle.js) → render inline in viewer.
  *   No htmlContent (PDF, or DOCX where conversion failed) → show an in-overlay
  *     "📄 Open Huddle" button. The viewer is reached only via the #huddle hash
  *     (the nav-panel "Daily Huddle" link and notification taps alike), so both
@@ -613,7 +614,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
                 recordOpen('huddle', getSession()?.name ?? null);
             }
             if (huddle.htmlContent) {
-                // DOCX converted to HTML server-side — render inline.
+                // A DOCX converted to HTML at upload (the server's ingest or the admin's browser) — render inline.
                 showInlineHuddle(huddle);
             } else {
                 // PDF, or DOCX where conversion failed. Async since v24.19 — see the other call
