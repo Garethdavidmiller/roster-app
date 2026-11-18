@@ -3364,6 +3364,40 @@ test('admin: a colleague\'s change on a staged day is still refused after the pa
     expect(await writtenDays(page), "the colleague's RDW was overwritten").toEqual([]);
 });
 
+// AN ANSWER ABOUT A DAY THAT HAS CHANGED SINCE IS NOT APPLIED (review, Nov 2026). A row asked about its rest day
+// and was answered "Rest day — free"; a roster import since put a shift there, arriving in a read while the row sat
+// staged. The planner, reading the fresh records, stopped asking and wrote the leave over the shift — costing a day
+// the answer said was free — and the commit's check, which looks at the day's own id, does not see an import.
+test('admin: a rest-day answer the record has since settled is not applied, and the save says the day changed', async ({ page }) => {
+    // A colleague found from the roster, never written down, with a rest day (not a Sunday) in the week of 24 Aug 2026.
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    /** @type {any} */ let who = null, rest = '';
+    for (const m of teamMembers.filter(x => x.role === 'CEA' && !x.hidden && !x.managerOnly && !x.startDate && !x.rosterChanges)) {
+        for (let d = 24; d <= 29 && !rest; d++) if (isRestShift(getBaseShift(m, new Date(2026, 7, d, 12)))) { who = m; rest = iso(new Date(2026, 7, d, 12)); }
+        if (rest) break;
+    }
+    expect(rest, 'premise: a rest day on some line that week').not.toBe('');
+    await openAdminOnThisWeek(page);
+    await page.locator('#fieldMember').selectOption(who.name);
+    const row = weekRow(page, rest);
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));   // "Rest day — free": nothing is to be written
+    await page.evaluate(({ name, date }) => {
+        const imported = { id: 'imported-shift', memberName: name, date, type: 'shift', value: '07:00-15:00', note: '', source: 'roster_import' };
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = [imported];
+        w.__E2E.txDocs = [imported];
+    }, { name: who.name, date: rest });
+    await page.locator('#overridesToggleHeader').click();
+    await page.locator('#showAllOverridesBtn').click();   // the read that brings the import into the page
+    await waitForReadsToLand(page, 'the All staff read never landed');
+    await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'premise: the staged leave is still on screen').toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText(
+        `Someone else has changed ${fmtPeriodDate(rest)} since the page loaded, so nothing was saved.`, { timeout: 10000 });
+    expect(await writtenDays(page), 'the answer said nothing is written there').toEqual([]);
+});
+
 // …AND A CLEARED CHANGE TAKES THE OVER-ALLOWANCE QUESTION WITH IT. "Save anyway" writes the batch captured
 // when Save asked, and a change cleared since is still in it: answering would write what the page has just
 // said it cleared. Clearing is a change to the staged rows, so the question goes, as it does after a tap.

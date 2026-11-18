@@ -68,10 +68,12 @@ import { projectAlBooking, projectAlOverage, overridesAfterSave } from './admin-
  * @param {Map<string, any>|null} [args.ovByDate] the member's overrides in play, keyed by date
  * @param {Map<string, boolean>|null} [args.swapAnswers] THIS SAVE's answers: date → swapped?
  * @param {any[]} [args.overrides] every override on record, for the year's existing leave
- * @returns {{toSave: any[], skipped: string[], keptLeave: string[], unanswered: string[], overage: any}}
+ * @returns {{toSave: any[], skipped: string[], keptLeave: string[], unanswered: string[], changedUnder: string[], overage: any}}
  *   `toSave` is the batch to write — the SAME array when nothing was dropped. `unanswered` are the
  *   rest days whose question has not been answered: they are WITHHELD from the batch and the caller
- *   must refuse the save and name them (see the block beside the filter below). `skipped` are the
+ *   must refuse the save and name them (see the block beside the filter below). `changedUnder` are the
+ *   days answered about a record that has changed since — withheld too, and refused (the block after
+ *   it). `skipped` are the
  *   dates deliberately left alone, in date order. `keptLeave` is the SUBSET of those that still hold
  *   a leave record afterwards, so the receipt can avoid telling a manager a day is clear when the
  *   Calendar is about to show leave on it. `overage` is the confirmation message, or `null`.
@@ -99,7 +101,7 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
     // worked Boxing Day at their limit takes back the day in lieu. Only a year whose allowance FALLS
     // is checked (`projectAlOverage`), so an unrelated save never raises the bar.
     if (!alInBatch.length) {
-        return { toSave, skipped: [], keptLeave: [], unanswered: [],
+        return { toSave, skipped: [], keptLeave: [], unanswered: [], changedUnder: [],
             overage: projectAlOverage({ member, memberName, overrides, consuming: [], exclude: replaced([]), after: afterOf(toSave) }) };
     }
 
@@ -150,6 +152,24 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         batch = batch.filter(e => !(e.type === 'annual_leave' && open.has(e.date)));
     }
 
+    // ── AND AN ANSWER THE RECORD NO LONGER ASKS FOR IS NEVER APPLIED (review, Nov 2026) ─────────────
+    //
+    // The mirror of the block above, by the same road: the row asked about its rest day and was answered,
+    // and a read landing since put a record on the day that SETTLES the question — an imported shift, a
+    // colleague's RDW. Reading the fresh map, the projection stopped asking and dropped the answer, so an
+    // answered "Rest day — free" was written and cost a day, and a stale "Swapped — counts" still recorded
+    // `replacedType: 'shift'` (the `swapped` flag, admin-overrides.js) while the allowance check counted
+    // the day free. The answer was given about a day that has changed under it, so the day is withheld
+    // as an unanswered one is, and the caller refuses the save and says the day has changed. (The commit's
+    // own check would refuse a colleague's save of the day; an import, at its own id, it does not see.)
+    const askedNow = new Set(proj.asked);
+    const stale = [...new Set(alInBatch.filter(e => swapAnswers?.has?.(e.date) && !askedNow.has(e.date)).map(e => e.date))].sort();
+    if (stale.length) {
+        const changed = new Set(stale);
+        batch = batch.filter(e => !(e.type === 'annual_leave' && changed.has(e.date)));
+        alInBatch = alInBatch.filter(e => !changed.has(e.date));
+    }
+
     // Ordering 1 above: built from the SURVIVING leave rows, so a day left alone is not counted as
     // one this batch replaces.
     const exclude = replaced(alInBatch);
@@ -159,7 +179,8 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
         skipped,
         keptLeave,
         unanswered: proj.unanswered,
-        overage: projectAlOverage({ member, memberName, overrides, consuming: proj.consuming, exclude, after: afterOf(batch) }),
+        changedUnder: stale,
+        overage: projectAlOverage({ member, memberName, overrides, consuming: proj.consuming.filter(d => !stale.includes(d)), exclude, after: afterOf(batch) }),
     };
 }
 

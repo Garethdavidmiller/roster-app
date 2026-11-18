@@ -124,8 +124,9 @@ export function initOverrides({ currentUser, currentIsAdmin, currentIsManager = 
 }
 
 // ── SAVE ──────────────────────────────────────────────────────────────────────
-/** A save refused because a day it touches has changed, named (v25.90): ONE commit, so nothing in it was saved. */
-const refusedLine = (/** @type {string[]} */ dates) => `Someone else has changed ${namedDays(dates)} since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.`;
+/** A save refused because a day it touches has changed, named (v25.90): ONE commit, so nothing in it was saved.
+ *  Exported for the week grid's own refusal of the same thing, found before the commit (admin-app.js). */
+export const refusedLine = (/** @type {string[]} */ dates) => `Someone else has changed ${namedDays(dates)} since the page loaded, so nothing was saved. Reload the page to see the latest, then try again.`;
 /**
  * Writes a batch of override changes to Firestore and updates the in-memory cache.
  * Disables the Save button while running; re-enables in the finally block.

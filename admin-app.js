@@ -22,7 +22,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
 import { typePillHtml } from './admin-shift-types.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
@@ -690,6 +690,12 @@ export function init() {
             return showError(alPlan.unanswered
                 .map(d => `${formatDisplay(d)}: say whether this rest day was a swapped working day`)
                 .join(' · '));
+        }
+        // …and a day answered about a record that has changed since, which the planner withholds too: refused
+        // in the words the commit's own check uses for a day changed under the page (admin-overrides.js).
+        if (alPlan.changedUnder.length) {
+            alPlan.changedUnder.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
+            return showError(refusedLine(alPlan.changedUnder));
         }
         toSave = alPlan.toSave;
         _alPendingSkipped = alPlan.skipped;      // the receipt names them: never a silent drop
