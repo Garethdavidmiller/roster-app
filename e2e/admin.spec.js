@@ -5,9 +5,28 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect } from './fixtures.js';
+import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG } from '../roster-data.js';
+import { fmtPeriodDate, formatDisplay } from '../admin-period-dates.js';
+
+// AN INVENTED MEMBER, SERVED INTO THE ROSTER FILE FOR ONE TEST (as paycalc.spec.js serves its promoted manager).
+// A test that puts leave, an absence or a rest-day change on somebody uses this, never a colleague looked up
+// from `teamMembers`: the page prints the member's name beside the record ("Deleted 1 absence day for …"), and
+// a failing assertion copies that line into the CI log.
+/** A main-line CEA who exists only in the test. @param {number} [currentWeek] */
+const inventedCea = (currentWeek = 1) => ({ name: 'Q. Example', currentWeek, rosterType: 'main', role: 'CEA' });
+/** @param {import('@playwright/test').Page} page @param {ReturnType<typeof inventedCea>} member */
+async function serveInventedMember(page, member) {
+    await page.route('**/roster-member-data.js', async (route) => {
+        const res = await route.fetch();
+        const entry = `{ name: '${member.name}', currentWeek: ${member.currentWeek}, rosterType: '${member.rosterType}', role: '${member.role}' }`;
+        const body = (await res.text()).replace(/\n\];\s*$/, `\n    ${entry},\n];\n`);
+        expect(body, 'premise: the invented member reached the served roster').toContain(member.name);
+        await route.fulfill({ response: res, body });
+    });
+}
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -926,6 +945,10 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     // AND IT SAYS WHICH YEAR (whole-app check, Nov 2026; admin-2-14): four figures with no year beside them.
     const entLbl = page.locator('#alBannerLblEntitlement');
     await expect(entLbl).toHaveText('2026 entitlement');
+    // …AND SO DOES THE COLLAPSED CARD'S CHIP (review, Nov 2026): "AL left: N" named no year, so in December it
+    // could be read as next year's balance, or the other way round.
+    const chip = page.locator('#alHeaderBalance');
+    await expect(chip).toHaveText(`2026: ${thisYear.remaining} left`);
 
     await scroll('#alRpNext');
     await expect(page.locator('#alRpLabel, #alRangePicker .rp-label')).toContainText('2027');
@@ -934,6 +957,7 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     expect(nextYear.taken, 'leave taken in 2026 is being counted against 2027').toBe(0);
     expect(nextYear.remaining, 'a year with nothing booked shows the whole entitlement')
         .toBe(nextYear.entitlement);
+    await expect(chip, 'the chip names the year its figure is for').toHaveText(`2027: ${nextYear.remaining} left`);
 
     await scroll('#alRpPrev');
     const backAgain = await read();
@@ -1448,6 +1472,40 @@ test('admin: a leave preview is redrawn when a recorded period under it is delet
     await expect(preview, 'a bare rest day now: asked about again').toContainText('rest day to answer');
 });
 
+// THE ✕ TAKES THE OLDER COPY ITS RECORD OUTRANKS (review, Nov 2026), as every other Admin delete has since
+// v24.48. A day from before the fixed per-day ids holding an older leave record under a newer absence: the
+// Recorded Absence dates ✕ deleted the absence alone, so the leave showed again and the allowance fell by a
+// day under "Deleted 1 absence day". The REAL page path, from the ✕ to the deletes the transaction sent.
+test('admin: a Recorded Absence dates ✕ deletes the older leave copy under the absence, and names it', async ({ page }) => {
+    // An invented member, and one of their working weekdays.
+    const who = inventedCea();
+    await serveInventedMember(page, who);
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let day = '';
+    for (const d = new Date(2026, 8, 7, 12); !day; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0 && !isRestShift(getBaseShift(who, d))) day = iso(d);
+    }
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: rows };
+    }, [{ id: 'older-leave', memberName: who.name, date: day, type: 'annual_leave', value: 'AL', note: '', source: 'manual',
+          createdAt: Date.parse('2026-08-01T09:00:00Z') },
+        { id: 'newer-absence', memberName: who.name, date: day, type: 'sick', value: 'SICK', note: '', source: 'manual',
+          createdAt: Date.parse('2026-08-02T09:00:00Z') }]);
+    await openAdminOnThisWeek(page);
+    await page.locator('#fieldMember').selectOption(who.name);
+    await page.locator('#sickToggleHeader').click();
+    await page.locator('#sickBookedToggle').click();
+    const del = page.locator('#sickBookedBody .btn-period-delete');
+    await expect(del, 'premise: one recorded absence, one ✕').toHaveCount(1);
+    await clickInView(del);
+    await expect(del).toHaveText('Confirm?');
+    await clickInView(del);
+    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 absence day for ${who.name}, and an older copy of ${fmtPeriodDate(day)}`);
+    const deleted = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).map((/** @type {string} */ p) => p.split('/').pop()));
+    expect(deleted.sort(), 'the absence AND the older leave copy, in the one transaction').toEqual(['newer-absence', 'older-leave']);
+});
+
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 };
@@ -1869,6 +1927,30 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
     }
 });
 
+// ── EACH TYPE PILL SAYS ITS FULL NAME, AND KEEPS ITS SHORT LABEL (review, Nov 2026) ───────────────────
+// "RDW" was named by its letters alone, on both pill rows, and "Rest Day Working" was only in the ? tips. The
+// labels stay short (AL stays AL, .claude/rules/admin.md); the name says the rest, leading with the label, so
+// a voice user still says what they see — checked by axe's own containment rule (WCAG 2.5.3).
+test('admin: the type pills say their full names to a screen reader, on the week grid and the bulk bar', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const day = page.locator('.week-panel .day-row:has(.pill-annual_leave:not([disabled]))').first();
+    await clickInView(day.locator('.day-cb'));   // a day's pills show once it is ticked
+    for (const [where, scope] of /** @type {const} */ ([['the bulk bar', page.locator('#bulkTypePills')], ['a day of the week grid', day]])) {
+        await expect(scope.locator('.pill-rdw'), `${where}: the label stays RDW`).toHaveText('RDW');
+        await expect(scope.locator('.pill-rdw'), where).toHaveAccessibleName('RDW, Rest Day Working');
+        await expect(scope.locator('.pill-annual_leave'), `${where}: AL stays AL`).toHaveText('AL');
+        await expect(scope.locator('.pill-annual_leave'), where).toHaveAccessibleName('AL, Annual Leave');
+        await expect(scope.locator('.pill-correction'), where).toHaveAccessibleName('Set as Rest Day');
+        await expect(scope.locator('.pill-sick'), where).toHaveAccessibleName('Absent');
+    }
+    const mismatches = (await new AxeBuilder({ page }).include('#bulkTypePills').include('.week-panel .col-pills')
+        .withRules(['label-content-name-mismatch']).analyze()).violations.flatMap(v => v.nodes.map(n => n.target.join(' ')));
+    expect(mismatches, 'every pill\'s name holds the words it shows').toEqual([]);
+});
+
 // ── A BULK ABSENT LEAVES A REST DAY ALONE, AND NAMES IT (owner, 10 Nov 2026: "Skip rest days") ──────
 // The Absence card and the roster import record no absence on a rest day. The bulk bar did — and the
 // Calendar then hid it, while Admin's Recorded Absence dates listed and counted it.
@@ -1905,6 +1987,35 @@ test('admin: All 7 → Absent → Apply stages only the working days, and names 
     await expect(page.locator('#formFeedback')).toContainText('4 changes saved for G. Miller', { timeout: 10000 });
     const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
     expect(written).toEqual(['2027-01-11 sick', '2027-01-12 sick', '2027-01-15 sick', '2027-01-16 sick']);
+});
+
+// …AND A WORKING DAY A SAVED CHANGE SET AS A REST DAY IS NOT CALLED "A REST DAY ON THE BASE ROSTER" (review,
+// Nov 2026). Absent leaves it alone, rightly — it is a rest day now — but the line named the wrong reason.
+test('admin: bulk Absent names a day a saved change set as a rest day for what it is', async ({ page }) => {
+    // An invented member, and the first of their working weekdays from 11 Jan 2027.
+    const who = inventedCea();
+    await serveInventedMember(page, who);
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let day = '';
+    for (const d = new Date(2027, 0, 11, 12); !day; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0 && !isRestShift(getBaseShift(who, d))) day = iso(d);
+    }
+    await page.addInitScript((rows) => { /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true, docs: rows }; },
+        [{ id: 'set-rest', memberName: who.name, date: day, type: 'correction', value: 'RD', note: '', source: 'manual' }]);
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(who.name);
+    await page.locator('#fieldDate').evaluate((el, d) => {
+        /** @type {HTMLInputElement} */ (el).value = d;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, day);
+    await expect(page.locator(`.week-panel .day-row[data-date="${day}"]`), 'premise: the saved Rest Day is drawn on its row').toHaveClass(/has-override/);
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-sick').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText(`${formatDisplay(day)} skipped: set as a rest day by a saved change, so nothing is recorded`);
+    await expect(page.locator('#formFeedback')).not.toContainText(`${formatDisplay(day)} skipped: a rest day on the base roster`);
 });
 
 // "WORKING DAYS" IS THE WORKING DAYS THE CARDS WRITE BY (whole-app check, Nov 2026). The button read a
@@ -2192,7 +2303,7 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
 
     // Nothing on the card may state a figure derived from the read that failed.
     await expect(page.locator('#alBanner'), 'no balance over a read that failed').toBeHidden();
-    await expect(page.locator('#alHeaderBalance'), 'and no "AL left" chip on the collapsed header')
+    await expect(page.locator('#alHeaderBalance'), 'and no leave-left chip on the collapsed header')
         .toBeHidden();
     await expect(page.locator('#alBookedBox'), 'and no dates list implying nothing is booked')
         .toBeHidden();
@@ -2201,10 +2312,10 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
     await expect(page.locator('#alBanner')).toHaveCSS('display', 'none');
     // And no balance is READABLE anywhere on the card, however it got there. `innerText`, not
     // `textContent`: the chip keeps its last value in the DOM while hidden, so textContent finds
-    // "AL left: 32" on a perfectly correct page and the assertion would fail for the wrong reason.
+    // "2026: 32 left" on a perfectly correct page and the assertion would fail for the wrong reason.
     // This is the one that would catch a THIRD surface printing the figure.
     const visible = await page.locator('#book-annual-leave').innerText();
-    expect(visible, 'no readable balance over a read that failed').not.toMatch(/AL left:/i);
+    expect(visible, 'no readable balance over a read that failed').not.toMatch(/\b\d{4}: -?\d+ left\b|AL left:/i);
 });
 
 // ── THE LIST COUNTS WHAT THE ENTITLEMENT COUNTS (v23.72, owner report) ─────────────────────────
@@ -2410,7 +2521,7 @@ test('admin: the AL banner keeps its figures and the Boxing Day note inside the 
 // The collapsed AL card's one figure at 1–5 days left was brand gold on the chip's near-white ground,
 // 1.69:1, while the banner inside the same card said the same thing in the darkened `--al-low`. No
 // scan reached the state, so it is driven for real: 29 days of leave on days he is rostered to work.
-test('admin: "AL left" in the card header is readable when only a few days remain', async ({ page }) => {
+test('admin: the leave-left chip in the card header is readable when only a few days remain', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     const me = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
@@ -2439,7 +2550,7 @@ test('admin: "AL left" in the card header is readable when only a few days remai
         const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
         return (hi + 0.05) / (lo + 0.05);
     });
-    expect(ratio, '"AL left: N" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
+    expect(ratio, '"2026: N left" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
 });
 
 // Staging a saved change's removal puts "Removing" in the badge beside its date, in the badge's own
@@ -3275,6 +3386,41 @@ test('admin: a colleague\'s change on a staged day is still refused after the pa
     await expect(page.locator('#formFeedback')).toContainText(
         'Someone else has changed Mon 24 Aug since the page loaded, so nothing was saved.', { timeout: 10000 });
     expect(await writtenDays(page), "the colleague's RDW was overwritten").toEqual([]);
+});
+
+// AN ANSWER ABOUT A DAY THAT HAS CHANGED SINCE IS NOT APPLIED (review, Nov 2026). A row asked about its rest day
+// and was answered "Rest day — free"; a roster import since put a shift there, arriving in a read while the row sat
+// staged. The planner, reading the fresh records, stopped asking and wrote the leave over the shift — costing a day
+// the answer said was free — and the commit's check, which looks at the day's own id, does not see an import.
+test('admin: a rest-day answer the record has since settled is not applied, and the save says the day changed', async ({ page }) => {
+    // An invented member, on whichever week of the line puts a rest day (not a Sunday) in the week of 24 Aug 2026.
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let who = inventedCea(), rest = '';
+    for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS && !rest; w++) {
+        const m = inventedCea(w);
+        for (let d = 24; d <= 29 && !rest; d++) if (isRestShift(getBaseShift(m, new Date(2026, 7, d, 12)))) { who = m; rest = iso(new Date(2026, 7, d, 12)); }
+    }
+    expect(rest, 'premise: a rest day on some week of the line').not.toBe('');
+    await serveInventedMember(page, who);
+    await openAdminOnThisWeek(page);
+    await page.locator('#fieldMember').selectOption(who.name);
+    const row = weekRow(page, rest);
+    await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));
+    await clickInView(row.locator('.al-swap-btn[data-swap="no"]'));   // "Rest day — free": nothing is to be written
+    await page.evaluate(({ name, date }) => {
+        const imported = { id: 'imported-shift', memberName: name, date, type: 'shift', value: '07:00-15:00', note: '', source: 'roster_import' };
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = [imported];
+        w.__E2E.txDocs = [imported];
+    }, { name: who.name, date: rest });
+    await page.locator('#overridesToggleHeader').click();
+    await page.locator('#showAllOverridesBtn').click();   // the read that brings the import into the page
+    await waitForReadsToLand(page, 'the All staff read never landed');
+    await expect(row.locator('.type-pill-btn[data-type="annual_leave"]'), 'premise: the staged leave is still on screen').toHaveAttribute('aria-pressed', 'true');
+    await clickInView(page.locator('#saveBtn'));
+    await expect(page.locator('#formFeedback')).toContainText(
+        `Someone else has changed ${fmtPeriodDate(rest)} since the page loaded, so nothing was saved.`, { timeout: 10000 });
+    expect(await writtenDays(page), 'the answer said nothing is written there').toEqual([]);
 });
 
 // …AND A CLEARED CHANGE TAKES THE OVER-ALLOWANCE QUESTION WITH IT. "Save anyway" writes the batch captured

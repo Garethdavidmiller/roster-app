@@ -30,7 +30,7 @@ import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS }
 import { isWorkingDate } from './al-entitlement.js';
 import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
-import { TYPES, PILL_TYPES } from './admin-shift-types.js';
+import { TYPES, PILL_TYPES, typePillHtml } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
 import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
 import { restrictDayPills } from './admin-day-pills.js';
@@ -218,7 +218,7 @@ export function buildWeekGridInto(container, dateStr) {
             </label>
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
-                ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
+                ${PILL_TYPES.map(t => typePillHtml(t)).join('\n                ')}
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded, but a Spare turn can</span>` : ''}
                 ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
                 ${beforeStart ? `<span class="start-note">Before the start date (${formatDisplay(formatISO(/** @type {Date} */ (member.startDate)))}) — the Calendar doesn’t show changes here, so none can be recorded</span>`
@@ -544,8 +544,9 @@ function _updateBulkSelCount() {
 
 /**
  * Why Apply leaves a ticked day alone for `type`, beyond the Sunday rule (admin-bulk-apply.js names
- * each): before the member's start date, or — for Absent — a rest day by `isWorkingDate`, the rule the
- * Absence card writes by, so a swapped-in shift saved on a rest day counts as work here too.
+ * each): before the member's start date, or — for Absent — a rest day by `isWorkingDate`, so a
+ * swapped-in shift saved on a rest day counts as work here too. (The Absence card also passes over a rest
+ * day's RDW or free leave, which an absence would hide; the grid records what it is told on such a day.)
  * @param {string} type @returns {(date: string) => import('./admin-bulk-apply.js').LeftAlone}
  */
 function _leftAloneBy(type) {
@@ -553,7 +554,9 @@ function _leftAloneBy(type) {
     const member = teamMembers.find(m => m.name === name);
     const map    = member && type === 'sick' ? buildMemberDateMap(name) : null;
     return d => !member ? '' : isBeforeMemberStart(member, parseISODate(d)) ? 'start'
-        : map && !isWorkingDate(member, d, map) ? 'rest' : '';
+        : !map || isWorkingDate(member, d, map) ? ''
+        // Rest by the base roster, or a working day a SAVED change has set as rest: said apart (admin-bulk-apply.js).
+        : isRestShift(getBaseShift(member, parseISODate(d))) ? 'rest' : 'setRest';
 }
 
 // ── BULK BAR ──────────────────────────────────────────────────────────────────
@@ -693,7 +696,7 @@ function _initBulkBar() {
         const typeMeta = TYPES[_bulkActiveType], leftAlone = _leftAloneBy(_bulkActiveType);
         let applied = 0;
         /** @type {string[]} */ const ticked = [];
-        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'start' }>} */ const skipped = [];
+        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'setRest' | 'start' }>} */ const skipped = [];
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));

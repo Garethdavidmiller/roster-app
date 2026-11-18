@@ -5,7 +5,7 @@
 // not merely redundant — `SICK` is a word this app does not put in front of staff.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TYPES, PILL_TYPES, rowValueText } from './admin-shift-types.js';
+import { TYPES, PILL_TYPES, rowValueText, pillName, typePillHtml } from './admin-shift-types.js';
 import { OTHER_FLAVOURS } from './override-utils.js';
 
 test('a fixed type prints nothing — its value only repeats the badge', () => {
@@ -59,4 +59,31 @@ test('the rule is the `fixed` flag, so a type added later needs no edit here', (
         if (!meta?.fixed) continue;
         assert.ok(meta.fixedValue, `${type} is fixed but declares no fixedValue`);
     }
+});
+
+// ── EACH TYPE PILL IS NAMED IN FULL, AND KEEPS ITS SHORT LABEL (review, Nov 2026) ───────────────────
+// "RDW" had no name but its letters, and "Rest Day Working" was in the ? tips alone. The visible labels
+// stay as they are (AL stays AL, .claude/rules/admin.md); the expansion is the accessible name, which
+// LEADS with what the pill shows wherever it can, so a voice user still says what they see (WCAG 2.5.3).
+test('every pill\'s name holds both what it shows and its full name', () => {
+    for (const type of PILL_TYPES) {
+        const { pill, label } = TYPES[type], name = pillName(type);
+        assert.ok(new RegExp(`(^|\\s)${pill}(\\s|,|$)`).test(name), `${type}: "${name}" does not contain what the pill shows, "${pill}"`);
+        assert.ok(name.includes(label), `${type}: "${name}" does not say its full name, "${label}"`);
+    }
+    assert.equal(pillName('rdw'), 'RDW, Rest Day Working');
+    assert.equal(pillName('annual_leave'), 'AL, Annual Leave');
+    assert.equal(pillName('correction'), 'Set as Rest Day', 'the full label already holds "Rest Day": said once');
+    assert.equal(pillName('shift'), 'Shift');
+});
+
+test('the pill shows its short label, and carries a name only where the name says more', () => {
+    for (const type of PILL_TYPES) {
+        const html = typePillHtml(type), { pill } = TYPES[type];
+        assert.ok(html.endsWith(`>${pill}</button>`), `${type}: the visible label must stay "${pill}"`);
+        assert.ok(html.includes(`data-type="${type}"`) && html.includes(`pill-${type}`) && html.includes('aria-pressed="false"'), type);
+        const named = /aria-label="([^"]*)"/.exec(html)?.[1] ?? null;
+        assert.equal(named, pillName(type) === pill ? null : pillName(type), type);
+    }
+    assert.match(typePillHtml('rdw'), /aria-label="RDW, Rest Day Working">RDW<\/button>$/);
 });

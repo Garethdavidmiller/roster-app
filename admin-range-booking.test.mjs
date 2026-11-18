@@ -89,6 +89,9 @@ function makeEl(/** @type {string} */ id) {
         appendChild(/** @type {any} */ c) { if (c) kids.push(c); return c; },
         insertAdjacentHTML(/** @type {string} */ _where, /** @type {string} */ html) { this.innerHTML += html; },
         scrollIntoView() {},
+        /** What the platform's `click()` does: nothing on a DISABLED control (HTML), else every listener,
+         *  synchronously — "Save anyway" presses Save this way (block N). */
+        click() { if (node.disabled) return; for (const fn of node._on.click ?? []) fn({}); },
         /** Every element handed focus through `querySelector(...)?.focus()`, with the selector that
          *  found it — so a test can see a focus HAND-BACK after the block under it was rebuilt. */
         /** @type {{sel: string, opts: any}[]} */ _focused: [],
@@ -153,10 +156,13 @@ mock.module('./admin-overrides.js', {
         isSaveInFlight: () => _otherSaveInFlight,
         setSaveInFlight: (/** @type {boolean} */ on) => { _lockCalls.push(on); },
         hasOverrideAuthorityFor: () => _authority,
-        // admin-al.js reads every override for its allowance check; block H wires the real card.
-        getAllOverrides: () => [],
+        // admin-al.js reads every override for its allowance check; block H wires the real card, and
+        // block N seeds a full year (`_allOv`) so the check has something to stop.
+        getAllOverrides: () => _allOv,
     },
 });
+/** Every override the page holds, as `getAllOverrides` returns them — empty unless a block seeds some. */
+/** @type {any[]} */ let _allOv = [];
 /** v24.38: the page-wide write lock the range cards share with Change a Shift. */
 let _otherSaveInFlight = false;
 /** @type {boolean[]} */ let _lockCalls = [];
@@ -250,6 +256,7 @@ beforeEach(() => {
     _writes = [];
     _restDays = new Set();
     _ovMap = new Map();
+    _allOv = [];
     _pickerResets = 0;
     _resetArgs = [];
     _record = async () => ({ workingCount: 1 });
@@ -1089,5 +1096,174 @@ describe('M. the Absence card names a day before the start date and the Christma
         const html = preview(/** @type {any} */ (joiner).name, before(3), before(1));
         assert.match(html, /\(\+ 3 days skipped before the start date\)/);
         assert.doesNotMatch(html, /rest day/);
+    });
+});
+
+// N. "SAVE ANYWAY" ANSWERS ONE PRESS, NEVER THE NEXT (review, Nov 2026). The bar's button sets the card's flag and
+// presses Save, and the click takes the flag at its very top. But a Save the page has disabled since the bar went
+// up ignores a programmatic click (the fake's `click()` does what the platform does), so the flag stayed set, and
+// the next ORDINARY Save went past the allowance question unasked — a booking over the allowance, never asked about.
+// The REAL cards and the real allowance rules; the writer is the mock. The member is INVENTED (below).
+const { triggerConfirmedALSave } = await import('./admin-al.js');
+const { entitlementFor } = await import('./al-entitlement.js');
+const { isBankHoliday, getPatternShift, CONFIG } = await import('./roster-data.js');
+/** An invented main-line CEA, on the first week of the line that `fits` — never a colleague, because a failing
+ *  assertion prints the receipt, and the receipt names the member beside their leave or absence.
+ *  @param {(m: any) => boolean} [fits] */
+const inventedCea = (fits = () => true) => {
+    for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS; w++) {
+        const m = { name: 'Q. Example', currentWeek: w, rosterType: 'main', role: 'CEA' };
+        if (fits(m)) return m;
+    }
+    throw new Error('no week of the main line fits the case');
+};
+/** `m` on the REAL roster for each test of the block and off it after (as admin-roster-upload.test.mjs puts its
+ *  starter on), so the cards' own lookup by name runs for real — the harness's point above. @param {any} m */
+const onRosterForEachTest = (m) => {
+    beforeEach(() => { teamMembers.push(m); });
+    afterEach(() => { teamMembers.splice(teamMembers.indexOf(m), 1); });
+};
+describe('N. "Save anyway" answers the press it is given, and no later one', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    // Due at work on Boxing Day 2026, so the Absence case below has a day in lieu to take back.
+    const QX = inventedCea(m => !isRestShift(getPatternShift(m, new Date(2026, 11, 26))));
+    onRosterForEachTest(QX);
+    /** Every working weekday of `m` from `from`, skipping bank holidays and `not`, until `n` are found. */
+    const workdays = (/** @type {any} */ m, /** @type {Date} */ from, /** @type {number} */ n, /** @type {string[]} */ not = []) => {
+        /** @type {string[]} */ const out = [];
+        for (const d = new Date(from); out.length < n; d.setDate(d.getDate() + 1)) {
+            const date = iso10(d);
+            if (d.getDay() !== 0 && !isBankHoliday(d) && works(m, date) && !not.includes(date)) out.push(date);
+        }
+        return out;
+    };
+    const leave = (/** @type {any} */ m, /** @type {string} */ date, /** @type {any} */ extra = {}) => ({ id: `n-${date}`, memberName: m.name, date,
+        type: 'annual_leave', value: 'AL', source: 'manual', createdAt: { seconds: 1_790_000_000 }, ...extra });
+
+    test('Annual Leave: pressed while a deleted period has disabled Save, it saves nothing — and the next Save asks again', async () => {
+        const m = QX;
+        // A working weekday followed by a non-Sunday rest day, in June 2027.
+        let work = '', rest = '';
+        for (const d = new Date(2027, 5, 1); !rest; d.setDate(d.getDate() + 1)) {
+            const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+            if (d.getDay() !== 0 && next.getDay() !== 0 && !isBankHoliday(d) && works(m, iso10(d)) && !works(m, iso10(next))) { work = iso10(d); rest = iso10(next); }
+        }
+        const allowance = /** @type {number} */ (entitlementFor(m, 2027, []));
+        // The year full: leave on every day the allowance has, the last of them a declared swap onto `rest`.
+        const swapped = leave(m, rest, { replacedType: 'shift' });
+        _allOv = [...workdays(m, new Date(2027, 1, 1), allowance - 1, [work]).map(d => leave(m, d)), swapped];
+        _ovMap = new Map([[rest, swapped]]);
+        /** @type {any[][]} */ const confirms = [];
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        const card = initALSection(/** @type {any} */ ({ alMember: memberSelect(m.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
+        el('alFrom').value = work; el('alTo').value = rest;
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        await save();
+        assert.equal(confirms.length, 1, 'premise: one day over, so Save stops at the bar');
+        // The period holding the swap is deleted from the list below, and the preview is drawn again: the rest day
+        // asks its question once more, so Save is disabled while the bar is still up.
+        _allOv = _allOv.filter(o => o !== swapped); _ovMap = new Map();
+        card?.updateAlPreview?.();
+        assert.equal(el('alSaveBtn').disabled, true, 'premise: Save is disabled under the showing bar');
+        triggerConfirmedALSave();
+        assert.equal(_writes.length, 0, 'a disabled Save records nothing, "Save anyway" or not');
+        // Answered "swapped", the day costs a day again, so the booking is still one over.
+        for (const fn of el('alPreview')._on.click ?? []) fn({ target: { closest: () => ({ dataset: { date: rest, answer: 'yes' } }) } });
+        assert.equal(el('alSaveBtn').disabled, false, 'premise: answered, Save is live');
+        await save();
+        assert.equal(_writes.length, 0, 'the next ordinary Save must not go past the allowance unasked');
+        assert.equal(confirms.length, 2, 'it stops at the bar again');
+        // CONTROL: pressed while Save is live, "Save anyway" saves past the bar — that press, once.
+        triggerConfirmedALSave();
+        await new Promise(r => setImmediate(r));
+        assert.equal(_writes.length, 1);
+    });
+
+    test('Absence: the same for the bar an absence raises when it takes back a day in lieu', async () => {
+        const p = QX;
+        const worked = { id: 'n-boxing', memberName: p.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual', createdAt: { seconds: 1_798_000_000 } };
+        // 2027 booked to the allowance the worked Boxing Day gives it: an absence over that work takes the day back.
+        _allOv = [...workdays(p, new Date(2027, 1, 1), /** @type {number} */ (entitlementFor(p, 2027, [worked]))).map(d => leave(p, d)), worked];
+        _ovMap = new Map([[worked.date, worked]]);
+        /** @type {any[][]} */ const confirms = [];
+        for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
+        initSickSection(/** @type {any} */ ({ sickMember: memberSelect(p.name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
+            showSuccess() {}, showALConfirm: (/** @type {any[]} */ ...a) => { confirms.push(a); }, hideALConfirm() {} }));
+        el('sickFrom').value = worked.date; el('sickTo').value = worked.date;
+        for (const fn of el('sickTo')._on.change ?? []) fn();
+        for (const fn of el('sickSaveBtn')._on.click ?? []) await fn({});
+        assert.equal(confirms.length, 1, 'premise: the day in lieu going leaves 2027 one over, so Save stops at the bar');
+        const saveAnyway = confirms[0][4];
+        // Disabled since the bar went up — however it came to be — "Save anyway" reaches nothing.
+        el('sickSaveBtn').disabled = true;
+        saveAnyway();
+        el('sickSaveBtn').disabled = false;
+        for (const fn of el('sickSaveBtn')._on.click ?? []) await fn({});
+        assert.equal(_writes.length, 0, 'the next ordinary Save must not go past the allowance unasked');
+        assert.equal(confirms.length, 2, 'it stops at the bar again');
+    });
+});
+
+// O. THE ABSENCE CARD LEAVES A REST DAY'S RDW OR LEAVE AS IT IS, AND SAYS SO (review, Nov 2026). The Calendar
+// hides an absence on a rest day unless it replaced contracted work, so one written over a rest day's Rest Day
+// Working replaced a record that showed with one that never does — while the preview and the receipt counted
+// it as an absence day. The REAL card and projection; the writer is the mock. The member is invented, as in N.
+const { fmtPeriodDate, formatDisplay: realFormatDisplay } = await import('./admin-period-dates.js');
+describe('O. the Absence card names a rest day it leaves as it is, and records nothing on it', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    /** A working weekday followed by a non-Sunday rest day for `m`, in October 2026. @param {any} m */
+    const pairOf = (m) => {
+        for (let i = 1; i < 60; i++) {
+            const a = new Date(2026, 9, i), b = new Date(2026, 9, i + 1);
+            if (a.getDay() === 0 || b.getDay() === 0) continue;
+            if (works(m, iso10(a)) && !works(m, iso10(b))) return { work: iso10(a), rest: iso10(b) };
+        }
+        return null;
+    };
+    const QX = inventedCea(m => pairOf(m) !== null);
+    const found = { m: QX, ...pairOf(QX) };
+    onRosterForEachTest(QX);
+    /** The real card for `found.m`, with the rest day holding Rest Day Working, and `from`–`to` on screen. */
+    const card = (/** @type {string} */ from, /** @type {string} */ to) => {
+        const { m, rest } = /** @type {any} */ (found);
+        const rdw = { id: 'o-rdw', memberName: m.name, date: rest, type: 'rdw', value: '07:00-15:00', source: 'manual' };
+        _ovMap = new Map([[rest, rdw]]); _allOv = [rdw];
+        for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
+        initSickSection(/** @type {any} */ ({ sickMember: memberSelect(m.name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
+            showSuccess() {}, showALConfirm() {}, hideALConfirm() {} }));
+        el('sickFrom').value = from; el('sickTo').value = to;
+        for (const fn of el('sickTo')._on.change ?? []) fn();
+        return el('sickPreview').innerHTML;
+    };
+
+    test('premise: a working day followed by a rest day on some line', () => { assert.ok(found); });
+
+    test('the preview counts the working day only, and names the rest day left as it is', () => {
+        const { work, rest } = /** @type {any} */ (found);
+        const html = card(work, rest);
+        assert.match(html, /<strong>1 absence day<\/strong>/);
+        assert.ok(html.includes(`${fmtPeriodDate(rest)} left as it is: Rest Day Working on a rest day, where an absence would not show`), html);
+        assert.doesNotMatch(html, /rest day skipped/, 'not a bare rest day: something is recorded there');
+    });
+
+    test('a range of only that day records nothing, so Save is off', () => {
+        const { rest } = /** @type {any} */ (found);
+        card(rest, rest);
+        assert.equal(el('sickSaveBtn').disabled, true);
+    });
+
+    test('the receipt names it again, with how to remove the Rest Day Working', async () => {
+        const { work, rest } = /** @type {any} */ (found);
+        card(work, rest);
+        _record = async () => ({ workingCount: 1, sundayCount: 0 });
+        for (const fn of el('sickSaveBtn')._on.click ?? []) await fn({});
+        assert.equal(_writes.length, 1, 'premise: the working day was saved');
+        const line = `${realFormatDisplay(rest)} — rest day; the Rest Day Working recorded here was left as it is, as an absence on a rest day `
+            + 'does not show on the Calendar (to remove it, select RDW on the day in Change a Shift)';
+        assert.ok(el('sickFeedback').textContent.includes(line), el('sickFeedback').textContent);
     });
 });

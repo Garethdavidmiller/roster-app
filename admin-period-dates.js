@@ -25,14 +25,21 @@
  * always a gap — Sundays are uncontracted for every grade, so leave is never recorded on one and a
  * Sunday sitting between two booked weeks did not interrupt anything. A day the member's BASE
  * roster gives them off is a gap for the same reason: they were not due to work it, so it is not a
- * day they came back for. Anything else — including a day whose base shift cannot be resolved,
- * which is what a null member gives — is NOT a gap, so the run is split. Splitting wrongly shows a
- * manager two short periods instead of one; MERGING wrongly claims leave across a day that was
- * worked, which is the direction that misreads the record.
+ * day they came back for — UNLESS A RECORD SHOWS THEY DID (review, Nov 2026): Rest Day Working, a shift
+ * swapped onto it, a Spare turn or an Other day is a day they came back for — somebody at work, which is
+ * the question `WORKED_OVERRIDE_TYPES` answers — and two runs of leave either side of it are two
+ * bookings. Asked of the member's records in play (`ovByDate`); without them, the base roster alone —
+ * which is how the ✕ asks, on purpose: its reach and its edge Sunday walk the days the booking itself
+ * spanned, whatever has been recorded on them since (admin-booked-periods.js, `computePeriodDeleteIds`).
+ * Anything else — including a day whose base shift cannot be resolved, which is what a null member
+ * gives — is NOT a gap, so the run is split. Splitting wrongly shows a manager two short periods
+ * instead of one; MERGING wrongly claims leave across a day that was worked, which is the direction
+ * that misreads the record.
  */
 
-import { DAY_NAMES, MONTH_ABB, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
+import { DAY_NAMES, MONTH_ABB, getBaseShift, formatISO, isSunday, parseISODate, isWorkedShift } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
+import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 
 /**
  * @param {string} dateStr
@@ -47,10 +54,16 @@ export function addDays(dateStr, n) {
 /**
  * @param {string} dateStr
  * @param {any} memberObj
+ * @param {Map<string, any>|null} [ovByDate] the member's records in play, keyed by date: a base rest day
+ *        one of them shows was WORKED is not a gap (header)
  */
-export function isRestGap(dateStr, memberObj) {
+export function isRestGap(dateStr, memberObj, ovByDate = null) {
     if (isSunday(dateStr)) return true; // Sunday — uncontracted
     if (!memberObj) return false;
+    const held = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(dateStr) : null;
+    // Came back for it: RDW, a swapped-in shift, a Spare turn (its value is not a worked shift, its type is
+    // at work), an Other day.
+    if (held && (WORKED_OVERRIDE_TYPES.has(held.type) || (held.value && isWorkedShift(held.value)))) return false;
     const shift = getBaseShift(memberObj, parseISODate(dateStr));
     return isRestShift(shift);
 }

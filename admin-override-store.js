@@ -37,7 +37,7 @@
 import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, runTransaction, writeBatch, whenOwnWritesSent, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 import { manualOverrideId } from './override-id.js';
-import { shouldReplaceOverride } from './override-utils.js';
+import { withOutrankedManualCopies } from './override-utils.js';
 import { sameOverrideRecord, overrideFromSnapshot } from './override-compare.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
 
@@ -200,23 +200,12 @@ export function idsReplacedBy(memberName, date, winnerId) {
  * Ids being DELETED, widened by the manual duplicates each one OUTRANKS — the copies that would
  * resurface the moment it went (v24.48). Only those: until v24.53 this took every manual record of
  * the day, so deleting the stale copy also deleted the one on screen, under a receipt that called it
- * "older". Precedence is `shouldReplaceOverride`, the same rule that decides what the day shows. An
- * import is deleted alone: it is not a duplicate of anything.
+ * "older". The rule is `withOutrankedManualCopies` (override-utils.js), asked of this cache — one rule,
+ * which a booked period's ✕ asks too (`periodDelete`).
  * @param {Iterable<string>} ids @returns {Set<string>}
  */
 export function withManualDuplicates(ids) {
-    /** `r` beats `o` STRICTLY. On an exact tie `shouldReplaceOverride` says yes both ways, and a
-     *  delete of either copy took both (v24.57, review) — so a tie goes to the larger id, one way. */
-    const _outranks = (/** @type {any} */ r, /** @type {any} */ o) =>
-        shouldReplaceOverride(o, r) && (!shouldReplaceOverride(r, o) || String(r.id) > String(o.id));
-    const out = new Set(ids);
-    for (const id of [...out]) {
-        const r = _allOverrides.find(o => o.id === id);
-        if (!r || (r.source || '') === 'roster_import') continue;
-        _allOverrides.filter(o => o.id !== r.id && _isManualOn(o, r.memberName, r.date) && _outranks(r, o))
-            .forEach(o => out.add(o.id));
-    }
-    return out;
+    return withOutrankedManualCopies(_allOverrides, ids);
 }
 
 /**

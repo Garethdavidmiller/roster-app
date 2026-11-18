@@ -20,11 +20,13 @@ import assert from 'node:assert/strict';
 const _cfgs = [];
 /** How many times a card clicked its own Save — "Save anyway" resumes that way. */
 let _clicks = 0;
+/** What a click RUNS, as the platform runs a button's listener: at once, inside `click()`. Null: nothing. */
+/** @type {(() => void)|null} */ let _onPress = null;
 /** The page's override cache, as the leave card's check reads it. @type {any[]} */
 let _overrides = [];
 
 mock.module('./admin-range-booking.js', { namedExports: {
-    createRangeBookingSection: (/** @type {any} */ cfg) => { _cfgs.push(cfg); return { updatePreview() {}, saveBtn: { click() { _clicks++; } } }; },
+    createRangeBookingSection: (/** @type {any} */ cfg) => { _cfgs.push(cfg); return { updatePreview() {}, saveBtn: { click() { _clicks++; _onPress?.(); } } }; },
 } });
 mock.module('./admin-overrides.js', { namedExports: {
     getAllOverrides: () => _overrides,
@@ -132,18 +134,23 @@ describe('the Absence card', () => {
             assert.equal(confirms[0][2], null, 'the range path, not the week grid\'s batch');
         });
 
-        test('"Save anyway" clicks this card\'s Save, and that click is let through once', () => {
+        // The press is modelled as the platform makes it: the Save's listener runs INSIDE `click()`, taking the
+        // flag first (`onClick`) and then asking (`preSave`). Until Nov 2026 this fake ran nothing and the test
+        // took the flag after the resume had returned — which pinned a flag that outlived the press, the defect
+        // that let a Save disabled under the bar arm the next ordinary Save past it (admin-range-booking.test.mjs N).
+        test('"Save anyway" presses this card\'s Save, and that one press is let through', () => {
             nextYear(/** @type {number} */ (entitlementFor(person, 2027, [worked])));
             /** @type {any[]} */ const confirms = [];
             const cfg = sickCfg(confirms);
             ask(cfg);
             _clicks = 0;
-            confirms[0][4]();
+            /** @type {boolean[]} */ const vetoes = [];
+            _onPress = () => { cfg.onClick(); vetoes.push(ask(cfg)); };
+            try { confirms[0][4](); } finally { _onPress = null; }
             assert.equal(_clicks, 1, 'the resume clicks the Absence card\'s own Save');
+            assert.deepEqual(vetoes, [false], 'the confirmed press saves');
             cfg.onClick();
-            assert.equal(ask(cfg), false, 'the confirmed click saves');
-            cfg.onClick();
-            assert.equal(ask(cfg), true, 'and the next click is checked again');
+            assert.equal(ask(cfg), true, 'and the next press is checked again');
         });
 
         test('with a day to spare, nothing stops the save — but the preview names the day in lieu', () => {

@@ -505,6 +505,58 @@ describe('recordRangeOverrides — an answered rest day', () => {
     });
 });
 
+// ── AN ABSENCE RANGE LEAVES A REST DAY'S RDW AS IT IS (review, Nov 2026) ─────────────────────────
+// The Calendar hides an absence on a rest day unless it replaced contracted work, so an absence written
+// over a rest day's Rest Day Working replaced a record that showed with one that never does. The writer's
+// own filter (`rangeWriteDates` → `absenceHiddenDates`, al-swapped-days.js) leaves such a day alone; this
+// is that filter reached through the REAL writer. The member is INVENTED, and put on the real roster for each
+// test (the writer looks a member up by name) and taken off again, as admin-roster-upload.test.mjs does.
+const { getBaseShift: baseShiftOf, CONFIG: rosterConfig } = await import('./roster-data.js');
+describe('recordRangeOverrides — an absence range over a rest day holding Rest Day Working', () => {
+    const getBaseShift = baseShiftOf;
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    /** A working weekday followed by a non-Sunday rest day on `m`'s line, in October 2026. @param {any} m */
+    const pairOf = (m) => {
+        for (let i = 1; i < 60; i++) {
+            const a = new Date(2026, 9, i), b = new Date(2026, 9, i + 1);
+            if (a.getDay() === 0 || b.getDay() === 0) continue;
+            if (!isRestShift(getBaseShift(m, a)) && isRestShift(getBaseShift(m, b))) return { work: iso(a), rest: iso(b) };
+        }
+        return null;
+    };
+    /** An invented main-line CEA, on the first week of the line with the case. @type {any} */
+    let who = null;
+    for (let w = 1; w <= rosterConfig.MAIN_ROSTER_WEEKS && !who; w++) {
+        const m = { name: 'Q. Example', currentWeek: w, rosterType: 'main', role: 'CEA' };
+        if (pairOf(m)) who = m;
+    }
+    const pair = who && pairOf(who);
+    beforeEach(() => { _batchWrites.length = 0; if (who) teamMembers.push(who); });
+    afterEach(() => { if (who) teamMembers.splice(teamMembers.indexOf(who), 1); });
+
+    test('the working day takes the absence; the Rest Day Working stands', async () => {
+        assert.ok(pair, 'premise: a working day followed by a rest day on their line');
+        const { work, rest } = /** @type {any} */ (pair);
+        const rdw = { id: 'rdw-rest', memberName: who.name, date: rest, type: 'rdw', value: '07:00-15:00', source: 'manual' };
+        setAllOverrides([rdw]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        const res = await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: who.name, dates: [work, rest], changedBy: 'A. Admin' });
+        auth.currentUser = null;
+        assert.deepEqual(_batchWrites.map(w => w.date), [work], 'only the working day is written');
+        assert.equal(res.workingCount, 1);
+        assert.ok(getAllOverrides().some(o => o.id === 'rdw-rest'), 'the Rest Day Working record survives');
+    });
+
+    test('CONTROL: leave over the same day is written as before — free, and shown', async () => {
+        const { work, rest } = /** @type {any} */ (pair);
+        setAllOverrides([{ id: 'rdw-rest', memberName: who.name, date: rest, type: 'rdw', value: '07:00-15:00', source: 'manual' }]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: who.name, dates: [work, rest], changedBy: 'A. Admin' });
+        auth.currentUser = null;
+        assert.deepEqual(_batchWrites.map(w => w.date), [work, rest]);
+    });
+});
+
 // ── WHICH YEAR'S ALLOWANCE (v25.18) ─────────────────────────────────────────────────────────────
 // A January leave day may come out of the previous year's allowance (leave-year.js). Three things a
 // save must get right, each of which a test of the RULE cannot see: the move writes the year (and

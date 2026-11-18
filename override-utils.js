@@ -111,9 +111,11 @@ export function contractEvidence(ov) {
  * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base
  * (unless it replaced contracted work — a swapped-in day) OR any Sunday, and `annual_leave` / Other-family
  * (`other`) on any Sunday. A worked Sunday is always RDW, never AL/Absent, so a Sunday one is legacy or
- * hand-written data — every write path refuses it; an absence on a rest-day base is not (Admin's week
- * grid still records one) and is hidden all the same. `rdw`, `correction`, `spare_shift`, and plain
- * `shift` are never suppressed.
+ * hand-written data — every write path refuses it. An absence on a rest-day base is not refused (Admin's
+ * week grid still records one, and the Absence card does over work that earned a day in lieu, which the
+ * absence takes back) and is hidden all the same; the Absence card leaves a rest day's RDW or free leave
+ * as it is rather than hide it (`absenceHiddenDates`, al-swapped-days.js). `rdw`, `correction`,
+ * `spare_shift`, and plain `shift` are never suppressed.
  * Takes `sunday` as a boolean (not the date) so this module stays free of a roster-data import — that
  * would be a cycle, since roster-data imports from here. Callers pass `isSunday(dateStr)`.
  * @param {{type: string, replacedType?: string|null}} override
@@ -382,6 +384,32 @@ export function shouldReplaceOverride(existing, incoming) {
     if (existingIsImport && !incomingIsImport) return true;   // manual beats import
     if (!existingIsImport && incomingIsImport) return false;  // import can't beat manual
     return tsToMillis(incoming.createdAt) >= tsToMillis(existing.createdAt);
+}
+
+/**
+ * Ids being DELETED, widened by the MANUAL copies of the same member's day that each one OUTRANKS:
+ * the older duplicates from before the fixed per-day ids, which would show as the day's value the
+ * moment the record above them went (v24.48). Only those — deleting a stale copy must never take the
+ * one on screen with it (v24.53) — and an exact tie goes to the larger id, one way (v24.57). An import
+ * is deleted alone: it is not a duplicate of anything. Pure, over the rows the caller holds: the
+ * store's cache (`withManualDuplicates`, admin-override-store.js) and a booked period's ✕
+ * (`periodDelete`, admin-booked-periods.js) ask the same rule.
+ * @param {any[]} rows every record the caller holds
+ * @param {Iterable<string>} ids the records being deleted
+ * @returns {Set<string>} `ids` and every copy they outrank
+ */
+export function withOutrankedManualCopies(rows, ids) {
+    const manual = (/** @type {any} */ o) => (o.source || '') !== 'roster_import';
+    const outranks = (/** @type {any} */ r, /** @type {any} */ o) =>
+        shouldReplaceOverride(o, r) && (!shouldReplaceOverride(r, o) || String(r.id) > String(o.id));
+    const out = new Set(ids);
+    for (const id of [...out]) {
+        const r = rows.find(o => o.id === id);
+        if (!r || !manual(r)) continue;
+        rows.filter(o => o.id !== r.id && o.memberName === r.memberName && o.date === r.date && manual(o) && outranks(r, o))
+            .forEach(o => out.add(o.id));
+    }
+    return out;
 }
 
 /**

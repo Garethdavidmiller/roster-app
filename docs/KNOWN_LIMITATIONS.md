@@ -160,6 +160,13 @@ when the booking started, so a read landing between the card's preview and its s
 window in which it compares with newer data than the reader saw. Revisit if a lost edit is ever
 reported from either.
 
+**What the week grid's check does not see (review, Nov 2026).** A roster import that reaches a day
+after its row was drawn sits at an id of its own, not the day's fixed one, and the check compares it
+with the copy the page has read since — so a change staged on that day before the import arrived is
+saved over it without a warning. One case is refused instead: a rest day whose swapped-day question
+was answered before such a record settled it (`planAlWeekSave`, `admin-al-week-save.js`, names the
+day as changed). Revisit if an import is ever reported lost under a manager's change.
+
 **The weekly roster import is covered differently, since v25.92** (`saveRosterWrites`,
 `roster-import-save.js`). A manual record always outranks an import, so a record the import ADDS can
 never hide a colleague's day; what can lose their edit is a record the import DELETES ("Use new
@@ -180,7 +187,8 @@ records take random ids, which a transaction cannot look up without a query. Onl
 so that is two tabs of one person.
 
 **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
-saved or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete.
+saved or deleted from Admin — the week editor, a leave/absence range, either Saved Changes delete, or
+the ✕ on a Recorded Annual Leave or Recorded Absence dates row.
 Each path clears the MANUAL copies Admin has loaded for that member and day; an import is never
 treated as a duplicate. On the capped All-staff list a very old day may not be loaded, so selecting
 the member first is the complete route. None has been counted; nothing in the app reports them (see

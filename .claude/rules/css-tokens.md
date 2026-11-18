@@ -60,7 +60,7 @@ is the shared uppercase micro field label (GRADE, TAX CODE, …). Every card-bea
 `.collapse-chevron` remain.
 
 - **Header context chips** go only where a card is often COLLAPSED and has one clear datum (Admin's
-  `AL left: N` with `.al-left-chip` low/none recolours and the Saved Changes count; Operations' Error
+  leave chip, `2026: N left`, with `.al-left-chip` low/none recolours, and the Saved Changes count; Operations' Error
   Log and reset-request counts, `.errorlog-count-chip`, red; Settings, Overtime and Trains carry their
   own) — never on default-open cards.
 - **Card titles are `h2` on every page, and every card title leads with an emoji** — both enforced by
