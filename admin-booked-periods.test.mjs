@@ -21,6 +21,7 @@ import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods, periodDelete } from './admin-booked-periods.js';
 import { isRestGap } from './admin-period-dates.js';
+import { alPosition } from './al-entitlement.js';
 
 // The delete control's "Confirm?" disarms itself after 5 s on a REAL timer, and nothing here waits
 // for it — so it held the process open after the last test, 5.1 s of wall for ~100 ms of tests
@@ -438,6 +439,64 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
         assert.equal(r.ids.length, 6);
         assert.equal(r.said, '✓ Deleted 5 AL days for Q. Example, and 1 more day that was not counted');
         assert.equal(ask(overrides, '2027-03-01', '2027-03-05', 5).said, '✓ Deleted 5 AL days for Q. Example', 'CONTROL: nothing more, nothing said');
+    });
+
+    // THE OLDER COPY A DELETED RECORD OUTRANKS GOES WITH IT (review, Nov 2026), as in every other Admin delete
+    // since v24.48. A day from before the fixed per-day ids can hold two manual records; the newer is the one
+    // the list shows, and deleting it alone let the older show as the day's value again.
+    describe('a day holding an older copy from before the fixed ids', () => {
+        const stamp = (/** @type {string} */ iso) => ({ seconds: Date.parse(iso) / 1000 });
+        const TUE = '2026-10-13';   // a Tuesday: a working day on the Mon–Fri line
+        const olderLeave = { id: 'oldLeave', memberName: Q.name, date: TUE, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: stamp('2026-09-01T09:00:00Z') };
+        const newerAbsence = { id: 'newAbsence', memberName: Q.name, date: TUE, type: 'sick', value: 'SICK', source: 'manual', createdAt: stamp('2026-09-02T09:00:00Z') };
+        const absenceList = (/** @type {any[]} */ overrides) => periodDelete({ overrides, type: 'sick', memberName: Q.name,
+            start: TUE, end: TUE, isRestGap: d => isRestGap(d, Q), listedCount: 1 });
+
+        it('the Recorded Absence dates ✕ takes the older leave too, so the allowance does not fall', () => {
+            const overrides = [olderLeave, newerAbsence];
+            const left = (/** @type {string[]} */ ids) => overrides.filter(o => !ids.includes(o.id));
+            const remaining = (/** @type {any[]} */ rows) => alPosition({ overrides: rows, member: Q, year: 2026, todayStr: '2026-11-18' }).remaining;
+            assert.equal(remaining(left(['newAbsence'])), /** @type {number} */ (remaining(overrides)) - 1,
+                'premise: the absence alone gone, the older leave is the day again and costs a day');
+            const r = absenceList(overrides);
+            assert.deepEqual([...r.ids].sort(), ['newAbsence', 'oldLeave']);
+            assert.equal(remaining(left(r.ids)), remaining(overrides), 'nothing left to resurface: the allowance stands');
+            assert.equal(r.said, '✓ Deleted 1 absence day for Q. Example, and an older copy of Tue 13 Oct');
+        });
+
+        it('the Recorded Annual Leave dates ✕ takes an older shift under the leave', () => {
+            const olderShift = { ...olderLeave, id: 'oldShift', type: 'shift', value: '06:00-14:00' };
+            const newerLeave = { ...newerAbsence, id: 'newLeave', type: 'annual_leave', value: 'AL' };
+            const r = ask([olderShift, newerLeave], TUE, TUE, 1);
+            assert.deepEqual([...r.ids].sort(), ['newLeave', 'oldShift']);
+            assert.equal(r.said, '✓ Deleted 1 AL day for Q. Example, and an older copy of Tue 13 Oct');
+        });
+
+        it('only what the deleted record outranks: a newer record and a roster import stay', () => {
+            const newerShift = { ...olderLeave, id: 'newShift', type: 'shift', value: '06:00-14:00', createdAt: stamp('2026-09-03T09:00:00Z') };
+            const imported = { ...olderLeave, id: 'imported', type: 'shift', value: '06:00-14:00', source: 'roster_import' };
+            const r = absenceList([newerAbsence, newerShift, imported]);
+            assert.deepEqual(r.ids, ['newAbsence']);
+            assert.equal(r.said, '✓ Deleted 1 absence day for Q. Example', 'nothing more taken, nothing more said');
+        });
+    });
+
+    // A SUNDAY THE BOOKING SET AS A REST DAY IS BACK ON THE ROSTER (review, Nov 2026). Booked Mon–Sun over a worked
+    // Sunday, the leave was written Mon–Fri and the Sunday set as a rest day in the same batch (one timestamp);
+    // the list stops at the Friday, and its ✕ takes the Sunday's correction too — which the line never said.
+    it('a ✕ that takes the Sunday its booking set as a rest day says the Sunday is back on the roster', () => {
+        const batch = { seconds: 1_790_000_000 };
+        const week = ['2026-11-30', '2026-12-01', '2026-12-02', '2026-12-03', '2026-12-04'];
+        const sunday = { id: 'qSun', memberName: Q.name, date: '2026-12-06', type: 'correction', value: 'RD', source: 'manual', createdAt: batch };
+        const leave = week.map(d => ({ ...rec(d), createdAt: batch }));
+        const r = ask([...leave, sunday], week[0], week[4], 5);
+        assert.ok(r.ids.includes('qSun'), 'premise: the booking\'s own Sunday correction goes with the period');
+        assert.equal(r.said, '✓ Deleted 5 AL days for Q. Example. Sun 6 Dec, set as a rest day for this leave, is back on the roster.');
+        // Two weeks, two Sundays inside the period: named together, and an absence says "absence".
+        const fortnight = ['2026-11-30', '2026-12-04', '2026-12-07', '2026-12-11', '2026-12-14'].map(d => ({ ...rec(d), type: 'sick', value: 'SICK', createdAt: batch }));
+        const two = periodDelete({ overrides: [...fortnight, sunday, { ...sunday, id: 'qSun2', date: '2026-12-13' }], type: 'sick',
+            memberName: Q.name, start: '2026-11-30', end: '2026-12-14', isRestGap: d => isRestGap(d, Q), listedCount: 5 });
+        assert.equal(two.said, '✓ Deleted 5 absence days for Q. Example. Sun 6 Dec and Sun 13 Dec, set as rest days for this absence, are back on the roster.');
     });
 });
 

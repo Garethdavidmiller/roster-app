@@ -180,7 +180,8 @@ records take random ids, which a transaction cannot look up without a query. Onl
 so that is two tabs of one person.
 
 **Duplicates already in Firestore from before the fixed ids** are cleared only when that day is next
-saved or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete.
+saved or deleted from Admin — the week editor, a leave/absence range, either Saved Changes delete, or
+the ✕ on a Recorded Annual Leave or Recorded Absence dates row.
 Each path clears the MANUAL copies Admin has loaded for that member and day; an import is never
 treated as a duplicate. On the capped All-staff list a very old day may not be loaded, so selecting
 the member first is the complete route. None has been counted; nothing in the app reports them (see

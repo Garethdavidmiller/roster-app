@@ -8,6 +8,7 @@ import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG } from '../roster-data.js';
+import { fmtPeriodDate } from '../admin-period-dates.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -1446,6 +1447,39 @@ test('admin: a leave preview is redrawn when a recorded period under it is delet
     await del.click();
     await expect(page.locator('#saveToast')).toHaveText(/Deleted 1 AL day for G\. Miller/);
     await expect(preview, 'a bare rest day now: asked about again').toContainText('rest day to answer');
+});
+
+// THE ✕ TAKES THE OLDER COPY ITS RECORD OUTRANKS (review, Nov 2026), as every other Admin delete has since
+// v24.48. A day from before the fixed per-day ids holding an older leave record under a newer absence: the
+// Recorded Absence dates ✕ deleted the absence alone, so the leave showed again and the allowance fell by a
+// day under "Deleted 1 absence day". The REAL page path, from the ✕ to the deletes the transaction sent.
+test('admin: a Recorded Absence dates ✕ deletes the older leave copy under the absence, and names it', async ({ page }) => {
+    // A colleague found from the roster, never written down, and one of their working weekdays.
+    const who = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate && !m.rosterChanges));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let day = '';
+    for (const d = new Date(2026, 8, 7, 12); !day; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0 && !isRestShift(getBaseShift(who, d))) day = iso(d);
+    }
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: rows };
+    }, [{ id: 'older-leave', memberName: who.name, date: day, type: 'annual_leave', value: 'AL', note: '', source: 'manual',
+          createdAt: Date.parse('2026-08-01T09:00:00Z') },
+        { id: 'newer-absence', memberName: who.name, date: day, type: 'sick', value: 'SICK', note: '', source: 'manual',
+          createdAt: Date.parse('2026-08-02T09:00:00Z') }]);
+    await openAdminOnThisWeek(page);
+    await page.locator('#fieldMember').selectOption(who.name);
+    await page.locator('#sickToggleHeader').click();
+    await page.locator('#sickBookedToggle').click();
+    const del = page.locator('#sickBookedBody .btn-period-delete');
+    await expect(del, 'premise: one recorded absence, one ✕').toHaveCount(1);
+    await clickInView(del);
+    await expect(del).toHaveText('Confirm?');
+    await clickInView(del);
+    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 absence day for ${who.name}, and an older copy of ${fmtPeriodDate(day)}`);
+    const deleted = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).map((/** @type {string} */ p) => p.split('/').pop()));
+    expect(deleted.sort(), 'the absence AND the older leave copy, in the one transaction').toEqual(['newer-absence', 'older-leave']);
 });
 
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {

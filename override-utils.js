@@ -383,6 +383,32 @@ export function shouldReplaceOverride(existing, incoming) {
 }
 
 /**
+ * Ids being DELETED, widened by the MANUAL copies of the same member's day that each one OUTRANKS:
+ * the older duplicates from before the fixed per-day ids, which would show as the day's value the
+ * moment the record above them went (v24.48). Only those — deleting a stale copy must never take the
+ * one on screen with it (v24.53) — and an exact tie goes to the larger id, one way (v24.57). An import
+ * is deleted alone: it is not a duplicate of anything. Pure, over the rows the caller holds: the
+ * store's cache (`withManualDuplicates`, admin-override-store.js) and a booked period's ✕
+ * (`periodDelete`, admin-booked-periods.js) ask the same rule.
+ * @param {any[]} rows every record the caller holds
+ * @param {Iterable<string>} ids the records being deleted
+ * @returns {Set<string>} `ids` and every copy they outrank
+ */
+export function withOutrankedManualCopies(rows, ids) {
+    const manual = (/** @type {any} */ o) => (o.source || '') !== 'roster_import';
+    const outranks = (/** @type {any} */ r, /** @type {any} */ o) =>
+        shouldReplaceOverride(o, r) && (!shouldReplaceOverride(r, o) || String(r.id) > String(o.id));
+    const out = new Set(ids);
+    for (const id of [...out]) {
+        const r = rows.find(o => o.id === id);
+        if (!r || !manual(r)) continue;
+        rows.filter(o => o.id !== r.id && o.memberName === r.memberName && o.date === r.date && manual(o) && outranks(r, o))
+            .forEach(o => out.add(o.id));
+    }
+    return out;
+}
+
+/**
  * Reconcile a Firestore date-range snapshot into the shared override cache AUTHORITATIVELY.
  *
  * A range query for [startStr, endStr] is the single source of truth for those dates, so the winner
