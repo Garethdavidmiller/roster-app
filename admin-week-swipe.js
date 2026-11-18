@@ -112,7 +112,7 @@ export function initAdminWeekSwipe({
      *  happened somewhere this grid never heard. @param {PointerEvent} e */
     function abandon(e) {
         swipeListening = false; swipeCooldown = false;
-        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
+        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) { /* never captured (capture waits for a sideways move), or the pointer has gone */ }
         if (swipeDragging) {
             swipeDragging = false;
             if (swipePanelCurrent) { swipePanelCurrent.style.transition = swipePanelCurrent.style.transform = swipePanelCurrent.style.willChange = ''; }
@@ -191,7 +191,7 @@ export function initAdminWeekSwipe({
 
         if (!swipeDragging) return; // was a tap — buttons/inputs handle their own clicks
         swipeDragging = false;
-        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
+        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) { /* a pointer already gone throws; the capture ends with this pointerup anyway */ }
 
         const dx  = e.clientX - swipeStartX;
         const vel = e.timeStamp > swipeStartTime ? Math.abs(dx) / (e.timeStamp - swipeStartTime) : 0;

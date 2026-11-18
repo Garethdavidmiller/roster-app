@@ -344,7 +344,7 @@ export function buildRangePicker(prefix, opts = {}) {
         swListening = false;
         if (!swDragging) return; // was a tap
         swDragging = false;
-        try { grid.releasePointerCapture(e.pointerId); } catch (_) {}
+        try { grid.releasePointerCapture(e.pointerId); } catch (_) { /* a pointer already gone throws; the capture ends with this pointerup anyway */ }
 
         const dx  = e.clientX - swStartX;
         const vel = e.timeStamp > swStartT ? Math.abs(dx) / (e.timeStamp - swStartT) : 0;
@@ -382,7 +382,7 @@ export function buildRangePicker(prefix, opts = {}) {
     grid.addEventListener('pointercancel', e => {
         if (!e.isPrimary || !swListening) return;
         swListening = false;
-        try { grid.releasePointerCapture(e.pointerId); } catch (_) {}
+        try { grid.releasePointerCapture(e.pointerId); } catch (_) { /* never captured (capture waits for a sideways move), or the pointer has gone */ }
         if (swDragging) {
             swDragging = false;
             snapBack();
