@@ -18,7 +18,9 @@
 import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, routeKey, LINES, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin,
     JOURNEY_PLANNER_URL } from './trains-change.js';
-import { pairColumns, lineOf, minutesWords, hourNote, hourWords, orderStations, stopChanges, aRealDay, parseStops } from './trains-stations.js';
+import { pairColumns, lineOf, orderStations, stopChanges, parseStops } from './trains-stations.js';
+import { aRealDay, weekdayGroups, weekdayWords } from './trains-weekdays.js';
+import { minutesWords, hourNote, hourWords } from './trains-verdict.js';
 import { CHANGE_DATE } from './trains-data.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
 
@@ -196,7 +198,10 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         : ending ? [ending.now, ending.dec, ending.trains] : [view.now, null, null];
     // Once both timetables have ended, the card says so before anything else (`ENDED_NOTE`).
     const endedNote = ended ? ENDED_NOTE : '';
-    const verdict = `<p class="tr-verdict tr-verdict--${view.verdict.tone}">${esc(view.verdict.text)}</p>`;
+    // The answer, then the rest of what changed (trains-verdict.js → `verdictFor`): a line each, quieter
+    // than the answer, inside its accented box — so the cost of a gain is read with it, not found later.
+    const also = (view.verdict.also ?? []).map(t => ` <span class="tr-verdict-also">${esc(t)}</span>`).join('');
+    const verdict = `<p class="tr-verdict tr-verdict--${view.verdict.tone}">${esc(view.verdict.text)}${also}</p>`;
     // No train either side: the sentence is the whole answer. A table of noughts under "No change."
     // read as a service carrying on (v24.83).
     if (dec && !now.total && !dec.total) return endedNote + verdict;
@@ -206,7 +211,17 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
             + `${leaving ? ` and ${ending.through === 1 ? 'runs' : 'run'} on past it` : ' on the way in'}. Those cannot be compared until Chiltern publishes where December’s trains stop.</p>`
         : '';
     const cell = (/** @type {string|number|null|undefined} */ v) => (v === null || v === undefined || v === '') ? none : esc(String(v));
-    const decCell = (/** @type {(s: NonNullable<typeof dec>) => string|number|null} */ f) => dec ? cell(f(dec)) : notKnown;
+    // WHERE THE WEEKDAYS DISAGREE (trains-stations.js → `dayScope`): the figures are the real day's, and a
+    // figure the other days have differently is small print beneath it — read aloud as "47 (Mon and Fri: 46)".
+    const others = view.dec ? view.others ?? [] : [];
+    const dayNotes = (/** @type {'now'|'dec'} */ side, /** @type {(s: import('./trains-stations.js').StationSummary) => string|number|null} */ f,
+        /** @type {string|number|null} */ shown) => others.map((o) => {
+        const v = f(o[side]);
+        return v === null || v === '' || String(v) === String(shown) ? ''
+            : `<span class="sr-only"> (</span><span class="tr-days">${esc(`${o.short}: ${v}`)}</span><span class="sr-only">)</span>`;
+    }).join('');
+    const nowCell = (/** @type {(s: import('./trains-stations.js').StationSummary) => string|number|null} */ f) => cell(f(now)) + dayNotes('now', f, f(now));
+    const decCell = (/** @type {(s: NonNullable<typeof dec>) => string|number|null} */ f) => dec ? cell(f(dec)) + dayNotes('dec', f, f(dec)) : notKnown;
     const row = (/** @type {string} */ label, /** @type {string} */ a, /** @type {string} */ b) =>
         `<tr><th scope="row">${esc(label)}</th><td>${a}</td><td>${b}</td></tr>`;
     const journey = (/** @type {number|null} */ n) => n === null ? null : `${n} min`;
@@ -220,12 +235,12 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         x.minutes.length ? minutesWords(x.minutes) : x.hourRange[1] ? 'Varies' : null;
     const table = '<table class="tr-st-table"><thead><tr><th scope="col"><span class="sr-only">Figure</span></th>'
         + `<th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th></tr></thead><tbody>`
-        + row('Trains a day', cell(now.total), decCell(d => d.total))
-        + row('Daytime, trains an hour', hourCell(now), dec ? hourCell(dec) : notKnown)
-        + row(`Daytime, leaves ${leaving ? 'Marylebone' : name} at`, cell(pastHour(now)), decCell(pastHour))
-        + row('Fastest journey', cell(journey(now.fastest)), decCell(d => journey(d.fastest)))
-        + row('First train', cell(now.first), decCell(d => d.first))
-        + row('Last train', cell(now.last), decCell(d => d.last))
+        + row('Trains a day', nowCell(s => s.total), decCell(d => d.total))
+        + row('Daytime, trains an hour', hourCell(now) + dayNotes('now', hourWords, hourWords(now)), dec ? hourCell(dec) + dayNotes('dec', hourWords, hourWords(dec)) : notKnown)
+        + row(`Daytime, leaves ${leaving ? 'Marylebone' : name} at`, nowCell(pastHour), decCell(pastHour))
+        + row('Fastest journey', nowCell(s => journey(s.fastest)), decCell(d => journey(d.fastest)))
+        + row('First train', nowCell(s => s.first), decCell(d => d.first))
+        + row('Last train', nowCell(s => s.last), decCell(d => d.last))
         + '</tbody></table>';
     const minutesNote = '<p class="card-explainer tr-note">'
         + (leaving ? 'Times are when trains leave Marylebone.' : `Times are when trains leave ${esc(name)}; the small time under each is when it gets into Marylebone.`)
@@ -398,19 +413,27 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
 
 /**
- * The overview's totals: trains a day leaving Marylebone, one real day of each kind (a weekday's is a
- * Tuesday to Thursday's — trains-stations.js, `aRealDay`). A row a day under one label (the polish of
- * 2 Nov 2026): as one run-on line the three days wrapped mid-sequence on a phone, a "+5 ·" stranded at
- * a line's end. Each row reads, in order and as drawn, "Weekdays 145 → 158 +13".
+ * The overview's totals: trains a day leaving Marylebone, one real day of each kind. A row a day under
+ * one label (the polish of 2 Nov 2026): as one run-on line the three days wrapped mid-sequence on a
+ * phone, a "+5 ·" stranded at a line's end. Each row reads, in order and as drawn, "Saturdays 100 →
+ * 105 +5" — and the weekdays take a row for each kind of weekday when their counts differ
+ * (trains-weekdays.js → `weekdayGroups`): "Mon and Fri 144 → 158 +14", "Tue to Thu 145 → 158 +13".
  * @param {{ now: Record<string, { dep: TrainRow[] }>, dec: Record<string, { dep: TrainRow[] }> }} timetables
  * @returns {string}
  */
 export function renderTotals(timetables) {
-    const cells = /** @type {const} */ (['SX', 'SO', 'SU']).map((d) => {
-        const now = aRealDay(timetables.now[d].dep).length, dec = aRealDay(timetables.dec[d].dep).length;
+    const total = (/** @type {string} */ label, /** @type {number} */ now, /** @type {number} */ dec) => {
         const delta = dec === now ? '' : ` <span class="tr-delta tr-delta--${dec > now ? 'up' : 'down'}">${dec > now ? '+' : '−'}${Math.abs(dec - now)}</span>`;
-        return `<li class="tr-total"><span class="tr-total-day">${DAY_NAMES[d]}</span> <span class="tr-total-n">${now} → <strong>${dec}</strong></span>${delta}</li>`;
-    }).join('');
+        return `<li class="tr-total"><span class="tr-total-day">${esc(label)}</span> <span class="tr-total-n">${now} → <strong>${dec}</strong></span>${delta}</li>`;
+    };
+    // A ROW FOR EACH KIND OF WEEKDAY, WHEN THEY DIFFER (external review, 18 Nov 2026): "Weekdays 145 → 158
+    // +13" was a Tuesday to Thursday's, and a Monday or Friday has 144 and gains 14. One row when every
+    // weekday agrees. Named as a train's days are marked beneath its time — "Mon and Fri", "Tue to Thu" —
+    // because this is a box of figures, not a sentence: "Mondays and Fridays" needs 125px, and on a 320px
+    // phone or under enlarged text it pushed the counts out of the day's 5.6em column (measured).
+    const weekdays = weekdayGroups(timetables.now.SX.dep, timetables.dec.SX.dep, rows => rows.length);
+    const cells = weekdays.map(g => total(weekdays.length > 1 ? weekdayWords(g.days, { short: true }) : DAY_NAMES.SX, g.now, g.dec)).join('')
+        + /** @type {const} */ (['SO', 'SU']).map(d => total(DAY_NAMES[d], aRealDay(timetables.now[d].dep).length, aRealDay(timetables.dec[d].dep).length)).join('');
     return `<p class="field-eyebrow tr-totals-h">Trains a day leaving Marylebone</p><ul class="tr-totals-days">${cells}</ul>`;
 }
 

@@ -58,7 +58,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📅', html: `The page's first column is Chiltern's timetable <strong>until ${dateWords(CHANGE_DATE, -1, { weekday: true })}</strong>; the second is the new one, <strong>from ${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>.` },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
-                    { icon: '🗓️', html: 'In the first column, a few weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Weekday counts are for a Tuesday to Thursday; the trains themselves are listed with their days.' },
+                    { icon: '🗓️', html: 'In the first column, a few weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Where that changes a figure, the totals give each its own row and a station\'s card names the days; the trains themselves are listed with their days.' },
                     { icon: '⚠️', html: `These are Chiltern's published timetables, not live running: on the day, a train can still be late, altered or cancelled. Before you tell a customer, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> or the live departure boards, linked from the About panel (the logo in the menu).` },
                     { icon: '🎄', html: `${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)} Amersham-line times may change in those weeks too. For those dates, check the journey planner.`, until: FURTHER_CHANGES_UNTIL },
                 ],
@@ -80,7 +80,7 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '🕛', html: 'The <strong>last train from Marylebone</strong> that calls at each station, on the kind of day chosen above — the time it leaves Marylebone, not the time it gets there.' },
-                    { icon: '🗓️', html: 'A typical day of that kind: the few weekday trains that run only on Mondays and Fridays are left out, as they are from the figures on a station\'s card.' },
+                    { icon: '🗓️', html: 'On weekdays the last trains are the same every day, Monday to Friday.' },
                     { icon: '⚠️', html: 'Published times, not live running. For tonight\'s actual last train, check the live departure boards — linked from the About panel (the logo in the menu).' },
                 ],
             },
@@ -123,7 +123,7 @@ export const CARD_TIPS = {
                 heading: 'Good to know',
                 items: [
                     { icon: '➡️', html: 'Some trains run on past where most of their line stops: <strong>Aylesbury Vale Parkway</strong> trains are Aylesbury trains via Amersham run on, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> trains are Moor Street trains run on.' },
-                    { icon: '🗓️', html: 'In the first column, a few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
+                    { icon: '🗓️', html: 'In the first column, a few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time. Where they change one of the card\'s figures, the card names the days its answer is for, with the other days\' figure in small print: <strong>Mon and Fri: 46</strong>.' },
                 ],
             },
         ],

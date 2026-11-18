@@ -1579,9 +1579,19 @@ Every signed-in member can open it, and so can the staff PIN.
   a typed time is looked up in the timetable that is running, and a new end reads "Now goes on to …";
   after `DEC_VALID_UNTIL` (15 May 2027) the page says both timetables have ended. Nothing to switch on
   the day — but check it live that morning (MAINTENANCE_CALENDAR).
-- **A weekday's figures are a Tuesday to Thursday's.** A few of today's weekday trains run only on
-  Mondays and Fridays, or only Tuesday to Thursday; counting every row counted one train twice. The
-  train lists still show both, each with its days.
+- **A weekday's figures are a Tuesday to Thursday's — and where the days disagree, the page says so.**
+  A few of today's weekday trains run only on Mondays and Fridays, or only Tuesday to Thursday;
+  counting every row counted one train twice. The train lists still show both, each with its days.
+  Where that changes a figure, the overview's totals give each kind of weekday its own row ("Mon and
+  Fri 144 → 158 +14", "Tue to Thu 145 → 158 +13"), and a station's card names the days its answer is
+  for, adds a line for the other days, and marks their figure in small print beside the usual one
+  (`weekdayGroups` in `trains-weekdays.js`). The headlines and the Last trains list read the same
+  every weekday, so they name no days; `trains-stations.test.mjs` fails if a new timetable changes
+  that, and says where to name them.
+- **A station's answer is followed by the rest of what changed** — the fastest journey (2 minutes or
+  more), the first and last train (10 minutes or more), and the day's count when the answer was the
+  daytime hour — the facts that go the answer's way first, then the ones against it, so a gain is
+  never read without its cost (`balanceFacts` in `trains-verdict.js`).
 - **Coming back is timed at the station** the passenger gets on at, with the time into Marylebone
   as small print — so a member answering "when's my train back from Banbury?" reads Banbury's time.
 - **Leaf fall.** Until 10 January Chiltern runs London-bound Amersham-line trains up to 3 minutes

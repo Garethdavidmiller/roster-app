@@ -483,7 +483,11 @@ const CAPS = {
     // 1000 → 850 in the Nov 2026 tidy-up: that seam was cut. The headline builder (`headlineChanges`,
     // `foldSameTrains` and the chip's words) left for trains-headlines.js, pure and tested beside the
     // rest; 767 measured, plus 50, to the next 50. Kept in the table, so crossing 900 again is a decision.
-    'trains-stations.js':       850,
+    // 850 → 750 on 18 Nov 2026, an EXTRACT: naming the weekdays a figure is true of, and saying the rest of what
+    // changed (external review), took the file to 986 with two RULES, and both left. Which weekdays a figure is true
+    // of went to trains-weekdays.js; the verdict, its balance and the phrases it shares with the figures table went to
+    // trains-verdict.js. 664 measured, plus 50, to the next 50.
+    'trains-stations.js':       750,
     // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
     // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
     // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a

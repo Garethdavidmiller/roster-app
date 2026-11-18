@@ -3,7 +3,7 @@
  * trains-headlines.js — PURE: "what's changing", the Trains page's headline list. One line per
  * station, the biggest change first, worded so a colleague can repeat it to a customer.
  *
- * Every figure is read through trains-stations.js — one real day (`aRealDay`), December answered only
+ * Every figure is read through trains-stations.js — one real day (trains-weekdays.js), December answered only
  * where it can be known (`decemberKnown`) — and this module decides only which changes make a line,
  * how a line is worded, and which lines fold into another's (`foldSameTrains`). The page renders the
  * result (trains-render.js → `renderHeadlines`).
@@ -11,8 +11,9 @@
 
 import { serviceMinutes, alignTimes } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
-import { aRealDay, callsOf, decemberKnown, endingAt, summarise, callingAt, hourChanged, sameRegularity, rateWords,
-    minutesWords, lineOf, andList } from './trains-stations.js';
+import { callsOf, decemberKnown, endingAt, summarise, callingAt, lineOf } from './trains-stations.js';
+import { aRealDay } from './trains-weekdays.js';
+import { hourChanged, sameRegularity, rateWords, minutesWords, andList, EDGE_SHIFT_MIN } from './trains-verdict.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
 
@@ -94,7 +95,7 @@ export function headlineChanges(nowRows, decRows, stations) {
                 tail: `${n} ${more ? 'more' : 'fewer'} a day (${dec.total}, was ${now.total})`, tone: more ? 'more' : 'less', score: 40 + n,
                 brief: `${n} ${more ? 'more' : 'fewer'} trains a day to ${name}`, note: `${dec.total}, was ${now.total}` });
         }
-        if (now.last && dec.last && Math.abs(serviceMinutes(dec.last) - serviceMinutes(now.last)) >= 10) {
+        if (now.last && dec.last && Math.abs(serviceMinutes(dec.last) - serviceMinutes(now.last)) >= EDGE_SHIFT_MIN) {
             // Never "now": read before the change, "Last train to Hatton now 21:02" named a train that
             // does not stop there yet (v24.83). Later/earlier says which way, true on either side of it.
             const later = serviceMinutes(dec.last) > serviceMinutes(now.last) ? 'Later' : 'Earlier';

@@ -15,13 +15,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     parseStops, stopsKnown, callsOf, lineOf, callingAt, knowableWithoutStops, decemberKnown, summarise,
-    stationView, verdictFor, minutesWords, hourWords, hourNote, rateWords, busiestStations, matchStations, stoppingGrid, orderStations, pairColumns,
-    aRealDay, boardingTime, stationTrains, stopChanges, stationBands,
+    stationView, busiestStations, matchStations, stoppingGrid, orderStations, pairColumns,
+    boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
+import { aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords, WEEKDAYS, REAL_DAY } from './trains-weekdays.js';
+import { verdictFor, minutesWords, hourWords, hourNote, rateWords, balanceFacts, EDGE_SHIFT_MIN, JOURNEY_SHIFT_MIN } from './trains-verdict.js';
 import { headlineChanges } from './trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks,
     leadWords, changesTitle, renderFurtherChanges, SIGN_IN_ABOUT } from './trains-render.js';
-import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
+import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL, daysLabel } from './trains-change.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { lastTrains } from './trains-stations.js';
 import { TIMETABLES, STATIONS, STATION_ORDER, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from './trains-data.js';
@@ -756,12 +758,21 @@ describe('the station card, the lookup and the totals as a member reads them (v2
         assert.doesNotMatch(renderLookup({ at: '07:57', day: 'SX', nowRows, decRows: viaWycombe, started: false,
             labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS }), /no longer stops at|also stops at/);
     });
-    test('the totals count one real day of each kind, a cell each under one label', () => {
+    // "Weekdays 145 → 158, +13" was a Tuesday to Thursday's: on a Monday or Friday 144 leave Marylebone,
+    // and they gain 14 (external review, 18 Nov 2026). Each kind of weekday whose count differs has its row.
+    test('the totals count one real day of each kind, a cell each under one label — a kind of weekday each, where they differ', () => {
         const html = renderTotals(TIMETABLES);
         assert.match(html, /<p class="field-eyebrow tr-totals-h">Trains a day leaving Marylebone<\/p>/);
-        assert.match(html, /<li class="tr-total"><span class="tr-total-day">Weekdays<\/span> <span class="tr-total-n">145 → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+13<\/span><\/li>/);
+        assert.match(html, /<ul class="tr-totals-days"><li class="tr-total"><span class="tr-total-day">Mon and Fri<\/span> <span class="tr-total-n">144 → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+14<\/span><\/li>/,
+            'Mondays and Fridays first, as the week runs');
+        assert.match(html, /<\/li><li class="tr-total"><span class="tr-total-day">Tue to Thu<\/span> <span class="tr-total-n">145 → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+13<\/span><\/li><li class="tr-total"><span class="tr-total-day">Saturdays/);
         assert.match(html, /<span class="tr-total-day">Sundays<\/span> <span class="tr-total-n">91 → <strong>94<\/strong>/);
-        assert.equal((html.match(/<li class="tr-total">/g) ?? []).length, 3, 'weekdays, Saturdays and Sundays');
+        assert.equal((html.match(/<li class="tr-total">/g) ?? []).length, 4, 'two kinds of weekday, Saturdays and Sundays');
+        assert.doesNotMatch(html, /Weekdays/, 'no row says a figure is every weekday\'s that is not');
+        // Where every weekday has the same count — December's books run every weekday train every weekday — one row.
+        const same = renderTotals({ now: TIMETABLES.dec, dec: TIMETABLES.dec });
+        assert.match(same, /<li class="tr-total"><span class="tr-total-day">Weekdays<\/span> <span class="tr-total-n">158 → <strong>158<\/strong><\/span><\/li>/);
+        assert.equal((same.match(/<li class="tr-total">/g) ?? []).length, 3);
     });
 });
 
@@ -927,12 +938,19 @@ describe('the eight improvements (v24.94): Last trains, the remembered station, 
         assert.deepEqual(sat, { crs: hatton, now: '20:32', dec: '21:02', shift: 30, kind: 'later' });
     });
 
-    // The Last trains ? panel said the Monday-and-Friday trains are left out "as they are on a station's
-    // card" — but the card's own list shows them, with their days (whole-app check, Nov 2026). They are
-    // left out of the card's FIGURES, which is where its "Last train" comes from, and the panel says so.
-    test('the Last trains panel says where else the Monday-and-Friday trains are left out: a card\'s figures, not its list', () => {
+    // The Last trains ? panel said the Monday-and-Friday trains are left out "as they are from the figures on
+    // a station's card" — true until the card began naming the days its figures are for (external review, 18
+    // Nov 2026). What a colleague needs is the answer to "is that Friday's last train too?", and it is: every
+    // weekday's last trains are the same. A timetable that makes it untrue fails here, and the panel must
+    // then name the days as a station's card does (trains-weekdays.js → `weekdayGroups`).
+    test('the Last trains panel says a weekday\'s last trains are every weekday\'s — and they are', () => {
         const panel = CARD_TIPS.last.sections.flatMap(s => s.items.map(i => i.html)).join(' ');
-        assert.match(panel, /Mondays and Fridays are left out, as they are from the figures on a station's card/);
+        assert.match(panel, /On weekdays the last trains are the same every day, Monday to Friday\./);
+        const usual = lastTrains(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep);
+        for (const day of WEEKDAYS) {
+            assert.deepEqual(lastTrains(onWeekday(TIMETABLES.now.SX.dep, day), onWeekday(TIMETABLES.dec.SX.dep, day)), usual,
+                `${day}'s last trains differ from the panel's: name the days in the panel (trains-render.js → renderLastTrains) and reword trains-tips.js`);
+        }
         const mfo = /** @type {any} */ (TIMETABLES.now.SX.dep.find(r => r[3] === 'MFO'));
         assert.ok(mfo, 'premise: a weekday train runs on Mondays and Fridays only');
         const crs = mfo[1];
@@ -1166,5 +1184,189 @@ describe('the panels name what the page draws, and an ended timetable says so wh
         assert.match(look('SO', '17:16'), ENDED, 'no train at exactly that time, and the near lists shown once');
         assert.match(look('SX', '10:36'), ENDED, 'the near lists in two columns');
         assert.doesNotMatch(look('SX', '17:15', false), /timetables that have ended/);
+    });
+});
+
+// WHERE THE WEEKDAYS DISAGREE, THE PAGE NAMES THEM, AND A GAIN IS SAID WITH ITS COST (external review,
+// 18 Nov 2026). "Weekdays 145 → 158, +13" was a Tuesday to Thursday's — on a Monday or Friday 144 leave
+// Marylebone, and they gain 14. Princes Risborough's card said "1 fewer train a day" of a Monday that has
+// the same number. And Aylesbury's said "6 more trains a day" above a table whose first train moved 34
+// minutes earlier and whose fastest journey grew by 2 minutes, neither of which it said.
+describe('the days a figure is true of, and the rest of what changed (external review, 18 Nov 2026)', () => {
+    /** @returns {import('./trains-stations.js').StationSummary} */
+    const s = (/** @type {Partial<import('./trains-stations.js').StationSummary>} */ o) => ({ total: 10, hourCounts: [2, 2, 2, 2, 2, 2], daytime: 12,
+        hourRange: /** @type {[number, number]} */ ([2, 2]), typical: 2, minutes: [6, 36], fastest: 50, first: '06:30', last: '23:00', ...o });
+    const none = { total: 0, hourCounts: [0, 0, 0, 0, 0, 0], daytime: 0, hourRange: /** @type {[number, number]} */ ([0, 0]), typical: 0, minutes: [], fastest: null, first: null, last: null };
+    const view = (/** @type {'dep'|'arr'} */ dir, /** @type {string} */ crs) => stationView(TIMETABLES.now.SX[dir], TIMETABLES.dec.SX[dir], crs, dir);
+    /** A train counted by "N are different" (trains-verdict.js → `leadOf`). */
+    const isDifferent = (/** @type {any} */ t) => t.kind !== 'same' || (t.farShift ?? 0) !== 0;
+
+    test('runsOn: each weekday exception the books document, and every day for none', () => {
+        const on = (/** @type {string} */ code) => WEEKDAYS.filter(d => runsOn(code, d));
+        assert.deepEqual(on('MFO'), ['Mon', 'Fri']);
+        assert.deepEqual(on('MFX'), ['Tue', 'Wed', 'Thu']);
+        assert.deepEqual(on('WO'), ['Wed']);
+        assert.deepEqual(on(''), [...WEEKDAYS]);
+        assert.equal(REAL_DAY, 'Tue', 'one real day is a Tuesday, as a Wednesday and a Thursday are');
+        // Each code's days, written short, are what a train's days say beneath its time.
+        for (const code of ['MFO', 'MFX', 'WO']) assert.equal(daysLabel(code), `${weekdayWords(WEEKDAYS.filter(d => runsOn(code, d)), { short: true })} only`, code);
+    });
+
+    test('every day code in the books is one runsOn knows, and only a weekday table carries one', () => {
+        for (const side of /** @type {const} */ (['now', 'dec'])) for (const day of /** @type {const} */ (['SX', 'SO', 'SU'])) for (const dir of /** @type {const} */ (['dep', 'arr'])) {
+            for (const r of TIMETABLES[side][day][dir]) {
+                assert.ok(['', 'MFO', 'MFX', 'WO'].includes(r[3]), `${side} ${day} ${dir} ${r[0]}: "${r[3]}" — teach runsOn the code, or it is counted every day`);
+                if (day !== 'SX') assert.equal(r[3], '', `${side} ${day} ${dir} ${r[0]}: a weekday exception on a weekend table`);
+            }
+        }
+    });
+
+    test('onWeekday: one weekday\'s trains, their codes settled so every one of them counts', () => {
+        const rows = [row('17:33', 'BSW', '', 'MFX', 'BAN1841'), row('17:37', 'BSW', '', 'MFO', 'BAN1841'), row('18:00', 'BSW', '', '', 'BAN1900'), row('12:00', 'BSW', '', 'WO', 'BAN1300')];
+        assert.deepEqual(onWeekday(rows, 'Mon').map(r => `${r[0]}${r[3]}`), ['17:37', '18:00'], 'the Monday train, its code cleared');
+        assert.deepEqual(onWeekday(rows, 'Wed').map(r => r[0]), ['17:33', '18:00', '12:00']);
+        assert.equal(summarise(onWeekday(rows, 'Mon'), 'BAN', 'dep').total, 2, 'a Monday counts its Monday train');
+        assert.equal(summarise(onWeekday(rows, 'Wed'), 'BAN', 'dep').total, 3, 'and a Wednesday its Wednesday one');
+        assert.equal(summarise(rows, 'BAN', 'dep').total, 2, 'one real day, a Tuesday, has neither');
+    });
+
+    test('weekdayGroups: the weekdays a figure agrees on, in the order of the week — one group where nothing differs', () => {
+        const count = (/** @type {import('./trains-change.js').TrainRow[]} */ rows) => rows.length;
+        const plain = [row('10:00'), row('11:00')];
+        assert.deepEqual(weekdayGroups(plain, [row('10:00')], count), [{ days: [...WEEKDAYS], now: 2, dec: 1 }]);
+        // The real weekday departures: Mondays and Fridays first, as the week runs.
+        assert.deepEqual(weekdayGroups(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, count),
+            [{ days: ['Mon', 'Fri'], now: 144, dec: 158 }, { days: ['Tue', 'Wed', 'Thu'], now: 145, dec: 158 }]);
+        // A Wednesdays-only train parts Wednesday from the rest.
+        assert.deepEqual(weekdayGroups([...plain, row('12:00', 'OXF', '', 'WO')], plain, count).map(g => g.days), [['Mon', 'Tue', 'Thu', 'Fri'], ['Wed']]);
+        // Two days are one group only if both timetables agree on them.
+        assert.deepEqual(weekdayGroups(plain, [row('10:00', 'OXF', '', 'MFO')], count),
+            [{ days: ['Mon', 'Fri'], now: 2, dec: 1 }, { days: ['Tue', 'Wed', 'Thu'], now: 2, dec: 0 }]);
+    });
+
+    test('weekdayWords: a run of three days or more is a range, anything else a list — or short, as a train\'s days are marked', () => {
+        const both = (/** @type {any} */ days) => [weekdayWords(days), weekdayWords(days, { short: true })];
+        assert.deepEqual(both(['Mon', 'Tue', 'Wed', 'Thu', 'Fri']), ['Weekdays', 'Mon to Fri']);
+        assert.deepEqual(both(['Mon', 'Fri']), ['Mondays and Fridays', 'Mon and Fri']);
+        assert.deepEqual(both(['Tue', 'Wed', 'Thu']), ['Tuesday to Thursday', 'Tue to Thu']);
+        assert.deepEqual(both(['Mon', 'Tue', 'Wed', 'Thu']), ['Monday to Thursday', 'Mon to Thu']);
+        assert.deepEqual(both(['Wed']), ['Wednesdays', 'Wed']);
+        assert.deepEqual(both(['Mon', 'Tue']), ['Mondays and Tuesdays', 'Mon and Tue'], 'two days are a pair, never a range');
+        assert.deepEqual(both(['Mon', 'Tue', 'Thu', 'Fri']), ['Mondays, Tuesdays, Thursdays and Fridays', 'Mon, Tue, Thu and Fri']);
+    });
+
+    test('balanceFacts: the rest of what changed, each only past its bar, the sentence\'s way first', () => {
+        const more = { tone: 'more', kind: 'daily' };
+        assert.deepEqual([EDGE_SHIFT_MIN, JOURNEY_SHIFT_MIN], [10, 2]);
+        // Under the bars, nothing: 9 minutes at either end, a minute on the journey.
+        assert.deepEqual(balanceFacts(s({}), s({ fastest: 51, first: '06:21', last: '23:09' }), more), []);
+        // At the bars, each fact with both figures — the gains first under a sentence of more trains…
+        const moved = s({ fastest: 52, first: '06:20', last: '23:10' });
+        assert.deepEqual(balanceFacts(s({}), moved, more),
+            ['First train earlier: 06:20, was 06:30.', 'Last train later: 23:10, was 23:00.', 'Fastest journey 2 minutes longer: 52 min, was 50.']);
+        // …and the costs first under a sentence of fewer, so the facts that agree with it are read with it.
+        assert.deepEqual(balanceFacts(s({}), moved, { tone: 'less', kind: 'daily' }),
+            ['Fastest journey 2 minutes longer: 52 min, was 50.', 'First train earlier: 06:20, was 06:30.', 'Last train later: 23:10, was 23:00.']);
+        assert.deepEqual(balanceFacts(s({}), s({ fastest: 47, first: '06:45', last: '22:40' }), more),
+            ['Fastest journey 3 minutes shorter: 47 min, was 50.', 'First train later: 06:45, was 06:30.', 'Last train earlier: 22:40, was 23:00.']);
+        // A sentence about the daytime hour is followed by the day's count, when that changed too.
+        assert.deepEqual(balanceFacts(s({}), s({ total: 15 }), { tone: 'more', kind: 'hour' }), ['5 more trains a day: 15, was 10.']);
+        assert.deepEqual(balanceFacts(s({}), s({}), { tone: 'more', kind: 'hour' }), []);
+        assert.deepEqual(balanceFacts(s({}), s({ total: 15 }), more), [], 'a sentence that is the count is not followed by it');
+        // After midnight is later, not earlier: the railway day runs on past it.
+        assert.deepEqual(balanceFacts(s({}), s({ last: '00:10' }), more), ['Last train later: 00:10, was 23:00.']);
+        // No journey figure on one side, no journey fact — never a guess.
+        assert.deepEqual(balanceFacts(s({ fastest: null }), s({ fastest: 40 }), more), []);
+    });
+
+    test('verdictFor: Aylesbury\'s gain is said with its cost, as the review asked', () => {
+        const ays = view('dep', 'AYS');
+        assert.equal(ays.verdict.text, '6 more trains a day: 47, was 41.');
+        assert.deepEqual(ays.verdict.also, ['First train earlier: 06:01, was 06:35.', 'Fastest journey 2 minutes longer: 53 min, was 51.']);
+        // Coming back the sentence is the daytime hour, so the day's count follows it.
+        const back = view('arr', 'AYS');
+        assert.equal(back.verdict.text, 'More trains in the daytime: usually 2 an hour, was 1 to 3.');
+        assert.deepEqual(back.verdict.also, ['5 more trains a day: 42, was 37.', 'Fastest journey 3 minutes shorter: 55 min, was 58.']);
+        // A service that starts or ends is its own whole answer: nothing to balance.
+        assert.deepEqual(verdictFor(none, s({ first: '06:00' }), []).also, []);
+        assert.deepEqual(verdictFor(s({}), none, []).also, []);
+        assert.deepEqual(verdictFor(none, none, []).also, []);
+        assert.deepEqual(verdictFor(s({}), null, null).also, [], 'nor a December not known yet');
+    });
+
+    test('verdictFor: where the weekdays disagree, the sentence names its days and each other group gets a line', () => {
+        const prr = view('dep', 'PRR');
+        assert.equal(prr.verdict.text, 'Tuesday to Thursday, 1 fewer train a day: 46, was 47.');
+        assert.deepEqual(prr.verdict.also, ['Mondays and Fridays, the same number of trains a day: 46.']);
+        assert.deepEqual(prr.others.map(o => [o.days, o.words, o.short, o.now.total, o.dec.total]), [[['Mon', 'Fri'], 'Mondays and Fridays', 'Mon and Fri', 46, 46]]);
+        const hwy = view('arr', 'HWY');
+        assert.equal(hwy.verdict.text, 'Tuesday to Thursday, 2 more trains a day: 87, was 85.');
+        assert.deepEqual(hwy.verdict.also, ['Mondays and Fridays, 3 more trains a day: 87, was 84.']);
+        // An other-days line carries its own balance, as one sentence its days begin (a second sentence
+        // would read as every day's), and leaves out what the lines above it have said.
+        assert.deepEqual(view('arr', 'BCF').verdict.also, ['Mondays and Fridays, 1 more train a day: 55, was 54; fastest journey 2 minutes longer: 24 min, was 22.']);
+        assert.deepEqual(view('dep', 'BCF').verdict.also, ['Fastest journey 3 minutes shorter: 21 min, was 24.', 'Mondays and Fridays, 1 more train a day: 53, was 52.']);
+        // Days with no train either side say so, not "the same number of trains a day: 0".
+        assert.deepEqual(verdictFor(s({}), s({ total: 9 }), [], 'dep', { days: 'Tuesday to Thursday', others: [{ words: 'Mondays and Fridays', now: none, dec: none }] }),
+            { tone: 'less', text: 'Tuesday to Thursday, 1 fewer train a day: 9, was 10.', also: ['Mondays and Fridays, no direct trains.'] });
+        // Most cards: every weekday agrees, and no day is named.
+        const ays = view('dep', 'AYS');
+        assert.deepEqual(ays.others, []);
+        assert.doesNotMatch([ays.verdict.text, ...ays.verdict.also].join(' '), /Monday|Tuesday|Friday/);
+        // A Saturday or a Sunday has no weekday exceptions, so never a day named.
+        for (const day of /** @type {const} */ (['SO', 'SU'])) for (const dir of /** @type {const} */ (['dep', 'arr'])) for (const crs of ['AYS', 'BCF', 'HWY', 'PRR', 'OXF', 'BMO']) {
+            assert.deepEqual(stationView(TIMETABLES.now[day][dir], TIMETABLES.dec[day][dir], crs, dir).others, [], `${day} ${dir} ${crs}`);
+        }
+    });
+
+    test('"N are different" counts one real day\'s trains, as every count on the card does', () => {
+        // Islip's list shows a Mondays-and-Fridays train AND its Tuesday-to-Thursday twin, and the sentence
+        // counted both: "7 are different", where 6 are on any one day.
+        assert.equal(view('dep', 'ISP').verdict.text, 'Same number of trains a day, but 6 are different — see Train by train below.');
+        assert.equal(view('arr', 'BCF').verdict.text, 'Tuesday to Thursday, same number of trains a day, but 25 are different — see Train by train below.');
+        // Every such sentence in the books is true of each day it speaks of. A timetable that breaks this
+        // fails here, and the count must then be grouped by day as the figures are (`dayScope`).
+        let checked = 0;
+        for (const dir of /** @type {const} */ (['dep', 'arr'])) for (const crs of Object.keys(STATIONS)) {
+            const v = view(dir, crs);
+            const n = v.verdict.text.match(/but (\d+) (?:is|are) different/)?.[1];
+            if (!n) continue;
+            checked++;
+            for (const day of WEEKDAYS.filter(d => !v.others.some(o => o.days.includes(d)))) {
+                const onDay = stationTrains(onWeekday(TIMETABLES.now.SX[dir], day), onWeekday(TIMETABLES.dec.SX[dir], day), crs, dir).filter(isDifferent).length;
+                assert.equal(onDay, Number(n), `${dir} ${crs}: "${v.verdict.text}" — ${onDay} on a ${day}`);
+            }
+        }
+        assert.ok(checked >= 4, `premise: weekday cards that count their different trains (${checked})`);
+    });
+
+    test('a station card: another day\'s figure is small print beside the real day\'s, and read in brackets', () => {
+        const prr = renderStation(view('dep', 'PRR'), { stations: STATIONS, dir: 'dep', showTrains: false });
+        assert.match(prr, /<p class="tr-verdict tr-verdict--less">Tuesday to Thursday, 1 fewer train a day: 46, was 47\. <span class="tr-verdict-also">Mondays and Fridays, the same number of trains a day: 46\.<\/span><\/p>/);
+        assert.match(prr, /<tr><th scope="row">Trains a day<\/th><td>47<span class="sr-only"> \(<\/span><span class="tr-days">Mon and Fri: 46<\/span><span class="sr-only">\)<\/span><\/td><td>46<\/td><\/tr>/,
+            'December\'s 46 is every weekday\'s, so it has none');
+        const figures = prr.match(/<table class="tr-st-table">[^]*?<\/table>/)?.[0] ?? '';
+        assert.equal((figures.match(/class="tr-days"/g) ?? []).length, 1, 'only the figure that differs');
+        // A figure other than the count: Beaconsfield coming back, whose Monday and Friday fastest journey is 22 minutes today.
+        const bcf = renderStation(view('arr', 'BCF'), { stations: STATIONS, dir: 'arr', showTrains: false });
+        assert.match(bcf, /<tr><th scope="row">Fastest journey<\/th><td>25 min<span class="sr-only"> \(<\/span><span class="tr-days">Mon and Fri: 22 min<\/span><span class="sr-only">\)<\/span><\/td><td>24 min<\/td><\/tr>/);
+        // The daytime hour: a Mondays-and-Fridays train in the 12:00 hour gives those days a busier hour.
+        const nowRows = [...hourly(6, 'OXF', ['OXF']), row('12:40', 'OXF', '', 'MFO', 'OXF1250')];
+        const hour = renderStation(stationView(nowRows, hourly(6, 'OXF', ['OXF']), 'OXF', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: false });
+        const mon = summarise(onWeekday(nowRows, 'Mon'), 'OXF', 'dep');
+        assert.match(hour, new RegExp(`<tr><th scope="row">Daytime, trains an hour</th><td>1<span class="sr-only"> \\(</span><span class="tr-days">Mon and Fri: ${hourWords(mon).replace(/[()]/g, '\\$&')}</span>`));
+        // The rest of what changed is a line each inside the answer's box, escaped as the answer is.
+        const ays = renderStation(view('dep', 'AYS'), { stations: STATIONS, dir: 'dep', showTrains: false });
+        assert.match(ays, /<p class="tr-verdict tr-verdict--more">6 more trains a day: 47, was 41\. <span class="tr-verdict-also">First train earlier: 06:01, was 06:35\.<\/span> <span class="tr-verdict-also">Fastest journey 2 minutes longer: 53 min, was 51\.<\/span><\/p>/);
+        const forged = { ...view('dep', 'AYS'), verdict: { tone: /** @type {const} */ ('more'), text: 'x', also: ['<b>y</b>'] } };
+        assert.match(renderStation(forged, { stations: STATIONS, dir: 'dep', showTrains: false }), /<span class="tr-verdict-also">&lt;b&gt;y&lt;\/b&gt;<\/span>/);
+    });
+
+    test('the headlines read the same on every weekday, so they need not name a day', () => {
+        const usual = headlineChanges(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, STATIONS).map(h => h.text);
+        for (const day of WEEKDAYS) {
+            assert.deepEqual(headlineChanges(onWeekday(TIMETABLES.now.SX.dep, day), onWeekday(TIMETABLES.dec.SX.dep, day), STATIONS).map(h => h.text), usual,
+                `${day}'s headlines differ: a headline is one real day's, so name its days (trains-headlines.js) as a station's card does`);
+        }
     });
 });

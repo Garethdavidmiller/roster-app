@@ -555,6 +555,10 @@ tinted box with the whole sentence in the tone's colour). */
 .tr-verdict--less { border-left-color: var(--error-red); }
 .tr-verdict--moved { border-left-color: var(--orange); }
 .tr-verdict--unknown { color: var(--text-mid); font-weight: 600; }
+/* The rest of what changed, under the answer (trains-stations.js → `verdictFor`; external reviews, 15 and
+   18 Nov 2026): a line each, in the answer's box but quieter than it, so a gain and its cost are read
+   together rather than the cost being found later in the table. */
+.tr-verdict-also { display: block; margin-top: 2px; font-weight: 500; }
 .tr-st-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* On a desktop the station reads as two halves — the answer and its figures, then the trains —
    instead of one table stretched across 1,100px with its numbers a long way from their labels. */
@@ -845,6 +849,40 @@ uppercase. */
 #trJumpCard { display: none; }
 @media (min-width: 1024px) { #trJumpCard { display: block; } }
 #trJumpCard[hidden] { display: none !important; }
+
+/* ── A phone's larger text ─────────────────────────────────────────────────────
+   Android scales every font and leaves the screen as wide as it was, so no width query can see it.
+   Measured on 18 Nov 2026: at 1.3 times on a 320px phone the Day control ran 23px off the screen and the
+   page scrolled sideways (62px at 1.5 times; 22px on a 360px phone), and the train list's heads and the
+   weekday totals ran past their boxes. So each step below is a container query in em — why em, and why
+   every threshold sits below what a 320px phone measures at 1 times: css-tokens.md → "Larger text". The
+   e2e test "no view of the page runs off a phone's screen with larger text" holds each threshold.
+
+   The Day row: "Day" is decoration (the group's aria-label names it), so it goes first; then the segments
+   tighten to 3px a side, because Safari's engine draws their 1.5px borders in full and at 4px the three
+   need 301px of 300 (1.5 times, 320px); where even that cannot fit, they wrap inside their track. */
+.tr-day-row { container: tr-day / inline-size; }
+.tr-tabs--seg { flex-wrap: wrap; }
+@container tr-day (max-width: 18.5em) { .tr-seg-label { display: none; } }
+@container tr-day (max-width: 15em) { .tr-tabs--seg .tr-tab { padding-inline: 3px; } }
+/* The totals: a row needs about 14em of its own text for the day, the figures and the change side by side.
+   Below that the day goes above its figures. */
+.tr-totals-days { container: tr-totals / inline-size; }
+@container tr-totals (max-width: 14.5em) {
+    .tr-total { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+    .tr-total-day { grid-column: 1 / -1; }
+}
+/* A station's card: its column heads may wrap and its cells give up a little padding. Below 14em — a 320px
+   phone at 1.5 times — a station's name in the train list's small print may break inside the word, and below
+   12em (1.75 times there) so may one in a figure's label: either reads better than a table cut off at the
+   card's edge. */
+#trStation { container: tr-station / inline-size; }
+@container tr-station (max-width: 17em) {
+    .tr-trains thead th, .tr-st-table thead th { white-space: normal; }
+    .tr-trains th, .tr-trains td { padding-right: 6px; }
+}
+@container tr-station (max-width: 14em) { .tr-trains .tr-days { overflow-wrap: anywhere; } }
+@container tr-station (max-width: 12em) { .tr-st-table tbody th { overflow-wrap: anywhere; } }
 
 /* A thumb's target (v24.83): on a phone the tabs, the station chips and the "Show…" buttons were
    27–31px tall. After the base rules, so it wins. */

@@ -4,7 +4,8 @@
  *
  * Owns: the access gate, the session wiring, and which view is on screen — the day, the question
  * (what's changing / a station / where they stop) and the chosen station. Every judgement about the
- * timetables is `trains-change.js`, `trains-stations.js` and `trains-headlines.js`; every word of HTML
+ * timetables is `trains-change.js`, `trains-stations.js` (with `trains-weekdays.js` and
+ * `trains-verdict.js`) and `trains-headlines.js`; every word of HTML
  * is `trains-render.js`; each card is written to the page by `trains-cards.js`; the timetables
  * themselves are the generated `trains-data.js`. Nothing here reads the network: once opened, the
  * page works offline.

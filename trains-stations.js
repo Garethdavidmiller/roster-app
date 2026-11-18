@@ -33,18 +33,20 @@
  *
  * ── ONE REAL DAY ────────────────────────────────────────────────────────────────────────────────
  *
- * Today's weekdays are not all alike: a few trains run only on Mondays and Fridays and their
- * partners only Tuesday to Thursday. Counted row by row, one train was two, and "146 a weekday" was
- * a day that never happens. So every COUNT is of one real day (`aRealDay`) — a weekday's is a
- * Tuesday-to-Thursday's, three days of five — while a station's train list still shows both
- * versions, each with its days.
+ * Every COUNT is of one real day — a weekday's is a Tuesday's — and where the weekdays disagree a
+ * card names the days its figures are true of (`dayScope`): trains-weekdays.js says why. What the
+ * card's sentence says, and the words its figures are written in: trains-verdict.js.
  */
 
-import { serviceMinutes, alignTimes, compareRoutes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN, dateWords } from './trains-change.js';
-import { STATION_ORDER, CHANGE_DATE } from './trains-data.js';
+import { serviceMinutes, alignTimes, compareRoutes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
+import { STATION_ORDER } from './trains-data.js';
+import { REAL_DAY, aRealDay, onWeekday, weekdayGroups, weekdayWords } from './trains-weekdays.js';
+import { verdictFor } from './trains-verdict.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
 /** @typedef {import('./trains-change.js').PairedTrain} PairedTrain */
+/** @typedef {import('./trains-weekdays.js').Weekday} Weekday */
+/** @typedef {import('./trains-verdict.js').Verdict} Verdict */
 
 /**
  * @typedef {object} StationSummary
@@ -61,15 +63,6 @@ import { STATION_ORDER, CHANGE_DATE } from './trains-data.js';
  * @property {string|null} first   first train of the railway day, at the boarding station
  * @property {string|null} last    last train of the railway day, at the boarding station
  */
-
-/**
- * The trains of one real day of this kind (see the header): a weekday's figures are a Tuesday to
- * Thursday's, so a Mondays-and-Fridays-only train ('MFO') and a Wednesdays-only one ('WO') are left
- * out of every count. A day with no exceptions is returned whole.
- * @param {TrainRow[]} rows
- * @returns {TrainRow[]}
- */
-export const aRealDay = (rows) => rows.filter(r => r[3] !== 'MFO' && r[3] !== 'WO');
 
 /**
  * When a passenger gets on (see the header): leaving Marylebone, the train's time there; coming back,
@@ -226,7 +219,9 @@ export function summarise(rows, crs, dir) {
  *   "13 December" until the 72-hour review, which is how that sentence had become a claim rather than a fact.
  * @returns {{ crs: string, now: StationSummary, dec: StationSummary|null, trains: PairedTrain[]|null,
  *   ending: { now: StationSummary, dec: StationSummary, trains: PairedTrain[], through: number }|null,
- *   verdict: { tone: 'same'|'more'|'less'|'moved'|'unknown', text: string } }}
+ *   others: OtherDays[], verdict: Verdict }}
+ *   others — the weekdays whose figures are not the real day's (see the header, "where the days
+ *   disagree"), for the card's small print; empty on every other day, and on most weekdays
  */
 export function stationView(nowRows, decRows, crs, dir, when = {}) {
     const now = summarise(nowRows, crs, dir);
@@ -234,15 +229,50 @@ export function stationView(nowRows, decRows, crs, dir, when = {}) {
     if (decemberKnown(nowRows, decRows, crs)) {
         const dec = summarise(decRows, crs, dir);
         const trains = stationTrains(nowRows, decRows, crs, dir);
-        return { crs, now, dec, trains, ending: null, verdict: verdictFor(now, dec, trains, dir, when) };
+        const scope = dayScope(nowRows, decRows, crs, dir);
+        return { crs, now, dec, trains, ending: null, others: scope.others,
+            verdict: verdictFor(now, dec, trains, dir, { ...when, days: scope.days, others: scope.others }) };
     }
     const eNow = endingAt(nowRows, crs), eDec = endingAt(decRows, crs);
-    if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, verdict: verdictFor(now, null, null, dir, when) };
+    if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, others: [], verdict: verdictFor(now, null, null, dir, when) };
     const ending = {
         now: summarise(eNow, crs, dir), dec: summarise(eDec, crs, dir),
         trains: alignTimes(byTime(eNow), byTime(eDec)), through: now.total - eNow.length,
     };
-    return { crs, now, dec: null, trains: null, ending, verdict: verdictFor(ending.now, ending.dec, ending.trains, dir, when) };
+    return { crs, now, dec: null, trains: null, ending, others: [], verdict: verdictFor(ending.now, ending.dec, ending.trains, dir, when) };
+}
+
+/**
+ * @typedef {{ days: Weekday[], words: string, short: string, now: StationSummary, dec: StationSummary }} OtherDays
+ *   one group of weekdays whose figures differ from the real day's: its days, in words ("Mondays and
+ *   Fridays") and as small print ("Mon and Fri"), and its figures before and after the change
+ */
+
+/**
+ * Which weekdays a station's figures are true of (see the header). Every figure the card shows is
+ * compared, day by day: when they agree, `days` is null and nothing on the card changes; when they do
+ * not, `days` names the real day's group ("Tuesday to Thursday") and `others` holds the rest.
+ * @param {TrainRow[]} nowRows
+ * @param {TrainRow[]} decRows
+ * @param {string} crs
+ * @param {'dep'|'arr'} dir
+ * @returns {{ days: string|null, others: OtherDays[] }}
+ */
+function dayScope(nowRows, decRows, crs, dir) {
+    const figures = (/** @type {TrainRow[]} */ rows) => {
+        const s = summarise(rows, crs, dir);
+        return [s.total, s.daytime, s.typical, s.hourRange, s.minutes, s.fastest, s.first, s.last];
+    };
+    const groups = weekdayGroups(nowRows, decRows, figures);
+    if (groups.length < 2) return { days: null, others: [] };
+    const real = groups.find(g => g.days.includes(REAL_DAY)) ?? groups[0];
+    return {
+        days: weekdayWords(real.days),
+        others: groups.filter(g => g !== real).map(g => ({
+            days: g.days, words: weekdayWords(g.days), short: weekdayWords(g.days, { short: true }),
+            now: summarise(onWeekday(nowRows, g.days[0]), crs, dir), dec: summarise(onWeekday(decRows, g.days[0]), crs, dir),
+        })),
+    };
 }
 
 /**
@@ -348,87 +378,6 @@ export function stationTrains(nowRows, decRows, crs, dir) {
 }
 
 /**
- * One sentence a member of staff can repeat. The order is the order of what matters to a passenger:
- * whether there is a service at all, how often, how many, then when. Every claim is one the figures
- * table beside it shows, so the sentence can never say something the numbers do not.
- * Coming back, the minutes are when trains leave the station on the card (`boardingTime`).
- * @param {StationSummary} now
- * @param {StationSummary|null} dec
- * @param {PairedTrain[]|null} trains
- * @param {'dep'|'arr'} [dir]
- * @param {{ change?: string|null, started?: boolean }} [when] see stationView; with no `change`, the data module's
- * @returns {{ tone: 'same'|'more'|'less'|'moved'|'unknown', text: string }}
- */
-export function verdictFor(now, dec, trains, dir = 'dep', { change = null, started = false } = {}) {
-    const from = dateWords(change || CHANGE_DATE);
-    if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published where its December trains stop. Today’s figures are below.' };
-    // No train either side — a station that only some days reach. It used to say "No change." over a
-    // table of noughts, which a reader takes for "the trains carry on as they are".
-    if (!now.total && !dec.total) {
-        return { tone: 'same', text: dir === 'dep'
-            ? `No direct trains from Marylebone on this day${started ? '' : `, now or from ${from}`}.`
-            : `No direct trains to Marylebone on this day${started ? '' : `, now or from ${from}`}.` };
-    }
-    if (!now.total && dec.total) {
-        return { tone: 'more', text: dec.total === 1
-            ? `New from ${from}: one direct train, the ${dec.first}.`
-            : `New from ${from}: ${dec.total} direct trains a day.` };
-    }
-    if (now.total && !dec.total) return { tone: 'less', text: `No direct trains from ${from}.` };
-    if (hourChanged(now, dec)) {
-        const more = dec.daytime > now.daytime;
-        return { tone: more ? 'more' : 'less',
-            text: `${more ? 'More' : 'Fewer'} trains in the daytime: ${rateWords(dec)}, was ${rateWords(now, { short: true })}.` };
-    }
-    const gained = dec.total - now.total;
-    if (gained) {
-        const n = Math.abs(gained), trainsWord = n === 1 ? 'train' : 'trains';
-        return { tone: gained > 0 ? 'more' : 'less',
-            text: `${n} ${gained > 0 ? 'more' : 'fewer'} ${trainsWord} a day: ${dec.total}, was ${now.total}.` };
-    }
-    if (sameRegularity(now, dec) && now.minutes.join() !== dec.minutes.join()) {
-        return { tone: 'moved', text: `Same number of trains. In the daytime they leave at ${minutesWords(dec.minutes)} past the hour, was ${minutesWords(now.minutes)}.` };
-    }
-    // A train that leaves on time but gets there later is a change too: "No change." sat above
-    // "Fastest journey 159 → 164 min" at Cradley Heath (v24.83).
-    const moved = (trains ?? []).filter(t => t.kind !== 'same' || (/** @type {StationTrain} */ (t).farShift ?? 0) !== 0).length;
-    if (moved) return { tone: 'moved', text: `Same number of trains a day, but ${moved} ${moved === 1 ? 'is' : 'are'} different — see Train by train below.` };
-    return { tone: 'same', text: 'No change.' };
-}
-
-/**
- * Whether the daytime service changed in a way a passenger meets: a different typical hour, or —
- * where either side has none — a different description AND a different number of daytime trains
- * (the same trains spread differently is left to the daily count and the times). Tone follows the
- * daytime total, so the colour can never say "more" of a sentence about fewer.
- * @param {StationSummary} now
- * @param {StationSummary} dec
- */
-export function hourChanged(now, dec) {
-    if (now.daytime === dec.daytime) return false;
-    if (now.typical !== null && dec.typical !== null) {
-        return now.typical !== dec.typical && Math.sign(dec.typical - now.typical) === Math.sign(dec.daytime - now.daytime);
-    }
-    return rateWords(now) !== rateWords(dec);
-}
-
-/**
- * The daytime service as a passenger would be told it: "2 an hour", "usually 2 an hour" (some hours
- * differ — the table says how), "1 to 3 an hour" (no count is shared by most hours), "about 1 every 2
- * hours". `short` drops the "an hour" a second figure in the same sentence does not need.
- * @param {StationSummary} s
- * @param {{ short?: boolean }} [opts]
- * @returns {string}
- */
-export function rateWords(s, { short = false } = {}) {
-    const [lo, hi] = s.hourRange;
-    const unit = short ? '' : ' an hour';
-    if (s.typical === null) return lo === 0 && hi === 1 ? 'about 1 every 2 hours' : `${lo} to ${hi}${unit}`;
-    if (s.typical === 0) return lo === hi ? `none${short ? '' : ' in the daytime'}` : 'hardly any';
-    return `${lo === hi ? '' : 'usually '}${s.typical}${unit}`;
-}
-
-/**
  * The stops a kept train gains and loses on the way — "it no longer stops at Kings Sutton". The time
  * lookup said only where a train ENDS, so the 10:36 read "Will run to Birmingham Snow Hill" and said
  * nothing of Kings Sutton, which it stops calling at (v24.83). Stations past either train's end are
@@ -458,58 +407,6 @@ export function stopChanges(nowRow, decRow) {
         gained: before(b, nowRow[1], decRow[1]).filter(c => !a.includes(c)),
     };
 }
-
-/**
- * Whether two stations' off-peak times can be compared minute for minute: the same number of times
- * repeat in most hours on both sides, so a difference is a train that MOVED. A train whose minute
- * only wobbles stops "repeating" without going anywhere — Beaconsfield's December :13 arrival is :10
- * in two hours of six — and comparing lists of different lengths said "from :13 and :39 to :39" of a
- * station that keeps all three trains an hour (v24.80, seen once December's stops were known).
- * @param {StationSummary} now
- * @param {StationSummary} dec
- */
-export const sameRegularity = (now, dec) => now.minutes.length > 0 && now.minutes.length === dec.minutes.length;
-
-/**
- * Trains an hour as the card's figures cell states it: the typical hour, with the exception as small
- * print (`hourNote`) — "2", "2 (1 in some hours)", "1 (none in one hour)" — or, where no count is
- * shared by most hours, the range itself: "1 to 3", "1 every 2 hours". A rounded average said "2" of a
- * station with two one-train hours; a tie broken upwards said "3" of 3, 3, 2, 2, 1, 1 (v24.83).
- * @param {StationSummary} s
- * @returns {string}
- */
-export function hourWords(s) {
-    const [lo, hi] = s.hourRange;
-    if (s.typical === null) return lo === 0 && hi === 1 ? '1 every 2 hours' : `${lo} to ${hi}`;
-    const note = hourNote(s);
-    return note ? `${s.typical} (${note})` : String(s.typical);
-}
-
-/**
- * The exception to the typical hour — "1 in some hours", "none in one hour" — or '' when every hour
- * is the same or there is no typical hour.
- * @param {StationSummary} s
- * @returns {string}
- */
-export function hourNote(s) {
-    const [lo, hi] = s.hourRange, t = s.typical;
-    if (lo === hi || t === null) return '';
-    const odd = s.hourCounts.filter(n => n !== t).length;
-    const other = lo < t && hi > t ? `${lo} to ${hi}` : String(lo < t ? lo : hi);
-    return `${other === '0' ? 'none' : other} in ${odd === 1 ? 'one hour' : 'some hours'}`;
-}
-
-/**
- * Minutes past the hour as a reader says them: ":27", ":27 and :57", ":06, :10 and :40".
- * @param {number[]} ms
- * @returns {string}
- */
-export function minutesWords(ms) {
-    return andList(ms.map(m => `:${String(m).padStart(2, '0')}`));
-}
-
-/** A list as a reader says it: "A", "A and B", "A, B and C". */
-export const andList = (/** @type {string[]} */ ws) => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} and ${ws[ws.length - 1]}`;
 
 /**
  * The stations staff are most likely to be asked about: the most trains calling today, busiest first.
