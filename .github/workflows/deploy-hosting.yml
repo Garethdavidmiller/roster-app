@@ -478,9 +478,9 @@ jobs:
   #      rules and functions on the emulators. 90 branch runs in a row green when it joined.
   # NOT the whole WebKit suite: in branch CI that is nine jobs, the longest over twenty minutes, and
   # every release would wait for it (DECISIONS.md → "A few Safari tests gate the release" has what was
-  # weighed). Locally the two sets' tests took about two and a half minutes (every page 10 seconds,
-  # the journeys 2.2 minutes), so with its setup this job should take about five, against 9m 36s for
-  # the slowest smoke shard in the release of 17 Nov 2026: a release waits no longer than it did.
+  # weighed). On the first release that ran it (v26.31, 18 Nov 2026) this job took 3m 57s with its
+  # setup (every page 19 seconds, the journeys 2m 36s), against 9m 36s for the slowest smoke shard in
+  # the release of 17 Nov 2026: a release waits no longer than it did.
   #
   # IT NEVER STANDS ASIDE FOR A PROVEN TREE (18 Nov 2026). `tested` lets check, smoke, csp and
   # signed-in stand aside when a pull request already passed them on this exact tree, but its record

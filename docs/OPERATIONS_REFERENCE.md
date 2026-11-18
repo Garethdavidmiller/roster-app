@@ -717,8 +717,9 @@ after the push. A deploy lasts as long as its slowest gate job plus about a minu
 engine, since 17 November 2026), and the slowest is a `smoke` shard: about 7 minutes since the shards
 were cut by measured time (17 November 2026). **Most releases skip the first four**: when the pull
 request's own Tests run passed them on the identical tree (a branch up to date with main when it
-merged), they stand aside, and the deploy waits for `safari` alone: about five minutes by estimate
-(its tests take two and a half locally; the first release with it will measure it). `safari` never
+merged), they stand aside, and the deploy waits for `safari` alone: 3m 57s on the first release to
+run it (v26.31, 18 November 2026: every page 19 seconds, the signed-in journeys 2m 36s), and that
+whole deploy took 6m 29s. `safari` never
 stands aside: the pull request's record covers no WebKit check but signed-in's iPhone half.
 The deploy run's `tested` job says which way it went, and why. The
 mirror's own publish then takes under a minute (40 and 55 seconds on 10 November 2026; the first,
@@ -1279,7 +1280,10 @@ TOLD instead (`functions/pin-lockout.js`; the trade-off is `functions/calendar-v
 - **Operations**: a "Staff PIN blocked" item on the "Needs attention" strip, and a line on Staff Login
   Accounts, while a block runs or one began in the last day. It rides on that card's account check
   (`getAccountSetupGaps`), so it appears when the card's check answers; a check that could not read the
-  record shows nothing about the PIN rather than an all-clear.
+  record shows nothing about the PIN rather than an all-clear. **Whether a block is still running is the
+  all-sources throttle row's to say**, read beside the record (owner, 18 Nov 2026): a correct PIN can
+  lift a block early, after the record was written, so a block the row has let go of reads "was blocked
+  … at 14:05", with no end, rather than "blocked until 14:20" for a door that has opened.
 - **What to do**: nothing, if it was once — the block clears itself, and members can still sign in with
   their password. If it keeps happening, somebody is guessing: rotate the PIN ("Rotating the
   Calendar PIN", above).

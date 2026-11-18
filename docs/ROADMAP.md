@@ -187,8 +187,8 @@ opens since v24.98 (`perf-stats.js` says why); the last share, about one Calenda
 in the first half of November 2026, while 99 versions reached `main`, 10% of the 163 returns to a
 page after a release took over a second to be usable (`LATENCY.md` → THE NOVEMBER READ).
 
-### Two owner questions from November 2026 (OWNER DECISIONS, recorded in DECISIONS.md)
-**Status:** Blocked on an owner decision · **Owner:** Gareth · **Review:** before December 2028 for the first; none set for the second
+### Three owner questions from November 2026 (OWNER DECISIONS, recorded in DECISIONS.md)
+**Status:** Blocked on an owner decision · **Owner:** Gareth · **Review:** before December 2028 for the first; none set for the second; before 26 December 2026 for the third
 
 - **A Dispatcher's day in lieu for a Boxing Day that is also a bank holiday** (next on 26 December
   2028). Every other worked Boxing Day's day in lieu now goes into the next year's allowance (owner,
@@ -196,6 +196,12 @@ page after a release took over a second to be usable (`LATENCY.md` → THE NOVEM
   year. DECISIONS.md → "The Boxing Day day in lieu goes into the next year's allowance".
 - **When the Railcard guide's boxes may drop their history lines.** DECISIONS.md → "Pay's
   first-visit Settings, and the Railcard's corrections".
+- **Whether a Spare turn on a Boxing Day the member was due to work earns a day in lieu** (asked
+  18 Nov 2026; the owner: "tackle later"). A shift worked there earns one. A Spare turn, which Admin
+  allows on Boxing Day, earns none, because it is not counted as a worked shift (`isWorkedShift`) and
+  the day in lieu is for a Boxing Day the member works. Until answered, that stands
+  (`boxingDayLieuDays`, `christmas-leave.js`). The first Boxing Day it can affect is 26 December 2026,
+  whose day in lieu goes into the 2027 allowance.
 
 ### Track C5 — retire the surname default
 **Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated **and** Track E

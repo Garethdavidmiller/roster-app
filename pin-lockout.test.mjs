@@ -37,9 +37,10 @@ const PIN_LIKE = /\b\d{4}\b/;
  * A fresh world. `accounts` maps an invented name to its account record (absent → not found).
  * `sweepHang` makes the sweep's collection read never answer. `door` is the all-sources throttle row
  * (`GLOBAL_SOURCE_KEY`) — the block itself; `trip` writes it as the wrong PIN's charge did, first.
- * @param {{ record?: any, accounts?: Record<string, any>, accepted?: number, hang?: boolean, txFail?: boolean, sweepHang?: boolean }} [o]
+ * `failRead` names a document whose plain read (Operations', not the transaction's) fails.
+ * @param {{ record?: any, accounts?: Record<string, any>, accepted?: number, hang?: boolean, txFail?: boolean, sweepHang?: boolean, failRead?: string }} [o]
  */
-function world({ record = null, accounts, accepted = 1, hang = false, txFail = false, sweepHang = false } = {}) {
+function world({ record = null, accounts, accepted = 1, hang = false, txFail = false, sweepHang = false, failRead } = {}) {
     const w = {
         record: record && { ...record },
         /** @type {any} */ door: null,
@@ -59,7 +60,10 @@ function world({ record = null, accounts, accepted = 1, hang = false, txFail = f
     };
     const refOf = (/** @type {string} */ id) => {
         assert.ok(id in FIELD, `an unexpected document: ${id}`);
-        return { id, get: async () => snap(id) };
+        return { id, get: async () => {
+            if (id === failRead) throw Object.assign(new Error('unavailable'), { code: 14 });
+            return snap(id);
+        } };
     };
     const db = {
         collection: (/** @type {string} */ name) => {
@@ -268,5 +272,44 @@ describe('what Operations reads', () => {
         await w.trip(T0);
         assert.deepEqual(await w.L.readPinLockout(T0 + 60_000),
             { active: true, blockedUntil: UNTIL, lastBlockedAt: T0, blocks: 1 });
+    });
+
+    // The order the record cannot see (owner, 18 Nov 2026): the block is recorded, THEN a right PIN's
+    // refund lifts it. Read alone, the record kept "blocked until 14:20" on Operations for a door that
+    // had opened; the row it is read beside now says so.
+    test('a block a right PIN\'s refund lifted AFTER it was recorded: not running, and no end claimed', async () => {
+        const w = world();
+        const at = { failures: GLOBAL_THROTTLE.maxFailures - 2, windowStart: T0 - 60_000, blockedUntil: 0 };
+        const right = /** @type {any} */ (reserveAttempt(null, at, T0).global);
+        const wrong = /** @type {any} */ (reserveAttempt(null, right, T0 + 5).global);
+        w.door = wrong;                                                      // the wrong PIN's charge: the block
+        const out = await w.L.noteStationBlock({ now: T0 + 5, blockedUntil: wrong.blockedUntil, notify: w.notify });
+        assert.equal(out.recorded, true, 'premise: the door was still shut when the record was written');
+        w.door = refundAttempt(wrong, right, GLOBAL_THROTTLE);               // …and then the right PIN's refund
+        assert.equal(w.door.blockedUntil, 0, 'premise: the refund lifted it');
+        assert.deepEqual(await w.L.readPinLockout(T0 + 60_000),
+            { active: false, blockedUntil: T0 + 5, lastBlockedAt: T0 + 5, blocks: 1 });
+    });
+
+    test('a door shut with no record behind it is still a block running', async () => {
+        // The record is best-effort — its transaction can fail or run out of time — and the door is not.
+        const w = world();
+        w.door = { failures: GLOBAL_THROTTLE.maxFailures, windowStart: T0 - 60_000, blockedUntil: UNTIL };
+        assert.deepEqual(await w.L.readPinLockout(T0 + 60_000), { active: true, blockedUntil: UNTIL, lastBlockedAt: 0, blocks: 1 });
+        assert.equal(await w.L.readPinLockout(UNTIL), null, 'and nothing to say once it has opened');
+    });
+
+    test('a door that cannot be read costs only the correction: the record decides alone', async () => {
+        const w = world({ failRead: GLOBAL_SOURCE_KEY });
+        await w.trip(T0);
+        w.door = null;                                                       // opened — but this read cannot see it
+        assert.deepEqual(await w.L.readPinLockout(T0 + 60_000),
+            { active: true, blockedUntil: UNTIL, lastBlockedAt: T0, blocks: 1 }, 'what the record alone said before');
+    });
+
+    test('a RECORD that cannot be read still throws: the caller leaves the field unknown, never "none"', async () => {
+        const w = world({ failRead: LOCKOUT_RECORD_KEY });
+        w.door = { failures: GLOBAL_THROTTLE.maxFailures, windowStart: T0 - 60_000, blockedUntil: UNTIL };
+        await assert.rejects(() => w.L.readPinLockout(T0 + 60_000), /unavailable/);
     });
 });

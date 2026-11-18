@@ -119,8 +119,8 @@ function buildPinLockoutNotifier({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SI
  * not 200, and a notice and an Operations strip about a block nobody meets. The all-sources row IS
  * the door, so the transaction reads it beside the record, and records nothing unless the door is
  * still shut (`throttleDecision`). A refund that lands after this transaction cannot take the notice
- * back; the strip then shows a block until the end it named — the safe direction, and the rarer order,
- * since the sweep runs first.
+ * back. It no longer leaves Operations showing a block nobody meets: `readPinLockout` reads the same row
+ * beside the record, and the row says whether the block is running (owner, 18 Nov 2026).
  * @param {{ now: number, blockedUntil: number, notify: (blockedUntil: number) => Promise<number>, budgetMs?: number }} o
  * @returns {Promise<{ recorded: boolean, alert: boolean, accepted: number }>}
  */
@@ -160,14 +160,23 @@ async function noteStationBlock({ now, blockedUntil, notify, budgetMs = LOCKOUT_
 }
 
 /**
- * What Operations is shown about the PIN door: `lockoutSummary` of the stored record — `null` when
- * there is nothing to say. Throws on a failed read; the caller decides what a failure means.
+ * What Operations is shown about the PIN door: `lockoutSummary` of the stored record, read beside the
+ * all-sources row — the door itself, which says whether a block is still running (owner, 18 Nov 2026;
+ * `lockoutSummary` says why the record alone cannot). `null` when there is nothing to say. Throws on a
+ * failed read of the RECORD; the caller decides what a failure means. A failed read of the ROW costs
+ * only that correction: the record then decides alone, exactly as it did before the row was read.
  * @param {number} now  epoch ms
  * @returns {Promise<ReturnType<typeof lockoutSummary>>}
  */
 async function readPinLockout(now) {
-    const snap = await attempts().doc(LOCKOUT_RECORD_KEY).get();
-    return lockoutSummary(snap.exists ? snap.data() : null, now);
+    const [snap, door] = await Promise.all([
+        attempts().doc(LOCKOUT_RECORD_KEY).get(),
+        attempts().doc(GLOBAL_SOURCE_KEY).get().then((d) => (d.exists ? d.data() : null), (e) => {
+            console.warn('[getAccountSetupGaps] the all-sources row could not be read; the record alone decides:', e && (e.code || e.message));
+            return undefined;
+        }),
+    ]);
+    return lockoutSummary(snap.exists ? snap.data() : null, now, door);
 }
 
 module.exports = {

@@ -607,6 +607,32 @@ describe('the station-wide block: the record, the once-a-day notice, and what Op
             'times and counts: no alert stamp, no source');
     });
 
+    // WHETHER ONE IS RUNNING IS THE DOOR'S TO SAY (owner, 18 Nov 2026). The record keeps the end a block
+    // was given when it tripped; a right PIN's refund can lift it sooner, after the record was written.
+    test('Operations: a block runs while the all-sources row is shut, and only then', () => {
+        const rec = noteGlobalBlock(null, T0, until(T0)).next;
+        const at = T0 + 60_000;
+        const shut = { failures: GLOBAL_THROTTLE.maxFailures, windowStart: T0 - 60_000, blockedUntil: until(T0) };
+        const lifted = { failures: GLOBAL_THROTTLE.maxFailures - 1, windowStart: T0 - 60_000, blockedUntil: 0 };
+        assert.deepEqual(lockoutSummary(rec, at, shut), { active: true, blockedUntil: until(T0), lastBlockedAt: T0, blocks: 1 },
+            'the door shut: running, until the end it names');
+        // Lifted early: not running, and NO end claimed — the moment it lifted is kept nowhere, so the
+        // summary says when it began and nothing about an end it never reached.
+        assert.deepEqual(lockoutSummary(rec, at, lifted), { active: false, blockedUntil: T0, lastBlockedAt: T0, blocks: 1 });
+        assert.deepEqual(lockoutSummary(rec, at, null), { active: false, blockedUntil: T0, lastBlockedAt: T0, blocks: 1 },
+            'no row at all: the door is open');
+        // The record is best-effort; the door is not. Shut with no record behind it is still a block.
+        assert.deepEqual(lockoutSummary(null, at, shut), { active: true, blockedUntil: until(T0), lastBlockedAt: 0, blocks: 1 });
+        assert.equal(lockoutSummary(rec, at, { ...shut, blockedUntil: until(T0) + 120_000 })?.blockedUntil, until(T0) + 120_000,
+            'the end is the door\'s, not the one the record was given');
+        // A block that ran its course reads the same with the door as without it.
+        assert.deepEqual(lockoutSummary(rec, until(T0) + 60_000, lifted), lockoutSummary(rec, until(T0) + 60_000));
+        assert.equal(lockoutSummary(rec, T0 + LOCKOUT_RECENT_MS, null), null, 'a day on, nothing to say');
+        assert.equal(lockoutSummary(null, at, lifted), null, 'no record and the door open: nothing to say');
+        // Not read: the record alone decides, exactly as before the door was asked.
+        assert.deepEqual(lockoutSummary(rec, at, undefined), { active: true, blockedUntil: until(T0), lastBlockedAt: T0, blocks: 1 });
+    });
+
     test('the notice: one event headline, a count and a London time — no PIN, no exclamation', () => {
         const winter = lockoutNoticeWords({ blockedUntil: Date.UTC(2026, 10, 16, 14, 20) });
         assert.deepEqual(winter, {

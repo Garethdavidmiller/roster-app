@@ -249,7 +249,8 @@ One document in it is not a throttle row (Nov 2026): **`_lockout-record`**, the 
 to the admin (`functions/pin-lockout.js`) — `blocks` (each block's start, epoch ms, the last day only),
 `blockedUntil` (the latest block's end) and `alertedAt` (the admin's last notice: at most one a day).
 Times and counts only, never a source key; the sweep never deletes it. Read by `getAccountSetupGaps`,
-which hands Operations a summary of it.
+which hands Operations a summary of it — read beside the all-sources row (`_all-sources`), which, not
+the record, says whether a block is still running (owner, 18 Nov 2026; `lockoutSummary`).
 
 **clientErrors**
 ```
