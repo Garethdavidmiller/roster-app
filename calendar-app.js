@@ -645,10 +645,11 @@ try {
     //
     // Everything that puts ROSTER DATA on screen lives in here, and none of it runs until
     // `calendar-access.js` says this browser may see it. That is the primary gate, and it is a
-    // structural one: while the Calendar is locked there is no member dropdown, no rendered grid, no
+    // structural one: until the first grant there is no member dropdown, no rendered grid, no
     // Team View and no override fetch — not hidden ones, ABSENT ones. Hiding a rendered Calendar
     // behind an overlay would leave the data in the DOM for a screen reader, a devtools pane, or one
-    // CSS rule going missing; there is nothing to reveal here because nothing was built.
+    // CSS rule going missing; there is nothing to reveal here because nothing was built. A re-lock
+    // cannot un-build the workspace, so it hides it and EMPTIES the grid (the listeners at the foot).
     //
     // The SECOND gate is in calendar-overrides.js (THE ACCESS GATE), which refuses the reads at
     // source. Both exist because they fail differently: this one is a call-ORDER property that a
@@ -1224,11 +1225,13 @@ function _saveOwnSnapshot() {
 // (navigation and Team View, through calendar-overrides.js — the likelier one, v20.15). Both end in
 // ONE call, `handleAccessLost`, which shuts the one access state and THEN puts the card up. What must
 // follow a loss listens for that write in the module that owns it; this file shuts no gate, and
-// calendar-access-state.js says why. The member's stored copy is this file's: a Calendar that has
-// lost access keeps none (v24.59). Wired before access is decided, so neither can be missing when a
-// read is refused.
+// calendar-access-state.js says why. The member's stored copy and the grid are this file's: a Calendar
+// that has lost access keeps neither — not the copy (v24.59), nor the month or week the grant drew,
+// which the card hides but the page still holds (18 Nov 2026); the next grant repaints it
+// (`onEveryGrant`). Wired before access is decided, so neither can be missing when a read is refused.
 setOverrideAccessLostHandler(handleAccessLost);
 onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
+onCalendarAccess(({ open }) => { if (!open) document.getElementById('calendarDisplay')?.replaceChildren(); });
 
 initCalendarAccess({
     paintBeforeDecision: _paintSnapshotBeforeGrant,

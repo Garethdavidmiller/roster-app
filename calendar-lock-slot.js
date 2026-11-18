@@ -146,7 +146,8 @@ export function setWorkspaceHidden(hidden) {
         // outranks the attribute, so each element here needs a `[hidden]` rule beside that `display`
         // (cal-docs-11 found the two prompt strips without one). And it is load-bearing: before the
         // first grant these nodes are empty, but a re-lock (`handleAccessLost`) does not reload, so
-        // after one they hold the roster the grant drew.
+        // after one they hold what the grant drew — the grid itself is emptied on the loss
+        // (calendar-app.js), the controls and the colour key are not.
         if (hidden) el.setAttribute('hidden', '');
         else el.removeAttribute('hidden');
     }
