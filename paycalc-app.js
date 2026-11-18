@@ -66,7 +66,7 @@ import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fdShort, fdLong, fmt, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
-import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
+import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { classifyPayKey } from './paycalc-inventory.js';
 import { buildSummaryRows, buildLoanLines, buildBreakdownRows, buildProvChips, buildBreakBar } from './paycalc-breakdown.js';
@@ -606,10 +606,12 @@ export function init() {
     let _lastBdBodyHtml = null;
 
     // ── CALCULATION ENGINE ────────────────────────────────────────────────────────
-    /** @param {number} rate */
+    /** The hours rows' badges: the multiplier, and what it pays an hour on THIS payslip. A payslip with
+     *  no rate (a role with no confirmed rates) shows the multiplier alone — never CEA's £ in its place,
+     *  nor the last payslip's (invariant 13) — and the markup ships no £ at all. @param {number|null} rate */
     function updateBadges(rate) {
       /** @type {(r: number, mult: any) => string} */
-      const f = (r, mult) => `${mult}×  ·  £${(rate * r).toFixed(2)}/hr`;
+      const f = (r, mult) => (rate == null ? `${mult}×` : `${mult}×  ·  £${(rate * r).toFixed(2)}/hr`);
       /** @type {HTMLElement} */ (document.getElementById('badge-sat')).textContent = f(RATE_125, '1.25');
       /** @type {HTMLElement} */ (document.getElementById('badge-bh')).textContent   = f(RATE_125, '1.25');
       /** @type {HTMLElement} */ (document.getElementById('badge-bhot')).textContent = f(RATE_125, '1.25');
@@ -634,6 +636,7 @@ export function init() {
       const _pNum   = currentPeriodNum();
       const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
       if (!_curP) { renderYtdLine(null); return; }
+      syncNoSpecialTick();   // hours on screen, typed or gold, supersede the no-special-rate-hours tick
       const _ty     = taxYearForPeriod(_curP);
       const thresholds = getThresholds(_ty.label);
       const _proRateFactor = getProRateFactor(_curP);
@@ -647,7 +650,7 @@ export function init() {
       // AT THE TIME): it gets no figure — never CEA's rate in its place (invariant 13).
       const _rate = periodRate(_ty, _curP).rate;
       renderUnpricedPayslip(_rate == null ? unpricedLineFor(_curP) : '');
-      if (_rate == null) { calcHPP(); renderYtdLine(null); return; }
+      if (_rate == null) { updateBadges(null); calcHPP(); renderYtdLine(null); return; }
       const rate = Math.max(0, _rate);
       updateBadges(rate);
       const r125 = rate * RATE_125;
@@ -1253,8 +1256,9 @@ export function init() {
     // `applyPensionOptOutUI` is what stops the tick, the date and the field falling out of step.
     wirePensionControls({ autosave: persistSetting(['pension']) });
 
-    // Per-period overrides
+    // Per-period overrides — and the tick that says a payslip has no special-rate hours at all
     /** @type {HTMLElement} */ (document.getElementById('slSkipCheck')).addEventListener('change', autosave);
+    document.getElementById('noSpecialCheck')?.addEventListener('change', autosave);
     /** @type {HTMLElement} */ (document.getElementById('otherAdj')).addEventListener('input', () => {
       // If the user manually typed a negative number, honour it: set the sign flag
       // and normalise the field to the absolute value so the ± button is authoritative.
@@ -1439,12 +1443,13 @@ export function init() {
     wireSettingsCard({ openCardNamedByHash });   // its desktop place in the Tab order, and the banner's link to it
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js.
     requestPersistentStorage(pcPrefix());
-    // The year card's fill control. After a bulk fill: reload the visible form ONLY if it was one of
-    // the filled periods (loadPeriodData re-reads storage and restores the gold suggested state), then
-    // recalculate, which re-renders the year block, its receipt and the HPP the new hours feed.
+    // The year card's fill control. After a bulk fill: reload the visible form ONLY if the fill wrote
+    // it — filled, or checked as having no special-rate hours (loadPeriodData re-reads storage and
+    // restores the gold suggested state, or the tick), then recalculate, which re-renders the year
+    // block, its receipt and the HPP the new hours feed.
     initYearCard({
       afterFill: (r) => {
-        if (r.filled.some((/** @type {any} */ p) => p.num === currentPeriodNum())) loadPeriodData(currentPeriodNum());
+        if ([...r.filled, ...r.checked].some((/** @type {any} */ p) => p.num === currentPeriodNum())) loadPeriodData(currentPeriodNum());
         _runCalcBackPay();   // filled hours inside the award window move the lump (paycalc-2-2)
         calculate();
       },

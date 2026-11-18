@@ -184,6 +184,11 @@ export function renderResultHeadline({ actual, net, payday, bpThisPeriod = 0, hp
  * `body.payslip-unpriced` hides everything a figure would have fed (paycalc.css). Called on EVERY
  * calculate() run, with '' for a payslip that can be priced, so a refusal never outlives its payslip
  * — the same both-paths contract as the headline above.
+ *
+ * THE LABEL IS WRITTEN HERE TOO (18 Nov 2026): calculate() stops before `renderResultHeadline` on
+ * this path, so "£–" sat under the LAST payslip's label — "(inc. back pay)" over a payslip with no
+ * figure at all. It is the plain estimate label: the slot's name, with the line beneath saying why
+ * it is empty.
  * @param {string} line  the refusal, or '' for a payslip that can be priced
  */
 export function renderUnpricedPayslip(line) {
@@ -191,6 +196,9 @@ export function renderUnpricedPayslip(line) {
   const note = document.getElementById('unpricedPayslipNote');
   if (note) { note.textContent = line; note.hidden = !line; }
   if (!line) return;
+  const netLabel = document.getElementById('netLabel');
+  if (netLabel) setStatus(netLabel, headlineLabels({ hasActual: false, payday: null, bpThisPeriod: 0, hppForPeriod: 0,
+    bpIsEstimate: false, hppIsEstimate: false }).netLabel);
   for (const id of ['netDisplay', 'stickyAmount']) {
     const el = document.getElementById(id);
     if (el) el.textContent = '£–';

@@ -925,7 +925,11 @@ Chiltern may differ due to arrears, adjustments, and deductions not captured her
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from calendar" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
-Standard weekday contracted hours are not pre-filled — staff enter those manually.
+Standard weekday contracted hours are not pre-filled, and need no entry: the contracted hours are
+paid as basic pay automatically, and there is no box for them. A payslip with no special-rate hours
+at all is marked by the "No special-rate hours on this payslip" tick on the Hours card — or by
+"Fill these from your calendar", on a payslip whose recorded changes loaded and show none — and then
+counts as entered (`noSpecialHours`, `paycalc-format.js` → `isDataEmpty`).
 The suggestion is advisory; staff should verify it against their actual payslip.
 
 ### A backup made under a member's old name does not restore under the new one

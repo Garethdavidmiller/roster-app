@@ -290,7 +290,9 @@
         <label for="hourlyRate">Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
         <div class="pfx pfx--readonly">
           <span class="pfx-sym">£</span>
-          <input type="text" id="hourlyRate" value="21.49" readonly aria-readonly="true" tabindex="-1">
+          <!-- No figure in the markup, as the pension field below: updateRateForPeriod writes the payslip's
+               own rate, or "–" for a payslip it cannot price — never CEA's in its place. -->
+          <input type="text" id="hourlyRate" value="" readonly aria-readonly="true" tabindex="-1">
         </div>
         <div class="field-hint">Set automatically by your <strong>grade</strong> — nothing to type here; it updates with each pay award on its own.</div>
         <div class="rate-step-note" id="rateStepNote" style="display:none"></div>
@@ -316,6 +318,9 @@
              saved per payslip is in the card's header hint and the ? panel, and the label says which
              payslip is being edited. -->
         <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — the <strong>Railways Pension Scheme</strong>.</div>
+        <!-- On a payslip worked as a CES only (applyPensionOptOutUI, paycalc-settings.js): the figure is
+             the CEA one, because no CES payslip's pension line is on record (VAL-PAY-007). -->
+        <div class="field-hint" id="pensionCesNote" hidden>The app hasn&rsquo;t seen a CES payslip&rsquo;s pension yet, so this starts at the CEA figure. If the &ldquo;Smart RPS CR Scheme&rdquo; line on your payslip is different, type that here &mdash; it&rsquo;s kept for this payslip.</div>
         <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> Pension exceeds gross pay — check the amount</div>
         <label class="toggle-row">
           <input type="checkbox" id="pensionOptOutCheck">
@@ -475,7 +480,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday</div>
-          <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-sat" id="badge-sat">1.25×</span>
           <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. <span class="h-payslip">Shows as "Ord&nbsp;Basic&nbsp;Pay&nbsp;@1.25" on your payslip.</span></div>
           <div class="val-warn" id="satWarn" role="alert"><span aria-hidden="true">⚠</span> You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
@@ -498,7 +503,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
-          <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
+          <span class="rate-badge badge-sun" id="badge-sun">1.5×</span>
           <div class="h-sub">Any hours you worked on a Sunday, rostered or not — <strong>Sunday always pays 1.5×</strong>. <span class="h-payslip">Shows as "RDW&nbsp;Sun&nbsp;1.5" on your payslip.</span></div>
         </div>
         <div>
@@ -520,7 +525,7 @@
       <div class="hours-row hidden" id="bhRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Rostered</div>
-          <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-bh" id="badge-bh">1.25×</span>
           <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Rostered&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
@@ -542,7 +547,7 @@
       <div class="hours-row hidden" id="bhOtRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Overtime</div>
-          <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-bh" id="badge-bhot">1.25×</span>
           <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
@@ -571,7 +576,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">⏰</span> Overtime</div>
-          <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-ot" id="badge-ot">1.25×</span>
           <!-- Prose lives here ONLY (v18.46 — sweep item 12): JS fills just the cut-off date span,
                so the copy can't drift between HTML and a JS duplicate (it used to exist in both). -->
           <div class="h-sub">Extra hours on top of a rostered shift. <span class="h-payslip">Shows as "Overtime&nbsp;1.25" on your payslip.</span></div>
@@ -595,7 +600,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
-          <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-rdw" id="badge-rdw">1.25×</span>
           <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster. <strong>Sundays go in Sunday Working instead</strong> — it pays 1.5×, even though your payslip calls it "RDW&nbsp;Sun&nbsp;1.5". <span class="h-payslip">Shows as "RDW&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
@@ -619,7 +624,7 @@
       <div class="hours-row hidden" id="boxingRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🎁</span> Boxing Day Working</div>
-          <span class="rate-badge badge-box" id="badge-box">3×  ·  £64.47/hr</span>
+          <span class="rate-badge badge-box" id="badge-box">3×</span>
           <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;3.0" on your payslip.</span></div>
         </div>
         <div>
@@ -659,6 +664,18 @@
           <button type="button" id="peerPlus"  aria-label="Increase peer-training days">+</button>
         </div>
       </div>
+
+      <!-- A PAYSLIP WITH NOTHING TO TYPE (18 Nov 2026). Every row above is a special rate and basic pay
+           needs no entry, so a payslip with none of them used to save only zeros, which never counted
+           as entered — a Monday-to-Friday member's year stayed "Not entered yet" with nothing to type.
+           This tick is that payslip's entry. It shows only while no special-rate hours are on screen,
+           and hours typed supersede it (paycalc-form-data.js → syncNoSpecialTick); "Fill these from your
+           calendar" ticks it on a payslip whose calendar has none (paycalc-fill-year.js). -->
+      <label class="toggle-row no-special-row" id="noSpecialRow">
+        <input type="checkbox" id="noSpecialCheck">
+        <span class="toggle-row-text">No special-rate hours on this payslip
+          <span class="h-sub">Tick this when none of the rows above apply. Your basic pay is included already, and the payslip then counts as entered — in This tax year so far and in your Holiday Pay Premium.</span></span>
+      </label>
 
       <!-- ── SHOW MORE TOGGLE ── -->
       <button type="button" class="show-more-btn" id="hoursShowMore" aria-expanded="false" aria-controls="hoursExtra">
@@ -735,7 +752,9 @@
       <button type="button" class="banner-link" id="hppBannerViewLink">view HPP card</button>
       <div class="bp-banner-note" id="hppBannerNote"></div>
     </div>
-    <div id="resultRateNotice" class="payslip-note" style="display:none">
+    <!-- Hidden by the CLASS, which is what paycalc-app.js toggles: with an inline display:none as well,
+         nothing ever cleared it, and this warning could never show (18 Nov 2026). -->
+    <div id="resultRateNotice" class="payslip-note hidden">
       ⚠️ <strong>This year's pay award has been accepted but isn't confirmed on payslips yet.</strong> This estimate still uses the current rate — the app switches to the new rate automatically once the award lands on a payslip.
     </div>
     <!-- Check against the real payslip (v18.42 — review item 3): the member types the actual
@@ -899,7 +918,10 @@
             <span class="pfx-sym">£</span>
             <input type="text" id="priorHppActualInput" placeholder="e.g. 1,843.01" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
-          <div class="field-hint" id="priorHppActualHint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above and updates your January take-home.</div>
+          <!-- updatePriorHpp writes this on every render; the markup's words agree with what it writes, so a
+               figure here never promises to change a take-home by itself (the premium joins one only through
+               the tick in the January payslip's green note). -->
+          <div class="field-hint" id="priorHppActualHint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above. To count it in that payslip&rsquo;s take-home, tick the box in its green note.</div>
         </div>
         <div class="section-subhead" id="currentHppTitle">This year (2026/27)</div>
       </div>
@@ -1061,9 +1083,9 @@
           <label for="bpIncludeTick">Add this lump sum to this payslip's take-home estimate</label>
         </div>
       </div>
-      <div class="backpay-notice" id="backPayNotice" style="display:none">
-        ⚠️ This lump sum is taxed in the period it is paid. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown — check your payslip carefully. Your payslip may split the back pay across multiple lines (Basic Pay, Overtime, RDW, etc.) but the total should match this figure.
-      </div>
+      <!-- Empty in the markup: every path that shows this notice writes its own words (calcBackPay), so a
+           default here is dead text. Its sentence on matching the payslip's lines is the card's ? tips now. -->
+      <div class="backpay-notice" id="backPayNotice" style="display:none"></div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
       <button type="button" class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
         Per-period breakdown &nbsp;<span class="bd-arrow">▼</span>
@@ -1221,7 +1243,9 @@
 
 
 
-<!-- YTD notice lightbox — shown once when the user first opens a period mid-year -->
+<!-- Year to Date notice (posted 28 Aug 2026, for 90 days) — shown once per device, first in line, before
+     the Holiday Pay Premium notice below; counted as seen when the Calendar's own Year to Date notice
+     sent the member here (`#payslipCard`). Its rules: paycalc-lightboxes.js → showYtdNotice. -->
 <div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Enter your Year to Date figures" aria-modal="true">
   <div id="noticeYtdContent" class="lb-content notice-lb-content">
     <button id="noticeYtdClose" class="lb-close" type="button" aria-label="Close">✕</button>
@@ -1254,7 +1278,7 @@
     </div>
     <div class="notice-main">
       <p class="notice-body">Every January, Chiltern pay a <strong>Holiday Pay Premium</strong> to make up for annual leave being paid at your basic rate. This January&rsquo;s is for the <strong>2025/26</strong> tax year.</p>
-      <p class="notice-body">The Pay Calculator wasn&rsquo;t here then, but your <strong>13&nbsp;Mar&nbsp;2026</strong> payslip gives a rough figure: copy its Year to Date <strong>Taxable Pay</strong> into <strong>📊&nbsp;Year to Date Figures</strong>, then in <strong>🏖️&nbsp;Holiday Pay Premium</strong> choose <strong>Rough estimate from your Year to Date pay</strong>.</p>
+      <p class="notice-body">The Year to Date box on your <strong>13&nbsp;Mar&nbsp;2026</strong> payslip covers the whole year, so it gives a rough figure: copy its <strong>Taxable Pay</strong> into <strong>📊&nbsp;Year to Date Figures</strong>, then in <strong>🏖️&nbsp;Holiday Pay Premium</strong> choose <strong>Rough estimate from your Year to Date pay</strong>.</p>
     </div>
     <div class="notice-actions">
       <a href="./paycalc.html?payday=2026-03-13#payslipCard" id="noticeHppGo" class="notice-cta">Open your 13&nbsp;Mar payslip &rarr;</a>

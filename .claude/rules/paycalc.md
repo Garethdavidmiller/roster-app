@@ -64,7 +64,10 @@ Both grades: **140 contracted hours per period**.
 → **£286.10** from the 28 Aug 2026 payslip.
 
 **Pension default** (`Smart RPS CR Scheme`, `PENSION_STEPS`, shared by both grades — the recorded
-values are payslip-confirmed for CEA, and no CES payslip history is on record): **£151.86** from the
+values are payslip-confirmed for CEA, and no CES payslip history is on record, so a CES payslip
+starts at the CEA figure: a stand-in, kept rather than left blank because no figure would be further
+out, and SAID beside the pension box on every payslip worked as a CES, which asks for the payslip's
+own — VAL-PAY-007; `applyPensionOptOutUI`, `paycalc-settings.js`): **£151.86** from the
 28 Aug 2026 payslip (the award payslip) · **£150.74 on the 31 Jul 2026 payslip**, printed as two lines,
 £113.90 + £36.84 · £147.36 from 8 May 2026 · £154.77 from 29 Aug 2025 · £156.29 on the 1 Aug 2025
 payslip (DERIVED from payslip totals, not read off a payslip — VAL-PAY-003; correct it from the real
@@ -235,6 +238,14 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   and gives up on a fetch after 15s — `paycalc-fill-year.js`, rule 3).
 - **The single Fill re-checks that the payslip on screen is still the one it fetched for** before
   writing (the comment after its await in `paycalc-roster-hint.js`).
+- **A payslip with no special-rate hours is entered when it says so** (18 Nov 2026). Every hours box is
+  a special rate and basic pay needs nothing typed, so such a payslip saved only zeros, which read as
+  empty — a Monday-to-Friday line stayed "Not entered yet" all year. `noSpecialHours` in the period
+  blob counts as entered (`isDataEmpty`), set by the Hours card's "No special-rate hours on this
+  payslip" tick or by "Fill these from your calendar" on the calendar's COMPLETE answer (`'loaded'`
+  only, never cached, base-only or timed out — `paycalc-fill-year.js`). **Hours supersede it**: it is
+  stored only beside none (`readFormData`), and the tick hides and clears while any special-rate hours
+  are on screen, typed or gold (`syncNoSpecialTick`, `paycalc-form-data.js`).
 
 ## Paydays, cut-offs and the roster-assist
 

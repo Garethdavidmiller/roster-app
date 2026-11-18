@@ -44,15 +44,20 @@ export const fmt = n => {
 
 /**
  * An hourly rate: "£21.49" — or, for a rate that is not a whole number of pence, as many places as it
- * has, up to four: "£22.3225". Every grade's rate is whole pence, so this reads exactly as `fmt` for
- * every payslip but one kind — a payslip across a change of grade, priced at the two rates weighted
- * by their days (paycalc-grade.js). Rounded to pence there, "140h × £22.32" would sit beside
- * £3,125.15, a sum the line's own arithmetic does not make.
- * @param {number} r
+ * has, up to `places` (four unless asked): "£22.3225". Every grade's rate is whole pence, so this reads
+ * exactly as `fmt` for every payslip but one kind — a payslip across a change of grade, priced at the
+ * two rates weighted by their days (paycalc-grade.js). Rounded to pence there, "140h × £22.32" would
+ * sit beside £3,125.15, a sum the line's own arithmetic does not make.
+ *
+ * A PREMIUM rate is the same story on EVERY payslip (18 Nov 2026): £21.49 × 1.25 is £26.8625, and
+ * "16h × £26.86" sat beside £429.80, which 16 × £26.86 is not. Its places follow from the multiplier
+ * (×1.25 adds two, ×1.5 one), so a whole-pence grade's premium needs four at most, and the four-place
+ * blend above needs six at 1.25× — the breakdown asks for six there (paycalc-breakdown.js).
+ * @param {number} r @param {number} [places]
  */
-export const fmtRate = r => {
+export const fmtRate = (r, places = 4) => {
     if (Math.abs(r * 100 - Math.round(r * 100)) < 1e-6) return fmt(r);
-    return '£' + r.toFixed(4).replace(/0+$/, '');
+    return '£' + r.toFixed(places).replace(/0+$/, '');
 };
 
 /**
@@ -131,6 +136,13 @@ export const HM_PAIRS = [
  * "Not entered yet" list and the fill-year eligibility share. Lived in paycalc-hpp.js until
  * v22.06; it sits here beside HM_PAIRS because the two together are the schema's field surface,
  * and this is the paycalc cluster's zero-import home (Node-loadable from anywhere).
+ *
+ * `noSpecialHours` IS AN ENTRY (18 Nov 2026). Every hours box is a special rate and basic pay needs
+ * nothing typed, so a payslip with no special-rate hours held only zeros, which read as empty: on a
+ * Monday-to-Friday line it was "Not entered yet" for ever — left out of the year so far, the Holiday
+ * Pay Premium and back pay, with nothing the member could type to change it. The flag says the zeros
+ * were CHECKED (the member's tick, or a fill on the calendar's complete answer — paycalc-fill-year.js),
+ * which makes them this payslip's calculation inputs.
  * @param {any} d @returns {boolean}
  */
 export function isDataEmpty(d) {
@@ -141,5 +153,5 @@ export function isDataEmpty(d) {
         !d.rdwH && !d.rdwM &&
         !d.sunH && !d.sunM &&
         !d.boxH && !d.boxM && !d.peer &&
-        !d.slSkip && !d.otherAdj;
+        !d.slSkip && !d.otherAdj && !d.noSpecialHours;
 }

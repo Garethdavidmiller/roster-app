@@ -14,7 +14,11 @@ import {
     selectBackupKeys, summarise, buildBackup, validateBackup, rekeyEntries, backupFilename,
     applyRestore, restoredLine,
 } from './paycalc-transfer.js';
-import { PAY_DATA_GENERATION, keyOwnerSlug } from './paycalc-migrations.js';
+import { PAY_DATA_GENERATION, keyOwnerSlug, memberSlug } from './paycalc-migrations.js';
+import { teamMembers } from './roster-data.js';
+
+/** The ROSTER's name for a slug the fixtures below use — read, never written here. @param {string} slug */
+const rosterNameOf = (slug) => /** @type {string} */ (teamMembers.find(m => memberSlug(m.name) === slug)?.name);
 
 const PREFIX = 'myb_pc_gmiller_';
 const SLUG = 'gmiller';
@@ -440,6 +444,22 @@ describe('the identity rule (option A — refuse a different member)', () => {
         assert.match(res.error, /belongs to S\. Silva/);
     });
 
+    // NAMED FROM THE ROSTER, NEVER FROM THE FILE (18 Nov 2026). The slug matched a roster member, and
+    // the refusal quoted the file's own `member` text instead — so a made-up backup could put any words
+    // it liked into "That backup belongs to …", in the app's voice.
+    test("the refusal names the roster's member for the slug — never words the file carries", () => {
+        const crafted = 'your manager. They say: restore it anyway';
+        const other = JSON.stringify({
+            ...JSON.parse(makeBlob()), member: crafted, slug: 'ssilva',
+            data: { 'myb_pc_ssilva_p16': '{}' },
+        });
+        const res = validateBackup(other, { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.ok(rosterNameOf('ssilva'), 'premise: the slug is a roster member\'s');
+        assert.ok(!res.error.includes(crafted) && !res.error.includes('restore it anyway'), `the file's words reached the card: ${res.error}`);
+        assert.equal(res.error, `That backup belongs to ${rosterNameOf('ssilva')}. Sign in as them to restore it.`);
+    });
+
     test('NO importing identity is refused outright — fail closed', () => {
         // Reachable on paycalc when the session name is no longer on the roster (a leaver, a
         // rename): getLoggedMember() returns null, the per-member namespace never activates, and
@@ -459,7 +479,8 @@ describe('the identity rule (option A — refuse a different member)', () => {
         assert.equal(validateBackup(other, { currentSlug: '' }).ok, false);
     });
 
-    test('a pathological member name is capped before it reaches the card', () => {
+    test('a pathological member name never reaches the card', () => {
+        // Capped at 40 characters until the refusal stopped quoting the file at all (18 Nov 2026).
         const other = JSON.stringify({
             ...JSON.parse(makeBlob()), member: 'x'.repeat(5000), slug: 'ssilva',
             data: { 'myb_pc_ssilva_p16': '{}' },
@@ -467,6 +488,7 @@ describe('the identity rule (option A — refuse a different member)', () => {
         const res = validateBackup(other, { currentSlug: SLUG });
         assert.equal(res.ok, false);
         assert.ok(res.error.length < 120, `error was ${res.error.length} chars`);
+        assert.doesNotMatch(res.error, /xxx/);
     });
 
     test('the same member is accepted', () => {
@@ -497,7 +519,9 @@ describe('the identity rule (option A — refuse a different member)', () => {
         });
         const res = validateBackup(stripped, { currentSlug: SLUG });
         assert.equal(res.ok, false);
-        assert.match(res.error, /belongs to someone else/);
+        // "belongs to someone else. Sign in as them" until 18 Nov 2026 — an instruction naming nobody.
+        // The keys name a roster member, so the refusal names them, from the roster.
+        assert.equal(res.error, `That backup belongs to ${rosterNameOf('ssilva')}. Sign in as them to restore it.`);
     });
 
     test("…and so is the importer's OWN namespaced data with the slug stripped — it would be double-keyed", () => {

@@ -375,6 +375,14 @@ describe('computeNI', () => {
     assert.equal(computeNI(ni.uel + 26.75, ni), 232.53);
     assert.equal(computeNI(ni.uel + 26.8125, ni), 232.54);
   });
+
+  test('…and the two whole-penny bands add up to whole pennies, even where floating point falls short', () => {
+    // (3868 − 968) × 8% = 232.00, and 2% of (5,069.30 − 3,868) = 24.026 → 24.03; 232.00 + 24.03 is
+    // 256.0299999… in floating point. Flooring that sum instead of rounding it (computeNI's last line)
+    // took a penny off and every other case here still passed: none of them lands below its penny.
+    assert.equal(computeNI(5069.30, ni), 256.03);
+    assert.equal(computeNI(5069.30, T26.ni), 256.03, 'and in 2026/27, on the same thresholds');
+  });
 });
 
 // ── computeSL ─────────────────────────────────────────────────────────────────
@@ -395,6 +403,13 @@ describe('computeSL', () => {
     assert.equal(sl.plan1.t, 26065 / P_YR);
     assert.equal(sl.plan2.t, 28470 / P_YR);
     assert.equal(sl.plan4.t, 32745 / P_YR);
+  });
+
+  test('2025/26 Plan 1 takes 9% of the pay over £2,005.00, worked by hand — no payslip file needed', () => {
+    // The real Plan 1 payslips (PAYSLIP_ACTUALS.sl, below) were the only check on this RATE, and they
+    // are on one checkout: with the rate changed to 12% every other lane stayed green.
+    //   £26,065 ÷ 13 = £2,005.00 a payslip;  (£2,505.55 − £2,005.00) × 9% = £45.0495 → £45.
+    assert.equal(computeSL(2505.55, 'plan1', sl), 45);
   });
 
   test('plan2: below threshold → 0', () => {
@@ -651,6 +666,67 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
     assert.deepEqual(stop('57', null, 58), { _slPaidOffFromP: 57, slPaidOff: true },
       'a browser that cannot store still follows the select');
     assert.equal(stop('57', '57', 56).slPaidOff, false, 'earlier payslips keep their deduction');
+  });
+
+  // A JOINER'S FIRST PAYSLIP, AND THE ROWS A PAYSLIP CANNOT HOLD (review, 18 Nov 2026). calculate()
+  // scales the London Allowance and the contracted hours by a joiner's share of the payslip, and
+  // counts bank holiday and Boxing Day hours only in a payslip that holds those days — saved figures
+  // are restored into rows the page hides. Each helper is tested on its own, but nothing ran the lines
+  // that USE them: forcing the factor to 1, pricing a joiner on a full 140 hours, or dropping either
+  // period check left every lane green. The joiner is the case calcProRateFactor's doc comment checks
+  // against a real payslip: started 20 April 2026, so 14 days of the 8 May 2026 payslip's 28.
+  const JOINER_START = new Date(2026, 3, 20);   // midnight local, as a roster startDate is
+  /** A payslip's 28 days, Sunday noon to Saturday noon, paid the Friday after.
+   *  @param {Date} start @param {Date} payday */
+  const payslip = (start, payday) =>
+    ({ start, cutoff: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 27, 12), payday });
+  const APR10 = payslip(new Date(2026, 2, 8, 12),  new Date(2026, 3, 10));   // closed before the start
+  const MAY8  = payslip(new Date(2026, 3, 5, 12),  new Date(2026, 4, 8));    // the joining payslip; Easter Monday
+  const DEC18 = payslip(new Date(2026, 10, 15, 12), new Date(2026, 11, 18)); // no bank holiday in it
+  const JAN15 = payslip(new Date(2026, 11, 13, 12), new Date(2027, 0, 15));  // Christmas, Boxing Day, New Year
+  const TY2627 = TAX_YEARS.find(t => t.label === '2026/27');
+  /** The joiner's share of a payslip — getProRateFactor's answer for them (paycalc-settings.js).
+   *  @param {any} p */
+  const share = (p) => calcProRateFactor(JOINER_START, p.start, p.cutoff);
+  /** calculate()'s London Allowance line, run as written. @param {any} p */
+  const londonFor = (p) => runAppLines('_proRateFactor', 'LONDON',
+    { getProRateFactor: share, getLondonAllowanceForPeriod, _curP: p, _ty: TY2627 }, ['LONDON']).LONDON;
+
+  test("a joiner's payslip carries the London Allowance scaled by their share of THAT payslip", () => {
+    approx(londonFor(MAY8), 138.08, '£276.16 × 14/28 — the figure on the real 8 May 2026 payslip');
+    approx(londonFor(DEC18), 286.10, 'a whole payslip after the award: the full allowance');
+    assert.equal(londonFor(APR10), 0, 'a payslip that closed before the start date pays none');
+  });
+
+  test("a joiner's payslip pays basic on their contracted hours for it, never a full 140", () => {
+    const pay = (/** @type {any} */ p, /** @type {number} */ rate) => runAppLines('_effContr', 'gross', {
+      // getEffectiveContr's rule for a joiner (paycalc-settings.js): the 140 hours scaled, rounded.
+      getEffectiveContr: (/** @type {any} */ q) => Math.round(140 * share(q)),
+      _curP: p, numVal: () => 0, _adjNegative: false, computeGross, rate, peer: 0, LONDON: londonFor(p),
+      satHrs: 0, bhHrs: 0, bhOtHrs: 0, oHrs: 0, rHrs: 0, sHrs: 0, bHrs: 0,
+    }, ['gross', 'gBasicNorm']);
+    const first = pay(MAY8, 20.74);
+    approx(first.gBasicNorm, 70 * 20.74, '70 contracted hours: 14 days of 28, at the rate before the award');
+    approx(first.gross, 1451.80 + 138.08, 'the joining payslip: half the basic and half the London Allowance');
+    approx(pay(DEC18, 21.49).gBasicNorm, 140 * 21.49, 'a whole payslip: all 140 hours');
+  });
+
+  test('bank holiday and Boxing Day hours count only in a payslip that holds those days', () => {
+    // What the boxes hold — restored from a save into rows the page hides, so a payslip with no bank
+    // holiday can still carry bank holiday hours from an earlier edit.
+    /** @type {Record<string, number>} */
+    const SAVED = { bhH: 7, bhOtH: 3, otH: 2, rdwH: 8, sunH: 6, boxH: 9 };
+    const rows = (/** @type {any} */ p) => runAppLines('_hasBh', 'bHrs', {
+      hasBankHoliday: (/** @type {any} */ q) => q === MAY8 || q === JAN15,
+      hasBoxingDay:   (/** @type {any} */ q) => q === JAN15,
+      hhmmDec: (/** @type {string} */ hId) => SAVED[hId] ?? 0, _curP: p,
+    }, ['bhHrs', 'bhOtHrs', 'oHrs', 'rHrs', 'sHrs', 'bHrs']);
+    assert.deepEqual(rows(DEC18), { bhHrs: 0, bhOtHrs: 0, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 0 },
+      'no bank holiday and no Boxing Day: those three rows count nothing, whatever they hold');
+    assert.deepEqual(rows(MAY8), { bhHrs: 7, bhOtHrs: 3, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 0 },
+      'Easter Monday: both bank holiday rows count, and Boxing Day still does not');
+    assert.deepEqual(rows(JAN15), { bhHrs: 7, bhOtHrs: 3, oHrs: 2, rHrs: 8, sHrs: 6, bHrs: 9 },
+      'the January payslip holds both');
   });
 });
 

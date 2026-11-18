@@ -791,6 +791,80 @@ test('paycalc: Fill-the-year fills the empty paid periods, receipts by date, and
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
+// ── A PAYSLIP WITH NO SPECIAL-RATE HOURS (18 Nov 2026) ─────────────────────────────────────────
+// On a Monday-to-Friday line every hours box stays empty — they are all special rates, and basic pay
+// needs nothing typed — so the payslip saved only zeros and never counted as entered: "Not entered
+// yet" for good. The tick is its entry. The rule is unit-tested (paycalc-form-data, paycalc-fill-year);
+// this is the WIRING — the page's own listener saving the tick, and every recalculation hiding it
+// while hours are on screen. The member is INVENTED, served on fixed pattern 4 (weekdays only, at rest
+// on bank holidays) for this test alone.
+const WEEKDAY_MEMBER = 'Test Weekday Member';
+test('paycalc: a payslip with no special-rate hours counts as entered once ticked — and hours typed take the tick away', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);
+    await page.route('**/roster-member-data.js', async (route) => {
+        const res = await route.fetch();
+        const entry = `{ name: '${WEEKDAY_MEMBER}', currentWeek: 4, rosterType: 'fixed', role: 'CEA' }`;
+        const body = (await res.text()).replace(/\n\];\s*$/, `\n    ${entry},\n];\n`);
+        expect(body, 'premise: the invented member reached the served roster').toContain(WEEKDAY_MEMBER);
+        await route.fulfill({ response: res, body });
+    });
+    await seedSession(page, WEEKDAY_MEMBER);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    const key = `myb_pc_${memberSlug(WEEKDAY_MEMBER)}_p57`;   // 23 Oct 2026 is internal p57
+    const saved = () => page.evaluate(k => JSON.parse(localStorage.getItem(k) || 'null'), key);
+
+    const row = page.locator('#noSpecialRow');
+    const tick = page.locator('#noSpecialCheck');
+    const block = page.locator('#ytdYearSoFar');
+    await expect(row, 'no hours on screen: the tick is offered').toBeVisible();
+    await expect(tick).not.toBeChecked();
+    await expect(block).toContainText('0 of 8 paid payslips entered');
+    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this period');
+
+    await clickInView(row);                                   // the whole row is the label
+    await expect(tick).toBeChecked();
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this period');
+    await expect(block, 'the ticked payslip counts as entered').toContainText('1 of 8 paid payslips entered');
+    expect((await saved())?.noSpecialHours, 'the page saved the tick').toBe(true);
+
+    // Hours typed supersede it: the tick goes, and the save no longer carries it.
+    await page.locator('#otH').fill('2');
+    await expect(row).toBeHidden();
+    await expect.poll(async () => (await saved())?.otH).toBe(2);
+    expect((await saved())?.noSpecialHours, 'a payslip cannot hold hours and say it has none').toBe(false);
+    await page.locator('#otH').fill('');
+    await expect(row, 'hours gone: the tick is offered again').toBeVisible();
+    await expect(tick, '…unticked, because the hours superseded it').not.toBeChecked();
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// The result card's pay-award warning shows ONLY on today's payslip, so it is seen with Settings shut
+// (owner). It shipped with an inline display:none that the class its code toggles could never clear
+// (18 Nov 2026), so it had never shown once; no tax year is flagged today, and the next award would
+// have been the first to find out. The flag is set for this test alone, in the table the page loads.
+test('paycalc: a pay award not on payslips yet is said on the result card — on today\'s payslip only', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(PAY_2026_27_DAY);
+    await page.route('**/paycalc-calc.js', async (route) => {
+        const res = await route.fetch();
+        const row = 'londonAllowFrom: new Date(2026, 7, 28) }';
+        const src = await res.text();
+        expect(src.split(row).length - 1, 'premise: the 2026/27 row is found once').toBe(1);
+        await route.fulfill({ response: res, body: src.replace(row, 'londonAllowFrom: new Date(2026, 7, 28), rateUnconfirmed: true }') });
+    });
+    await seedSession(page, LONG_SERVING);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html');
+    const notice = page.locator('#resultRateNotice');
+    await expect(notice, 'today\'s payslip: the award is not on payslips yet').toBeVisible();
+    await expect(notice).toContainText("isn't confirmed on payslips yet");
+    await clickInView(page.locator('#prevBtn'));
+    await expect(notice, 'an earlier payslip is not the one about to be paid at the old rate').toBeHidden();
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // The Pay page's re-posted Year to Date notice runs 90 days from 28 Aug 2026 — to 23:00 on 25 Nov
 // (`isNoticeExpired('28 Aug 2026', 90)`). The two tests below are about that notice, so they pin the
 // clock inside its life, as the Calendar's notice tests further down do. On the real clock they would
@@ -2261,7 +2335,7 @@ test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on'
 // with no error and no visible difference.
 //
 // What makes it worth a browser is that the page ALREADY SAYS THE RIGHT THING: `_updateYtdNote`
-// writes "not in use" into the header chip and "this payslip uses the standard method" into the
+// writes "not in use" into the header chip and "worked out from this payslip alone" into the
 // note from the same rule, independently of the arithmetic. So without the guard the chip and the
 // figure disagree, and the chip is the honest one. The assertion therefore pairs them.
 //
@@ -2321,7 +2395,7 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
     for (const pNum of [SRC + 2, SRC + 3]) {
         await page.locator('#periodSelect').selectOption(String(pNum));
         await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
-        await expect(page.locator('#ytdUptoNote')).toContainText('uses the standard method');
+        await expect(page.locator('#ytdUptoNote')).toContainText("this payslip's tax is worked out from this payslip alone");
         const other = await netWithAndWithoutFigures();
         expect(other.withFigures,
             `p${pNum} is not the payslip these totals came from, so they must not reach the estimate`)
@@ -2851,14 +2925,25 @@ test('paycalc: a CES promoted into management keeps the CES payslips — and a p
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
     await expect(page.locator('#hourlyRate'), 'the CES payslip at the CES rate').toHaveValue(AWARD_RATES.ces['2026/27'].rate.toFixed(2));
     await expect(page.locator('#unpricedPayslipNote')).toBeHidden();
+    // Premise for the badges below: on a payslip it can price, every hours row shows its rate in £.
+    await expect(page.locator('#badge-ot')).toContainText('£');
 
-    // The payslip across the promotion: seven CES days, 21 under a role with no rates.
-    await page.goto('/paycalc.html?payday=2026-12-18');
+    // The payslip across the promotion: seven CES days, 21 under a role with no rates. Reached IN THE
+    // PAGE, so the badges still hold what the 20 Nov payslip wrote: a fresh load would pass on the
+    // markup alone, which ships no £ (18 Nov 2026).
+    await clickInView(page.locator('#nextBtn'));
     await expect(page.locator('#unsupportedGradeBanner')).toBeHidden();
     await expect(page.locator('#netDisplay'), 'no figure — never one at the CEA rate').toHaveText('£–');
     await expect(page.locator('#unpricedPayslipNote')).toHaveText('No estimate for this payslip. From Sun 22 Nov 2026 the roster '
         + 'lists you as Management, and this calculator only has rates for CEA and CES. The nearest payslip it can estimate is the one paid Fri 20 Nov 2026.');
     await expect(page.locator('#hourlyRate')).toHaveValue('–');
+    // Every hours row keeps its multiplier and no £ figure — not the last payslip's, not CEA's
+    // (invariant 13: never another rate in its place, on any surface).
+    for (const [id, mult] of [['badge-sat', '1.25×'], ['badge-sun', '1.5×'], ['badge-bh', '1.25×'], ['badge-bhot', '1.25×'],
+                              ['badge-ot', '1.25×'], ['badge-rdw', '1.25×'], ['badge-box', '3×']]) {
+        await expect(page.locator(`#${id}`), `#${id} kept a £ rate on a payslip with none`).toHaveText(mult);
+    }
+    await expect(page.locator('#netLabel'), 'the figure slot keeps its plain name').toHaveText('💷 Estimated Take-Home Pay');
     for (const sel of ['#summary', '#bdBtn', '#stickyTotal', '#ytdYearSoFar']) {
         await expect(page.locator(sel), `${sel} is fed by a figure, so it goes`).toBeHidden();
     }

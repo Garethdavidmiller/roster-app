@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fmtHrsMins, buildSummaryRows, buildLoanLines, buildBreakdownRows, buildActualCheck, buildProvChips, buildActualComparison,
     buildBreakBar, taxCodeNotRecognised, ytdMisfitNote } from './paycalc-breakdown.js';
-import { getThresholds } from './paycalc-calc.js';
+import { getThresholds, computeGross, RATE_125, RATE_150, RATE_300 } from './paycalc-calc.js';
 
 test('fmtHrsMins formats decimal hours as "Nh"/"Nh Mm"', () => {
     assert.equal(fmtHrsMins(8), '8h');
@@ -267,6 +267,52 @@ test('buildBreakdownRows: a payslip across a change of grade shows the blended r
     const html = buildBreakdownRows({ ...BD_BASE, rate, gBasicNorm: 140 * rate });
     assert.ok(html.includes('Basic pay — Mon–Fri (140h × £22.3225)'), html);
     assert.ok(html.includes('£3,125.15'));
+});
+
+// EVERY ROW MULTIPLIES OUT TO ITS FIGURE (18 Nov 2026). A premium is not whole pence even on a
+// whole-pence grade — £21.49 × 1.25 = £26.8625 — so "16h × £26.86" sat beside £429.80, which 16 × £26.86
+// is not (it is £429.76). Run through the REAL engine (computeGross prices the hours, calculate()'s own
+// r125/r150/r300), then each row checked by hand arithmetic: hours × the printed rate, exactly, half up
+// to the penny, must be the printed amount. On a whole-pence grade and on the blended payslip of a
+// change of grade, whose 1.25× needs six places. Hours chosen off half-penny products, where the shown
+// amount is itself decided by how the engine rounds a floating-point product, not by the label.
+describe('buildBreakdownRows: every rate printed multiplies out to the amount beside it', () => {
+    /** Exact hours × rate in pence, half up, as "£x,xxx.xx" — a reader with a calculator. */
+    const byHand = (/** @type {number} */ hours, /** @type {string} */ printed) => {
+        const [i, f = ''] = printed.replace(/[£,]/g, '').split('.');
+        const scale = 10n ** BigInt(f.length);
+        const rate = BigInt(i) * scale + BigInt(f || '0');
+        const num = BigInt(Math.round(hours * 4)) * rate * 100n, den = 4n * scale;   // hours in quarters
+        const pence = Number((2n * num + den) / (2n * den));
+        return `£${(pence / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+    };
+    const rows = (/** @type {number} */ rate) => {
+        // No product here lands on an exact half-penny at either rate (2h × £26.8625 = £53.725 would),
+        // and 14.5h of overtime is where four places are not enough for the blend: 14.5 × £27.9031 is
+        // £404.59, the hours at the real £27.903125 £404.60.
+        const hrs = { satHrs: 16, bhHrs: 7, bhOtHrs: 3, oHrs: 14.5, rHrs: 9, sHrs: 7.5, bHrs: 7 };
+        const g = computeGross({ effContr: 140, rate, ...hrs, peerDays: 2, otherAdj: 0, london: 286.10 });
+        return buildBreakdownRows({ ...BD_BASE, ...g, rate, r125: rate * RATE_125, r150: rate * RATE_150, r300: rate * RATE_300,
+            bhOtHrs: hrs.bhOtHrs, oHrs: hrs.oHrs, rHrs: hrs.rHrs, sHrs: hrs.sHrs, bHrs: hrs.bHrs, peer: 2, LONDON: 286.10 });
+    };
+    for (const [what, rate] of /** @type {const} */ ([['a whole-pence grade (£21.49)', 21.49], ['the blend of a change of grade', (7 * 21.49 + 21 * 22.6) / 28]])) {
+        test(what, () => {
+            const html = rows(rate);
+            const found = [...html.matchAll(/\((\d+)h(?: (\d+)m)? × £([\d.]+)\)<\/span><span class="b-val">(£[\d,.]+)<\/span>/g)];
+            assert.equal(found.length, 8, 'premise: basic, Saturday, two bank holiday rows, overtime, RDW, Sunday and Boxing Day');
+            for (const [, h, m, printed, shown] of found) {
+                const hours = Number(h) + (m ? Number(m) / 60 : 0);
+                assert.equal(byHand(hours, printed), shown, `${hours}h × £${printed} is ${byHand(hours, printed)}, but the row shows ${shown}`);
+            }
+            const peer = /Peer Training \(2 days × 2h × £([\d.]+)\)<\/span><span class="b-val">(£[\d,.]+)/.exec(html);
+            assert.ok(peer, 'premise: the peer-training row');
+            assert.equal(byHand(4, peer[1]), peer[2], 'the peer-training row');
+        });
+    }
+    test('a whole-pence grade\'s premium needs no more than four places', () => {
+        assert.match(rows(21.49), /Basic pay — Saturday \(16h × £26\.8625\)<\/span><span class="b-val">£429\.80/);
+        assert.match(rows(21.49), /Sunday Working \(7h 30m × £32\.235\)/);
+    });
 });
 
 test('buildBreakdownRows: bare period → only Mon–Fri basic + London Allowance', () => {

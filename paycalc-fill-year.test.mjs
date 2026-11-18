@@ -78,7 +78,7 @@ describe('rule 1 — never a period with entered data', () => {
         const { deps, writes } = makeDeps({}, { suggestions: { 1: { satH: 4 }, 2: { satH: 4 }, 3: { satH: 4 } } });
         const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'A. Person' }, now: NOW, deps: { ...deps, priced } });
         assert.deepEqual(writes.map(w => w.pNum), [1, 2]);
-        assert.deepEqual([...r.filled, ...r.nothing, ...r.unreached].map(p => p.num).sort(), [1, 2]);
+        assert.deepEqual([...r.filled, ...r.checked, ...r.unreached].map(p => p.num).sort(), [1, 2]);
     });
 
     test('a period holding ONLY a non-hours entry (slSkip, an adjustment) still counts as entered', () => {
@@ -109,8 +109,10 @@ describe('rule 3 — no base-only fills into invisible periods', () => {
             suggestions: { 1: { satH: 4 }, 2: { satH: 9 }, 3: null },
         });
         const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'G. Miller' }, now: NOW, deps });
-        assert.deepEqual(writes.map(w => w.pNum), [1]);
+        // P3 is quiet on a LOADED answer, so it is written as checked (the quiet-payslip cases below).
+        assert.deepEqual(writes.map(w => w.pNum), [1, 3]);
         assert.deepEqual(r.unreached.map(p => p.num), [2]);
+        assert.deepEqual(r.checked.map(p => p.num), [3]);
         assert.match(fillYearReceipt(r, d => String(d.getDate())).join(' '), /Couldn't check your recorded shift changes/);
     });
 
@@ -187,28 +189,91 @@ describe('rule 4 — fills are marked, and the written shape is the schema\'s', 
         assert.ok('sunH' in w.snap, 'the snapshot mirrors _saveRosterSnap: every pair key present');
     });
 
-    test('a quiet period (no premium shifts) writes nothing and is reported as nothing-to-add', async () => {
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// A QUIET PAYSLIP IS AN ANSWER (18 Nov 2026)
+//
+// This block used to pin the opposite: a payslip with no premium shifts "writes nothing and is
+// reported as nothing-to-add". Every hours box is a special rate and basic pay needs nothing typed,
+// so such a payslip was left "Not entered yet" for good — a Monday-to-Friday line's whole year, out
+// of the year so far, the Holiday Pay Premium and back pay — with the button still offering a fill
+// that would never take. On the calendar's COMPLETE answer it is now written as checked.
+describe('a quiet payslip on the calendar\'s complete answer is written as checked', () => {
+    test('loaded, no special-rate day: written with the tick, every hour a zero, counted as entered', async () => {
         const { deps, writes } = makeDeps({}, { suggestions: {} });
-        const r = await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'G. Miller' }, now: NOW, deps });
+        const r = await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'A. Person' }, now: NOW, deps });
+        assert.equal(writes.length, 1, 'the quiet payslip must be written, or it stays "Not entered yet" for ever');
+        const { data, snap } = writes[0];
+        assert.equal(data.noSpecialHours, true);
+        for (const { hId, mId } of HM_PAIRS) {
+            assert.equal(data[hId], 0, `${hId} is a confirmed zero`); assert.equal(data[mId], 0, `${mId} is a confirmed zero`);
+            assert.equal(snap[hId], 0); assert.equal(snap[mId], 0);
+        }
+        assert.equal(isDataEmpty(data), false, 'a checked payslip counts as entered');
+        assert.deepEqual(r.checked.map(p => p.num), [1]);
+        assert.equal(r.filled.length, 0, 'no hours were filled, and the receipt must not say so');
+        const words = fillYearReceipt(r, () => '10 Apr').join(' ');
+        assert.match(words, /No special-rate hours on your calendar for 10 Apr, so that payslip now counts as entered/);
+        assert.match(words, /type them in on that payslip/, 'and the member is told what to do if the calendar is wrong');
+        assert.doesNotMatch(words, /^Filled/);
+    });
+
+    test('…and is then out of the fill: a second press finds nothing to do', async () => {
+        /** @type {Record<number, any>} */ const saved = {};
+        const { deps } = makeDeps(saved, { suggestions: {} });
+        deps.write = (/** @type {number} */ pNum, /** @type {any} */ data) => { saved[pNum] = { data }; return true; };
+        await fillYearFromCalendar({ periods: PERIODS, member: { name: 'A. Person' }, now: NOW, deps });
+        assert.deepEqual(fillablePeriods({ periods: PERIODS, now: NOW, ...deps }).fillable, [],
+            'a checked payslip is entered, so the "Not entered yet" list and the button leave it');
+    });
+
+    for (const state of ['cached', 'base-only', 'timeout']) {
+        test(`on a ${state} answer a quiet payslip is NOT checked — the calendar has not said "none" (rule 3)`, async () => {
+            const { deps, writes } = makeDeps({}, { overrideState: state, suggestions: {} });
+            const r = await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'A. Person' }, now: NOW, deps });
+            assert.equal(writes.length, 0, 'a missing record may be exactly the special-rate day');
+            assert.deepEqual(r.unreached.map(p => p.num), [1]);
+            assert.equal(r.checked.length, 0);
+        });
+    }
+
+    test('a checked payslip keeps every figure the calendar does not own (rule 5)', async () => {
+        const kept = { actualNet: 2400.12, actualTax: 300.5, pension: 99.01 };
+        const { deps, writes } = makeDeps({ 1: { data: { ...emptyPeriodData(), ...kept } } }, { suggestions: {} });
+        await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'A. Person' }, now: NOW, deps });
+        for (const [k, v] of Object.entries(kept)) assert.equal(writes[0].data[k], v, `${k} must survive the check`);
+    });
+
+    test('a tick set while the fill waited is the member\'s, and is left alone (rule 7)', async () => {
+        /** @type {Record<number, any>} */ const saved = {};
+        const { deps, writes } = makeDeps(saved, { suggestions: {} });
+        deps.fetchOverrides = async () => { saved[1] = { data: { ...emptyPeriodData(), noSpecialHours: true } }; return 'loaded'; };
+        const r = await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'A. Person' }, now: NOW, deps });
         assert.equal(writes.length, 0);
-        assert.equal(r.nothing.length, 1);
-        assert.match(fillYearReceipt(r, d => String(d.getDate())).join(' '), /No special-rate hours to add/);
+        assert.equal(r.checked.length, 0, 'and the receipt does not claim it');
+    });
+
+    test('several checked payslips are spoken of in the plural', () => {
+        const p = { payday: new Date(2026, 3, 10) };
+        const words = fillYearReceipt({ filled: [], unreached: [], checked: [p, p], corrupt: [] }, () => '10 Apr').join(' ');
+        assert.match(words, /so those payslips now count as entered\. If you did work extra hours on one,/);
     });
 });
 
 test('the all-clear receipt exists — a tap with nothing eligible must say so, not go quiet', () => {
-    assert.match(fillYearReceipt({ filled: [], unreached: [], nothing: [], corrupt: [] }, d => '')[0],
+    assert.match(fillYearReceipt({ filled: [], unreached: [], checked: [], corrupt: [] }, d => '')[0],
         /already has entries — nothing to fill/);
 });
 
 test('ONE payslip is spoken of in the singular (paycalc-2-20)', () => {
     // "15 Jan — open each of those payslips" read as though some were left out of the list.
     const p = { payday: new Date(2026, 0, 15) };
-    const one = fillYearReceipt({ filled: [], unreached: [p], nothing: [], corrupt: [], unsaved: [p] }, () => '15 Jan').join(' ');
+    const one = fillYearReceipt({ filled: [], unreached: [p], checked: [], corrupt: [], unsaved: [p] }, () => '15 Jan').join(' ');
     assert.match(one, /open that payslip and use/);
     assert.match(one, /refused to store it \(/);
     assert.doesNotMatch(one, /each of those|store them/);
-    const two = fillYearReceipt({ filled: [], unreached: [p, p], nothing: [], corrupt: [], unsaved: [p, p] }, () => '15 Jan').join(' ');
+    const two = fillYearReceipt({ filled: [], unreached: [p, p], checked: [], corrupt: [], unsaved: [p, p] }, () => '15 Jan').join(' ');
     assert.match(two, /open each of those payslips/);
     assert.match(two, /refused to store them/);
 });
@@ -291,14 +356,14 @@ describe('rule 5 — a fill preserves every field the calendar does not own', ()
         // way of preserving stale hours, and it holds by coincidence of two separate lists.
         //
         // So it is asserted structurally. Add a calendar-owned field that `isDataEmpty` ignores and
-        // the merge would silently start carrying a stale value forward — this fails first.
-        for (const { hId, mId } of HM_PAIRS) {
-            for (const id of [hId, mId]) {
-                const withOne = { ...emptyPeriodData(), [id]: 1 };
-                assert.equal(isDataEmpty(withOne), false,
-                    `${id} is written by the fill, so isDataEmpty must count it — otherwise a period `
-                    + 'holding it is judged fillable and the saved value is carried forward stale');
-            }
+        // the merge would silently start carrying a stale value forward — this fails first. The
+        // quiet payslip's `noSpecialHours` is written by the fill too (18 Nov 2026), so it is one.
+        const owned = [...HM_PAIRS.flatMap(({ hId, mId }) => [[hId, 1], [mId, 1]]), ['noSpecialHours', true]];
+        for (const [id, v] of owned) {
+            const withOne = { ...emptyPeriodData(), [id]: v };
+            assert.equal(isDataEmpty(withOne), false,
+                `${id} is written by the fill, so isDataEmpty must count it — otherwise a period `
+                + 'holding it is judged fillable and the saved value is carried forward stale');
         }
     });
 });
@@ -331,11 +396,17 @@ describe('rule 6 — a write that did not persist is never counted as filled', (
         assert.match(text, /Nothing was lost/, 'and the member needs to know the old data survived');
     });
 
-    test('an all-refused run still reports the OTHER outcomes truthfully', async () => {
+    // This said "a period with nothing to add is never written, so never unsaved" until a quiet payslip
+    // became an answer (18 Nov 2026): it is now WRITTEN as checked, so a refused write is unsaved like
+    // any other, and must never be claimed as checked.
+    test('a refused write of a quiet payslip is unsaved — never claimed as checked', async () => {
         const { deps } = makeDeps({}, { suggestions: {} });           // no suggestions anywhere
         deps.write = () => false;
-        const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'G. Miller' }, now: NOW, deps });
-        assert.equal(r.unsaved.length, 0, 'a period with nothing to add is never written, so never unsaved');
-        assert.ok(r.nothing.length > 0);
+        const r = await fillYearFromCalendar({ periods: PERIODS, member: { name: 'A. Person' }, now: NOW, deps });
+        assert.deepEqual(r.unsaved.map((/** @type {any} */ p) => p.num), [1, 2, 3], 'every paid payslip was attempted and refused');
+        assert.equal(r.checked.length, 0, 'a payslip the device refused to store is not entered');
+        const text = fillYearReceipt(r, (/** @type {Date} */ d) => `D${d.getDate()}`).join(' ');
+        assert.match(text, /Couldn't save/);
+        assert.doesNotMatch(text, /now count as entered/);
     });
 });

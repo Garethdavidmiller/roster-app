@@ -53,7 +53,18 @@ test('fmtRate: a rate in whole pence reads exactly as fmt; a blended one keeps i
     // A payslip across a change of grade: 7 days at £21.49 and 21 at £22.60, weighted by days.
     assert.equal(fmtRate((7 * 21.49 + 21 * 22.6) / 28), '£22.3225');
     assert.equal(fmtRate(22.325), '£22.325');
-    assert.equal(fmtRate(1 / 3), '£0.3333', 'never more than four places');
+    assert.equal(fmtRate(1 / 3), '£0.3333', 'never more than four places, unless asked');
+});
+
+test('fmtRate: a premium keeps its real places — up to six when asked, for the blend\'s 1.25×', () => {
+    // £21.49 × 1.25 is £26.8625: printed as £26.86, "16h × £26.86" sat beside £429.80 (18 Nov 2026).
+    assert.equal(fmtRate(21.49 * 1.25), '£26.8625');
+    assert.equal(fmtRate(21.49 * 1.5), '£32.235');
+    assert.equal(fmtRate(21.49 * 3), '£64.47');
+    const blend = (7 * 21.49 + 21 * 22.6) / 28;
+    assert.equal(fmtRate(blend * 1.25, 6), '£27.903125', 'the blend at 1.25× needs six places');
+    assert.equal(fmtRate(21.49 * 1.25, 6), '£26.8625', 'six is a ceiling, not a pad');
+    assert.equal(fmtRate(22.6 * 1.5, 6), '£33.90', 'a whole-pence figure still reads as fmt');
 });
 
 test('fmt signs a negative before the pound sign, as the subtracting rows do — and never a minus on nothing', () => {

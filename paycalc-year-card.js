@@ -138,7 +138,9 @@ export function renderYearCard({ ty, plan, pgLoan, slPaidOffFromP, bpLump }) {
             : '') +
         (y.skipped ? `<div class="yearso-proj pay-skip-warn">⚠️ Couldn't read ${y.skipped} saved payslip${plural(y.skipped)}, so these totals may be too low.</div>` : '') +
         // Payslips under a role with no rates are in none of the figures (pay-audience.js) — said, not hidden.
-        (y.unpriced ? `<div class="yearso-proj">These figures leave out ${y.unpriced} ${ty.label} payslip${plural(y.unpriced)} worked in a grade this calculator has no rates for.</div>` : '') +
+        // The count stands alone: "leave out 4 2026/27 payslips" read as two numbers side by side, and the
+        // whole block is about the one tax year on screen already ("This tax year so far").
+        (y.unpriced ? `<div class="yearso-proj">These figures leave out ${y.unpriced} payslip${plural(y.unpriced)} worked in a grade this calculator has no rates for.</div>` : '') +
         receiptHtml;
     _restoreFocus(el, hadFocus);
 }

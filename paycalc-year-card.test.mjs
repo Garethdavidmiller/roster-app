@@ -400,8 +400,11 @@ describe('a control that never comes back', () => {
         // Any calculate() while the fill waits on the network rebuilds this block. It used to draw a
         // fresh, enabled "Fill these from your calendar" whose taps `_filling` silently ignored.
         /** @type {Function[]} */ const held = [];
-        _fetch = () => new Promise((r) => held.push(() => r('loaded')));
-        _suggest = (/** @type {any} */ p) => (p.num === TY_PERIODS[12].num ? null : { otH: 3, otM: 0 });   // one stays missing
+        // One stays missing: its recorded changes do not load, so the fill leaves it (rule 3). A null
+        // suggestion no longer does — on a loaded answer that payslip is checked as having no
+        // special-rate hours, and counts as entered.
+        _fetch = (/** @type {any} */ p) => new Promise((r) => held.push(() => r(p.num === TY_PERIODS[12].num ? 'base-only' : 'loaded')));
+        _suggest = () => ({ otH: 3, otM: 0 });
         render();
         clickFill(fillButton());
         await settle();
@@ -654,7 +657,7 @@ describe('the fill keeps to the payslips the page can price', () => {
                 'a payslip with a day under a role with no rates was written');
             const receipt = _afterFillReceipts[0];
             assert.ok(receipt, 'premise: the fill finished');
-            const named = [...receipt.filled, ...receipt.nothing, ...receipt.unreached, ...receipt.corrupt, ...receipt.unsaved];
+            const named = [...receipt.filled, ...receipt.checked, ...receipt.unreached, ...receipt.corrupt, ...receipt.unsaved];
             assert.ok(named.every((/** @type {any} */ p) => p.cutoff <= until), 'the receipt named a payslip the page cannot price');
         } finally {
             teamMembers.splice(teamMembers.indexOf(member), 1);
