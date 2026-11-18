@@ -554,7 +554,9 @@ function _leftAloneBy(type) {
     const member = teamMembers.find(m => m.name === name);
     const map    = member && type === 'sick' ? buildMemberDateMap(name) : null;
     return d => !member ? '' : isBeforeMemberStart(member, parseISODate(d)) ? 'start'
-        : map && !isWorkingDate(member, d, map) ? 'rest' : '';
+        : !map || isWorkingDate(member, d, map) ? ''
+        // Rest by the base roster, or a working day a SAVED change has set as rest: said apart (admin-bulk-apply.js).
+        : isRestShift(getBaseShift(member, parseISODate(d))) ? 'rest' : 'setRest';
 }
 
 // ── BULK BAR ──────────────────────────────────────────────────────────────────
@@ -694,7 +696,7 @@ function _initBulkBar() {
         const typeMeta = TYPES[_bulkActiveType], leftAlone = _leftAloneBy(_bulkActiveType);
         let applied = 0;
         /** @type {string[]} */ const ticked = [];
-        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'start' }>} */ const skipped = [];
+        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'setRest' | 'start' }>} */ const skipped = [];
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));

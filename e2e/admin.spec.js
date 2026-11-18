@@ -9,7 +9,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG } from '../roster-data.js';
-import { fmtPeriodDate } from '../admin-period-dates.js';
+import { fmtPeriodDate, formatDisplay } from '../admin-period-dates.js';
 
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
@@ -1964,6 +1964,34 @@ test('admin: All 7 → Absent → Apply stages only the working days, and names 
     await expect(page.locator('#formFeedback')).toContainText('4 changes saved for G. Miller', { timeout: 10000 });
     const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type}`));
     expect(written).toEqual(['2027-01-11 sick', '2027-01-12 sick', '2027-01-15 sick', '2027-01-16 sick']);
+});
+
+// …AND A WORKING DAY A SAVED CHANGE SET AS A REST DAY IS NOT CALLED "A REST DAY ON THE BASE ROSTER" (review,
+// Nov 2026). Absent leaves it alone, rightly — it is a rest day now — but the line named the wrong reason.
+test('admin: bulk Absent names a day a saved change set as a rest day for what it is', async ({ page }) => {
+    // A colleague found from the roster, never written down, and the first of their working weekdays from 11 Jan 2027.
+    const who = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate && !m.rosterChanges));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    let day = '';
+    for (const d = new Date(2027, 0, 11, 12); !day; d.setDate(d.getDate() + 1)) {
+        if (d.getDay() !== 0 && !isRestShift(getBaseShift(who, d))) day = iso(d);
+    }
+    await page.addInitScript((rows) => { /** @type {any} */ (window).__E2E = { ...(/** @type {any} */ (window).__E2E || {}), authUser: true, docs: rows }; },
+        [{ id: 'set-rest', memberName: who.name, date: day, type: 'correction', value: 'RD', note: '', source: 'manual' }]);
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(who.name);
+    await page.locator('#fieldDate').evaluate((el, d) => {
+        /** @type {HTMLInputElement} */ (el).value = d;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    }, day);
+    await expect(page.locator(`.week-panel .day-row[data-date="${day}"]`), 'premise: the saved Rest Day is drawn on its row').toHaveClass(/has-override/);
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-sick').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText(`${formatDisplay(day)} skipped: set as a rest day by a saved change, so nothing is recorded`);
+    await expect(page.locator('#formFeedback')).not.toContainText(`${formatDisplay(day)} skipped: a rest day on the base roster`);
 });
 
 // "WORKING DAYS" IS THE WORKING DAYS THE CARDS WRITE BY (whole-app check, Nov 2026). The button read a

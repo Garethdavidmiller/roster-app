@@ -86,6 +86,19 @@ describe('bulkSkippedLine — the line Apply leaves names every day it left alon
             'Set 1 day — 2026-07-13 skipped: a rest day on the base roster, so nothing is recorded.');
     });
 
+    // A working day a SAVED change set as a rest day is a rest day for Absent too — but not one "on the base
+    // roster", which is what the line called it (review, Nov 2026). Said for what it is, and Apply still greys
+    // out when such days are all it has.
+    test('a day set as a rest day by a saved change is named as that, not as the base roster\'s', () => {
+        assert.equal(bulkSkippedLine(3, [{ date: TUE, why: 'setRest' }], fmt),
+            'Set 3 days — 2026-07-14 skipped: set as a rest day by a saved change, so nothing is recorded.');
+        assert.equal(bulkSkippedLine(2, [{ date: MON, why: 'rest' }, { date: TUE, why: 'setRest' }, { date: '2026-07-15', why: 'setRest' }], fmt),
+            'Set 2 days — 2026-07-13 skipped: a rest day on the base roster, so nothing is recorded; '
+            + '2026-07-14 and 2026-07-15 skipped: set as rest days by a saved change, so nothing is recorded.');
+        assert.equal(bulkApplyWaitingFor([MON, TUE], 'sick', d => (d === MON ? 'rest' : 'setRest')),
+            'An absence isn’t recorded on a rest day — tick a working day');
+    });
+
     test('three days take commas and an "and"; a day before the start date says so', () => {
         assert.equal(bulkSkippedLine(2, ['2026-07-13', '2026-07-14', '2026-07-15'].map(date => ({ date, why: /** @type {'start'} */ ('start') })), fmt),
             'Set 2 days — 2026-07-13, 2026-07-14 and 2026-07-15 skipped: before the start date, so nothing is recorded.');
