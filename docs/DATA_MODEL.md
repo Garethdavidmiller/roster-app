@@ -97,7 +97,7 @@ uploadId     Optional — on leave written by a Save on Operations → Annual le
              writes it from its own third argument alone, never from the fields it is given, so a save
              that copies a record it read cannot carry the mark forward. Accepted by the rules from
              v26.14 and written by every Save from v26.15 (backend-first); absent on every record
-             written before then, whose logs keep the old judgement (`writesMarked`, alUploads below).
+             written before then, whose logs offer no undo (`writesMarked`, alUploads below).
              Read by the Save's read-back and its Undo, and by the checked commit's re-run, which takes
              a record for a save's own landed write only with that save's mark (`commitChecked`).
 createdAt    Firestore server timestamp — the rules require it to BE the server's clock at the write
@@ -303,9 +303,9 @@ added             list of "Name|YYYY-MM-DD" — the days this Save CREATED, the 
 writesMarked      Optional, and only ever `true` — every leave record this Save wrote carries this log's id
                   as `uploadId` (overrides above), so its undo asks for the id instead of judging by who
                   wrote the day and when. Accepted by the rules from v26.14, and written by every Save
-                  from v26.15. A log without it was written before then: its records carry no id, so its
-                  undo keeps the old judgement, and its gap with it (KNOWN_LIMITATIONS.md → "The leave
-                  sheet's Undo and a change made during its Save")
+                  from v26.15. A log without it was written before then: its records carry no id, so it
+                  offers no undo (18 Nov 2026) — the card names the Save and says why, and the undo
+                  takes nothing back for it (al-leave-plan.js header)
 undoneAt          Firestore server timestamp — set once, by an undo; absent until then
 undoneBy          the admin's own name, set with undoneAt
 undone            list of "Name|YYYY-MM-DD" — what the undo took back: every added day gone by its end, whether
@@ -317,8 +317,8 @@ reads the logs of the file's year AND the year before, because last year's sheet
 log says was brought into line, and the app no longer holds, was removed in the app since: it is shown,
 never ticked, so leave cancelled in the app does not come back. A copy of the workbook saved before the
 newest one logged is refused by name. An undo removes only `added` days nobody has written since the
-Save: once its records carry the log's id (`writesMarked`), a day still holding it; on an older log, a
-day stamped no later than `savedAt`. The log says what the Save did with each day; the one field it
+Save — a day still holding the log's id — and only a log whose records carry it (`writesMarked`) has
+an undo at all. The log says what the Save did with each day; the one field it
 needed on the leave record itself is that id, because no timestamp can tell the Save's own write from
 the same admin's change made between the Save and its log. The entries take the override cache key's
 form, `memberName|YYYY-MM-DD`.

@@ -291,10 +291,11 @@ describe('the Save button and the "after" figures', () => {
 });
 
 describe('what the logs already written say about a new file', () => {
-    /** @param {Partial<import('./al-leave-plan.js').UploadLog>} o @returns {any} */
+    /** A log as every Save writes one now: its records carry its id (`writesMarked`, v26.15).
+     *  @param {Partial<import('./al-leave-plan.js').UploadLog>} o @returns {any} */
     const log = (o) => ({ year: YEAR, fileDigest: 'sha256:' + 'a'.repeat(64), workbookSha256: 'b'.repeat(64),
         clerksLastSaved: '2026-11-06T10:00:00Z', lastSavedByClerk: true, savedAt: { seconds: 100 }, savedBy: ADMIN,
-        appVersion: '26.12', inLine: [], added: [], ...o });
+        appVersion: '26.15', inLine: [], added: [], writesMarked: true, ...o });
     const file = (/** @type {string|null} */ saved, digest = 'sha256:' + 'c'.repeat(64)) =>
         ({ year: YEAR, digest, source: { sha256: 'd'.repeat(64), clerksLastSaved: saved, lastSavedByClerk: true } });
 
@@ -367,6 +368,10 @@ describe('what the logs already written say about a new file', () => {
             assert.equal(judge([B]).undoable, null);
         });
 
+        test('a Save that marked its days is never named as one that did not', () => {
+            assert.equal(judge([A, B]).unmarked, null);
+        });
+
         test('an undo takes its days out of the later log too — the Undo removed them, not somebody in the app', () => {
             const undone = { ...A, undoneAt: { seconds: 300 }, undone: ['A. Example|2026-03-03'] };
             assert.deepEqual([...judge([undone, B]).protectedKeys].sort(), ['A. Example|2026-03-02'],
@@ -376,6 +381,45 @@ describe('what the logs already written say about a new file', () => {
         test('…but a log written AFTER the undo keeps its claim', () => {
             const undone = { ...A, undoneAt: { seconds: 150 }, undone: ['A. Example|2026-03-03'] };
             assert.equal(judge([undone, B]).protectedKeys.has('A. Example|2026-03-03'), true, 'B brought it back into line after the undo');
+        });
+    });
+
+    // A SAVE FROM BEFORE THE MARK IS NAMED, AND NOT UNDONE (review, 18 Nov 2026). Its records carry no id,
+    // so a day changed since cannot be told from its own: judged by date, its Undo took back a change the
+    // same admin made between the Save and its log. The card names it and says why there is no Undo.
+    describe('a Save from before the app marked its days', () => {
+        /** A log as a Save wrote one before v26.15: no `writesMarked` at all. @param {any} o */
+        const unmarkedLog = (o) => { const l = log({ appVersion: '26.13', ...o }); delete l.writesMarked; return l; };
+        const OLD = unmarkedLog({ id: 'OLD', savedAt: { seconds: 100 }, inLine: ['A. Example|2026-03-03'], added: ['A. Example|2026-03-03'] });
+        const judge = (/** @type {any[]} */ logs) => judgeUploads({ logs, file: file('2026-11-06T10:00:00Z') });
+
+        test('premise: it has no mark', () => {
+            assert.equal('writesMarked' in OLD, false);
+        });
+
+        test('it is named, and its Undo is not offered', () => {
+            const j = judge([OLD]);
+            assert.equal(j.undoable, null, 'no Undo for a Save whose days cannot be told from a change made since');
+            assert.equal(j.unmarked?.id, 'OLD', 'and the card is told which Save it is, to say why');
+        });
+
+        test('a later Save that added nothing does not hide it', () => {
+            const swaps = log({ id: 'SWAPS', savedAt: { seconds: 200 }, added: [] });
+            assert.equal(judge([OLD, swaps]).unmarked?.id, 'OLD');
+            assert.equal(judge([OLD, swaps]).undoable, null);
+        });
+
+        test('a marked Save after it is offered as before, and the old one is no longer named', () => {
+            const NEW = log({ id: 'NEW', savedAt: { seconds: 200 }, inLine: ['B. Example|2026-04-01'], added: ['B. Example|2026-04-01'] });
+            const j = judge([OLD, NEW]);
+            assert.equal(j.undoable?.id, 'NEW');
+            assert.equal(j.unmarked, null);
+        });
+
+        test('once undone, it is neither offered nor named', () => {
+            const j = judge([{ ...OLD, undoneAt: { seconds: 300 }, undone: OLD.added }]);
+            assert.equal(j.undoable, null);
+            assert.equal(j.unmarked, null);
         });
     });
 
@@ -532,12 +576,24 @@ describe('what an Undo may take back', () => {
         // The Save wrote both days (400); the admin re-saved WORK2 in another tab (450); the log came last (500).
         const changed = own(WORK2, { uploadId: undefined, createdAt: { seconds: 450 } });
         const recordsByName = new Map([[CEA.name, [own(WORK), changed]]]);
-        // The reported bug, as the premise: judged by date, as before the mark, the change is the Save's.
-        const byDate = planUndo({ log: { ...log, writesMarked: undefined }, recordsByName });
-        assert.deepEqual(byDate.remove.map(r => r.date).sort(), [WORK, WORK2].sort(), 'the premise: the date rule undoes the admin’s change');
+        // Judged by date, as a log from before the mark once was, the change counted as the Save's and went
+        // with the Undo. Such a log now takes nothing back at all (the next test).
         const u = planUndo({ log, recordsByName });
         assert.deepEqual(u.remove.map(r => r.date), [WORK]);
         assert.deepEqual(u.kept, [dayKey(CEA.name, WORK2)]);
+    });
+
+    test('A LOG FROM BEFORE THE MARK TAKES BACK NOTHING — not even a day exactly as its Save wrote it (review, 18 Nov 2026)', () => {
+        // A Save before v26.15 wrote no id on its records, so its own day and the same admin's later
+        // change to it look alike: the date rule took both. Now neither goes; the admin removes by hand.
+        const added = [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2), dayKey(CEA.name, REST)];
+        const unmarked = { id: UP, savedAt, savedBy: ADMIN, added };
+        const asWritten = own(WORK, { uploadId: undefined });
+        const changedInTheGap = own(WORK2, { uploadId: undefined, createdAt: { seconds: 450 } });
+        const u = planUndo({ log: /** @type {any} */ (unmarked), recordsByName: new Map([[CEA.name, [asWritten, changedInTheGap]]]) });
+        assert.deepEqual(u.remove, [], 'nothing is taken back from a Save that never marked its days');
+        assert.deepEqual(u.kept, [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2)], 'every day still there is kept');
+        assert.deepEqual(u.gone, [dayKey(CEA.name, REST)], 'and a day already gone is still reported gone');
     });
 
     test('a marked log takes back nothing carrying another Save’s id, and nothing at all without an id of its own', () => {
@@ -558,18 +614,6 @@ describe('what an Undo may take back', () => {
             assert.deepEqual(u.remove, []);
             assert.deepEqual(u.kept, [dayKey(CEA.name, WORK)]);
         }
-    });
-
-    test('a log from before the mark (v26.13) is still judged by date: its records carry no id', () => {
-        const log = /** @type {any} */ ({ savedAt, savedBy: ADMIN,
-            added: [dayKey(CEA.name, WORK), dayKey(CEA.name, WORK2), dayKey(CEA.name, REST), dayKey(CEA.name, REST2), 'not a key'] });
-        /** @param {string} d @param {Record<string, any>} [o] */
-        const unmarked = (d, o = {}) => own(d, { uploadId: undefined, ...o });
-        const records = [unmarked(WORK), unmarked(WORK2, { createdAt: { seconds: 600 } }), unmarked(REST, { changedBy: 'C. Manager' })];
-        const u = planUndo({ log, recordsByName: new Map([[CEA.name, records]]) });
-        assert.deepEqual(u.remove.map(r => r.date), [WORK]);
-        assert.deepEqual(u.kept, [dayKey(CEA.name, WORK2), dayKey(CEA.name, REST)]);
-        assert.deepEqual(u.gone, [dayKey(CEA.name, REST2)]);
     });
 });
 

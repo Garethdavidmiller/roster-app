@@ -363,8 +363,8 @@ writer builds its record without it, so the first rewrite of the day, by anybody
 Undo removes a day only while it still carries the id. It first went by date — leave by the log's
 author, stamped no later than the log — but the log is written after the leave and a read of it, and
 the same admin's change in another tab during that time passed the date test and was undone. Rules
-first (v26.14), the Save after them (v26.15); a log from before then has no marked records and is
-still judged by date.
+first (v26.14), the Save after them (v26.15). A log from before then has no marked records, so it has
+no Undo (review, 18 Nov 2026): the date was all that could judge it, and the date is what failed.
 
 **Removing app-only leave is not planned.** Every way of deciding it is weak:
 
@@ -685,7 +685,10 @@ function. Now:
 - **The checked commit's re-run asks for it too**: a record exactly like a save, but without that
   save's mark or with another's, is somebody else's write (`commitChecked`, the leave sheet's Save and
   Admin's own saves alike).
-- **A log written before the mark** keeps the date rule, because its records carry no id.
+- **A log written before the mark has no Undo** (review, 18 Nov 2026). Its records carry no id, so the
+  date rule was the only way left to judge them, and it is the rule that failed. The card still names
+  that Save, and says why it has no Undo (`judgeUploads` → `unmarked`); `planUndo` takes nothing back
+  for it either, a second lock behind the first. Its days are taken back in Admin.
 
 Tests that failed before it: the reviewer's sequence through the real writer, read-back, log and Undo,
 with the admin's change both after the read-back and before it; the same in the browser through the

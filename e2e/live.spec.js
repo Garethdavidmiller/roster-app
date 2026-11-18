@@ -181,25 +181,28 @@ for (const target of TARGETS) {
         const state = await page.evaluate(() => {
             const splash = document.getElementById('splash') || document.querySelector('.splash');
             const cs = splash ? getComputedStyle(splash) : null;
-            return {
-                // A splash that never clears is the exact shape of the outage this exists for.
-                splashUp: !!splash && !splash.hidden && cs.display !== 'none' && cs.opacity !== '0',
-                // Something a reader can actually use is on screen. The Calendar's front door is a
-                // sign-in card for a visitor with no session (v23.19), so this deliberately does
-                // NOT require the grid: reaching that needs a member session or the staff PIN.
-                text: (document.body.innerText || '').replace(/\s+/g, ' ').trim(),
-            };
+            // A splash that never clears is the exact shape of the outage this exists for.
+            return { splashUp: !!splash && !splash.hidden && cs.display !== 'none' && cs.opacity !== '0' };
         });
+        // THE FRONT DOOR, NOT JUST TEXT (review, 18 Nov 2026). Every page here greets a visitor with no
+        // session with the sign-in card (the Calendar's since v23.19), so its button is what "a reader
+        // can use this" means — the grid needs a member session or the staff PIN. The check this
+        // replaced asked for forty characters of text. Measured on the live site with the card hidden,
+        // that caught a bare Calendar (19 characters) and Admin ("Loading…"), but not the Pay
+        // Calculator, which draws its whole page behind the card (2,728): a Pay page whose sign-in
+        // card never came would have passed.
+        const door = page.locator('#loginSubmit');
+        const doorShown = await door.isVisible();
 
         const mode = direct ? 'DIRECT' : 'RELAYED (curl-fulfilled — referrer + Firebase NOT covered)';
         console.log(`  ${target.name}: HTTP ${resp?.status()} · mode ${mode} · `
-            + `splashUp=${state.splashUp} · console errors ${errs.length}`);
+            + `splashUp=${state.splashUp} · sign-in card ${doorShown ? 'shown' : 'NOT shown'} · console errors ${errs.length}`);
         if (errs.length) console.log(`    ${JSON.stringify(errs.slice(0, 5))}`);
 
         expect(resp?.status(), 'the page must be served').toBe(200);
         expect(state.splashUp, 'the splash must come down — a stuck splash IS the outage').toBe(false);
-        expect(state.text.length, 'the page must render something a reader can use')
-            .toBeGreaterThan(40);
+        await expect(door, 'a visitor with no session must reach the sign-in card, not an empty page')
+            .toBeVisible();
         expect(errs, `console errors on ${target.url}`).toEqual([]);
     });
 }

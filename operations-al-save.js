@@ -212,6 +212,15 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
                 root.append(el('p', 'al-sheet-warn', line));
             }
             // The latest Save that ADDED leave — a later one where only swaps landed has no Undo of its own (al-leave-plan.js).
+            // One made before the app marked its days is named with no Undo, and the line says why (al-leave-plan.js header).
+            const unmarked = judged?.unmarked;
+            if (unmarked && me && Array.isArray(unmarked.added) && unmarked.added.length) {
+                const row = el('div', 'al-sheet-last');
+                row.append(el('p', '', lastSaveWords({ savedAt: stampDate(unmarked.savedAt), savedBy: unmarked.savedBy,
+                    added: unmarked.added.length, latest: unmarked === judged?.newest })), el('p', 'al-sheet-unmarked', SAVE_WORDS.undoUnmarked));
+                root.append(row);
+                return;
+            }
             const last = judged?.undoable;
             if (!last || !me || !Array.isArray(last.added) || !last.added.length || 'undoneAt' in last) return;
             const row = el('div', 'al-sheet-last');

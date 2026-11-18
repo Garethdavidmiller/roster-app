@@ -876,20 +876,20 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
               `<span aria-hidden="true">${icon}</span> ${escapeHtml(head)}</span><ul class="check-triage-list">` +
               items.map(t => `<li>${escapeHtml(t)}</li>`).join('') + `</ul></div>`
             : '';
-        // NOTHING TO FIX IS SAID OUT LOUD, never as a tick: a quiet panel must not read as approval.
-        // It names what follows it (a bare line above the points to discuss read as a pass) and whose
-        // finding it is, "these checks", since "Nothing found" claimed more than the rows establish
-        // (external reviews, 14 and 15 Nov 2026). Why: .claude/rules/links-design.md → the triage block.
+        // NOTHING TO FIX IS SAID OUT LOUD, never as a tick: a quiet panel must not read as approval. The
+        // points to discuss lead it (alone it read as a pass), "these checks" says whose finding it is, and
+        // the company limits' missing policy source is said under it from the heading's own switch (reviews
+        // of 14, 15 and 18 Nov 2026). Why: .claude/rules/links-design.md → the triage block.
         const discussing = triage.discuss.length;
-        const nothingToFix = discussing
-            ? `These checks found nothing that has to be fixed — but ${discussing} ${discussing === 1 ? 'point below is' : 'points below are'} worth discussing`
+        const nothingToFix = discussing ? `${discussing} ${discussing === 1 ? 'point below is' : 'points below are'} worth discussing — these checks found nothing that has to be fixed`
             : 'These checks found nothing that has to be fixed — the rows below say what each one looked at';
+        const sourceNote = POLICY_SOURCE_CONFIRMED ? '' : '<div class="check-sub">Company limits are checked as configured here; their policy source is still outstanding (Company limits, below).</div>';
         const triageHtml =
             `<div class="check-triage">` +
             (triage.fix.length
                 ? triageRow('check-triage--fix', '⛔', 'Needs fixing before review', triage.fix)
                 : `<div class="check-triage-group check-triage--none"><span class="check-triage-head">` +
-                  `${escapeHtml(nothingToFix)}</span></div>`) +
+                  `${escapeHtml(nothingToFix)}</span>${sourceNote}</div>`) +
             triageRow('check-triage--discuss', '⚠', 'Worth discussing', triage.discuss) +
             `</div>`;
 

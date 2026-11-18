@@ -2084,6 +2084,33 @@ test('admin: Boxing Day takes no Other day — the chips say why, and Save refus
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 
+// CHRISTMAS LEAVE READS AL IN THE BASE ROSTER COLUMN, as it does on the Calendar (owner, 18 Nov 2026: "This
+// doesn't make sense"). A member due at work on 25 and 26 December read Rest there — the station's closure,
+// under every Christmas — beside a Calendar reading AL, and at phone width the row's note that reconciled
+// the two is out of sight until the row is ticked. Only the badge changed: work there is still RDW, so the
+// hint that says so names the closure, and bulk Absent names both days for what they are.
+test('admin: Christmas leave reads AL in the Base roster column at phone width, and the hints name the closure', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await adminOnWeek(page, 'G. Miller', '2026-12-21');
+    const row = (/** @type {string} */ d) => page.locator(`.day-row[data-date="${d}"]`);
+    for (const d of ['2026-12-25', '2026-12-26']) {
+        await expect(row(d).locator('.col-base .shift-badge'), `${d}: the leave the Calendar shows`).toHaveText(/AL$/);
+        await expect(row(d).locator('.col-pills'), `premise: ${d}'s note is out of sight until the row is ticked`).toBeHidden();
+    }
+    await expect(row('2026-12-24').locator('.col-base .shift-badge'), 'an ordinary day keeps its own base shift').not.toHaveText(/AL$/);
+    const xmas = row('2026-12-25');
+    await xmas.locator('.day-cb').click();
+    await xmas.locator('.type-pill-btn[data-type="shift"]').click();
+    await expect(xmas.locator('.col-rd-hint')).toHaveText('The station is closed on Christmas Day — use RDW if this day was worked');
+    await xmas.locator('.type-pill-btn[data-type="shift"]').click();   // un-pick it: the bulk bar below starts clean
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-sick').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#formFeedback'))
+        .toContainText(`${formatDisplay('2026-12-25')} and ${formatDisplay('2026-12-26')} skipped: the station is closed, so nothing is recorded`);
+    await expect(page.locator('#formFeedback')).not.toContainText(new RegExp(`${formatDisplay('2026-12-25')}[^;]*on the base roster`));
+});
+
 // SPARE ON A SUNDAY AND ON BOXING DAY (owner, Nov 2026). The saves always took one — a Sunday Spare
 // passes the single-row save, and Boxing Day's backstop refuses only an Other day — but the grid had
 // turned the whole Other pill off on both days, and Spare lives behind it. Now Other offers Spare alone.
