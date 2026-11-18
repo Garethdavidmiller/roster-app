@@ -208,7 +208,10 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   aria-label="PDF — save or print this guide">⤓ PDF</button>`. Wired by `guide-print.js`
   (`.btn-print`) on all five guides. No page script prints from it, but `fip-guide.js` adds a
   capture-phase click listener on the same button that prepares the page (expands every country)
-  before `guide-print.js` prints.
+  before `guide-print.js` prints. **A search prints its cards and the key rules, not the book**
+  (owner, 18 Nov 2026): with a filter showing cards, `body[data-print-filtered]` keeps only the
+  matching countries and the sections marked `.fip-filter-print` (the countries heading, What to
+  carry, Important to know). The PDF button's label and the count line say so.
 
 ## Source governance — GUIDE_SOURCES.md
 

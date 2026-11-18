@@ -955,6 +955,16 @@ body.lb-open #stickyTotal { display: none !important; }
     body:has(#loginOverlay.visible:not(.login-overlay--inline), #pwForceOverlay.visible) > :not(#loginOverlay):not(#pwForceOverlay) { display: none !important; }
 }
 
+/* PAPER IS WHITE BEHIND EVERYTHING (print audit, 18 Nov 2026). `html` is the navy canvas, and a page
+   that prints with `print-color-adjust: exact` on every element (the Calendar's `*` rule) carries that
+   navy onto paper wherever the body does not reach — a Team View one row longer than its sheet printed
+   page 2 as a solid navy block, with Chrome's "Background graphics" box ticked or not. The body's own
+   floor (index.css, "DO NOT ADD `min-height: auto`") only ever covered the FIRST sheet. Here, once, so
+   every app page gets it; the guides never had a navy canvas. */
+@media print {
+    html { background: white !important; }
+}
+
 /* Content panel — structural positioning and open animation.    */
 /* Theme: colours, padding, border-radius, width stay in ID.     */
 .lb-content {

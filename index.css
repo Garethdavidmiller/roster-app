@@ -2135,7 +2135,12 @@
                 position: static;
             }
             .team-table thead .tv-today-col { background: var(--accent-gold) !important; }
-            .tv-cell { white-space: normal; }
+            /* ONE LANDSCAPE SHEET FOR A WHOLE GRADE (print audit, 18 Nov 2026). At the screen's 5px the
+               CEA week ran 25 rows to a sheet that holds 24, and the last colleague printed alone on a
+               second page. 2px fits about 30 rows under the masthead — room for the grade to grow — and
+               the times still read at the screen's size. `e2e/print.spec.js` counts the sheets. */
+            .tv-cell { white-space: normal; padding-top: 2px; padding-bottom: 2px; }
+            .team-table tbody th.tv-name-col { padding-top: 2px; padding-bottom: 2px; }
             .team-table th.tv-name-col { position: static; }
             /* A NAME IS NEVER ELLIPSISED ON PAPER: on screen a member can scroll or tap, on paper an
                ellipsis is unrecoverable. A DOM check cannot see it, so the rasterised sheet in

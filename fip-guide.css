@@ -624,6 +624,13 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
        a country only when that card carries the unresolved callout the banner is about. */
     body[data-print-country]:not(:has(.is-print-country .fip-unresolved)) > .source-banner { display: none !important; }
 
+    /* A SEARCH PRINTS ITS CARDS AND THE KEY RULES (owner, 18 Nov 2026; fip-guide.js, beside
+       `filterShowsCards`). The same one-rule shape as the country print above: keep the country cards
+       the search shows (a card it hid is hidden already) and the blocks marked `fip-filter-print` —
+       the "European destinations" heading, "What to carry" and "Important to know" — and nothing else. */
+    body[data-print-filtered] > .content > *:not([id^="country-"]):not(.fip-filter-print) { display: none !important; }
+    body[data-print-filtered]:not(:has([id^="country-"]:not([hidden]) .fip-unresolved)) > .source-banner { display: none !important; }
+
     body { background: white; font-size: 13px; }
 
     .content { max-width: 100%; padding: 0 0 16px; }

@@ -2051,6 +2051,7 @@ body:not(.auth-ready) .app-header { display: none; }
     .check-quiet-summary::before,
     .check-quiet-summary .check-note { display: none; }
     .check-quiet-label { text-transform: uppercase; letter-spacing: 0.4px; font-size: var(--type-micro); }
+    .check-family, .check-section-head, .check-quiet-summary { break-after: avoid; } /* never alone at a sheet's foot (print audit, 18 Nov 2026) */
 }
 
 /* Generator column/row notes (v19.58). Two facts a designer has to have in view while setting
