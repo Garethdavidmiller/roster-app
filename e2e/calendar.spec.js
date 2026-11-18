@@ -5472,6 +5472,40 @@ test('about: a bug report from a desktop browser says it was not the installed a
     expect(body).toContain('Browser: Mozilla/5.0 (Windows NT 10.0');
 });
 
+// THE BUG REPORT SAYS WHO SENT IT (18 Nov 2026). Its "User:" line named the member whose calendar was on
+// screen — a colleague's as often as not — where every other page names the signed-in member. It names
+// the reporter now ("Staff PIN" on the PIN), and the calendar shown is a line of its own. Names are read
+// from the page or invented, never taken from the roster.
+/** The bug report's body, as the About panel's link carries it. @param {import('@playwright/test').Page} page */
+async function bugReportBody(page) {
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    return page.locator('#bugReportLink').evaluate(a => new URL(/** @type {HTMLAnchorElement} */ (a).href).searchParams.get('body') || '');
+}
+
+test('about: the Calendar\'s bug report names the member signed in, and whose calendar was shown, apart', async ({ page }) => {
+    // Signed in under an invented name, which is not on the roster, so the Calendar shows somebody
+    // else's calendar: the two lines must name two different people.
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    expect(shown, 'premise: the calendar on screen is not the reporter\'s').not.toBe('A. Person');
+    const lines = (await bugReportBody(page)).split('\n');
+    expect(lines, 'the report named the calendar on screen as its sender').toContain('User: A. Person');
+    expect(lines).toContain(`Calendar shown: ${shown}`);
+});
+
+test('about: on the staff PIN, the Calendar\'s bug report says so — and still says whose calendar was shown', async ({ page }) => {
+    await seedMember(page);   // the beforeEach's PIN viewer, and a calendar chosen on this device
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    const lines = (await bugReportBody(page)).split('\n');
+    expect(lines, 'a PIN unlock reported a member as the sender').toContain('User: Staff PIN');
+    expect(lines).toContain(`Calendar shown: ${shown}`);
+});
+
 test('App Notices with nothing on this device says where notices appear, not that there were none', async ({ page }) => {
     // The archive is this device's own storage, and Safari wipes it, and the installed app keeps a
     // separate one — so an empty list says nothing about whether notices were posted.

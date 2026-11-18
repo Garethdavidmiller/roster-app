@@ -789,7 +789,12 @@ try {
 
             const about = initAboutLightbox({
                 appLabel: 'Marylebone Roster',
-                getUserName: () => isFirstRun() ? 'Not selected' : ((/** @type {any} */ (getCurrentMember()))?.name || 'Not selected'),
+                // WHO IS REPORTING, as every other page says it: the signed-in member, or how the
+                // Calendar was opened without one (18 Nov 2026). It named the member on screen, which
+                // is a colleague's calendar as often as the reader's own — so that has a line of its own.
+                getUserName: () => getSession()?.name || (isViewerMode() ? 'Staff PIN' : 'Not signed in'),
+                getReportLines: () => [`Calendar shown: ${getAccessType() === 'none' ? 'None (locked)'
+                    : isFirstRun() ? 'Not selected' : ((/** @type {any} */ (getCurrentMember()))?.name || 'Not selected')}`],
                 onOpen() {
                     // Swap content based on current view mode
                     const inTeam = teamView.isTeamViewMode();
