@@ -31,8 +31,8 @@ name: Is the live site up?
 # A failure is a page that fails TWICE, a minute apart (6 Nov 2026, owner decision — the site step
 # says why). It reports on the SAME `deploy-failure` issue thread the deploy workflows and the
 # currency check use — one situation, one thread. It never deploys and never fixes: least
-# privilege, observe and report. A failed notification must not bury the real failure, so that
-# step never fails the job.
+# privilege, observe and report. A failed notification must not bury the real failure, so the
+# alert never fails its job.
 
 on:
   schedule:
@@ -46,9 +46,12 @@ on:
     - cron: '41 */4 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: write
+# EACH JOB ASKS FOR WHAT IT USES, AND ONLY THE ALERT CAN WRITE (review, 18 Nov 2026). This was one
+# job under `issues: write`, whose checkout kept the token on disk while `npm ci` ran every
+# dependency's install script. Off the disk is not enough on its own: a token handed to a later step
+# of the same job is in reach of anything an install script put on that step's PATH. So the alert is
+# a job of its own, on a fresh runner, as each deploy workflow's `report-failure` is.
+permissions: {}
 
 jobs:
   live:
@@ -57,20 +60,31 @@ jobs:
     # Six pages with an 8s settle each plus the browser install: measured ~4 minutes end to end, and
     # about two more when a first look fails and the site step looks again. The limit is not sized
     # for either. It is sized so the SITE STEP'S OWN limit always runs out first: every install step
-    # may take its whole limit and the site step its 20, and the report and the alert still have
-    # room. A job that runs out of time is CANCELLED, and a cancelled job tells nobody (the site
-    # step says why that matters). This was 35, counting only the system libraries' 8 minutes:
-    # `npm ci` (7 minutes, 4 Sep 2026) and a browser download on a cache miss (9–25 minutes, 7 Oct)
-    # had no limits and were not counted, so a slow setup and a hanging site together ran the job
-    # out first (6 Nov review). Each now has its own limit, and workflow-hygiene.test.mjs adds them up.
-    # SO DOES EVERY OTHER STEP BUT THE ALERT (7 Nov review): the checkout, Node's npm cache and the
-    # browser cache are downloads too, and the report upload runs between the site step and the
-    # alert. Each normally takes seconds; three minutes is the outer edge, and past it the step
-    # fails by name like an install would.
+    # may take its whole limit and the site step its 20, and the trace upload still has room. A job
+    # that runs out of time is CANCELLED, and a cancelled job tells nobody (the site step says why
+    # that matters). This was 35, counting only the system libraries' 8 minutes: `npm ci` (7
+    # minutes, 4 Sep 2026) and a browser download on a cache miss (9–25 minutes, 7 Oct) had no
+    # limits and were not counted, so a slow setup and a hanging site together ran the job out first
+    # (6 Nov review). Each now has its own limit, and workflow-hygiene.test.mjs adds them up.
+    # SO DOES EVERY OTHER STEP (7 Nov review): the checkout, Node's npm cache and the browser cache
+    # are downloads too, and the trace upload runs after the site step. Each normally takes seconds;
+    # three minutes is the outer edge, and past it the step fails by name like an install would. The
+    # five minutes the step limits leave over are for what runs after the last step: the browser
+    # cache's save.
     timeout-minutes: 75
+    permissions:
+      contents: read
+    # The site step's outcome, for the alert job below: only a failure of the check itself is
+    # reported, and that job is where the rule is argued.
+    outputs:
+      site: ${{ steps.site.outcome }}
     steps:
+      # No token left on disk: every dependency's install script runs in this job, and nothing here
+      # needs git credentials (the top of this file says why that is only half of it).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         timeout-minutes: 3
+        with:
+          persist-credentials: false
 
       - name: Install Node.js
         timeout-minutes: 3
@@ -80,8 +94,8 @@ jobs:
           cache: 'npm'
 
       # Every step that installs has a limit of its own, counted into the job's above. One that runs
-      # out FAILS by name, and the alert step waits only for the site step, so a runner that could
-      # not install is a red run and not an email about a site nobody opened.
+      # out FAILS by name, and the alert job acts only on the site step's failure, so a runner that
+      # could not install is a red run and not an email about a site nobody opened.
       - name: Install dependencies
         timeout-minutes: 10
         run: npm ci
@@ -162,16 +176,30 @@ jobs:
           path: test-results/
           retention-days: 7
 
-      # ONLY WHEN THE SITE CHECK ITSELF FAILED (whole-app review, Oct 2026). `failure()` alone also
-      # fired when an INSTALL step died — a runner that could not fetch a library posted "The live
-      # site failed its health check" on the thread staff-facing outages are reported on, about a
-      # site nobody had opened. A check that could not run is a red run, which GitHub already
-      # emails; it is not a finding about the site.
+  # ── THE ALERT: ITS OWN JOB, THE ONLY ONE THAT CAN WRITE, AND IT RUNS NOTHING INSTALLED ──────────
+  # A fresh runner, so nothing the live job installed or ran can reach the token (the top of this
+  # file says why). No checkout either: gh is told the repository instead.
+  report:
+    needs: live
+    # ONLY WHEN THE SITE CHECK ITSELF FAILED (whole-app review, Oct 2026). `failure()` alone also
+    # fired when an INSTALL step died — a runner that could not fetch a library posted "The live
+    # site failed its health check" on the thread staff-facing outages are reported on, about a
+    # site nobody had opened. A check that could not run is a red run, which GitHub already
+    # emails; it is not a finding about the site. The live job hands over its site step's outcome.
+    if: failure() && needs.live.outputs.site == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
       - name: Say so, once, in an issue
-        if: failure() && steps.site.outcome == 'failure'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          # gh finds the repository from a checkout, and this job has none — without this every
+          # issue command fails (race-detector.yml did exactly that until 10 Nov 2026).
+          GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -uo pipefail
