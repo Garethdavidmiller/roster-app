@@ -89,18 +89,30 @@ export async function readCollection(collection) {
  * Put one document straight into the database, past the rules (`Bearer owner`) — for a test that
  * needs something to READ, such as a record a manager made last week. Strings only, plus a server-
  * shaped `createdAt`, which is all the documents this lane seeds carry.
+ *
+ * THE ID IS SENT AS WRITTEN. It travels in a URL, and the emulator decodes a URL path once, so each
+ * segment is encoded here first. Without that, a manual record's id — already percent-encoded by
+ * `manualOverrideId` ("m_<date>_A.%20Name") — was stored decoded ("m_<date>_A. Name"), an id the app
+ * never writes: a test that then had the app write, delete or replace that day would have met two
+ * records, or none. The name the emulator stored is checked against the path asked for, so the same
+ * slip fails here, at the seeding, instead of somewhere later that looks unrelated.
  * @param {string} path       e.g. `overrides/<id>`
  * @param {Record<string, string>} fields
  */
 export async function seedDocument(path, fields) {
     const encoded = Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, { stringValue: v }]));
     encoded.createdAt = /** @type {any} */ ({ timestampValue: new Date().toISOString() });
-    const res = await fetch(`http://${EMULATOR.firestore}/v1/projects/${PROJECT}/databases/(default)/documents/${path}`, {
+    const sent = path.split('/').map(encodeURIComponent).join('/');
+    const res = await fetch(`http://${EMULATOR.firestore}/v1/projects/${PROJECT}/databases/(default)/documents/${sent}`, {
         method: 'PATCH',
         headers: { authorization: 'Bearer owner', 'content-type': 'application/json' },
         body: JSON.stringify({ fields: encoded }),
     });
     if (!res.ok) throw new Error(`could not seed ${path}: HTTP ${res.status} ${await res.text()}`);
+    const stored = String((await res.json()).name || '');
+    if (!stored.endsWith(`/documents/${path}`)) {
+        throw new Error(`seeded ${path}, but the emulator stored ${stored || 'no name'} — the id was not sent as written`);
+    }
 }
 
 /** @param {any} v  a Firestore REST value */
