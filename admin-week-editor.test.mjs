@@ -106,7 +106,8 @@ mock.module('./admin-override-store.js', {
 
 const { _hasStagedEdits, buildWeekGridInto, renderWeekGrid, updateSaveBtn, initWeekEditor, rosteredWords }
     = await import('./admin-week-editor.js');
-const { teamMembers, getBaseShift, formatISO } = await import('./roster-data.js');
+const { teamMembers, getBaseShift, getShiftBadge, formatISO } = await import('./roster-data.js');
+const { isChristmasLeaveDay } = await import('./christmas-leave.js');
 
 const _changed = [];
 /** The records the grid is drawn over: none, except where a test puts one (see the header). */
@@ -436,9 +437,9 @@ describe('the "Base roster" column says what the day WAS', () => {
     });
 
     test('a Christmas day the member was due to work says so on the row (v25.37)', () => {
-        // The Base roster column shows the rest day `getBaseShift` makes both days for everybody, so
-        // the row is the only place a manager learns this member is on leave there — and that there
-        // is nothing to record. G. Miller's pattern has him on a late turn on both days in 2026.
+        // The row's note says this member is on leave there, and that there is nothing to record. The
+        // Base roster column says the same since 18 Nov 2026 (the test below); the note says why.
+        // G. Miller's pattern has him on a late turn on both days in 2026.
         const rows = buildWeek('G. Miller', '2026-12-25').slice(1);
         const row = (/** @type {string} */ d) => rows.find(r => r.dataset.date === d);
         assert.match(row('2026-12-25').innerHTML,
@@ -450,6 +451,48 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.ok(old.every(r => !/class="christmas-note">(Christmas Day|Boxing Day):/.test(r.innerHTML)));
         // …while Boxing Day refuses an Other day in every year (owner, Jul 2026), and says so.
         assert.match(old.find(r => r.dataset.date === '2025-12-26').innerHTML, /Boxing Day can’t be an Other day/);
+    });
+
+    // THE COLUMN SHOWS THE CHRISTMAS LEAVE THE CALENDAR SHOWS (owner, 18 Nov 2026: "This doesn't make
+    // sense"). It drew the rest day `getBaseShift` makes both days for everybody, so a member due at work
+    // read REST here beside a Calendar reading AL — and on a phone the note that reconciled them is hidden
+    // until the row is ticked. Only the badge changed: the rules under it still read the closure's rest
+    // day, so work there is RDW, and the two hints that speak of it now name the closure, not a rest day.
+    test('a Christmas day the member was due to work shows as AL in the Base roster column, as on the Calendar', () => {
+        const col = (/** @type {any} */ r) => r.innerHTML.match(/<div class="col-base">[^]*?<\/div>/)?.[0];
+        const shows = (/** @type {string} */ v) => `<div class="col-base">${getShiftBadge(v, { showTime: true })}</div>`;
+        const member = teamMembers.find(m => m.name === 'G. Miller');
+        const rows = buildWeek('G. Miller', '2026-12-25').slice(1);
+        const row = (/** @type {string} */ d) => rows.find(r => r.dataset.date === d);
+        for (const d of ['2026-12-25', '2026-12-26']) {
+            assert.equal(col(row(d)), shows('AL'), `${d}: the leave the Calendar shows, not the closure's rest day`);
+            assert.equal(row(d).dataset.baseIsRd, '1', `${d}: the rules still read the rest day — work there is RDW`);
+        }
+        assert.match(row('2026-12-25').innerHTML,
+            /<div class="col-rd-hint" hidden>The station is closed on Christmas Day — use <strong>RDW<\/strong> if this day was worked<\/div>/);
+        assert.match(row('2026-12-26').innerHTML, /The station is closed on Boxing Day — use <strong>RDW<\/strong>/);
+        assert.match(row('2026-12-25').innerHTML, /Ticked and locked because the station is closed on Christmas Day — RDW is automatic/);
+        assert.doesNotMatch(row('2026-12-25').innerHTML, /Base roster: Rest Day|the base roster has this as a rest day/,
+            'no hint calls the day a rest day beside an AL badge');
+        // An ordinary day keeps its own base shift, and the rest-day words where it has them.
+        assert.equal(col(row('2026-12-24')), shows(getBaseShift(member, new Date(2026, 11, 24))));
+        // Before 2026 there was no Christmas leave: both days are the rest day they always were.
+        const old = buildWeek('G. Miller', '2025-12-25').slice(1);
+        for (const d of ['2025-12-25', '2025-12-26']) {
+            const r = old.find(x => x.dataset.date === d);
+            assert.equal(col(r), shows('RD'), `${d}: before Christmas leave, the closure's rest day`);
+            assert.match(r.innerHTML, /Base roster: Rest Day — use <strong>RDW<\/strong> if this was overtime/);
+        }
+    });
+
+    test('a member who was NOT due at work on Christmas Day keeps the rest day in the column', () => {
+        // The badge follows the LEAVE, not the date: a member whose pattern rests that day has no Christmas
+        // leave there, so the column and the Calendar both show the rest day, and the hint says so.
+        const resting = teamMembers.find(m => !m.hidden && !m.managerOnly && !isChristmasLeaveDay(m, new Date(2026, 11, 25)));
+        assert.ok(resting, 'premise: somebody on the roster rests on Christmas Day 2026 by pattern');
+        const xmas = buildWeek(resting.name, '2026-12-25').slice(1).find(r => r.dataset.date === '2026-12-25');
+        assert.ok(xmas.innerHTML.includes(`<div class="col-base">${getShiftBadge('RD', { showTime: true })}</div>`));
+        assert.match(xmas.innerHTML, /Base roster: Rest Day — use <strong>RDW<\/strong> if this was overtime/);
     });
 
     test('a worked Boxing Day names the NEXT year as the allowance its day in lieu goes into (15 Nov 2026)', () => {

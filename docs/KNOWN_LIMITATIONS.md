@@ -1090,21 +1090,6 @@ open:
   Using it needs the admin's own sign-in, and what stands in the way is the admin's own look at each
   person before confirming them.
 
-### The leave sheet's Undo and a change made during its Save (external review, 15 Nov 2026)
-**Closed for every Save from v26.15; still open for a Save made with v26.13 or v26.14.** The Undo on
-Operations → Annual leave sheet takes back only leave its Save created and nobody has changed since. It
-used to tell the two apart by who wrote a day and when: annual leave written by the admin, stamped no
-later than the Save's log. But the log is written after the leave and after a read of it, and a change
-the same admin made to one of those days in another tab in that time passed both tests and was undone.
-
-From v26.15 every record a Save writes carries the Save's log id (`uploadId`), which any other save of
-the day drops, and the Undo takes back only records still carrying it (AL_UPLOADER_PLAN.md §4.10). A log
-written before then (`writesMarked` absent) has no marked records, so its Undo is still judged by date.
-Only the latest Save of the year that added leave offers an Undo, so the next Save that adds leave ends this for good.
-
-**Until then, for an older Save only:** if a day it added was changed in Admin while it ran, put the day
-right in Admin after an Undo, or skip the Undo and remove the Save's days in Admin.
-
 ---
 
 ## Navigation / accessibility

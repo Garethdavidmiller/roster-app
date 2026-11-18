@@ -99,6 +99,22 @@ describe('bulkSkippedLine — the line Apply leaves names every day it left alon
             'An absence isn’t recorded on a rest day — tick a working day');
     });
 
+    // Christmas Day and Boxing Day are named as the closure, as the Absence card names them — not as
+    // "a rest day on the base roster": for a member due at work the week grid's Base roster column shows
+    // them as Christmas leave (owner, 18 Nov 2026), and the line sits under that column.
+    test('Christmas Day and Boxing Day are named as the station’s closure, not as the base roster’s rest days', () => {
+        const XMAS = '2026-12-25', BOXING = '2026-12-26', EVE = '2026-12-24';
+        assert.equal(bulkSkippedLine(2, [{ date: XMAS, why: 'christmas' }, { date: BOXING, why: 'christmas' }], fmt),
+            'Set 2 days — 2026-12-25 and 2026-12-26 skipped: the station is closed, so nothing is recorded.');
+        assert.equal(bulkSkippedLine(1, [{ date: EVE, why: 'rest' }, { date: XMAS, why: 'christmas' }], fmt),
+            'Set 1 day — 2026-12-24 skipped: a rest day on the base roster, so nothing is recorded; '
+            + '2026-12-25 skipped: the station is closed, so nothing is recorded.');
+        assert.equal(bulkApplyWaitingFor([XMAS, BOXING], 'sick', () => 'christmas'),
+            'An absence isn’t recorded on Christmas Day or Boxing Day — tick a working day');
+        assert.equal(bulkApplyWaitingFor([EVE, XMAS], 'sick', d => (d === XMAS ? 'christmas' : 'rest')),
+            'None of the ticked days can take it — tick a working day');
+    });
+
     test('three days take commas and an "and"; a day before the start date says so', () => {
         assert.equal(bulkSkippedLine(2, ['2026-07-13', '2026-07-14', '2026-07-15'].map(date => ({ date, why: /** @type {'start'} */ ('start') })), fmt),
             'Set 2 days — 2026-07-13, 2026-07-14 and 2026-07-15 skipped: before the start date, so nothing is recorded.');
