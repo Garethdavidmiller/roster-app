@@ -27,7 +27,7 @@
  * is the engine half this station reads on, and it is where the `beforeprint` assumption came from.
  */
 import { test, expect, forcePasswordSet } from './fixtures.js';
-import { seedSession, seedMember, seedMemberSession, waitForPageSettled, signInThroughOverlay } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedViewerAccess, waitForPageSettled, signInThroughOverlay } from './helpers.js';
 import zlib from 'node:zlib';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
@@ -760,6 +760,22 @@ test('a locked Calendar is not headed with a member\'s name @print', async ({ pa
     // The same page, granted: the line is back (the class is the grant's, calendar-access.js).
     await page.evaluate(() => document.body.classList.add('calendar-unlocked'));
     expect(await inPrint(page, headerAfter)).toContain('Team Member');
+});
+
+// …nor is a FIRST RUN, unlocked by the staff PIN with nobody chosen yet: the header carries no name,
+// and the line printed as "Team Member: " with nothing after it. Picking a name is the premise that
+// the line still prints where there is one, so the rule cannot pass by removing it everywhere.
+test('a first-run Calendar is not headed with an empty member line @print', async ({ page }) => {
+    await seedViewerAccess(page);      // the staff PIN, and no member chosen on this device → first run
+    await page.goto('/index.html');
+    await expect(page.locator('.first-run-prompt'), 'premise: the first-run prompt').toBeVisible();
+    expect(await page.evaluate(() => document.body.classList.contains('calendar-unlocked')), 'premise: unlocked').toBe(true);
+    expect(await page.locator('.header').getAttribute('data-member-name'), 'premise: no name on the header').toBeNull();
+    const headerAfter = () => getComputedStyle(/** @type {Element} */ (document.querySelector('.header')), '::after').content;
+    expect(await inPrint(page, headerAfter), 'a first run printed "Team Member: " and no name').toBe('none');
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    expect(await inPrint(page, headerAfter), 'a chosen name prints its line').toContain('Team Member');
 });
 
 // ── A SAVED COPY IS LABELLED ON PAPER TOO (whole-app review, 10 Nov 2026) ───────────────────────

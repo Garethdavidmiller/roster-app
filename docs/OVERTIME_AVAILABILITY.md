@@ -591,7 +591,7 @@ other said nothing, and a reviewer who cannot tell them apart cannot know who is
 
 **After the final deadline.** The form goes read-only and states the deadline it closed at. The
 workspace keeps a standing note that availability reflects what was submitted before the cut-off and
-that short-notice cover should be confirmed with the employee directly.
+that short-notice cover should be confirmed with the person directly.
 
 **When a member is locked out or renamed**, or when a new starter needs to appear: regenerate
 `functions/roster-members.json` and re-run Operations → Set up accounts. Existing weeks gain a new

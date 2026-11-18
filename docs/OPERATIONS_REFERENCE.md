@@ -1480,7 +1480,7 @@ standing "Submitted · updated …" line so a member returning to it can see it 
 
 After the final deadline the member's form goes read-only and states the deadline it closed at.
 Availability recorded before the cut-off is what the roster is planned from; confirm directly with
-the employee before arranging short-notice cover.
+the person before arranging short-notice cover.
 
 ### Printing it
 
