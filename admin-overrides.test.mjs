@@ -509,22 +509,30 @@ describe('recordRangeOverrides — an answered rest day', () => {
 // The Calendar hides an absence on a rest day unless it replaced contracted work, so an absence written
 // over a rest day's Rest Day Working replaced a record that showed with one that never does. The writer's
 // own filter (`rangeWriteDates` → `absenceHiddenDates`, al-swapped-days.js) leaves such a day alone; this
-// is that filter reached through the REAL writer. A member found from the roster, never named.
-const { getBaseShift: baseShiftOf } = await import('./roster-data.js');
+// is that filter reached through the REAL writer. The member is INVENTED, and put on the real roster for each
+// test (the writer looks a member up by name) and taken off again, as admin-roster-upload.test.mjs does.
+const { getBaseShift: baseShiftOf, CONFIG: rosterConfig } = await import('./roster-data.js');
 describe('recordRangeOverrides — an absence range over a rest day holding Rest Day Working', () => {
-    const who = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate && !m.rosterChanges));
     const getBaseShift = baseShiftOf;
-    /** A working weekday followed by a non-Sunday rest day on their line, in October 2026. */
-    const pair = (() => {
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    /** A working weekday followed by a non-Sunday rest day on `m`'s line, in October 2026. @param {any} m */
+    const pairOf = (m) => {
         for (let i = 1; i < 60; i++) {
             const a = new Date(2026, 9, i), b = new Date(2026, 9, i + 1);
             if (a.getDay() === 0 || b.getDay() === 0) continue;
-            const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            if (!isRestShift(getBaseShift(who, a)) && isRestShift(getBaseShift(who, b))) return { work: iso(a), rest: iso(b) };
+            if (!isRestShift(getBaseShift(m, a)) && isRestShift(getBaseShift(m, b))) return { work: iso(a), rest: iso(b) };
         }
         return null;
-    })();
-    beforeEach(() => { _batchWrites.length = 0; });
+    };
+    /** An invented main-line CEA, on the first week of the line with the case. @type {any} */
+    let who = null;
+    for (let w = 1; w <= rosterConfig.MAIN_ROSTER_WEEKS && !who; w++) {
+        const m = { name: 'Q. Example', currentWeek: w, rosterType: 'main', role: 'CEA' };
+        if (pairOf(m)) who = m;
+    }
+    const pair = who && pairOf(who);
+    beforeEach(() => { _batchWrites.length = 0; if (who) teamMembers.push(who); });
+    afterEach(() => { if (who) teamMembers.splice(teamMembers.indexOf(who), 1); });
 
     test('the working day takes the absence; the Rest Day Working stands', async () => {
         assert.ok(pair, 'premise: a working day followed by a rest day on their line');

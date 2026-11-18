@@ -11,6 +11,23 @@ import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG } from '../roster-data.js';
 import { fmtPeriodDate, formatDisplay } from '../admin-period-dates.js';
 
+// AN INVENTED MEMBER, SERVED INTO THE ROSTER FILE FOR ONE TEST (as paycalc.spec.js serves its promoted manager).
+// A test that puts leave, an absence or a rest-day change on somebody uses this, never a colleague looked up
+// from `teamMembers`: the page prints the member's name beside the record ("Deleted 1 absence day for …"), and
+// a failing assertion copies that line into the CI log.
+/** A main-line CEA who exists only in the test. @param {number} [currentWeek] */
+const inventedCea = (currentWeek = 1) => ({ name: 'Q. Example', currentWeek, rosterType: 'main', role: 'CEA' });
+/** @param {import('@playwright/test').Page} page @param {ReturnType<typeof inventedCea>} member */
+async function serveInventedMember(page, member) {
+    await page.route('**/roster-member-data.js', async (route) => {
+        const res = await route.fetch();
+        const entry = `{ name: '${member.name}', currentWeek: ${member.currentWeek}, rosterType: '${member.rosterType}', role: '${member.role}' }`;
+        const body = (await res.text()).replace(/\n\];\s*$/, `\n    ${entry},\n];\n`);
+        expect(body, 'premise: the invented member reached the served roster').toContain(member.name);
+        await route.fulfill({ response: res, body });
+    });
+}
+
 // Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
 // released the session and the push record, and only the reload that followed met `beforeunload` —
 // which a phone suppresses, so the edits went without a word. It now asks first, like Links.
@@ -1460,8 +1477,9 @@ test('admin: a leave preview is redrawn when a recorded period under it is delet
 // Recorded Absence dates ✕ deleted the absence alone, so the leave showed again and the allowance fell by a
 // day under "Deleted 1 absence day". The REAL page path, from the ✕ to the deletes the transaction sent.
 test('admin: a Recorded Absence dates ✕ deletes the older leave copy under the absence, and names it', async ({ page }) => {
-    // A colleague found from the roster, never written down, and one of their working weekdays.
-    const who = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate && !m.rosterChanges));
+    // An invented member, and one of their working weekdays.
+    const who = inventedCea();
+    await serveInventedMember(page, who);
     const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     let day = '';
     for (const d = new Date(2026, 8, 7, 12); !day; d.setDate(d.getDate() + 1)) {
@@ -1974,8 +1992,9 @@ test('admin: All 7 → Absent → Apply stages only the working days, and names 
 // …AND A WORKING DAY A SAVED CHANGE SET AS A REST DAY IS NOT CALLED "A REST DAY ON THE BASE ROSTER" (review,
 // Nov 2026). Absent leaves it alone, rightly — it is a rest day now — but the line named the wrong reason.
 test('admin: bulk Absent names a day a saved change set as a rest day for what it is', async ({ page }) => {
-    // A colleague found from the roster, never written down, and the first of their working weekdays from 11 Jan 2027.
-    const who = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate && !m.rosterChanges));
+    // An invented member, and the first of their working weekdays from 11 Jan 2027.
+    const who = inventedCea();
+    await serveInventedMember(page, who);
     const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     let day = '';
     for (const d = new Date(2027, 0, 11, 12); !day; d.setDate(d.getDate() + 1)) {
@@ -3374,14 +3393,15 @@ test('admin: a colleague\'s change on a staged day is still refused after the pa
 // staged. The planner, reading the fresh records, stopped asking and wrote the leave over the shift — costing a day
 // the answer said was free — and the commit's check, which looks at the day's own id, does not see an import.
 test('admin: a rest-day answer the record has since settled is not applied, and the save says the day changed', async ({ page }) => {
-    // A colleague found from the roster, never written down, with a rest day (not a Sunday) in the week of 24 Aug 2026.
+    // An invented member, on whichever week of the line puts a rest day (not a Sunday) in the week of 24 Aug 2026.
     const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    /** @type {any} */ let who = null, rest = '';
-    for (const m of teamMembers.filter(x => x.role === 'CEA' && !x.hidden && !x.managerOnly && !x.startDate && !x.rosterChanges)) {
+    let who = inventedCea(), rest = '';
+    for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS && !rest; w++) {
+        const m = inventedCea(w);
         for (let d = 24; d <= 29 && !rest; d++) if (isRestShift(getBaseShift(m, new Date(2026, 7, d, 12)))) { who = m; rest = iso(new Date(2026, 7, d, 12)); }
-        if (rest) break;
     }
-    expect(rest, 'premise: a rest day on some line that week').not.toBe('');
+    expect(rest, 'premise: a rest day on some week of the line').not.toBe('');
+    await serveInventedMember(page, who);
     await openAdminOnThisWeek(page);
     await page.locator('#fieldMember').selectOption(who.name);
     const row = weekRow(page, rest);

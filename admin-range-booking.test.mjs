@@ -1103,12 +1103,31 @@ describe('M. the Absence card names a day before the start date and the Christma
 // presses Save, and the click takes the flag at its very top. But a Save the page has disabled since the bar went
 // up ignores a programmatic click (the fake's `click()` does what the platform does), so the flag stayed set, and
 // the next ORDINARY Save went past the allowance question unasked — a booking over the allowance, never asked about.
-// The REAL cards and the real allowance rules; the writer is the mock. People are real patterns, found, never named.
+// The REAL cards and the real allowance rules; the writer is the mock. The member is INVENTED (below).
 const { triggerConfirmedALSave } = await import('./admin-al.js');
 const { entitlementFor } = await import('./al-entitlement.js');
-const { isBankHoliday, getPatternShift } = await import('./roster-data.js');
+const { isBankHoliday, getPatternShift, CONFIG } = await import('./roster-data.js');
+/** An invented main-line CEA, on the first week of the line that `fits` — never a colleague, because a failing
+ *  assertion prints the receipt, and the receipt names the member beside their leave or absence.
+ *  @param {(m: any) => boolean} [fits] */
+const inventedCea = (fits = () => true) => {
+    for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS; w++) {
+        const m = { name: 'Q. Example', currentWeek: w, rosterType: 'main', role: 'CEA' };
+        if (fits(m)) return m;
+    }
+    throw new Error('no week of the main line fits the case');
+};
+/** `m` on the REAL roster for each test of the block and off it after (as admin-roster-upload.test.mjs puts its
+ *  starter on), so the cards' own lookup by name runs for real — the harness's point above. @param {any} m */
+const onRosterForEachTest = (m) => {
+    beforeEach(() => { teamMembers.push(m); });
+    afterEach(() => { teamMembers.splice(teamMembers.indexOf(m), 1); });
+};
 describe('N. "Save anyway" answers the press it is given, and no later one', () => {
     beforeEach(() => { _realWorkingDate = true; });
+    // Due at work on Boxing Day 2026, so the Absence case below has a day in lieu to take back.
+    const QX = inventedCea(m => !isRestShift(getPatternShift(m, new Date(2026, 11, 26))));
+    onRosterForEachTest(QX);
     /** Every working weekday of `m` from `from`, skipping bank holidays and `not`, until `n` are found. */
     const workdays = (/** @type {any} */ m, /** @type {Date} */ from, /** @type {number} */ n, /** @type {string[]} */ not = []) => {
         /** @type {string[]} */ const out = [];
@@ -1122,8 +1141,7 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
         type: 'annual_leave', value: 'AL', source: 'manual', createdAt: { seconds: 1_790_000_000 }, ...extra });
 
     test('Annual Leave: pressed while a deleted period has disabled Save, it saves nothing — and the next Save asks again', async () => {
-        const m = /** @type {any} */ (teamMembers.find(x => x.role === 'CEA' && !x.hidden && !x.managerOnly && !x.startDate && !x.proRatedAL
-            && !x.rosterChanges && x.bilingualContract !== true));
+        const m = QX;
         // A working weekday followed by a non-Sunday rest day, in June 2027.
         let work = '', rest = '';
         for (const d = new Date(2027, 5, 1); !rest; d.setDate(d.getDate() + 1)) {
@@ -1164,8 +1182,7 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
     });
 
     test('Absence: the same for the bar an absence raises when it takes back a day in lieu', async () => {
-        const p = /** @type {any} */ (teamMembers.find(x => x.role === 'CEA' && !x.hidden && !x.managerOnly && !x.startDate && !x.proRatedAL
-            && !x.rosterChanges && x.bilingualContract !== true && !isRestShift(getPatternShift(x, new Date(2026, 11, 26)))));
+        const p = QX;
         const worked = { id: 'n-boxing', memberName: p.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual', createdAt: { seconds: 1_798_000_000 } };
         // 2027 booked to the allowance the worked Boxing Day gives it: an absence over that work takes the day back.
         _allOv = [...workdays(p, new Date(2027, 1, 1), /** @type {number} */ (entitlementFor(p, 2027, [worked]))).map(d => leave(p, d)), worked];
@@ -1193,21 +1210,22 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
 // O. THE ABSENCE CARD LEAVES A REST DAY'S RDW OR LEAVE AS IT IS, AND SAYS SO (review, Nov 2026). The Calendar
 // hides an absence on a rest day unless it replaced contracted work, so one written over a rest day's Rest Day
 // Working replaced a record that showed with one that never does — while the preview and the receipt counted
-// it as an absence day. The REAL card and projection; the writer is the mock. A member found, never named.
+// it as an absence day. The REAL card and projection; the writer is the mock. The member is invented, as in N.
 const { fmtPeriodDate, formatDisplay: realFormatDisplay } = await import('./admin-period-dates.js');
 describe('O. the Absence card names a rest day it leaves as it is, and records nothing on it', () => {
     beforeEach(() => { _realWorkingDate = true; });
-    /** A working weekday followed by a non-Sunday rest day, found from the roster. */
-    const found = (() => {
-        for (const m of teamMembers.filter(x => !x.hidden && !x.managerOnly && !x.startDate)) {
-            for (let i = 1; i < 60; i++) {
-                const a = new Date(2026, 9, i), b = new Date(2026, 9, i + 1);
-                if (a.getDay() === 0 || b.getDay() === 0) continue;
-                if (works(m, iso10(a)) && !works(m, iso10(b))) return { m, work: iso10(a), rest: iso10(b) };
-            }
+    /** A working weekday followed by a non-Sunday rest day for `m`, in October 2026. @param {any} m */
+    const pairOf = (m) => {
+        for (let i = 1; i < 60; i++) {
+            const a = new Date(2026, 9, i), b = new Date(2026, 9, i + 1);
+            if (a.getDay() === 0 || b.getDay() === 0) continue;
+            if (works(m, iso10(a)) && !works(m, iso10(b))) return { work: iso10(a), rest: iso10(b) };
         }
         return null;
-    })();
+    };
+    const QX = inventedCea(m => pairOf(m) !== null);
+    const found = { m: QX, ...pairOf(QX) };
+    onRosterForEachTest(QX);
     /** The real card for `found.m`, with the rest day holding Rest Day Working, and `from`–`to` on screen. */
     const card = (/** @type {string} */ from, /** @type {string} */ to) => {
         const { m, rest } = /** @type {any} */ (found);

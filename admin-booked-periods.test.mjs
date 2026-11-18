@@ -502,7 +502,8 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
 
 // TWO RUNS OF LEAVE EITHER SIDE OF A REST DAY THE MEMBER WORKED ARE TWO BOOKINGS (review, Nov 2026). The list
 // judged the day between by the base roster alone, so leave on either side of a rest day the member came in
-// for (Rest Day Working) read as one period — and its ✕ took both. The real merge and gap rule; a member found.
+// for (Rest Day Working) read as one period — and its ✕ took both. The real merge and gap rule; an invented member,
+// on the first week of a CEA line with a rest day standing alone between two working days.
 describe('the list does not join two runs of leave across a rest day the member worked', () => {
     it('one period across a bare rest day; two across the same day holding Rest Day Working', async () => {
         const rd = await import('./roster-data.js');
@@ -510,15 +511,15 @@ describe('the list does not join two runs of leave across a rest day the member 
         const pd = await import('./admin-period-dates.js');
         const { consumesEntitlement } = await import('./al-entitlement.js');
         /** @type {any} */ let found = null;
-        for (const m of rd.teamMembers.filter(x => !x.hidden && !x.startDate)) {
+        for (const [rosterType, weeks] of [['main', rd.CONFIG.MAIN_ROSTER_WEEKS], ['bilingual', rd.CONFIG.BILINGUAL_ROSTER_WEEKS]]) for (let w = 1; w <= weeks && !found; w++) {
+            const m = { name: 'Q. Example', currentWeek: w, rosterType, role: 'CEA' };
             for (let i = 0; i < 90 && !found; i++) {
                 const iso = (/** @type {number} */ k) => rd.formatISO(new Date(2026, 10, 2 + i + k));
                 const works = (/** @type {number} */ k) => !rd.isSunday(iso(k)) && !ou.isRestShift(rd.getBaseShift(m, rd.parseISODate(iso(k))));
                 if (works(0) && !rd.isSunday(iso(1)) && !works(1) && works(2)) found = { m, days: [iso(0), iso(1), iso(2)] };
             }
-            if (found) break;
         }
-        assert.ok(found, 'premise: a working day, a non-Sunday rest day and a working day in a row on some line');
+        assert.ok(found, 'premise: a working day, a non-Sunday rest day and a working day in a row on some week of a line');
         const [before, rest, after] = found.days;
         const leave = [before, after].map((date, i) => ({ id: `al${i}`, memberName: found.m.name, date, type: 'annual_leave', value: 'AL', source: 'manual' }));
         /** @type {string[][]} */ let asked = [];

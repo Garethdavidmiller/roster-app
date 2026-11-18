@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { swapDecisionDates, replacedTypeForSwap, rangeWriteDates, absenceHiddenDates } from './al-swapped-days.js';
-import { teamMembers, getBaseShift, getPatternShift, parseISODate, formatISO } from './roster-data.js';
+import { teamMembers, getBaseShift, getPatternShift, parseISODate, formatISO, CONFIG } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 import { projectAlBooking } from './admin-al-projection.js';
 
@@ -172,7 +172,7 @@ test('the booking projection writes and counts exactly what the range writer wri
 // The Calendar hides an absence on a base rest day unless it replaced contracted work. The range wrote one
 // over a rest day's Rest Day Working, or over leave that cost nothing — a record that showed, replaced by one
 // that never does, and counted as an absence day. INVENTED people on real patterns: Q. Example on fixed
-// pattern 1 (Monday to Friday, weekends off), and Z. Invented on a line due at work on Boxing Day 2026.
+// pattern 1 (Monday to Friday, weekends off), and Z. Invented on a week of the main line due at work on Boxing Day 2026.
 const Q = { name: 'Q. Example', role: 'CEA', rosterType: 'fixed', currentWeek: 1 };
 const FRI = '2026-10-09', SAT = '2026-10-10';
 const on = (/** @type {string} */ date, /** @type {any} */ rec) => new Map([[date, { memberName: Q.name, date, source: 'manual', ...rec }]]);
@@ -211,10 +211,12 @@ test('annual leave is untouched: leave over a rest day\'s Rest Day Working is st
 
 test('work that earned a day in lieu is still written: the absence takes the day back, as the card says', () => {
     const BOXING = new Date(2026, 11, 26);
-    const pattern = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL && !m.rosterChanges
-        && m.bilingualContract !== true && !isRestShift(getPatternShift(m, BOXING)));
-    assert.ok(pattern, 'premise: a plain CEA line is due at work on Boxing Day 2026');
-    const Z = { ...pattern, name: 'Z. Invented' };
+    /** @type {any} */ let Z = null;
+    for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS && !Z; w++) {
+        const m = { name: 'Z. Invented', role: 'CEA', rosterType: 'main', currentWeek: w };
+        if (!isRestShift(getPatternShift(m, BOXING))) Z = m;
+    }
+    assert.ok(Z, 'premise: a week of the main line is due at work on Boxing Day 2026');
     const worked = (/** @type {any} */ who) => new Map([['2026-12-26', { memberName: who.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual' }]]);
     assert.deepEqual(absenceWrites(worked(Z), Z, ['2026-12-26']), ['2026-12-26'], 'due at work, so the worked day earned a day in lieu');
     assert.deepEqual(absenceWrites(worked(Q), Q, ['2026-12-26']), [], 'resting by pattern, the same RDW earned nothing: left as it is');
