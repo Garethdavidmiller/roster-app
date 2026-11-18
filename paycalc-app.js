@@ -650,7 +650,9 @@ export function init() {
       // AT THE TIME): it gets no figure — never CEA's rate in its place (invariant 13).
       const _rate = periodRate(_ty, _curP).rate;
       renderUnpricedPayslip(_rate == null ? unpricedLineFor(_curP) : '');
-      if (_rate == null) { updateBadges(null); calcHPP(); renderYtdLine(null); return; }
+      // No estimate here, so the Year to Date figures sharpen nothing: no source is passed, and the note
+      // and chip say nothing — never the last payslip's "in use" beside £– (18 Nov 2026).
+      if (_rate == null) { updateBadges(null); calcHPP(); renderYtdLine(null); updateYtdNote(_ty, _curP, 0, false, ''); return; }
       const rate = Math.max(0, _rate);
       updateBadges(rate);
       const r125 = rate * RATE_125;

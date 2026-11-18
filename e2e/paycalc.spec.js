@@ -2950,6 +2950,15 @@ test('paycalc: a CES promoted into management keeps the CES payslips — and a p
     await expect(page.locator('#unpricedPayslipNote')).toBeHidden();
     // Premise for the badges below: on a payslip it can price, every hours row shows its rate in £.
     await expect(page.locator('#badge-ot')).toContainText('£');
+    // …and for the Year to Date card: figures typed here are said to be from this payslip, so not in use
+    // on it. A payslip with no estimate has nothing for them to sharpen (18 Nov 2026).
+    await page.locator('#payslipCardToggle .card-toggle-arrow').click();
+    await page.fill('#ytdPay', '12000');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '1500');
+    await page.dispatchEvent('#ytdTax', 'input');
+    await expect(page.locator('#ytdStatusChip'), 'premise: the chip reports the figures').toHaveText('not in use');
+    await expect(page.locator('#ytdUptoNote'), 'premise: the note names their payslip').toContainText('Your Year to Date figures are from');
 
     // The payslip across the promotion: seven CES days, 21 under a role with no rates. Reached IN THE
     // PAGE, so the badges still hold what the 20 Nov payslip wrote: a fresh load would pass on the
@@ -2967,6 +2976,8 @@ test('paycalc: a CES promoted into management keeps the CES payslips — and a p
         await expect(page.locator(`#${id}`), `#${id} kept a £ rate on a payslip with none`).toHaveText(mult);
     }
     await expect(page.locator('#netLabel'), 'the figure slot keeps its plain name').toHaveText('💷 Estimated Take-Home Pay');
+    await expect(page.locator('#ytdStatusChip'), 'the last payslip\'s Year to Date verdict beside £–').toHaveText('');
+    await expect(page.locator('#ytdUptoNote'), 'a note about sharpening an estimate that is not there').toHaveText('');
     for (const sel of ['#summary', '#bdBtn', '#stickyTotal', '#ytdYearSoFar']) {
         await expect(page.locator(sel), `${sel} is fed by a figure, so it goes`).toBeHidden();
     }

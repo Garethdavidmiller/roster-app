@@ -683,6 +683,7 @@ export function calcBackPay() {
     _resetBreakdown(rowsEl, breakdownBtn);
     totalEl.style.display      = 'none';
     noticeEl.style.display     = 'none';
+    noticeEl.innerHTML         = '';   // or the reset warning below lands after an earlier render's words
     if (periodWrap) periodWrap.style.display = 'none';
     _surfaceCorruptReset(noticeEl, awardTy?.label);
     return { bpAmount: 0, bpVarAmount: 0, bpPNum: 0, bpIsEstimate: false, bpIncluded };
