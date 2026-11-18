@@ -414,8 +414,9 @@ shown that yet.
   none failed). **Why yes now, when 8 Sep said no:** that decision's cost was time, because the gate
   ran its tests one after another. Since 10 Nov the gate's jobs run side by side (the entry above), and
   this job should take about five minutes with its setup (its tests took two and a half locally;
-  measured at 3m 57s on the first release that ran it, 18 Nov 2026), against 9m 36s for the slowest smoke shard in the release of 17 Nov 2026, so a release waits no
-  longer. **What stays out, and why:** the whole WebKit suite, nine jobs with the
+  measured at 3m 57s and 5m 00s on the first two releases that ran it, both 18 Nov 2026), against
+  9m 36s for the slowest smoke shard in the release of 17 Nov 2026, so a release waits no longer.
+  **What stays out, and why:** the whole WebKit suite, nine jobs with the
   longest over twenty minutes, which every release would wait for. The 8 Sep objection to a hand-picked
   subset still stands, so neither set is a list: one file whose pages come from `scripts/app-pages.mjs`,
   so a new page joins by itself, and one whole lane. **The cost:** one more way for a release to be
@@ -424,6 +425,17 @@ shown that yet.
   and that WebKit runs in no other gate job. **With the reused proof** (the entry below, 18 Nov 2026):
   `safari` is the one gate job it never stands in for, because the pull request's record covers no
   WebKit check but signed-in's iPhone half, so a proven release waits for this job alone.
+  **Should the pull request's Safari run stand in for this job too? No — weighed and kept** (owner,
+  18 Nov 2026). It could: on the same tree the pull request runs more than this job does (the whole
+  WebKit suite on both devices, `every-page.spec.js` included, and signed-in's iPhone half), and a
+  proven release would then take a minute or two instead of about six (6m 29s and 5m 52s on the
+  first two). **Kept because** this job is then the only browser test a release runs for itself, on
+  the tree it uploads: if the lookup that reuses the proof ever went wrong, this is what still stops
+  a broken page reaching an iPhone — two independent locks, not one (defence in depth). The price is
+  the job's own four to five minutes, which nobody waits on. Doing it properly is not small either:
+  e2e.yml's record simply waiting for `webkit` as well would tie the Chrome proof to the run's
+  slowest jobs, so it would need a Safari record of its own. **Trigger to revisit:** this job holding
+  releases on false failures, or a need for faster releases, such as several urgent fixes in one day.
 - **CI made quicker in three ways; the release gate may reuse a pull request's proof — ADOPTED**
   (owner, 17 Nov 2026). Measured on #1803: the pull-request checks took about 15 minutes and a
   release about 11, almost all of it test time, not setup. (1) **Shards are cut by measured time**, not
