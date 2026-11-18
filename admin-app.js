@@ -426,7 +426,7 @@ export function init() {
         _leaveYearPanel?.refresh();   // the same moment as this banner, before any exit below
 
         /** Hide every figure this card states — the banner AND the header chip, or the previous
-         *  member's "AL left" sits under the new member's name. ONE exit for every way to have nothing
+         *  member's leave left sits under the new member's name. ONE exit for every way to have nothing
          *  truthful to say. */
         const showNothing = () => {
             banner.hidden = true;
@@ -489,6 +489,10 @@ export function init() {
         const headerRemEl = document.getElementById('alHeaderRemaining');
         if (headerBalEl && headerRemEl) {
             headerRemEl.textContent = String(remaining);
+            // …AND WHICH YEAR (review, Nov 2026): the banner's, which can be next year's in December. "2026: 12
+            // left" rather than "2026 AL left: 12", which wrapped the card's title onto two lines at 375px.
+            const headerYearEl = document.getElementById('alHeaderYear');
+            if (headerYearEl) headerYearEl.textContent = yearStr;
             headerBalEl.hidden = false;
             // The shared .card-year-chip; .al-left-chip modifiers colour the low/none states.
             headerBalEl.className = 'card-year-chip al-left-chip'

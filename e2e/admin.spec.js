@@ -928,6 +928,10 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     // AND IT SAYS WHICH YEAR (whole-app check, Nov 2026; admin-2-14): four figures with no year beside them.
     const entLbl = page.locator('#alBannerLblEntitlement');
     await expect(entLbl).toHaveText('2026 entitlement');
+    // …AND SO DOES THE COLLAPSED CARD'S CHIP (review, Nov 2026): "AL left: N" named no year, so in December it
+    // could be read as next year's balance, or the other way round.
+    const chip = page.locator('#alHeaderBalance');
+    await expect(chip).toHaveText(`2026: ${thisYear.remaining} left`);
 
     await scroll('#alRpNext');
     await expect(page.locator('#alRpLabel, #alRangePicker .rp-label')).toContainText('2027');
@@ -936,6 +940,7 @@ test('admin: the AL banner follows the year the picker is showing', async ({ pag
     expect(nextYear.taken, 'leave taken in 2026 is being counted against 2027').toBe(0);
     expect(nextYear.remaining, 'a year with nothing booked shows the whole entitlement')
         .toBe(nextYear.entitlement);
+    await expect(chip, 'the chip names the year its figure is for').toHaveText(`2027: ${nextYear.remaining} left`);
 
     await scroll('#alRpPrev');
     const backAgain = await read();
@@ -2288,10 +2293,10 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
     await expect(page.locator('#alBanner')).toHaveCSS('display', 'none');
     // And no balance is READABLE anywhere on the card, however it got there. `innerText`, not
     // `textContent`: the chip keeps its last value in the DOM while hidden, so textContent finds
-    // "AL left: 32" on a perfectly correct page and the assertion would fail for the wrong reason.
+    // "2026: 32 left" on a perfectly correct page and the assertion would fail for the wrong reason.
     // This is the one that would catch a THIRD surface printing the figure.
     const visible = await page.locator('#book-annual-leave').innerText();
-    expect(visible, 'no readable balance over a read that failed').not.toMatch(/AL left:/i);
+    expect(visible, 'no readable balance over a read that failed').not.toMatch(/\b\d{4}: -?\d+ left\b|AL left:/i);
 });
 
 // ── THE LIST COUNTS WHAT THE ENTITLEMENT COUNTS (v23.72, owner report) ─────────────────────────
