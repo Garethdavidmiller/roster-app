@@ -50,17 +50,30 @@ import { lsGet, lsSet } from './ls.js';
 import { installNoticeHasTheVisit } from './install-prompt.js';
 import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 import { getSession } from './session.js';
-import { teamMembers } from './roster-data.js';
-import { payCalculatorPrices } from './pay-audience.js';   // who is sent the pay reminder — CEA and CES
+import { teamMembers, gradeForRole } from './roster-data.js';
 
 /**
- * Say what the strip will bring THIS member: the pay reminder goes to CEA and CES only — the grades the
- * Pay Calculator prices (functions/pay-reminder.js) — and the offer promised it to everybody (whole-app
- * check, 17 Nov 2026). Both endings are index.html's; this shows one. Asked when the strip is shown,
- * because a member signing in at the front door has no session before then.
+ * Is the four-weekly pay reminder sent to this member? Asked AS THE SERVER ASKS IT (18 Nov 2026): the
+ * reminder goes to the names on the server roster's `cea` and `ces` lists (functions/pay-reminder.js),
+ * which hold each visible row, not a manager's login, whose RECORDED `role` has a pay grade
+ * (`gradeForRole`, the same answer the server's grade keys are spelt from). Not the grade held TODAY
+ * (`roleOn`, which the Pay Calculator rightly asks): a CES whose move into management is released was
+ * promised reminders until the move's first day, and a hidden leaver for good — neither is sent one.
+ * @param {any} member  teamMembers entry, or null
+ * @returns {boolean}
+ */
+function sentPayReminder(member) {
+    return !!member && !member.hidden && !member.managerOnly && !!gradeForRole(member.role);
+}
+
+/**
+ * Say what the strip will bring THIS member: the pay reminder goes to CEA and CES only
+ * (`sentPayReminder`), and the offer promised it to everybody (whole-app check, 17 Nov 2026). Both
+ * endings are index.html's; this shows one. Asked when the strip is shown, because a member signing in
+ * at the front door has no session before then.
  */
 function sayWhatItBrings() {
-    const pay = payCalculatorPrices(teamMembers.find(m => m.name === getSession()?.name) ?? null);
+    const pay = sentPayReminder(teamMembers.find(m => m.name === getSession()?.name) ?? null);
     const withPay = document.getElementById('notifPromptOfferPay');
     const documentsOnly = document.getElementById('notifPromptOfferDocs');
     if (withPay) withPay.hidden = !pay;
