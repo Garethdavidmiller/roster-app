@@ -610,6 +610,20 @@ test('calendar: the legend follows the grid across a SWIPE, in both directions',
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// A SWIPE IS SPOKEN AS THE BUTTONS ARE (18 Nov 2026). Prev, Next, Today, the keys and the month picker
+// all say the new month in #ariaAnnouncer (the `aria-live` decision, .claude/rules/calendar.md); the
+// swipe, the gesture people use most, changed the month in silence.
+test('calendar: a swipe to a new month is announced, as Prev and Next are', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    expect(await page.locator('#ariaAnnouncer').textContent(), 'premise: nothing has been announced yet').toBe('');
+    await swipeMonth(page, 'next');
+    await expect.poll(() => page.locator('#ariaAnnouncer').textContent(), { message: 'the swipe changed the month in silence' })
+        .toBe('October 2026');
+});
+
 // ── A READ TEAM VIEW STARTED, LANDING DURING A SWIPE ONTO ITS MONTH (10 Nov 2026, cal-ui-5) ─────────
 // The incoming month is built at pointerdown as "Checking this month". When its read — started by Team
 // View, then left — landed mid-gesture, its only waiter was Team View's repaint, which does nothing once

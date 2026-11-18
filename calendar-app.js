@@ -759,6 +759,7 @@ try {
             updateNavButtonState,
             openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
             onRetryMonth: retryMonth,
+            announceMonthChange,
         });
     };
 

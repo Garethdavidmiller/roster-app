@@ -4,7 +4,9 @@
  *
  * Exports initSwipeHandler(deps) which wires all pointer events on #calendarDisplay.
  * Also exports isSwipeCooldown() so the coordinator can suppress button clicks
- * while a swipe animation is in flight.
+ * while a swipe animation is in flight, and isSwipeGestureActive() — broader: from the finger
+ * going down until the gesture resolves — which the page hands to calendar-redraw.js, the one place
+ * that asks it, so no background draw replaces the carousel under a finger.
  *
  * Design notes:
  * - Adjacent panels are built in pointerdown (not pointermove) so GPU layers are
@@ -47,7 +49,10 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   updateNavButtonState: () => void,
  *   openDayDetail: ((cell: Element) => void) | null,
  *   onRetryMonth?: (year: number, month: number) => void,
+ *   announceMonthChange?: () => void,
  * }} deps
+ *   announceMonthChange — says the new month in #ariaAnnouncer, as Prev, Next, Today, the keys and
+ *   the month picker do (18 Nov 2026): the gesture people use most changed the month in silence.
  *   renderCalendar — the repaint for a month read that lands after the swipe. It must repaint
  *   whichever surface is live (it is the coordinator's shared month-read callback), and is passed
  *   straight through so it dedupes with the coordinator's own wait on the same month.
@@ -57,7 +62,7 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   it becomes the live view, so a panel built without the callback would leave the committed month
  *   showing a failure with nothing to press.
  */
-export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, openDayDetail, onRetryMonth }) {
+export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, openDayDetail, onRetryMonth, announceMonthChange }) {
     const calendarDisplay = document.getElementById('calendarDisplay');
     if (!calendarDisplay) return;
 
@@ -297,6 +302,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             document.title = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()} — Marylebone Roster`;
             updateLegend();
             updateNavButtonState?.();   // refresh Prev/Next disabled state at year boundaries after a swipe
+            announceMonthChange?.();
 
             current.style.transition       = TRANSITION;
             current.style.transform        = `translate3d(${direction === 'left' ? -w : w}px, 0, 0)`;
