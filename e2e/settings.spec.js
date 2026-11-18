@@ -1096,12 +1096,13 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
     });
 }
 
-// THE INSTALLED APP HAS NO PADLOCK (whole-app check, 17 Nov 2026). On Android the blocked route said "tap the padlock in
-// Chrome" — and the home screen app has no address bar to tap. There the permission is the app's own, in the phone's
-// settings, as an iPhone's is; a browser tab keeps the padlock.
+// THE INSTALLED APP HAS NO ADDRESS BAR (whole-app check, 17 Nov 2026). On Android the blocked route said "tap the padlock
+// in Chrome" — and the home screen app has no address bar to tap. There the permission is the app's own, in the phone's
+// settings, as an iPhone's is; a browser tab keeps the address bar's site icon — described, not named a padlock, since
+// Chrome drew it as two sliders from 2023 (18 Nov 2026).
 for (const [where, installed, says] of /** @type {const} */ ([
     ['the home screen app', true, 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'],
-    ['a browser tab', false, 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.'],
+    ['a browser tab', false, 'On Android: tap the icon at the left of Chrome’s address bar (a padlock or two sliders) → Site settings → Notifications → Allow.'],
 ])) {
     test(`settings: blocked on Android, ${where} is told the route that exists there`, async ({ page }) => {
         await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied', installed });

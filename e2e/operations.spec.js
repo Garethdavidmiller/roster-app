@@ -1848,7 +1848,7 @@ for (const [label, answer, title, says, never] of /** @type {Array<[string, any,
         { ...LANDED, notified: false, lostDevice: true, pushReleased: 2 }, 'Password reset — tell them yourself',
         ['WAS reset to their surname', 'signed out on every device, the lost phone included', 'notifications are now off on every device',
             'No reset notice was sent. Tell', 'their surname signs in to their account — on the lost phone too'],
-        /has no notifications on this app|COULDN’T/],
+        /No reset notice reached|COULDN’T/],
     ['a lost-phone reset whose notifications could not be switched off says so, and to reset again with the box ticked',
         { ...LANDED, notified: false, lostDevice: true, pushReleaseFailed: true }, 'Password reset — notifications still on',
         ['COULDN’T be switched off', 'Reset again with the box ticked', 'No reset notice was sent'], /notifications are now off/],
@@ -1879,7 +1879,7 @@ test('operations: a reset whose sign-out failed still says nobody told them, and
     const dialog = page.locator('.lb-overlay.open');
     await expect(dialog.locator('.dialog-title')).toHaveText('Password reset — other devices not signed out yet');
     await expect(dialog).toContainText('when they next renew, within the hour — reset again to sign them out now');
-    await expect(dialog).toContainText(`${name} has no notifications on this app, so they have NOT been told. Let them know their password is now their surname.`);
+    await expect(dialog).toContainText(`No reset notice reached ${name}'s devices, so they have NOT been told. Let them know their password is now their surname.`);
     await expect(dialog, 'they are not signed out yet, so nothing may say they are').not.toContainText('and they are signed out');
 });
 
@@ -3905,7 +3905,8 @@ test('operations: App speed times the wait after a release, from the version tha
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
     await expect(speed).toContainText('After a release');
-    await expect(speed).toContainText('Counted from v24.98');
+    await expect(speed).toContainText('Counted since late October 2026.');
+    await expect(speed, 'a version number is developer-speak in the admin\'s copy').not.toContainText('Counted from v');
     await expect(speed).not.toContainText('That is');
     await expect(speed).not.toContainText('also counted in');
     const row = speed.locator('.speed-row--why', { hasText: 'Until usable' }).first();

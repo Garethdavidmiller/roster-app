@@ -701,7 +701,7 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
     });
 
     // AN UPLOADED DOCUMENT WHOSE LINK THE APP REFUSES IS NOT "NONE UPLOADED" (whole-app check, 17 Nov 2026).
-    // The drawer's fallback said the link's own "No circular has been uploaded yet", which sent the member
+    // The drawer's fallback said the link's own "No Weekly Retail Circular has been uploaded yet", which sent the member
     // away believing there was nothing to read, and nobody told the admin the link was broken.
     test('a Circular whose stored link is refused says it can\'t be opened, and to tell the admin', async () => {
         const { $ } = mountLive();
@@ -711,7 +711,7 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
         /** @type {any} */ ($('navMenuBtn')).fire('click');
         const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
         link.dataset.csTitle = 'Weekly Retail Circular';
-        link.dataset.csBody = 'No circular has been uploaded yet — it\'s usually available on Friday.';
+        link.dataset.csBody = 'No Weekly Retail Circular has been uploaded yet — it\'s usually available on Friday.';
         /** @type {any} */ ($('navPanel')).fire('click', {
             target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
         await flush();

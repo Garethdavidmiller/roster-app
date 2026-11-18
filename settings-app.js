@@ -64,7 +64,7 @@ const CARD_TIPS = {
             { items: [
                 { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong> — the one the company already sends things to.' },
                 { icon: '🔑', html: 'It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet. For now, ask the admin if you forget your password — the <strong>“Can’t get in?”</strong> link on the sign-in screen asks them for you.' },
-                { icon: '🔒', html: 'Only you and the admin can see it. It is not shown to your manager or to anyone else.' },
+                { icon: '🔒', html: 'Only you and the admin can see this email. It is not shown to your manager or to anyone else.' },
             ]},
         ],
     },

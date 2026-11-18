@@ -155,7 +155,10 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
             : 'The lost-phone step DIDN’T run. Reset again with the box ticked.');
     }
     if (untold) {
-        parts.push(`${name} has no notifications on this app, so they have NOT been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
+        // WHAT HAPPENED, NOT WHY (18 Nov 2026). `notified: false` comes back for a member with no notifications on this
+        // app, and just as much for a send that failed or that no push service accepted — so the line said the member
+        // had none when the fault was the server's. The admin's errand is the same either way.
+        parts.push(`No reset notice reached ${name}'s devices, so they have NOT been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
     }
     parts.push('Resetting again is safe.');
     return {

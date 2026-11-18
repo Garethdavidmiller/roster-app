@@ -438,8 +438,9 @@ function _appendSignInSection(content) {
     const note = document.createElement('p');
     note.className = 'usage-note';
     // Close in length to the sentence that replaces it, so the section does not change height when
-    // the figures land; the dashes and `aria-busy` are what say it is still loading.
-    note.textContent = 'Exact count from Firebase — counts sign-ins, not opens.';
+    // the figures land; the dashes and `aria-busy` are what say it is still loading. Where the count
+    // comes from is said in the reader's words, not the service's name (18 Nov 2026).
+    note.textContent = 'Exact count from the app’s sign-in records — counts sign-ins, not opens.';
     wrap.append(nums, note);
     content.appendChild(wrap);
 

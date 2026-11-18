@@ -86,7 +86,9 @@ test('a reset that did everything says nothing more than the row', () => {
 test('a member nobody told is the admin\'s errand, whether or not the sign-out worked (E2)', () => {
     const untold = resetOutcome(NAME, { ...LANDED, notified: false });
     assert.equal(untold?.title, 'Password reset — tell them yourself');
-    assert.match(untold?.message ?? '', /has no notifications on this app, so they have NOT been told/);
+    // `notified: false` is also a send that failed, so the line says what happened, never that the member has no notifications.
+    assert.match(untold?.message ?? '', new RegExp(`No reset notice reached ${NAME.replace('.', '\\.')}'s devices, so they have NOT been told`));
+    assert.doesNotMatch(untold?.message ?? '', /has no notifications/, 'a send that failed is blamed on the member\'s phone');
     assert.match(untold?.message ?? '', /their password is now their surname and they are signed out\./);
     assert.match(untold?.message ?? '', /Their other sessions were signed out\./);
     assert.doesNotMatch(untold?.message ?? '', /lost phone/, 'an ordinary reset never speaks of a lost phone');
@@ -106,7 +108,7 @@ test('a lost-phone reset says what it did, that nobody was told, and that the su
     assert.match(m, /notifications are now off on every device/);
     assert.match(m, new RegExp(`No reset notice was sent\\. Tell ${NAME.replace('.', '\\.')} yourself`));
     assert.match(m, /their surname signs in to their account — on the lost phone too/);
-    assert.doesNotMatch(m, /has no notifications on this app/, 'the lost-phone reset says it in its own words');
+    assert.doesNotMatch(m, /No reset notice reached/, 'the lost-phone reset says it in its own words');
 });
 
 test('a lost-phone reset whose notifications could not be switched off says so', () => {

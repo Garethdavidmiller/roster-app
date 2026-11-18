@@ -93,14 +93,15 @@ const NAV_INFORMATION = [
         heading: 'Workplace',
         links: [
             { icon: '📋', label: 'Daily Huddle',           url: './#huddle' },
-            { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No circular has been uploaded yet — it\'s usually available on Friday.' },
-            { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No newsletter has been uploaded yet — check back soon.' },
+            // Each document by its whole name, as the in-app viewer says it (calendar-doc-viewer.js `DOCS`).
+            { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No Weekly Retail Circular has been uploaded yet — it\'s usually available on Friday.' },
+            { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No Marylebone Newsletter has been uploaded yet — check back soon.' },
         ],
     },
 ];
 
 /**
- * Guides — collapsible submenu (tap "📖 Guides" to expand). Static reference
+ * Reference — collapsible submenu (tap "Reference" to fold or unfold it). Static reference
  * pages, grouped together so the Information section stays focused on live docs.
  * Adding a guide = one entry here, with an `openId` — and that id in the `firestore.rules` analytics
  * allowlist and in `OPEN_META` (operations-reports.js); firestore-contract-parity.test.mjs checks all three.
@@ -116,7 +117,9 @@ const NAV_INFORMATION = [
 // it — CLAUDE.md → "Plain English that TEACHES". `sub` is the question, in the reader's words, never
 // a description of the document.
 const NAV_GUIDES = [
-    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Booking leave, absence, using the app', url: './staff-guide.html',    openId: 'guide-staff'    },
+    // "Recording", never "Booking": the app records leave already agreed, and absence — it books nothing (admin.html's
+    // "Record Annual Leave"; the guide's own "record annual leave that's already been agreed").
+    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Recording leave and absence, using the app', url: './staff-guide.html',    openId: 'guide-staff'    },
     { icon: '💷', label: 'Pay Calculator Guide', sub: 'What your payslip figures mean',        url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
     { icon: '🎫', label: 'Railcard Guide',       sub: 'Which railcard gives what discount',    url: './railcard-guide.html', openId: 'guide-railcard' },
     { icon: '🗺️', label: 'Rangers & Rovers',     sub: 'Area passes at the gateline',           url: './rangers-guide.html',  openId: 'guide-rangers'  },

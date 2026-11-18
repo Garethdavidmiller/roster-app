@@ -4226,7 +4226,7 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--newsletter').click();
     await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
-    await expect(page.locator('#navComingSoonLightbox')).not.toContainText('No newsletter has been uploaded yet');
+    await expect(page.locator('#navComingSoonLightbox')).not.toContainText('has been uploaded yet');
 });
 
 // ── THE NEWSLETTER'S ☰ BUTTON FOLLOWS ITS LATEST ISSUE (owner, 14 Nov 2026) ─────────────────────────────
