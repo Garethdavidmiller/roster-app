@@ -22,7 +22,7 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } = await import('./paycalc-form-data.js');
+const { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } = await import('./paycalc-form-data.js');
 
 // ── Minimal fake DOM: just the fields this module touches ─────────────────────
 const INPUT_IDS = ['satH','satM','bhH','bhM','bhOtH','bhOtM','otH','otM','rdwH','rdwM',
@@ -50,6 +50,11 @@ function setupDOM() {
     INPUT_IDS.forEach(id => { _els[id] = makeField('value'); });
     _els.peerVal      = makeField('textContent', '0');
     _els.slSkipCheck  = makeField('value');
+    _els.noSpecialCheck = makeField('value');
+    // The tick's row, hidden by the CLASS (a `.toggle-row` sets display, which out-ranks `hidden`).
+    const cls = new Set();
+    _els.noSpecialRow = { classList: { toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => { if (on) cls.add(c); else cls.delete(c); },
+        contains: (/** @type {string} */ c) => cls.has(c) } };
     global.document = { getElementById: id => _els[id] ?? null };
 }
 beforeEach(setupDOM);
@@ -142,6 +147,48 @@ describe('round trip — what is written must read back unchanged', () => {
     test('a zero adjustment is not written as a spurious "0.00" string', () => {
         writeFormData({ ...emptyPeriodData(), otherAdj: 0 });
         assert.equal(_els.otherAdj.value, '', 'an empty adjustment field must stay visibly empty');
+    });
+});
+
+// ── A PAYSLIP WITH NO SPECIAL-RATE HOURS (18 Nov 2026) ───────────────────────────────────────────
+// Every hours box is a special rate and basic pay needs nothing typed, so such a payslip saved only
+// zeros, which read as "not entered" — a Monday-to-Friday member's year could never be completed. The
+// tick is its entry, and the round trip must carry it like any other field (invariant 2).
+describe('the no-special-rate-hours tick', () => {
+    test('a ticked payslip survives write → read, and counts as entered', async () => {
+        const { isDataEmpty } = await import('./paycalc-format.js');
+        const saved = { ...emptyPeriodData(), noSpecialHours: true };
+        assert.equal(isDataEmpty(saved), false, 'the checked zeros are this payslip\'s entry');
+        writeFormData(saved);
+        assert.equal(_els.noSpecialCheck.checked, true, 'the saved tick is shown');
+        // (`pension: null` is the blank box's "take the period default" — the schema has no key for it.)
+        assert.deepEqual(readFormData(), { ...saved, pension: null }, 'and read back, unchanged');
+        assert.equal(roundTrip(emptyPeriodData()).noSpecialHours, false, 'CONTROL: an unticked payslip stays unticked');
+    });
+
+    test('hours typed SUPERSEDE the tick: it is never stored beside them', () => {
+        writeFormData({ ...emptyPeriodData(), noSpecialHours: true });
+        _els.rdwH.value = '8';
+        assert.equal(readFormData().noSpecialHours, false, 'a payslip cannot say "no special-rate hours" and hold 8 RDW');
+        _els.rdwH.value = ''; _els.rdwM.value = '30';
+        assert.equal(readFormData().noSpecialHours, false, 'minutes alone are hours too');
+        _els.rdwM.value = '0';
+        assert.equal(readFormData().noSpecialHours, true, 'a typed 0 is no hours — the tick still stands');
+    });
+
+    test('the tick shows only while no special-rate hours are on screen, and hours arriving clear it', () => {
+        writeFormData({ ...emptyPeriodData(), noSpecialHours: true });
+        syncNoSpecialTick();
+        assert.equal(_els.noSpecialRow.classList.contains('hidden'), false, 'no hours: the tick is offered');
+        assert.equal(_els.noSpecialCheck.checked, true);
+        _els.sunH.value = '7';                 // typed, or the calendar's suggestion shown in gold
+        syncNoSpecialTick();
+        assert.equal(_els.noSpecialRow.classList.contains('hidden'), true, 'with hours on screen the tick goes');
+        assert.equal(_els.noSpecialCheck.checked, false, 'and it is cleared, so it says what the next save stores');
+        _els.sunH.value = '';
+        syncNoSpecialTick();
+        assert.equal(_els.noSpecialRow.classList.contains('hidden'), false, 'hours gone: offered again');
+        assert.equal(_els.noSpecialCheck.checked, false, '…unticked — the hours superseded it');
     });
 });
 

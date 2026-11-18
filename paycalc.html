@@ -290,7 +290,9 @@
         <label for="hourlyRate">Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
         <div class="pfx pfx--readonly">
           <span class="pfx-sym">£</span>
-          <input type="text" id="hourlyRate" value="21.49" readonly aria-readonly="true" tabindex="-1">
+          <!-- No figure in the markup, as the pension field below: updateRateForPeriod writes the payslip's
+               own rate, or "–" for a payslip it cannot price — never CEA's in its place. -->
+          <input type="text" id="hourlyRate" value="" readonly aria-readonly="true" tabindex="-1">
         </div>
         <div class="field-hint">Set automatically by your <strong>grade</strong> — nothing to type here; it updates with each pay award on its own.</div>
         <div class="rate-step-note" id="rateStepNote" style="display:none"></div>
@@ -475,7 +477,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🗓️</span> Rostered Saturday</div>
-          <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-sat" id="badge-sat">1.25×</span>
           <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. <span class="h-payslip">Shows as "Ord&nbsp;Basic&nbsp;Pay&nbsp;@1.25" on your payslip.</span></div>
           <div class="val-warn" id="satWarn" role="alert"><span aria-hidden="true">⚠</span> You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
@@ -498,7 +500,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">☀️</span> Sunday Working</div>
-          <span class="rate-badge badge-sun" id="badge-sun">1.5×  ·  £32.24/hr</span>
+          <span class="rate-badge badge-sun" id="badge-sun">1.5×</span>
           <div class="h-sub">Any hours you worked on a Sunday, rostered or not — <strong>Sunday always pays 1.5×</strong>. <span class="h-payslip">Shows as "RDW&nbsp;Sun&nbsp;1.5" on your payslip.</span></div>
         </div>
         <div>
@@ -520,7 +522,7 @@
       <div class="hours-row hidden" id="bhRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Rostered</div>
-          <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-bh" id="badge-bh">1.25×</span>
           <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Rostered&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
@@ -542,7 +544,7 @@
       <div class="hours-row hidden" id="bhOtRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🏛️</span> Bank Holiday Overtime</div>
-          <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-bh" id="badge-bhot">1.25×</span>
           <div class="h-sub">Hours worked on a bank holiday beyond your rostered shift, or your rest day fell on a bank holiday and you worked it. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
@@ -571,7 +573,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">⏰</span> Overtime</div>
-          <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-ot" id="badge-ot">1.25×</span>
           <!-- Prose lives here ONLY (v18.46 — sweep item 12): JS fills just the cut-off date span,
                so the copy can't drift between HTML and a JS duplicate (it used to exist in both). -->
           <div class="h-sub">Extra hours on top of a rostered shift. <span class="h-payslip">Shows as "Overtime&nbsp;1.25" on your payslip.</span></div>
@@ -595,7 +597,7 @@
       <div class="hours-row">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">💼</span> Rest Day Working</div>
-          <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £26.86/hr</span>
+          <span class="rate-badge badge-rdw" id="badge-rdw">1.25×</span>
           <div class="h-sub">Came in on a rest day, or worked a Saturday that wasn't in your roster. <strong>Sundays go in Sunday Working instead</strong> — it pays 1.5×, even though your payslip calls it "RDW&nbsp;Sun&nbsp;1.5". <span class="h-payslip">Shows as "RDW&nbsp;1.25" on your payslip.</span></div>
         </div>
         <div>
@@ -619,7 +621,7 @@
       <div class="hours-row hidden" id="boxingRow">
         <div class="h-info">
           <div class="h-title"><span aria-hidden="true">🎁</span> Boxing Day Working</div>
-          <span class="rate-badge badge-box" id="badge-box">3×  ·  £64.47/hr</span>
+          <span class="rate-badge badge-box" id="badge-box">3×</span>
           <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. <span class="h-payslip">Shows as "Bank&nbsp;Holiday&nbsp;Overtime&nbsp;3.0" on your payslip.</span></div>
         </div>
         <div>
@@ -659,6 +661,18 @@
           <button type="button" id="peerPlus"  aria-label="Increase peer-training days">+</button>
         </div>
       </div>
+
+      <!-- A PAYSLIP WITH NOTHING TO TYPE (18 Nov 2026). Every row above is a special rate and basic pay
+           needs no entry, so a payslip with none of them used to save only zeros, which never counted
+           as entered — a Monday-to-Friday member's year stayed "Not entered yet" with nothing to type.
+           This tick is that payslip's entry. It shows only while no special-rate hours are on screen,
+           and hours typed supersede it (paycalc-form-data.js → syncNoSpecialTick); "Fill these from your
+           calendar" ticks it on a payslip whose calendar has none (paycalc-fill-year.js). -->
+      <label class="toggle-row no-special-row" id="noSpecialRow">
+        <input type="checkbox" id="noSpecialCheck">
+        <span class="toggle-row-text">No special-rate hours on this payslip
+          <span class="h-sub">Tick this when none of the rows above apply. Your basic pay is included already, and the payslip then counts as entered — in This tax year so far and in your Holiday Pay Premium.</span></span>
+      </label>
 
       <!-- ── SHOW MORE TOGGLE ── -->
       <button type="button" class="show-more-btn" id="hoursShowMore" aria-expanded="false" aria-controls="hoursExtra">
@@ -735,7 +749,9 @@
       <button type="button" class="banner-link" id="hppBannerViewLink">view HPP card</button>
       <div class="bp-banner-note" id="hppBannerNote"></div>
     </div>
-    <div id="resultRateNotice" class="payslip-note" style="display:none">
+    <!-- Hidden by the CLASS, which is what paycalc-app.js toggles: with an inline display:none as well,
+         nothing ever cleared it, and this warning could never show (18 Nov 2026). -->
+    <div id="resultRateNotice" class="payslip-note hidden">
       ⚠️ <strong>This year's pay award has been accepted but isn't confirmed on payslips yet.</strong> This estimate still uses the current rate — the app switches to the new rate automatically once the award lands on a payslip.
     </div>
     <!-- Check against the real payslip (v18.42 — review item 3): the member types the actual

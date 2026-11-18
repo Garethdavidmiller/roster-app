@@ -835,7 +835,7 @@ The pure HTML builders for the pay-result card — the summary rows, the full br
 
 ### `paycalc-form-data.js`
 The per-period form ↔ saved-data round trip: the saved-period schema, form → object for autosave, object → form for a load, and the one rule for what a pension field's text is stored as. A module of its own so a write → read → write test holds it symmetric — `.claude/rules/paycalc.md` invariant 2; the header lists the defects that asymmetry caused. Tested by `paycalc-form-data.test.mjs`.
-- **Exports:** `isDataEmpty` · `emptyPeriodData` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
+- **Exports:** `isDataEmpty` · `emptyPeriodData` · `syncNoSpecialTick` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
 
 ### `paycalc-inputs.js`
 The field readers for `paycalc.html`'s hours and figures: the one reader of what an hours box holds (a decimal, a decimal comma or a clock time), the live "= 7h 30m" hint, the Decimal Hours Converter's answer, the Tax Code box's warning, and `wireIosTap` for a control tapped while the iPhone keyboard is up. They need only `document`, so they test in Node against a fake one (`paycalc-inputs.test.mjs`); the event wiring stays in `paycalc-app.js`.

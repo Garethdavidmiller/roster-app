@@ -131,6 +131,13 @@ export const HM_PAIRS = [
  * "Not entered yet" list and the fill-year eligibility share. Lived in paycalc-hpp.js until
  * v22.06; it sits here beside HM_PAIRS because the two together are the schema's field surface,
  * and this is the paycalc cluster's zero-import home (Node-loadable from anywhere).
+ *
+ * `noSpecialHours` IS AN ENTRY (18 Nov 2026). Every hours box is a special rate and basic pay needs
+ * nothing typed, so a payslip with no special-rate hours held only zeros, which read as empty: on a
+ * Monday-to-Friday line it was "Not entered yet" for ever — left out of the year so far, the Holiday
+ * Pay Premium and back pay, with nothing the member could type to change it. The flag says the zeros
+ * were CHECKED (the member's tick, or a fill on the calendar's complete answer — paycalc-fill-year.js),
+ * which makes them this payslip's calculation inputs.
  * @param {any} d @returns {boolean}
  */
 export function isDataEmpty(d) {
@@ -141,5 +148,5 @@ export function isDataEmpty(d) {
         !d.rdwH && !d.rdwM &&
         !d.sunH && !d.sunM &&
         !d.boxH && !d.boxM && !d.peer &&
-        !d.slSkip && !d.otherAdj;
+        !d.slSkip && !d.otherAdj && !d.noSpecialHours;
 }

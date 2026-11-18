@@ -235,6 +235,14 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   and gives up on a fetch after 15s — `paycalc-fill-year.js`, rule 3).
 - **The single Fill re-checks that the payslip on screen is still the one it fetched for** before
   writing (the comment after its await in `paycalc-roster-hint.js`).
+- **A payslip with no special-rate hours is entered when it says so** (18 Nov 2026). Every hours box is
+  a special rate and basic pay needs nothing typed, so such a payslip saved only zeros, which read as
+  empty — a Monday-to-Friday line stayed "Not entered yet" all year. `noSpecialHours` in the period
+  blob counts as entered (`isDataEmpty`), set by the Hours card's "No special-rate hours on this
+  payslip" tick or by "Fill these from your calendar" on the calendar's COMPLETE answer (`'loaded'`
+  only, never cached, base-only or timed out — `paycalc-fill-year.js`). **Hours supersede it**: it is
+  stored only beside none (`readFormData`), and the tick hides and clears while any special-rate hours
+  are on screen, typed or gold (`syncNoSpecialTick`, `paycalc-form-data.js`).
 
 ## Paydays, cut-offs and the roster-assist
 

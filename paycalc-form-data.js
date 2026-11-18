@@ -3,7 +3,8 @@
  * paycalc-form-data.js — the per-period form ↔ saved-data round trip for paycalc.html.
  *
  * Owns: the saved-period SCHEMA (`emptyPeriodData`) and the two halves of its round trip —
- *   `readFormData` (form → object, for autosave) and `writeFormData` (object → form, for load/clear).
+ *   `readFormData` (form → object, for autosave) and `writeFormData` (object → form, for load/clear) —
+ *   and the rule that hours on screen supersede the no-special-rate-hours tick (`syncNoSpecialTick`).
  * Does NOT own: WHEN to save or load (paycalc-app.js's autosave/loadPeriodData/clearPeriod), the
  *   storage keys (paycalc-migrations.js), or the field-level parsing primitives (paycalc-inputs.js).
  * Edit here for: adding a saved field, or changing how a field persists.
@@ -36,7 +37,12 @@
 
 import { hmPair, numVal } from './paycalc-inputs.js';
 import { parseSmartFloatOrNull } from './roster-data.js';
-import { minutesFieldText } from './paycalc-format.js';
+import { minutesFieldText, HM_PAIRS } from './paycalc-format.js';
+
+// isDataEmpty lives in paycalc-format.js (the zero-import pure home — beside HM_PAIRS, the two of
+// them being the schema's field surface); re-exported here because this module OWNS the schema and
+// is where a reader looks for it. paycalc-hpp re-exports it too for its long-standing importers.
+export { isDataEmpty } from './paycalc-format.js';
 
 /**
  * The saved-period schema — the shape written to localStorage for one pay period.
@@ -47,17 +53,37 @@ import { minutesFieldText } from './paycalc-format.js';
  * genuine salary-sacrifice opt-out. Adding `pension: 0` here would silently re-introduce the
  * pre-v16.84 defect for every cleared period.
  *
+ * `noSpecialHours` is the "No special-rate hours on this payslip" tick: the zeros were checked, so
+ * the payslip counts as entered (isDataEmpty). It is only ever true beside no hours (`readFormData`).
+ *
  * @returns {Record<string, any>}
  */
-// isDataEmpty lives in paycalc-format.js (the zero-import pure home — beside HM_PAIRS, the two of
-// them being the schema's field surface); re-exported here because this module OWNS the schema and
-// is where a reader looks for it. paycalc-hpp re-exports it too for its long-standing importers.
-export { isDataEmpty } from './paycalc-format.js';
-
 export function emptyPeriodData() {
     return { satH: 0, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0,
-             sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, actualNet: null,
-             actualGross: null, actualTax: null, actualNi: null, actualPension: null };
+             sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0, slSkip: false, otherAdj: 0, noSpecialHours: false,
+             actualNet: null, actualGross: null, actualTax: null, actualNi: null, actualPension: null };
+}
+
+/** Does the form on screen hold any special-rate hours — read as `readFormData` stores them? */
+function _specialHoursOnScreen() {
+    return HM_PAIRS.some(({ hId, mId }) => { const r = hmPair(hId, mId); return r.h > 0 || r.m > 0; });
+}
+
+/**
+ * The "No special-rate hours on this payslip" tick (`#noSpecialCheck`) shows only while the payslip
+ * on screen holds no special-rate hours, and hours arriving in any box clear it — typed, or the
+ * calendar's suggestion shown in gold. HOURS SUPERSEDE THE TICK, so what the tick shows is always what
+ * the next save stores (`readFormData` stores it only beside no hours), and a payslip can never say
+ * both. Run on every calculate(). The row is hidden by the `hidden` CLASS: `.toggle-row` sets
+ * `display`, which out-ranks the `hidden` attribute's own rule.
+ */
+export function syncNoSpecialTick() {
+    const row = document.getElementById('noSpecialRow');
+    const tick = /** @type {HTMLInputElement|null} */ (document.getElementById('noSpecialCheck'));
+    if (!row || !tick) return;
+    const hours = _specialHoursOnScreen();
+    row.classList.toggle('hidden', hours);
+    if (hours) tick.checked = false;
 }
 
 /**
@@ -116,11 +142,14 @@ export function readFormData({ adjNegative = false, periodDefaultPension = null,
         const r = hmPair(h, m);
         return { [h]: r.h, [m]: r.m };
     };
+    const _noSpecial = /** @type {HTMLInputElement|null} */ (document.getElementById('noSpecialCheck'));
     return {
         ..._hm('satH', 'satM'), ..._hm('bhH', 'bhM'), ..._hm('bhOtH', 'bhOtM'),
         ..._hm('otH', 'otM'), ..._hm('rdwH', 'rdwM'), ..._hm('sunH', 'sunM'), ..._hm('boxH', 'boxM'),
         peer: +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent,
         slSkip: /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
+        // Hours typed supersede the tick, so it is stored only beside none (syncNoSpecialTick).
+        noSpecialHours: !!_noSpecial?.checked && !_specialHoursOnScreen(),
         otherAdj: (() => { const _r = Math.abs(numVal('otherAdj') || 0); return adjNegative ? -_r : _r; })(),
         // Blank/garbage → null, a typed "0" kept, the period default → null: `pensionToStore` above.
         // A locked box (an opt-out spell) keeps the payslip's own saved figure — see the header.
@@ -194,6 +223,8 @@ export function writeFormData(d) {
     set('boxH', d.boxH || ''); set('boxM', mins(d.boxM));
     /** @type {HTMLElement} */ (document.getElementById('peerVal')).textContent = d.peer || 0;
     /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = d.slSkip || false;
+    const _noSpecial = /** @type {HTMLInputElement|null} */ (document.getElementById('noSpecialCheck'));
+    if (_noSpecial) _noSpecial.checked = !!d.noSpecialHours;
     const _rawAdj = d.otherAdj ?? 0;
     const adjNegative = _rawAdj < 0;
     /** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value =
