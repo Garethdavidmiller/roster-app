@@ -309,7 +309,11 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
                 button.disabled = t.days === 0;   // while a Save runs the whole result is inert (operations-al-sheet.js)
             };
             redrawBar();
-            button.addEventListener('click', () => { void runSave(); });
+            // runSave catches every failure it expects. A fault past those must not escape as an unhandled
+            // rejection, whose message the Error Log would keep: it could quote the file, so its type only.
+            button.addEventListener('click', () => {
+                runSave().catch(err => console.error('[AL sheet] the Save failed past its own checks:', /** @type {any} */ (err)?.name ?? 'unknown'));
+            });
             return bar;
         },
 
