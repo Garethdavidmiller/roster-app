@@ -287,7 +287,7 @@ Coordinator for `settings.html`, for every signed-in member: the sign-in, the dr
 
 ### `overlay.js`
 The shared overlay layer: the scroll lock, Android Back's LIFO stack, the topmost-only keyboard rule, the canonical lightbox (`createLightbox` — every lightbox, with three exceptions named in its JSDoc), the app-drawn confirm and prompt dialogs, and `openNoticeIfClear` for one-time notices. Re-exports `card-collapse.js`. Bound by CLAUDE.md → Canonical lightbox lifecycle and `.claude/rules/nav-drawer.md`. Tested by `overlay.test.mjs`, `overlay-history.test.mjs`, `overlay-parity.test.mjs` and `e2e/links.spec.js`.
-- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
+- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
 
 ### `card-collapse.js`
 A card's collapsible header, and the deep link that opens a collapsed card by name (`#<cardId>`). `overlay.js` re-exports both, so pages import them from there. No imports, no browser global read at load. Tested by `card-collapse.test.mjs` and `overlay.test.mjs`.

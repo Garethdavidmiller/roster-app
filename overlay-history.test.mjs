@@ -654,3 +654,109 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
         assert.ok((await open({})).cancel, 'every other confirmDialog keeps its Cancel');
     });
 });
+
+// ── A LINK OUT OF THE PAGE FROM INSIDE A LIGHTBOX (18 Nov 2026) ─────────────────────────────────────────────────────
+// A notice's call to action and an About panel's page links were plain links: the next page stacked on top of the
+// lightbox's own history entry, and one Back from it landed on a step of this page that nothing answered.
+// `followLinkOutOf` closes the lightbox WITHOUT popping that entry and replaces it with the link's page, as the
+// drawer's links replace the drawer's entry. The wiring of each caller is calendar-notices.test.mjs's and the
+// browser journey e2e/calendar.spec.js's and e2e/settings.spec.js's.
+describe('followLinkOutOf — the link\'s page takes the lightbox\'s history entry', () => {
+    function fakeOverlay() {
+        const classes = new Set();
+        /** @type {Record<string, Function[]>} */ const listeners = {};
+        return {
+            classList: { add: (/** @type {string} */ c) => classes.add(c), remove: (/** @type {string} */ c) => classes.delete(c), contains: (/** @type {string} */ c) => classes.has(c) },
+            addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
+            removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
+            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({})),
+        };
+    }
+    /** @type {{ replaced: string[], assigned: string[] }} */ let went;
+    /** A lightbox opened on `page` (the Calendar unless said), over `beneath` handlers already on the stack. */
+    async function openOne({ beneath = /** @type {Function[]} */ ([]), page = 'https://example.test/' } = {}) {
+        const mod = await freshOverlay();
+        went = { replaced: [], assigned: [] };
+        /** @type {any} */ (global).location = { href: page,
+            replace: (/** @type {string} */ u) => { went.replaced.push(u); }, assign: (/** @type {string} */ u) => { went.assigned.push(u); } };
+        /** @type {any} */ (global.window).scrollY = 0;
+        /** @type {any} */ (global.window).scrollTo = () => {};
+        /** @type {any} */ (global).requestAnimationFrame = (/** @type {Function} */ fn) => fn();
+        /** @type {any} */ (global.document).activeElement = null;
+        for (const fn of beneath) mod._pushOverlayState(fn);
+        const overlay = fakeOverlay();
+        let closed = 0;
+        const lb = mod.createLightbox({ overlay: /** @type {any} */ (overlay), content: null, closeBtn: null, onClose: () => { closed++; } });
+        lb.open();
+        return { mod, lb, overlay, closedCount: () => closed };
+    }
+    /** A click on a link whose href attribute is `href`, resolved against the page as a browser does. */
+    function click(href, { button = 0, ctrlKey = false, target = '', download = false, prevented = false } = {}) {
+        const link = { href: new URL(href, 'https://example.test/').href, target,
+            getAttribute: (/** @type {string} */ a) => (a === 'href' ? href : null),
+            hasAttribute: (/** @type {string} */ a) => a === 'download' && download };
+        const e = { target: { closest: (/** @type {string} */ sel) => (sel === 'a[href]' ? link : null) },
+            button, ctrlKey, metaKey: false, shiftKey: false, altKey: false, defaultPrevented: prevented,
+            preventDefault() { this.defaultPrevented = true; } };
+        return e;
+    }
+
+    test('a plain click: the lightbox closes, its entry is REPLACED by the page — no Back is spent on it, and none is left', async () => {
+        const below = /** @type {string[]} */ ([]);
+        const { mod, lb, overlay, closedCount } = await openOne({ beneath: [() => below.push('team view')] });
+        assert.equal(pushCount, 2, 'premise: the lightbox pushed its own entry above the one beneath');
+        const e = click('./newlink.html');
+        assert.equal(mod.followLinkOutOf(lb, /** @type {any} */ (e)), true);
+        assert.equal(e.defaultPrevented, true, 'the browser\'s own push would stack the page on the lightbox\'s entry');
+        assert.deepEqual(went.replaced, ['https://example.test/newlink.html'], 'the page takes the lightbox\'s entry');
+        assert.deepEqual(went.assigned, []);
+        assert.equal(backCount, 0, 'a history.back() before a navigation races it — the replace is what removes the entry');
+        assert.equal(closedCount(), 1, 'it closes as any close does: a notice is answered by its onClose');
+        assert.equal(overlay.classList.contains('open'), false);
+        pressBack();                                          // the entry beneath keeps its own Back
+        assert.deepEqual(below, ['team view'], 'the lightbox\'s handler was left on the stack, over the one beneath');
+        overlay.fade();
+    });
+
+    test('an echo still on its way (the unsaved-work question just closed) is waited for, then the entry is replaced', async () => {
+        const { mod, lb, overlay } = await openOne({ page: 'https://example.test/settings.html' });   // About's "View staff roster"
+        global.history.back = () => { backCount++; };        // the dialog's echo is left to the test
+        const dialog = () => {};
+        mod._pushOverlayState(dialog);
+        mod._clearOverlayHistory(dialog);                     // "Leave": the dialog closes, its Back is on its way
+        mod.followLinkOutOf(lb, /** @type {any} */ (click('./')));
+        assert.deepEqual(went.replaced, [], 'a replace now would land on the dialog\'s entry, which the traversal is about to leave');
+        pressBack();                                          // the echo lands
+        assert.deepEqual(went.replaced, ['https://example.test/'], 'and once it has, the page takes the lightbox\'s entry');
+        overlay.fade();
+    });
+
+    test('a lightbox closed by then (Back during its fade, the card still tappable) has no entry left: the link is followed as a push', async () => {
+        const { mod, lb, overlay } = await openOne();
+        pressBack();                                          // Back closed it; the browser took its entry
+        mod.followLinkOutOf(lb, /** @type {any} */ (click('./trains.html')));
+        assert.deepEqual(went.replaced, [], 'replacing would overwrite the PAGE\'s own entry, losing it from Back');
+        assert.deepEqual(went.assigned, ['https://example.test/trains.html']);
+        overlay.fade();
+    });
+
+    for (const [what, e] of /** @type {Array<[string, any]>} */ ([
+        ['a click for a new tab', click('./admin.html', { ctrlKey: true })],
+        ['a middle-button click', click('./admin.html', { button: 1 })],
+        ['a link that opens a new window', click('https://www.nationalrail.co.uk/', { target: '_blank' })],
+        ['a download', click('./roster.pdf', { download: true })],
+        ['mail', click('mailto:someone@example.test')],
+        ['a fragment of this page', click('#top')],
+        ['this same page with a fragment', click('./#huddle')],
+        ['a click the page has already handled', click('./admin.html', { prevented: true })],
+    ])) {
+        test(`left to the browser: ${what}`, async () => {
+            const { mod, lb, overlay, closedCount } = await openOne();
+            const already = e.defaultPrevented;
+            assert.equal(mod.followLinkOutOf(lb, e), false);
+            assert.equal(e.defaultPrevented, already, 'it must not stop what the browser does with this click');
+            assert.deepEqual([went.replaced, went.assigned, closedCount()], [[], [], 0]);
+            lb.close(); overlay.fade();
+        });
+    }
+});

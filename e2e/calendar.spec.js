@@ -2166,6 +2166,38 @@ test('New link notice: a colleague the page is for is told, and its link takes t
     expect(errors).toHaveLength(0);
 });
 
+// ONE BACK FROM THE PAGE THE LINK OPENED RETURNS TO THE CALENDAR (18 Nov 2026). The link was a plain <a href>, and the
+// open notice held a history entry with the Calendar's own address, so the New link page stacked on top of it: Back
+// came back to that entry, and — the Calendar reloaded, with nothing left to answer it — the Back after that did
+// nothing at all, one press more to leave an installed app. The link now REPLACES the notice's entry, as the drawer's
+// links replace the drawer's (overlay.js `followLinkOutOf`). Playwright runs with the back/forward cache off, so Back
+// always reloads here — the case a phone meets whenever the page has a database connection open.
+test('New link notice: one Back from the page its link opened returns to the Calendar, and the next Back leaves it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
+    await seedSession(page, NEWLINK_COLLEAGUE);
+    await seedMemberSession(page, NEWLINK_COLLEAGUE);
+    // Offered on the FIRST Calendar load only, after the seeders: the link answers it, and the Calendar that Back
+    // reloads must not offer it again (sessionStorage outlives the navigations; the seeders re-mark it done).
+    await page.addInitScript(() => {
+        if (location.pathname !== '/' || sessionStorage.getItem('__e2e_newlink_offered')) return;
+        sessionStorage.setItem('__e2e_newlink_offered', '1');
+        localStorage.removeItem('myb_notice_newlink_2026_done');
+    });
+    await page.goto('/railcard-guide.html');                   // where the member came from
+    await page.goto('/');
+    await expect(page.locator('#newlinkNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    await page.locator('#newlinkNoticeGo').click();
+    await expect(page).toHaveURL(/\/newlink\.html$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null),
+        'Back landed on the notice\'s own entry, whose next Back nothing answers').toBeNull();
+    await page.goBack();
+    await expect(page, 'one more Back leaves the Calendar').toHaveURL(/\/railcard-guide\.html$/);
+    expect(errors).toHaveLength(0);
+});
+
 test('New link notice: never for a colleague the page turns away — and not flagged (v25.61)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
