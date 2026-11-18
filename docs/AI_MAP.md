@@ -411,6 +411,10 @@ Does a generator target table pay the contract — exactly, as the generator's g
 The shape of a link design in memory and in Firestore, and every conversion between the two, plus which designs were drawn for the previous rotation. Pure; its three rules are in the header. `.claude/rules/links-design.md` → Firestore model. Tested by `links-design-doc.test.mjs`.
 - **Exports:** `LEGACY_DOC_ID` · `LINK_26_FROM` · `PREVIOUS_LINK_LENGTH` · `isPre26Design` · `deepCopyPatterns` · `designFromDoc` · `binEntryFromDoc` · `docPayload` · `workingCopy` · `binEntryFrom` · `restoredEntryFrom` · `recordSave` · `lastSavedLabel`
 
+### `links-design-load.js`
+What a read of the design collection means — which designs are live, which binned, which old-length ones move to the bin, whether a cached answer can be trusted, whether the legacy grid migrates, the list's one order and which design opens. Pure; ONE rule for the page load and the list refresh, which differ only in their bin predicate. Tested by `links-design-load.test.mjs`.
+- **Exports:** `splitDesignDocs` · `binOldOnLoad` · `binOldOnRefresh` · `readCannotAnswer` · `migratesLegacy` · `byDesignName` · `designToOpen`
+
 ### `links-generator-targets.js`
 The generator card's target table: the numbers Generate runs against, where they came from (the default, today's roster, this design's own memory or a saved staffing setup) and what may replace them, including the "Saved staffing setups" row and the two reset buttons. The four rules easy to undo are in its header. Bound by `.claude/rules/links-design.md` → The default table and the roster seed, and Saved staffing setups. Tested by `links-generator-targets.test.mjs` and the `links sets:` cases in `e2e/links.spec.js`.
 - **Exports:** `customShiftRefusal` · `createTargetPanel`

@@ -155,7 +155,12 @@ const CAPS = {
     // unit-tested). What stayed is wiring only this page can do (a refused save re-reads the list, and the save row follows;
     // a delete that lands after a switch keeps the comparison; two spans stamped from SPARE_WORKED_DAYS) and the reason
     // beside each. Set at the measured size: no room is banked.
-    'links-app.js':            2773,   // ← second whole-app check, Nov 2026 (2750 after the first; 2380 at v25.27)
+    // 2773 → 2750 on 18 Nov 2026, brought DOWN with what left (external review: make the next debt change small, one
+    // job): what a READ of the design collection means — the split both readers made, their two bin rules, the cached
+    // and legacy gates, the list's one order, which design opens — went to links-design-load.js, 2,773 measured lines
+    // to 2,744. The formula gives 2800, a raise, so it is clamped to the round number below the old cap, as admin-app.js
+    // was at v23.54: six lines of room. The save conversation in `saveChanges` is the next seam.
+    'links-app.js':            2750,   // ← 18 Nov 2026 (2773 after the second whole-app check; 2380 at v25.27)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap

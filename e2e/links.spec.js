@@ -2975,6 +2975,34 @@ test('links: a copy\'s first save landing while the Apply question is open still
     await expect(page.locator('#designStatusLong')).toHaveText('Not saved yet');
 });
 
+// ── WHICH DESIGN OPENS (links-design-load.js → `designToOpen`) ──────────────────────────────────
+// The rule is unit-tested; what only the page can show is that the remembered design reaches it. Two
+// saved designs, stored out of name order, so "the first one" and "the remembered one" differ.
+test('links: the design open last visit opens again — a saved one or a proposal — and one gone since gives way to the first', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'b', name: 'Beta', patterns: {}, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+            { id: 'a', name: 'Alpha', patterns: {}, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+        ];
+    });
+    const reopen = async (/** @type {string} */ remembered) => {
+        await page.evaluate((id) => localStorage.setItem('myb_links_active_design', id), remembered);
+        await page.reload();
+    };
+    await page.goto('/links.html');
+    await expect(activeDesignName(page), 'nothing remembered: the first saved design, in name order').toHaveText('Alpha');
+    await reopen('b');
+    await expect(activeDesignName(page)).toHaveText('Beta');
+    await reopen(PROPOSALS[0].id);
+    await expect(activeDesignName(page)).toHaveText(proposalDisplayName(PROPOSALS[0]));
+    await reopen('deleted-since');
+    await expect(activeDesignName(page)).toHaveText('Alpha');
+});
+
 // ── THE 24-LINE DESIGNS GO TO THE BIN (v24.47, owner) ───────────────────────────────────────────
 // The rule is unit-tested (isPre26Design). What only the page can show: the designs move to the bin
 // on open, the move is a SOFT delete written for real, a 26-line design and a blank one are left

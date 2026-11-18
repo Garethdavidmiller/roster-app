@@ -50,7 +50,8 @@ import {
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
-import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
+import { deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
+import { splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migratesLegacy, byDesignName, designToOpen } from './links-design-load.js';
 import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
@@ -69,7 +70,7 @@ import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
-    isDeleted, sortByDeleted, deleteOutcomeLine, renameRefusedLine,
+    sortByDeleted, deleteOutcomeLine, renameRefusedLine,
 } from './links-deletion.js';
 
 
@@ -894,11 +895,10 @@ export function init() {
         }
     }
 
-    /** Keep `designs` in the same alpha order loadDesigns applies, so in-session
-     *  create / duplicate / rename don't drift the picker + compare-chip order vs a fresh
-     *  reload (they used to push to the end and only re-sort on reload). (v16.19) */
+    /** Keep `designs` in the list's one order (`byDesignName`, links-design-load.js), so an in-session create,
+     *  duplicate or rename lands where a fresh load would put it (v16.19). */
     function _sortDesigns() {
-        designs.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+        designs.sort(byDesignName);
     }
 
     /**
@@ -2435,30 +2435,6 @@ export function init() {
 
     const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live
     const binMoves = new Set();    // old-length designs whose move STARTED and has not failed or been skipped
-    /** A collection read → live designs, the bin, and the legacy singleton. One rule for both readers.
-     *  A binned design keeps its patterns so a restore is a field-clearing merge (v19.41); every
-     *  doc → object mapping is links-design-doc.js (v19.94). `binOld(id)` says whether a design drawn
-     *  for the old length is shown in the bin: on a SERVER load, one whose move has not already failed
-     *  (the move follows, `_binPre26`); on a cached load, none; and on a refresh, only one whose move
-     *  this page started — a refresh starts none, so it may claim none (whole-app fix, Nov 2026: after
-     *  an offline load moved nothing, a refresh showed the old designs in the bin with no move made,
-     *  and restoring one said that someone else had restored it).
-     *  @param {Array<{id: string, data: any}>} docs @param {(id: string) => boolean} binOld */
-    function _splitDocs(docs, binOld) {
-        /** @type {any[]} */ const named = [], binned = [], toBin = [];
-        let legacyData = null;
-        for (const { id, data } of docs) {
-            const hasName = typeof data.name === 'string' && data.name.trim();
-            if (hasName && isDeleted(data)) binned.push(binEntryFromDoc(id, data));
-            // A design drawn for the old link length goes to the bin (owner, 3 Oct 2026; rule: isPre26Design).
-            // Shown there AT ONCE; the soft-delete write follows in the background (_binPre26).
-            else if (hasName && isPre26Design(data) && binOld(id)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
-            else if (hasName) named.push(designFromDoc(id, data));
-            else if (id === LEGACY_DOC_ID && data.patterns) legacyData = data;
-        }
-        return { named, binned, legacyData, toBin };
-    }
-
     /** Re-read and repaint the LISTS only. A bin row settled by a colleague used to call
      *  `loadDesigns`, which rebuilt the working copy — discarding unsaved edits — and blanked the
      *  grid if the read failed. The open design, its baseline and `dirty` are not a bin row's. */
@@ -2467,7 +2443,8 @@ export function init() {
         const listed = new Map(designs.map(d => [d.id, listRowSig(d)]));
         const binnedThen = new Map(library.binList().map((/** @type {any} */ b) => [b.id, listRowSig(b)]));
         try {
-            const { named, binned } = _splitDocs(await store.loadAll(), (id) => binMoves.has(id));
+            // The load's own split (links-design-load.js), with the refresh's one difference: it shows in the bin only a move this page started.
+            const { named, binned } = splitDesignDocs(await store.loadAll(), { binOld: binOldOnRefresh(binMoves), currentUser });
             // A save only this browser has — queued, or refused and kept (links-queued-saves.js rule 4) — keeps its row.
             designs = mergeListAnswer(designs, named, listed, (id) => !!queuedSaves.get(id)); _sortDesigns();
             library.setBin(sortByDeleted(mergeListAnswer(library.binList(), binned, binnedThen)));
@@ -2510,23 +2487,18 @@ export function init() {
         try {
             await sessionReady;
             const snap = await getDocs(DESIGNS_COL);
-            // A CACHED answer (offline, or the server out of reach) is whatever this device happened
-            // to keep — which can be nothing at all (links-app-5). With no live design in it, it
-            // cannot tell "you have none" from "this device never read them", so it is the FAILED
-            // state, never "No designs yet" and its create actions; and it never reaches the one-time
-            // migration below, which needs a server's word that the collection is empty. A cached
-            // answer that HOLDS designs is shown — stale, but real — and moves nothing to the bin.
+            // What the answer MEANS is links-design-load.js's, and the refresh reads it the same way: which designs
+            // are live, which binned, which old-length ones move (none on a cached answer), and whether a cached
+            // answer can be trusted at all — an empty one is the FAILED state, never "No designs yet" (links-app-5).
             const fromCache = !!snap.metadata?.fromCache;
-            const { named, binned, legacyData, toBin } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })),
-                (id) => !fromCache && !binFailed.has(id));
-            if (fromCache && named.length === 0) throw new Error('a cached read holds no live design, so whether any exist is unknown');
+            const split = splitDesignDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })),
+                { binOld: binOldOnLoad(fromCache, binFailed), currentUser });
+            if (readCannotAnswer(fromCache, split)) throw new Error('a cached read holds no live design, so whether any exist is unknown');
+            const { named, binned, legacyData, toBin } = split;
             _binPre26(toBin);
 
-            // ONE-TIME migration of combined-28 — and it has to STAY one-time (Oct 2026 review). The
-            // gate was only "no live design", which the 26-line release made true again by binning
-            // every pre-26 design: the legacy grid came back as "Design 1", was binned next load, and
-            // returned again. A collection that has EVER held a design — live or binned — is past it.
-            if (named.length === 0 && binned.length === 0 && legacyData) {
+            // ONE-TIME migration of combined-28 (`migratesLegacy`: a collection that has ever held a design is past it).
+            if (migratesLegacy(split)) {
                 // Through the SHARED mapping (v19.94): it once skipped `normalisePatterns` and the
                 // `window` field, persisting legacy unpadded times for good. History: git log.
                 const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });
@@ -2538,16 +2510,15 @@ export function init() {
             }
 
             // Sort by name — getDocs returns (random) auto-ID order, which shuffles the picker.
-            named.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+            named.sort(byDesignName);
             designs = named;
             // Bin: newest deletion first (pure, tested rule — incl. the unresolved-timestamp case).
             library.setBin(sortByDeleted(binned));
             // THE BIN IS PERMANENT (owner, 19 Sep 2026): nothing here deletes anything automatically.
             // Removal is a deliberate "Remove for good". The argument: links-deletion.js's header.
 
-            // Re-open the design (or proposal) active last visit, else the first saved one. Nothing
-            // saved opens NOTHING: the empty state offers the shortlist rather than choosing for you.
-            open = [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0] || null;
+            // The design (or proposal) open last visit, else the first saved one; nothing saved opens nothing.
+            open = designToOpen(designs, PROPOSAL_ENTRIES, lsGet(ACTIVE_KEY));
         } catch (err) {
             console.error('[Links] Load failed:', err);
             loadFailed = true;
