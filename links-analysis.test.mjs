@@ -783,7 +783,7 @@ describe('the design-checks triage block', () => {
             'the triage block wears a tick on a clean design. This card exists because a design '
             + 'showing nothing gets read as approved — that is the false-assurance failure the '
             + 'fatigue model is built around, arriving in the summary instead of the rows.');
-        assert.match(block, /These checks found nothing that has to be fixed/,
+        assert.match(block, /[Tt]hese checks found nothing that has to be fixed/,
             'a design with no blocking findings says nothing at all, so the reader cannot tell the '
             + 'difference between "checked, all clear" and "the block failed to render"');
     });
@@ -829,7 +829,7 @@ describe('the design-checks triage block', () => {
         initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
         const html = els.checksContent.innerHTML;
         const block = html.split('check-section-head')[0];
-        assert.match(block, /These checks found nothing that has to be fixed/,
+        assert.match(block, /[Tt]hese checks found nothing that has to be fixed/,
             'fixture is no longer amber-only — something is now RED, so this test is not testing '
             + 'what it claims');
         assert.match(block, /Worth discussing/,
@@ -858,8 +858,24 @@ describe('the design-checks triage block', () => {
         const discussed = (/check-triage--discuss[\s\S]*?<\/ul>/.exec(block)?.[0].match(/<li>/g) || []).length;
         assert.ok(discussed >= 2, `premise: the fixture leaves several points to discuss (found ${discussed})`);
         const head = /check-triage--none"><span class="check-triage-head">([^<]*)</.exec(block)?.[1];
-        assert.equal(head, `These checks found nothing that has to be fixed — but ${discussed} points below are worth discussing`,
-            'the nothing-to-fix line does not say how many points follow it, so above the warnings it reads as a pass');
+        // The count LEADS (review, 18 Nov 2026): what needs a reader's attention comes first.
+        assert.equal(head, `${discussed} points below are worth discussing — these checks found nothing that has to be fixed`,
+            'the nothing-to-fix line does not open on how many points follow it, so above the warnings it reads as a pass');
+    });
+
+    test('the nothing-to-fix line says the company limits\' policy source is outstanding, under it (review, 18 Nov 2026)', () => {
+        // "Nothing that has to be fixed" covers the company limits, whose source is still to be cited;
+        // the reader met that only further down, beside the Company limits heading. Read from the same
+        // switch, so the line cannot outlive the citation.
+        assert.equal(POLICY_SOURCE_CONFIRMED, false, 'premise: the policy source is still outstanding');
+        resetDom();
+        const clean = fullPatterns();
+        for (const k of Object.keys(clean)) clean[k].fri = 'RD';
+        initLinksAnalysis({ getDesign: () => ({ patterns: clean }) }).renderDesignChecks();
+        const block = els.checksContent.innerHTML.split('check-section-head')[0];
+        const none = /<div class="check-triage-group check-triage--none">[\s\S]*?<\/div><\/div>/.exec(block)?.[0] ?? '';
+        assert.match(none, /found nothing that has to be fixed<\/span><div class="check-sub">Company limits are checked as configured here; their policy source is still outstanding \(Company limits, below\)\.<\/div>/,
+            'the line that says nothing has to be fixed no longer says, beside it, that the company limits it covers have no cited source');
     });
 
     test('a worked-weekend design reaches the triage too', () => {
