@@ -405,6 +405,32 @@ describe('reconcileRangeIntoCache', () => {
             assert.equal(run(cache, { ...sick, replacedType: 'shift' }), true);
         });
     });
+
+    // The two fields EVERY renderer draws were in the list from the start, and nothing pinned them
+    // (18 Nov 2026): each test above moves a later field, so taking 'value' or 'type' out of the list
+    // left the whole suite green — and a colleague's changed times would not repaint from the local
+    // cache until the server read landed. Same source, same person, same instant: only the shift moves.
+    describe('the shift itself — its value and its type', () => {
+        const KEY = 'Q. Example|2026-08-14';
+        const run = (cache, r) => reconcileRangeIntoCache(
+            cache, [row('Q. Example', '2026-08-14', r)], '2026-08-10', '2026-08-16');
+        const saved = () => rec('07:00-15:00', 'manual', 100, { changedBy: 'A. Person' });
+
+        it('new TIMES are a display change', () => {
+            const cache = new Map([[KEY, saved()]]);
+            assert.equal(run(cache, { ...saved(), value: '09:00-17:00' }), true,
+                'the cell would go on showing 07:00-15:00 until an unrelated render replaced it');
+            assert.equal(cache.get(KEY).value, '09:00-17:00');
+        });
+
+        it('a new TYPE at the same times is a display change', () => {
+            // The same hours recorded as Rest Day Working instead of a shift change: the cell's badge
+            // becomes 💼 RDW (resolveEffectiveShift), and the value alone cannot say so.
+            const cache = new Map([[KEY, saved()]]);
+            assert.equal(run(cache, { ...saved(), type: 'rdw' }), true);
+            assert.equal(cache.get(KEY).type, 'rdw');
+        });
+    });
 });
 
 // The HH:MM rule has two homes: `isClockTime` (clock-input.js), which this module now uses for the
