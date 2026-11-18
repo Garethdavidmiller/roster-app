@@ -621,6 +621,27 @@ describe('a closed form does not invite answers (overtime-ui-16)', () => {
     });
 });
 
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('a closed week says what it HOLDS (18 Nov 2026)', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+    // "Final availability recorded." stood above seven days reading "Not answered" — a newest closed
+    // week is where the page lands when nothing is open, and the member's week list had already
+    // dropped that line for exactly this reason ("Nothing was submitted").
+    test('with a submission, the final availability is recorded', async () => {
+        const f = await mountForm({ win: { phase: 'CLOSED' } });
+        assert.match(f.host.innerHTML, /Final availability recorded\./);
+        assert.doesNotMatch(f.host.innerHTML, /Nothing was submitted/);
+    });
+
+    test('with nothing submitted, it says so — never "recorded" above seven unanswered days', async () => {
+        const f = await mountForm({ win: { phase: 'CLOSED', submission: null } });
+        assert.match(f.host.innerHTML, /Nothing was submitted for this week\./);
+        assert.doesNotMatch(f.host.innerHTML, /Final availability recorded/);
+        assert.equal((f.host.parts['.ot-days'].innerHTML.match(/Not answered/g) || []).length, 7,
+            'and the days beneath it agree');
+    });
+});
+
 /** The control a case presses, by its attribute and date — the one the latest paint wired. */
 const control = (/** @type {any} */ f, /** @type {string} */ attr, /** @type {string} */ date) =>
     f.host.parts['.ot-days'].querySelectorAll(`[${attr}]`).find((/** @type {any} */ b) => b.getAttribute(attr) === date);

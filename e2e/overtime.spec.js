@@ -2709,7 +2709,9 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator('.ot-submit')).toBeVisible();
 
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-        await expect(page.locator('.ot-closed-note')).toContainText('Final availability recorded');
+        // Nothing was submitted for this week (`winOver` has no submission), so the closed note says
+        // so — never "Final availability recorded" above seven unanswered days (18 Nov 2026).
+        await expect(page.locator('.ot-closed-note')).toContainText('Nothing was submitted for this week');
         expect(calls).toBeGreaterThanOrEqual(2);
     });
 
@@ -2737,7 +2739,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
 
         await page.clock.setFixedTime(new Date(NOW + 20 * 60_000));   // twenty minutes in a pocket
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-        await expect(page.locator('.ot-closed-note')).toContainText('Final availability recorded');
+        await expect(page.locator('.ot-closed-note')).toContainText('Nothing was submitted for this week');
         expect(calls).toBeGreaterThanOrEqual(2);
     });
 
