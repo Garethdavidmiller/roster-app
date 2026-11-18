@@ -2929,6 +2929,33 @@ half that closed, as it stood:
 >   one would pull the Firebase module graph into the sign-in overlay's unit tests or need a new
 >   module, for six lines.
 
+## Closed limitations, moved out of KNOWN_LIMITATIONS.md (18 Nov 2026)
+
+### The leave sheet's Undo and a change made during its Save — CLOSED v26.33
+
+v26.15 closed it for every Save made from then: each leave record a Save writes carries the Save's
+id, and the Undo takes back only a record still carrying it. A Save made with v26.13 or v26.14 has no
+marked records, so its Undo was still judged by date — the very rule that had undone the admin's own
+change — and the entry stayed open for it. The external review of 18 Nov 2026 asked for that Undo to
+be refused rather than trusted. From v26.33 the card names such a Save with no Undo and says why
+(`judgeUploads` → `unmarked`, `operations-al-save.js`), and `planUndo` takes nothing back for it, a
+second lock behind the first (`al-leave-plan.js` header). A day it added is taken back in Admin, as
+any other day is. The entry as it stood:
+
+> **Closed for every Save from v26.15; still open for a Save made with v26.13 or v26.14.** The Undo on
+> Operations → Annual leave sheet takes back only leave its Save created and nobody has changed since. It
+> used to tell the two apart by who wrote a day and when: annual leave written by the admin, stamped no
+> later than the Save's log. But the log is written after the leave and after a read of it, and a change
+> the same admin made to one of those days in another tab in that time passed both tests and was undone.
+>
+> From v26.15 every record a Save writes carries the Save's log id (`uploadId`), which any other save of
+> the day drops, and the Undo takes back only records still carrying it (AL_UPLOADER_PLAN.md §4.10). A log
+> written before then (`writesMarked` absent) has no marked records, so its Undo is still judged by date.
+> Only the latest Save of the year that added leave offers an Undo, so the next Save that adds leave ends this for good.
+>
+> **Until then, for an older Save only:** if a day it added was changed in Admin while it ran, put the day
+> right in Admin after an Undo, or skip the Undo and remove the Save's days in Admin.
+
 ## Moved out of ROADMAP.md (7 Nov 2026)
 
 Finished work and closed indexes, moved **verbatim** by line range from `ROADMAP.md` as it stood at

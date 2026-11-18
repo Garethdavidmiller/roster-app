@@ -62,8 +62,11 @@
  * It replaced a judgement by date. The log is written last, after the records and a read of them, and
  * the first rule took any record its author wrote no later than the log for the Save's own — so a change
  * the same admin made in the gap between the Save and its log was undone with it. A log written before
- * the mark (no `writesMarked`, v26.13) is still judged that way, because its records carry no id; such
- * logs are deleted with their year (al-leave-save.js → `pruneUploadLogs`), and the rule with them.
+ * the mark (no `writesMarked`: a Save before v26.15, 15 Nov 2026) has no marked records, so nothing can
+ * tell its days from a change made since. ITS UNDO IS NOT OFFERED, and `planUndo` takes nothing back for
+ * it (review, 18 Nov 2026): judged by date, as it was until then, it took back the very change the mark
+ * exists to protect. Its days are removed by hand in Admin instead — the side to be wrong on (below).
+ * Such logs go with their year (al-leave-save.js → `pruneUploadLogs`).
  *
  * ── THE LOG IS WRITTEN FROM WHAT THE SERVER SAYS, NOT FROM WHAT WAS SENT ────────────────────────
  *
@@ -279,13 +282,16 @@ export function recordsAfter(records, plan, now = new Date()) {
  * earlier Save's Undo off the screen. A log that added nothing is now passed over; nothing further
  * back is: one Undo, of the latest Save that added leave, and none once that is undone (the rules let
  * a log be undone once). Taking it back past a later Save is safe because an Undo removes only a record
- * still carrying its Save's mark (`planUndo`), and a later swap rewrites the record without it.
+ * still carrying its Save's mark (`planUndo`), and a later swap rewrites the record without it. A Save
+ * from before the mark is that Save all the same, but its Undo is withheld (header): it comes back as
+ * `unmarked`, so the card can name it and say why there is no Undo, rather than show nothing.
  *
  * And the later log still calls the undone days in line, which protected them as "removed in the app
  * since" — so an undo takes a day out of every log written BEFORE it, as it always took it out of its
  * own: the Undo removed the day, not somebody in the app. A log written after the undo keeps its claim.
  * @param {{ logs: UploadLog[], file: any }} a
- * @returns {{ newest: UploadLog|null, undoable: UploadLog|null, older: boolean, sameFile: boolean, protectedKeys: Set<string> }}
+ * @returns {{ newest: UploadLog|null, undoable: UploadLog|null, unmarked: UploadLog|null, older: boolean, sameFile: boolean,
+ *             protectedKeys: Set<string> }}
  */
 export function judgeUploads({ logs, file }) {
     const all = (logs || []).filter(l => l && typeof l.clerksLastSaved === 'string');
@@ -307,7 +313,9 @@ export function judgeUploads({ logs, file }) {
         const undoneSince = k => undos.some(u => u.keys.has(k) && (u.log === l || (u.at > 0 && savedAt > 0 && u.at > savedAt)));
         for (const k of Array.isArray(l.inLine) ? l.inLine : []) if (!undoneSince(k)) protectedKeys.add(k);
     }
-    return { newest, undoable: lastAdding && !('undoneAt' in lastAdding) ? lastAdding : null,
+    const offered = lastAdding && !('undoneAt' in lastAdding) ? lastAdding : null;
+    const marked = offered?.writesMarked === true;
+    return { newest, undoable: marked ? offered : null, unmarked: marked ? null : offered,
         older, sameFile: ofYear.some(l => l.fileDigest === file?.digest), protectedKeys };
 }
 
@@ -414,9 +422,10 @@ export function logFields({ file, inLine, added, savedBy, appVersion }) {
  * What an Undo of `log` may take back (plan §4.10): each day the Save ADDED whose record is still
  * the Save's own — at the fixed id, annual leave, written by the log's author, and still carrying the
  * log's id (header). A day rewritten since, by anybody, has lost the mark and is kept; a day already
- * gone is neither. A log written before the mark (no `writesMarked`) is judged by date, as it was: a
- * record stamped no later than the log, which was written last — its records carry no id. A rewrite of
- * a stored day ('swap') is never undone: the rules stamp every write afresh, so a "restored" record
+ * gone is neither. So a log written before the mark (no `writesMarked`) takes NOTHING back: its
+ * records carry no id, so none is still its own, and every day it added that is still there is kept
+ * (header: its Undo is not offered either — this is the second lock behind that one). A rewrite of a
+ * stored day ('swap') is never undone: the rules stamp every write afresh, so a "restored" record
  * would be a new one claiming to be the old.
  * @param {{ log: UploadLog, recordsByName: Map<string, any[]> }} a
  * @returns {{ remove: any[], kept: string[], gone: string[] }} `remove`: the rows to delete, as read
@@ -425,18 +434,13 @@ export function planUndo({ log, recordsByName }) {
     /** @type {any[]} */ const remove = [];
     /** @type {string[]} */ const kept = [];
     /** @type {string[]} */ const gone = [];
-    const marked = log.writesMarked === true;
-    const savedAt = tsToMillis(log.savedAt);
-    /** @param {any} r */
-    const stillTheSaves = r => (marked ? markedBy(r, log.id)
-        : savedAt > 0 && tsToMillis(r.createdAt) > 0 && tsToMillis(r.createdAt) <= savedAt);
     for (const key of log.added ?? []) {
         const day = parseDayKey(key);
         if (!day) continue;
         const r = (recordsByName.get(day.name) ?? []).find(x => x?.id === manualOverrideId(day.name, day.date));
         if (!r) { gone.push(key); continue; }
         const own = r.type === LEAVE && r.memberName === day.name && r.date === day.date && (r.source ?? '') === 'manual'
-            && r.changedBy === log.savedBy && stillTheSaves(r);
+            && r.changedBy === log.savedBy && markedBy(r, log.id);
         if (own) remove.push(r); else kept.push(key);
     }
     return { remove, kept, gone };

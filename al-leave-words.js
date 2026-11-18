@@ -368,6 +368,7 @@ export const SAVE_WORDS = Object.freeze({
     notRecordedYet: 'This Save isn’t recorded yet, so it can’t be undone until it is. Check again with a connection to record it.',
     nowRecorded: 'The earlier Save is now recorded, so it can be undone.',
     undo: 'Undo this Save',
+    undoUnmarked: 'This Save can’t be undone here. It was made before the app marked the days a Save adds, so a day changed since can’t be told apart from one it added. To take a day back, change it in Admin.',
     undoing: 'Taking back what the Save added…',
     undoStopped: 'The Undo stopped part way. Press Undo again to finish it: what it has already taken back counts as taken back.',
     undoNothing: 'Nothing was taken back: every day it added has changed since.',

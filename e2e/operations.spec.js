@@ -5190,6 +5190,27 @@ test('operations annual leave sheet: a later Save that added no leave does not t
     expect(errors).toEqual([]);
 });
 
+// A SAVE FROM BEFORE THE APP MARKED ITS DAYS IS NAMED, WITH NO UNDO (review, 18 Nov 2026). Its records
+// carry no id, so its Undo could not tell its own days from a change made since; judged by date, it took
+// back the same admin's change (al-leave-plan.js header). The card says why, rather than show nothing.
+test('operations annual leave sheet: a Save from before the app marked its days is named, with no Undo, and says why (review, 18 Nov 2026)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    const fx = await alSheetFixture();
+    const key = `${fx.A.name}|${fx.dates.match}`;
+    await openAlSheet(page, fx.records, { docsByQuery: { overrides: fx.records, alUploads: [{ id: 'log-before-the-mark', year: fx.year,
+        fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256, clerksLastSaved: fx.file.source.clerksLastSaved,
+        lastSavedByClerk: true, savedAt: { seconds: Math.floor(Date.now() / 1000) - 7200 }, savedBy: 'A. Clerkson',
+        appVersion: '26.13', inLine: [key], added: [key] }] } });
+    await chooseLeaveFile(page, fx.text);
+    await page.locator('#alSheetCheckBtn').click();
+    await expect(page.locator('#alSheetFeedback')).toHaveText(checkedWords(2));
+    const last = page.locator('.al-sheet-last');
+    await expect(last).toContainText('adding 1 day of leave');
+    await expect(last, 'the line says why there is no Undo').toContainText(SAVE_WORDS.undoUnmarked);
+    await expect(last.locator('.al-sheet-undo'), 'no Undo for a Save whose days cannot be told from a change made since').toHaveCount(0);
+    expect(errors).toEqual([]);
+});
+
 test('operations annual leave sheet: the Undo keeps a day the same admin changed after the Save, though it is stamped before the log (external review, 15 Nov 2026)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     const fx = await alSheetFixture();
@@ -5578,7 +5599,8 @@ test('operations annual leave sheet: a Save that landed nothing records nothing,
     const fx = await alSheetFixture();
     const earlier = { id: 'log-earlier', year: fx.year, fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256,
         clerksLastSaved: fx.file.source.clerksLastSaved, lastSavedByClerk: true, savedAt: Date.now() - 3_600_000,
-        savedBy: 'G. Miller', appVersion: 'e2e', inLine: [`${fx.B.name}|${fx.dates.bMatch}`], added: [`${fx.B.name}|${fx.dates.bMatch}`] };
+        savedBy: 'G. Miller', appVersion: 'e2e', inLine: [`${fx.B.name}|${fx.dates.bMatch}`], added: [`${fx.B.name}|${fx.dates.bMatch}`],
+        writesMarked: true };
     await openAlSheet(page, fx.records, { writesLand: true, docsByQuery: { overrides: fx.records, alUploads: [earlier] } });
     await confirmA(page, fx);
     await expect(page.locator('.al-sheet-last')).toContainText('adding 1 day of leave');
@@ -5716,7 +5738,8 @@ test('operations annual leave sheet: an Undo that cannot load what it writes wit
     const fx = await alSheetFixture();
     const earlier = { id: 'log-earlier', year: fx.year, fileDigest: fx.file.digest, workbookSha256: fx.file.source.sha256,
         clerksLastSaved: fx.file.source.clerksLastSaved, lastSavedByClerk: true, savedAt: Date.now() - 3_600_000,
-        savedBy: 'G. Miller', appVersion: 'e2e', inLine: [`${fx.B.name}|${fx.dates.bMatch}`], added: [`${fx.B.name}|${fx.dates.bMatch}`] };
+        savedBy: 'G. Miller', appVersion: 'e2e', inLine: [`${fx.B.name}|${fx.dates.bMatch}`], added: [`${fx.B.name}|${fx.dates.bMatch}`],
+        writesMarked: true };
     await page.route('**/admin-override-store.js', route => route.abort('failed'));
     await openAlSheet(page, fx.records, { writesLand: true, docsByQuery: { overrides: fx.records, alUploads: [earlier] } });
     await chooseLeaveFile(page, fx.text);

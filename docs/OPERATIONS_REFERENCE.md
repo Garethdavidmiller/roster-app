@@ -1104,9 +1104,9 @@ Save, the receipt says so, and the **next check of the same file** records it. T
 latest Save of the year that added leave with an **Undo** beside it (a later Save that added none, only
 swaps, leaves that Undo in place), which takes back only the days that Save added and
 nobody has changed since; any others are kept, and named. Each record a Save writes carries its mark,
-which any later save of that day, by anybody, removes (v26.15); a Save made with v26.13 or v26.14 is
-judged by date instead (KNOWN_LIMITATIONS.md → "The leave sheet's Undo and a change made during its
-Save"). A swap it counted on leave the app already held is never taken back: that day stays counted.
+which any later save of that day, by anybody, removes (v26.15). A Save made with v26.13 or v26.14 has
+no marked days, so the card names it with **no Undo** and says why (18 Nov 2026); take any of its days
+back in Admin. A swap it counted on leave the app already held is never taken back: that day stays counted.
 It can be undone once — and an Undo that
 **stops part way** is finished by pressing Undo again: what it already took back stays taken back. An
 Undo that could not read the app's records (offline, say) took nothing back and says so, and its review

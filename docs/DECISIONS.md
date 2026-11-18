@@ -894,7 +894,8 @@ second set of rules to keep. Telling the admin's own booking apart by `source` w
 exactly what the Save writes.
 
 **What it costs:** one optional field on a leave record, an id that names nobody, which the rules take
-only from the admin writing manual annual leave. A log from before the mark is still judged by date.
+only from the admin writing manual annual leave. A log from before the mark has no Undo (review,
+18 Nov 2026): the date was all that could judge it, and the date is what failed.
 
 **What would reopen it:** another writer needing to mark records as its own — the builder takes the mark
 only as its own argument, and a test fails if any caller but the Save passes one.
