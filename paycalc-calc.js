@@ -339,18 +339,18 @@ export function taxYearForPeriod(p) {
 /**
  * Return threshold objects for a given tax year label.
  * Falls back to 2025/26 with a warning if year not found.
+ * No London Allowance here (18 Nov 2026): nothing read it, and a year's one figure is wrong for a
+ * payslip paid before that year's award — the allowance is per payslip, getLondonAllowanceForPeriod.
  * @param {string} yearLabel - e.g. '2025/26'
- * @returns {{ tax: any, scottishTax: any, ni: any, sl: any, londonAllow: number }}
+ * @returns {{ tax: any, scottishTax: any, ni: any, sl: any }}
  */
 export function getThresholds(yearLabel) {
-  const ty = TAX_YEARS.find(t => t.label === yearLabel) || TAX_YEARS[0];
   if (!(/** @type {Record<string, any>} */ (TAX_BY_YEAR))[yearLabel]) console.warn(`[PayCalc] No tax data for ${yearLabel} — using 2025/26 thresholds. Update TAX_BY_YEAR, NI_BY_YEAR, SL_BY_YEAR, and SCOTTISH_TAX_BY_YEAR.`);
   return {
     tax:         (/** @type {Record<string, any>} */ (TAX_BY_YEAR))[yearLabel]          || TAX_BY_YEAR['2025/26'],
     scottishTax: (/** @type {Record<string, any>} */ (SCOTTISH_TAX_BY_YEAR))[yearLabel] || SCOTTISH_TAX_BY_YEAR['2025/26'],
     ni:          (/** @type {Record<string, any>} */ (NI_BY_YEAR))[yearLabel]           || NI_BY_YEAR['2025/26'],
     sl:          (/** @type {Record<string, any>} */ (SL_BY_YEAR))[yearLabel]           || SL_BY_YEAR['2025/26'],
-    londonAllow: ty.londonAllow,
   };
 }
 
