@@ -321,6 +321,25 @@ describe('the work email and password lines state today, and promise nothing', (
     });
 });
 
+// ── WHO CAN SEE THE SAVED EMAIL IS SAID OF THE EMAIL (18 Nov 2026) ───────────────────────────────
+// The 17 Nov wording put "…ask the admin if you forget your password." straight before "Only you and the
+// admin can see it", so the nearest noun was the password — which nobody can see, as the Password card's
+// own ? panel says. The card, its ? panel and the Staff Guide name the email, so the "it" has nothing to
+// attach to.
+describe('who can see the saved work email is said of the email, never of the password', () => {
+    const settings = readFileSync('settings.html', 'utf8').replace(/\s+/g, ' ');
+    const guide = readFileSync('staff-guide.html', 'utf8').replace(/\s+/g, ' ');
+    const tip = readCardTips('settings-app.js')['work-email'].sections.flatMap((/** @type {any} */ s) => s.items)
+        .map((/** @type {any} */ i) => i.html.replace(/<[^>]+>/g, '')).join(' ');
+
+    for (const [where, text] of [['the Work Email card', settings], ['its ? panel', tip], ['the Staff Guide', guide]]) {
+        test(`${where} names the email`, () => {
+            assert.match(text, /Only you and the admin can see this email\b/);
+            assert.doesNotMatch(text, /Only you and the admin can see it\b/, 'an "it" here reads as the password');
+        });
+    }
+});
+
 // ── THE DAY PANEL'S "CHANGED" LINE (whole-app check, 17 Nov 2026) ────────────────────────────────
 // The guide said a changed day shows "what your manager recorded instead", and members record their own
 // leave and absence — the guide says so itself a little further down.

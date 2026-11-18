@@ -287,7 +287,7 @@ Coordinator for `settings.html`, for every signed-in member: the sign-in, the dr
 
 ### `overlay.js`
 The shared overlay layer: the scroll lock, Android Back's LIFO stack, the topmost-only keyboard rule, the canonical lightbox (`createLightbox` — every lightbox, with three exceptions named in its JSDoc), the app-drawn confirm and prompt dialogs, and `openNoticeIfClear` for one-time notices. Re-exports `card-collapse.js`. Bound by CLAUDE.md → Canonical lightbox lifecycle and `.claude/rules/nav-drawer.md`. Tested by `overlay.test.mjs`, `overlay-history.test.mjs`, `overlay-parity.test.mjs` and `e2e/links.spec.js`.
-- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
+- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
 
 ### `card-collapse.js`
 A card's collapsible header, and the deep link that opens a collapsed card by name (`#<cardId>`). `overlay.js` re-exports both, so pages import them from there. No imports, no browser global read at load. Tested by `card-collapse.test.mjs` and `overlay.test.mjs`.
@@ -1084,7 +1084,7 @@ Re-authenticating with, and changing, the signed-in member's OWN password — th
 
 ### `account-calls.js`
 The browser's side of three ACCOUNT endpoints — the admin's Reset, the provisioning audit (which also carries the staff PIN lockout) and the locked-out member's reset request. A factory with `auth` injected, so it makes no import cycle; `firebase-client.js` builds it once and re-exports the three. Its one rule: a deadline above each endpoint's own, and a WRITE that times out says it may still have happened. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
-- **Exports:** `buildAccountCalls`
+- **Exports:** `RESET_NOT_SENT` · `buildAccountCalls`
 
 ### `documents-client.js`
 The three date-keyed document collections — Daily Huddle, Weekly Retail Circular, Marylebone Newsletter — and the upload sequence behind them. A factory with every Firebase handle injected, so its failure orderings can be forced against fakes; `firebase-client.js` builds it and re-exports each function. It owns the sequence, and the decisions are `upload-commit.js`'s and `doc-retention.js`'s. Its one invariant — a live document never points at a file that is not there — and each step that keeps it are its header. The Huddle listener stays a live `onSnapshot` (`.claude/rules/pwa.md`). Tested by `documents-client.test.mjs`.

@@ -409,11 +409,22 @@ export const getDocFromCache = (ref) => {
 export const getDoc = () => {
   const e2e = globalThis.__E2E || {};
   if (e2e.failGetDoc) return Promise.reject(Object.assign(new Error('e2e'), { code: 'unavailable' }));
-  const seeded = e2e.getDocData;
-  const metadata = { fromCache: !!e2e.docsFromCache };
-  return Promise.resolve(seeded
-    ? { exists: () => true, data: () => seeded, metadata }
-    : { exists: () => false, data: () => ({}), metadata });
+  const answer = () => {
+    const seeded = e2e.getDocData;
+    const metadata = { fromCache: !!e2e.docsFromCache };
+    return seeded
+      ? { exists: () => true, data: () => seeded, metadata }
+      : { exists: () => false, data: () => ({}), metadata };
+  };
+  // window.__E2E.getDocHold holds every single-doc read open until the test calls window.__E2E.releaseGetDoc()
+  // (18 Nov 2026) — the lever that lets a member type into Settings' Work Email before its first read lands,
+  // which an instantly-resolving read could never show. A GATE, like addDocHold; unset, nothing changes.
+  // (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+  if (e2e.getDocHold) {
+    if (!e2e._getDocGate) e2e._getDocGate = new Promise(r => { e2e.releaseGetDoc = r; });
+    return e2e._getDocGate.then(answer);
+  }
+  return Promise.resolve(answer());
 };
 // The SERVER-only single read (13 Nov 2026), which documents-client.js asks after an upload write is
 // refused. Answered as getDoc is, so every seeded state reaches it, and declared after getDoc, which it

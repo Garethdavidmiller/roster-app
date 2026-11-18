@@ -2299,6 +2299,38 @@ test('New link notice: a colleague the page is for is told, and its link takes t
     expect(errors).toHaveLength(0);
 });
 
+// ONE BACK FROM THE PAGE THE LINK OPENED RETURNS TO THE CALENDAR (18 Nov 2026). The link was a plain <a href>, and the
+// open notice held a history entry with the Calendar's own address, so the New link page stacked on top of it: Back
+// came back to that entry, and — the Calendar reloaded, with nothing left to answer it — the Back after that did
+// nothing at all, one press more to leave an installed app. The link now REPLACES the notice's entry, as the drawer's
+// links replace the drawer's (overlay.js `followLinkOutOf`). Playwright runs with the back/forward cache off, so Back
+// always reloads here — the case a phone meets whenever the page has a database connection open.
+test('New link notice: one Back from the page its link opened returns to the Calendar, and the next Back leaves it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
+    await seedSession(page, NEWLINK_COLLEAGUE);
+    await seedMemberSession(page, NEWLINK_COLLEAGUE);
+    // Offered on the FIRST Calendar load only, after the seeders: the link answers it, and the Calendar that Back
+    // reloads must not offer it again (sessionStorage outlives the navigations; the seeders re-mark it done).
+    await page.addInitScript(() => {
+        if (location.pathname !== '/' || sessionStorage.getItem('__e2e_newlink_offered')) return;
+        sessionStorage.setItem('__e2e_newlink_offered', '1');
+        localStorage.removeItem('myb_notice_newlink_2026_done');
+    });
+    await page.goto('/railcard-guide.html');                   // where the member came from
+    await page.goto('/');
+    await expect(page.locator('#newlinkNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    await page.locator('#newlinkNoticeGo').click();
+    await expect(page).toHaveURL(/\/newlink\.html$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null),
+        'Back landed on the notice\'s own entry, whose next Back nothing answers').toBeNull();
+    await page.goBack();
+    await expect(page, 'one more Back leaves the Calendar').toHaveURL(/\/railcard-guide\.html$/);
+    expect(errors).toHaveLength(0);
+});
+
 test('New link notice: never for a colleague the page turns away — and not flagged (v25.61)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(NEWLINK_NOTICE_DAY);
@@ -4155,6 +4187,29 @@ test('huddle: opened from the drawer and closed, one Back press leaves the Calen
         .toHaveURL(/railcard-guide\.html/);
 });
 
+// A NOTIFICATION TAPPED WITH THE DRAWER OPEN LEAVES NO DEAD BACK EITHER (18 Nov 2026). A tap is a hash navigation
+// pushed ON TOP of the drawer's own entry. The drawer read its popstate as Back and closed, but its entry stayed
+// beneath the tap's; the viewer took the tap's entry off, and once the viewer was closed one Back press landed on
+// the drawer's leftover: the same Calendar, nothing moved. The tap is a hash change, as the tests above make it.
+test('huddle: a notification tapped with the drawer open, then the viewer closed — one Back press leaves the Calendar', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page);
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toHaveClass(/\bopen\b/);
+    await page.evaluate(() => { location.hash = '#huddle'; });   // the service worker's navigate of the open window
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
+    await expect(page.locator('#navPanel'), 'the tap closes the drawer').not.toHaveClass(/\bopen\b/);
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    await expect.poll(() => page.evaluate(() => history.state?.mybNavPanel ?? null),
+        { message: 'the reader was left on the drawer\'s entry, where a Back press does nothing' }).toBeNull();
+    await page.evaluate(() => history.back());
+    await expect(page, 'one Back press leaves the Calendar').toHaveURL(/railcard-guide\.html/);
+});
+
 // …and from any OTHER page the link loads the Calendar, so the drawer's entry is REPLACED, as a page
 // pill's is: Back from the Calendar lands where the member was before opening the drawer.
 test('huddle: opened from another page\'s drawer, Back returns to that page past no drawer entry', async ({ page }) => {
@@ -4374,7 +4429,7 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--newsletter').click();
     await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
-    await expect(page.locator('#navComingSoonLightbox')).not.toContainText('No newsletter has been uploaded yet');
+    await expect(page.locator('#navComingSoonLightbox')).not.toContainText('has been uploaded yet');
 });
 
 // ── THE NEWSLETTER'S ☰ BUTTON FOLLOWS ITS LATEST ISSUE (owner, 14 Nov 2026) ─────────────────────────────

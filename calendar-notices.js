@@ -47,7 +47,7 @@
 
 import { lsGet, lsSet } from './ls.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
-import { createLightbox, openNoticeIfClear } from './overlay.js';
+import { createLightbox, openNoticeIfClear, followLinkOutOf } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
@@ -153,6 +153,23 @@ function followedDone(doneKey) {
 }
 
 /**
+ * Wire a notice's link: pressing it answers the notice, and a plain click is followed by REPLACING the
+ * notice's history entry with the page it opens (`followLinkOutOf`, overlay.js), as the drawer's links
+ * replace the drawer's (18 Nov 2026). Left a plain link, that page stacked on top of the notice's entry,
+ * and one Back from it landed on a step of the Calendar that nothing answered. A new tab is left to the
+ * browser, with the notice still up for its own close; it is answered either way.
+ * @param {string} id  the link's id
+ * @param {{ close: () => unknown }} lb  the notice it sits in
+ * @param {() => void} answered  what pressing it records
+ */
+function _wireNoticeLink(id, lb, answered) {
+    document.getElementById(id)?.addEventListener('click', (/** @type {MouseEvent} */ e) => {
+        answered();
+        followLinkOutOf(lb, e);
+    });
+}
+
+/**
  * Would the Pay Calculator price THIS member, or show them its refusal card? `payCalculatorPrices`
  * (pay-audience.js) is the Pay page's own test, by the role AT THE TIME: asked here with no payslips,
  * so only TODAY's grade counts — a notice invites work on the payslip being earned — and the page,
@@ -216,7 +233,7 @@ export function initCalendarNotices({ after } = {}) {
             onClose() { markDone(); },
         });
 
-        document.getElementById('timetableNoticeGo')?.addEventListener('click', markDone);
+        _wireNoticeLink('timetableNoticeGo', lb, markDone);
         document.getElementById('timetableNoticeLater')?.addEventListener('click', () => lb.close());
 
         // 'members' — chosen while the Trains page signed people in, when its link would have led the
@@ -289,7 +306,7 @@ export function initCalendarNotices({ after } = {}) {
             onClose() { markDone(); },
         });
 
-        document.getElementById('ytdNoticeGo')?.addEventListener('click', markDone);
+        _wireNoticeLink('ytdNoticeGo', lb, markDone);
         document.getElementById('ytdNoticeLater')?.addEventListener('click', () => lb.close());
 
         // 'members' — it is about YOUR pay, and on the PIN-unlocked station PC it addresses nobody.
@@ -364,7 +381,7 @@ export function initCalendarNotices({ after } = {}) {
             onClose() { markDone(); },
         });
 
-        document.getElementById('timetableSoonNoticeGo')?.addEventListener('click', markDone);
+        _wireNoticeLink('timetableSoonNoticeGo', lb, markDone);
         document.getElementById('timetableSoonNoticeLater')?.addEventListener('click', () => lb.close());
 
         // 'members', as the October notice was: whether the station PC should be told too is still the
@@ -467,7 +484,7 @@ export function initCalendarNotices({ after } = {}) {
             answered();
             lb.close();
         });
-        document.getElementById('installNoticeGo')?.addEventListener('click', answered);
+        _wireNoticeLink('installNoticeGo', lb, answered);   // the mirror's link to the main address
         document.getElementById('installNoticeLater')?.addEventListener('click', () => lb.close());
 
         // 'members' — the station PC is not a person, and nobody should install the staff roster on
@@ -539,7 +556,7 @@ export function initCalendarNotices({ after } = {}) {
             onClose() { markDone(); },
         });
 
-        document.getElementById('newlinkNoticeGo')?.addEventListener('click', markDone);
+        _wireNoticeLink('newlinkNoticeGo', lb, markDone);
         document.getElementById('newlinkNoticeLater')?.addEventListener('click', () => lb.close());
 
         // 'members' — the page is signed-in only (owner, 2 Nov 2026), so the station PIN is never told
