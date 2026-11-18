@@ -479,7 +479,7 @@ The pure rules behind Recently deleted in the Links workspace: what counts as a 
 
 ### `links-concurrency.js`
 The pure co-editing rules for the Links workspace: is this save about to overwrite a colleague's work, and what baseline the next save compares against. No DOM, no Firebase; `links-design-store.js` applies them. Bound by `.claude/rules/links-design.md` invariant 5 and → Concurrency and load safety. Tested by `links-concurrency.test.mjs`, one case per historical bug; the read-back window end to end in `links-design-store.test.mjs`.
-- **Exports:** `conflictOf` · `baselineAfterWrite` · `baselineAfterCommit` · `baselineFromEntry` · `nextRevision` · `canAdvanceBaseline`
+- **Exports:** `conflictOf` · `baselineAfterWrite` · `baselineAfterCommit` · `baselineFromEntry` · `nextRevision` · `canAdvanceBaseline` · `listRowSig` · `mergeListAnswer`
 
 ### `admin-tips.js`
 The content of every `?` panel on `admin.html` (`CARD_TIPS`), in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins. Pure data; `admin-app.js` hands it to `initTipsLightbox`, and `al-copy-parity.test.mjs` reads its Annual Leave entry.

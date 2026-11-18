@@ -11,7 +11,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { conflictOf, baselineAfterWrite, baselineAfterCommit, baselineFromEntry, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
+import { conflictOf, baselineAfterWrite, baselineAfterCommit, baselineFromEntry, canAdvanceBaseline, nextRevision, listRowSig, mergeListAnswer } from './links-concurrency.js';
 
 /** A Firestore-ish timestamp. */
 const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms, toDate: () => new Date(ms) });
@@ -402,5 +402,78 @@ describe('baselineFromEntry — selecting a design we LOADED', () => {
         assert.equal(conflictOf(synced, true, { ...b, currentUser: ME }), null);
         assert.ok(conflictOf({ ...synced, updatedBy: 'S. Silva' }, true, { ...b, currentUser: ME }),
             'a colleague\'s save is still caught — by name, the accepted residual of an unknown baseline');
+    });
+});
+
+// ── A LIST READ ANSWERED AFTER THE PAGE CHANGED THE LIST (whole-app check, Nov 2026) ──────────────
+// A refused save re-reads the designs while its "Save mine as new" makes a copy, and the designer can save, rename or
+// delete meanwhile. The answer replaced the list wholesale: the copy left the picker, a design just binned came back,
+// and a design just saved was handed its version from before the save — what the next reopen then showed.
+describe('mergeListAnswer — an answer applied around what the page changed while the read was out', () => {
+    const row = (/** @type {string} */ id, /** @type {any} */ o = {}) =>
+        ({ id, name: id, revision: 1, updatedBy: THEM, updatedAt: ts(1000), ...o });
+    const asked = (/** @type {any[]} */ list) => new Map(list.map(x => [x.id, listRowSig(x)]));
+
+    test('nothing changed meanwhile: the result is the answer, row for row — a colleague\'s save and a new design included', () => {
+        const now = [row('a'), row('b')];
+        const answer = [row('a', { revision: 2, updatedAt: ts(2000) }), row('b'), row('c')];
+        assert.deepEqual(mergeListAnswer(now, answer, asked(now)), answer);
+    });
+
+    test('a row the page ADDED while the read was out is kept — the answer cannot hold it yet', () => {
+        const now = [row('a')];
+        const before = asked(now);
+        const copy = row('copy', { updatedBy: ME });
+        now.push(copy);                                            // "Save mine as new", meanwhile
+        assert.deepEqual(mergeListAnswer(now, [row('a')], before).map(x => x.id), ['a', 'copy']);
+    });
+
+    test('a row the page REMOVED while the read was out stays removed — the answer still holds it', () => {
+        const now = [row('a'), row('b')];
+        const before = asked(now);
+        now.splice(1, 1);                                          // b deleted here, meanwhile
+        assert.deepEqual(mergeListAnswer(now, [row('a'), row('b')], before).map(x => x.id), ['a']);
+    });
+
+    test('a row the page CHANGED while the read was out is the page\'s own — a save or a rename that landed', () => {
+        const saved = row('a');
+        const now = [saved, row('b')];
+        const before = asked(now);
+        Object.assign(saved, { revision: 2, updatedBy: ME, updatedAt: ts(3000) });   // recordSave, meanwhile
+        const out = mergeListAnswer(now, [row('a'), row('b')], before);
+        assert.equal(out[0], saved, 'the answer\'s copy, from before the save, replaced the one just saved');
+        const renamed = row('r');
+        const now2 = [renamed];
+        const before2 = asked(now2);
+        renamed.name = 'New name';
+        assert.equal(mergeListAnswer(now2, [row('r')], before2)[0].name, 'New name', 'a rename here was undone by the answer');
+    });
+
+    test('a row the page HOLDS is its own however the answer reads it — a save only this browser has', () => {
+        const mine = row('a', { patterns: 'the refused save' });
+        const now = [mine];
+        const answer = [row('a', { revision: 5, updatedAt: ts(9000), patterns: 'the server copy' })];
+        assert.equal(mergeListAnswer(now, answer, asked(now), id => id === 'a')[0], mine);
+        assert.equal(mergeListAnswer(now, answer, asked(now))[0], answer[0], 'premise: held by nothing, the answer wins');
+    });
+
+    test('a row new to the page that it also made is the page\'s own copy, listed once', () => {
+        const now = [row('a')];
+        const before = asked(now);
+        const copy = row('copy', { updatedBy: ME });
+        now.push(copy);
+        const out = mergeListAnswer(now, [row('a'), row('copy', { updatedBy: ME })], before);
+        assert.deepEqual(out.map(x => x.id), ['a', 'copy']);
+        assert.equal(out[1], copy);
+    });
+
+    test('the signature sees each thing a save, a rename or a delete changes — and nothing else', () => {
+        const base = row('a', { savedAt: new Date(2026, 10, 1), deletedBy: null, deletedAt: null });
+        const sig = listRowSig(base);
+        for (const [k, v] of /** @type {Array<[string, any]>} */ ([['name', 'b'], ['revision', 2], ['updatedBy', ME], ['updatedAt', ts(2)],
+            ['savedAt', new Date(2026, 10, 2)], ['deletedBy', ME], ['deletedAt', ts(5)]])) {
+            assert.notEqual(listRowSig({ ...base, [k]: v }), sig, `a change to ${k} went unseen`);
+        }
+        assert.equal(listRowSig({ ...base, patterns: { 1: {} } }), sig, 'patterns are not compared — revision and the stamps answer for them');
     });
 });

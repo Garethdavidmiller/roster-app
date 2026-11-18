@@ -216,9 +216,14 @@ describe('a pasted grid — where a paste loses a COLUMN', () => {
         assert.equal(over.ok, false);
         assert.match(String(over.error), /rotation is \d+ lines/);
 
-        const under = parseGrid([week('RD'), week('RD')].join('\n'));
+        const under = parseGrid([week('06:20-14:20'), week('SP')].join('\n'));
         assert.equal(under.ok, true, under.ok ? '' : under.error);
-        assert.ok(under.warnings.some(w => /2 of \d+ lines are filled/.test(w)), JSON.stringify(under.warnings));
+        assert.ok(under.warnings.some(w => /Only 2 of \d+ lines are filled/.test(w)), JSON.stringify(under.warnings));
+        // A week of rest days is a line not yet designed, and the warning counts as the summary beside it does.
+        // This assertion read "2 of N" over two weeks of rest days — the count of KEYS — until the two agreed.
+        const rest = parseGrid([week('RD'), week('RD')].join('\n'));
+        assert.equal(rest.ok, true, rest.ok ? '' : rest.error);
+        assert.ok(rest.warnings.some(w => /Only 0 of \d+ lines are filled/.test(w)), JSON.stringify(rest.warnings));
     });
 
     test('a bad cell names its week AND its day', () => {
@@ -363,5 +368,29 @@ describe('the summary shown before the save', () => {
         assert.ok(r.warnings.some((/** @type {string} */ w) => /^Line 5 is empty in the paste/.test(w)), 'premise: the warning names line 5');
         assert.equal(Object.keys(r.patterns).length, ROTATING_LINES, 'premise: the empty week is kept in its place');
         assert.equal(summariseImport(r.patterns).filled, ROTATING_LINES - 1, 'the empty line is not counted as filled');
+    });
+
+    test('…and a SHORT paste with an empty row: the short-rotation warning states the summary\'s count', () => {
+        // The full paste above was mended on 17 Nov; a short one still said "19 of 26 lines" in its summary
+        // and "Only 20 of 26 lines are filled" one line below it, in the same box — the warning counted KEYS,
+        // and the empty week keeps its key. One box, two numbers for one fact (whole-app check, Nov 2026).
+        const short = ROTATING_LINES - 6;
+        const rows = Array.from({ length: short }, (_, i) => (i === 4 ? '\t\t\t\t\t\t' : week('06:20-14:20')));
+        const grid = /** @type {any} */ (parseGrid(rows.join('\n')));
+        assert.equal(grid.ok, true, grid.ok ? '' : grid.error);
+        assert.ok(grid.warnings.some((/** @type {string} */ w) => /^Line 5 is empty in the paste/.test(w)), 'premise: line 5 is an empty week');
+        const filled = summariseImport(grid.patterns).filled;
+        assert.equal(filled, short - 1, 'premise: the summary counts the lines that hold work');
+        const said = grid.warnings.map((/** @type {string} */ w) => /^Only (\d+) of (\d+) lines are filled/.exec(w)).find(Boolean);
+        assert.ok(said, `no short-rotation warning in ${JSON.stringify(grid.warnings)}`);
+        assert.deepEqual([Number(said[1]), Number(said[2])], [filled, ROTATING_LINES], 'the warning and the summary count the filled lines differently');
+        // The app's own JSON shape, through the entry point the panel calls: a week of rest days is a key there too.
+        /** @type {Record<string, any>} */ const patterns = {};
+        for (let i = 1; i <= short; i++) patterns[String(i)] = Object.fromEntries(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(d => [d, i === 5 || d === 'sun' ? 'RD' : '06:20-14:20']));
+        const json = /** @type {any} */ (parseDesignImport(JSON.stringify({ name: 'A. Person', patterns })));
+        assert.equal(json.ok, true, json.ok ? '' : json.error);
+        assert.ok(json.warnings.some((/** @type {string} */ w) => w.startsWith(`Only ${summariseImport(json.patterns).filled} of ${ROTATING_LINES} lines are filled`)),
+            `the JSON path counts keys: ${JSON.stringify(json.warnings)}`);
+        assert.equal(summariseImport(json.patterns).filled, short - 1, 'premise: one of the JSON weeks is all rest days');
     });
 });

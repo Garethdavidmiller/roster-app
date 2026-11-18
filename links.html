@@ -560,12 +560,12 @@
                             <tbody id="genSlotRows"></tbody>
                             <tfoot>
                                 <!-- ONE number, not three (v19.58). A spare line is spare for the
-                                     WHOLE week — you are cover, you work four days of it, and you can
+                                     WHOLE week — you are cover, you work SPARE_WORKED_DAYS of it (stamped), and you can
                                      be put on any range of shifts — so it is a count of lines, not a
                                      per-day headcount. The real roster is built this way: main lines
                                      1, 7, 12 and 17 are SPARE on all seven days. -->
                                 <tr class="gen-spare-row">
-                                    <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines; 4 days worked Mon–Sat</span></td>
+                                    <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines; <span class="js-spare-worked-days">4</span> days worked Mon–Sat</span></td>
                                     <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="25" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of <span class="js-rotating-lines">26</span> lines</span></td>
                                     <td></td>
                                 </tr>
@@ -679,10 +679,11 @@
                         <label class="gen-obj"><input type="checkbox" id="objVariety" checked><span class="gen-obj-text"><span class="gen-obj-title">Vary the shift type</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objBlockTarget" class="gen-input gen-input-inline" min="1" max="14" value="3" aria-label="Vary the shift type: at most this many weeks in a row"> weeks</span></span><span class="gen-obj-hint">Stops long blocks of earlies or lates — the live roster's longest is 3</span></span></label>
                         <!-- The run cap (v20.02). Sits directly under "Vary the shift type" because the
                              two are the design's hard shape constraints; the three below are the
-                             comforts arranged inside them. A spare week counts as FOUR worked days
-                             here, not seven — you are marked spare all week because you are cover,
-                             but four is what you work (plus possibly an RDW Sunday on top). -->
-                        <label class="gen-obj"><input type="checkbox" id="objMaxRun" checked><span class="gen-obj-text"><span class="gen-obj-title">Most shifts in a row</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objMaxRunTarget" class="gen-input gen-input-inline" min="1" max="14" value="6" aria-label="Most shifts in a row: at most this many days"> days</span></span><span class="gen-obj-hint">Consecutive working days, counted across the line boundary. A spare week counts as 4</span></span></label>
+                             comforts arranged inside them. A cover week counts as its SPARE_WORKED_DAYS
+                             duties here, never seven — you are marked spare all week because you are
+                             cover — and a run can take its Sunday on top as overtime (spareDrawsOnFour),
+                             so the hint says "up to" one more. Both figures are stamped from the constant. -->
+                        <label class="gen-obj"><input type="checkbox" id="objMaxRun" checked><span class="gen-obj-text"><span class="gen-obj-title">Most shifts in a row</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objMaxRunTarget" class="gen-input gen-input-inline" min="1" max="14" value="6" aria-label="Most shifts in a row: at most this many days"> days</span></span><span class="gen-obj-hint">Consecutive working days, counted across the line boundary. A cover week counts as up to <span class="js-cover-week-run">5</span> — <span class="js-spare-worked-days">4</span> duties and its Sunday</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objGentle" checked><span class="gen-obj-text"><span class="gen-obj-title">Gentle week-to-week change</span><span class="gen-obj-hint">Keeps your working day from jumping when you move line</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Full weekends off</span><span class="gen-obj-hint">Saturday rest followed by Sunday rest</span></span></label>
                         <!-- "of N" is ONE span (v19.98). `.gen-obj-numctl` is inline-flex with a 6px

@@ -1227,23 +1227,25 @@ export function repairShortRest(patterns, lines = ROTATING_LINES, minRest = MIN_
     for (let guard = 0; guard < lines * DAYS.length; guard++) {
         const bad = breaches();
         if (!bad.length) break;
-        const { line: w, day: d } = bad[0];
-        if (isSpareLine(w)) break;                    // cannot move a cover week's day
-        const mine = at(w, d);
         let done = false;
-        // Timed partners first (both lines keep their days-worked), then rest days.
-        for (const wantTimed of [true, false]) {
-            for (let u = 1; u <= lines && !done; u++) {
-                if (u === w || isSpareLine(u)) continue;
-                const theirs = at(u, d);
-                if (theirs === mine) continue;
-                const theirsTimed = startMinutes(theirs) !== null;
-                if (theirsTimed !== wantTimed) continue;
-                set(w, d, theirs); set(u, d, mine);
-                if (okAround(w, d) && okAround(u, d)) { done = true; repaired++; }
-                else { set(w, d, mine); set(u, d, theirs); }
+        // Either duty of the pair can move: the LATER first, as before; the EARLIER only if no swap of it works (Nov 2026).
+        for (const { w, d } of [{ w: bad[0].line, d: bad[0].day }, prevOf(bad[0].line, bad[0].day)]) {
+            if (done || isSpareLine(w)) continue;         // cannot move a cover week's day
+            const mine = at(w, d);
+            // Timed partners first (both lines keep their days-worked), then rest days.
+            for (const wantTimed of [true, false]) {
+                for (let u = 1; u <= lines && !done; u++) {
+                    if (u === w || isSpareLine(u)) continue;
+                    const theirs = at(u, d);
+                    if (theirs === mine) continue;
+                    const theirsTimed = startMinutes(theirs) !== null;
+                    if (theirsTimed !== wantTimed) continue;
+                    set(w, d, theirs); set(u, d, mine);
+                    if (okAround(w, d) && okAround(u, d)) { done = true; repaired++; }
+                    else { set(w, d, mine); set(u, d, theirs); }
+                }
+                if (done) break;
             }
-            if (done) break;
         }
         if (!done) break;                             // no swap fixes it — the caller refuses
     }
@@ -1431,7 +1433,7 @@ function _restChecked(patterns, mode, waves, lines, requireRest) {
  *   turnarounds: Array<{fromLine:number, fromDay:string, fromShift:string,
  *                       toLine:number, toDay:string, toShift:string, restMinutes:number}>,
  *   longestStretch: number,
- *   balance: { early:number, late:number, spare:number, worked:number }
+ *   balance: { early:number, late:number, spare:number, worked:number, coverWeeks:number }
  * }}
  */
 export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
@@ -1485,11 +1487,12 @@ export function runDesignChecks(patterns, rotatingLines = ROTATING_LINES) {
     // the live main roster at 15 against a true ceiling of 9, on a figure whose limit is 13.
     const longestStretch = worstCaseWorkedRun(seq);
 
-    // Early/late/spare balance across all worked cells.
-    const balance = { early: 0, late: 0, spare: 0, worked: 0 };
+    // Early/late/spare balance across the worked days: a COVER WEEK is its SPARE_WORKED_DAYS duties, as everywhere else (Nov 2026).
+    const cover = new Set(Array.from({ length: rotatingLines }, (_, i) => i + 1).filter(w => isCoverWeek(/** @type {any} */ (patterns)[String(w)])));
+    const balance = { early: 0, late: 0, spare: cover.size * SPARE_WORKED_DAYS, worked: cover.size * SPARE_WORKED_DAYS, coverWeeks: cover.size };
     for (const s of seq) {
         const type = classifyShift(s.shift);
-        if (type === 'rd') continue;
+        if (type === 'rd' || (type === 'spare' && cover.has(s.line))) continue;
         balance.worked++;
         if (type === 'early') balance.early++;
         else if (type === 'spare') balance.spare++;
