@@ -1049,8 +1049,8 @@
        Hours, Settings) across the two wide work columns, .pc-side (the result and the occasional
        cards) in col 3. One row, so neither column's height can inflate the other's spacing — a
        sidebar spanning the left items' rows opened a navy void between the period band and Hours.
-       Both wrappers are display: contents on mobile, so nothing here reaches mobile or tablet.
-       Rationale: .claude/rules/paycalc.md → Desktop workspace. */
+       Below 1024px .pc-side is display: contents and .pc-work a plain block (the base rules say why),
+       so nothing here reaches mobile or tablet. Rationale: .claude/rules/paycalc.md → Desktop workspace. */
     @media (min-width: 1024px) {
       /* The 1100px band: two work columns + a ~400px sidebar (1400px ran descriptions unreadably long). */
       .app { max-width: var(--content-max-width); }

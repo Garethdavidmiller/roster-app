@@ -538,12 +538,14 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   if (!srcP || !hasFigures) return { ...out, note: '' };
   const from = `your <strong>${fdShort(srcP.payday)} payslip</strong> (P${payslipPeriodNum(srcP)})`;
   if (inUse) return { ...out, note: `<span aria-hidden="true">✓</span> Your Year to Date figures are from ${from} — they sharpen <strong>this payslip's</strong> tax estimate.` };
+  // Never "the standard method" (18 Nov 2026): a term the member has no way to know. Each note says
+  // what happens instead — this payslip's tax worked out from this payslip alone.
   if (next) return { ...out, note: readTaxCode(taxCode).nonCumulative
-    ? `Your Year to Date figures are from ${from}, but a tax code ending in W1, M1 or X works out each payslip on its own, so this payslip uses the standard method.`
+    ? `Your Year to Date figures are from ${from}, but a tax code ending in W1, M1 or X works out each payslip on its own, so these figures are not used.`
     : misfit
       // The figures are complete and from the right payslip; the code is what they disagree with
       // (owner, 15 Nov 2026). The Income Tax line carries the two figures; this says what to check.
-      ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip uses the standard method. Check the code in Your Settings is the one on that payslip.`
+      ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip's tax is worked out from this payslip alone. Check the code in Your Settings is the one on that payslip.`
       : `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> to sharpen this payslip's tax estimate.` };
   // Only a payslip NEWER than the source is worth updating from (17 Nov 2026). On the source itself, or
   // one before it, the payslip before this one is OLDER than the figures already held — so the note
@@ -553,7 +555,7 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   const upd = prevP && prevP.num > src && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
     ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
     : '';
-  return { ...out, note: `Your Year to Date figures are from ${from}, so this payslip uses the standard method.${upd}` };
+  return { ...out, note: `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax is worked out from this payslip alone.${upd}` };
 }
 
 /**

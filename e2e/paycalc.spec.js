@@ -2335,7 +2335,7 @@ test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on'
 // with no error and no visible difference.
 //
 // What makes it worth a browser is that the page ALREADY SAYS THE RIGHT THING: `_updateYtdNote`
-// writes "not in use" into the header chip and "this payslip uses the standard method" into the
+// writes "not in use" into the header chip and "worked out from this payslip alone" into the
 // note from the same rule, independently of the arithmetic. So without the guard the chip and the
 // figure disagree, and the chip is the honest one. The assertion therefore pairs them.
 //
@@ -2395,7 +2395,7 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
     for (const pNum of [SRC + 2, SRC + 3]) {
         await page.locator('#periodSelect').selectOption(String(pNum));
         await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
-        await expect(page.locator('#ytdUptoNote')).toContainText('uses the standard method');
+        await expect(page.locator('#ytdUptoNote')).toContainText("this payslip's tax is worked out from this payslip alone");
         const other = await netWithAndWithoutFigures();
         expect(other.withFigures,
             `p${pNum} is not the payslip these totals came from, so they must not reach the estimate`)

@@ -918,7 +918,10 @@
             <span class="pfx-sym">£</span>
             <input type="text" id="priorHppActualInput" placeholder="e.g. 1,843.01" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
-          <div class="field-hint" id="priorHppActualHint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above and updates your January take-home.</div>
+          <!-- updatePriorHpp writes this on every render; the markup's words agree with what it writes, so a
+               figure here never promises to change a take-home by itself (the premium joins one only through
+               the tick in the January payslip's green note). -->
+          <div class="field-hint" id="priorHppActualHint">Find the <strong>Holiday Pay Premium</strong> line on your January payslip and enter it here — it replaces the estimate above. To count it in that payslip&rsquo;s take-home, tick the box in its green note.</div>
         </div>
         <div class="section-subhead" id="currentHppTitle">This year (2026/27)</div>
       </div>
@@ -1080,9 +1083,9 @@
           <label for="bpIncludeTick">Add this lump sum to this payslip's take-home estimate</label>
         </div>
       </div>
-      <div class="backpay-notice" id="backPayNotice" style="display:none">
-        ⚠️ This lump sum is taxed in the period it is paid. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown — check your payslip carefully. Your payslip may split the back pay across multiple lines (Basic Pay, Overtime, RDW, etc.) but the total should match this figure.
-      </div>
+      <!-- Empty in the markup: every path that shows this notice writes its own words (calcBackPay), so a
+           default here is dead text. Its sentence on matching the payslip's lines is the card's ? tips now. -->
+      <div class="backpay-notice" id="backPayNotice" style="display:none"></div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
       <button type="button" class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
         Per-period breakdown &nbsp;<span class="bd-arrow">▼</span>
@@ -1240,7 +1243,9 @@
 
 
 
-<!-- YTD notice lightbox — shown once when the user first opens a period mid-year -->
+<!-- Year to Date notice (posted 28 Aug 2026, for 90 days) — shown once per device, first in line, before
+     the Holiday Pay Premium notice below; counted as seen when the Calendar's own Year to Date notice
+     sent the member here (`#payslipCard`). Its rules: paycalc-lightboxes.js → showYtdNotice. -->
 <div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Enter your Year to Date figures" aria-modal="true">
   <div id="noticeYtdContent" class="lb-content notice-lb-content">
     <button id="noticeYtdClose" class="lb-close" type="button" aria-label="Close">✕</button>
@@ -1273,7 +1278,7 @@
     </div>
     <div class="notice-main">
       <p class="notice-body">Every January, Chiltern pay a <strong>Holiday Pay Premium</strong> to make up for annual leave being paid at your basic rate. This January&rsquo;s is for the <strong>2025/26</strong> tax year.</p>
-      <p class="notice-body">The Pay Calculator wasn&rsquo;t here then, but your <strong>13&nbsp;Mar&nbsp;2026</strong> payslip gives a rough figure: copy its Year to Date <strong>Taxable Pay</strong> into <strong>📊&nbsp;Year to Date Figures</strong>, then in <strong>🏖️&nbsp;Holiday Pay Premium</strong> choose <strong>Rough estimate from your Year to Date pay</strong>.</p>
+      <p class="notice-body">The Year to Date box on your <strong>13&nbsp;Mar&nbsp;2026</strong> payslip covers the whole year, so it gives a rough figure: copy its <strong>Taxable Pay</strong> into <strong>📊&nbsp;Year to Date Figures</strong>, then in <strong>🏖️&nbsp;Holiday Pay Premium</strong> choose <strong>Rough estimate from your Year to Date pay</strong>.</p>
     </div>
     <div class="notice-actions">
       <a href="./paycalc.html?payday=2026-03-13#payslipCard" id="noticeHppGo" class="notice-cta">Open your 13&nbsp;Mar payslip &rarr;</a>
