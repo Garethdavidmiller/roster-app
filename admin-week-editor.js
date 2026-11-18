@@ -125,9 +125,14 @@ export function updateWeekNavLabel(dateStr) {
     if (label) {
         // Same-month ranges collapse to "19–25 Jul 2026", as formatTeamWeekLabel does, and both forms use
         // a tight en-dash: at 375px a few pixels more ellipsise the label and cut the date picker's 📅.
+        // The week across New Year names the year it STARTS in, "27 Dec 2026–2 Jan": "27 Dec–2 Jan 2027" put
+        // 27 December in 2027. Team View names both years; here both measured 22px over the 375px box, and
+        // a January after a December needs no year of its own.
         label.textContent = sunday.getMonth() === saturday.getMonth()
             ? `${sunday.getDate()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`
-            : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
+            : sunday.getFullYear() !== saturday.getFullYear()
+                ? `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} ${sunday.getFullYear()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]}`
+                : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
         // The NAME leads with the week it shows (WCAG 2.5.3 Label in Name), written beside the text so
         // the two cannot describe different weeks.
         label.setAttribute('aria-label', `${label.textContent} — jump to week containing date`);

@@ -227,6 +227,19 @@ test('admin week label fits at 375px for every week across 13 months', async ({ 
         .toEqual([]);
 });
 
+// The week across New Year names the year it STARTS in (18 Nov 2026): "27 Dec–2 Jan 2027" put
+// 27 December in 2027. A fixed date, because the walk above starts from today and a year whose
+// 1 January is a Sunday has no week that spans the two.
+test('admin week label across New Year names the year it starts in, and still fits at 375px', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html?date=2026-12-28');
+    const label = page.locator('#weekNavLabel');
+    await expect(label).toHaveText('27 Dec 2026–2 Jan');
+    const fit = await label.evaluate(el => ({ sw: el.scrollWidth, cw: el.clientWidth }));
+    expect(fit.sw, `the New Year label ellipsises at 375px (${fit.sw}px into ${fit.cw}px)`).toBeLessThanOrEqual(fit.cw);
+});
+
 // ── Team View counts as a usable open (v21.37; App Speed review, Oct 2026) ──────────────────────
 // Team View is a BOOT surface for anybody who left the app on it, and its opens belong in "Usable"
 // like the Calendar's. It once recorded only part of the start ladder; the ladder is retired, and
