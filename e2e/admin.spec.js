@@ -5,6 +5,7 @@
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
 import { test, expect } from './fixtures.js';
+import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG } from '../roster-data.js';
@@ -1901,6 +1902,30 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
         await page.locator('#stagedDiscardBtn').click();
         await expect(page.locator('#saveBtn')).toBeDisabled();
     }
+});
+
+// ── EACH TYPE PILL SAYS ITS FULL NAME, AND KEEPS ITS SHORT LABEL (review, Nov 2026) ───────────────────
+// "RDW" was named by its letters alone, on both pill rows, and "Rest Day Working" was only in the ? tips. The
+// labels stay short (AL stays AL, .claude/rules/admin.md); the name says the rest, leading with the label, so
+// a voice user still says what they see — checked by axe's own containment rule (WCAG 2.5.3).
+test('admin: the type pills say their full names to a screen reader, on the week grid and the bulk bar', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const day = page.locator('.week-panel .day-row:has(.pill-annual_leave:not([disabled]))').first();
+    await clickInView(day.locator('.day-cb'));   // a day's pills show once it is ticked
+    for (const [where, scope] of /** @type {const} */ ([['the bulk bar', page.locator('#bulkTypePills')], ['a day of the week grid', day]])) {
+        await expect(scope.locator('.pill-rdw'), `${where}: the label stays RDW`).toHaveText('RDW');
+        await expect(scope.locator('.pill-rdw'), where).toHaveAccessibleName('RDW, Rest Day Working');
+        await expect(scope.locator('.pill-annual_leave'), `${where}: AL stays AL`).toHaveText('AL');
+        await expect(scope.locator('.pill-annual_leave'), where).toHaveAccessibleName('AL, Annual Leave');
+        await expect(scope.locator('.pill-correction'), where).toHaveAccessibleName('Set as Rest Day');
+        await expect(scope.locator('.pill-sick'), where).toHaveAccessibleName('Absent');
+    }
+    const mismatches = (await new AxeBuilder({ page }).include('#bulkTypePills').include('.week-panel .col-pills')
+        .withRules(['label-content-name-mismatch']).analyze()).violations.flatMap(v => v.nodes.map(n => n.target.join(' ')));
+    expect(mismatches, 'every pill\'s name holds the words it shows').toEqual([]);
 });
 
 // ── A BULK ABSENT LEAVES A REST DAY ALONE, AND NAMES IT (owner, 10 Nov 2026: "Skip rest days") ──────

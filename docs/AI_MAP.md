@@ -671,8 +671,8 @@ Say so when a save is waiting on the server: one reference-counted live line aft
 - **Exports:** `SLOW_SAVE_MS` · `SLOW_SAVE_TEXT` · `SLOW_SAVE_TEXT_BATCHED` · `SLOW_SAVE_TEXT_ONLINE` · `SLOW_SAVE_TEXT_BATCHED_ONLINE` · `SLOW_SAVE_TEXT_UNHELD` · `SLOW_SAVE_TEXT_UNHELD_ONLINE` · `slowSaveText` · `SLOW_SAVE_EVENT` · `watchSlowCommit` · `trackHiddenTime` · `writesInFlight` · `withSlowSaveNotice`
 
 ### `admin-shift-types.js`
-The shift-type table the Change a Shift surface is built from: `TYPES`, `PILL_TYPES` (the ONE ordered list of pills — `.claude/rules/admin.md` → "Type pills in admin"), `WORKED_OVERRIDE_TYPES` and what a Saved Changes row prints for a value. Pure data in its own module so no consumer imports the coordinator back (header). Tested by `admin-shift-types.test.mjs`.
-- **Exports:** `TYPES` · `PILL_TYPES` · `WORKED_OVERRIDE_TYPES` · `rowValueText`
+The shift-type table the Change a Shift surface is built from: `TYPES`, `PILL_TYPES` (the ONE ordered list of pills — `.claude/rules/admin.md` → "Type pills in admin"), the one pill button both pill rows draw (`typePillHtml`, named in full by `pillName` while its label stays short), `WORKED_OVERRIDE_TYPES` and what a Saved Changes row prints for a value. Pure data in its own module so no consumer imports the coordinator back (header). Tested by `admin-shift-types.test.mjs`.
+- **Exports:** `TYPES` · `PILL_TYPES` · `pillName` · `typePillHtml` · `WORKED_OVERRIDE_TYPES` · `rowValueText`
 
 ### `admin-week-editor.js`
 The seven-day Change a Shift grid, its pills, the bulk bar and everything staged but not yet saved; it ends where `executeSave` begins. Also the page's one write lock (`setSaveInFlight`), and it holds Sunday enforcement layers 1 and 2 (CLAUDE.md → "Sundays are non-contracted"). Why staged edits count both ways, and why an unread member draws a loading or failed state: the header. Tested by `admin-week-editor.test.mjs` and `e2e/admin.spec.js`.

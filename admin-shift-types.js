@@ -51,6 +51,33 @@ export const TYPES = {
  */
 export const PILL_TYPES = ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other'];
 
+/**
+ * A type pill's ACCESSIBLE NAME (review, Nov 2026): what the pill shows, then what that stands for where
+ * the two differ — "RDW, Rest Day Working", "AL, Annual Leave" — or the full label alone where it already
+ * contains what the pill shows ("Set as Rest Day"). The visible labels stay short, AL above all
+ * (.claude/rules/admin.md), so the expansion lives in the name: a screen reader reads it, and a voice user,
+ * who says what they see, still reaches the pill by its words (WCAG 2.5.3 Label in Name). "Rest Day
+ * Working" was in the ? tips alone, nowhere a reader of the pill would meet it.
+ * @param {string} type @returns {string}
+ */
+export function pillName(type) {
+    const t = TYPES[type];
+    if (!t) return type;
+    if (t.pill === t.label) return t.pill;
+    return new RegExp(`(^|\\s)${t.pill}(\\s|$)`, 'i').test(t.label) ? t.label : `${t.pill}, ${t.label}`;
+}
+
+/**
+ * One type pill as BOTH pill rows draw it — each day of the week grid (admin-week-editor.js) and the bulk
+ * bar (admin-app.js) — so the two cannot say different things. Named by `pillName` wherever that differs
+ * from what it shows; a day that cannot take a type renames that pill with the reason (admin-day-pills.js).
+ * @param {string} type one of PILL_TYPES @returns {string} HTML
+ */
+export function typePillHtml(type) {
+    const shown = TYPES[type]?.pill ?? type, name = pillName(type);
+    return `<button class="type-pill-btn pill-${type}" data-type="${type}" aria-pressed="false"${name === shown ? '' : ` aria-label="${name}"`}>${shown}</button>`;
+}
+
 // Override types that represent genuinely WORKED days — a Sunday RD-correction during an AL/absence
 // booking must never overwrite one of these (real overtime). (v16.19)
 // The three retired types are not in it: no record is of them (owner, 7 Nov 2026 — Operations' count

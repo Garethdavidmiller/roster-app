@@ -24,6 +24,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
+import { typePillHtml } from './admin-shift-types.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
 import { checkDayRules, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { initLeaveYearPanel } from './admin-leave-year.js';
@@ -1309,9 +1310,7 @@ export function init() {
         // bulk Other ALWAYS failed at save. A bulk flavour sub-selector, never the bare pill, if needed.
         const _bulkPillsContainer = document.getElementById('bulkTypePills');
         if (_bulkPillsContainer) {
-            _bulkPillsContainer.innerHTML = PILL_TYPES.filter(t => t !== 'other').map(t =>
-                `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`
-            ).join('');
+            _bulkPillsContainer.innerHTML = PILL_TYPES.filter(t => t !== 'other').map(t => typePillHtml(t)).join('');
         }
         // UNSAVED WEEK EDITS OUTLIVE THE PAGE (iPhone audit, Nov 2026): iOS discards a hidden page and a swipe back asks
         // nothing, so the staged rows are kept whenever the page is hidden and offered on the next load (unsaved-draft.js).

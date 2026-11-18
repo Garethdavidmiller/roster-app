@@ -30,7 +30,7 @@ import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS }
 import { isWorkingDate } from './al-entitlement.js';
 import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
-import { TYPES, PILL_TYPES } from './admin-shift-types.js';
+import { TYPES, PILL_TYPES, typePillHtml } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
 import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
 import { restrictDayPills } from './admin-day-pills.js';
@@ -218,7 +218,7 @@ export function buildWeekGridInto(container, dateStr) {
             </label>
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
-                ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
+                ${PILL_TYPES.map(t => typePillHtml(t)).join('\n                ')}
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded, but a Spare turn can</span>` : ''}
                 ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
                 ${beforeStart ? `<span class="start-note">Before the start date (${formatDisplay(formatISO(/** @type {Date} */ (member.startDate)))}) — the Calendar doesn’t show changes here, so none can be recorded</span>`
