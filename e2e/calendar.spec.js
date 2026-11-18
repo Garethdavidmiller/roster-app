@@ -1,6 +1,6 @@
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
-import { CONFIG, teamMembers } from '../roster-data.js';
+import { CONFIG, teamMembers, getPatternShift } from '../roster-data.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
@@ -298,6 +298,68 @@ test('day detail: the day markers carry the calendar\'s own icons', async ({ pag
     await expect(page.locator('#dayDetailExtras .ddm-chip')).toHaveCount(2);
     const icons = await page.locator('#dayDetailExtras .ddm-icon').allTextContents();
     expect(icons, 'the chips lost the cell icons they exist to explain').toEqual(['🎄', '⭐']);
+});
+
+// WHOSE DAY (18 Nov 2026). The Calendar shows a colleague's days as readily as the reader's own, and on a
+// phone the glass blurs the picker that names them, so the panel says whose day it is, as the leave panel
+// says whose leave: under the date, clear of the ✕ the date clears, and in the dialog's name. A name picked
+// later is the one the next panel names — the cells carry it, so a redraw must too. Names are read from the
+// page, never written here.
+test('day detail: says whose day it is, under the date and in the dialog\'s name', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const chosen = async () => ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    const first = await chosen();
+    expect(first, 'premise: a member is chosen').not.toBe('');
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailContent')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await expect(page.locator('#dayDetailWho'), 'the panel does not say whose day it is').toHaveText(first);
+    await expect(page.locator('#dayDetailLightbox')).toHaveAttribute('aria-label', `Day details, ${first}`);
+    const g = await page.evaluate(() => {
+        const b = (/** @type {string} */ s) => { const r = /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
+        return { week: b('#dayDetailWeek'), who: b('#dayDetailWho'), shift: b('#dayDetailShift'), close: b('#dayDetailClose') };
+    });
+    expect(g.who.t, 'the name sits under the date and its week').toBeGreaterThanOrEqual(g.week.b - 1);
+    expect(g.shift.t, 'and above the shift').toBeGreaterThanOrEqual(g.who.b - 1);
+    expect(g.who.l < g.close.r && g.who.r > g.close.l && g.who.t < g.close.b && g.who.b > g.close.t,
+        'the name runs under the close button').toBe(false);
+
+    await page.locator('#dayDetailClose').click();
+    await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/visible/);
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    const second = await chosen();
+    expect(second, 'premise: another member is chosen').not.toBe(first);
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailWho'), 'the panel named the member chosen before').toHaveText(second);
+});
+
+// 25 AND 26 DECEMBER (18 Nov 2026). A record that is not leave, on a Christmas day the member was due to
+// work, changed the day FROM its Christmas leave, so the pair starts at 🏖️ AL — and the caption called that
+// leave the "base roster", whose turn was the very one on the right. The caption and the spoken sentence
+// now say it is the Christmas leave. A real member, so "due at work" is the real pattern; found by grade.
+test('day detail: a Christmas day a record changed from its Christmas leave says so', async ({ page }) => {
+    const XMAS = new Date(2026, 11, 25);
+    const member = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate
+        && !['RD', 'OFF'].includes(getPatternShift(m, XMAS)));
+    expect(member, 'premise: a CEA due at work on Christmas Day 2026').toBeTruthy();
+    const times = getPatternShift(member, XMAS);
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedMember(page, member.name);
+    await page.addInitScript(([name, value]) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'xmas', memberName: name, date: '2026-12-25', type: 'shift', value, note: '',
+            source: 'manual', changedBy: 'X. Manager' }];
+    }, [member.name, times]);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.calendar-day:not(.other-month)').nth(24).click();
+    await expect(page.locator('#dayDetailDate')).toHaveText(/25 December 2026/);
+    await expect(page.locator('#dayDetailChangePair .ddc-badge').first(), 'premise: the pair starts at the leave').toContainText('AL');
+    await expect(page.locator('#dayDetailChangeFrom')).toHaveText('Changed from Christmas leave');
+    await expect(page.locator('#dayDetailChangeSaid')).toHaveText(/^Changed from Christmas leave to /);
 });
 
 // An UNCHANGED day is the state the redesign is really for: it was the one the panel rendered in

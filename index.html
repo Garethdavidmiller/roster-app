@@ -401,6 +401,12 @@
                      no rotating week to state — `weekContext` in calendar-renderer.js makes that
                      call, from the same `weekPrefix` the header tests, so the two cannot disagree. -->
                 <div class="day-detail-week" id="dayDetailWeek" hidden></div>
+                <!-- WHOSE DAY (18 Nov 2026), as the leave panel names whose leave (v25.50): the Calendar
+                     shows a colleague's days as readily as the reader's own, and on a phone the glass
+                     blurs the picker that says whose they are. Under the date and its week, so the
+                     week stays bound to the date; the dialog's name carries it too. Filled on every
+                     open from the cell (`detailWho`). -->
+                <div class="day-detail-who" id="dayDetailWho" hidden></div>
             </div>
             <!-- The shift, led by its OWN kind glyph (☀️ 🌙 🏠 🏖️ …) from `shiftBadgeParts` — the
                  same emoji the tapped cell wears. The glyph is aria-hidden: the words beside it
@@ -427,12 +433,17 @@
                  built in JS from `shiftBadgeParts` — colour and emoji come from the one authority,
                  so the panel can never colour a shift differently from the cell that was tapped. -->
             <!-- The eyebrow NAMES THE LEFT BADGE (v22.79, external review). It said only "Changed",
-                 which reads as "what this was immediately before" — and the left badge is always
-                 `getBaseShift`, the member's own pattern, never the previous override. On a chained
+                 which reads as "what this was immediately before" — and the left badge is the
+                 member's own pattern (`getBaseShift`), never the previous override. On a chained
                  change (rest day → a shift somebody allocated → annual leave) that made the panel
                  state a change which never happened, quietly and plausibly. Naming the base roster
                  is also the more useful fact, and "base roster" is vocabulary the Team view note
-                 already teaches. -->
+                 already teaches.
+                 ONE EXCEPTION, 25 AND 26 DECEMBER (18 Nov 2026). There the left badge is the pattern
+                 itself, not the rest day `getBaseShift` makes both days — or, where a record that is
+                 not leave changed a day the member was due to work, the Christmas leave that record
+                 changed. calendar-al-lightbox.js then writes "Changed from Christmas leave" here,
+                 and in the spoken sentence; the renderer decides (`detailFromChristmas`). -->
             <!-- ONE SENTENCE FOR A SCREEN READER, in visually hidden TEXT (17 Nov 2026). Read part by
                  part the block is "Changed from base roster, Spare, Early, changed by…" — fragments of
                  one fact, the arrow not a word — so the parts are aria-hidden and the sentence says
@@ -440,7 +451,7 @@
                  a plain div has no role a label can name, and axe only marks that "needs review". -->
             <div class="day-detail-change" id="dayDetailChange" hidden>
                 <span class="visually-hidden" id="dayDetailChangeSaid"></span>
-                <span class="ddc-eyebrow" aria-hidden="true">Changed from base roster</span>
+                <span class="ddc-eyebrow" id="dayDetailChangeFrom" aria-hidden="true">Changed from base roster</span>
                 <span class="ddc-pair" id="dayDetailChangePair" aria-hidden="true"></span>
                 <!-- Who made the change, or that it came in with the weekly roster. Absent when the
                      document cannot say, which is honest — the alternative names a colleague. -->

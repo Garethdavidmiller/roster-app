@@ -2283,6 +2283,23 @@
             letter-spacing: 0.5px;
         }
         .day-detail-week[hidden] { display: none !important; }
+        /* WHOSE DAY (18 Nov 2026) — the leave panel's name pill (`.al-lb-who`, v25.50) on this panel,
+           for the same reason: the Calendar shows a colleague's days as readily as the reader's own,
+           and on a phone the glass blurs the picker that names them. A label, not a control: the
+           raised on-navy rung with no border. One step under the date's size, so it reads as the
+           heading's last line rather than a second heading. Narrower than the panel by the ✕'s reach
+           on both sides, as the date is, so a long name wraps short of the button, never under it. */
+        .day-detail-who {
+            max-width: calc(100% - 80px);
+            padding: 2px 10px;
+            border-radius: var(--radius-pill);
+            background: var(--on-navy-raised);
+            color: white;
+            font-size: var(--type-small);
+            font-weight: 700;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
         /* THE SHIFT, LED BY ITS OWN KIND GLYPH — the tapped cell's emoji, from `shiftBadgeParts`, so
            the two cannot disagree; without it a plain Late and a plain Rest day were one grey card.
            Not a pill: it competes with the change pair beneath it, and floats alone on an unchanged

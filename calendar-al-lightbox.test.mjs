@@ -20,6 +20,12 @@
  */
 import { test, describe, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+/** The day panel's change caption as index.html has it — read from the markup, so a test cannot pass
+ *  on words the page does not carry. */
+const HTML = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+const CAPTION_BASE = /<span class="ddc-eyebrow" id="dayDetailChangeFrom"[^>]*>([^<]*)<\/span>/.exec(HTML)?.[1] ?? '';
 
 // ── This device's storage — ls.js reads the global ──────────────────────────────────────────────
 /** @type {Map<string, string>} */
@@ -71,6 +77,8 @@ const els = new Map();
 const byId = (/** @type {string} */ id) => { if (!els.has(id)) els.set(id, fakeEl(id)); return els.get(id); };
 // The could-not-load line keeps its markup's words: the panel reads them once, as it starts.
 byId('alLbError').textContent = 'Couldn\'t load — check your connection';
+// …and so does the day panel's change caption.
+byId('dayDetailChangeFrom').textContent = CAPTION_BASE;
 const statsEl = fakeEl(null);
 globalThis.document = /** @type {any} */ ({
     getElementById: byId,
@@ -268,6 +276,43 @@ describe('the day panel', () => {
         // An unchanged day says nothing in that slot.
         openDayDetail(cell({ detailShiftValue: '06:00-14:00', detailShift: 'Early shift 06:00-14:00' }));
         assert.equal(byId('dayDetailChangeSaid').textContent, '');
+    });
+
+    test('the panel says WHOSE day it is, under the date and in the dialog\'s name — as the leave panel does', () => {
+        openDayDetail(cell({ detailShiftValue: 'RD', detailShift: 'Rest day', detailWho: 'Q. Example' }));
+        assert.equal(byId('dayDetailWho').textContent, 'Q. Example');
+        assert.equal(byId('dayDetailWho').hidden, false, 'the day panel never says whose day it is');
+        assert.equal(byId('dayDetailLightbox').getAttribute('aria-label'), 'Day details, Q. Example',
+            'a screen reader is not told whose day the dialog is about');
+        // A cell that names nobody (an older renderer's) shows no name, and the dialog its plain name.
+        openDayDetail(cell({ detailShiftValue: 'RD', detailShift: 'Rest day' }));
+        assert.equal(byId('dayDetailWho').hidden, true, 'the last member\'s name outlived their day');
+        assert.equal(byId('dayDetailLightbox').getAttribute('aria-label'), 'Day details');
+    });
+
+    test('25/26 December: a day a record changed FROM Christmas leave is captioned and said as that leave', () => {
+        // The left badge is the Christmas leave there, and the base roster was the very turn on the
+        // right: "Changed from base roster 🏖️ AL → 🌙 13:30-21:00" said otherwise (18 Nov 2026).
+        assert.equal(CAPTION_BASE, 'Changed from base roster', 'premise: the markup\'s caption for an ordinary day');
+        openDayDetail(cell({ detailShiftValue: '13:30-21:00', detailShift: 'Late shift 13:30-21:00', detailBase: 'Annual leave',
+            detailBaseShift: 'AL', detailNowShift: '13:30-21:00', detailFromChristmas: '1', detailBy: 'Last saved by A. Person' }));
+        assert.equal(byId('dayDetailChangeFrom').textContent, 'Changed from Christmas leave');
+        assert.equal(byId('dayDetailChangeSaid').textContent,
+            'Changed from Christmas leave to Late shift 13:30-21:00. Last saved by A. Person');
+        // The next ordinary change puts the markup's own caption back.
+        openDayDetail(cell({ detailShiftValue: '07:00-16:00', detailShift: 'Early shift 07:00-16:00', detailBase: 'Spare day',
+            detailBaseShift: 'SPARE', detailNowShift: '07:00-16:00' }));
+        assert.equal(byId('dayDetailChangeFrom').textContent, CAPTION_BASE);
+        assert.equal(byId('dayDetailChangeSaid').textContent, 'Base roster Spare day, changed to Early shift 07:00-16:00');
+    });
+
+    test('the spoken sentence says the new value WITH its time, as the renderer hands it over', () => {
+        // A member whose turns all wear one kind: the headline is "Late shift", and the change may be
+        // nothing but the time, so the sentence reads the renderer's `detailNowSaid`.
+        openDayDetail(cell({ detailShiftValue: '06:00-14:00', detailShift: 'Late shift', detailPermanentShift: 'late',
+            detailBase: 'Late shift 07:00-15:00', detailBaseShift: '07:00-15:00', detailNowShift: '06:00-14:00',
+            detailNowSaid: 'Late shift 06:00-14:00' }));
+        assert.equal(byId('dayDetailChangeSaid').textContent, 'Base roster Late shift 07:00-15:00, changed to Late shift 06:00-14:00');
     });
 
     test('a pay cut-off says what one is, and which payday it feeds', () => {
