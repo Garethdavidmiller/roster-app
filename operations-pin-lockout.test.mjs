@@ -52,6 +52,14 @@ describe('lockoutWords — what happened, and what the admin can do', () => {
         assert.equal(text, 'The staff PIN was blocked for everyone from 13:25 to 13:40 — too many wrong entries.');
     });
 
+    test('one lifted EARLY (its end the same as its start) is given its start, and no end it never reached', () => {
+        // The server's shape for a block a right PIN's refund lifted before its fifteen minutes were up
+        // (lockoutSummary, functions/calendar-viewer-auth.js, 18 Nov 2026): when it lifted is kept nowhere.
+        const l = readLockout({ active: false, blockedUntil: NOW - 15 * MIN, lastBlockedAt: NOW - 15 * MIN, blocks: 1 }, NOW);
+        assert.ok(l, 'still news for its day');
+        assert.equal(lockoutWords(/** @type {any} */ (l), NOW).text, 'The staff PIN was blocked for everyone at 13:55 — too many wrong entries.');
+    });
+
     test('a block begun yesterday says so', () => {
         const began = NOW - 16 * 60 * MIN;                       // 22:10 yesterday, for fifteen minutes
         const { text } = lockoutWords({ active: false, blockedUntil: began + 15 * MIN, lastBlockedAt: began, blocks: 1 }, NOW);

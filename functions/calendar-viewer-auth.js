@@ -499,18 +499,36 @@ function noteGlobalBlock(record, now, blockedUntil) {
  * What Operations is told: `null` when there is nothing to say — no block running and none begun in
  * the last day — otherwise whether one is running, when it ends or ended, when the last began and how
  * many began in the day. Times and counts only. PURE.
+ *
+ * WHETHER A BLOCK IS RUNNING IS THE ALL-SOURCES ROW'S TO SAY, NOT THE RECORD'S (owner, 18 Nov 2026).
+ * The record keeps the end a block was given when it tripped. A right PIN's refund can lift the block
+ * sooner (`refundAttempt`), after the record was written, and the record never hears of it — so,
+ * read alone, it kept a block on Operations that nobody met. Given `door` (that row, as read beside
+ * the record), a block runs exactly while the door is shut, and ends when the door says. One lifted
+ * before the end the record named is reported as begun at its start with NO end claimed, because the
+ * moment it lifted is kept nowhere. A door shut with no record behind it is still a block running:
+ * the record is best-effort, the door is not. Without `door` (`undefined`, not read) the record
+ * alone decides, as it did before.
  * @param {{ blocks?: number[], blockedUntil?: number }|null|undefined} record
  * @param {number} now  epoch ms
+ * @param {{ blockedUntil?: number }|null} [door]  the all-sources row (`null`: there is none), `undefined` when not read
  * @returns {{ active: boolean, blockedUntil: number, lastBlockedAt: number, blocks: number }|null}
  */
-function lockoutSummary(record, now) {
+function lockoutSummary(record, now, door) {
     const r = record && typeof record === 'object' ? record : {};
     const recent = (Array.isArray(r.blocks) ? r.blocks : [])
         .filter(t => typeof t === 'number' && Number.isFinite(t) && t <= now && now - t < LOCKOUT_RECENT_MS);
-    const blockedUntil = finiteOrZero(r.blockedUntil);
-    const active = blockedUntil > now;
+    const lastBlockedAt = recent.length ? Math.max(...recent) : 0;
+    let blockedUntil = finiteOrZero(r.blockedUntil);
+    let active = blockedUntil > now;
+    if (door !== undefined) {
+        const shut = !throttleDecision(door, now).allowed;
+        if (shut) blockedUntil = finiteOrZero(door && door.blockedUntil);
+        else if (active) blockedUntil = lastBlockedAt;   // lifted before the end the record named
+        active = shut;
+    }
     if (!recent.length && !active) return null;
-    return { active, blockedUntil, lastBlockedAt: recent.length ? Math.max(...recent) : 0, blocks: Math.max(recent.length, 1) };
+    return { active, blockedUntil, lastBlockedAt, blocks: Math.max(recent.length, 1) };
 }
 
 /** "14:20" in London — the time the notice names. @param {number} ms @returns {string} */

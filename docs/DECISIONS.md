@@ -102,6 +102,20 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **A member whose own row is hidden lands on the default member's calendar, and is told so** (owner,
+  18 Nov 2026: no change) · **Trigger to revisit: a member, moved off the roster, confused by where the
+  Calendar opens.** A move into management hides the member's own row, so the name their device saved
+  no longer resolves; the Calendar falls back to the default member and says "Your name is no longer
+  in the roster — showing … calendar. Choose a name from the list above." (`_showStaleMemberBanner`,
+  `calendar-app.js`; `_staleMemberName`, `calendar-member.js`). Opening somewhere else, or a different
+  message, was offered and declined.
+- **A member's own saved roster can show for a moment before the phone learns of a password reset**
+  (owner, 18 Nov 2026: acceptable) · **Trigger to revisit: the own-roster copy's own trigger (below,
+  5 Oct 2026).** That copy is painted the moment the Calendar opens, labelled "Checking for changes…",
+  before the identity is confirmed. A reset is known only to the server, so a phone learns of it on the
+  network check that follows; when access is refused, the copy is deleted with it (CALENDAR_DATA.md 17).
+  Holding the paint until the network answers would undo what the copy is for: a calendar at once,
+  offline included. What shows in that moment is the member's own shifts, on their own device.
 - **No "sign out everywhere, keep the password" action** (owner, 13 Nov 2026) · **Trigger to
   revisit: a lost phone whose finder signs in with the surname before the member has chosen a new
   password.** A lost-phone Reset (Operations → Reset,
@@ -399,8 +413,8 @@ shown that yet.
   iPhone half through the real SDK, rules and functions (90 branch runs green in a row when it joined,
   none failed). **Why yes now, when 8 Sep said no:** that decision's cost was time, because the gate
   ran its tests one after another. Since 10 Nov the gate's jobs run side by side (the entry above), and
-  this job should take about five minutes with its setup (its tests took two and a half locally),
-  against 9m 36s for the slowest smoke shard in the release of 17 Nov 2026, so a release waits no
+  this job should take about five minutes with its setup (its tests took two and a half locally;
+  measured at 3m 57s on the first release that ran it, 18 Nov 2026), against 9m 36s for the slowest smoke shard in the release of 17 Nov 2026, so a release waits no
   longer. **What stays out, and why:** the whole WebKit suite, nine jobs with the
   longest over twenty minutes, which every release would wait for. The 8 Sep objection to a hand-picked
   subset still stands, so neither set is a list: one file whose pages come from `scripts/app-pages.mjs`,
@@ -1068,6 +1082,10 @@ from 16 November 2026 to 8 January 2027.
 So it stays in — 7.69% of it lands in the estimate — and the card says the figure "may be a little
 high", the rule the back-pay lump already follows (owner, 10 Nov 2026): named, never guessed. A box for
 last January's premium would take it out exactly; that is a separate decision, not made here.
+
+**It still goes to a member who filled 2025/26 from the calendar** (owner, 18 Nov 2026: asked and
+kept). A calendar fill is an hours estimate, which the rule above already says does not count as
+done, and the notice's words were corrected on 18 Nov 2026 so that they are true for that member too.
 
 ## The guides read at the app's sizes, on screen only — and the rest of the 16 November consistency check (owner, 16 Nov 2026)
 

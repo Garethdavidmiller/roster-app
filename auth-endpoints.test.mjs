@@ -2051,16 +2051,27 @@ describe('getAccountSetupGaps — the provisioning audit', () => {
     describe('and it says whether the staff PIN is blocked for everyone', () => {
         const NOW = Date.now();
         const MIN = 60_000;
-        const record = (o) => ({ viewerAttempts: { '_lockout-record': o } });
+        const record = (o, door) => ({ viewerAttempts: { '_lockout-record': o, ...(door ? { '_all-sources': door } : {}) } });
+        // The all-sources row as a block leaves it: the door itself (owner, 18 Nov 2026 — it, not the
+        // record, says whether a block is still running).
+        const shutUntil = (t) => ({ failures: 200, windowStart: NOW - 3 * MIN, blockedUntil: t });
 
         test('a block running now comes back as times and a count — and nothing else', async () => {
             const { eps } = build({ existingUsers: fullyProvisioned(),
-                seed: record({ blocks: [NOW - 2 * MIN], blockedUntil: NOW + 13 * MIN, alertedAt: NOW - 2 * MIN }) });
+                seed: record({ blocks: [NOW - 2 * MIN], blockedUntil: NOW + 13 * MIN, alertedAt: NOW - 2 * MIN }, shutUntil(NOW + 13 * MIN)) });
             const out = await call(eps.getAccountSetupGaps, getReq());
             assert.equal(out.code, 200);
             assert.deepEqual(out.body.pinLockout, { active: true, blockedUntil: NOW + 13 * MIN, lastBlockedAt: NOW - 2 * MIN, blocks: 1 });
             assert.deepEqual(Object.keys(out.body.pinLockout).sort(), ['active', 'blockedUntil', 'blocks', 'lastBlockedAt'],
                 'no alert stamp, no source, no address');
+        });
+
+        test('a block the door has since let go of is not running — whatever end the record was given', async () => {
+            // A right PIN's refund lifted it after it was recorded; the row says open (here: gone).
+            const { eps } = build({ existingUsers: fullyProvisioned(),
+                seed: record({ blocks: [NOW - 2 * MIN], blockedUntil: NOW + 13 * MIN, alertedAt: NOW - 2 * MIN }) });
+            const out = await call(eps.getAccountSetupGaps, getReq());
+            assert.deepEqual(out.body.pinLockout, { active: false, blockedUntil: NOW - 2 * MIN, lastBlockedAt: NOW - 2 * MIN, blocks: 1 });
         });
 
         test('one that ended an hour ago is still news; one from yesterday is not', async () => {

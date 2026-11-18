@@ -129,7 +129,9 @@ const getSignInStats = onRequest(
  * the "Needs attention" strip that card feeds, which runs no reads of its own. A field on this answer
  * needed no rules change and no new client read; getSignInStats was the other candidate, and its
  * "four integers" promise is the one this endpoint exists to keep apart from. The field is TIMES AND
- * COUNTS (`lockoutSummary`, calendar-viewer-auth.js): never the PIN, never an address. Three states,
+ * COUNTS (`lockoutSummary`, calendar-viewer-auth.js): never the PIN, never an address. Whether a block
+ * is still RUNNING comes from the all-sources throttle row, read beside the record (`readPinLockout`,
+ * owner 18 Nov 2026), because a right PIN can lift a block the record has already written down. Three states,
  * like the gaps' own: an object (a block running, or one begun in the last day), `null` (none), and
  * ABSENT — the record could not be read, or an older server answered — which the client must read as
  * "unknown", never as "none". Its failure costs only the field: the audit still answers.
