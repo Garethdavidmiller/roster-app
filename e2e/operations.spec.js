@@ -497,7 +497,8 @@ test('operations: App speed says when a month mixes two ways of timing', async (
     await page.goto('/operations.html');
     const note = page.locator('#pageSpeedContent .speed-note--transition');
     await expect(note).toContainText('Two ways of timing this month.');
-    await expect(note).toContainText('From v24.98');
+    await expect(note).toContainText('Since late October 2026 the app leaves out');   // when, in the admin's words (18 Nov 2026)
+    await expect(note, 'a version number is developer-speak in the admin\'s copy').not.toContainText('v24.98');
     await expect(note).toContainText('50% of these opens were timed the older way');
 });
 

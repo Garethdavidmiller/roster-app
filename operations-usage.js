@@ -439,8 +439,10 @@ function _appendSignInSection(content) {
     note.className = 'usage-note';
     // Close in length to the sentence that replaces it, so the section does not change height when
     // the figures land; the dashes and `aria-busy` are what say it is still loading. Where the count
-    // comes from is said in the reader's words, not the service's name (18 Nov 2026).
-    note.textContent = 'Exact count from the app’s sign-in records — counts sign-ins, not opens.';
+    // comes from is said in the reader's words, not the service's name (18 Nov 2026) — and no LONGER
+    // than that sentence: "from the app's sign-in records" wrapped at 375px and moved the sections
+    // below by a line when the figures landed (e2e/operations.spec.js, "holds its place").
+    note.textContent = 'Exact count from sign-in records — counts sign-ins, not opens.';
     wrap.append(nums, note);
     content.appendChild(wrap);
 
