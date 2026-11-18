@@ -17,6 +17,11 @@
 
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 
+/** The code `resetMemberPassword` gives a failure BEFORE anything was sent: the admin's sign-in could not be renewed
+ *  (offline, most often), so the request never left this device and nothing was reset — the one failure that knows
+ *  that for certain, which Operations says beside Retry (operations-reset.js `resetFailure`). */
+export const RESET_NOT_SENT = 'reset/not-sent';
+
 /**
  * @param {{ auth: { currentUser: any } }} deps
  */
@@ -35,7 +40,14 @@ export function buildAccountCalls({ auth }) {
     async function resetMemberPassword(memberName, { lostDevice = false } = {}) {
         const user = auth.currentUser;
         if (!user) throw new Error('Not signed in');
-        const { token } = await user.getIdTokenResult(/* forceRefresh */ true);
+        // NOTHING HAS BEEN SENT YET (18 Nov 2026). A renewal that fails here meant the request never left this device,
+        // and it reached the page as an unmarked error: a bare "Retry" with no reason. Marked, it says nothing changed.
+        let token;
+        try {
+            ({ token } = await user.getIdTokenResult(/* forceRefresh */ true));
+        } catch (err) {
+            throw Object.assign(new Error('Couldn’t renew the admin sign-in, so the reset was not sent', { cause: err }), { code: RESET_NOT_SENT });
+        }
         // 65s: above the endpoint's own 60s ceiling (see fetch-timeout.js — a client that gives up
         // first reports a working server as broken).
         let r;

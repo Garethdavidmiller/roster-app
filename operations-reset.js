@@ -5,8 +5,9 @@
  * Not the Password Reset Requests card (the queue members file from the sign-in screen): this is the break-glass Reset
  * on each member's row, which puts their password back to the surname default through the `resetMemberPassword`
  * endpoint (functions/auth-endpoints.js). The coordinator (operations-app.js) owns the row's button, the request and
- * the re-read after a reset; this owns the words, and is pure — it imports only fetch-timeout.js — so a reader can
- * check every outcome without a page. The outcomes are driven on the real page by e2e/operations.spec.js.
+ * the re-read after a reset; this owns the words, and is pure — it imports only fetch-timeout.js and one constant of
+ * account-calls.js — so a reader can check every outcome without a page. The outcomes are driven on the real page by
+ * e2e/operations.spec.js.
  *
  * ── THE LOST PHONE (sign-in audit D1/A1, Nov 2026) ─────────────────────────────────────────────────────────────────
  *
@@ -41,8 +42,11 @@
  *    that it is not known whether the password changed, or that nothing did. Each is shown as written, under a title
  *    that claims neither, beside Retry.
  *  - A body that is MARKUP — an HTML error page from in front of the function — is never shown as a reason.
+ *  - A failure BEFORE ANYTHING WAS SENT — the admin's own sign-in could not be renewed (`RESET_NOT_SENT`) — is the one
+ *    that knows nothing changed, so it says so beside Retry (18 Nov 2026: it was a bare Retry with no reason).
  */
 import { isFetchTimeout, serverRefusal } from './fetch-timeout.js';
+import { RESET_NOT_SENT } from './account-calls.js';
 
 /** @typedef {{ title: string, message: string }} ResetNote  a dialog's title and message; the coordinator adds "OK" */
 
@@ -91,6 +95,12 @@ function endpointSentence(body) {
  * @returns {{ retry: boolean, note: ResetNote|null }}
  */
 export function resetFailure(name, err) {
+    if (err?.code === RESET_NOT_SENT) {
+        return { retry: true, note: {
+            title: 'The reset wasn’t sent',
+            message: `This device couldn’t renew your admin sign-in — usually because there is no signal — so nothing was sent and ${name}'s password has not changed.\n\nCheck the connection, then press Retry.`,
+        } };
+    }
     if (isFetchTimeout(err?.cause)) {
         return { retry: false, note: {
             title: 'Couldn’t confirm the reset',

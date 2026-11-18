@@ -1084,7 +1084,7 @@ Re-authenticating with, and changing, the signed-in member's OWN password — th
 
 ### `account-calls.js`
 The browser's side of three ACCOUNT endpoints — the admin's Reset, the provisioning audit (which also carries the staff PIN lockout) and the locked-out member's reset request. A factory with `auth` injected, so it makes no import cycle; `firebase-client.js` builds it once and re-exports the three. Its one rule: a deadline above each endpoint's own, and a WRITE that times out says it may still have happened. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
-- **Exports:** `buildAccountCalls`
+- **Exports:** `RESET_NOT_SENT` · `buildAccountCalls`
 
 ### `documents-client.js`
 The three date-keyed document collections — Daily Huddle, Weekly Retail Circular, Marylebone Newsletter — and the upload sequence behind them. A factory with every Firebase handle injected, so its failure orderings can be forced against fakes; `firebase-client.js` builds it and re-exports each function. It owns the sequence, and the decisions are `upload-commit.js`'s and `doc-retention.js`'s. Its one invariant — a live document never points at a file that is not there — and each step that keeps it are its header. The Huddle listener stays a live `onSnapshot` (`.claude/rules/pwa.md`). Tested by `documents-client.test.mjs`.

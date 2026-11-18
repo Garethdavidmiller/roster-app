@@ -15,6 +15,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resetQuestion, resetFailure, resetOutcome, LOST_PHONE } from './operations-reset.js';
 import { FETCH_TIMEOUT_CODE } from './fetch-timeout.js';
+import { buildAccountCalls } from './account-calls.js';
 
 const NAME = 'A. Member';
 const LANDED = Object.freeze({ success: true, revoked: true, stamped: true, notified: true });
@@ -64,6 +65,27 @@ test('a 503 and a 500 answered in a sentence are shown as written, beside Retry'
     assert.equal(fivehundred.retry, true);
     assert.equal(fivehundred.note?.title, 'The reset ran into a problem', 'a title that claims neither outcome');
     assert.equal(fivehundred.note?.message, unknown);
+});
+
+// A RESET THAT WAS NEVER SENT SAYS SO (18 Nov 2026). The admin's sign-in is renewed before the request, and a renewal
+// that failed (offline, most often) reached the page unmarked: a bare "Retry" with no reason, though it is the one
+// failure that knows nothing changed. Through the REAL caller (account-calls.js), as the page calls it.
+test('a reset whose admin sign-in could not be renewed was never sent: Retry, and a reason that says nothing changed', async () => {
+    const realFetch = globalThis.fetch;
+    let fetched = 0;
+    globalThis.fetch = /** @type {any} */ (async () => { fetched++; throw new Error('sent'); });
+    try {
+        const offline = Object.assign(new Error('Firebase: Error (auth/network-request-failed).'), { code: 'auth/network-request-failed' });
+        const { resetMemberPassword } = buildAccountCalls({ auth: { currentUser: { getIdTokenResult: async () => { throw offline; } } } });
+        const err = await resetMemberPassword(NAME).then(() => null, (/** @type {any} */ e) => e);
+        assert.ok(err, 'premise: the call failed');
+        assert.equal(fetched, 0, 'premise: nothing was sent');
+        const { retry, note } = resetFailure(NAME, err);
+        assert.equal(retry, true, 'nothing changed, so trying again is the right offer');
+        assert.equal(note?.title, 'The reset wasn’t sent', 'a bare Retry gave the admin no reason');
+        assert.match(note?.message ?? '', new RegExp(`nothing was sent and ${NAME.replace('.', '\\.')}'s password has not changed`));
+        assert.equal(err.cause, offline, 'the renewal\'s own error is kept, for the console');
+    } finally { globalThis.fetch = realFetch; }
 });
 
 test('a 5xx with no sentence, or a network failure, is a bare Retry with nothing to say', () => {
