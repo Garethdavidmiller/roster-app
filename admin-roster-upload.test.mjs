@@ -483,6 +483,30 @@ describe('the import\'s Save is checked against what the review loaded (v25.92)'
         assert.equal(err2?.partialCommit, undefined);
     });
 
+    test('a zero-length shift is refused unwritten, and its console line names nobody — the device may be shared', async () => {
+        /** @type {string[]} */ const warned = [];
+        const w = console.warn; console.warn = (/** @type {any[]} */ ...a) => { warned.push(a.join(' ')); };
+        let refused;
+        try {
+            refused = await _saveOverrideBatches([{ memberName: 'A. Person', date: MON, value: '08:00-08:00', baseShift: 'RD' }], 'Q. Example');
+        } finally { console.warn = w; }
+        assert.equal(refused, 1);
+        assert.ok(warned.some(l => l.includes('zero-length')), 'premise: the refusal was logged');
+        assert.deepEqual(warned.filter(l => l.includes('A. Person')), [], 'a member\'s name went to the console');
+    });
+
+    test('a deadline that ran out is the same unknown outcome — and an answer from the server is not one', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        _commitBehavior = () => { throw Object.assign(new Error('slow'), { code: 'deadline-exceeded' }); };
+        const late = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(late?.partialCommit, true, 'a transaction whose deadline passed may have committed all the same');
+        // The control: the server ANSWERED, refusing it, so nothing of this first part can have landed.
+        _commitBehavior = () => { throw Object.assign(new Error('refused'), { code: 'invalid-argument' }); };
+        const refused = await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1'))).catch(e => e);
+        assert.equal(refused?.code, 'invalid-argument');
+        assert.equal(refused.partialCommit, undefined);
+    });
+
     // THE QUEUED-SAVE RACE (v25.95): a transaction reads the SERVER, so a Change a Shift this device saved offline is not
     // there yet — its record would be deleted as already gone, and the queued save would then land
     // and stand over the import's. A deleting part waits for the device's own queue first.

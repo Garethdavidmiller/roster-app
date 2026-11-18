@@ -75,8 +75,8 @@ const { mammoth: mm } = results;
 console.log('\n── mammoth ────────────────────────────────────────────────────────');
 console.log(`URL  : ${mm.resolvedUrl}`);
 console.log(`Hash : ${mm.hash}`);
-console.log('\nAdd to huddle.js mammoth script injection:');
-console.log(`  s.integrity = '${mm.hash}';`);
+console.log('\nAdd to huddle.js mammoth script injection (`_loadMammoth`, whose element is `sc`):');
+console.log(`  sc.integrity   = '${mm.hash}';`);
 
 if (!APPLY) {
     console.log('\nRun with --apply to update source files automatically.');

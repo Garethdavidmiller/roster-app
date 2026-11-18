@@ -5,9 +5,9 @@
  *   senders (`fanOutPush` to everyone, `sendTargetedPush` to named uids), and the dead-subscription
  *   cleanup both share.
  * Does NOT own: what any notification SAYS or when. Payloads come from `buildPushPayload`
- *   (roster-parse-helpers.js) against the design language in `.claude/rules/notifications.md`, and
- *   the decision to send at all stays with the feature's own module (documents.js,
- *   auth-endpoints.js, overtime.js).
+ *   (push-notices.js, re-exported by roster-parse-helpers.js) against the design language in
+ *   `.claude/rules/notifications.md`, and the decision to send at all stays with each feature's own
+ *   module. That rules file names every sender; a second list here would only be the copy that drifts.
  *
  * ── WHY IT IS ITS OWN FILE (v20.52, external review) ────────────────────────────────────────────
  * `functions/index.js` had reached 2,229 lines holding several unrelated domains, and the review's

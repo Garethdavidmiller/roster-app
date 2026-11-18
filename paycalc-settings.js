@@ -68,12 +68,12 @@ const LEGACY_OPT_OUT_YEAR = '2026/27';
 
 /** The member's pension-status timeline, read fresh (it is small, and a stale copy is how a
  *  Settings save and the next recompute disagree). @returns {import('./paycalc-pension.js').PensionChange[]} */
-export function getPensionTimeline() {
+function getPensionTimeline() {
   return parsePensionTimeline(lsGet(SK.pensionTimeline));
 }
 
 /** @param {import('./paycalc-pension.js').PensionChange[]} timeline */
-export function savePensionTimeline(timeline) {
+function savePensionTimeline(timeline) {
   lsSet(SK.pensionTimeline, serialisePensionTimeline(timeline));
 }
 
