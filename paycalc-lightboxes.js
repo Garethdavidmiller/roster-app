@@ -12,7 +12,7 @@
  *   and its words are `decimalHoursText`, paycalc-inputs.js, which is pure and unit-tested).
  */
 
-import { createLightbox, initCardCollapse, openNoticeIfClear } from './overlay.js';
+import { createLightbox, initCardCollapse, openNoticeIfClear, followLinkOutOf } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
@@ -207,7 +207,12 @@ export function initPaycalcLightboxes() {
       },
       onClose: markDone,
     });
-    document.getElementById('noticeHppGo')?.addEventListener('click', markDone);
+    // The link leaves for the payslip by REPLACING the notice's history entry (`followLinkOutOf`, overlay.js),
+    // or Back from that payslip lands on the notice's entry, which nothing answers once the page reloads.
+    document.getElementById('noticeHppGo')?.addEventListener('click', e => {
+      markDone();
+      followLinkOutOf(notice, /** @type {MouseEvent} */ (e));
+    });
     document.getElementById('noticeHppLater')?.addEventListener('click', () => notice.close());
     return () => openNoticeIfClear(notice);
   })();

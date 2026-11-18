@@ -1044,6 +1044,29 @@ test('paycalc: the premium notice\'s link opens the last 2025/26 payslip, and it
     expect(errors).toHaveLength(0);
 });
 
+// ONE BACK FROM THE PAYSLIP THE LINK OPENED LEAVES THE NOTICE BEHIND (18 Nov 2026). The link was a plain <a href>,
+// so the payslip stacked on the open notice's history entry: Back came back to that entry, and — the page reloaded,
+// with nothing left to answer it — the Back after that did nothing. The link now REPLACES the notice's entry, as the
+// Calendar's notices and the drawer's links do (overlay.js `followLinkOutOf`). Playwright runs with the back/forward
+// cache off, so Back always reloads here.
+test('paycalc: one Back from the payslip the premium notice opened leaves the notice behind, and the next Back leaves Pay', async ({ page }) => {
+    test.setTimeout(60_000);
+    const errors = collectFatalErrors(page);
+    await payMemberWithNoNoticeAnswered(page, HPP_NOTICE_DAY, HPP_MEMBER, { myb_pc_ytd_notice_2_shown: '1' });
+    await page.goto('/railcard-guide.html');                   // where the member came from
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#noticeHppLightbox.visible')).toBeVisible();
+    await page.locator('#noticeHppGo').click();
+    await page.waitForURL(/\/paycalc\.html\?payday=2026-03-13#payslipCard$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/paycalc\.html$/);
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null),
+        'Back landed on the notice\'s own entry, whose next Back nothing answers').toBeNull();
+    await page.goBack();
+    await expect(page, 'one more Back leaves Pay').toHaveURL(/\/railcard-guide\.html$/);
+    expect(errors).toHaveLength(0);
+});
+
 for (const { who, name, extra } of [
     // Their first pay period came after 2025/26 ended, so no 2025/26 premium is due them.
     { who: 'a joiner who started after 2025/26', name: HPP_JOINER, extra: {} },

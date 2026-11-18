@@ -163,7 +163,9 @@ describe('the Holiday Pay Premium notice comes second, and only to the member it
         // A one-off, like the Calendar's live notices. The link leaves the page, so a close that
         // never runs cannot be what flags it; and it is archived as it OPENS for the same reason.
         assert.match(HPP_IIFE, /onClose: markDone,/);
-        assert.match(HPP_IIFE, /getElementById\('noticeHppGo'\)\?\.addEventListener\('click', markDone\)/);
+        // …and the link leaves by REPLACING the notice's history entry (overlay.js `followLinkOutOf`),
+        // flagged first, for the click the browser follows itself (a new tab, a link to this page).
+        assert.match(HPP_IIFE, /getElementById\('noticeHppGo'\)\?\.addEventListener\('click', e => \{\s*markDone\(\);\s*followLinkOutOf\(notice, /);
         assert.match(HPP_IIFE, /getElementById\('noticeHppLater'\)\?\.addEventListener\('click', \(\) => notice\.close\(\)\)/);
         assert.match(HPP_IIFE, /onOpen: \(\) => \{\s*archiveNotice\(\{\s*id:\s*'hpp_2526',/,
             'archived to App Notices as it opens, under its id');
