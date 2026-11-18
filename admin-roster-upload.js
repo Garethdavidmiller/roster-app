@@ -270,6 +270,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             fileInput.value           = '';
             return;
         }
+        // HALF the server's 20 MB (`MAX_FILE_BYTES`, functions/index.js), on purpose (v9.65): this
+        // page reads the whole file into memory as base64 before it sends it (`fileToBase64`), so a
+        // 20 MB file is about 27 MB of text, and briefly a second copy as the prefix is cut — memory
+        // an iPhone may not give a page. The lower cap only refuses early, with its own message.
         if (file.size > 10 * 1024 * 1024) {
             fileNameEl.classList.remove('visible');
             parseBtn.disabled         = true;

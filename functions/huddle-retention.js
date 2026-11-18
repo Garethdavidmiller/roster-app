@@ -39,9 +39,10 @@ const HUDDLE_ORPHAN_MIN_AGE_MS = 24 * 60 * 60 * 1000;
  * Delete Huddle Firestore docs (and their Storage objects) older than HUDDLE_RETENTION_MONTHS. Each
  * huddle doc's ID is its "YYYY-MM-DD" date and the same value is stored in the `date` field, so a
  * string range query on `date` finds the stale ones (ISO date strings sort lexicographically the same
- * as chronologically). Firestore is deleted first, then Storage — a partial failure leaves an orphaned
- * Storage object (invisible to staff) rather than a Firestore doc pointing at a deleted file (a
- * user-facing broken link). What it may delete, and why only that: this file's header.
+ * as chronologically) — and a document whose two disagree is skipped, never swept. Firestore is
+ * deleted first, then Storage — a partial failure leaves an orphaned Storage object (invisible to
+ * staff) rather than a Firestore doc pointing at a deleted file (a user-facing broken link). What it
+ * may delete, and why only that: this file's header.
  *
  * @param {string} excludeDate  The date just written — never pruned even if the clock is odd.
  * @param {{ db: any, bucket: any, nowInLondon: () => {year: number, month: number, day: number} }} deps
@@ -83,8 +84,17 @@ async function pruneOldHuddles(excludeDate, { db, bucket, nowInLondon }) {
             console.warn(`[pruneOldHuddles] Skipping doc with a non-date id (not swept): ${docSnap.id}`);
             return;
         }
+        // …and the document must BE the date it was selected by. The query reads the `date` field and
+        // everything below deletes by the id; every writer keeps the two equal, but nothing enforces it
+        // (the rules do not either), so a document whose field named an old date under a current id
+        // would take a current Huddle, and its file, with it.
+        const data = docSnap.data() || {};
+        if (data.date !== docSnap.id) {
+            console.warn(`[pruneOldHuddles] Skipping ${docSnap.id}: its date field ${JSON.stringify(data.date)} is not its id (not swept)`);
+            return;
+        }
         const prefix   = `huddles/${docSnap.id}`;
-        const selected = (docSnap.data() || {}).storagePath ?? null;   // the version this sweep chose
+        const selected = data.storagePath ?? null;   // the version this sweep chose
         // Firestore FIRST — a partial failure must leave a harmless orphan, never a doc pointing at a
         // deleted file. If the doc delete fails or stands down, nothing in Storage is touched.
         let removed;

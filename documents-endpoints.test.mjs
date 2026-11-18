@@ -792,6 +792,17 @@ describe('the retention sweep deletes only what it selected — never a replacem
         assert.ok(!b.deleted.includes('huddles/2026-08-01-bb.pdf'), 'an in-window Huddle lost its file');
     });
 
+    test('a document whose date field disagrees with its id is never swept — the query reads one, the delete the other', async () => {
+        // Selected because its field names an expired date; under its id it is an in-window Huddle.
+        const b = build({
+            seed: { 'huddles/2026-08-01': { date: '2026-03-02', storagePath: 'huddles/2026-08-01-bb.pdf' } },
+            objects: ['huddles/2026-08-01-bb.pdf'],
+        });
+        assert.equal((await ingest(b.eps, {})).code, 200);
+        assert.ok(b.store.has('huddles/2026-08-01'), 'an in-window Huddle was deleted on its date field\'s say-so');
+        assert.ok(!b.deleted.includes('huddles/2026-08-01-bb.pdf'), 'and its file with it');
+    });
+
     test('an orphan whose age cannot be read is kept — a stray file costs storage, a lost one is a broken link', async () => {
         const b = staleSeed();
         b.objects.add('huddles/2026-04-01-unknown.pdf'); b.created.set('huddles/2026-04-01-unknown.pdf', undefined);

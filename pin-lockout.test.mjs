@@ -24,7 +24,7 @@ const authPath = require.resolve('firebase-admin/auth', { paths: [fnDir] });
 const pushPath = require.resolve('./functions/push.js');
 const lockoutPath = require.resolve('./functions/pin-lockout.js');
 const { nameToEmail } = require('./functions/roster-parse-helpers.js');
-const { LOCKOUT_RECORD_KEY, GLOBAL_THROTTLE } = require('./functions/calendar-viewer-auth.js');
+const { LOCKOUT_RECORD_KEY, GLOBAL_SOURCE_KEY, GLOBAL_THROTTLE, reserveAttempt, refundAttempt } = require('./functions/calendar-viewer-auth.js');
 
 const HOUR = 60 * 60 * 1000;
 const T0 = Date.UTC(2026, 10, 16, 14, 5);           // 14:05 GMT, Mon 16 Nov 2026
@@ -35,12 +35,14 @@ const PIN_LIKE = /\b\d{4}\b/;
 
 /**
  * A fresh world. `accounts` maps an invented name to its account record (absent → not found).
- * `sweepHang` makes the sweep's collection read never answer.
+ * `sweepHang` makes the sweep's collection read never answer. `door` is the all-sources throttle row
+ * (`GLOBAL_SOURCE_KEY`) — the block itself; `trip` writes it as the wrong PIN's charge did, first.
  * @param {{ record?: any, accounts?: Record<string, any>, accepted?: number, hang?: boolean, txFail?: boolean, sweepHang?: boolean }} [o]
  */
 function world({ record = null, accounts, accepted = 1, hang = false, txFail = false, sweepHang = false } = {}) {
     const w = {
         record: record && { ...record },
+        /** @type {any} */ door: null,
         /** @type {{ payload: any, uids: string[], tag: string, opts: any }[]} */ sends: [],
         /** @type {string[]} */ lookups: [],
         broadcasts: 0,
@@ -49,13 +51,21 @@ function world({ record = null, accounts, accepted = 1, hang = false, txFail = f
     const accts = accounts ?? Object.fromEntries(ADMINS.map((n, i) => [n, { uid: `uid-${i}`, disabled: false, customClaims: { admin: true } }]));
     const byEmail = new Map(Object.entries(accts).map(([n, u]) => [nameToEmail(n), u]));
     let chain = Promise.resolve();
-    const snap = () => ({ exists: w.record !== null, data: () => w.record && { ...w.record } });
-    const ref = { id: LOCKOUT_RECORD_KEY, get: async () => snap() };
+    /** The two documents this module may read, each backed by its field of `w`. */
+    const FIELD = { [LOCKOUT_RECORD_KEY]: 'record', [GLOBAL_SOURCE_KEY]: 'door' };
+    const snap = (/** @type {string} */ id) => {
+        const v = /** @type {any} */ (w)[FIELD[id]];
+        return { exists: v !== null, data: () => v && { ...v } };
+    };
+    const refOf = (/** @type {string} */ id) => {
+        assert.ok(id in FIELD, `an unexpected document: ${id}`);
+        return { id, get: async () => snap(id) };
+    };
     const db = {
         collection: (/** @type {string} */ name) => {
             w.collections.push(name);
             return {
-                doc: (/** @type {string} */ id) => { assert.equal(id, LOCKOUT_RECORD_KEY); return ref; },
+                doc: refOf,
                 limit: () => ({ get: () => (sweepHang ? new Promise(() => {}) : Promise.resolve({ docs: [] })) }),
             };
         },
@@ -63,8 +73,11 @@ function world({ record = null, accounts, accepted = 1, hang = false, txFail = f
             if (txFail) return Promise.reject(Object.assign(new Error('unavailable'), { code: 14 }));
             // One at a time, as Firestore's serialisable transactions behave to their callers.
             const run = chain.then(() => fn({
-                get: async () => snap(),
-                set: (/** @type {any} */ _r, /** @type {any} */ data) => { w.record = { ...data }; },
+                get: async (/** @type {{ id: string }} */ r) => snap(r.id),
+                set: (/** @type {{ id: string }} */ r, /** @type {any} */ data) => {
+                    assert.equal(r.id, LOCKOUT_RECORD_KEY, 'the notice writes its record, never the throttle row');
+                    w.record = { ...data };
+                },
             }));
             chain = run.catch(() => {});
             return run;
@@ -92,8 +105,11 @@ function world({ record = null, accounts, accepted = 1, hang = false, txFail = f
     delete require.cache[lockoutPath];
     const L = require('./functions/pin-lockout.js');
     const notify = L.buildPinLockoutNotifier({ VAPID_PRIVATE_KEY: { value: () => 'k' }, VAPID_PUBLIC_KEY: 'p', STAFF_SITE_URL: SITE, adminNames: ADMINS });
-    const trip = (/** @type {number} */ now = T0, /** @type {number} */ budgetMs) =>
-        L.noteStationBlock({ now, blockedUntil: now + GLOBAL_THROTTLE.blockMs, notify, ...(budgetMs ? { budgetMs } : {}) });
+    /** The wrong PIN whose charge reached the ceiling: the block it wrote, then what it does next. */
+    const trip = (/** @type {number} */ now = T0, /** @type {number} */ budgetMs) => {
+        w.door = { failures: GLOBAL_THROTTLE.maxFailures, windowStart: now - 60_000, blockedUntil: now + GLOBAL_THROTTLE.blockMs };
+        return L.noteStationBlock({ now, blockedUntil: now + GLOBAL_THROTTLE.blockMs, notify, ...(budgetMs ? { budgetMs } : {}) });
+    };
     return Object.assign(w, { L, notify, trip });
 }
 
@@ -178,6 +194,26 @@ describe('at most once a day, and the record says when and how often — never f
         assert.deepEqual(both.map(b => b.alert).sort(), [false, true]);
         assert.equal(w.sends.length, 1);
         assert.equal(w.record.blocks.length, 2);
+    });
+
+    test('a block a right PIN\'s refund has already lifted is not news: nothing recorded, nobody told', async () => {
+        // At 198, a right PIN is charged (199), then a wrong one (200: the block), and the right PIN's
+        // refund lands before the wrong one's record — taking the block back with its charge. The door
+        // is open and 199 were wrong; a notice would say 200, and the strip would show a block.
+        const w = world();
+        const at = { failures: GLOBAL_THROTTLE.maxFailures - 2, windowStart: T0 - 60_000, blockedUntil: 0 };
+        const right = /** @type {any} */ (reserveAttempt(null, at, T0).global);
+        const wrong = /** @type {any} */ (reserveAttempt(null, right, T0 + 5).global);
+        assert.ok(wrong.blockedUntil > T0, 'premise: the wrong PIN tripped the block');
+        w.door = refundAttempt(wrong, right, GLOBAL_THROTTLE);
+        assert.equal(w.door.blockedUntil, 0, 'premise: the refund lifted it');
+        const out = await w.L.noteStationBlock({ now: T0 + 5, blockedUntil: wrong.blockedUntil, notify: w.notify });
+        assert.deepEqual(out, { recorded: false, alert: false, accepted: 0 });
+        assert.equal(w.record, null, 'a block nobody meets was recorded');
+        assert.equal(w.sends.length, 0, 'the admin was told of a block that had gone');
+        // …and with no all-sources row at all there is no block either.
+        w.door = null;
+        assert.equal((await w.L.noteStationBlock({ now: T0 + 5, blockedUntil: wrong.blockedUntil, notify: w.notify })).recorded, false);
     });
 
     test('the record lives in viewerAttempts, under the one closed rule, and nowhere else', async () => {
