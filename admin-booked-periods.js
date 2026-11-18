@@ -272,7 +272,7 @@ export function pickBookedYear({ pinned, preferred, years }) {
  *   memberFor: (name: string) => any,
  *   isSunday: (iso: string) => boolean,
  *   mergePeriods: (dates: string[], isRestGap: (d: string) => boolean, addDay: (d: string) => string) => any[],
- *   isRestGap: (iso: string, memberObj: any) => boolean,
+ *   isRestGap: (iso: string, memberObj: any, ovByDate?: Map<string, any>|null) => boolean,
  *   addDays: (iso: string, n: number) => string,
  *   monthAbb: string[],
  *   memberDateMap?: (name: string) => Map<string, any>,
@@ -354,7 +354,9 @@ export function createBookedPeriods(deps) {
         //
         // The map is built ONCE per render. `consumesEntitlement` needs it to read `replacedType`,
         // which is the only surviving record of what an AL doc replaced — without it a swapped-in
-        // day reads as a rest day and would be filtered out of a list it belongs in.
+        // day reads as a rest day and would be filtered out of a list it belongs in. The MERGE reads it
+        // too: a rest day the member WORKED splits two runs of leave (review, Nov 2026). The ✕'s reach
+        // below does not — it walks out over the rest days the booking itself spanned, worked since or not.
         const ovByDate  = deps.memberDateMap ? deps.memberDateMap(memberName) : null;
         const dateList  = [...new Set(entries.map(e => e.date))]
             .filter(d => !deps.isSunday(d))
@@ -362,7 +364,7 @@ export function createBookedPeriods(deps) {
             .sort();
         if (!dateList.length && !hasXmas) return hide();
         const periods = dateList.length ? deps.mergePeriods(dateList,
-            d => deps.isRestGap(d, memberObj), d => deps.addDays(d, 1)) : [];
+            d => deps.isRestGap(d, memberObj, ovByDate), d => deps.addDays(d, 1)) : [];
 
         // A ROW'S ✕ ALSO TAKES THE UNCOUNTED LEAVE AT ITS EDGES (whole-app check, 10 Nov 2026). Leave
         // on a rest day costs nothing, so it is not listed — and the ✕ deletes from its first listed

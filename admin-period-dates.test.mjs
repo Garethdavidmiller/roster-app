@@ -64,6 +64,28 @@ describe('isRestGap — merging two periods that were never one', () => {
     });
 });
 
+describe('isRestGap — a rest day the member came in for is not a gap (review, Nov 2026)', () => {
+    // The base roster gave the day off, and a record says they worked it: Rest Day Working, or a shift
+    // swapped onto it. Two runs of leave either side of it are two bookings, and merging them is the
+    // misreading the header names.
+    const on = (/** @type {any} */ rec) => new Map([[RESTDAY, { date: RESTDAY, ...rec }]]);
+    test('Rest Day Working or a swapped-in shift on a base rest day splits the run', () => {
+        assert.equal(isRestGap(RESTDAY, member, on({ type: 'rdw', value: '07:00-15:00' })), false);
+        assert.equal(isRestGap(RESTDAY, member, on({ type: 'shift', value: '06:00-14:00' })), false);
+    });
+
+    test('a record that is not work leaves it a gap — leave, an absence, a rest-day change', () => {
+        for (const rec of [{ type: 'annual_leave', value: 'AL' }, { type: 'sick', value: 'SICK' }, { type: 'correction', value: 'RD' }]) {
+            assert.equal(isRestGap(RESTDAY, member, on(rec)), true, rec.type);
+        }
+        assert.equal(isRestGap(RESTDAY, member, null), true, 'with no records to hand, the base roster alone');
+    });
+
+    test('a Sunday stays a gap, as the header states', () => {
+        assert.equal(isRestGap(SUNDAY, member, new Map([[SUNDAY, { date: SUNDAY, type: 'rdw', value: '08:00-16:00' }]])), true);
+    });
+});
+
 describe('isRestGap — splitting a period that really was continuous', () => {
     test('a Sunday is always a gap, whoever it is', () => {
         // Sundays are uncontracted for every grade, so leave is never recorded on one and a Sunday

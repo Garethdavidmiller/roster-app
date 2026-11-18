@@ -500,6 +500,52 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
     });
 });
 
+// TWO RUNS OF LEAVE EITHER SIDE OF A REST DAY THE MEMBER WORKED ARE TWO BOOKINGS (review, Nov 2026). The list
+// judged the day between by the base roster alone, so leave on either side of a rest day the member came in
+// for (Rest Day Working) read as one period — and its ✕ took both. The real merge and gap rule; a member found.
+describe('the list does not join two runs of leave across a rest day the member worked', () => {
+    it('one period across a bare rest day; two across the same day holding Rest Day Working', async () => {
+        const rd = await import('./roster-data.js');
+        const ou = await import('./override-utils.js');
+        const pd = await import('./admin-period-dates.js');
+        const { consumesEntitlement } = await import('./al-entitlement.js');
+        /** @type {any} */ let found = null;
+        for (const m of rd.teamMembers.filter(x => !x.hidden && !x.startDate)) {
+            for (let i = 0; i < 90 && !found; i++) {
+                const iso = (/** @type {number} */ k) => rd.formatISO(new Date(2026, 10, 2 + i + k));
+                const works = (/** @type {number} */ k) => !rd.isSunday(iso(k)) && !ou.isRestShift(rd.getBaseShift(m, rd.parseISODate(iso(k))));
+                if (works(0) && !rd.isSunday(iso(1)) && !works(1) && works(2)) found = { m, days: [iso(0), iso(1), iso(2)] };
+            }
+            if (found) break;
+        }
+        assert.ok(found, 'premise: a working day, a non-Sunday rest day and a working day in a row on some line');
+        const [before, rest, after] = found.days;
+        const leave = [before, after].map((date, i) => ({ id: `al${i}`, memberName: found.m.name, date, type: 'annual_leave', value: 'AL', source: 'manual' }));
+        /** @type {string[][]} */ let asked = [];
+        const rowsWith = (/** @type {any[]} */ records) => {
+            const byDate = new Map(records.map(o => [o.date, o]));
+            const els = { box: new El('div'), body: new El('div'), fb: new El('div') };
+            asked = [];
+            createBookedPeriods({
+                doc: /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => /** @type {any} */ (els)[id] || null,
+                    createElement: (/** @type {string} */ t) => new El(t), activeElement: null }),
+                getEntries: () => leave, hasAuthority: () => true, memberFor: () => found.m,
+                isSunday: rd.isSunday, mergePeriods: ou.mergeBookedPeriods, isRestGap: pd.isRestGap, addDays: pd.addDays,
+                monthAbb: rd.MONTH_ABB, memberDateMap: () => byDate, fmtDate: pd.fmtPeriodDate, fmtRange: pd.fmtPeriodRange,
+                onDelete: async (/** @type {string} */ _t, /** @type {string} */ _m, /** @type {string} */ start, /** @type {string} */ end) => { asked.push([start, end]); },
+            }).render({ type: 'annual_leave', memberName: found.m.name, boxId: 'box', bodyId: 'body', feedbackId: 'fb',
+                consumes: consumesEntitlement, countFn: (/** @type {number} */ n) => `${n} days`, countClass: 'al-period-count', preferredYear: before.slice(0, 4) });
+            return all(els.body, e => e.className === 'al-period-row');
+        };
+        assert.equal(rowsWith(leave).length, 1, 'a bare rest day between them: one booking');
+        const worked = { id: 'rdw', memberName: found.m.name, date: rest, type: 'rdw', value: '07:00-15:00', source: 'manual' };
+        const rows = rowsWith([...leave, worked]);
+        assert.equal(rows.length, 2, 'the member came in on the rest day: two bookings');
+        twoTaps(all(rows[0], e => e.className.split(' ').includes('btn-period-delete'))[0]);
+        assert.deepEqual(asked, [[before, before]], 'and the first one\'s ✕ deletes that booking alone');
+    });
+});
+
 describe('a January day moved to the year before says so, in both years\' lists (v25.18)', () => {
     // 1 Jan 2027 comes out of 2026's allowance; 4 Jan stays on 2027's. One listed run, Fri 1 – Mon 4.
     const JAN = [leaveOn('2027-01-01', { leaveYear: 2026 }), leaveOn('2027-01-04')];
