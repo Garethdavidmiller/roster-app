@@ -2284,7 +2284,7 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
 
     // Nothing on the card may state a figure derived from the read that failed.
     await expect(page.locator('#alBanner'), 'no balance over a read that failed').toBeHidden();
-    await expect(page.locator('#alHeaderBalance'), 'and no "AL left" chip on the collapsed header')
+    await expect(page.locator('#alHeaderBalance'), 'and no leave-left chip on the collapsed header')
         .toBeHidden();
     await expect(page.locator('#alBookedBox'), 'and no dates list implying nothing is booked')
         .toBeHidden();
@@ -2502,7 +2502,7 @@ test('admin: the AL banner keeps its figures and the Boxing Day note inside the 
 // The collapsed AL card's one figure at 1–5 days left was brand gold on the chip's near-white ground,
 // 1.69:1, while the banner inside the same card said the same thing in the darkened `--al-low`. No
 // scan reached the state, so it is driven for real: 29 days of leave on days he is rostered to work.
-test('admin: "AL left" in the card header is readable when only a few days remain', async ({ page }) => {
+test('admin: the leave-left chip in the card header is readable when only a few days remain', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     const me = teamMembers.find(/** @param {any} m */ m => m.name === 'G. Miller');
@@ -2531,7 +2531,7 @@ test('admin: "AL left" in the card header is readable when only a few days remai
         const [hi, lo] = [lum(rgb(cs.color)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x);
         return (hi + 0.05) / (lo + 0.05);
     });
-    expect(ratio, '"AL left: N" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
+    expect(ratio, '"2026: N left" at a low balance is under the 4.5:1 text floor').toBeGreaterThanOrEqual(4.5);
 });
 
 // Staging a saved change's removal puts "Removing" in the badge beside its date, in the badge's own

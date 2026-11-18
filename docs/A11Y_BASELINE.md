@@ -163,8 +163,8 @@ a bank holiday, an error, a populated list — the gate is silent on it until so
 
 Found by the November 2026 review, each measured on its own background:
 
-- **Admin's "AL left" chip at 1–5 days** was `--accent-gold-dark`, 1.69:1. It now uses the AL
-  banner's own `--al-low`, 6.28:1.
+- **Admin's leave-left chip at 1–5 days** ("AL left: N" then, "2026: N left" now) was
+  `--accent-gold-dark`, 1.69:1. It now uses the AL banner's own `--al-low`, 6.28:1.
 - **Admin's "⚠ Removing" badge** on an unticked saved day was white on `--orange`, 2.16:1. It is
   white on `--orange-deep` now, 5.24:1.
 - **The AL banner's entitlement note** ("Includes 1 day in lieu for working Boxing Day") was faded
