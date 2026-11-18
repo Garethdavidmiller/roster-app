@@ -452,15 +452,25 @@ export function changeLabel(t, stations = {}, dir = 'dep', { started = false, wi
  *   - from the change: the first column is "Until <the day before>", and "today" means December;
  *   - after December's books expire: both timetables have ended, and the page says so.
  * `festive` keeps the Christmas note up until the last day of Chiltern's further changes.
- * @param {Date} today
+ *
+ * THE COUNTDOWN COUNTS CALENDAR DAYS. Everything else here follows the railway day (`railwayToday`),
+ * because that is what says which timetable is running. The chip's words name a day — "today",
+ * "tomorrow", "2 days to go" — and a member reads those against the calendar, so they count from
+ * `calendarDay`: counted from the railway day, 00:30 on Sunday 13 December said "Starts tomorrow"
+ * (read as the Monday) and 01:00 on the Monday "Starts today" (whole-app check, Nov 2026). The page
+ * passes both (trains-cards.js → `phase`); given one date, both answers come from it.
+ * And "Timetables ended" is plural because both columns' books have ended — the overview's own words.
+ * @param {Date} today  the RAILWAY day (`railwayToday`)
  * @param {{ change: string, festiveUntil: string, validUntil: string }} dates  'YYYY-MM-DD' each
+ * @param {Date} [calendarDay]  the calendar date the countdown's words count from (default `today`)
  * @returns {{ phase: 'before'|'running'|'ended', started: boolean, countdown: string, oldLabel: string, newLabel: string, festive: boolean }}
  */
-export function timetablePhase(today, { change, festiveUntil, validUntil }) {
+export function timetablePhase(today, { change, festiveUntil, validUntil }, calendarDay = today) {
     const toChange = daysUntil(today, change);
     const phase = daysUntil(today, validUntil) < 0 ? 'ended' : toChange <= 0 ? 'running' : 'before';
-    const countdown = phase === 'ended' ? 'Timetable ended'
-        : toChange > 1 ? `${toChange} days to go` : toChange === 1 ? 'Starts tomorrow' : toChange === 0 ? 'Starts today' : 'Now running';
+    const away = daysUntil(calendarDay, change);
+    const countdown = phase === 'ended' ? 'Timetables ended'
+        : away > 1 ? `${away} days to go` : away === 1 ? 'Starts tomorrow' : away === 0 ? 'Starts today' : 'Now running';
     return {
         phase, started: toChange <= 0, countdown,
         oldLabel: toChange <= 0 ? `Until ${dateWords(change, -1, { short: true })}` : 'Now',
@@ -541,6 +551,9 @@ export function routeName(stations, station, via) {
  * overview's own first line in both tenses (`#trLead`), the Christmas changes have `#trFestive` (outside
  * the overview's fold since v25.20 — inside it, a second visit never saw it),
  * the end has `#trEnded` (with this link), and the `?` panel keeps the planner. A line that came
- * back on 13 December would have been a card the owner had just asked to lose.
+ * back on 13 December would have been a card the owner had just asked to lose. From the end of the
+ * books, the lookup's answer and the station card also open with a line of their own, inside the
+ * answer rather than beneath the tabs: both went on answering from the ended timetables in the
+ * present tense (trains-render.js → `ENDED_NOTE`, whole-app check, Nov 2026).
  */
 export const JOURNEY_PLANNER_URL = 'https://www.nationalrail.co.uk/journey-planner/';

@@ -94,7 +94,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📋', html: 'The biggest changes to trains <strong>leaving Marylebone</strong> on the day chosen above, one line per station, biggest first.' },
                     { icon: '👆', html: 'Choose a change to open that station and see everything about it — including every train a few minutes earlier or later, which this list leaves out.' },
-                    { icon: '🟢', html: '<strong>More trains</strong> means more trains or a new direct service, <strong>Fewer trains</strong> fewer or none, <strong>Times move</strong> the same trains at different times.' },
+                    { icon: '🟢', html: 'The chip on each line names the change: <strong>+6 a day</strong> is six more trains a day, <strong>−2 a day</strong> two fewer. <strong>New route</strong> is a station with direct trains in the new timetable and none before it, and <strong>No direct trains</strong> the other way round. <strong>Times move</strong> is the same trains at different times. <strong>More trains</strong> or <strong>Fewer trains</strong> is the same number a day, but more or fewer an hour in the daytime.' },
                     { icon: '☀️', html: `<strong>Daytime</strong> means ${DAYTIME}. It is not a fare: off-peak tickets have their own times.` },
                 ],
             },
@@ -143,7 +143,7 @@ export const CARD_TIPS = {
             {
                 heading: `From ${dateWords(CHANGE_DATE)}`,
                 items: [
-                    { icon: '🟢', html: 'A green ring is a stop a train gains; a hollow red dot is one it loses.' },
+                    { icon: '🟢', html: 'A ring with a plus is a stop a train gains; a ring struck through is one it loses.' },
                 ],
             },
         ],

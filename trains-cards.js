@@ -40,8 +40,12 @@ import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml,
 
 /** Whether every December train carries its stops — true since v24.80, when Chiltern's December books were parsed; false from a stopless source. */
 export const DEC_STOPS_KNOWN = Object.values(TIMETABLES.dec).every(d => d.dep.every(stopsKnown) && d.arr.every(stopsKnown));
-/** Where the page is in the timetable's life, read fresh each render (trains-app.js's header). */
-export const phase = () => timetablePhase(railwayToday(), { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL });
+/** Where the page is in the timetable's life, read fresh each render (trains-app.js's header): from the railway day, and
+ *  the countdown's words from the calendar date — the two differ for three hours after midnight (`timetablePhase`). */
+export const phase = () => {
+    const now = new Date();
+    return timetablePhase(railwayToday(now), { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL }, now);
+};
 /** The station this device looked at last: first among the chips, and what the page opens on once it opens on Stations. */
 export const LAST_STATION_KEY = 'myb_trains_station';
 /** The grid's two bands — the books' two lines — found from every row the page holds (trains-stations.js, `stationBands`). */
@@ -125,7 +129,8 @@ export function renderStationCard(state) {
     const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir, { change: CHANGE_DATE, started: p.started });
     const leaf = state.sdir === 'arr' && LEAF_FALL.stations.includes(state.station) && daysUntil(railwayToday(), LEAF_FALL.until) >= 0;
     setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false, allTrains: state.allTrains,
-        labels: { old: p.oldLabel, new: p.newLabel }, started: p.started, leafFall: leaf ? { minutes: LEAF_FALL.minutes, until: dateWords(LEAF_FALL.until) } : null }));
+        labels: { old: p.oldLabel, new: p.newLabel }, started: p.started, ended: p.phase === 'ended',
+        leafFall: leaf ? { minutes: LEAF_FALL.minutes, until: dateWords(LEAF_FALL.until) } : null }));
 }
 
 /** "What happens to the 17:15?" — trains-render.js writes the answer. @param {PageState} state */
@@ -135,7 +140,7 @@ export function renderLookup(state) {
     const p = phase();
     setHTML(el('trLookupResult'), !typed ? '' : !at ? '<p class="card-explainer tr-lead">Type a time like 17:15, 1715 or 5.15pm.</p>'
         : lookupHtml({ at, day: state.day, nowRows: TIMETABLES.now[state.day].dep, decRows: TIMETABLES.dec[state.day].dep,
-            started: p.started, labels: { old: p.oldLabel, new: p.newLabel }, change: CHANGE_DATE, stations: STATIONS }));
+            started: p.started, ended: p.phase === 'ended', labels: { old: p.oldLabel, new: p.newLabel }, change: CHANGE_DATE, stations: STATIONS }));
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────
