@@ -236,16 +236,12 @@ export function init() {
 
     // ── Wired BEFORE the sign-in decision, as Operations does (Nov 2026 review) ──────────────────────
     // initAuthorised() has no try/catch on the signed-in path, so a throw in any card's wiring used to
-    // skip all four of these. Hold a release's reload while a save is on its way (v24.61): the contact
+    // skip all of these (the set-password step now runs first in initAuthorised). Hold a release's reload while a save is on its way (v24.61): the contact
     // card's writes are counted by slow-save, the password card's two-step write by `_passwordSaving`.
     // writesInFlight also counts the "own password" record (claim-retry.js → trackBackgroundWrite).
     const _busy = () => writesInFlight() > 0 || _passwordSaving;
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
-    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
-    // critical path. `currentUser` is read LATE, inside the callback: on the in-place sign-in path it is
-    // refreshed only inside initAuthorised(), so passing it now would pass null and never compel anyone.
-    sessionReady.then(() => initPasswordForce(currentUser));
     initTipsLightbox(CARD_TIPS);   // the ? buttons are static markup, signed in or not
 
     // Page-access via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 7). Settings'
@@ -288,6 +284,10 @@ export function init() {
         // can import sessionReady instead of reading window._mybSession.
         const _setAuth = ensureNamedSession(currentUser);
         resolveSession(_setAuth);
+        // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2), fire-and-forget: HERE, where `currentUser` is right on both
+        // paths and before any card can throw, and NOW with the session as its barrier, so the sign-in's one-shot marker is
+        // spent as the page opens (password-force.js) — behind `sessionReady.then`, a member who left first was asked later.
+        initPasswordForce(currentUser, { ready: sessionReady });
         // B1.2 enforcement, decided via the policy: once the named session resolves, the store (fed by the
         // Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
         // `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN named

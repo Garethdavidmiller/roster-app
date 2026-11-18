@@ -845,6 +845,40 @@ test('links: the line-order note states the minimum rest the generator applies, 
     await expect(page.locator('.gen-obj-note')).toContainText('no order is used that leaves less than 11 hours between a Saturday finish');
 });
 
+// THE DUTIES A COVER WEEK WORKS ARE STATED FROM THE CONSTANT (whole-app check, Nov 2026). KNOWN_LIMITATIONS says
+// SPARE_WORKED_DAYS has to move if the cover model ever does, and the page TYPED "4" in its copy — the generator's
+// spare-weeks row, the "Most shifts in a row" hint, three rows of the Design checks — which would have stayed.
+// The served links-design.js has it moved, and every one of them follows. Moved DOWN: moved up, the shortlisted
+// design opened here crosses the contracted-days ceiling, whose row then says something else.
+test('links: the duties a cover week works are stated from SPARE_WORKED_DAYS, not typed', async ({ page }) => {
+    const ANCHOR = 'export const SPARE_WORKED_DAYS = 4;';
+    await page.route('**/links-design.js', async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        if (!src.includes(ANCHOR)) throw new Error(`links: links-design.js no longer contains "${ANCHOR}" — re-point the test.`);
+        await route.fulfill({ response: res, body: src.replace(ANCHOR, 'export const SPARE_WORKED_DAYS = 3;'), contentType: 'text/javascript' });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((patterns) => {   // a shortlisted design, saved: complete, with whole cover weeks
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'With cover weeks', patterns, updatedAt: 1750000000000, updatedBy: 'S. Silva' }];
+    }, PROPOSALS[0].patterns);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('.gen-spare-row .gen-td-note').first()).toHaveText('whole lines; 3 days worked Mon–Sat');
+    await expect(page.locator('#objMaxRun + .gen-obj-text .gen-obj-hint')).toHaveText(
+        'Consecutive working days, counted across the line boundary. A cover week counts as up to 4 — 3 duties and its Sunday');
+    const checks = page.locator('#checksContent');
+    // Each sentence by its own words: three rows open "A spare week is N duties on Monday to Saturday".
+    await expect(checks).toContainText('A spare week is 3 duties on Monday to Saturday, which can fall on any of them');   // Longest run
+    await expect(checks).toContainText('A spare week is 3 duties on Monday to Saturday, placed by the roster clerk');     // the run limit
+    await expect(checks).toContainText('A cover week counts as the 3 duties it works');     // Shift balance
+    await expect(checks).toContainText('its 3 duties on Monday to Saturday');               // the 55-hour row
+    await expect(checks).toContainText('a cover week counts 3 days');                       // the contracted-days row
+});
+
 test('links: every line-order switch OFF leaves the generated order untouched', async ({ page }) => {
     // Re-sorting by an empty objective set would hand back a different design for no stated reason.
     // Since v20.98 the generator refuses targets that cannot pay the contracted week, and the
@@ -4638,6 +4672,33 @@ test('links: a delete that lands after an edit keeps the edit, as a new unsaved 
     await expect(page.locator('#linksSaveBtn'), 'still unsaved work').toBeEnabled();
 });
 
+// …AND ONE THAT LANDS AFTER THE PAGE HAS MOVED ON LEAVES THE PAGE'S COMPARISON ALONE (whole-app check, Nov
+// 2026). Nothing opens in the deleted design's place then, and that alone used to end compare mode: a comparison
+// the designer had started on another design, between two designs neither of which was being deleted.
+test('links: a delete that lands after the page moved to another design leaves that design\'s comparison on', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_links_active_design', 'd1'));
+    await openWindowDesign(page, [
+        { id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' },
+        { id: 'd3', name: 'Third', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' },
+    ]);
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = true; });   // the server is slow to answer
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveStatus')).toHaveText('Deleting “Morning heavy”…');
+    await switchToDesign(page, 'Other');                                  // the designer moves on…
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await sheetAction(page, 'compareBtn');                                // …and compares it with a third design
+    await page.locator('#compareChips .design-chip-name[data-id="d3"]').click();
+    await expect(page.locator('#compareGridsWrap')).toHaveClass(/compare-mode-active/);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());
+    await expect(page.locator('#linksSaveStatus')).toContainText('is in Recently deleted');
+    await expect(page.locator('#compareGridsWrap'), 'compare mode ended, though neither design in it was deleted')
+        .toHaveClass(/compare-mode-active/);
+    await expect(page.locator('body')).toHaveClass(/links-compare-on/);
+    await expect(activeDesignName(page)).toHaveText('Other');
+});
+
 // A NEW DESIGN THE SERVER DOES NOT ANSWER (links-design-2's create half). Online — the browser says so —
 // with a server that never replies, New blank design said "Creating …" until the signal came back,
 // while the designer went on working. The store now names the document first and gives the create as
@@ -4751,6 +4812,168 @@ test('links re-review: declining to replace your OWN other version is not worded
     await expect(dialog).toContainText('Keep your version too?');
     await expect(dialog).toContainText('That version stays as it is');
     await expect(dialog).not.toContainText('Their');
+});
+
+// ── A REFUSED SAVE IS NEWS ABOUT THE LIST (whole-app check, Nov 2026) ─────────────────────────────
+// The list is read when the page opens and not again, so after a save met a colleague's version, compare and
+// reopening the design both read the copy loaded at the start: the designer's own old version passed off as the
+// colleague's, with their changes nowhere. Each test opens "Morning heavy" last saved by this designer, and then
+// the SERVER holds S. Silva's later save of it — line 1's Monday moved to a close — for every read from there on.
+/** @param {import('@playwright/test').Page} page @param {any[]} [extraDocs] */
+async function colleagueSavedSince(page, extraDocs = []) {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(([patterns, extra]) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Morning heavy', patterns, updatedAt: 1750000000000, updatedBy: 'G. Miller', revision: 3 }, ...extra];
+    }, [morningOnlyPatterns(), extraDocs]);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.docs = w.__E2E.docs.map((/** @type {any} */ d) => d.id !== 'd1' ? d : {
+            ...d, patterns: { ...d.patterns, 1: { ...d.patterns['1'], mon: '15:45-23:55' } },
+            updatedAt: 1760000000000, updatedBy: 'S. Silva', revision: 4,
+        });
+        w.__E2E.txDocs = w.__E2E.docs;
+    });
+    // An edit of the designer's own, so Save has something to write.
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+}
+
+test('links: after declining to replace a colleague\'s save, reopening the design shows THEIR version', async ({ page }) => {
+    await colleagueSavedSince(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Someone else saved');
+    await dialog.locator('.dialog-btn-cancel').click();                   // do not replace theirs
+    await expect(dialog).toContainText('Keep your version too?');
+    await dialog.locator('.dialog-btn-cancel').click();                   // "Not now"
+    await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0);
+    // The line said a refresh would throw the work away; a hidden page keeps it now. Say what Save does instead.
+    await expect(page.locator('#linksSaveStatus')).toHaveText('Not saved — your changes are still here. Save asks again, and can keep them as a new design.');
+    await waitForReadsToLand(page);
+    // Both "Last saved" surfaces name the save the conflict was about, not the one loaded with the page.
+    await expect(page.locator('#designWhoName')).toHaveText('S. Silva');
+    await expect(page.locator('#linksLastSaved')).toContainText('S. Silva');
+    await expect(page.locator('#winMonSatEnd'), 'the working copy is left as it was').toHaveValue('14:20');
+    await switchToDesign(page, 'Other');
+    const leave = page.locator('.dialog-overlay.visible');
+    await expect(leave).toContainText('unsaved changes');
+    await leave.locator('.dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await switchToDesign(page, 'Morning heavy');
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await expect(page.locator('#linksGridBodyRows tr').first(), 'reopened, it is the designer\'s OWN old copy')
+        .toContainText('15:45');
+});
+
+test('links: "Save mine as new" after a colleague\'s save asks nothing more, keeps the copy listed, and compare shows THEIR version', async ({ page }) => {
+    await colleagueSavedSince(page);
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Someone else saved');
+    // The list is re-read from here, and that read is HELD until the copy below has joined the list: an answer
+    // older than the copy must not take it out of the picker.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toContainText('Keep your version too?');
+    await dialog.locator('.dialog-btn-confirm').click();                  // "Save mine as new"
+    // Straight to the name: the "goes back to its last save. Duplicate anyway?" question was a third one,
+    // about the choice just made (the path from a deleted design never asked it).
+    const next = page.locator('.dialog-overlay.visible');
+    await expect(next).toContainText('Name for the duplicate');
+    await expect(next).not.toContainText('last save');
+    await next.locator('.dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Morning heavy copy');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await waitForReadsToLand(page);
+    await openDesignPicker(page);
+    await expect(designOptions(page).filter({ hasText: 'Morning heavy copy' }), 'the copy left the list when the older answer landed').toHaveCount(1);
+    await page.locator('#designPickerClose').click();
+    await sheetAction(page, 'compareBtn');
+    await page.locator('#compareChips .design-chip-name[data-id="d1"]').click();
+    await expect(page.locator('#compareGridBodyRowsB tr').first(), 'compare shows the designer\'s OWN old copy as the colleague\'s')
+        .toContainText('15:45');
+});
+
+test('links: a design deleted here while the list was being re-read stays out of the list', async ({ page }) => {
+    // The other half of an answer older than the page: it still holds a design this page binned since it was asked.
+    await colleagueSavedSince(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Someone else saved');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });   // the re-read is out from here
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toContainText('Keep your version too?');
+    await dialog.locator('.dialog-btn-cancel').click();                   // "Not now"
+    await switchToDesign(page, 'Other');
+    const leave = page.locator('.dialog-overlay.visible');
+    await expect(leave).toContainText('unsaved changes');
+    await leave.locator('.dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');     // the next design opens in its place
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await waitForReadsToLand(page);
+    await openDesignPicker(page);
+    await expect(designOptions(page).filter({ hasText: 'Morning heavy' })).toHaveCount(1);
+    await expect(designOptions(page).filter({ hasText: 'Other' }), 'the answer read before the delete put it back in the list').toHaveCount(0);
+    await page.locator('#designPickerClose').click();
+    // …and the bin, which the same answer replaces, keeps the row the delete put there.
+    await sheetAction(page, 'designBinBtn');
+    await expect(page.locator('#designBinList'), 'the answer read before the delete took it out of Recently deleted').toContainText('Other');
+});
+
+test('links: a design saved here while the list was being re-read keeps what was saved', async ({ page }) => {
+    // The third half: the answer holds the design as it was before this page saved it.
+    await colleagueSavedSince(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('Someone else saved');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = true; });   // the re-read is out from here
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toContainText('Keep your version too?');
+    await dialog.locator('.dialog-btn-cancel').click();                   // "Not now"
+    await switchToDesign(page, 'Other');
+    const leave = page.locator('.dialog-overlay.visible');
+    await expect(leave).toContainText('unsaved changes');
+    await leave.locator('.dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await page.locator('#winMonSatEnd').fill('21:00');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });
+    await waitForReadsToLand(page);
+    await switchToDesign(page, 'Morning heavy');
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await expect(page.locator('#linksGridBodyRows tr').first(), 'the design left alone is the answer\'s').toContainText('15:45');
+    await switchToDesign(page, 'Other');
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await expect(page.locator('#winMonSatEnd'), 'the answer read before the save replaced what was saved').toHaveValue('21:00');
+});
+
+test('links: a save that meets a colleague\'s version after the page moved on, opened to check, shows THAT version', async ({ page }) => {
+    await colleagueSavedSince(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = true; });   // the save stays in flight
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+    await switchToDesign(page, 'Other');
+    const leave = page.locator('.dialog-overlay.visible');
+    await expect(leave).toContainText('unsaved changes');
+    await leave.locator('.dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.releaseTx(); });
+    await expect(page.locator('#linksSaveStatus')).toContainText('changed elsewhere while saving. Open it to check.');
+    await waitForReadsToLand(page);
+    await switchToDesign(page, 'Morning heavy');
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await expect(page.locator('#linksGridBodyRows tr').first(), '"Open it to check" opened the copy loaded with the page')
+        .toContainText('15:45');
 });
 
 // THE CONFLICT QUESTION STATES ITS TIME ON THE APP'S ONE CLOCK FACE. It was a bare

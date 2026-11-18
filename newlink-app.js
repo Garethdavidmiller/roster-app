@@ -136,7 +136,7 @@ function start(member, admitted) {
         clearLoginStart();
         // A real view by a real member, counted as the Pay Calculator counts its refusal; not timed, as nothing loads.
         sessionReady.then(() => { initErrorReporter(); recordUsage('newlink', member); });
-        sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+        initPasswordForce(member, { ready: sessionReady }).catch(() => {});   // spent as the page opens (below)
         return;
     }
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
@@ -154,7 +154,10 @@ function start(member, admitted) {
         recordUsage('newlink', member);
         recordPageLatency('newlink', member);
     });
-    sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+    // The forced set-password step, called NOW with the session as its barrier, so a sign-in's one-shot marker is
+    // spent as the page opens ("consume BEFORE any await", password-force.js). Behind `sessionReady.then` it was
+    // spent only once the session was confirmed, and a colleague who left first was asked on a later ordinary load.
+    initPasswordForce(member, { ready: sessionReady }).catch(() => {});
 }
 
 /**

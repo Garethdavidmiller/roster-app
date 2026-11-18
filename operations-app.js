@@ -737,8 +737,9 @@ export function init() {
     initPageSpeedCard();
 
     sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
-    // Forced set-password overlay — fire-and-forget, after the session. `currentUser` is right here: an
-    // in-place sign-in re-runs init(), and only that signed-in pass gets this far.
-    sessionReady.then(() => initPasswordForce(currentUser));
+    // Forced set-password overlay — fire-and-forget, with the session as its barrier, so the sign-in's one-shot
+    // marker is spent as the page opens (password-force.js). `currentUser` is right here: an in-place sign-in
+    // re-runs init(), and only that signed-in pass gets this far.
+    initPasswordForce(currentUser, { ready: sessionReady });
 
 }

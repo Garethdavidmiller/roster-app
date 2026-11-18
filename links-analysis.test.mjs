@@ -3,7 +3,7 @@
 // The pure maths is covered by links-design.test.mjs; here we prove the RENDER + the getDesign seam.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { ROTATING_LINES } from './links-design.js';
+import { ROTATING_LINES, SPARE_WORKED_DAYS } from './links-design.js';
 import { POLICY_SOURCE_CONFIRMED, assessHardLimits } from './links-limits.js';
 import { assessFatigue } from './links-fatigue.js';
 
@@ -1060,6 +1060,22 @@ describe('sentences at the edges', () => {
         resetDom();
         initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
         assert.match(text(els.checksContent.innerHTML), /Shift balance[^(]*\(\d+% early, \d+% late\)/, 'no spare day, no spare share');
+    });
+
+    test('the shift balance counts a cover week as the duties it works, and says so (whole-app check, Nov 2026)', () => {
+        // The grid shows a cover week as seven SPARE cells, and the row counted all seven, where the runs, the hours
+        // and the contracted-days ceiling each take SPARE_WORKED_DAYS.
+        const withSpare = fullPatterns();
+        withSpare['4'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: withSpare }) }).renderDesignChecks();
+        const t = text(els.checksContent.innerHTML);
+        const early = (ROTATING_LINES - 1) * 5;   // every other line works Monday to Friday
+        assert.match(t, new RegExp(`Shift balance — ${early} early / 0 late / ${SPARE_WORKED_DAYS} spare `), 'the cover week is not counted as its duties');
+        assert.match(t, new RegExp(`A cover week counts as the ${SPARE_WORKED_DAYS} duties it works`), 'the row does not say how it counts a cover week');
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
+        assert.doesNotMatch(text(els.checksContent.innerHTML), /A cover week counts as the/, 'no cover week, no line about one');
     });
 });
 

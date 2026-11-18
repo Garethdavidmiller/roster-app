@@ -150,7 +150,12 @@ const CAPS = {
     // bin row). About half is the argument beside each. The rules went out: the wording of a delete or rename that found
     // the design gone to links-deletion.js, a create's bound to links-design-store.js, the pill's words to
     // links-design-header.js. The next Links rule still goes in a domain module.
-    'links-app.js':            2750,   // ← whole-app fix, Nov 2026 (2380 at v25.27; 2372 at v24.51, was 2650)
+    // 2750 → 2773 in the second whole-app check (Nov 2026), a RAISE, said so, after extracting first: the RULE — a list read
+    // answered after the page changed it is applied around those changes — went to links-concurrency.js (`mergeListAnswer`,
+    // unit-tested). What stayed is wiring only this page can do (a refused save re-reads the list, and the save row follows;
+    // a delete that lands after a switch keeps the comparison; two spans stamped from SPARE_WORKED_DAYS) and the reason
+    // beside each. Set at the measured size: no room is banked.
+    'links-app.js':            2773,   // ← second whole-app check, Nov 2026 (2750 after the first; 2380 at v25.27)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
@@ -253,7 +258,10 @@ const CAPS = {
     // admin-tips.js — content, not coordination, as Operations' did — and the comments that had become a
     // changelog were cut to their reasons. Measured + 50, rounded up.
     'admin-app.js':            1500,
-    'links-design.js':         1500,   // a DOMAIN module: large is less alarming here, but still capped
+    // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
+    // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
+    // cover week as its duties — each pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
+    'links-design.js':         1503,   // a DOMAIN module: large is less alarming here, but still capped
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same

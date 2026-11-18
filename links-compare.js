@@ -207,7 +207,9 @@ export function initLinksCompare(deps) {
         // "34h 60m". This was a fourth copy and it read the figure as MINUTES: a 35-hour week
         // rendered "0h 35m", live, on the surface a designer uses to choose between two proposals.
         // Nothing was out of range and nothing threw. Import the formatter; never restate it.
-        const hrs = (/** @type {any} */ h) => h.exSunday === null ? '—' : hmFromHours(h.exSunday);
+        // …and "(partial)" where the Design checks row and the summary chip say it (`complete` false: a whole line
+        // had no readable time, so the average covers fewer lines than the design has).
+        const hrs = (/** @type {any} */ h) => h.exSunday === null ? '—' : hmFromHours(h.exSunday) + (h.complete ? '' : ' (partial)');
         // An UNCHANGED figure still renders. Showing only what moved would leave the reader unable
         // to tell "the same" from "not measured", which is this app's most repeated defect.
         const row = (/** @type {string} */ label, /** @type {any} */ x, /** @type {any} */ y) =>
