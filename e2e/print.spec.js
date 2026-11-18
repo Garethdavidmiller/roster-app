@@ -410,13 +410,13 @@ test('the FIP print button prints the countries on screen, not all of them @prin
         [...document.querySelectorAll('[id^="country-"]')].filter(c => !c.hidden).length);
     // Cards, not countries (whole-app check, Nov 2026): one of them is Lake Constance's ferries.
     await expect(page.locator('.btn-print'))
-        .toHaveAttribute('aria-label', new RegExp(`the guide with the ${shown} cards? shown`));
+        .toHaveAttribute('aria-label', new RegExp(`the ${shown} cards? shown, with what to carry and the key rules`));
 
     // …and a SIGHTED reader is told too (v23.31). The accessible name above is announced on focus;
     // a traveller filtering to one country never focuses the button before pressing it, so until
     // now nothing on screen said the ⤓ PDF would follow the filter — which is the entire point of
     // the behaviour this test pins. The cue lives on the finder's own count line.
-    await expect(page.locator('#countryCount')).toContainText('the PDF saves what is shown');
+    await expect(page.locator('#countryCount')).toContainText('the PDF saves these, with what to carry and the key rules');
 
     await page.locator('#countryClear').click();
     await expect(page.locator('.btn-print')).toHaveAttribute('aria-label', /whole FIP guide/);
@@ -1020,4 +1020,129 @@ test('every country card offers its own print, named @print', async ({ page }) =
     // screen reader's element list, where the label is all there is to tell them apart.
     expect(new Set(labels).size, 'the labels name their country').toBe(labels.length);
     expect(labels).toContain('⤓ Print France');
+});
+
+// ── THE PRINT AUDIT OF 18 NOV 2026 ───────────────────────────────────────────────────────────────
+// Five sheets the audit printed and read, each pinned here by the measurement that found it.
+
+// A Team View one row longer than its sheet printed page 2 as a solid navy block — with Chrome's
+// "Background graphics" unticked too, because the Calendar's print block makes every element
+// `print-color-adjust: exact`, the navy `html` canvas included. Two halves: the canvas is white on
+// paper on every app page (shared.css), and the CEA week — the grade with the most rows — fits one
+// landscape sheet (index.css, the Team View print rows).
+test('a printed Team View is one landscape sheet, on white paper @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-week-text').first()).toBeVisible();
+    const rows = await page.locator('.team-table tbody tr').count();
+    expect(rows, 'premise: the CEA week is the 24 rows that spilt onto a second sheet').toBeGreaterThanOrEqual(24);
+    expect(await inPrint(page, () => getComputedStyle(document.documentElement).backgroundColor),
+        'the page canvas is white on paper, not the screen\'s navy').toBe('rgb(255, 255, 255)');
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+    const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: false });
+    expect(sheetCount(pdf), 'the whole grade on one sheet').toBe(1);
+});
+
+// The Pay Calculator printed three sheets, the third a quarter full: result, hours, settings. Settings
+// now prints straight after the result, as the assumptions it was worked out on, compact enough to
+// share its sheet — and the boxes and pickers print as values, with no chevron, padlock or box.
+test('a filled pay estimate prints on two sheets, settings beside the result @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        for (const k of ['myb_pc_ytd_notice_2_shown', 'myb_pc_hpp_notice_2526_shown', 'myb_pc_ns_migrated', 'myb_pc_gmiller_setup'])
+            localStorage.setItem(k, '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+    for (const [id, v] of [['satH', '16'], ['otH', '2']]) await page.locator('#' + id).fill(v);
+    await page.locator('#otH').blur();
+    const order = await inPrint(page, () => {
+        const top = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().top;
+        const face = document.getElementById('gradeSelectTrigger');
+        return { settingsFirst: top('settingsCard') < top('hoursCard'),
+                 chevron: face ? getComputedStyle(face).backgroundImage : 'none' };
+    });
+    expect(order.settingsFirst, 'the settings print before the hours').toBe(true);
+    expect(order.chevron, 'a picker prints as its value, with no chevron').toBe('none');
+    await page.evaluate(() => document.fonts.ready);
+    expect(sheetCount(await page.pdf({ preferCSSPageSize: true, printBackground: true })), 'two sheets').toBe(2);
+});
+
+// New link printed "The 26 weeks" and its colour key alone at the foot of a sheet, every grid after it
+// on the next: three whole grids cannot share a sheet, so the card must break between them, and its
+// heading and key must go with the first. Asserted through the cascade under print media, as the
+// Links card-break test is: a sheet count would move with every edit to the page above.
+test('New link: the 26 weeks heading and key print with the first grid @print', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/newlink.html');
+    await page.locator('main h2').first().waitFor();
+    const breaks = await inPrint(page, () => {
+        const cs = (/** @type {string} */ sel) => getComputedStyle(/** @type {Element} */ (document.querySelector(sel)));
+        return { card: cs('#nlWeeksCard').breakInside, header: cs('#nlWeeksCard .card-header').breakAfter,
+                 key: cs('#nlWeeksKey').breakAfter, keyWhole: cs('#nlWeeksKey').breakInside };
+    });
+    expect(breaks).toEqual({ card: 'auto', header: 'avoid', key: 'avoid', keyWhole: 'avoid' });
+});
+
+// A Design checks family heading ("Intervals between duties") printed alone at a sheet's foot, its
+// factor on the next.
+test('Links: a design checks heading prints with its first row @print', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const patterns = /** @type {any} */ ({});
+        for (let i = 1; i <= 40; i++) patterns[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20',
+            wed: '06:20-14:20', thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('.check-family').first()).toBeAttached();
+    const after = await inPrint(page, () => [...new Set([...document.querySelectorAll('.check-family, .check-section-head')]
+        .map(e => getComputedStyle(e).breakAfter))]);
+    expect(after, 'every family and section heading keeps to its first row').toEqual(['avoid']);
+});
+
+// A search printed its cards inside the whole guide: twelve sheets for "Belgium". The owner chose the
+// cards and the two short lists a traveller carries away (18 Nov 2026), and nothing else.
+test('a FIP search prints its cards and the key rules, not the book @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.locator('#countrySearch').fill('Belgium');
+    await page.evaluate(() => { window.print = () => {}; });
+    await page.locator('.btn-print').click();
+    const paper = await inPrint(page, () => {
+        const h = (/** @type {string} */ id) => Math.round(/** @type {HTMLElement} */ (document.getElementById(id)).getBoundingClientRect().height);
+        // The LIST under each heading, not only the heading: a heading printed over nothing passed.
+        const list = (/** @type {string} */ id) => Math.round(/** @type {HTMLElement} */ (
+            /** @type {HTMLElement} */ (document.getElementById(id)).nextElementSibling).getBoundingClientRect().height);
+        return { belgium: h('country-be'), carry: Math.min(h('sec-what-to-carry'), list('sec-what-to-carry')),
+                 rules: Math.min(h('sec-important-to-know'), list('sec-important-to-know')),
+                 how: h('sec-how'), eurostar: h('sec-eurostar'), ferries: h('sec-ferries'), mistakes: h('sec-mistakes') };
+    });
+    expect({ belgium: paper.belgium > 0, carry: paper.carry > 0, rules: paper.rules > 0 },
+        'the card and the two key lists print').toEqual({ belgium: true, carry: true, rules: true });
+    expect({ how: paper.how, eurostar: paper.eurostar, ferries: paper.ferries, mistakes: paper.mistakes },
+        'the general chapters stay off the paper').toEqual({ how: 0, eurostar: 0, ferries: 0, mistakes: 0 });
+    // …and the page is put back: printing must never be a way to change it.
+    await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+    expect(await page.evaluate(() => document.body.hasAttribute('data-print-filtered')),
+        'the print state is taken off afterwards').toBe(false);
+    // Unfiltered, the PDF button prints the whole guide again.
+    await page.locator('#countryClear').click();
+    await page.locator('.btn-print').click();
+    expect(await inPrint(page, () => Math.round(/** @type {HTMLElement} */ (document.getElementById('sec-eurostar')).getBoundingClientRect().height)),
+        'with no search the general chapters print').toBeGreaterThan(0);
 });

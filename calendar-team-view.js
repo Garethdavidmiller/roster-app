@@ -10,7 +10,6 @@
  * Do not edit here for: personal calendar, override cache management, nav structure.
  */
 
-import { formatClock, printedStamp } from './date-format.js';
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, isSunday, parseISODate } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
@@ -315,13 +314,10 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             .filter(m => !m.hidden && m.role === grade)
             .sort((a, b) => a.name.localeCompare(b.name));
 
-        // v22.86 fixed the two-spellings-on-one-sheet bug here by hand — en-GB's short September
-        // is "Sept", so the header said "Printed 3 Sept 2026" above a week label saying "5 Sep
-        // 2026". The composer now does that for every surface, and adds the TIME this line lacked:
-        // a week's grid changes through the day, so two printouts of it need ordering. See
-        // roster-data.js → "the provenance line every printable surface closes on".
-        const now = new Date();
-        const printedOn = printedStamp(now, formatClock(now));
+        // NO "Printed …" HERE (print audit, 18 Nov 2026). This line used to carry its own stamp, taken
+        // when the grid was DRAWN, under the masthead's, which `stampPrintDate` (calendar-app.js) takes
+        // at print time — so the sheet said "Printed" twice, and a week left open since the morning
+        // printed two different times. The masthead's is the one that is true; it is the only one.
         const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
         // THE WORDS ARE BACK, ON A LINE OF THEIR OWN (v22.88, external review + owner). v22.85 made
         // the current week a gold rule under the date and the way back a glyph-only ↩ beside the
@@ -395,7 +391,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
 
         calendarDisplay.innerHTML = `
             <div class="team-view-container">
-                <div class="tv-print-header">Team View · ${grade} · ${weekLabel} · ${printedOn}</div>
+                <div class="tv-print-header">Team View · ${grade} · ${weekLabel}</div>
                 <div class="grade-tabs-row">
                     <div></div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>

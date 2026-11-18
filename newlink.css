@@ -652,6 +652,14 @@ body {
        control, and goes. */
     .card-collapsible-body { display: block !important; }
     .collapse-chevron { display: none !important; }
+    /* THE WEEKS CARD MAY BREAK; ITS HEADING AND KEY MAY NOT LEAVE THE FIRST GRID (print audit, 18 Nov 2026).
+       Three 26-week grids can never fit one sheet, so `.card`'s avoid could not hold for this card anyway —
+       and with each grid kept whole, the first one moved to a new sheet and left "The 26 weeks" and its colour
+       key alone on the one before: a sheet printed for a heading. The card breaks between grids instead, and
+       the heading and key travel with the first. `e2e/print.spec.js` counts the sheets. */
+    #nlWeeksCard { break-inside: auto; }
+    #nlWeeksCard .card-header, #nlWeeksKey { break-after: avoid; }
+    #nlWeeksKey { break-inside: avoid; }
     /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
     .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
     /* A proposal's two panels stay with its name: a page break between them would leave "Worse" under nobody's name. */

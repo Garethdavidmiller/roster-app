@@ -83,8 +83,8 @@ function describePrintScope(shown) {
     // CARDS, as the finder's count line says (above `countryCards`): one of them is a lake's ferries.
     var label = shown === null ? 'PDF \u2014 save or print the whole FIP guide'
         : shown === 0          ? 'PDF \u2014 save or print the guide without countries, as none matches your search'
-        : shown === 1          ? 'PDF \u2014 save or print the guide with the 1 card shown'
-        :                        'PDF \u2014 save or print the guide with the ' + shown + ' cards shown';
+        : shown === 1          ? 'PDF \u2014 save or print the 1 card shown, with what to carry and the key rules'
+        :                        'PDF \u2014 save or print the ' + shown + ' cards shown, with what to carry and the key rules';
     printBtn.setAttribute('aria-label', label);
 }
 describePrintScope(null);
@@ -120,7 +120,7 @@ function applyCountryFilter(/** @type {string} */ raw) {
         // behaviour exists is a traveller who wants one country, not 25 pages. It states the RULE
         // rather than repeating the number, so it reads correctly at one country and at twelve.
         countEl.textContent = showCount
-            ? ('Showing ' + shown + ' of ' + countryCards.length + ' cards · the PDF saves what is shown')
+            ? ('Showing ' + shown + ' of ' + countryCards.length + ' cards · the PDF saves these, with what to carry and the key rules')
             : '';
     }
     if (noMatchEl) {
@@ -502,9 +502,24 @@ openHashTarget();   // first load: honour a deep link (defer → the DOM is alre
 /** @type {Array<[HTMLDetailsElement, boolean]>} */
 var _fipOpenRestore = [];
 var _fipPrepared = false;
+// A SEARCH PRINTS ITS CARDS AND THE KEY RULES, NOT THE BOOK (owner, 18 Nov 2026). With a search
+// showing cards, the general chapters — how coupons work, booking, Eurostar, ferries, common mistakes —
+// came out with them: twelve sheets for "Belgium". The owner chose the cards plus the two short lists a
+// traveller carries away, "What to carry" and "Important to know". It is the same CSS-state pattern as
+// "Print this country" below (`body[data-print-filtered]`, the kept blocks marked `fip-filter-print` in
+// the markup), set here because both print routes come through this function, and taken off by the
+// restore. A search that matches nothing still prints the whole guide without countries: there are no
+// cards to print, and the key rules alone would be a sheet with nothing it is about.
+function filterShowsCards() {
+    return !!(searchInput && searchInput.value.trim())
+        && countryCards.some(function (c) { return !c.hidden; });
+}
 function expandAllForPrint() {
     if (_fipPrepared) return;          // second route through — the snapshot below is already true
     _fipPrepared = true;
+    if (filterShowsCards() && !document.body.hasAttribute('data-print-country')) {
+        document.body.setAttribute('data-print-filtered', '');
+    }
     _fipOpenRestore = [];
     // A HIDDEN card's <details> is opened too, deliberately: `hidden` is what keeps it off the
     // paper (fip-guide.css expands only `details:not([hidden])` in print), and leaving it closed as
@@ -519,6 +534,7 @@ function expandAllForPrint() {
 function restoreAfterPrint() {
     if (!_fipPrepared) return;         // afterprint can fire twice, or without a prepare at all
     _fipPrepared = false;
+    document.body.removeAttribute('data-print-filtered');
     _fipOpenRestore.forEach(function (p) { p[0].open = p[1]; });
     _fipOpenRestore = [];
 }

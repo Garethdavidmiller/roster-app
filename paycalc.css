@@ -1154,8 +1154,10 @@
       .pc-side    { order: 1 !important; }
       .pc-work    { order: 2 !important; }
       .disclaimer { order: 3 !important; }
-      #hoursCard    { order: 1 !important; }
-      #settingsCard { order: 2 !important; }
+      /* Settings BEFORE hours on paper (print audit, 18 Nov 2026): they are the assumptions the
+         take-home was worked out on, and, compact (below), fit the result's sheet — two sheets, not three. */
+      #settingsCard { order: 1 !important; }
+      #hoursCard    { order: 2 !important; }
 
       /* EVERY overlay (an open lightbox must never print over the page), the interactive-only
          chrome and the occasional cards. The no-special-rate-hours tick prints only as a fact, when
@@ -1258,6 +1260,35 @@
       /* Controls that do nothing on paper: the year card's fill button and a card's collapse
          arrow ("▲" printed beside "Your Settings"). */
       #fillYearBtn, .yearso-fill, .card-toggle-arrow { display: none !important; }
+      /* SETTINGS AS A RECORD, NOT A FORM (print audit, 18 Nov 2026): label over value in two columns,
+         no box, chevron, padlock or ? button. A hidden field (`.hidden`) stays hidden. */
+      #settingsBody {
+        display: grid !important; grid-template-columns: 1fr 1fr; gap: 4px 20px;
+        padding-top: 6px !important; padding-bottom: 8px !important;
+      }
+      #settingsBody > * { margin: 0 !important; min-width: 0; }
+      #settingsBody > .settings-notice { grid-column: 1 / -1; }
+      #settingsBody .fieldpick, #settingsBody input:not([type="checkbox"]):not([type="radio"]),
+      #settingsBody .pfx {
+        border: none !important; background: transparent !important; background-image: none !important;
+        box-shadow: none !important; padding: 0 !important; min-height: 0 !important; font-weight: 700 !important;
+      }
+      #settingsBody .pfx { display: flex !important; align-items: baseline; }
+      #settingsBody .pfx-sym {
+        position: static !important; transform: none !important; padding: 0 1px 0 0 !important;
+        font-weight: 700; color: var(--text-dark);
+      }
+      /* The label already says "pre-rise rate"; the strip under it is the screen's how-it-works. */
+      #settingsBody .rate-step-note { display: none !important; }
+      /* THE RESULT, TIGHTER ON PAPER — every figure kept, only the screen's breathing room goes. */
+      .result-net { padding: 10px 16px 8px !important; }
+      .net-amount { font-size: 40px !important; }
+      .sum-row, .bd-row { padding-top: 4px !important; padding-bottom: 4px !important; }
+      #settingsBody .pfx--readonly::after, #settingsCard .help-btn { display: none !important; }
+      /* The "other adjustment" sign is information, so it prints — as the character, not a button. */
+      .adj-sign-btn, .pfx--adj input:not([type="checkbox"]):not([type="radio"]) {
+        border: none !important; background: transparent !important; box-shadow: none !important;
+      }
       /* The rate badges print their screen colours (the `*` rule above keeps every fill on paper) —
          except RDW, whose name the calendar's shift badge shares: shared.css's print rule would paint
          this pale chip solid with white words, so it is restated here, after it. */
