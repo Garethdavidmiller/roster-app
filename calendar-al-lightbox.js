@@ -34,11 +34,13 @@ import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './cal
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
  * Returns handles that the coordinator needs to pass to other modules.
  *
- * @param {{ navigateToPaycalc?: (paydayIso: string) => void }} [deps]
+ * @param {{ navigateToPaycalc?: (paydayIso: string) => void, isTeamView?: () => boolean }} [deps]
  *   navigateToPaycalc — wired to the day-detail "Pay estimate" button on pay-marked days.
+ *   isTeamView — whether Team Week View is on screen, where the name picker is not (the leave panel's
+ *   first-run hint says where to choose a name).
  * @returns {{ openDayDetail: (cell: HTMLElement) => void, closeALLightbox: () => void }}
  */
-export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
+export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
   // ── ANNUAL LEAVE LIGHTBOX ───────────────────────────────────────────────────
   const lb          = document.getElementById('alLightbox');
   const takenEl     = /** @type {HTMLElement} */ (document.getElementById('alLbTaken'));
@@ -210,7 +212,13 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     const keepsBalance = keepsBalanceFor(member?.name);
     noteLine(null);
 
-    if (!member) { paintPlaceholder('—'); if (firstRun) noteLine('Choose your name first to see your leave.'); return; }
+    // In Team View the name picker is not on screen (index.css hides it there), so the hint says where
+    // it is: back in the month view (18 Nov 2026). "📅 Month" is that view's button, word for word.
+    if (!member) {
+      paintPlaceholder('—');
+      if (firstRun) noteLine(isTeamView?.() ? 'Go back to 📅 Month and choose your name to see your leave.' : 'Choose your name first to see your leave.');
+      return;
+    }
 
     // Instant paint from the last successful load (if any) while the refresh runs, labelled as the
     // saved copy it is; else the '…' placeholders as before. A malformed memo falls through to placeholders.

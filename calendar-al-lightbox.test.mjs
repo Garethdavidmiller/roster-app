@@ -115,7 +115,9 @@ mock.module('./calendar-access.js', { namedExports: {
 
 /** Whose calendar is on screen. @type {any} */
 let shown = null;
-mock.module('./calendar-member.js', { namedExports: { getCurrentMember: () => shown, isFirstRun: () => false } });
+/** A first run: nobody has chosen a name on this device. */
+let firstRun = false;
+mock.module('./calendar-member.js', { namedExports: { getCurrentMember: () => shown, isFirstRun: () => firstRun } });
 const THIS_YEAR = new Date().getFullYear();
 let displayYear = THIS_YEAR;
 mock.module('./calendar-state.js', { namedExports: { getDisplayYear: () => displayYear } });
@@ -130,7 +132,9 @@ const { initCalendarLightboxes } = await import('./calendar-al-lightbox.js');
 // calendar-app.js's own listener, wired as the page wires it: a Calendar that has lost access keeps
 // no copy (CALENDAR_DATA.md 17).
 onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
-const { openDayDetail } = initCalendarLightboxes({ navigateToPaycalc: () => {} });
+/** Team Week View on screen, where the name picker is hidden. */
+let teamViewOn = false;
+const { openDayDetail } = initCalendarLightboxes({ navigateToPaycalc: () => {}, isTeamView: () => teamViewOn });
 
 /** Two invented CEAs on the main line. */
 const PERSON  = Object.freeze({ name: 'A. Person',  role: 'CEA', rosterType: 'main', currentWeek: 1 });
@@ -156,8 +160,27 @@ beforeEach(() => {
     session = { name: PERSON.name };
     kind = 'named';
     shown = PERSON;
+    firstRun = false;
+    teamViewOn = false;
     displayYear = THIS_YEAR;
     setCalendarAccess(true);
+});
+
+describe('a first run asks for a name where a name can be chosen', () => {
+    test('in the month view, "choose your name"; in Team View, where the picker is hidden, back to 📅 Month first', () => {
+        firstRun = true;
+        shown = null;   // as the real selector answers on a first run: nobody's
+        openLeavePanel();
+        assert.equal(byId('alLbError').textContent, 'Choose your name first to see your leave.');
+        teamViewOn = true;
+        openLeavePanel();
+        assert.equal(byId('alLbError').textContent, 'Go back to 📅 Month and choose your name to see your leave.',
+            'in Team View the hint sent the member to a picker that is not on screen');
+        assert.equal(reads.length, 0, 'nobody\'s leave was read');
+        // The words name the button that leaves Team View, as Team View labels it.
+        assert.match(readFileSync(new URL('./calendar-team-view.js', import.meta.url), 'utf8'),
+            /'<span class="btn-ico" aria-hidden="true">📅<\/span> Month'/, 'the month view\'s button is no longer "📅 Month"');
+    });
 });
 
 describe('a balance is kept only while it is still the reader\'s own — asked again as the read lands', () => {

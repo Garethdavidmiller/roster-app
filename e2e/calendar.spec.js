@@ -1402,6 +1402,19 @@ test('calendar: on a first run, the leave panel shows nobody\'s leave and asks f
     await expect(page.locator('#alLightbox')).toHaveAttribute('aria-label', 'Annual Leave balance');
 });
 
+// …and from TEAM VIEW, where the name picker is not on screen (index.css hides it there), the leave panel
+// says where a name is chosen: back in the month view, by its button's own words (18 Nov 2026).
+test('calendar: on a first run in Team View, the leave panel sends the member back to 📅 Month for a name', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#tvWeekJump')).toBeVisible();
+    await expect(page.locator('#navRow'), 'premise: no name picker on screen in Team View').toBeHidden();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLightbox')).toBeVisible();
+    await expect(page.locator('#alLbError')).toHaveText('Go back to 📅 Month and choose your name to see your leave.');
+});
+
 test('calendar: on a first run, leaving Team View does not put the colour key under the prompt', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.first-run-prompt')).toBeVisible();
@@ -1473,6 +1486,22 @@ test('calendar: a removed saved member falls back to the calendar + stale banner
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.first-run-prompt')).toHaveCount(0);
     await expect(page.locator('#errorBanner')).toContainText('no longer in the roster');
+    // The picker is a list, on a phone a sheet: "the dropdown" named neither (18 Nov 2026).
+    await expect(page.locator('#errorBanner')).toContainText('"Z. Nonexistent" is no longer in the roster');
+    await expect(page.locator('#errorBanner')).toContainText('Choose a name from the list above.');
+});
+
+// THE SIGNED-IN MEMBER'S OWN NAME (18 Nov 2026): a row hidden after a move into management, say, while the
+// member is still signed in with it saved. The line is said to them, not about them in quotes. An invented
+// name stands in for theirs: it is on no roster, which is how a hidden row looks to the picker.
+test('calendar: a member whose own name has left the list is told so in their own words', async ({ page }) => {
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    await expect(page.locator('#errorBanner'))
+        .toContainText(`Your name is no longer in the roster — showing ${shown}'s calendar. Choose a name from the list above.`);
+    await expect(page.locator('#errorBanner')).not.toContainText('"A. Person"');
 });
 
 test('calendar: the removed-member line sits beside the banner\'s warning, and its timer takes only itself away (17 Nov 2026)', async ({ page }) => {

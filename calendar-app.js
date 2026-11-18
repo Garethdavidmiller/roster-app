@@ -154,7 +154,7 @@ let openAboutLightbox = null;
 // `initCalendarTooltip`/`initCalendarKeyboard` further down — with
 // `#calendarDisplay` empty they have nothing to act on, and the keyboard ACTS only inside it, so the
 // stored copy painted in the lock slot before the grant (v24.59) is read, never used.
-const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc });
+const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc, isTeamView: () => teamView.isTeamViewMode() });
 
 // (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
 
@@ -208,15 +208,15 @@ function changeMonth(delta) {
     dismissSwipeHint();
 }
 
+// The phone's text scale, stamped on <html> before anything is laid out, so the action row can go
+// compact where five buttons would otherwise wrap (text-scale.js has the reasoning and the numbers).
+applyTextScale(document);
+
 // Show a one-time swipe hint on the calendar for first-time visitors.
 // Only shown on touch devices — desktop users navigate with Prev/Next buttons.
 // Dismissed permanently on the first month navigation (swipe or button), or
 // auto-dismissed after 6s — without the timer, a user who saw the hint but
 // didn't navigate would be shown it again on every reload.
-// The phone's text scale, stamped on <html> before anything is laid out, so the action row can go
-// compact where five buttons would otherwise wrap (text-scale.js has the reasoning and the numbers).
-applyTextScale(document);
-
 (function initSwipeHint() {
     if (lsGet('myb_swipe_hint_seen')) return;
     if (!window.matchMedia('(pointer: coarse)').matches) return;
@@ -332,7 +332,9 @@ function _showStaleMemberBanner(staleName, fallbackName) {
     // 30-second timer then hid the banner with that warning gone too. Now only this line times out,
     // and the banner goes with it only when nothing else is left in it.
     const line = document.createElement('div');
-    line.textContent = `"${staleName}" is no longer in the roster — showing ${fallbackName}'s calendar. Use the dropdown to select the correct person.`;
+    // The signed-in member's OWN name (a row hidden after a move into management, say) is said to them,
+    // not about them in quotes (18 Nov 2026).
+    line.textContent = `${staleName === getSession()?.name ? 'Your name' : `"${staleName}"`} is no longer in the roster — showing ${fallbackName}'s calendar. Choose a name from the list above.`;
     banner.appendChild(line);
     banner.classList.add('visible');
     setTimeout(() => {
@@ -471,7 +473,7 @@ function renderCalendar() {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
             errDiv.setAttribute('role', 'alert');
-            errDiv.innerHTML = '<h2><span aria-hidden="true">⚠️</span> Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin.</p>';
+            errDiv.innerHTML = '<h2><span aria-hidden="true">⚠️</span> Couldn\'t display this roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
