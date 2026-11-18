@@ -4032,6 +4032,21 @@ test('calendar: Team View opens on the month you were browsing, not the current 
     expect(label, `team week label while browsing ${browsing}`).toMatch(new RegExp(`${want.tail}$`));
 });
 
+// ACROSS NEW YEAR (18 Nov 2026): the one week a year that starts in December and ends in January read
+// "27 Dec–2 Jan 2027", putting 27 December in 2027. Both years now, on the label and in what is spoken.
+test('calendar: a Team View week across New Year names both years, shown and spoken', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-18T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/?date=2027-01-05');
+    await expect(page.locator('.month-year')).toHaveText('January 2027');
+    await page.locator('#teamViewBtn').click();   // opens on the week holding 1 January
+    await expect(page.locator('#tvWeekJump')).toHaveText('27 Dec 2026–2 Jan 2027');
+    await page.locator('#tvPrevWeek').click();
+    await expect(page.locator('#tvWeekJump'), 'a week inside one year keeps its one year').toHaveText('20–26 Dec 2026');
+    await page.locator('#tvNextWeek').click();
+    await expect.poll(() => page.locator('#ariaAnnouncer').textContent()).toBe('Week of 27 December 2026–2 January 2027');
+});
+
 // ── THE HUDDLE BUTTON WORKS THE MOMENT IT IS DRAWN (v24.23) ────────────────────────────────────────
 //
 // v24.19 drew "📄 Open Huddle" and only attached its click handler AFTER a short-lived link came back

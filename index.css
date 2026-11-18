@@ -3488,17 +3488,23 @@
            off the button, where every card in this family leaves 14–24px. */
         #calLockWhy { margin: 0 0 18px; }
 
-        /* The lock card is not part of a printed roster, and a printed page cannot be unlocked. */
+        /* The lock card is not part of a printed roster, and a printed page cannot be unlocked. Nor does
+           a locked page head its sheet with a member (18 Nov 2026): "Team Member: <the name last chosen on
+           this device>" stood over a page with no calendar on it. `calendar-unlocked` is the grant's
+           (calendar-access.js), so this holds before the first grant and after a re-lock, and on an
+           engine that prints without `beforeprint`, where the header's stamp is never redone. */
         @media print {
             .cal-lock { display: none !important; }
+            body:not(.calendar-unlocked) .header::after { content: none; }
         }
 
         /* ── The workspace gate has to BEAT the author display rules ─────────────────────────────
            `hidden` is a UA `display: none`, and any author `display` rule beats it — `.controls`
            is `display: flex`, so `nav.controls[hidden]` rendered in full. This is the same trap
            `.win-editor[hidden]` hit on the links page. These six are the Calendar workspace, hidden by
-           `calendar-access.js` before the access decision and on a re-lock — after which the grid is built
-           and this is the only layer (e2e/calendar-pin.spec.js → "a re-lock takes the offer strips…").
+           `calendar-access.js` before the access decision and on a re-lock — after which the workspace is
+           built (only the grid is emptied, calendar-app.js) and this is the only layer
+           (e2e/calendar-pin.spec.js → "a re-lock takes the offer strips…").
            `!important`: three of them (#installPrompt, #notifPrompt, #swipeHint) carry an inline
            `display`, which beats any rule without it. */
         #calendarControls[hidden],

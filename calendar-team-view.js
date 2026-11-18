@@ -266,15 +266,20 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      * the screen-reader announcement (`announceTeamWeek`) passes `MONTH_NAMES` and keeps saying
      * "July" — a spoken "Jul" would be a regression bought for a column it does not sit in.
      *
+     * ACROSS NEW YEAR, BOTH YEARS (18 Nov 2026). The one week a year that starts in December and ends in
+     * January read "27 Dec–2 Jan 2027", which puts 27 December in 2027. It is the longest label, and
+     * may take two lines on a narrow phone at a large text size — once a year, and a wrapped label
+     * grows downward (index.css, `.team-week-text`).
+     *
      * @param {Date} sunday  the week's Sunday
      * @param {readonly string[]} [months]  month table — `MONTH_ABB` (default) or `MONTH_NAMES`
      */
     function formatTeamWeekLabel(/** @type {any} */ sunday, months = MONTH_ABB) {
         const dates = getTeamWeekDates(sunday);
         const s = dates[0], e = dates[6];
-        return s.getMonth() === e.getMonth()
-            ? `${s.getDate()}–${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`
-            : `${s.getDate()} ${months[s.getMonth()]}–${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`;
+        if (s.getMonth() === e.getMonth()) return `${s.getDate()}–${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`;
+        const startYear = s.getFullYear() === e.getFullYear() ? '' : ` ${s.getFullYear()}`;
+        return `${s.getDate()} ${months[s.getMonth()]}${startYear}–${e.getDate()} ${months[e.getMonth()]} ${e.getFullYear()}`;
     }
 
     // ── RENDER ────────────────────────────────────────────────────────────────
