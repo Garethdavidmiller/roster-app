@@ -714,9 +714,14 @@ of CLAUDE.md).
 **What it means for a release.** The mirror updates after a Hosting deploy finishes, not a minute
 after the push. A deploy lasts as long as its slowest gate job plus about a minute. The gate jobs are
 `check`, the six `smoke` shards, `csp`, `signed-in` (Android Chrome) and `safari` (the iPhone's
-engine, since 17 November 2026), and the slowest is a `smoke` shard. Since each screen size was cut
-into three on 12 November 2026 the shards take 5 to 10 minutes (5m 36s to 9m 36s in the release of
-17 November 2026). The mirror's own publish then takes under a minute (40 and 55 seconds on 10 November 2026; the first,
+engine, since 17 November 2026), and the slowest is a `smoke` shard: about 7 minutes since the shards
+were cut by measured time (17 November 2026). **Most releases skip the first four**: when the pull
+request's own Tests run passed them on the identical tree (a branch up to date with main when it
+merged), they stand aside, and the deploy waits for `safari` alone: about five minutes by estimate
+(its tests take two and a half locally; the first release with it will measure it). `safari` never
+stands aside: the pull request's record covers no WebKit check but signed-in's iPhone half.
+The deploy run's `tested` job says which way it went, and why. The
+mirror's own publish then takes under a minute (40 and 55 seconds on 10 November 2026; the first,
 v25.65, took about nine). A push that changes only docs or tests republishes neither
 origin, exactly as Hosting already behaves. A failed gate leaves BOTH origins on the previous release,
 and the issue says so.

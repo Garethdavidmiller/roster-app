@@ -74,8 +74,9 @@ breakage".
 
 **After every merge that deploys, run `npm run test:live` once Deploy Firebase Hosting, and the
 mirror's deploy that follows it, have FINISHED** — not at the merge. The deploy runs the whole
-browser suite before it releases anything, so a check started at the merge reads the previous
-release, and its pass says nothing about the new one. A merge whose files all sit in that workflow's
+browser suite before it releases anything (about five minutes, not ten, when the PR's own run already
+passed it on the identical tree — `deploy-hosting.yml`'s `tested` job; `safari` runs either way), so a check started at the
+merge reads the previous release, and its pass says nothing about the new one. A merge whose files all sit in that workflow's
 `paths-ignore` (docs, tests, workflows, Functions, rules) starts no Hosting deploy, so there is
 nothing to wait for.
 
@@ -474,7 +475,8 @@ Override cache key: `"memberName|YYYY-MM-DD"`
     Safari fires neither `beforeprint` for AirPrint nor `transitionend` on a backgrounded tab.
     `install-prompt.js` and `notif.js` already branch correctly for both engines. **Oldest iOS
     supported: 16.4** (owner, 7 Nov 2026 — DECISIONS.md).
-  - **Every deploy runs the Chromium suite and a few Safari tests** (owner, 17 Nov 2026): every page
+  - **Every release passes the Chromium suite** (on the deploy, or on its PR for the identical tree)
+    **and a few Safari tests, on the deploy itself** (owner, 17 Nov 2026): every page
     opening and the signed-in journeys, on the iPhone's engine. The whole WebKit suite runs on branches
     only (DECISIONS.md → "A few Safari tests gate the release"). **Weigh a WebKit failure on a branch
     accordingly**: it is still the only lane that sees most of Safari before release.
