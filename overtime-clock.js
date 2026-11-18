@@ -14,21 +14,29 @@
  * produces an absence: a Submit button that quietly is not there, on a phone whose clock nobody
  * checked, for a member who was in time.
  *
- * ── THE RULE THAT GOVERNS ALL SIX ───────────────────────────────────────────────────────────────
+ * ── TWO RULES, ONE FOR EACH CONTROL ─────────────────────────────────────────────────────────────
  *
- * **The client never refuses what the server would accept.** It may offer more than the server
- * allows — an extra request costs nothing — and it may never offer less than the member is owed.
- * Every asymmetry below runs that way and each says so at the branch:
+ * Submit and restore are cheapest to get wrong in opposite directions, so they keep opposite rules.
+ * This header stated one rule for all six until 18 Nov 2026, and the restore decision runs the other
+ * way: an editor trusting it could have "fixed" `canRestoreNow` into offering what the server refuses.
+ *
+ * **Submit: the client never refuses what the server would accept.** It may offer more than the
+ * server allows — an extra request costs nothing — and it may never offer less than the member is
+ * owed. Both of its decisions run that way, and each says so at the branch:
  *
  *   · `SUBMIT_GRACE_MS` keeps Submit live for fifteen minutes PAST the deadline, because the cost
  *     of being wrong in that direction is one rejected request, and the cost the other way is
  *     somebody's availability for a week.
  *   · `submitDisposition` never answers `closed` inside that band — it answers
  *     `check-with-server`, handing the decision to the only clock that is authoritative.
- *   · `canRestoreNow` returns TRUE when it cannot tell, and the comment on that branch is the
- *     argument: a wrong refusal here puts a SENTENCE on screen explaining a rule that may not
- *     apply, and a false explanation is worse than a refused tap — the tap costs a moment, the
- *     sentence is believed. It runs opposite to the server's unknown case on purpose.
+ *
+ * **Restore: `canRestoreNow` may be wrong only by offering LESS.** It decides what the reviewer's
+ * panel offers, and its server twin is the protection: a yes the server refuses meets the reviewer
+ * with a refusal where the panel would have said why not. So it refuses a closed week and an
+ * unreadable `withdrawnAt`, as the server does, and `overtime-parity.test.mjs` fails the moment it
+ * offers a restore the server refuses. ONE branch runs the other way, on purpose: when it cannot read
+ * the deadline it returns TRUE, because a wrong refusal there puts a SENTENCE on screen explaining a
+ * rule that may not apply — the tap costs a moment, the sentence is believed.
  *
  * ── WHAT MOVING THIS MUST NOT BREAK ─────────────────────────────────────────────────────────────
  *

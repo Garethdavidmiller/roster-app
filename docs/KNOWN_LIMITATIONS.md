@@ -1721,10 +1721,12 @@ Not every uncaught error is a fault in this app, so several classes are suppress
 Firestore write by the pure `shouldReport` in `client-errors.js`: the opaque cross-origin
 `Script error.`, browser-extension URL schemes, `ResizeObserver loop`, the declarative view transition
 the browser abandoned, a service-worker background-update failure accompanied by a network phrase,
-WebKit's IndexedDB teardown messages when they come from the SDK origin, and a cross-origin script
-that is not one of the app's CDN origins. Each rule's reasoning is beside it in `shouldReport`. The
-accepted cost is that a real fault worded exactly like one of these is not logged — which is why each
-is matched as narrowly as it can be (exact phrases, an anchored match, the SDK origin only).
+WebKit's IndexedDB teardown messages when they come from Firebase Auth's script (`firebase-auth.js`,
+named in the source URL or the stack — not the SDK's origin, which Firestore's offline cache shares),
+and a cross-origin script that is not one of the app's CDN origins. Each rule's reasoning is beside it
+in `shouldReport`. The accepted cost is that a real fault worded exactly like one of these is not
+logged — which is why each is matched as narrowly as it can be (exact phrases, an anchored match, one
+named script).
 
 **Do not add a filter without a test on BOTH sides.** The failure directions are not symmetric: too
 narrow leaves noise you can see and complain about, too broad silently swallows real errors and the

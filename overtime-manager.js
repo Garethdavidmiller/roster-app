@@ -346,7 +346,7 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false, 
         </div>
         <div class="ot-current-note">
             Availability reflects what staff submitted before the final cut-off. Confirm directly
-            with the employee before arranging short-notice cover.
+            with the person before arranging short-notice cover.
             <strong>What people offer here is time around whatever they are already rostered</strong>
             — it is never an offer to change or give up a rostered duty.
         </div>

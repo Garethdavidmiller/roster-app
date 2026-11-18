@@ -210,8 +210,10 @@ export function isBeforeMemberStart(member, date) {
  * layer + `shouldReplaceOverride` consume: the value plus note/type/source/createdAt with the
  * exact same defaults. Single source for every write into `rosterOverridesCache` — a divergence in
  * these defaults would produce subtle precedence bugs, since shouldReplaceOverride keys off
- * source/createdAt. There is exactly ONE writer, calendar-overrides.js — do not add a second
- * (clearShiftTypesCache() depends on it; CALENDAR_DATA.md invariant 6).
+ * source/createdAt. There is exactly ONE writer, calendar-overrides.js — do not add a second. Its two
+ * reads, `fetchOverridesForRange` and `fetchOverridesForRangeFromCache`, clear the month legend's
+ * shift-types memo where they write, so a writer elsewhere would leave the legend stale; and a second
+ * authoritative reconciler racing them is the Team View eviction bug (CALENDAR_DATA.md invariant 6).
  * @param {any} data - a Firestore override doc's `.data()`
  * @returns {{ value: any, note: string, type: string, source: any, createdAt: any, changedBy?: string }}
  */

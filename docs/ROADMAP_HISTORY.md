@@ -2624,6 +2624,13 @@ Firestore persistent cache is failing, which is a real fault worth seeing, so th
 list is exact phrases, never a loose `Database` substring — a version conflict or a quota failure is
 a genuine problem that happens to involve the same API call.
 
+**Correction (18 Nov 2026): the origin scoping hid the very fault it said it kept.** The app's own
+code never touches IndexedDB. Firestore's persistent cache does, and it loads from the same
+www.gstatic.com origin as Auth, so a failing cache was dropped as Auth's noise and the "our own
+origin" case above could never happen. The rule now drops these phrases only when the source URL or
+the stack names Firebase Auth's script, `firebase-auth.js`, so a Firestore failure reaches the Error
+Log; `error-reporter.test.mjs` and `error-reporter-wiring.test.mjs` pin both sides.
+
 **Do not add a filter without a test on BOTH sides.** The failure directions are not symmetric: too
 narrow leaves noise you can see and complain about, too broad silently swallows real errors and the
 log looks healthy *because* it is broken. `error-reporter.test.mjs` pins each rule against the thing
