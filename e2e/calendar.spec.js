@@ -4039,6 +4039,29 @@ test('huddle: opened from the drawer and closed, one Back press leaves the Calen
         .toHaveURL(/railcard-guide\.html/);
 });
 
+// A NOTIFICATION TAPPED WITH THE DRAWER OPEN LEAVES NO DEAD BACK EITHER (18 Nov 2026). A tap is a hash navigation
+// pushed ON TOP of the drawer's own entry. The drawer read its popstate as Back and closed, but its entry stayed
+// beneath the tap's; the viewer took the tap's entry off, and once the viewer was closed one Back press landed on
+// the drawer's leftover: the same Calendar, nothing moved. The tap is a hash change, as the tests above make it.
+test('huddle: a notification tapped with the drawer open, then the viewer closed — one Back press leaves the Calendar', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page);
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toHaveClass(/\bopen\b/);
+    await page.evaluate(() => { location.hash = '#huddle'; });   // the service worker's navigate of the open window
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
+    await expect(page.locator('#navPanel'), 'the tap closes the drawer').not.toHaveClass(/\bopen\b/);
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    await expect.poll(() => page.evaluate(() => history.state?.mybNavPanel ?? null),
+        { message: 'the reader was left on the drawer\'s entry, where a Back press does nothing' }).toBeNull();
+    await page.evaluate(() => history.back());
+    await expect(page, 'one Back press leaves the Calendar').toHaveURL(/railcard-guide\.html/);
+});
+
 // …and from any OTHER page the link loads the Calendar, so the drawer's entry is REPLACED, as a page
 // pill's is: Back from the Calendar lands where the member was before opening the drawer.
 test('huddle: opened from another page\'s drawer, Back returns to that page past no drawer entry', async ({ page }) => {

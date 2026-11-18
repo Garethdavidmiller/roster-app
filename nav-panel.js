@@ -149,11 +149,35 @@ let _historyPushed  = false;
  *  drawer (a dialog), so the drawer stays. Per opening, so a pre-reload leftover never passes for it. */
 let _navEntry = 0;
 const _landedOnOwnEntry = () => history.state?.mybNavPanel === _navEntry;
+/** This page's address, read where the module may run without one (the unit tests' fake window). */
+const _hereHref = () => String(globalThis.location?.href ?? '');
+/** The address the drawer's entry was pushed at — so the entry BENEATH it has it too, and a Back lands there. */
+let _entryHref = '';
 /** Push the drawer's ONE entry — shared by the panel and its two lightboxes — with a fresh marker. */
 function _pushDrawerEntry() {
     _navEntry = Date.now() + Math.random();
+    _entryHref = _hereHref();
     history.pushState({ mybNavPanel: _navEntry }, '');
     _historyPushed = true;
+}
+
+// ── A NOTIFICATION TAPPED WITH THE DRAWER OPEN (18 Nov 2026) ─────────────────────────────────────────────
+// A tap is a hash navigation of this page (`#huddle`, `#circular`, an Operations card), pushed ON TOP of the
+// drawer's entry, and a hash navigation fires popstate. The drawer read that as Back and closed — but its entry
+// was still in the history, under the tap's. The page then takes the tap's entry back off (its viewer or card
+// opens once that lands), which leaves the reader ON the drawer's entry: after the viewer closed, one Back did
+// nothing at all. A Back lands on the entry the drawer was pushed from, at the address it was pushed at; a tap
+// lands somewhere else. So a pop at another address marks the entry as LEFT BEHIND, and a pop that later lands on
+// it — while nothing has been pushed above it — steps off it again, as if it had never been there.
+/** The marker of a drawer entry a tap left in the history beneath it, or 0. */
+let _leftBehind = 0;
+/** Step off the drawer's left-behind entry when a pop lands on it. Never on any other entry: the marker is
+ *  per opening, and a viewer pushed above it in the meantime has its own Back. */
+function _stepOffLeftBehind() {
+    if (!_leftBehind || history.state?.mybNavPanel !== _leftBehind) return;
+    _leftBehind = 0;
+    suppressNextPop();   // the echo is ours, not a Back press
+    history.back();
 }
 let _comingSoonOpen = false;
 let _noticesOpen    = false;
@@ -968,11 +992,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // panel's single history entry, so check them first. Stored module-level so resetNavPanel() can
     // remove it (the keydown handler's stale-copy hazard).
     _popstateHandler = () => {
-        if (!_historyPushed) return;
+        if (!_historyPushed) { _stepOffLeftBehind(); return; }
         // What was popped sat ABOVE the drawer's entry — a dialog over the drawer or over one of its two
         // lightboxes, by Back or by the echo of its own Cancel, which overlay.js absorbs but cannot stop
         // reaching this listener too. It is the dialog's pop, not ours.
         if (_landedOnOwnEntry()) return;
+        // Not at the address the entry was pushed at: a tap's hash navigation pushed above it, so the entry is
+        // still there beneath — the drawer closes all the same, and steps off the entry later (above).
+        if (_hereHref() !== _entryHref) _leftBehind = _navEntry;
         if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
         if (_noticesOpen)   { _closeNoticesFromBack(); return; }
         closePanelFromBack();
