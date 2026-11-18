@@ -475,7 +475,16 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
     });
 
     test('every job is gated on the guard — including one added later', () => {
-        const ungated = jobs.filter(n => n !== 'guard' && !/^ {4}needs: guard[ \t]*$/m.test(blockOf(n)));
+        // `needs: guard`, or a list that names it: a job that also waits for a sibling (each visual
+        // lane's report job waits for its lane) is still gated, and the test below holds its `if`.
+        /** @param {string} block */
+        const namesGuard = (block) => {
+            const m = /^ {4}needs: (.+?)[ \t]*$/m.exec(block);
+            if (!m) return false;
+            const list = m[1].startsWith('[') ? m[1].slice(1, -1).split(',').map(s => s.trim()) : [m[1]];
+            return list.includes('guard');
+        };
+        const ungated = jobs.filter(n => n !== 'guard' && !namesGuard(blockOf(n)));
         assert.deepEqual(ungated, [],
             `e2e.yml job(s) ${ungated.join(', ')} do not declare 'needs: guard', so they run on a `
             + 'commit that is already on main. Add the needs + if pair used by every sibling job.');
@@ -1380,26 +1389,43 @@ describe('a re-run never puts an older tree live', () => {
 // posture and NEITHER voice, so a drifted Safari baseline was exactly the unread artifact this block
 // was written about. Same contracts, its own marker and check name so the two lanes never overwrite
 // each other's report.
-for (const [JOB, MARKER, CHECK] of [
-    ['visual', '<!-- visual-baseline-drift -->', 'visual baselines'],
-    ['visual-webkit', '<!-- visual-baseline-drift-webkit -->', 'visual baselines (webkit)'],
+//
+// THE TWO VOICES ARE A JOB OF THEIR OWN (review, 18 Nov 2026). Each lane is now two jobs. The lane
+// (`visual`, `visual-webkit`) installs, takes the screenshots and compares them, and holds no write.
+// Its report job installs nothing and holds the writes the comment and the check run need, because
+// an install script can put a program of its own on the PATH of every later step in its job, so a
+// token handed to any step of the job that installs is in its reach. The contracts follow each voice
+// into the job it now lives in; the last one keeps the split.
+for (const [JOB, REPORT, MARKER, CHECK] of [
+    ['visual', 'visual-report', '<!-- visual-baseline-drift -->', 'visual baselines'],
+    ['visual-webkit', 'visual-webkit-report', '<!-- visual-baseline-drift-webkit -->', 'visual baselines (webkit)'],
 ]) describe(`the ${JOB} lane never gates, and never goes quiet`, () => {
     const src = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
-    const jobsAt = src.search(/^jobs:/m);
-    const body = src.slice(jobsAt);
-    const start = body.search(new RegExp(`^ {2}${JOB}:[ \\t]*$`, 'm'));
-    const rest = start === -1 ? '' : body.slice(start + 1);
-    const nextJob = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
-    const job = nextJob === -1 ? rest : rest.slice(0, nextJob);
+    const body = src.slice(src.search(/^jobs:/m));
+    /** One job's block, up to the next job; empty when there is no such job. @param {string} name */
+    const blockOf = (name) => {
+        const start = body.search(new RegExp(`^ {2}${name}:[ \\t]*$`, 'm'));
+        if (start === -1) return '';
+        const rest = body.slice(start + 1);
+        const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        return next === -1 ? rest : rest.slice(0, next);
+    };
+    const job = blockOf(JOB);
+    const report = blockOf(REPORT);
+    /** A job's own permissions entries, or '' when it declares none. @param {string} block */
+    const permissionsOf = (block) => /^ {4}permissions:[^\n]*\n((?: {6,}[^\n]*\n)*)/m.exec(block + '\n')?.[1] ?? '';
 
-    test(`the ${JOB} job exists`, () => {
-        assert.ok(start > -1, `e2e.yml has no \`${JOB}:\` job`);
+    test(`the ${JOB} job and its ${REPORT} job exist`, () => {
+        assert.ok(job, `e2e.yml has no \`${JOB}:\` job`);
+        assert.ok(report, `e2e.yml has no \`${REPORT}:\` job, so the lane's comment and check run have nowhere to run`);
     });
 
     test('it cannot fail a build on a rendering difference', () => {
         assert.match(job, /^ {4}continue-on-error: true[ \t]*$/m,
             `the ${JOB} job must stay continue-on-error. Baselines are captured on one machine and `
             + 'compared on another; making them blocking gates every release on renderer noise.');
+        assert.match(report, /^ {4}continue-on-error: true[ \t]*$/m,
+            `the ${REPORT} job must stay continue-on-error too: a broken notifier must never become a broken build`);
     });
 
     test('the comparison CAPTURES its outcome instead of swallowing it', () => {
@@ -1410,17 +1436,31 @@ for (const [JOB, MARKER, CHECK] of [
         assert.match(job, /drifted=true[\s\S]{0,200}GITHUB_OUTPUT|GITHUB_OUTPUT[\s\S]{0,200}drifted=true/,
             'the comparison step must write a `drifted` output — otherwise its result is discarded '
             + 'and the run is green whether or not the baselines matched');
+        // And hands it on, with WHICH baselines differ: the report job has no test results of its own.
+        assert.match(job, /^ {6}drifted: \$\{\{ steps\.compare\.outputs\.drifted \}\}[ \t]*$/m,
+            `${JOB} must hand the compare step's outcome to ${REPORT} as a job output`);
+        assert.match(job, /^ {6}names: \$\{\{ steps\.result\.outputs\.names \}\}[ \t]*$/m,
+            `${JOB} must hand the names of the baselines that differ to ${REPORT} as a job output`);
+        for (const [env, output] of [['DRIFTED', 'drifted'], ['NAMES', 'names']]) {
+            const read = new RegExp(`^ {10}${env}: \\$\\{\\{ needs\\.${JOB}\\.outputs\\.${output} \\}\\}[ \\t]*$`, 'gm');
+            assert.equal(report.match(read)?.length ?? 0, 2,
+                `both of ${REPORT}'s steps must read ${env} from ${JOB}'s \`${output}\` output`);
+        }
     });
 
     test('and it says so where somebody is already looking', () => {
-        assert.match(job, /^ {6}pull-requests: write[ \t]*$/m,
+        assert.match(report, /^ {6}pull-requests: write[ \t]*$/m,
             'without pull-requests:write the notifier runs and the API call fails — a notifier that '
             + 'reports nothing is worse than none, because the run still goes green');
-        assert.ok(job.includes(`MARKER='${MARKER}'`),
+        assert.ok(report.includes(`MARKER='${MARKER}'`),
             'the notifier must carry a stable HTML marker, or it posts a fresh comment per push '
             + 'instead of updating one');
-        assert.match(job, /gh pr comment/,
-            `the ${JOB} job must actually say something on the pull request`);
+        assert.match(report, /gh pr comment/,
+            `the ${REPORT} job must actually say something on the pull request`);
+        // gh finds its repository from a checkout, and this job has none: without GH_REPO every
+        // `gh pr` command fails (race-detector.yml did exactly that until 10 Nov 2026).
+        assert.match(report, /^ {10}GH_REPO: \$\{\{ github\.repository \}\}[ \t]*$/m,
+            `${REPORT} has no checkout, so its gh pr commands need GH_REPO to know the repository`);
     });
 
     test('the notifier cannot become the failure it is reporting', () => {
@@ -1429,23 +1469,39 @@ for (const [JOB, MARKER, CHECK] of [
         // GitHub runs `run:` steps as `bash -e {0}`, so a script that simply omits `set -e` still
         // gets it: the first draft of this contract asserted the absence of `set -e` and was
         // therefore checking nothing at all. Only an explicit `set +e` is load-bearing.
-        assert.match(job, /^ {10}set \+e\b/m,
+        assert.match(report, /^ {10}set \+e\b/m,
             'the notifier must `set +e` explicitly — GitHub invokes run: steps as `bash -e`, so '
             + 'without it an unguarded gh failure abandons the rest of the report');
         for (const call of ['gh pr comment', 'gh api --method PATCH']) {
             const re = new RegExp(`${call}[\\s\\S]{0,400}?\\|\\| echo "::warning::`);
-            assert.match(job, re,
+            assert.match(report, re,
                 `${call} must end in \`|| echo "::warning::…"\` — this step must never turn a `
                 + 'reportable drift into a failed one');
         }
     });
 
     test('and it says so to a machine, as a check whose conclusion IS the drift', () => {
-        // The job is continue-on-error, so its own conclusion is `success` either way. The check
+        // The lane is continue-on-error, so its own conclusion is `success` either way. The check
         // run is the only field a script can read the drift from; `neutral` keeps it non-blocking.
-        assert.ok(job.includes(`-f name='${CHECK}'`), `the ${JOB} job must publish its own "${CHECK}" check run`);
-        assert.match(job, /^ {6}checks: write[ \t]*$/m, 'publishing a check run needs checks: write');
-        assert.match(job, /CONCLUSION=neutral/, 'a drift must conclude neutral — visible, never blocking');
+        assert.ok(report.includes(`-f name='${CHECK}'`), `the ${REPORT} job must publish its own "${CHECK}" check run`);
+        assert.match(report, /^ {6}checks: write[ \t]*$/m, 'publishing a check run needs checks: write');
+        assert.match(report, /CONCLUSION=neutral/, 'a drift must conclude neutral — visible, never blocking');
+    });
+
+    test('the job that installs holds no write, and the job that writes installs nothing', () => {
+        const lanePermissions = permissionsOf(job);
+        assert.ok(lanePermissions, `${JOB} must declare its own permissions, not run on the default token`);
+        assert.doesNotMatch(lanePermissions, /\bwrite\b/,
+            `${JOB} runs every dependency's install script, so it must hold no write: an install script `
+            + `can reach a token handed to any later step of its job. The writes belong to ${REPORT}.`);
+        assert.doesNotMatch(report, /^[ \t]+(?:run:[ \t]+)?(?:npm (?:ci|install)|npx)\b/m,
+            `${REPORT} holds the writes, so it must install and run nothing from npm`);
+        assert.doesNotMatch(report, /uses: actions\/checkout@/,
+            `${REPORT} needs no checkout: what it says comes from ${JOB}'s outputs`);
+        assert.match(report, new RegExp(`^ {4}needs: \\[guard, ${JOB}\\][ \\t]*$`, 'm'),
+            `${REPORT} must wait for ${JOB}, whose outputs it reads`);
+        assert.match(report, new RegExp(`^ {4}if: .*needs\\.${JOB}\\.outputs\\.drifted != ''`, 'm'),
+            `${REPORT} must run only when ${JOB} reached an outcome: a failed install has nothing to report`);
     });
 });
 
@@ -2941,14 +2997,15 @@ describe('a deploy job leaves no git token on disk', () => {
 //      or be two jobs.
 //   2. No workflow grants a write at the top, where every job inherits it, and no job is left on the
 //      repository's default token, which can be write-all: the job says, or the top does.
-//   3. A job that can write an issue runs no install script. Off the disk is not enough on its own:
+//   3. A job that can write anything runs no install script. Off the disk is not enough on its own:
 //      an install script can put a program of its own on the PATH of every later step in its job,
-//      the step that is handed the token included. So the alert is a job of its own, on a fresh
-//      runner — each deploy workflow's `report-failure`, and live-health.yml's `report`.
-//
-// What this does not cover: e2e.yml's two visual jobs hold `pull-requests: write` and `checks: write`
-// in the job that installs, for their pull-request comment and check run. Rule 3's fix would apply
-// there too (the report in a job of its own); it is not made yet, so rule 3 is about issues.
+//      the step that is handed the token included. So whatever writes is a job of its own, on a
+//      fresh runner — each deploy workflow's `report-failure`, live-health.yml's `report`, and
+//      e2e.yml's `visual-report` and `visual-webkit-report`. The visual lanes held
+//      `pull-requests: write` and `checks: write` in the job that installs until they were split
+//      the same way (18 Nov 2026), which is when this rule widened from issues to every write. A
+//      deploy job is no exception: it mints its credential with `id-token: write`, which is why it
+//      installs with `--ignore-scripts`.
 describe('no install script runs beside a token it could use', () => {
     const files = readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f)).sort();
     /** An install line that runs dependencies' install scripts: `npm ci` or `npm install` without
@@ -3017,11 +3074,11 @@ describe('no install script runs beside a token it could use', () => {
                 `${f} has no permissions at the top, and ${unset.join(', ')} declare none either, so they run on the repository's default token, which can write everything. Give each its own, or \`permissions: {}\` at the top.`);
         });
 
-        test(`${f}: a job that can write an issue runs no install script`, () => {
-            const writers = jobs.filter(([, job]) => /^[ \t]+issues:[ \t]*write\b/m.test(ownPermissions(job) ?? top ?? ''));
+        test(`${f}: a job that can write runs no install script`, () => {
+            const writers = jobs.filter(([, job]) => /^[ \t]+[\w-]+:[ \t]*write\b/m.test(ownPermissions(job) ?? top ?? ''));
             const mixed = writers.filter(([, job]) => runsInstallScripts(job)).map(([name]) => name);
             assert.deepEqual(mixed, [],
-                `${f}: ${mixed.join(', ')} can write issues and run dependencies' install scripts in the same job. Off the disk is not enough: an install script can put its own program on a later step's PATH. Move the issue step into a job of its own that installs nothing (live-health.yml's \`report\` is the pattern).`);
+                `${f}: ${mixed.join(', ')} can write and run dependencies' install scripts in the same job. Off the disk is not enough: an install script can put its own program on a later step's PATH. Move whatever writes into a job of its own that installs nothing (live-health.yml's \`report\` and e2e.yml's \`visual-report\` are the pattern).`);
         });
     }
 });

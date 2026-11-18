@@ -932,12 +932,15 @@ jobs:
     # The same two voices as the Chromium `visual` job below, for the same reason (v24.28 review):
     # this lane was report-only AND silent — green on a drifted run, with the diffs in a zip nobody
     # opens. It now comments (its own marker, so it never overwrites the Chromium comment) and
-    # publishes its own check, `visual baselines (webkit)`. The reasoning for every rule the two
-    # steps keep is written once, beside the Chromium versions; this job mirrors them.
+    # publishes its own check, `visual baselines (webkit)`. Both voices are `visual-webkit-report`,
+    # which installs nothing, for the reason written above `visual-report`: this job runs every
+    # dependency's install script, so it holds no write. The reasoning for every rule the two steps
+    # keep is written once, beside the Chromium versions; these mirror them.
     permissions:
       contents: read
-      pull-requests: write
-      checks: write
+    outputs:
+      drifted: ${{ steps.compare.outputs.drifted }}
+      names: ${{ steps.result.outputs.names }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -994,11 +997,42 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # The report job's inputs. It has no checkout and no test results of its own, and installs
+      # nothing (`visual-report` says why), so what it says comes from here, as outputs: the compare
+      # step's verdict, and WHICH baselines differ. Playwright writes one directory per failing test,
+      # each holding the expected/actual/diff triple; the names are the half that belongs in a
+      # comment, and a count could not answer "which ones?". The list's end marker is random, so no
+      # file name can end it early.
+      - name: Hand the result to the report job
+        id: result
+        if: always()
+        run: |
+          set +e -uo pipefail
+          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
+          END="names_$(openssl rand -hex 12)"
+          { echo "names<<$END"; printf '%s\n' "$NAMES"; echo "$END"; } >> "$GITHUB_OUTPUT"
+
+  # WebKit's two voices, in a job of their own for the reason written above `visual-report`; this
+  # job mirrors it.
+  visual-webkit-report:
+    needs: [guard, visual-webkit]
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.visual-webkit.outputs.drifted != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    steps:
       - name: Say so on the pull request
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          # gh finds the repository from a checkout, and this job has none.
+          GH_REPO: ${{ github.repository }}
+          DRIFTED: ${{ needs.visual-webkit.outputs.drifted }}
+          NAMES: ${{ needs.visual-webkit.outputs.names }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
           REPO: ${{ github.repository }}
@@ -1016,8 +1050,6 @@ jobs:
           if [ -z "$PR" ]; then
             PR=$(gh pr list --head "$BRANCH" --state open --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)
           fi
-
-          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
 
           BODY="$RUNNER_TEMP/visual-webkit-comment.md"
           printf '%s\n\n' "$MARKER" > "$BODY"
@@ -1078,7 +1110,8 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          DRIFTED: ${{ needs.visual-webkit.outputs.drifted }}
+          NAMES: ${{ needs.visual-webkit.outputs.names }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -1089,7 +1122,6 @@ jobs:
             exit 0
           fi
 
-          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
           COUNT=$(printf '%s' "$NAMES" | grep -c . || true)
 
           if [ "$DRIFTED" = "true" ]; then
@@ -1123,14 +1155,13 @@ jobs:
     # against a hang; the comparison itself takes about five minutes.
     timeout-minutes: 25
     continue-on-error: true
+    # Read only. This job runs every dependency's install script, so it holds no write: the comment
+    # and the check run that report on it are `visual-report`, below, which installs nothing.
     permissions:
       contents: read
-      # To SAY something when a baseline drifts — see the comment step below for why the artifact
-      # alone was not enough. It already existed, and went unread for eight releases.
-      pull-requests: write
-      # To publish the drift as its own check run, whose conclusion differs from this job's. See
-      # the last step: `continue-on-error` makes THIS job green either way.
-      checks: write
+    outputs:
+      drifted: ${{ steps.compare.outputs.drifted }}
+      names: ${{ steps.result.outputs.names }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1202,14 +1233,57 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # The report job's inputs. It has no checkout and no test results of its own, and installs
+      # nothing (`visual-report` says why), so what it says comes from here, as outputs: the compare
+      # step's verdict, and WHICH baselines differ. Playwright writes one directory per failing test,
+      # each holding the expected/actual/diff triple; the names are the half that belongs in a
+      # comment, and a count could not answer "which ones?". The list's end marker is random, so no
+      # file name can end it early.
+      - name: Hand the result to the report job
+        id: result
+        if: always()
+        run: |
+          set +e -uo pipefail
+          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
+          END="names_$(openssl rand -hex 12)"
+          { echo "names<<$END"; printf '%s\n' "$NAMES"; echo "$END"; } >> "$GITHUB_OUTPUT"
 
-
-
+  # ── THE TWO VOICES, IN A JOB THAT INSTALLS NOTHING (review, 18 Nov 2026) ─────────────────────────
+  #
+  # The comment and the check run below used to be steps of `visual` itself, holding
+  # `pull-requests: write` and `checks: write` after `npm ci` had run every dependency's install
+  # script. Taking the token off the disk (the checkout's `persist-credentials: false`) is not enough
+  # on its own: an install script can put a program of its own on the PATH of every later step in its
+  # job, the step that is handed the token included. So `visual` now holds no write at all, and the
+  # two voices are this job: a fresh runner, no checkout, nothing installed — the pattern of
+  # live-health.yml's `report` and each deploy workflow's `report-failure`. It says what `visual`
+  # hands it as outputs. A poisoned install could still hand it a wrong verdict, since it runs where
+  # the screenshots are taken; it can no longer use the token to write anything else.
+  #
+  # It runs only when the comparison reached an outcome: a failed install, a cancelled job or a
+  # skipped lane has nothing to report, and inventing an answer in either direction would be worse
+  # than silence. `continue-on-error`, like the lane it reports on: a broken notifier must never
+  # become a broken build.
+  visual-report:
+    needs: [guard, visual]
+    if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' && needs.visual.outputs.drifted != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      # To SAY something when a baseline drifts — see the comment step below for why the artifact
+      # alone was not enough. It already existed, and went unread for eight releases.
+      pull-requests: write
+      # To publish the drift as its own check run, whose conclusion differs from the lane's. See
+      # the last step: `continue-on-error` makes `visual` green either way.
+      checks: write
+    steps:
       # ── AND IT SAYS SO WHERE SOMEBODY IS ALREADY LOOKING ──────────────────────────────────────
       #
-      # The artifact above has existed as long as this job has, and a drifted baseline still went
-      # unread for eight releases (v22.38 → v22.45). The job is `continue-on-error`, so the run is
-      # GREEN either way, and nothing distinguishes a clean visual lane from a drifted one without
+      # The `visual-diffs` artifact has existed as long as the lane has, and a drifted baseline still
+      # went unread for eight releases (v22.38 → v22.45). `visual` is `continue-on-error`, so the run
+      # is GREEN either way, and nothing distinguishes a clean visual lane from a drifted one without
       # opening the run and downloading a zip. A signal you have to go looking for is not a signal.
       #
       # So the drift is now STATED, on the pull request. Three rules it must keep:
@@ -1237,7 +1311,10 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          # gh finds the repository from a checkout, and this job has none.
+          GH_REPO: ${{ github.repository }}
+          DRIFTED: ${{ needs.visual.outputs.drifted }}
+          NAMES: ${{ needs.visual.outputs.names }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
           REPO: ${{ github.repository }}
@@ -1262,11 +1339,6 @@ jobs:
           if [ -z "$PR" ]; then
             PR=$(gh pr list --head "$BRANCH" --state open --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)
           fi
-
-          # WHICH baselines differ. Playwright writes one directory per failing test, each holding
-          # the expected/actual/diff triple; the names are the half that belongs in a comment, and
-          # a count could not answer "which ones?".
-          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
 
           BODY="$RUNNER_TEMP/visual-comment.md"
           printf '%s\n\n' "$MARKER" > "$BODY"
@@ -1335,8 +1407,8 @@ jobs:
       # The comment above fixed the human half. It did not fix the other one, and that half has now
       # cost something twice.
       #
-      # This job is `continue-on-error`, so its conclusion is `success` on a drifted lane and a
-      # clean one alike. Anything reading CI programmatically — a session checking whether a release
+      # `visual` is `continue-on-error`, so its conclusion is `success` on a drifted lane and a
+      # clean one alike (and so is this job's). Anything reading CI programmatically — a session checking whether a release
       # is green, a reviewer scripting against the API — gets `visual: success` and learns NOTHING
       # about the baselines. v23.47 is exactly that: a session read the job conclusions, reported
       # the release fully green, and merged two stale baselines to main. CLAUDE.md records it, and
@@ -1357,7 +1429,8 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          DRIFTED: ${{ needs.visual.outputs.drifted }}
+          NAMES: ${{ needs.visual.outputs.names }}
           REPO: ${{ github.repository }}
           # The HEAD commit, not `github.sha` — on a pull_request event that is the ephemeral merge
           # commit, and a check run attached to it is invisible on the branch.
@@ -1370,7 +1443,6 @@ jobs:
             exit 0
           fi
 
-          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
           COUNT=$(printf '%s' "$NAMES" | grep -c . || true)
 
           if [ "$DRIFTED" = "true" ]; then
