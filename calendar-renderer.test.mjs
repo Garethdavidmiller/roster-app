@@ -1037,6 +1037,35 @@ describe('buildCalendarContainer — the base-roster line', () => {
         const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
         assert.equal(cell?.dataset.detailBase, 'Early shift 06:20-14:20');
     });
+
+    test('…and the SPOKEN new side carries its time too — a change that is only a time is still said', () => {
+        // The headline leaves the time out for such a member (`detailShift`); the panel's one spoken
+        // sentence reads `detailNowSaid`, so it heard "changed to Early shift" and not what changed.
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main', permanentShift: 'early' };
+        _mockGetBaseShift = () => '06:20-14:20';
+        _overrideCache.set('A. Person|2026-01-02', { type: 'shift', value: '07:00-16:00', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailShift, 'Early shift', 'premise: the headline omits the time by design');
+        assert.equal(cell?.dataset.detailNowSaid, 'Early shift 07:00-16:00');
+    });
+
+    test('every day carries WHOSE day it is — the member the grid was drawn for — for the panel to name', () => {
+        // The day panel names the member under the date (18 Nov 2026): the Calendar shows a
+        // colleague's days as readily as the reader's own, and on a phone the glass hides the picker.
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main' };
+        const cells = buildCalendarContainer(0, 2026)._children[1]._children.filter(c => c.dataset?.detailDay);
+        assert.equal(cells.length, 31, 'premise: every day of January was drawn');
+        assert.deepEqual([...new Set(cells.map(c => c.dataset.detailWho))], ['A. Person']);
+    });
+
+    test('an ordinary change: the spoken new side is the headline\'s words, and the left badge is the base roster', () => {
+        _member = { name: 'A. Person', currentWeek: 1, rosterType: 'main' };
+        _mockGetBaseShift = () => '06:00-14:00';
+        _overrideCache.set('A. Person|2026-01-02', { type: 'annual_leave', value: 'AL', note: '', source: 'manual' });
+        const cell = getDayCell(buildCalendarContainer(0, 2026), 2);
+        assert.equal(cell?.dataset.detailNowSaid, cell?.dataset.detailShift);
+        assert.equal(cell?.dataset.detailFromChristmas, undefined, 'a day outside Christmas was captioned as Christmas leave');
+    });
 });
 
 describe('buildCalendarContainer — special markers', () => {
@@ -1187,6 +1216,7 @@ describe('Christmas leave — due at work on 25/26 December shows as leave that 
         assert.equal(cell.dataset.detailBaseShift, realRosterData.getPatternShift(MEMBER, XMAS));
         assert.notEqual(cell.dataset.detailBaseShift, 'RD');
         assert.equal(cell.dataset.detailBy, undefined, 'Christmas leave is nobody\'s change');
+        assert.equal(cell.dataset.detailFromChristmas, undefined, 'the left badge is the pattern, the base roster');
     });
 
     test('a worked Boxing Day is work, and carries the year its day in lieu is added to: the NEXT one', () => {
@@ -1238,6 +1268,17 @@ describe('Christmas leave — due at work on 25/26 December shows as leave that 
         assert.equal(cell.dataset.detailBaseShift, 'AL', 'the pair reads Annual leave → the shift');
         assert.equal(cell.dataset.detailAsRostered, undefined, 'not "As rostered": a record changed the day');
         assert.ok(cell.dataset.detailBy, 'and the record says who made it');
+        // …and the panel names that left badge as the Christmas leave it is (18 Nov 2026). Called the
+        // "base roster", it said the turn on the right was not this member's roster — it was.
+        assert.equal(cell.dataset.detailFromChristmas, '1', 'the panel would caption Christmas leave as the base roster');
+    });
+
+    test('a correction to rest on a Christmas day the member was due to work: changed from the leave, and says so', () => {
+        _overrideCache.set(`${MEMBER.name}|2026-12-25`, { type: 'correction', value: 'RD', note: '', source: 'manual', changedBy: 'X. Manager' });
+        const cell = cellFor(build(MEMBER), 25);
+        assert.equal(cell.dataset.detailNowShift, 'RD', 'premise: the record applies');
+        assert.equal(cell.dataset.detailBaseShift, 'AL', 'the pair starts at the leave the record changed');
+        assert.equal(cell.dataset.detailFromChristmas, '1', 'and the panel says it is Christmas leave, not the base roster');
     });
 
     test('leave RECORDED on a Christmas day the member was due to work: from the pattern, with who (7 Nov 2026 review)', () => {
@@ -1250,6 +1291,7 @@ describe('Christmas leave — due at work on 25/26 December shows as leave that 
         assert.equal(cell.dataset.detailAsRostered, undefined, 'not "As rostered": a record is on the day');
         assert.ok(cell.dataset.detailBy, 'and the record says who made it');
         assert.equal(cell.dataset.detailChristmasRecorded, '25');
+        assert.equal(cell.dataset.detailFromChristmas, undefined, 'the left badge is the pattern, the base roster');
     });
 
     test('leave RECORDED on a Christmas day is not counted either, and says so (6 Nov 2026 review)', () => {

@@ -1,6 +1,6 @@
 import { test, expect, isoDaysAgo, withKnownNewsletter, withServerNewsletter } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
-import { CONFIG, teamMembers } from '../roster-data.js';
+import { CONFIG, teamMembers, getPatternShift } from '../roster-data.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView, trackEndpointUse, endpointUse, scaleText } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
@@ -300,6 +300,68 @@ test('day detail: the day markers carry the calendar\'s own icons', async ({ pag
     expect(icons, 'the chips lost the cell icons they exist to explain').toEqual(['🎄', '⭐']);
 });
 
+// WHOSE DAY (18 Nov 2026). The Calendar shows a colleague's days as readily as the reader's own, and on a
+// phone the glass blurs the picker that names them, so the panel says whose day it is, as the leave panel
+// says whose leave: under the date, clear of the ✕ the date clears, and in the dialog's name. A name picked
+// later is the one the next panel names — the cells carry it, so a redraw must too. Names are read from the
+// page, never written here.
+test('day detail: says whose day it is, under the date and in the dialog\'s name', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const chosen = async () => ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    const first = await chosen();
+    expect(first, 'premise: a member is chosen').not.toBe('');
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailContent')).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await expect(page.locator('#dayDetailWho'), 'the panel does not say whose day it is').toHaveText(first);
+    await expect(page.locator('#dayDetailLightbox')).toHaveAttribute('aria-label', `Day details, ${first}`);
+    const g = await page.evaluate(() => {
+        const b = (/** @type {string} */ s) => { const r = /** @type {Element} */ (document.querySelector(s)).getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
+        return { week: b('#dayDetailWeek'), who: b('#dayDetailWho'), shift: b('#dayDetailShift'), close: b('#dayDetailClose') };
+    });
+    expect(g.who.t, 'the name sits under the date and its week').toBeGreaterThanOrEqual(g.week.b - 1);
+    expect(g.shift.t, 'and above the shift').toBeGreaterThanOrEqual(g.who.b - 1);
+    expect(g.who.l < g.close.r && g.who.r > g.close.l && g.who.t < g.close.b && g.who.b > g.close.t,
+        'the name runs under the close button').toBe(false);
+
+    await page.locator('#dayDetailClose').click();
+    await expect(page.locator('#dayDetailLightbox')).not.toHaveClass(/visible/);
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    const second = await chosen();
+    expect(second, 'premise: another member is chosen').not.toBe(first);
+    await page.locator('.calendar-day:not(.other-month)').first().click();
+    await expect(page.locator('#dayDetailWho'), 'the panel named the member chosen before').toHaveText(second);
+});
+
+// 25 AND 26 DECEMBER (18 Nov 2026). A record that is not leave, on a Christmas day the member was due to
+// work, changed the day FROM its Christmas leave, so the pair starts at 🏖️ AL — and the caption called that
+// leave the "base roster", whose turn was the very one on the right. The caption and the spoken sentence
+// now say it is the Christmas leave. A real member, so "due at work" is the real pattern; found by grade.
+test('day detail: a Christmas day a record changed from its Christmas leave says so', async ({ page }) => {
+    const XMAS = new Date(2026, 11, 25);
+    const member = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate
+        && !['RD', 'OFF'].includes(getPatternShift(m, XMAS)));
+    expect(member, 'premise: a CEA due at work on Christmas Day 2026').toBeTruthy();
+    const times = getPatternShift(member, XMAS);
+    await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));
+    await seedMember(page, member.name);
+    await page.addInitScript(([name, value]) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'xmas', memberName: name, date: '2026-12-25', type: 'shift', value, note: '',
+            source: 'manual', changedBy: 'X. Manager' }];
+    }, [member.name, times]);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('.calendar-day:not(.other-month)').nth(24).click();
+    await expect(page.locator('#dayDetailDate')).toHaveText(/25 December 2026/);
+    await expect(page.locator('#dayDetailChangePair .ddc-badge').first(), 'premise: the pair starts at the leave').toContainText('AL');
+    await expect(page.locator('#dayDetailChangeFrom')).toHaveText('Changed from Christmas leave');
+    await expect(page.locator('#dayDetailChangeSaid')).toHaveText(/^Changed from Christmas leave to /);
+});
+
 // An UNCHANGED day is the state the redesign is really for: it was the one the panel rendered in
 // monochrome, so the app's shift colour and glyph read as properties of "something happened"
 // rather than of the shift. A plain Late turn and a plain Rest day were one grey card with
@@ -546,6 +608,20 @@ test('calendar: the legend follows the grid across a SWIPE, in both directions',
     await swipeMonth(page, 'prev');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.legend')).toBeVisible();
+});
+
+// A SWIPE IS SPOKEN AS THE BUTTONS ARE (18 Nov 2026). Prev, Next, Today, the keys and the month picker
+// all say the new month in #ariaAnnouncer (the `aria-live` decision, .claude/rules/calendar.md); the
+// swipe, the gesture people use most, changed the month in silence.
+test('calendar: a swipe to a new month is announced, as Prev and Next are', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    expect(await page.locator('#ariaAnnouncer').textContent(), 'premise: nothing has been announced yet').toBe('');
+    await swipeMonth(page, 'next');
+    await expect.poll(() => page.locator('#ariaAnnouncer').textContent(), { message: 'the swipe changed the month in silence' })
+        .toBe('October 2026');
 });
 
 // ── A READ TEAM VIEW STARTED, LANDING DURING A SWIPE ONTO ITS MONTH (10 Nov 2026, cal-ui-5) ─────────
@@ -939,6 +1015,34 @@ test('calendar: a month browsed to is kept for half an hour — reloaded or brou
     await expect(heading, 'shown again after half an hour away, still on June').toHaveText('November 2026');
 });
 
+// …AND A MONTH AHEAD, the same way (owner, 18 Nov 2026). Until then a month ahead of today was never
+// restored by a load, so a trip to another page and back through the drawer (a fresh load) put the
+// member back on today's month while the same trip with the app kept in memory did not.
+test('calendar: a month AHEAD browsed to is kept across a reload for half an hour, then today\'s month opens', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 10, 15, 12, 0, 0) });
+    await seedMember(page);
+    await page.goto('/');
+    const heading = page.locator('.month-year');
+    const hide = () => page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(heading).toHaveText('November 2026');
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(heading).toHaveText('January 2027');
+
+    await hide();
+    await page.clock.fastForward('20:00');
+    await page.reload();
+    await expect(heading, 'reloaded twenty minutes later, the month ahead was dropped').toHaveText('January 2027');
+    await hide();
+    await page.clock.fastForward('45:00');
+    await page.reload();
+    await expect(heading, 'reloaded after 45 minutes away, still on the month ahead').toHaveText('November 2026');
+});
+
 // …AND THE OWNER'S OWN PHONE, as it holds the month today: a June stored in June 2026, when every render
 // stored the month on screen, and with no time beside it, because no release before v26.19 wrote one.
 // Before this release that June opened on every launch and was stored again; now it opens on today's
@@ -1312,6 +1416,19 @@ test('calendar: on a first run, the leave panel shows nobody\'s leave and asks f
     await expect(page.locator('#alLightbox')).toHaveAttribute('aria-label', 'Annual Leave balance');
 });
 
+// …and from TEAM VIEW, where the name picker is not on screen (index.css hides it there), the leave panel
+// says where a name is chosen: back in the month view, by its button's own words (18 Nov 2026).
+test('calendar: on a first run in Team View, the leave panel sends the member back to 📅 Month for a name', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('#tvWeekJump')).toBeVisible();
+    await expect(page.locator('#navRow'), 'premise: no name picker on screen in Team View').toBeHidden();
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLightbox')).toBeVisible();
+    await expect(page.locator('#alLbError')).toHaveText('Go back to 📅 Month and choose your name to see your leave.');
+});
+
 test('calendar: on a first run, leaving Team View does not put the colour key under the prompt', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('.first-run-prompt')).toBeVisible();
@@ -1383,6 +1500,22 @@ test('calendar: a removed saved member falls back to the calendar + stale banner
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.first-run-prompt')).toHaveCount(0);
     await expect(page.locator('#errorBanner')).toContainText('no longer in the roster');
+    // The picker is a list, on a phone a sheet: "the dropdown" named neither (18 Nov 2026).
+    await expect(page.locator('#errorBanner')).toContainText('"Z. Nonexistent" is no longer in the roster');
+    await expect(page.locator('#errorBanner')).toContainText('Choose a name from the list above.');
+});
+
+// THE SIGNED-IN MEMBER'S OWN NAME (18 Nov 2026): a row hidden after a move into management, say, while the
+// member is still signed in with it saved. The line is said to them, not about them in quotes. An invented
+// name stands in for theirs: it is on no roster, which is how a hidden row looks to the picker.
+test('calendar: a member whose own name has left the list is told so in their own words', async ({ page }) => {
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    await expect(page.locator('#errorBanner'))
+        .toContainText(`Your name is no longer in the roster — showing ${shown}'s calendar. Choose a name from the list above.`);
+    await expect(page.locator('#errorBanner')).not.toContainText('"A. Person"');
 });
 
 test('calendar: the removed-member line sits beside the banner\'s warning, and its timer takes only itself away (17 Nov 2026)', async ({ page }) => {
@@ -3913,6 +4046,21 @@ test('calendar: Team View opens on the month you were browsing, not the current 
     expect(label, `team week label while browsing ${browsing}`).toMatch(new RegExp(`${want.tail}$`));
 });
 
+// ACROSS NEW YEAR (18 Nov 2026): the one week a year that starts in December and ends in January read
+// "27 Dec–2 Jan 2027", putting 27 December in 2027. Both years now, on the label and in what is spoken.
+test('calendar: a Team View week across New Year names both years, shown and spoken', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-11-18T09:00:00Z'));
+    await seedMember(page);
+    await page.goto('/?date=2027-01-05');
+    await expect(page.locator('.month-year')).toHaveText('January 2027');
+    await page.locator('#teamViewBtn').click();   // opens on the week holding 1 January
+    await expect(page.locator('#tvWeekJump')).toHaveText('27 Dec 2026–2 Jan 2027');
+    await page.locator('#tvPrevWeek').click();
+    await expect(page.locator('#tvWeekJump'), 'a week inside one year keeps its one year').toHaveText('20–26 Dec 2026');
+    await page.locator('#tvNextWeek').click();
+    await expect.poll(() => page.locator('#ariaAnnouncer').textContent()).toBe('Week of 27 December 2026–2 January 2027');
+});
+
 // ── THE HUDDLE BUTTON WORKS THE MOMENT IT IS DRAWN (v24.23) ────────────────────────────────────────
 //
 // v24.19 drew "📄 Open Huddle" and only attached its click handler AFTER a short-lived link came back
@@ -5380,6 +5528,40 @@ test('about: a bug report from a desktop browser says it was not the installed a
     expect(body).toContain('Installed app: no');
     expect(body).not.toContain('iOS version');
     expect(body).toContain('Browser: Mozilla/5.0 (Windows NT 10.0');
+});
+
+// THE BUG REPORT SAYS WHO SENT IT (18 Nov 2026). Its "User:" line named the member whose calendar was on
+// screen — a colleague's as often as not — where every other page names the signed-in member. It names
+// the reporter now ("Staff PIN" on the PIN), and the calendar shown is a line of its own. Names are read
+// from the page or invented, never taken from the roster.
+/** The bug report's body, as the About panel's link carries it. @param {import('@playwright/test').Page} page */
+async function bugReportBody(page) {
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/open/);
+    return page.locator('#bugReportLink').evaluate(a => new URL(/** @type {HTMLAnchorElement} */ (a).href).searchParams.get('body') || '');
+}
+
+test('about: the Calendar\'s bug report names the member signed in, and whose calendar was shown, apart', async ({ page }) => {
+    // Signed in under an invented name, which is not on the roster, so the Calendar shows somebody
+    // else's calendar: the two lines must name two different people.
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    expect(shown, 'premise: the calendar on screen is not the reporter\'s').not.toBe('A. Person');
+    const lines = (await bugReportBody(page)).split('\n');
+    expect(lines, 'the report named the calendar on screen as its sender').toContain('User: A. Person');
+    expect(lines).toContain(`Calendar shown: ${shown}`);
+});
+
+test('about: on the staff PIN, the Calendar\'s bug report says so — and still says whose calendar was shown', async ({ page }) => {
+    await seedMember(page);   // the beforeEach's PIN viewer, and a calendar chosen on this device
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const shown = ((await page.locator('#teamMemberSelect option:checked').textContent()) ?? '').trim();
+    const lines = (await bugReportBody(page)).split('\n');
+    expect(lines, 'a PIN unlock reported a member as the sender').toContain('User: Staff PIN');
+    expect(lines).toContain(`Calendar shown: ${shown}`);
 });
 
 test('App Notices with nothing on this device says where notices appear, not that there were none', async ({ page }) => {

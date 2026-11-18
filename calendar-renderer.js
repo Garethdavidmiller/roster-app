@@ -586,7 +586,13 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // that only shows as worked because somebody recorded it. A record that is itself LEAVE
         // changed nothing from that leave, so it is compared with the pattern again (7 Nov 2026
         // review): against 'AL' it read "✓ As rostered" and lost who had recorded it.
-        const rosteredShift = christmasDue ? ((christmasLeave || shift === 'AL') ? getPatternShift(member, currentDate) : 'AL') : baseShift;
+        // The same holds for ANY record that applies and is not leave — a correction to a rest day,
+        // a spare day or an absence over contracted work as well as work — and the panel then names
+        // the left badge as the Christmas leave it is, not as the base roster (18 Nov 2026):
+        // "Changed from base roster 🏖️ AL" described a day whose base roster was the very turn on
+        // the right.
+        const fromChristmasLeave = christmasDue && !christmasLeave && shift !== 'AL';
+        const rosteredShift = christmasDue ? (fromChristmasLeave ? 'AL' : getPatternShift(member, currentDate)) : baseShift;
         // Leave here is never counted, from the pattern or recorded (christmas-leave.js → isUncountedChristmasLeave).
         const christmasNotCounted = isUncountedChristmasLeave(shift, dateStr, christmasLeave);
 
@@ -629,6 +635,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
         // The year on its own, for the panel's "Leave dates" link — never parsed back out of the words.
         dayCell.dataset.detailYear  = String(currentDate.getFullYear());
+        // WHOSE DAY THIS IS, for the panel's name line (18 Nov 2026): the member this grid was drawn
+        // for, carried by the cell like every other fact the panel shows, so the two cannot disagree.
+        dayCell.dataset.detailWho   = member.name;
         // The roster week this date falls in — see `weekContext`, which also owns the one case
         // that must stay silent (a fixed line has no rotating week to state).
         const weekLabel = weekContext(member, currentDate);
@@ -658,6 +667,15 @@ export function buildCalendarContainer(month, year, opts = {}) {
             // was tapped — and nothing writes markup out of a `data-` attribute.
             dayCell.dataset.detailBaseShift = rosteredShift;
             dayCell.dataset.detailNowShift  = shift;
+            // The left badge is the day's Christmas leave, not its base roster — the panel's caption
+            // and spoken sentence say which (calendar-al-lightbox.js).
+            if (fromChristmasLeave) dayCell.dataset.detailFromChristmas = '1';
+            // The new value in full words WITH its time, for the panel's spoken sentence. The base
+            // side already states its time for a member whose turns all wear one kind (`alwaysTime`);
+            // the headline leaves it out by design, so "changed to Late shift" said nothing about a
+            // change that is only a time. The same words as `ttShift` for every other member.
+            dayCell.dataset.detailNowSaid = (christmasNotCounted ? shiftLabel : shiftWords(shift, member, otherDerivedRdw, true))
+                + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
             // Christmas leave is nobody's change — it comes from the roster — so a suppressed
             // document underneath it must not lend it a "changed by" line.
             const by = christmasLeave ? '' : changeProvenance(override?.source, override?.changedBy);

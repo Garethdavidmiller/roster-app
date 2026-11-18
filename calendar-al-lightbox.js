@@ -34,11 +34,13 @@ import { readLeaveBalance, saveLeaveBalance, sweepRetiredLeaveKeys } from './cal
  * Initialise the Annual Leave lightbox and the day-detail lightbox.
  * Returns handles that the coordinator needs to pass to other modules.
  *
- * @param {{ navigateToPaycalc?: (paydayIso: string) => void }} [deps]
+ * @param {{ navigateToPaycalc?: (paydayIso: string) => void, isTeamView?: () => boolean }} [deps]
  *   navigateToPaycalc — wired to the day-detail "Pay estimate" button on pay-marked days.
+ *   isTeamView — whether Team Week View is on screen, where the name picker is not (the leave panel's
+ *   first-run hint says where to choose a name).
  * @returns {{ openDayDetail: (cell: HTMLElement) => void, closeALLightbox: () => void }}
  */
-export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
+export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
   // ── ANNUAL LEAVE LIGHTBOX ───────────────────────────────────────────────────
   const lb          = document.getElementById('alLightbox');
   const takenEl     = /** @type {HTMLElement} */ (document.getElementById('alLbTaken'));
@@ -210,7 +212,13 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     const keepsBalance = keepsBalanceFor(member?.name);
     noteLine(null);
 
-    if (!member) { paintPlaceholder('—'); if (firstRun) noteLine('Choose your name first to see your leave.'); return; }
+    // In Team View the name picker is not on screen (index.css hides it there), so the hint says where
+    // it is: back in the month view (18 Nov 2026). "📅 Month" is that view's button, word for word.
+    if (!member) {
+      paintPlaceholder('—');
+      if (firstRun) noteLine(isTeamView?.() ? 'Go back to 📅 Month and choose your name to see your leave.' : 'Choose your name first to see your leave.');
+      return;
+    }
 
     // Instant paint from the last successful load (if any) while the refresh runs, labelled as the
     // saved copy it is; else the '…' placeholders as before. A malformed memo falls through to placeholders.
@@ -337,6 +345,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const dayLb    = document.getElementById('dayDetailLightbox');
   const dateEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailDate'));
   const weekEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailWeek'));
+  const dayWhoEl = document.getElementById('dayDetailWho');
   const asRostEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailAsRostered'));
   const glyphEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftGlyph'));
   const wordsEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftWords'));
@@ -347,6 +356,9 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const changeEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailChange'));
   const pairEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailChangePair'));
   const saidEl   = document.getElementById('dayDetailChangeSaid');
+  const fromEl   = document.getElementById('dayDetailChangeFrom');
+  // The caption's own words are the ordinary day's, kept to put back after a Christmas day.
+  const FROM_BASE = fromEl?.textContent ?? '';
   const byEl     = /** @type {HTMLElement} */ (document.getElementById('dayDetailBy'));
   const extrasEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailExtras'));
   const payBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('dayDetailPayBtn'));
@@ -417,6 +429,14 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       weekEl.textContent = d.detailWeek || '';
       weekEl.hidden = !d.detailWeek;
     }
+    // WHOSE DAY IT IS (18 Nov 2026) — the leave panel's rule (v25.50, above) on this panel. The
+    // Calendar shows a colleague's days as readily as the reader's own, and on a phone the glass blurs
+    // the picker that says whose, so the panel names them under the date, and the dialog's name
+    // carries it too — set before the open below, so a screen reader hears whose day as focus moves
+    // into the dialog. From the cell (the member its grid was drawn for), as every other fact here is.
+    const whose = d.detailWho || '';
+    if (dayWhoEl) { dayWhoEl.textContent = whose; dayWhoEl.hidden = !whose; }
+    dayLb?.setAttribute('aria-label', whose ? `Day details, ${whose}` : 'Day details');
     // The words and the TIME are separate spans so a 320px wrap breaks between them and never
     // inside the value — `splitShiftLine` in calendar-renderer.js owns the split. A dataset written
     // by an older renderer (a page held open across a deploy) has neither, so fall back to the
@@ -497,12 +517,19 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         // The provenance joins the SENTENCE rather than being read after it, so a screen reader
         // gets one fact and not two fragments.
         // Same correction as the eyebrow: it is the BASE ROSTER on the left, not the previous
-        // value, so the sentence leads with what that badge actually is.
+        // value, so the sentence leads with what that badge actually is — and on 25 or 26 December,
+        // where a record changed a day of Christmas leave, the left badge IS that leave, and both
+        // the caption and the sentence say so (18 Nov 2026; the renderer decides).
+        // The new value is said WITH its time (`detailNowSaid`): the headline leaves it out for a
+        // member whose turns all wear one kind, and the change may be nothing but the time.
         // TEXT, NOT A LABEL (17 Nov 2026): this was an aria-label on the block's <div>, which has no
         // role a label can name, so a screen reader was free to ignore it — and read the fragments.
         // The parts are aria-hidden in index.html, and this visually hidden line is what is read.
+        const fromChristmas = d.detailFromChristmas === '1';
+        if (fromEl) fromEl.textContent = fromChristmas ? 'Changed from Christmas leave' : FROM_BASE;
         if (saidEl) {
-          saidEl.textContent = `Base roster ${d.detailBase}, changed to ${d.detailShift || ''}`.trim()
+          const now = d.detailNowSaid || d.detailShift || '';
+          saidEl.textContent = (fromChristmas ? `Changed from Christmas leave to ${now}` : `Base roster ${d.detailBase}, changed to ${now}`).trim()
             + (d.detailBy ? `. ${d.detailBy}` : '');
         }
         changeEl.hidden = false;

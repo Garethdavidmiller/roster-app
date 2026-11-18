@@ -7,8 +7,9 @@
  *   the rest read the position without being handed it); the month arithmetic (`addMonths`,
  *   `changeDisplay`); the month a load opens on — a `?date=` link first, else a month stored by
  *   `persistViewedMonth` under VIEWED_MONTH / VIEWED_YEAR / VIEWED_AT and still inside
- *   BROWSED_MONTH_KEPT_MS (half an hour), else today's; and `watchLocalDate`, which moves the month
- *   when the date turns or the page is back after more than that half hour, then asks for a repaint.
+ *   BROWSED_MONTH_KEPT_MS (half an hour), ahead of today's or behind it, else today's; and
+ *   `watchLocalDate`, which moves the month when the date turns or the page is back after more than
+ *   that half hour, then asks for a repaint. A reload and a resume keep a month by the same rule.
  * Does NOT own: drawing anything (calendar-app.js through calendar-redraw.js), Team View's week
  *   (calendar-team-view.js, which follows the same rule from what `watchLocalDate` hands it), or the
  *   page's other stored state (storage-keys.js).
@@ -48,15 +49,22 @@ let _month = new Date().getMonth();
 let _year  = new Date().getFullYear();
 
 // Restore last-viewed month: a `?date=` the link named first, else localStorage (if valid, within app
-// bounds, stored in the last BROWSED_MONTH_KEPT_MS, and not a future month — staff should open on
-// today's roster, not a month they previously browsed ahead to). Only a month the member moved AWAY
-// from today to is ever stored — see `persistViewedMonth` — so nothing stored means today.
+// bounds and stored in the last BROWSED_MONTH_KEPT_MS). Only a month the member moved AWAY from today
+// to is ever stored — see `persistViewedMonth` — so nothing stored means today.
+//
+// AHEAD OF TODAY OR BEHIND IT, ALIKE (owner, 18 Nov 2026). From August 2026 a month AHEAD of today was
+// never restored, so somebody who browsed ahead to plan leave would not open the app at their next
+// shift on a month they are not working. The half hour answers that now: the next shift is hours
+// away, and by then the stored month has run out. The refusal only made a reload and a resume
+// disagree inside the half hour — swipe to December, go to Trains and back through the drawer (a
+// fresh load) and the Calendar opened on November, while the same trip with the app kept in memory
+// stayed on December.
 (function restoreViewedMonth() {
     // A LINK THAT NAMES A DATE WINS, a future month included (whole-app review, Oct 2026): the Pay
     // Calculator's "View these dates in your roster calendar" and Admin's Calendar pill both say which
     // month they mean, and nothing read it — Admin's hand-off went through the stored month, which the
-    // future-month rule below then dropped. Honoured ONCE: the parameter is taken off the address, so a
-    // reload opens where the member has navigated since.
+    // future-month rule of the time then dropped. Honoured ONCE: the parameter is taken off the
+    // address, so a reload opens where the member has navigated since.
     const loc = /** @type {any} */ (globalThis).location;
     const asked = /^(\d{4})-(\d{2})-\d{2}$/.exec(loc ? new URLSearchParams(loc.search).get('date') ?? '' : '');
     if (asked) {
@@ -71,11 +79,9 @@ let _year  = new Date().getFullYear();
     if (!(age >= 0 && age <= BROWSED_MONTH_KEPT_MS)) return;
     const m = parseInt(lsGet(VIEWED_MONTH) ?? '', 10);
     const y = parseInt(lsGet(VIEWED_YEAR)  ?? '', 10);
-    if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {
-        const today = new Date();
-        const isFuture = y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth());
-        if (!isFuture) { _month = m; _year = y; }
-    }
+    // The year bounds are the only thing refusing a stored year past the last roster year now: while
+    // a month ahead was refused, that refused such a year first.
+    if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) { _month = m; _year = y; }
 })();
 
 export function getDisplayMonth() { return _month; }

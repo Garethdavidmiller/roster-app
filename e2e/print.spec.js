@@ -747,6 +747,21 @@ test('a printed Team View is not headed with one member\'s name @print', async (
     expect(await inPrint(page, headerAfter), 'a grade printed under one colleague\'s name').toBe('none');
 });
 
+// …and a LOCKED Calendar is headed with nobody (18 Nov 2026): the header was stamped with the name last
+// chosen on this device, over a sheet with no calendar on it. Read as the sheet would be, with the
+// unlocked page's line kept as the premise, so the rule cannot pass by removing the line everywhere.
+test('a locked Calendar is not headed with a member\'s name @print', async ({ page }) => {
+    await seedMember(page);   // a calendar was chosen on this device; nothing here unlocks it
+    await page.goto('/index.html');
+    await expect(page.locator('#loginPassword'), 'premise: the front door, locked').toBeVisible();
+    expect(await page.locator('.header').getAttribute('data-member-name'), 'premise: the header is stamped with a name').toBeTruthy();
+    const headerAfter = () => getComputedStyle(/** @type {Element} */ (document.querySelector('.header')), '::after').content;
+    expect(await inPrint(page, headerAfter), 'a locked page was headed with a member\'s name').toBe('none');
+    // The same page, granted: the line is back (the class is the grant's, calendar-access.js).
+    await page.evaluate(() => document.body.classList.add('calendar-unlocked'));
+    expect(await inPrint(page, headerAfter)).toContain('Team Member');
+});
+
 // ── A SAVED COPY IS LABELLED ON PAPER TOO (whole-app review, 10 Nov 2026) ───────────────────────
 // Both labels that say a month is drawn from a saved copy were `display: none` in print, so the sheet
 // carried the copy's shifts and nothing to say they might be out of date: "Saved copy — couldn't check

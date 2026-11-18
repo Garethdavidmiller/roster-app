@@ -197,6 +197,7 @@ describe('the panel has somewhere to put each explanation', () => {
         ['dayDetailShiftWords',  'the shift in full words'],
         ['dayDetailExtras',      'the day-marker chips'],
         ['dayDetailWeek',        'the roster week'],
+        ['dayDetailWho',         'whose day it is'],
         ['dayDetailAsRostered',  'the unchanged-day confirmation'],
         ['dayDetailLeaveBtn',    'the annual-leave route to the recorded dates'],
         ['dayDetailActions',     'the row the two routes share'],
@@ -207,7 +208,7 @@ describe('the panel has somewhere to put each explanation', () => {
     }
 
     test('the class each of them needs is defined in index.css', () => {
-        for (const cls of ['day-detail-head', 'day-detail-week', 'day-detail-asrostered',
+        for (const cls of ['day-detail-head', 'day-detail-week', 'day-detail-who', 'day-detail-asrostered',
                            'ddr-tick', 'ddm-chip', 'day-detail-leave-btn', 'day-detail-actions']) {
             assert.ok(CSS.includes(`.${cls}`), `.${cls} is used by the panel and not defined`);
         }

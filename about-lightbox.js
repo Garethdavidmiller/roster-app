@@ -31,15 +31,20 @@ import { hasPendingUpdate } from './sw-register.js';
  * @param {object} [opts]
  * @param {string}   [opts.appLabel='Marylebone Roster'] - App name used in the bug-report subject/body
  * @param {string}   [opts.bugLinkId='bugReportLink'] - id of the bug-report <a> in this page's markup
- * @param {Function} [opts.getUserName] - Returns the logged-in user's name for the bug report;
- *                                        omit on pages without a session (no User line is added)
+ * @param {Function} [opts.getUserName] - Returns who is reporting, for the bug report's User line:
+ *                                        the signed-in user's name (the Calendar also says how it was
+ *                                        opened without one); omit on pages without a session (no
+ *                                        User line is added)
+ * @param {() => string[]} [opts.getReportLines] - Further auto-filled lines for the bug report, each
+ *                                        "Label: value", after the User line (the Calendar's says whose
+ *                                        calendar was on screen, which need not be the reporter's)
  * @param {Function} [opts.onOpen]      - Page-specific extra work on open (e.g. calendar's
  *                                        team-view content swap), run before the panel shows
  * @param {() => void} [opts.printFn] - Replaces window.print() for the optional
  *                                        #lightboxPrintBtn (e.g. calendar's landscape team print)
  * @returns {{ open: () => void, close: () => void }|null}
  */
-export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 'bugReportLink', getUserName, onOpen, printFn } = {}) {
+export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 'bugReportLink', getUserName, getReportLines, onOpen, printFn } = {}) {
     const lightbox = document.getElementById('iconLightbox');
     if (!lightbox) return null;
     const content  = document.getElementById('iconLightboxContent');
@@ -74,6 +79,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
         if (!bugLink) return;
         const date  = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         const user  = getUserName?.();
+        const more  = getReportLines?.() ?? [];
         // TWO THINGS AN iPHONE'S REPORT CANNOT SAY FOR ITSELF (iPhone audit, 7 Nov 2026). Whether it came
         // from the home-screen app — half the iOS behaviour differs there, and the user agent is the same
         // either way — and which iOS: from iOS 26 Safari freezes the version in the user agent at 18_7,
@@ -89,6 +95,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
             + '— Auto-filled —\n'
             + `App: ${appLabel} Version ${APP_VERSION}\n`
             + (user ? `User: ${user}\n` : '')
+            + more.map(line => `${line}\n`).join('')
             + `Date: ${date}\nInstalled app: ${installed ? 'yes' : 'no'}\nBrowser: ${ua}`;
         bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — ${appLabel} Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
     }

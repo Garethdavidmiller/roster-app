@@ -22,8 +22,8 @@ mock.module('./roster-data.js', {
     namedExports: { CONFIG: { MIN_YEAR: 2024, MAX_YEAR: 2030 } },
 });
 
-// Seed a valid PAST month/year so restoreViewedMonth picks it up on import, stored just now — a month
-// is kept for half an hour (BROWSED_MONTH_KEPT_MS). (A future month would be ignored by the guard.)
+// Seed a valid month/year so restoreViewedMonth picks it up on import, stored just now — a month is
+// kept for half an hour (BROWSED_MONTH_KEPT_MS), whether it is ahead of today's or behind it.
 store.set('myb_roster_month', '3');    // April (0-indexed)
 store.set('myb_roster_year',  '2025');
 store.set('myb_roster_month_at', String(Date.now()));
@@ -46,30 +46,25 @@ const importedYear  = getDisplayYear();
 // `perf-reporter.test.mjs` uses — which re-evaluates the module against a newly seeded store while
 // the mocks above still apply (they key on the resolved specifier of `./ls.js`, which is unchanged).
 //
-// Organised by what a wrong answer costs, and the two directions are not symmetrical:
+// Organised by what a wrong answer costs. A month is kept for HALF AN HOUR, ahead of today's or behind
+// it (owner, 18 Nov 2026), and two failures are silent:
 //
-//   · RESTORING A FUTURE MONTH is the one the guard exists for, and it is silent. Somebody browses
-//     ahead to plan leave, closes the app, and opens it next shift on a month that is not the one
-//     they are working — with today's date nowhere on screen and nothing saying why. The app's
-//     whole job on open is to answer "what am I doing today".
-//   · DROPPING A PAST MONTH costs a swipe, and the reader can see where they are.
-//
-// Deleting `if (!isFuture)` left this file green (measured) — the seeded month was in the past, so
-// the guard had nothing to refuse. It now fails, as does inverting it and dropping the MIN/MAX year
-// bounds.
+//   · DROPPING A MONTH STORED A MINUTE AGO. Somebody swipes to December, goes to Trains and comes
+//     back through the drawer — a fresh load — and is put on November. From August 2026 until
+//     18 Nov 2026 a month AHEAD of today was refused for exactly that, so that somebody who browsed
+//     ahead to plan leave would not open the app at their next shift on a month they are not
+//     working. The half hour (15 Nov 2026) answers that reason itself, and the refusal only made a
+//     reload disagree with a resume, which kept the month.
+//   · KEEPING A MONTH LONGER THAN THE HALF HOUR — the June that reopened for months (below).
 //
 // ON A PINNED CLOCK (test audit, 7 Nov 2026). The cases below re-derived "today" from the real
 // clock against a MAX_YEAR pinned at 2030, so the earlier-month case would have started failing in
-// 2031; and a stored year above MAX_YEAR is also a FUTURE year on any clock before 2031, so the
-// future guard refused it first and the MAX_YEAR bound could be deleted with the file green. The
-// restore reads `new Date()` once, at import, so each re-import runs at a written-out date — and
-// the MAX_YEAR case runs at one after 2030, the one place that bound is the only thing refusing.
+// 2031. The restore reads `new Date()` once, at import, so each re-import runs at a written-out date.
 //
-// ONE MUTATION HERE PROVABLY CANNOT FAIL, and there is no test for it rather than a test that
-// pretends: widening `m > today.getMonth()` to `m >= today.getMonth()`. That changes the answer for
-// exactly one seed — today's own month — and for that seed "restored" and "dropped" are the SAME
-// PAIR OF NUMBERS, because dropping falls back to today. No assertion on this function's output can
-// separate them, so the `>` is held by review, not by this file.
+// THE MAX_YEAR BOUND IS NOW THE ONLY THING REFUSING A STORED YEAR PAST THE LAST ROSTER YEAR. While a
+// month ahead was refused, a stored 2031 was a FUTURE year on any clock before 2031, so that refusal
+// came first and the bound could be deleted with this file green (test audit, 7 Nov 2026). So the
+// year-bounds case below asks it on today's pinned clock as well as on one after 2030.
 describe('restoreViewedMonth', () => {
     test('restores a valid past month and year from localStorage on module load', () => {
         assert.equal(importedMonth, 3);
@@ -93,21 +88,28 @@ describe('restoreViewedMonth', () => {
         } finally { mock.timers.reset(); }
     }
 
-    test('a month in a FUTURE YEAR is dropped — the app opens on today', async () => {
-        // Both fields are discarded, not just the month: a guard that clamped the month and kept
-        // the year would open on a year the member is not working in, which is the same failure.
-        const got = await restoreWith(0, 2027, 'future-year');
-        assert.deepEqual(got, { month: 6, year: 2026 },
-            'a month the member had browsed ahead to was restored over today');
+    // AHEAD OF TODAY IS KEPT TOO (owner, 18 Nov 2026). These two pinned the refusal until then.
+    test('a LATER MONTH of this year, stored within the half hour, IS restored', async () => {
+        assert.deepEqual(await restoreWith(7, 2026, 'next-month'), { month: 7, year: 2026 },
+            'a month the member moved ahead to a minute ago was thrown away on a reload');
     });
 
-    test('a LATER MONTH of this year is dropped too — the boundary is today, not January', async () => {
-        assert.deepEqual(await restoreWith(7, 2026, 'next-month'), { month: 6, year: 2026 });
+    test('a month in a LATER YEAR, stored within the half hour, IS restored — both fields', async () => {
+        // The month AND the year: a restore that kept one and dropped the other would open on a
+        // month the member never looked at.
+        assert.deepEqual(await restoreWith(0, 2027, 'future-year'), { month: 0, year: 2027 },
+            'a month the member moved ahead to a minute ago was thrown away on a reload');
     });
 
-    test('an EARLIER month of this year is restored — the guard refuses the future, not storage', async () => {
-        // The other direction. Without this, every case above would pass on a restore that had
-        // simply stopped reading localStorage at all.
+    test('a month AHEAD stored more than the half hour ago is not restored — today opens', async () => {
+        assert.deepEqual(await restoreWith(7, 2026, 'ahead-stale', TODAY, BROWSED_MONTH_KEPT_MS + 1), { month: 6, year: 2026 },
+            'a month browsed ahead to over half an hour ago was restored over today');
+        assert.deepEqual(await restoreWith(0, 2027, 'ahead-stale-year', TODAY, 3 * 60 * 60 * 1000), { month: 6, year: 2026 });
+    });
+
+    test('an EARLIER month of this year is restored', async () => {
+        // The other direction. Without this, the stale cases would pass on a restore that had simply
+        // stopped reading localStorage at all.
         const got = await restoreWith(5, 2026, 'last-month');
         assert.deepEqual(got, { month: 5, year: 2026 },
             'a month the member was last looking at was thrown away');
@@ -137,12 +139,13 @@ describe('restoreViewedMonth', () => {
         assert.deepEqual(await restoreWith(5, 2026, 'ahead', TODAY, -60_000), { month: 6, year: 2026 });
     });
 
-    test('in JANUARY, last December is the past and next February the future — the year is compared first', async () => {
+    test('in JANUARY, last December and next February are both kept — across the year, either way', async () => {
         // The year boundary, which the real clock only crossed when the suite ran in January.
         const newYear = new Date(2027, 0, 10, 12);
         assert.deepEqual(await restoreWith(11, 2026, 'jan-last-december', newYear), { month: 11, year: 2026 },
-            'December was refused as a future month because 11 is greater than January\'s 0');
-        assert.deepEqual(await restoreWith(1, 2027, 'jan-next-february', newYear), { month: 0, year: 2027 });
+            'last December was refused in January');
+        assert.deepEqual(await restoreWith(1, 2027, 'jan-next-february', newYear), { month: 1, year: 2027 },
+            'next February was refused in January');
     });
 
     // A LINK THAT NAMES A DATE WINS, future months included (whole-app review, Oct 2026). The Pay
@@ -166,9 +169,12 @@ describe('restoreViewedMonth', () => {
     test('a year outside MIN_YEAR..MAX_YEAR is dropped whichever side it falls', async () => {
         const belowMin = await restoreWith(5, 2023, 'below-min');   // MIN_YEAR is 2024 here
         assert.deepEqual(belowMin, { month: 6, year: 2026 });
-        // Above MAX_YEAR (2030 here) the stored year is in the future on any clock before 2031, so
-        // the future guard would refuse it first. Read in March 2032 instead — a device whose app has
-        // outlived its last roster year — June 2031 is in the PAST, and only the bound refuses it.
+        // Above MAX_YEAR (2030 here), on today's clock: the case the retired future-month refusal
+        // used to answer before the bound was reached. The bound alone refuses it now.
+        assert.deepEqual(await restoreWith(5, 2031, 'above-max-today'), { month: 6, year: 2026 },
+            'a stored month beyond the last roster year was restored');
+        // And read in March 2032 — a device whose app has outlived its last roster year — where
+        // June 2031 is in the PAST.
         const aboveMax = await restoreWith(5, 2031, 'above-max', new Date(2032, 2, 15, 12));
         assert.deepEqual(aboveMax, { month: 2, year: 2032 },
             'a stored month beyond the last roster year was restored');
