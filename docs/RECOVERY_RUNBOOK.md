@@ -130,7 +130,8 @@ you fully own and can inspect or import selectively.
 Everything that deploys comes from `main`. For any bad deploy, the recovery is "get `main`
 back to the last-known-good commit and let the workflow redeploy", or use the platform's
 own version history (Rules/Hosting/Functions all keep one). Keep the repo cloned locally so
-you can `git revert` in an emergency.
+you can `git revert` in an emergency — and `git pull` it before you deploy anything from it:
+`firebase deploy` uploads the folder it runs in, so an old clone puts old code live.
 
 ### 5. Rehearse once
 
@@ -321,7 +322,9 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
    (OPERATIONS_REFERENCE.md → "The Pages mirror", step 1 — not yet set on 10 November 2026), a
    direct push is refused unless you are on its bypass list: push the revert to a branch and merge
    it as a pull request once CI passes. The same applies to every `git push origin main` below.
-2. **Emergency local redeploy** (if Actions itself is the problem), from a good checkout:
+2. **Emergency local redeploy** (if Actions itself is the problem), only from a checkout of today's
+   `main` with step 1's revert in it — `git pull` first, because `firebase deploy` uploads the
+   `functions/` folder it runs in:
    ```
    firebase deploy --only functions --project myb-roster
    ```
@@ -337,9 +340,9 @@ over-expose data. This is the **fastest** thing to roll back.
 
 **First: is it the rules at all?** If members are denied everywhere after a CLAIMS change (a new
 claim required, a tier moved), that is a claim problem and a rules rollback is the wrong tool. Run
-Operations → Staff Login Accounts → **Set up accounts**, read its ❌ failed and 🔁 taken-back lines and
-the account audit beneath it, then let tokens refresh (within an hour, or at once via a
-`CLAIM_EPOCH` bump). **Never roll the rules back past v24.23** (the member-claim binding): anything
+Operations → Staff Login Accounts → **Set up accounts**, read its ❌ "Failed" and 🔁 "Reset to the
+default password and signed out" lines and the account audit beneath it, then let tokens refresh
+(within an hour, or at once via a `CLAIM_EPOCH` bump). **Never roll the rules back past v24.23** (the member-claim binding): anything
 older believes a `name` any anonymous session can give itself.
 
 1. **Console rollback (seconds, no deploy):** **Firestore → Rules → (version history)** →
@@ -443,9 +446,9 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 | Bad roster upload | Re-upload correct PDF (self-heals imports) | Operations → Weekly Roster |
 | Link design lost | Regenerate, or read old `patterns` from a PITR snapshot | Links workspace |
 | Doc won't open / wrong date | Re-upload for the correct date | Operations |
-| Bad Functions deploy | `git revert` + push, or `firebase deploy --only functions` | git / CLI |
+| Bad Functions deploy | `git revert` + push; only if Actions is down, `firebase deploy --only functions` from a pulled checkout of `main` with the revert | git / CLI |
 | Bad Rules deploy | Console → Rules → Rollback to the previous version (seconds) — never past v24.23 | Firebase Console |
-| Members denied everywhere after a claims change | Set up accounts (read failed/taken-back lines + audit), then wait ≤1h or bump `CLAIM_EPOCH` — not a rules rollback | Operations |
+| Members denied everywhere after a claims change | Set up accounts (read its ❌ Failed and 🔁 Reset lines + audit), then wait ≤1h or bump `CLAIM_EPOCH` — not a rules rollback | Operations |
 | Broken live site | Revert the commit (reaches both origins); Console → Hosting → Rollback fixes `web.app` only | git + Firebase Console |
 | Hosting infra down | Point staff at the `/roster-app/` GitHub mirror | — |
 | Everything failing at once | Check status pages; wait; don't redeploy | status.firebase.google.com |
@@ -570,8 +573,8 @@ fails a bare `allow read;` that nothing declares, and `deploy-rules.yml` runs `n
    identity, so **nothing appears in the Operations Error Log** — do not read its silence as health.
    The usual causes are an unset or un-redeployed secret (`503`, or every PIN rejected) and a
    claim/uid mismatch between the function and the rules (unlock succeeds, no shifts appear).
-3. Fix (the IAM grant in the project facts table above, the secret, a redeploy), then confirm the
-   PIN from a fresh private window.
+3. Fix (the IAM grant in the project facts table above, the secret, a redeploy — Actions → Deploy
+   Firebase Functions → Run workflow, on `main`), then confirm the PIN from a fresh private window.
 
 Do **not** leave it half-working: a Calendar that renders without its overrides is the one outcome
 worse than a Calendar that will not open.
@@ -579,7 +582,8 @@ worse than a Calendar that will not open.
 ### If the PIN gets out
 
 Rotation needs no client release — OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN". Set the new
-secret, redeploy the function, tell staff. Existing unlocked sessions keep working until their
+secret, redeploy (Actions → Deploy Firebase Functions → Run workflow, on `main` — never a
+`firebase deploy` from an old clone), tell staff. Existing unlocked sessions keep working until their
 browsers close; to kill those too, revoke the shared account's refresh tokens
 (`getAuth().revokeRefreshTokens('calendar-viewer')`, from `firebase-admin/auth`) — which takes effect
 at each session's next token refresh, within about an hour, not instantly. Member sessions are untouched either way.

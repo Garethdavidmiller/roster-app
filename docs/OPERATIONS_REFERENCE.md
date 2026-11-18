@@ -1192,21 +1192,24 @@ that shows every staff phone a roster that is wrong rather than obviously broken
 ### Setting the PIN (do this FIRST — the function will not work without it)
 
 The value lives only in Secret Manager. It is deliberately **not** in the repository, in any
-documentation, in any test, or in any client asset.
-
-```
-firebase functions:secrets:set CALENDAR_VIEWER_PIN
-# paste the four digits when prompted, then redeploy the function so it picks the version up:
-firebase deploy --only functions:unlockCalendarViewer
-```
+documentation, in any test, or in any client asset. Setting it takes the two steps of rotating it,
+below: the secret, then a redeploy so the function picks the value up.
 
 ### Rotating the Calendar PIN
 
 No client release is needed — the client never knows the value.
 
-1. `firebase functions:secrets:set CALENDAR_VIEWER_PIN` (enter the new value).
-2. Redeploy the bound function so it picks up the new secret version:
-   `firebase deploy --only functions:unlockCalendarViewer`.
+1. `firebase functions:secrets:set CALENDAR_VIEWER_PIN --project myb-roster`, and enter the four
+   digits when prompted. This uploads no code, so it is safe from any folder. If it then offers to
+   "re-deploy the functions" that use the secret, yes is safe too: it moves `unlockCalendarViewer`
+   onto the new value in place, without uploading code, and step 2 is then done.
+2. Otherwise redeploy, so the function picks up the new value: **Actions → Deploy Firebase
+   Functions → Run workflow, on `main`**. It deploys the functions `main` holds, after the same tests
+   as a push. Only if Actions itself is down, run
+   `firebase deploy --only functions:unlockCalendarViewer`, and only from a checkout of today's
+   `main` (`git pull` first). The same goes for the `firebase deploy --only functions` that step 1
+   suggests if you say no: `firebase deploy` uploads the `functions/` folder it runs in, so an old
+   clone puts old code back on the PIN endpoint.
 3. Tell staff the new code.
 
 New unlock attempts use the new PIN immediately. **Sessions already unlocked are not affected** —
@@ -1273,7 +1276,8 @@ TOLD instead (`functions/pin-lockout.js`; the trade-off is `functions/calendar-v
   (`getAccountSetupGaps`), so it appears when the card's check answers; a check that could not read the
   record shows nothing about the PIN rather than an all-clear.
 - **What to do**: nothing, if it was once — the block clears itself, and members can still sign in with
-  their password. If it keeps happening, somebody is guessing: rotate the PIN (below).
+  their password. If it keeps happening, somebody is guessing: rotate the PIN ("Rotating the
+  Calendar PIN", above).
 - **The record** is one document in `viewerAttempts` (`_lockout-record`: the block times of the last day,
   when the latest ends, when the admin was last told). Server-only, like the rest of the collection; the
   sweep never removes it. Deleting it by hand in the console only makes the next block notify again.
@@ -1288,7 +1292,7 @@ both the unlock and the roster come back together.
 
 - **"PIN not recognised" for everybody** → the PIN was rotated without redeploying the function,
   which still holds the old value. Check `firebase functions:secrets:access CALENDAR_VIEWER_PIN` and
-  redeploy.
+  redeploy ("Rotating the Calendar PIN", step 2).
 - **"Calendar couldn't be unlocked. Try again shortly." for everybody** → the function is failing,
   not refusing. A 503 whose body and log say "Calendar access is not configured" is an unset or
   malformed secret; a 500 on every CORRECT PIN is the missing IAM grant (`roles/iam.serviceAccountTokenCreator`

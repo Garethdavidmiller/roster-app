@@ -198,7 +198,7 @@ page after a release took over a second to be usable (`LATENCY.md` → THE NOVEM
   first-visit Settings, and the Railcard's corrections".
 
 ### Track C5 — retire the surname default
-**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated
+**Status:** Blocked · **Owner:** Gareth · **Plan:** `PASSWORD_DESIGN.md` · **Gate:** ≥90% migrated **and** Track E
 
 Irreversible. Blocked on the migration percentage, which is in turn blocked on Track E (above).
 Read both before assuming it is close. **A second route is on the table and not adopted:** C6's

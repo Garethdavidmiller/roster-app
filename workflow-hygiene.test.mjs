@@ -2235,10 +2235,22 @@ describe('the live check looks twice before it reports', () => {
     const lines = script.split('\n').map(l => l.trim()).filter(Boolean);
     const limitOf = (block, indent) =>
         Number((new RegExp(`^ {${indent}}timeout-minutes:\\s*(\\d+)\\s*$`, 'm').exec(block) || [])[1]);
+    /** One job's block, to the next job's key. @param {string} name */
+    const jobBlock = (name) => {
+        const at = code.search(new RegExp(`^ {2}${name}:[ \\t]*$`, 'm'));
+        if (at === -1) return '';
+        const next = code.slice(at + 1).search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        return code.slice(at, next === -1 ? code.length : at + 1 + next);
+    };
+    // The check and its alert are two jobs (18 Nov 2026 — the guard at the end of this file says why).
+    const live = jobBlock('live');
+    const report = jobBlock('report');
 
-    test('the site step is found, and keeps the id the alert step reads', () => {
+    test('the site step is found, and keeps the id the alert reads', () => {
+        assert.ok(live && report, `${LIVE_WF}: the live job and the alert job (\`report\`) must both be found`);
         assert.ok(step, `${LIVE_WF}: the "Open the live site on both origins" step was not found`);
-        assert.match(body, /^\s*id:\s*site\s*$/m, 'the site step must keep `id: site`: the alert step reads its outcome');
+        assert.ok(live.includes(step[0]), 'the site step must be a step of the live job');
+        assert.match(body, /^\s*id:\s*site\s*$/m, 'the site step must keep `id: site`: the live job hands its outcome to the alert');
         assert.ok(lines.length > 0, 'the site step\'s `run: |` script was not found');
         assert.doesNotMatch(body, /continue-on-error/,
             'no continue-on-error on the site step: a failure would then read as success to `failure()`, and the alert would never run');
@@ -2281,29 +2293,33 @@ describe('the live check looks twice before it reports', () => {
         // A step that installs or runs something must carry its own limit, and the job must cover
         // all of them plus the site step and five minutes for the quick steps and the alert.
         //
-        // AND SO MUST EVERY OTHER STEP BUT THE ALERT (7 Nov 2026 review). Counting only `run:` and
-        // local actions left out the checkout, setup-node's npm cache and the browser cache — all
-        // downloads, none limited — and the report upload, which runs AFTER the site step and BEFORE
-        // the alert. Any of them stalling in a GitHub-side incident spent the job's time unseen.
+        // AND SO MUST EVERY OTHER STEP (7 Nov 2026 review). Counting only `run:` and local actions
+        // left out the checkout, setup-node's npm cache and the browser cache — all downloads, none
+        // limited — and the trace upload, which runs AFTER the site step. Any of them stalling in a
+        // GitHub-side incident spent the job's time unseen.
+        //
+        // THE ALERT IS A JOB OF ITS OWN NOW (18 Nov 2026), so it is not counted here: its job has its
+        // own limit, and only starts once this one has ended. The five minutes kept over are for what
+        // runs after the last step, the browser cache's save among it.
         const stepLimit = limitOf(body, 8);
-        const jobLimit = limitOf(code, 4);
+        const jobLimit = limitOf(live, 4);
         assert.ok(stepLimit >= 10,
             `the site step needs its own timeout-minutes of at least 10 (found ${stepLimit}): two looks and the pause take about three minutes, and a hung site must still be cut off by THIS limit`);
-        const steps = code.slice(code.indexOf('steps:')).split(/\n(?=\s*- (?:name|uses):)/)
+        const steps = live.slice(live.indexOf('steps:')).split(/\n(?=\s*- (?:name|uses):)/)
             .filter(s => /^\s*- (?:name|uses):/.test(s));
         const nameOf = (/** @type {string} */ s) => s.match(/- (?:name|uses): (.*)/)?.[1] ?? s.trim().slice(0, 60);
-        const alertAt = steps.findIndex(s => /- name: Say so, once, in an issue/.test(s));
-        assert.equal(alertAt, steps.length - 1, 'the alert step must be found, and must be the last step');
-        const others = steps.slice(0, alertAt).filter(s => !/- name: Open the live site on both origins/.test(s));
+        assert.ok(!steps.some(s => /- name: Say so, once, in an issue/.test(s)),
+            'the alert is a step of the live job again: it belongs in its own job, where no install script can reach its token');
+        const others = steps.filter(s => !/- name: Open the live site on both origins/.test(s));
         for (const want of ['actions/checkout', 'actions/setup-node', 'actions/cache', 'npm ci', 'actions/upload-artifact']) {
             assert.ok(others.some(s => s.includes(want)), `the ${want} step must be found among the steps counted`);
         }
         const unbounded = others.filter(s => !(limitOf(s, 8) > 0)).map(nameOf);
         assert.deepEqual(unbounded, [],
-            `every step but the alert needs its own timeout-minutes; these have none, so the job can run out before the site step does: ${unbounded.join(', ')}`);
+            `every step of the live job needs its own timeout-minutes; these have none, so the job can run out before the site step does: ${unbounded.join(', ')}`);
         const rest = others.reduce((n, s) => n + limitOf(s, 8), 0);
         assert.ok(rest + stepLimit + 5 <= jobLimit,
-            `the job limit (${jobLimit}) must cover every other step (${rest} minutes between them), the site step's ${stepLimit} and five minutes for the alert. Otherwise the job runs out first, and a hung site is never reported.`);
+            `the job limit (${jobLimit}) must cover every other step (${rest} minutes between them), the site step's ${stepLimit} and five minutes for what runs after the last step. Otherwise the job runs out first, and a hung site is never reported.`);
     });
 
     test('the scheduled looks demand a DIRECT connection — the value live.spec.js reads', () => {
@@ -2333,9 +2349,25 @@ describe('the live check looks twice before it reports', () => {
 
     test('only a failure of the site check itself reaches the issue', () => {
         // The whole-app review's fix (Oct 2026): a runner that could not install used to post "the
-        // live site failed" about a site nobody had opened.
-        assert.match(code, /if:\s*failure\(\)\s*&&\s*steps\.site\.outcome\s*==\s*'failure'/,
-            'the alert step must run only when the site step itself failed');
+        // live site failed" about a site nobody had opened. Since the alert became its own job (18 Nov
+        // 2026) the site step's outcome crosses to it as a job output, and each end of that wire is one
+        // line: without the output the alert never fires, and without the outcome test it fires for a
+        // failed install again.
+        assert.match(live, /^ {4}outputs:\n {6}site: \$\{\{ steps\.site\.outcome \}\}[ \t]*$/m,
+            'the live job must hand over its site step\'s outcome as the `site` output');
+        assert.match(report, /^ {4}needs: live[ \t]*$/m, 'the alert job must wait for the live job');
+        assert.match(report, /^ {4}if: failure\(\) && needs\.live\.outputs\.site == 'failure'[ \t]*$/m,
+            'the alert job must run only when the live job\'s site step itself failed');
+        assert.match(report, /- name: Say so, once, in an issue/, 'the alert step must be in the alert job');
+    });
+
+    test('the alert job can say which repository its issue is for', () => {
+        // gh finds the repository from a git checkout. The alert job has none — it needs none, and a
+        // checkout is one more thing on its runner — so it must name the repository, or every issue
+        // command fails and the step's own warnings are all that is left (race-detector.yml, until 10
+        // Nov 2026: no issue could ever appear, which read exactly like "nothing found").
+        assert.ok(/uses: actions\/checkout@/.test(report) || /^\s+GH_REPO: \$\{\{ github\.repository \}\}[ \t]*$/m.test(report),
+            'the alert job has no checkout and no GH_REPO, so gh cannot tell which repository to file the issue in');
     });
 
     test('a person running the check by hand still gets the first answer', () => {
@@ -2891,6 +2923,105 @@ describe('a deploy job leaves no git token on disk', () => {
             const step = tail.slice(0, tail.search(/\n\s*- (name|uses):/));
             assert.match(step, /^\s+persist-credentials: false[ \t]*$/m,
                 `${wf}: the deploy job's checkout leaves the token on disk for every install script in the job to read`);
+        });
+    }
+});
+
+// ── NO INSTALL SCRIPT RUNS BESIDE A TOKEN IT COULD USE (review, 18 Nov 2026) ───────────────────────
+//
+// The deploy workflows were made safe a job at a time (the blocks above); the others were not.
+// live-health.yml checked out with the token kept on disk and then ran `npm ci` — every dependency's
+// install script — in its one job, under an `issues: write` granted at the top of the file. e2e.yml's
+// branch jobs, offline.yml, warm-browser-cache.yml and functions-audit.yml kept the token on disk
+// through their installs too. Every workflow in the directory is read, so one added later joins the
+// check by existing:
+//
+//   1. A job that runs install scripts keeps no token on disk: `persist-credentials: false` on each
+//      of its checkouts. A job that needs git credentials can use them before it installs anything,
+//      or be two jobs.
+//   2. No workflow grants a write at the top, where every job inherits it, and no job is left on the
+//      repository's default token, which can be write-all: the job says, or the top does.
+//   3. A job that can write an issue runs no install script. Off the disk is not enough on its own:
+//      an install script can put a program of its own on the PATH of every later step in its job,
+//      the step that is handed the token included. So the alert is a job of its own, on a fresh
+//      runner — each deploy workflow's `report-failure`, and live-health.yml's `report`.
+//
+// What this does not cover: e2e.yml's two visual jobs hold `pull-requests: write` and `checks: write`
+// in the job that installs, for their pull-request comment and check run. Rule 3's fix would apply
+// there too (the report in a job of its own); it is not made yet, so rule 3 is about issues.
+describe('no install script runs beside a token it could use', () => {
+    const files = readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f)).sort();
+    /** An install line that runs dependencies' install scripts: `npm ci` or `npm install` without
+     *  `--ignore-scripts`, as a `run:` value or a line of a `run: |` script. @param {string} job */
+    const runsInstallScripts = (job) => [...job.matchAll(/^[ \t]+(?:run:[ \t]+)?npm (?:ci|install)\b.*$/gm)]
+        .some(m => !/(^|\s)--ignore-scripts(\s|$)/.test(m[0]));
+    /** Each checkout step of a job, to the next step. @param {string} job */
+    const checkoutsOf = (job) => [...job.matchAll(/^[ \t]+- uses: actions\/checkout@.*$/gm)].map(m => {
+        const tail = job.slice(m.index);
+        const next = tail.slice(1).search(/\n[ \t]*- (?:name|uses):/);
+        return next === -1 ? tail : tail.slice(0, next + 1);
+    });
+    /** A job's own permissions block, or null when it has none. @param {string} job */
+    const ownPermissions = (job) => {
+        const m = /^ {4}permissions:([^\n]*)\n((?: {6,}[^\n]*\n)*)/m.exec(job + '\n');
+        return m ? `${m[1]}\n${m[2]}` : null;
+    };
+    /** The workflow's own top-level permissions block, or null. @param {string} src */
+    const topPermissions = (src) => {
+        const m = /^permissions:([^\n]*)\n((?:[ \t]+[^\n]*\n)*)/m.exec(src + '\n');
+        return m ? `${m[1]}\n${m[2]}` : null;
+    };
+    /** A workflow with its comment lines dropped: the prose names everything it explains. @param {string} f */
+    const read = (f) => readFileSync(join(WF_DIR, f), 'utf8').split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+
+    test('the workflows were actually read, and the readers find what they look for', () => {
+        assert.ok(files.includes('live-health.yml') && files.includes('e2e.yml'), `read: ${files.join(', ')}`);
+        // Guard the guard: each reader, on the shapes the workflows use and the ones it must refuse.
+        assert.ok(runsInstallScripts('      - name: x\n        run: npm ci\n'), 'a bare `run: npm ci` runs install scripts');
+        assert.ok(runsInstallScripts('        run: |\n          npm ci\n'), 'so does `npm ci` inside a run script');
+        assert.ok(!runsInstallScripts('        run: npm ci --ignore-scripts\n'), '`--ignore-scripts` runs none');
+        assert.ok(!runsInstallScripts('        run: echo "npm ci failed"\n'), 'a message that names npm ci is not an install');
+        const job = '    steps:\n      - uses: actions/checkout@abc # v7\n        with:\n          persist-credentials: false\n\n      - name: Next\n        run: npm ci\n';
+        assert.deepEqual(checkoutsOf(job).map(s => /persist-credentials: false/.test(s)), [true], 'one checkout, read to the next step');
+        assert.equal(ownPermissions('    runs-on: x\n    permissions:\n      contents: read\n      issues: write\n    steps:\n'),
+            '\n      contents: read\n      issues: write\n', 'a job\'s permissions block is read to its last entry');
+        assert.equal(ownPermissions('    permissions: {}\n'), ' {}\n', 'and an empty one is a block too');
+        assert.equal(topPermissions('on: push\npermissions:\n  contents: read\n  issues: write\njobs:\n'),
+            '\n  contents: read\n  issues: write\n', 'the top-level block is read to its last entry');
+    });
+
+    for (const f of files) {
+        const src = read(f);
+        const body = src.slice(src.search(/^jobs:/m));
+        const heads = [...body.matchAll(/^ {2}([A-Za-z_][\w-]*):[ \t]*$/gm)];
+        /** @type {[string, string][]} */
+        const jobs = heads.map((h, i) => [h[1], body.slice(h.index, heads[i + 1]?.index ?? body.length)]);
+        const top = topPermissions(src.slice(0, src.search(/^jobs:/m)));
+
+        test(`${f}: a job that runs install scripts keeps no git token on disk`, () => {
+            const leaky = jobs.filter(([, job]) => runsInstallScripts(job)
+                && checkoutsOf(job).some(step => !/^[ \t]+persist-credentials: false[ \t]*$/m.test(step)))
+                .map(([name]) => name);
+            assert.deepEqual(leaky, [],
+                `${f}: ${leaky.join(', ')} check out with the token kept on disk and then run every dependency's install script, which can read it. Add \`persist-credentials: false\` to the checkout.`);
+        });
+
+        test(`${f}: no write is granted at the top, and no job is left on the default token`, () => {
+            if (top !== null) {
+                assert.doesNotMatch(top, /\bwrite\b/,
+                    `${f} grants a write to every job at the top of the file; give it to the job that writes, and \`permissions: {}\` up here`);
+                return;
+            }
+            const unset = jobs.filter(([, job]) => !/^ {4}uses:/m.test(job) && ownPermissions(job) === null).map(([name]) => name);
+            assert.deepEqual(unset, [],
+                `${f} has no permissions at the top, and ${unset.join(', ')} declare none either, so they run on the repository's default token, which can write everything. Give each its own, or \`permissions: {}\` at the top.`);
+        });
+
+        test(`${f}: a job that can write an issue runs no install script`, () => {
+            const writers = jobs.filter(([, job]) => /^[ \t]+issues:[ \t]*write\b/m.test(ownPermissions(job) ?? top ?? ''));
+            const mixed = writers.filter(([, job]) => runsInstallScripts(job)).map(([name]) => name);
+            assert.deepEqual(mixed, [],
+                `${f}: ${mixed.join(', ')} can write issues and run dependencies' install scripts in the same job. Off the disk is not enough: an install script can put its own program on a later step's PATH. Move the issue step into a job of its own that installs nothing (live-health.yml's \`report\` is the pattern).`);
         });
     }
 });
