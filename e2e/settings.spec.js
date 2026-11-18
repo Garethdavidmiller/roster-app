@@ -1111,7 +1111,9 @@ for (const [where, installed, says] of /** @type {const} */ ([
 }
 
 // A BLOCKED BELL SAYS SO WHEN TAPPED (whole-app check, 17 Nov 2026). It wore 🔕 — the same as "off" — and a tap did
-// nothing: the browser will not ask again, and only a screen reader heard "blocked". It now says where it is fixed.
+// nothing: the browser will not ask again, and only a screen reader heard "blocked". It now says where it is fixed:
+// on Settings, the card on the page under the drawer (18 Nov 2026 — it gave the menu route to the page the reader
+// was already on); anywhere else, the menu route there.
 test('settings: the drawer\'s bell, blocked, says where notifications are allowed again', async ({ page }) => {
     await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied' });
     await page.locator('#navMenuBtn').click();
@@ -1121,6 +1123,13 @@ test('settings: the drawer\'s bell, blocked, says where notifications are allowe
     const panel = page.locator('#navComingSoonLightbox');
     await expect(panel).toHaveClass(/\bopen\b/);
     await expect(page.locator('#navComingSoonTitle')).toHaveText('Notifications blocked');
+    await expect(page.locator('#navComingSoonBody')).toContainText('the bell can’t switch them on. The Notifications card on this page says how to allow them.');
+    await expect(page.locator('#navComingSoonBody')).not.toContainText('☰ → Settings');
+
+    await page.goto('/');                                       // the same device, on the Calendar
+    await page.locator('#navMenuBtn').click();
+    await expect(bell).toHaveAttribute('data-notif-state', 'denied');
+    await bell.click();
     await expect(page.locator('#navComingSoonBody')).toContainText('the bell can’t switch them on. ☰ → Settings → Notifications says how to allow them.');
 });
 
