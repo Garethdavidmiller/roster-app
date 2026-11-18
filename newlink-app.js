@@ -82,7 +82,7 @@ export function init() {
     registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Trains: a signed-out view must still take an update
     // Tear down a lingering privileged Firebase identity whose local session has expired — and the station PIN, which
     // this page does not admit (reconcileExpiredIdentity's default).
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
     const currentUser = getSession()?.name ?? null;
 
     // Decided from the LOCAL session, as Operations does — the auth store is often still initialising here, and a
@@ -136,7 +136,7 @@ function start(member, admitted) {
         clearLoginStart();
         // A real view by a real member, counted as the Pay Calculator counts its refusal; not timed, as nothing loads.
         sessionReady.then(() => { initErrorReporter(); recordUsage('newlink', member); });
-        initPasswordForce(member, { ready: sessionReady }).catch(() => {});   // spent as the page opens (below)
+        initPasswordForce(member, { ready: sessionReady }).catch(() => {});   // spent as the page opens (below); it fails open itself
         return;
     }
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
@@ -157,6 +157,7 @@ function start(member, admitted) {
     // The forced set-password step, called NOW with the session as its barrier, so a sign-in's one-shot marker is
     // spent as the page opens ("consume BEFORE any await", password-force.js). Behind `sessionReady.then` it was
     // spent only once the session was confirmed, and a colleague who left first was asked on a later ordinary load.
+    // It fails open by itself; the `.catch` only keeps an unexpected rejection from going unhandled.
     initPasswordForce(member, { ready: sessionReady }).catch(() => {});
 }
 

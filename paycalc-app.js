@@ -116,7 +116,7 @@ export function init() {
     // deep-link here can't keep an old credential live — BEFORE the session guard's early return, as
     // the expired path is exactly where one lingers. Fire-and-forget and login-safe: a no-op on a
     // valid session, and it stands down if a sign-in supersedes it.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
     // ── SESSION GUARD (local-identity precondition) ───────────────────────────────
     // Not signed in → the shared in-place sign-in (no redirect elsewhere). getSession() (session.js)

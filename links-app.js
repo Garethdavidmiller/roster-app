@@ -111,7 +111,7 @@ export function init() {
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
     // ============================================
     // SESSION — guard access to LINKS_DESIGNERS only
     // ============================================
@@ -2752,7 +2752,7 @@ export function init() {
     // `sessionReady.then` it was spent only once the session was confirmed, so a designer who left
     // first carried it to a later ordinary load, which then asked out of nowhere. `currentUser` is
     // already the signed-in designer here: an in-place sign-in runs init() again with the new session.
-    initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});
+    initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});   // it fails open itself; this only stops an unhandled rejection
 
     // ============================================
     // BOOT

@@ -50,7 +50,7 @@ export function init() {
     reloadIfRestoredForSomeoneElse();
     // Tear down a lingering privileged Firebase identity whose local session has expired, so a
     // direct deep-link cannot keep an old credential live. Fire-and-forget, login-safe.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
     let currentSession = getSession();
     let currentUser    = currentSession?.name ?? null;
@@ -254,7 +254,7 @@ export function init() {
         // towards loads that went well.
         // The forced set-password step, as on every page that mounts the sign-in (v23.21). Fails open; never awaited; called
         // NOW, with the session as its barrier, so the sign-in's one-shot marker is spent as the page opens (password-force.js).
-        initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});
+        initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});   // the `.catch` only stops an unhandled rejection
         sessionReady.then(() => {
             initErrorReporter();
             recordUsage('overtime', currentUser);

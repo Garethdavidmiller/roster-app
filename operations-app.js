@@ -71,7 +71,7 @@ export function init() {
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => _opsBusy() || alSheetBusy()), isBusy: () => _opsBusy() || alSheetUnsaved() });
     // Tear down a privileged Firebase identity whose local session has expired, so a deep link cannot
     // keep an old credential live. Fire-and-forget and login-safe.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
     // ============================================
     // SESSION — read from localStorage (shared with admin-app.js via session.js)
     // ============================================

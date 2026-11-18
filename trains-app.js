@@ -129,7 +129,7 @@ export function init() {
         return;
     }
     // Tear down a lingering privileged Firebase identity whose local session has expired.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
     start(/** @type {string} */ (currentUser));
 }
 
@@ -217,7 +217,8 @@ function start(member) {
             recordPageLatency('trains', member);
         });
         // Called now, with the session as its barrier: a sign-in's one-shot marker is spent as the page opens,
-        // never only once the session is confirmed (password-force.js, "consume BEFORE any await").
+        // never only once the session is confirmed (password-force.js, "consume BEFORE any await"). It fails open by
+        // itself; the `.catch` only keeps an unexpected rejection from going unhandled.
         initPasswordForce(member, { ready: sessionReady }).catch(() => {});
         return;
     }

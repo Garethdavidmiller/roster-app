@@ -199,7 +199,7 @@ export function init() {
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
-    reconcileExpiredIdentity().catch(() => {});
+    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
     // ── Check session ─────────────────────────────────────────────────────────────
     // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these are refreshed
