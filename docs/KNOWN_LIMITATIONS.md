@@ -395,7 +395,7 @@ Safari's engine. The reproduction is in `ROADMAP_HISTORY.md`.
 >
 > | | |
 > |---|---|
-> | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% — `MAINTENANCE_CALENDAR.md` → Trigger points) |
+> | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% **and** on Track E — `MAINTENANCE_CALENDAR.md` → Trigger points) |
 
 ### The document FILES are protected by a bearer URL, not by auth
 `storage.rules` gates direct Storage SDK reads, but staff never read Huddles, Circulars or Newsletters
@@ -572,7 +572,7 @@ subsumes the targeted fix. The master admin account has its own password
 account can write only its own overrides, so its blast radius is one person's roster. Closing it
 needs no code — each manager opening Settings → Password — and Operations → Account status shows who
 has migrated; verify there rather than trusting this paragraph. The surname is not *retired* until
-Track C5 (≥90% migrated).
+Track C5 (≥90% migrated, and Track E — `SECURITY_RELEASE_PLAN.md`).
 
 **Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
 infrastructure — then confirm the admin and manager accounts have set their own passwords, and
@@ -645,8 +645,9 @@ read only to compare with the member's last reset (`sessionPredatesReset`).
 
 **What reads FROM this number, and gets further away as it grows:**
 - **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_DESIGN Track C) is driven
-  by sign-ins, so full coverage takes up to 60 days — the C5 exit metric converges at the session's
-  pace.
+  by sign-ins, so it takes up to 60 days to reach everybody who signs in — the C5 exit metric moves
+  at the session's pace, and never reaches a member who only opens the roster with the staff PIN
+  (Track E).
 - **Operations → Usage, "Accounts that have signed in — last 30 days"** counts sign-ins, not people:
   someone can sign in once and use the app daily for two months without re-entering the window. The
   card's note says "counts sign-ins, not opens", and the reasoning beside `_appendSignInSection`
@@ -1567,10 +1568,11 @@ not do, or cannot know:
 - **EVERY line rotates and must be filled.** In a rotating link everyone passes through every line,
   so an all-rest line is an *unfinished* line, not a vacancy — the link can't be authorised then
   re-cut each time a post is filled. The link is designed as a full rotation so it survives staff
-  changes; C. Reen's adjusted fixed shifts are handled as overrides on the base roster, not in this
-  designer. A Design-checks row and amber grid marker (`.row-unfilled`) flag any unfilled line until
-  it is designed. The auto-generator produces a complete rotation in one step, and "Start with a
-  blank grid" (`#linksEmptyNew`) and the importer (`links-import.js`) create a design without it.
+  changes; a member on fixed hours sits outside it, on a fixed pattern of their own
+  (`rosterType: 'fixed'`), not in this designer. A Design-checks row and amber grid marker
+  (`.row-unfilled`) flag any unfilled line until it is designed. The auto-generator produces a
+  complete rotation in one step, and "Start with a blank grid" (`#linksEmptyNew`) and the importer
+  (`links-import.js`) create a design without it.
 - **The rotation LENGTH is hardcoded by design.** `ROTATING_LINES` reflects the agreed link concept —
   deliberately not derived from roster data — and is declared once, in `links-design.js`, and
   imported. If the link concept changes, the constant changes with it. **Do not write the number down
@@ -1731,23 +1733,39 @@ narrow leaves noise you can see and complain about, too broad silently swallows 
 log looks healthy *because* it is broken. `error-reporter.test.mjs` pins each rule against the thing
 it must suppress AND the neighbouring real error it must not.
 
-## Error handling — silent catches audit
+## Error handling — the silent catches
 
-These silent catches are intentional. **Do not add new silent catches** — use
-`catch(e => console.warn('[tag] message:', e))` for fire-and-forget paths so failures
-appear in DevTools and the Operations Error Log.
+**A catch that does nothing is right only where its failure changes nothing a person needs to
+know.** The served code has a great many, and they come in a few kinds:
 
-### Intentional silent-catch patterns (correct)
+- **Best-effort extras** — telemetry (usage, latency, analytics, the Error Log's own writes and
+  pruning), a warm-up request, an early token refresh, a repaint. The app works the same without
+  them, and a failed log write cannot itself be logged.
+- **Browser storage refused** — `localStorage` and `sessionStorage` throw in private mode or when
+  full, and the page carries on as if nothing were stored.
+- **An optional platform call** — releasing a pointer, an install prompt the browser withdrew, a
+  focus or history call refused, a timing or media-query API that is not there.
+- **Reported elsewhere** — the function called shows or logs its own failure (the forced password
+  step, a member's roster load with its retry line, the sign-in attempt), so the catch only stops an
+  unhandled rejection.
+- **A barrier** — waiting for an earlier step to settle, whose failure is that step's business; the
+  check straight after it reads the real outcome.
+- **An answer that may not be there** — an error body that is not JSON, nothing cached: the catch
+  gives `null`, and the caller treats that as no answer.
+- **Clean-up** — unsubscribing, signing out or aborting something already gone.
+- **The service worker's cache and update checks** — a failed cache read or write falls back to the
+  network, and a failed update check leaves the running worker in place.
 
-| File | Location | Why silent is correct |
-|------|----------|-----------------------|
-| `nav-panel.js` | Circular / Newsletter fetch | The `.finally()` handler resets `_docFetching` and the `.catch()` renders "Couldn't connect" — the error is surfaced to the user; logging would be noise |
-| `operations-errors.js` | Clipboard copy in Error Log | `.catch()` shows '✗ Copy failed' inline — user-visible fallback; no logging needed |
-| `analytics-client.js` | `logClientError` call inside `error-reporter.js` | Logging a logging failure would recurse; the silent swallow is the correct terminal handler |
-| `firebase-client.js` | Firestore persistence setup chain | Persistence is best-effort; the fallback to the memory cache is the documented Firebase pattern (it logs a `console.warn`) |
-| `analytics-client.js` | `getClientErrors` resolved-record cleanup | Expired resolved records are pruned fire-and-forget; individual delete failures are inconsequential |
-| `paycalc-app.js` | Firebase session failure before `initErrorReporter` | Error reporter is not yet initialised at this point; the silent fallback is the only safe option |
-| `sw-register.js` | `registration.update()` calls (hourly interval, visibility-change, a bfcache restore) | SW update failures are not actionable — the existing SW stays active and the user experience is unaffected. Chrome also fires its own background update check that produces "Failed to update a ServiceWorker" unhandled rejections (suppressed by `shouldReport`); logging our own update attempts would add noise without benefit |
+**How to tell an intended one: its reason is written beside it** — usually inside the braces,
+`catch { /* storage unavailable */ }`, or in the comment just above. Most carry one; where one does
+not, the call it wraps usually shows the kind (a pointer release, a storage write, an error body read
+as JSON). **Give a new one its reason.** If none of these kinds fits, it is not a silent catch: log
+it (`console.warn('[tag] message:', e)`), and where a member has lost something — a save, a document
+they asked for — the screen says so.
+
+**`console.warn` reaches DevTools, not the Error Log.** The Operations Error Log records what
+escapes — an uncaught error or an unhandled rejection — and the slow-save notices
+(`error-reporter.js`), so a catch keeps a failure out of it whether it logs or not.
 
 ## Time-boxed maintenance (deadlines, not bugs)
 

@@ -1160,10 +1160,11 @@ the rule is held by hand, as is this file, which the test does not read.
   are kept, and every rule reads only lines 1…`ROTATING_LINES`, never the keys a design carries. Keep only
   the shortlist is the way to bin them.
 
-**C. Reen is NOT a special case**: the link is designed as a full rotation so it still works if she
-ever leaves, and her adjusted fixed shifts are applied as overrides on the base roster. The fixed-position
-model (`FIXED_POS`, `fixed-link-separator`, `fixed-cell`) and the vacant-placeholder model
-(`VACANT_FROM`) were both removed; do not add them back. Every row is a normal, editable, rotating row.
+**A member on fixed hours is NOT a special case**: they sit outside the rotation, on a fixed pattern of
+their own (`rosterType: 'fixed'`), so the link is designed as a full rotation that does not depend on any
+one person staying. The fixed-position model (`FIXED_POS`, `fixed-link-separator`, `fixed-cell`) and the
+vacant-placeholder model (`VACANT_FROM`) were both removed; do not add them back. Every row is a normal,
+editable, rotating row.
 
 ## Concurrency and load safety
 
