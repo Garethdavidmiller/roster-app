@@ -127,6 +127,45 @@ describe('the reporter stays quiet exactly where the filter says, and nowhere el
     });
 });
 
+describe("WebKit's IndexedDB teardown: Firebase Auth's poll is dropped, a failing Firestore cache is WRITTEN (18 Nov 2026)", () => {
+    // Both SDKs load from www.gstatic.com, and until 18 Nov 2026 the reporter handed the filter that
+    // bare ORIGIN, recovered from the stack — so Firestore's broken offline cache, which the
+    // Calendar's offline-first paint depends on, was dropped as Auth's harmless noise. An unhandled
+    // rejection names no file of its own; only its stack says which script threw, so these drive the
+    // real listener with the stack an iPhone sends (Safari's `fn@url:line:col` on every frame).
+    const AUTH = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+    const FIRESTORE = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
+    /** @param {string} message @param {string} url @param {string[]} fns */
+    const thrownIn = (message, url, fns) => {
+        const e = new Error(message);
+        e.stack = fns.map((f, i) => `${f}@${url}:1:${1000 + i}`).join('\n');
+        return e;
+    };
+
+    test("the Auth poll that meets a closing connection is NOT written", () => {
+        listeners.unhandledrejection({ reason: thrownIn(
+            "Failed to execute 'transaction' on 'IDBDatabase': The database connection is closing.",
+            AUTH, ['getObjectStore', '_withRetries', '_poll']) });
+        assert.deepEqual(writes, [], 'the noise the rule exists for is still kept out of the log');
+    });
+
+    test('the same loss inside Firestore\'s offline cache IS written', () => {
+        const message = "IndexedDB transaction 'Get last remote snapshot version' failed: "
+            + 'UnknownError: Connection to Indexed Database server lost. Refresh the page to try again';
+        listeners.unhandledrejection({ reason: thrownIn(message, FIRESTORE, ['runTransaction', 'getLastRemoteSnapshotVersion']) });
+        assert.deepEqual(writes.map(w => w.message), [message], 'a broken cache must reach the admin');
+        assert.match(writes[0].stack, /firebase-firestore\.js/);
+    });
+
+    test('and as uncaught throws: dropped from the Auth script by its source alone, written from Firestore', () => {
+        // A thrown value that is not an Error has no stack, so the source URL is all the filter has.
+        listeners.error({ error: null, message: 'An internal error was encountered in the Indexed Database server', filename: AUTH });
+        assert.deepEqual(writes, [], 'the Auth script, named by the source URL alone');
+        throwError(thrownIn('An internal error was encountered in the Indexed Database server (store)', FIRESTORE, ['getStore']), FIRESTORE);
+        assert.equal(writes.length, 1, 'the Firestore script, named by its source URL and its stack');
+    });
+});
+
 describe('a slow save while online is written as a DIAGNOSTIC that says how much of the wait was in the background (v25.87)', () => {
     test('in the background, on screen throughout, and not measured — each worded, end to end', () => {
         // An installed iPhone app reported 81.8s to confirm, online, its token in 0.0s, and could not

@@ -19,6 +19,7 @@ import { shouldReport } from './client-errors.js';
 
 const HOST = 'myb-roster.web.app';
 const SDK  = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+const FIRESTORE = 'https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js';
 const OWN  = 'https://myb-roster.web.app/calendar-app.js';
 
 /** @param {string} msg @param {string} [src] */
@@ -120,20 +121,34 @@ describe("WebKit's IndexedDB teardown (v19.20 — reported from an iPhone on 19.
         'Connection to Indexed Database server lost. Refresh the page to try again',
         'An internal error was encountered in the Indexed Database server',
     ];
+    /** A Safari stack — `fn@url:line:col` on every frame, the shape the iPhone report carried. */
+    const stackIn = (/** @type {string} */ url) => `getObjectStore@${url}:1:2345\n_withRetries@${url}:1:6789`;
+    /** An unhandled rejection's `src`: the page's path, never a script. */
+    const PAGE = '/roster-app/index.html';
 
     for (const msg of TEARDOWN) {
-        test(`dropped when it comes from the SDK — ${msg.slice(0, 40)}…`, () => {
-            assert.equal(reports(msg, SDK), false);
+        test(`dropped when it comes from Firebase Auth's script — ${msg.slice(0, 40)}…`, () => {
+            assert.equal(reports(msg, SDK), false, 'an uncaught throw, whose source URL is the Auth script');
+            assert.equal(shouldReport(msg, PAGE, HOST, stackIn(SDK)), false,
+                'an unhandled rejection, which names the script only in its stack — the reported shape');
         });
 
-        test(`KEPT when it comes from our OWN code — ${msg.slice(0, 40)}…`, () => {
-            // Same phrase from our own origin means the FIRESTORE persistent cache is failing,
-            // which is a real fault: the calendar's offline-first paint depends on it. Scoping the
-            // filter to the SDK origin is the whole difference between suppressing noise and
-            // going blind to a broken cache.
-            assert.equal(reports(msg, OWN), true);
+        test(`KEPT when it comes from Firestore's offline cache — ${msg.slice(0, 40)}…`, () => {
+            // The same phrases from FIRESTORE mean its persistent cache is failing, which is a real
+            // fault: the Calendar's offline-first paint depends on it. Both SDKs load from
+            // www.gstatic.com, so a rule keyed to the ORIGIN cannot tell them apart — and until
+            // 18 Nov 2026 it dropped these, while this test claimed the failure would come from "our
+            // own origin" and still log. The app's own code never touches IndexedDB, so a failing
+            // cache always arrives from the Firestore script, as below.
+            assert.equal(reports(msg, FIRESTORE), true, 'an uncaught throw from the Firestore script');
+            assert.equal(shouldReport(msg, PAGE, HOST, stackIn(FIRESTORE)), true,
+                'an unhandled rejection from inside Firestore');
         });
     }
+
+    test('a teardown phrase that names no script at all is kept — the filter never guesses', () => {
+        assert.equal(shouldReport(TEARDOWN[1], PAGE, HOST, ''), true);
+    });
 
     test('an unrelated IndexedDB error from the SDK is still kept', () => {
         // The filter matches exact teardown phrases, never a loose substring — a quota failure or a
