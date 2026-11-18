@@ -404,6 +404,14 @@ const CAPS = {
     // 1300 → 1250 (16 Nov 2026, at 1,299): comments that had become a changelog cut to their reasons — the header's
     // four rules and their measurements kept — 1,299 lines down to 1,153.
     'nav-panel.js':            1250,
+    // overlay.js crossed 900 on 18 Nov 2026, 892 → 953: `followLinkOutOf`, the rule for a link that leaves the page
+    // from inside an open lightbox, and the argument for it. One subject (the overlay layer's history), and the rule
+    // needs the PRIVATE handler stack, so it cannot leave without exporting that; it is held without a DOM in
+    // overlay-history.test.mjs. 953 measured, plus 50, to the next 50.
+    'overlay.js':              1050,
+    // settings-app.js crossed 900 on 18 Nov 2026, 900 → 908: the Work Email card's slow-load branch now marks the card
+    // saved as an ordinary load does. Wiring, not a rule. 908 measured, plus 50, to the next 50.
+    'settings-app.js':         1000,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
