@@ -200,6 +200,24 @@ test('settings: a saved work email says so before it offers to remove it', async
     expect(f.y + f.height, 'the confirmation must sit above the Remove action').toBeLessThanOrEqual(r.y);
 });
 
+// TYPED BEFORE THE SAVED ADDRESS LOADED (18 Nov 2026). On a slow first read the card keeps what the member has typed,
+// and it told the summary "✓ Saved" — but left Remove hidden and the subtitle asking for an email, so a member with
+// an address saved could neither see which one it was nor remove it.
+test('settings: an email typed before the saved one loads is kept — and the card still names the saved one and offers Remove', async ({ page }) => {
+    await page.addInitScript(() => { (globalThis.__E2E || (globalThis.__E2E = {})).getDocHold = true; });
+    await openSettings(page, { configured: true, noPush: true });
+    await expect.poll(() => page.evaluate(() => typeof /** @type {any} */ (window).__E2E?.releaseGetDoc),
+        { message: 'premise: the saved email is still being read' }).toBe('function');
+    if (!(await cardOpen(page, 'contactBody'))) await page.locator('#contactChevron').click();
+    await page.locator('#workEmailInput').fill('q.example');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseGetDoc());
+    await expect(page.locator('#contactStatusChip')).toHaveText('✓ Saved');
+    await expect(page.locator('#workEmailInput'), 'what the member typed is kept').toHaveValue('q.example');
+    await expect(page.locator('#contactFeedback'), 'no "✓ Saved" for a Save they have not pressed').toHaveText('');
+    await expect(page.locator('#contactHint'), 'the collapsed card names the address that IS saved').toHaveText('g.miller@chilternrailways.co.uk');
+    await expect(page.locator('#workEmailRemoveBtn'), 'and the saved address can be removed').toBeVisible();
+});
+
 for (const [label, missingId, chipId, noPush, forcePush] of [
     // `noPush` false for notifications ON PURPOSE: with push unsupported the card answers 'n/a' at
     // the SUPPORT check and never reaches the markup guard, so the test would pass without

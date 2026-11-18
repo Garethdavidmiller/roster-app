@@ -440,6 +440,12 @@ export function init() {
         function showSavedState(/** @type {any} */ dateStr, /** @type {string} */ fullEmail) {
             userSaved = true;
             setFeedback(dateStr ? `✓ Saved — last updated ${dateStr}` : '✓ Saved', 'ok');
+            markSaved(fullEmail);
+        }
+
+        /** An address IS saved: the card offers to remove it, its subtitle names it, and the summary counts it done.
+         *  @param {string} fullEmail */
+        function markSaved(fullEmail) {
             if (removeBtn) removeBtn.style.display = '';
             if (hintEl && fullEmail) hintEl.textContent = fullEmail;
             reportSetting('work-email', 'ok', '✓ Saved');
@@ -463,10 +469,12 @@ export function init() {
                 emailInput.value = workEmailLocalPart(data.workEmail);
                 showSavedState(formatDate(data.updatedAt), data.workEmail);
             } else if (data?.workEmail && userHasTyped) {
-                // User started typing before the load finished — keep their input,
-                // just clear the loading message.
+                // User started typing before the load finished — keep their input, and clear the loading message
+                // without a "✓ Saved" that would answer a Save they have not pressed. But an address IS saved, so the
+                // card says which and offers Remove (18 Nov 2026): it told the summary "✓ Saved" and left the
+                // subtitle asking for an email and Remove hidden.
                 setFeedback('', '');
-                reportSetting('work-email', 'ok', '✓ Saved');
+                markSaved(data.workEmail);
             } else {
                 clearSavedState();
             }
