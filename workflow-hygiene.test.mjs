@@ -475,7 +475,8 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
     });
 
     test('every job is gated on the guard — including one added later', () => {
-        const ungated = jobs.filter(n => n !== 'guard' && !/^ {4}needs: guard[ \t]*$/m.test(blockOf(n)));
+        // `needs: guard`, or a list that starts with it (`tested` also waits for the jobs it vouches for).
+        const ungated = jobs.filter(n => n !== 'guard' && !/^ {4}needs: (?:guard|\[guard(?:, [\w-]+)*\])[ \t]*$/m.test(blockOf(n)));
         assert.deepEqual(ungated, [],
             `e2e.yml job(s) ${ungated.join(', ')} do not declare 'needs: guard', so they run on a `
             + 'commit that is already on main. Add the needs + if pair used by every sibling job.');
@@ -517,6 +518,56 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
             'nothing may set skip=true before the compare has been read');
     });
 
+    test('a documentation-only pull request skips the browser jobs, and nothing else', () => {
+        // 17 Nov 2026 (the guard's comment has the account). Two ways this goes wrong silently: a job
+        // that starts a browser and forgets the condition runs for nothing, and one that does NOT start
+        // a browser and takes it on stops running the documentation's own tests on a docs-only PR.
+        const startsBrowser = (/** @type {string} */ name) => /install-browser-deps|npm run test:(?:e2e|webkit|csp|signed-in|visual)/.test(blockOf(name));
+        for (const name of jobs.filter(n => n !== 'guard')) {
+            const gate = /^ {4}if: (.+)$/m.exec(blockOf(name))?.[1] ?? '';
+            if (startsBrowser(name)) {
+                assert.match(gate, /needs\.guard\.outputs\.browsers\s*!=\s*'false'/,
+                    `${name} starts a browser but does not stand aside for a documentation-only PR. It must ask `
+                    + "`needs.guard.outputs.browsers != 'false'` — never `== 'true'`, which skips it whenever the guard cannot answer.");
+            } else {
+                assert.doesNotMatch(gate, /outputs\.browsers/,
+                    `${name} starts no browser, yet skips on a documentation-only PR: the documentation's own tests live in jobs like this one.`);
+            }
+        }
+    });
+
+    test('the guard answers `browsers` for pull requests only, and only `true` when it cannot read the PR', () => {
+        const step = blockOf('guard').slice(blockOf('guard').indexOf('- id: docs'));
+        const script = step.slice(0, step.indexOf('- id: check') === -1 ? undefined : step.indexOf('- id: check'));
+        assert.ok(script.indexOf('browsers=true') !== -1 && script.indexOf('browsers=true') < script.indexOf('browsers=false'),
+            'the docs step must start from browsers=true, so every path it does not finish runs the browsers');
+        assert.match(script, /if \[ "\$EVENT" = "pull_request" \]/,
+            'only a pull request may skip the browsers: a push of documentation starts no run at all (paths-ignore)');
+        assert.match(script, /grep -v -E '\\\.md\$'/, 'the docs step must find every changed file that is not a .md');
+        assert.match(script, /"\$count" -lt 3000/,
+            'the files endpoint stops at 3,000 files, so a PR at that ceiling may hide a file that is not documentation');
+        assert.match(script, /\|\| true\)/, 'grep finding nothing exits 1, which would end the step under bash -e');
+    });
+
+    test('every .md file a browser test reads is one the docs-only check refuses to skip', () => {
+        // A spec that reads a document (guides.spec.js reads GUIDE_SOURCES.md) makes that document a
+        // test input: a PR changing only it can fail in a browser and nowhere else.
+        const listed = (/E2E_MD_READS: (.+)$/m.exec(blockOf('guard'))?.[1] ?? '').trim().split(/\s+/).filter(Boolean);
+        /** @param {string} dir @returns {string[]} */
+        const specs = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+            d.isDirectory() ? specs(join(dir, d.name)) : /\.(?:m?js)$/.test(d.name) ? [join(dir, d.name)] : []);
+        const read = new Set();
+        for (const f of specs('e2e')) {
+            const src = readFileSync(f, 'utf8').split('\n').filter(l => !/^\s*(?:\/\/|\*)/.test(l)).join('\n');
+            for (const m of src.matchAll(/['"`](?:\.\.\/)+((?:[\w.-]+\/)*[\w.-]+\.md)['"`]/g)) read.add(m[1]);
+        }
+        assert.ok(read.size >= 1, 'expected at least guides.spec.js\'s GUIDE_SOURCES.md; the scan found nothing');
+        const missing = [...read].filter(f => !listed.includes(f));
+        assert.deepEqual(missing, [],
+            `browser tests read ${missing.join(', ')}, which E2E_MD_READS in the guard does not list: a PR changing only `
+            + 'that document would skip the very tests that read it.');
+    });
+
     test('the guard is cheap enough to sit on the critical path', () => {
         // It runs before all seven siblings, so a checkout or an npm install here would be paid by
         // every real run to catch the rare redundant one. One API call, no repository.
@@ -545,6 +596,55 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
 // job's is, and so did the two ways to lose tests without anything going red: a project missing, or
 // one shard of one. And the PR lane and the gate must run the SAME list the same way, or a PR goes
 // green on a suite cut differently from the one that decides the release.
+// ── EACH SHARD LIST CARRIES WHERE ITS CUTS FALL (17 Nov 2026) ────────────────────────────────────
+//
+// Playwright cuts a project into shards of equal COUNT, in file order, and the heavy files sit
+// together, so one shard ran twice as long as its siblings. Every entry now carries `weights`, which
+// Playwright reads as PWTEST_SHARD_WEIGHTS to place the cuts by measured time (e2e.yml's smoke job has
+// the account). An entry in any other shape is returned as `malformed`, never dropped: a parser that
+// skipped what it could not read would make every check below pass on a list it had not seen.
+/**
+ * Every "- { project, shard, shards, weights }" matrix entry in a job block.
+ * @param {string} block
+ * @returns {Array<{ project: string, shard: number, shards: number, weights: string } | { malformed: string }>}
+ */
+function parseShardEntries(block) {
+    return block.split('\n').filter(l => /^\s+- \{ project:/.test(l)).map(l => {
+        const m = /^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+), weights: '(\d+(?::\d+)*)' \}\s*$/.exec(l);
+        return m ? { project: m[1], shard: Number(m[2]), shards: Number(m[3]), weights: m[4] } : { malformed: l.trim() };
+    });
+}
+
+/**
+ * The weight checks every shard list owes, whichever job it is in.
+ * @param {string} label
+ * @param {ReturnType<typeof parseShardEntries>} entries
+ */
+function weightTests(label, entries) {
+    test('every entry parsed, weights included', () => {
+        const bad = entries.filter(e => 'malformed' in e).map(e => /** @type {{ malformed: string }} */ (e).malformed);
+        assert.deepEqual(bad, [],
+            `${label}: entries not in the form "- { project: …, shard: …, shards: …, weights: '…' }". `
+            + 'An entry these checks cannot read is one they cannot hold to the config either.');
+    });
+
+    test('each project names one set of weights, one weight per shard, none zero', () => {
+        const good = /** @type {Array<{ project: string, shards: number, weights: string }>} */ (entries.filter(e => !('malformed' in e)));
+        for (const project of new Set(good.map(e => e.project))) {
+            const mine = good.filter(e => e.project === project);
+            const sets = [...new Set(mine.map(e => e.weights))];
+            assert.equal(sets.length, 1,
+                `${label}, ${project}: its entries disagree on the weights (${sets.join(' / ')}). Each job hands Playwright `
+                + 'its own copy, so two copies place the cuts in two places, and the tests between them run twice or never.');
+            const w = sets[0].split(':').map(Number);
+            assert.equal(w.length, mine[0].shards,
+                `${label}, ${project}: ${w.length} weights for ${mine[0].shards} shards. Playwright refuses the run when they differ.`);
+            assert.ok(w.every(n => n > 0),
+                `${label}, ${project}: a weight of 0 gives its shard no tests, and that job goes green having run nothing.`);
+        }
+    });
+}
+
 /** The smoke job's block in a workflow file, its matrix entries and its test command. */
 function smokeJob(/** @type {string} */ file) {
     const src = readFileSync(join(WF_DIR, file), 'utf8');
@@ -553,8 +653,7 @@ function smokeJob(/** @type {string} */ file) {
     const rest = body.slice(start + 1);
     const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
     const block = next === -1 ? rest : rest.slice(0, next);
-    const entries = [...block.matchAll(/^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+) \}\s*$/gm)]
-        .map(m => ({ project: m[1], shard: Number(m[2]), shards: Number(m[3]) }));
+    const entries = parseShardEntries(block);
     const command = /^\s*run:\s*(npm run test:e2e\b.*)$/m.exec(block)?.[1]?.trim() ?? null;
     return { start, block, entries, command };
 }
@@ -566,6 +665,8 @@ for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
         const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
         const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
             .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+
+        weightTests(file, entries);
 
         test('both lists actually parsed', () => {
             assert.ok(start !== -1, `no smoke job in ${file}`);
@@ -598,6 +699,8 @@ for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
                 'each job must pass its project and its shard to Playwright, read from the entry, or jobs run the same tests twice');
             assert.match(smoke, /^\s+fail-fast:\s*false\s*$/m,
                 'with fail-fast on, one red shard cancels the others, and their reports are lost');
+            assert.match(smoke, /^\s+PWTEST_SHARD_WEIGHTS: \$\{\{ matrix\.weights \}\}\s*$/m,
+                'the test step must hand Playwright the entry\'s weights as PWTEST_SHARD_WEIGHTS, or the cuts fall by count again');
         });
 
         test('each shard uploads its report under its own name', () => {
@@ -609,11 +712,31 @@ for (const file of ['e2e.yml', 'deploy-hosting.yml']) {
     });
 }
 
+// The variable is Playwright's own but not in its documentation, so an upgrade could drop it, and
+// nothing would fail: the cuts would quietly fall by count again. This fails instead. It reads the
+// INSTALLED Playwright, so it runs where the dependencies are (the unit lane) and stands aside where
+// they are not (the no-install lane, which has nothing to read).
+const PW_LIB = 'node_modules/playwright/lib';
+let pwInstalled = false;
+try { pwInstalled = readdirSync(PW_LIB).length > 0; } catch { /* not installed here */ }
+test('the installed Playwright still reads PWTEST_SHARD_WEIGHTS', { skip: !pwInstalled && 'Playwright is not installed here' }, () => {
+    /** @param {string} dir @returns {string[]} */
+    const files = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap(d =>
+        d.isDirectory() ? files(join(dir, d.name)) : d.name.endsWith('.js') ? [join(dir, d.name)] : []);
+    const readers = files(PW_LIB).filter(f => readFileSync(f, 'utf8').includes('process.env.PWTEST_SHARD_WEIGHTS'));
+    assert.ok(readers.length > 0,
+        'this Playwright no longer reads PWTEST_SHARD_WEIGHTS, so every shard list\'s `weights` is ignored and the '
+        + 'cuts fall by count again: the first shard of each project takes the heavy files and runs about twice as '
+        + 'long as its siblings. Find what the new version offers for weighting shards, or drop the weights and '
+        + 're-measure the shard counts (e2e.yml\'s smoke job).');
+});
+
 describe('the PR lane runs the Chromium suite exactly as the Hosting deploy\'s gate does', () => {
     const pr = smokeJob('e2e.yml'), gate = smokeJob('deploy-hosting.yml');
 
     test('the same shards of the same projects, and the same command', () => {
-        const key = (/** @type {{ project: string, shard: number, shards: number }} */ e) => `${e.project} ${e.shard}/${e.shards}`;
+        // The weights too: the same shard numbers cut in different places are different tests.
+        const key = (/** @type {any} */ e) => `${e.project} ${e.shard}/${e.shards} ${e.weights}`;
         assert.deepEqual(pr.entries.map(key).sort(), gate.entries.map(key).sort(),
             'e2e.yml and deploy-hosting.yml cut the suite differently: a PR can pass a shard the release gate never runs');
         assert.ok(pr.command, 'no npm run test:e2e command found in e2e.yml\'s smoke job');
@@ -708,12 +831,24 @@ for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
                 `deploy does not wait for ${missing.join(', ')}, so a release would go out whatever that job found`);
         });
 
-        test('the deploy names no status function, so a gate job that is not green stops it', () => {
-            // GitHub adds `success()` only to an `if:` without a status function. With `always()`,
-            // `!cancelled()` or `failure()` in it, the deploy would run after a red or cancelled gate job.
+        test('the deploy runs only past a green gate (or, for Hosting, a tree already proven green)', () => {
             const cond = /^ {4}if:[ \t]*(.*?)[ \t]*$/m.exec(jobs.get('deploy') ?? '')?.[1];
-            assert.equal(cond, "github.ref == 'refs/heads/main'",
-                `deploy's condition is ${cond}: anything beyond the main-only check can let it run past the gate`);
+            if (file !== 'deploy-hosting.yml') {
+                // GitHub adds `success()` only to an `if:` without a status function. With `always()`,
+                // `!cancelled()` or `failure()` in it, the deploy would run after a red or cancelled gate job.
+                assert.equal(cond, "github.ref == 'refs/heads/main'",
+                    `deploy's condition is ${cond}: anything beyond the main-only check can let it run past the gate`);
+                return;
+            }
+            // Hosting names every gate job's result (17 Nov 2026): it must also run when they stood aside
+            // for a proven tree, which the implicit success() would refuse. So the condition is written
+            // out, built here from the gate list read from the file: a gate job added later and left out
+            // of it would be one the deploy no longer waits to see succeed.
+            const green = gate.filter(n => n !== 'tested').map(n => `needs.${n}.result == 'success'`).join(' && ');
+            assert.equal(cond,
+                `\${{ !cancelled() && github.ref == 'refs/heads/main' && ((needs.tested.result == 'success' && needs.tested.outputs.tested == 'true') || (${green})) }}`,
+                'deploy-hosting.yml\'s deploy must run only from main, never on a cancelled run, and only when every gate job '
+                + 'succeeded or `tested` proved the tree. Anything looser lets a red, skipped or cancelled gate job through.');
         });
 
         test('the failure reporter waits for every gate job as well as the deploy', () => {
@@ -731,7 +866,11 @@ for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
         });
 
         test('every gate job runs only from main', () => {
-            const open = gate.filter(n => !/^ {4}if: github\.ref == 'refs\/heads\/main'[ \t]*$/m.test(jobs.get(n) ?? ''));
+            // Hosting's test jobs also stand aside for a proven tree, and run when `tested` itself failed:
+            // `!cancelled()` and `!= 'true'`, so a broken `tested` costs a full gate, never a skipped one.
+            const aside = /^ {4}if: \$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main' && needs\.tested\.outputs\.tested != 'true' \}\}[ \t]*$/m;
+            const plain = /^ {4}if: github\.ref == 'refs\/heads\/main'[ \t]*$/m;
+            const open = gate.filter(n => !(file === 'deploy-hosting.yml' && n !== 'tested' ? aside : plain).test(jobs.get(n) ?? ''));
             assert.deepEqual(open, [],
                 `${open.join(', ')} would run on a run started from a branch, which deploys nothing (not-main says why)`);
         });
@@ -771,6 +910,78 @@ for (const [file, wantGate] of /** @type {[string, string[]][]} */ ([
         });
     });
 }
+
+// ── THE HOSTING DEPLOY SKIPS ONLY WHAT THE PR LANE PROVED, ON THE SAME TREE (17 Nov 2026) ─────────
+//
+// deploy-hosting.yml's `tested` job lets the gate jobs stand aside when e2e.yml's `tested` job has
+// recorded the tree main now holds (both comments have the account). That is a release gate given a
+// way round itself, so every link in it is pinned: the record is made only after the PR lane's
+// counterparts of ALL FOUR gate jobs succeeded, the counterparts run the same commands, the deploy
+// looks for exactly the name the PR lane writes, and it believes only e2e.yml in this repository.
+describe('the Hosting deploy skips only what the PR lane proved, on the same tree', () => {
+    const hosting = deployWorkflow('deploy-hosting.yml');
+    const e2eSrc = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    const e2eBody = e2eSrc.slice(e2eSrc.search(/^jobs:/m));
+    /** @param {string} name */
+    const e2eJob = (name) => {
+        const start = e2eBody.search(new RegExp(`^ {2}${name}:[ \\t]*$`, 'm'));
+        if (start === -1) return '';
+        const rest = e2eBody.slice(start + 1);
+        const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+        return (next === -1 ? rest : rest.slice(0, next)).split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+    };
+    // Hosting's gate job → the PR lane's job that runs the same thing.
+    const COUNTERPART = { check: 'unit', smoke: 'smoke', csp: 'csp', 'signed-in': 'signed-in' };
+    const hostingTests = hosting.gate.filter(n => n !== 'tested');
+
+    test('every Hosting gate job has a counterpart in the PR lane', () => {
+        assert.deepEqual([...hostingTests].sort(), Object.keys(COUNTERPART).sort(),
+            `deploy-hosting.yml's gate is ${hostingTests.join(', ')}. A gate job with no counterpart here would be skipped `
+            + 'on a proof that never ran it: give it one in e2e.yml, make `tested` there wait for it, and add it to this map.');
+    });
+
+    test('the PR lane records a tree only after all four counterparts succeeded', () => {
+        const job = e2eJob('tested');
+        assert.ok(job, 'e2e.yml has no tested job, so the Hosting deploy can never reuse a run (harmless), or this test is stale');
+        const needs = (/^ {4}needs: \[([^\]]*)\]/m.exec(job)?.[1] ?? '').split(',').map(x => x.trim());
+        for (const n of Object.values(COUNTERPART)) {
+            assert.ok(needs.includes(n), `e2e.yml's tested job does not wait for ${n}`);
+            assert.match(job, new RegExp(`needs\\.${n.replace('-', '\\-')}\\.result == 'success'`),
+                `e2e.yml's tested job does not require ${n} to have SUCCEEDED; with !cancelled() it would record a tree after ${n} failed`);
+        }
+        assert.match(job, /name: tested-tree-\$\{\{ steps\.tree\.outputs\.tree \}\}/,
+            'the record must be named after the tree the jobs checked out');
+    });
+
+    test('each counterpart runs what the Hosting gate job runs', () => {
+        const cmd = (/** @type {string} */ block, /** @type {RegExp} */ re) => re.exec(block)?.[0] ?? null;
+        assert.ok(cmd(hosting.jobs.get('check') ?? '', /npm run check\b/) && cmd(e2eJob('unit'), /npm run check\b/),
+            'Hosting\'s check and the PR lane\'s unit must both run `npm run check`');
+        assert.ok(/npm run test:csp\b/.test(hosting.jobs.get('csp') ?? '') && /npm run test:csp\b/.test(e2eJob('csp')),
+            'both csp jobs must run `npm run test:csp`');
+        // The PR lane runs both phones; the gate runs Android only. The PR lane must not narrow to less.
+        const prSignedIn = /run: (npm run test:signed-in.*)$/m.exec(e2eJob('signed-in'))?.[1] ?? '';
+        assert.ok(prSignedIn && (!/--project/.test(prSignedIn) || /--project=mobile-chrome\b/.test(prSignedIn)),
+            `the PR lane runs \`${prSignedIn}\`, which does not cover the Android Chrome journeys the Hosting gate runs`);
+        // smoke: the shard lists and the command are held equal by the PR-lane-vs-gate test above.
+    });
+
+    test('the deploy believes only e2e.yml in this repository, only on a push, and starts from "not tested"', () => {
+        const job = hosting.jobs.get('tested') ?? '';
+        assert.ok(job, 'deploy-hosting.yml has no tested job');
+        const at = (/** @type {string} */ t) => job.indexOf(t);
+        assert.ok(at('tested=false') !== -1 && at('tested=false') < at('tested=true'),
+            'the job must start from tested=false, so every path it does not finish runs the full gate');
+        assert.match(job, /"\$EVENT" = "push"/, 'only a push may reuse a proof: a run started by hand runs the whole gate');
+        assert.match(job, /actions\/artifacts\?name=tested-tree-\$tree&/,
+            'the deploy must look for exactly the name e2e.yml\'s tested job writes');
+        assert.match(job, /select\(\.expired == false\)/, 'an expired record has no file and proves nothing');
+        assert.match(job, /\[ "\$made" = "\.github\/workflows\/e2e\.yml \$REPO" \]/,
+            'a record counts only if e2e.yml made it, in this repository: a fork\'s pull request runs here too, and can '
+            + 'upload an artifact under any name');
+        assert.doesNotMatch(job, /actions\/checkout@/, 'the proof check needs no checkout');
+    });
+});
 
 // ── NO WORKFLOW HANDS A GOOGLE SIGN-IN TO EVERY JOB (17 Nov 2026) ────────────────────────────────────
 //
@@ -815,13 +1026,14 @@ describe('the WebKit lane runs every project, and every shard of each', () => {
     const rest = body.slice(start + 1);
     const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
     const job = next === -1 ? rest : rest.slice(0, next);
-    const entries = [...job.matchAll(/^\s+- \{ project: ([\w-]+), shard: (\d+), shards: (\d+) \}\s*$/gm)]
-        .map(m => ({ project: m[1], shard: Number(m[2]), shards: Number(m[3]) }));
+    const entries = parseShardEntries(job);
 
     const cfg = readFileSync('playwright.webkit.mjs', 'utf8');
     const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
     const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
         .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+
+    weightTests('e2e.yml webkit', entries);
 
     test('both lists actually parsed', () => {
         assert.ok(start !== -1, 'no webkit job in e2e.yml');
@@ -855,6 +1067,8 @@ describe('the WebKit lane runs every project, and every shard of each', () => {
             'the command must read the shard count from the entry, or it disagrees with the number of jobs');
         assert.match(job, /^\s+fail-fast:\s*false\s*$/m,
             'with fail-fast on, one red shard cancels the others, and their reports are lost');
+        assert.match(job, /^\s+PWTEST_SHARD_WEIGHTS: \$\{\{ matrix\.weights \}\}\s*$/m,
+            'the test step must hand Playwright the entry\'s weights as PWTEST_SHARD_WEIGHTS, or the cuts fall by count again');
         assert.match(job, /name: playwright-report-webkit-\$\{\{ matrix\.project \}\}-shard\$\{\{ matrix\.shard \}\}/,
             'the report artifact must carry the project and the shard, or two jobs collide');
     });

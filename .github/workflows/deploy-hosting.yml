@@ -108,6 +108,7 @@ jobs:
   # own, side by side, as e2e.yml's pull-request checks have since 3 Nov 2026, where the same two
   # halves took 16 to 18 minutes each on 10 Nov 2026:
   #
+  #     tested ─► (each gate job below stands aside when it proves the tree; its comment says how)
   #     check ──────────────────────────┐
   #     smoke (chromium, 1/3 … 3/3) ────┤
   #     smoke (mobile-chrome, 1/3 … 3/3) ┼──► deploy ──► the Pages mirror (deploy-mirror.yml)
@@ -116,9 +117,10 @@ jobs:
   #
   # A release now waits for the slowest job instead of the sum. Three things keep it the same gate,
   # and workflow-hygiene.test.mjs holds each one:
-  #   1. `deploy` NEEDS EVERY GATE JOB, and its `if:` names no status function, so GitHub adds
-  #      `success()`: one gate job red, cancelled or skipped, and nothing is uploaded. Needing
-  #      `smoke` waits for every shard of it.
+  #   1. `deploy` NEEDS EVERY GATE JOB, and its `if:` lets it run only when every one of them
+  #      SUCCEEDED, or when `tested` (below) found this exact tree already passed the same gate on a
+  #      pull request: one gate job red, cancelled or skipped without that, and nothing is uploaded.
+  #      Needing `smoke` waits for every shard of it.
   #   2. THE SMOKE LIST NAMES EXACTLY playwright.config.mjs's PROJECTS, AND EVERY SHARD OF EACH, and
   #      it is e2e.yml's list. `npm run test:e2e` read the project list for itself; a project or a
   #      shard now missing would never gate a release, and a list that differed from the PR lane's
@@ -135,8 +137,66 @@ jobs:
   # read-only token and keep it off the disk. deploy-functions.yml and deploy-rules.yml have the same
   # shape, and the first of them records what was measured to show firebase-tools works without its
   # dependencies' install scripts. Every job runs only from main, for the reason given on `deploy`.
-  check:
+  #
+  # ── A TREE THE PULL REQUEST ALREADY TESTED IS NOT TESTED AGAIN (17 Nov 2026) ──────────────────
+  #
+  # `main` squash-merges, and a pull request whose branch is up to date with main merges into
+  # EXACTLY the tree its last Tests run checked out: same files, byte for byte, so the same tree
+  # hash. Running check, smoke, csp and signed-in again on it repeated about ten minutes of work
+  # whose answer was already known, on every release.
+  #
+  # e2e.yml's `tested` job records the tree of every run whose `unit`, `smoke`, `csp` and
+  # `signed-in` all SUCCEEDED, as an artifact named after the tree (tested-tree-<hash>, kept 7
+  # days). Those are this gate's four jobs, run there the same way (workflow-hygiene.test.mjs holds
+  # the shard lists equal; e2e.yml's `signed-in` runs this one's Android half and the iPhone too).
+  # `tested` here asks whether main's new tree has such a record. If it has, the four gate jobs
+  # stand aside and the deploy goes ahead on that proof; if it has not — main moved after the PR's
+  # run, a branch was behind, a run was red, the record expired, the API did not answer — they run
+  # exactly as before. It can only ever SKIP work on a tree already proven, never pass one that
+  # was not.
+  #
+  # WHAT COUNTS AS PROOF. Only a record made by .github/workflows/e2e.yml, in a run of THIS
+  # repository (a fork's pull request runs here too, and could upload an artifact by any name it
+  # liked). A push only: a run started by hand runs the whole gate, because whoever starts one is
+  # usually asking for exactly that.
+  tested:
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read     # lists artifacts, and reads the run that made one
+    outputs:
+      tested: ${{ steps.find.outputs.tested }}
+    steps:
+      - id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          tested=false
+          tree=$(gh api "repos/$REPO/git/commits/$SHA" --jq .tree.sha 2>/dev/null || true)
+          if [ "$EVENT" = "push" ] && printf '%s' "$tree" | grep -qxE '[0-9a-f]{40}'; then
+            echo "main's tree is $tree"
+            runs=$(gh api "repos/$REPO/actions/artifacts?name=tested-tree-$tree&per_page=100" \
+              --jq '.artifacts[] | select(.expired == false) | .workflow_run.id' 2>/dev/null || true)
+            for run in $runs; do
+              made=$(gh api "repos/$REPO/actions/runs/$run" --jq '.path + " " + .head_repository.full_name' 2>/dev/null || true)
+              if [ "$made" = ".github/workflows/e2e.yml $REPO" ]; then
+                echo "run $run of e2e.yml passed this gate's jobs on this exact tree — they stand aside"
+                tested=true
+                break
+              fi
+            done
+          fi
+          if [ "$tested" != true ]; then echo "no proof for this tree — the gate runs in full"; fi
+          echo "tested=$tested" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: tested
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-latest
     # The same command, setup and limit as e2e.yml's `unit` job (1.6 minutes on 10 Nov 2026).
     timeout-minutes: 10
@@ -172,7 +232,8 @@ jobs:
           npm run check
 
   smoke:
-    if: github.ref == 'refs/heads/main'
+    needs: tested
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.tested.outputs.tested != 'true' }}
     # ubuntu-24.04, not -latest: the visual baselines are drawn on 24.04 (e2e.yml's smoke job says why)
     runs-on: ubuntu-24.04
     # Each project in three shards, as in e2e.yml's smoke job, which has the account and the
@@ -186,12 +247,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: chromium, shard: 1, shards: 3 }
-          - { project: chromium, shard: 2, shards: 3 }
-          - { project: chromium, shard: 3, shards: 3 }
-          - { project: mobile-chrome, shard: 1, shards: 3 }
-          - { project: mobile-chrome, shard: 2, shards: 3 }
-          - { project: mobile-chrome, shard: 3, shards: 3 }
+          - { project: chromium, shard: 1, shards: 3, weights: '341:599:835' }
+          - { project: chromium, shard: 2, shards: 3, weights: '341:599:835' }
+          - { project: chromium, shard: 3, shards: 3, weights: '341:599:835' }
+          - { project: mobile-chrome, shard: 1, shards: 3, weights: '466:506:803' }
+          - { project: mobile-chrome, shard: 2, shards: 3, weights: '466:506:803' }
+          - { project: mobile-chrome, shard: 3, shards: 3, weights: '466:506:803' }
     # THE LIMIT FOLLOWS THE RUN. While the tests shared one job with the upload, it went 20 → 40 on
     # 2 Oct 2026: v24.43 released at 20m11s, and v24.44 was CANCELLED at exactly 20m00s — smoke alone
     # took 17m14s, so the clock ran out inside the CSP proof, before the deploy step, and production
@@ -249,6 +310,8 @@ jobs:
         run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
         env:
           CI: true
+          # Where the cut falls: the entry's `weights` (e2e.yml's smoke job says why and how they were measured).
+          PWTEST_SHARD_WEIGHTS: ${{ matrix.weights }}
 
       - name: Upload Playwright report on failure
         if: failure()
@@ -261,7 +324,8 @@ jobs:
           retention-days: 7
 
   csp:
-    if: github.ref == 'refs/heads/main'
+    needs: tested
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-24.04
     # The same command, setup and limit as e2e.yml's `csp` job (1.4 minutes on 10 Nov 2026).
     timeout-minutes: 10
@@ -335,7 +399,8 @@ jobs:
   # more way for a release to be held: red here, and nothing is uploaded, as for any gate job. The Rules
   # and Functions deploys keep their own suites (test:rules, test:functions) and do not run it.
   signed-in:
-    if: github.ref == 'refs/heads/main'
+    needs: tested
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.tested.outputs.tested != 'true' }}
     runs-on: ubuntu-24.04
     # The test step carries the budget; this is the backstop: two installs, Java, the browser's system
     # libraries on a slow mirror (8 minutes at worst, the smoke job in e2e.yml says why) and the tests.
@@ -399,9 +464,12 @@ jobs:
           retention-days: 7
 
   deploy:
-    # The whole gate above. The `if:` below names no status function, so GitHub adds `success()`:
-    # one gate job red, cancelled or skipped, and this job does not run.
-    needs: [check, smoke, csp, signed-in]
+    # The whole gate above. The `if:` below runs this job only when every gate job SUCCEEDED, or when
+    # `tested` proved this tree already passed them on a pull request (its comment says how): one gate
+    # job red, cancelled or skipped without that proof, and this job does not run. It names each
+    # result rather than leaning on the implicit `success()`, because that would also stop it when
+    # the gate jobs stood aside for a proven tree. `!cancelled()` keeps a cancelled run from deploying.
+    needs: [tested, check, smoke, csp, signed-in]
     # ── PRODUCTION DEPLOYS ONLY EVER RUN FROM `main` (v22.32, external review) ─────────────────
     #
     # `workflow_dispatch` above carries no branch restriction, and the concurrency group above
@@ -423,7 +491,7 @@ jobs:
     # If deploying a non-main ref is ever genuinely needed (a rollback to a tag, say), add an
     # explicit input and widen this condition to name it. Do not simply delete the check. The gate
     # jobs above carry the same condition, so a branch run spends no time testing either.
-    if: github.ref == 'refs/heads/main'
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((needs.tested.result == 'success' && needs.tested.outputs.tested == 'true') || (needs.check.result == 'success' && needs.smoke.result == 'success' && needs.csp.result == 'success' && needs.signed-in.result == 'success')) }}
     # The image it has always deployed from. Nothing in this job starts a browser any more, so the pin
     # is kept for continuity rather than for the visual baselines; moving it is a change of its own.
     runs-on: ubuntu-24.04
@@ -588,7 +656,7 @@ jobs:
   # that, so this lists them all. The notice says "cut off part-way" only when `deploy` itself was
   # cancelled: a gate job cut off means nothing was uploaded, which is the plain "did not deploy".
   report-failure:
-    needs: [check, smoke, csp, signed-in, deploy]
+    needs: [tested, check, smoke, csp, signed-in, deploy]
     if: failure() || contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     timeout-minutes: 5
