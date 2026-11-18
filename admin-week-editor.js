@@ -29,7 +29,7 @@ import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS } from './override-utils.js';
 import { isWorkingDate } from './al-entitlement.js';
 import { formatDisplay } from './admin-period-dates.js';
-import { isChristmasLeaveDay, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
+import { isChristmasLeaveDay, isChristmasClosureDate, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
 import { TYPES, PILL_TYPES, typePillHtml } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
 import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
@@ -190,14 +190,20 @@ export function buildWeekGridInto(container, dateStr) {
         // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026) — Spare
         // excepted, on Boxing Day as on a Sunday (admin-day-pills.js).
         const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
-        // CHRISTMAS LEAVE — said in the row, as the Sunday reason is, because the Base roster column shows
-        // the rest day `getBaseShift` makes both Christmas days (rules: christmas-leave.js). Asked of the
-        // SAME resolver the Calendar draws with, so the note can never describe a day it shows differently.
+        // CHRISTMAS LEAVE — the Base roster column shows it as the Calendar does, AL, and the row says why
+        // (rules: christmas-leave.js). The column used to show the rest day `getBaseShift` makes both
+        // Christmas days, with only this row's note to say the member is on leave; on a phone that note
+        // is hidden until the row is ticked, so the grid read REST beside a Calendar reading AL with
+        // nothing on screen to reconcile them (owner, 18 Nov 2026). Only the badge changes: every rule
+        // below still reads `baseShift`, the closure's rest day — work there is RDW, as the hint says.
+        // Asked of the SAME resolver the Calendar draws with, so neither can describe a day differently.
         const xmasDue   = isChristmasLeaveDay(member, date);
         const xmasShows = xmasDue ? resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), true).shift : '';
+        const baseShown = xmasDue ? resolveDayShift(null, baseShift, isSunday(dateISO), true).shift : baseShift;
+        const xmasDay   = date.getDate() === 25 ? 'Christmas Day' : 'Boxing Day';
         const christmasNote = !xmasDue ? ''
             : xmasShows === 'AL'
-                ? `${date.getDate() === 25 ? 'Christmas Day' : 'Boxing Day'}: due at work, so on annual leave that is never counted — nothing to record`
+                ? `${xmasDay}: due at work, so on annual leave that is never counted — nothing to record`
             : date.getDate() === 26 && isWorkedShift(xmasShows)
                 ? `Boxing Day worked when due at work: one day of annual leave in lieu is added to the ${allowanceForBoxingDay(member, date.getFullYear())} allowance`
             : '';
@@ -221,7 +227,7 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
                 <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ' <span class="overwrite-badge"></span>' : ''}</span>
             </label>
-            <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
+            <div class="col-base">${getShiftBadge(baseShown, { showTime: true })}</div>
             <div class="col-pills">
                 ${PILL_TYPES.map(t => typePillHtml(t)).join('\n                ')}
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded, but a Spare turn can</span>` : ''}
@@ -237,7 +243,8 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-hint">24h · max 12 hrs</span>
                 <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
-            <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>
+            <div class="col-rd-hint" hidden>${xmasDue ? `The station is closed on ${xmasDay} — use <strong>RDW</strong> if this day was worked`
+                : 'Base roster: Rest Day — use <strong>RDW</strong> if this was overtime'}</div>
             <!-- Swapped-day question: no pre-pressed state, save refuses until answered (al-swapped-days.js). -->
             <div class="col-al-swap" role="group" aria-label="Is this a swapped working day?" hidden>
                 <span class="al-swap-q">Rest day on the roster — was this a <strong>swapped</strong> working day?</span>
@@ -251,7 +258,7 @@ export function buildWeekGridInto(container, dateStr) {
                     <button type="button" class="other-flavour-btn other-flavour-spare" data-flavour="SPARE" aria-pressed="false"><span aria-hidden="true">📋</span> Spare</button>
                 </span>
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Rest day (RDW)</label>
-                ${isRestShift(baseShift) ? `<span class="other-rdw-auto">Ticked and locked because the base roster has this as a rest day — RDW is automatic</span>` : ''}
+                ${!isRestShift(baseShift) ? '' : `<span class="other-rdw-auto">Ticked and locked because ${xmasDue ? `the station is closed on ${xmasDay}` : 'the base roster has this as a rest day'} — RDW is automatic</span>`}
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(rosteredWords(baseShift))} this day — RDW pays it as rest-day working instead</span>
                 <span class="other-opts-hint">Pick a type above, then times (optional — blank pays the default: base shift, or 8h RDW).</span>
             </div>`;
@@ -560,7 +567,9 @@ function _leftAloneBy(type) {
     const map    = member && type === 'sick' ? buildMemberDateMap(name) : null;
     return d => !member ? '' : isBeforeMemberStart(member, parseISODate(d)) ? 'start'
         : !map || isWorkingDate(member, d, map) ? ''
-        // Rest by the base roster, or a working day a SAVED change has set as rest: said apart (admin-bulk-apply.js).
+        // Christmas Day and Boxing Day are named as themselves; then rest by the base roster, or a working day
+        // a SAVED change has set as rest — each said apart (admin-bulk-apply.js).
+        : isChristmasClosureDate(d) ? 'christmas'
         : isRestShift(getBaseShift(member, parseISODate(d))) ? 'rest' : 'setRest';
 }
 
@@ -701,7 +710,7 @@ function _initBulkBar() {
         const typeMeta = TYPES[_bulkActiveType], leftAlone = _leftAloneBy(_bulkActiveType);
         let applied = 0;
         /** @type {string[]} */ const ticked = [];
-        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'setRest' | 'start' }>} */ const skipped = [];
+        /** @type {Array<{ date: string, why: 'sunday' | 'rest' | 'setRest' | 'christmas' | 'start' }>} */ const skipped = [];
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));

@@ -2465,8 +2465,9 @@
 /* The Sunday reason, said in the row (v23.50) — replaces four `title` tooltips on the disabled
    pills, which a phone never showed. Sits on its own line under the pills (the row wraps). */
 .sunday-note,
-/* Christmas leave (v25.37): the same quiet line, for the same reason — the row's own explanation of a
-   day the Base roster column cannot describe (it shows the rest day both Christmas days are). */
+/* Christmas leave (v25.37): the same quiet line, for the same reason — the row's own explanation of the
+   AL the Base roster column shows on a Christmas day the member was due to work (18 Nov 2026: it showed
+   the station's closure rest day, and on a phone this line is out of sight until the row is ticked). */
 .christmas-note,
 /* …and a day before the member's start date (admin-1-11): no change can be recorded there. */
 .start-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
