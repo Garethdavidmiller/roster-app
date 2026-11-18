@@ -327,4 +327,29 @@ describe('a receipt says whether staff will be shown the upload', () => {
         await done;
         assert.equal(els.feedback.textContent, CIRCULAR('10 Nov 2026'));
     });
+
+    // …AND WHAT THE NEWSLETTER'S ☰ BUTTON IS TOLD (18 Nov 2026). The card told it the upload's OWN date, so on a device
+    // that had never asked, an old issue filed for the record hid the button — although the receipt had just read a
+    // newer issue. Driven through the real recency rule, which is what decides the button.
+    test('a back-dated issue tells the ☰ menu the newer one the receipt read, so its button stays', async () => {
+        const recency = await import('./newsletter-recency.js');
+        const els = card({ uploadFn: async () => 'url', noun: 'Newsletter', newest: async () => ({ date: '2026-11-14' }),
+            successMsg: CIRCULAR, onUploaded: recency.noteNewsletterUploaded });
+        await pick(els, pdf('newsletter.pdf'));
+        els.date.value = '2026-09-01';                           // an old issue, filed for the record —
+        await els.date.fire('input');                            // picked, or the card re-defaults it to today
+        await els.btn.fire('click');
+        assert.match(els.feedback.textContent, /dated 14 Nov 2026, so they won’t see this one/, 'premise: the receipt read the newer issue');
+        assert.equal(recency.newsletterInMenu(new Date(2026, 10, 10)), true,
+            'told only the old issue, the device hid the ☰ button for a current one');
+    });
+
+    test('the newest of its kind tells `onUploaded` its own date', async () => {
+        /** @type {string[]} */ const told = [];
+        const els = card({ uploadFn: async () => 'url', noun: 'Newsletter', newest: async () => ({ date: '2026-11-03' }),
+            successMsg: CIRCULAR, onUploaded: (/** @type {string} */ iso) => { told.push(iso); } });
+        await pick(els, pdf('newsletter.pdf'));
+        await els.btn.fire('click');
+        assert.deepEqual(told, ['2026-11-10']);
+    });
 });

@@ -99,7 +99,7 @@ export function isDocxFile(f) {
  *   rejectTypeMsg?: string,                   // default 'Please choose a PDF file'
  *   sigMismatchMsg?: string,                  // shown on a SIGNATURE_MISMATCH upload error
  *   whereToCheck?: string|((iso: string) => string),  // where to look after a sign-out mid-upload (default 'whether it saved')
- *   onUploaded?: (iso: string) => void,       // told the ISO date once the upload has landed (the Newsletter's ☰ button)
+ *   onUploaded?: (iso: string) => void,       // once the upload has landed, the newest ISO date of its kind the page knows: its own, or a newer one the receipt read (the Newsletter's ☰ button)
  *   transform?: (file: File, ctx: { setBtnText: (t: string) => void })
  *               => Promise<{ extraArgs?: any[], abortMsg?: string }>,  // e.g. DOCX→HTML → [htmlContent]
  *   noun?: string,                            // the kind, as the receipt names it ('Circular') — with `newest`
@@ -261,7 +261,10 @@ export function initDocUploadCard(cfg) {
       /** @type {HTMLElement} */ (feedback).textContent = newer && cfg.noun
         ? hiddenByNewerLine(cfg.noun, shown, formatDayMonthYear(parseISODate(newer)))
         : cfg.successMsg(shown, date);
-      cfg.onUploaded?.(date);
+      // THE NEWEST THE PAGE NOW KNOWS, not merely what was filed (18 Nov 2026): a back-dated upload told the
+      // Newsletter's ☰ button its own old date, and on a device that had never asked, the button hid for an
+      // issue the receipt had just read as newer.
+      cfg.onUploaded?.(newer ?? date);
       /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--ok';
       fileInput.value = '';
       /** @type {HTMLElement} */ (fileLabel).textContent = '';

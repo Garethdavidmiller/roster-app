@@ -114,8 +114,10 @@ export function recordLatestNewsletter(issueDate) {
 /**
  * This device has just uploaded an issue (Operations). The latest is now at least this one, so it is
  * kept unless the device already knows a later one: an older issue filed for the record must not
- * stand in for a newer one, and would hide a button that should show.
- * @param {string} issueDate  'YYYY-MM-DD', as uploaded
+ * stand in for a newer one, and would hide a button that should show. The card hands over the newest
+ * date it knows — the upload's own, or the newer issue its receipt has just read (doc-upload.js) — so a
+ * device that has never asked is not left knowing only the old issue it filed.
+ * @param {string} issueDate  'YYYY-MM-DD'
  */
 export function noteNewsletterUploaded(issueDate) {
     const uploaded = _dayNumber(issueDate);
