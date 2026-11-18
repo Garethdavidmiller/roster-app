@@ -1189,3 +1189,63 @@ describe('N. "Save anyway" answers the press it is given, and no later one', () 
         assert.equal(confirms.length, 2, 'it stops at the bar again');
     });
 });
+
+// O. THE ABSENCE CARD LEAVES A REST DAY'S RDW OR LEAVE AS IT IS, AND SAYS SO (review, Nov 2026). The Calendar
+// hides an absence on a rest day unless it replaced contracted work, so one written over a rest day's Rest Day
+// Working replaced a record that showed with one that never does — while the preview and the receipt counted
+// it as an absence day. The REAL card and projection; the writer is the mock. A member found, never named.
+const { fmtPeriodDate, formatDisplay: realFormatDisplay } = await import('./admin-period-dates.js');
+describe('O. the Absence card names a rest day it leaves as it is, and records nothing on it', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    /** A working weekday followed by a non-Sunday rest day, found from the roster. */
+    const found = (() => {
+        for (const m of teamMembers.filter(x => !x.hidden && !x.managerOnly && !x.startDate)) {
+            for (let i = 1; i < 60; i++) {
+                const a = new Date(2026, 9, i), b = new Date(2026, 9, i + 1);
+                if (a.getDay() === 0 || b.getDay() === 0) continue;
+                if (works(m, iso10(a)) && !works(m, iso10(b))) return { m, work: iso10(a), rest: iso10(b) };
+            }
+        }
+        return null;
+    })();
+    /** The real card for `found.m`, with the rest day holding Rest Day Working, and `from`–`to` on screen. */
+    const card = (/** @type {string} */ from, /** @type {string} */ to) => {
+        const { m, rest } = /** @type {any} */ (found);
+        const rdw = { id: 'o-rdw', memberName: m.name, date: rest, type: 'rdw', value: '07:00-15:00', source: 'manual' };
+        _ovMap = new Map([[rest, rdw]]); _allOv = [rdw];
+        for (const id of ['sickFrom', 'sickTo', 'sickPreview', 'sickSaveBtn', 'sickFeedback']) el(id);
+        initSickSection(/** @type {any} */ ({ sickMember: memberSelect(m.name), syncSickMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, getCurrentUser: () => 'A. Admin', showInChangeAShift() {},
+            showSuccess() {}, showALConfirm() {}, hideALConfirm() {} }));
+        el('sickFrom').value = from; el('sickTo').value = to;
+        for (const fn of el('sickTo')._on.change ?? []) fn();
+        return el('sickPreview').innerHTML;
+    };
+
+    test('premise: a working day followed by a rest day on some line', () => { assert.ok(found); });
+
+    test('the preview counts the working day only, and names the rest day left as it is', () => {
+        const { work, rest } = /** @type {any} */ (found);
+        const html = card(work, rest);
+        assert.match(html, /<strong>1 absence day<\/strong>/);
+        assert.ok(html.includes(`${fmtPeriodDate(rest)} left as it is: Rest Day Working on a rest day, where an absence would not show`), html);
+        assert.doesNotMatch(html, /rest day skipped/, 'not a bare rest day: something is recorded there');
+    });
+
+    test('a range of only that day records nothing, so Save is off', () => {
+        const { rest } = /** @type {any} */ (found);
+        card(rest, rest);
+        assert.equal(el('sickSaveBtn').disabled, true);
+    });
+
+    test('the receipt names it again, with how to remove the Rest Day Working', async () => {
+        const { work, rest } = /** @type {any} */ (found);
+        card(work, rest);
+        _record = async () => ({ workingCount: 1, sundayCount: 0 });
+        for (const fn of el('sickSaveBtn')._on.click ?? []) await fn({});
+        assert.equal(_writes.length, 1, 'premise: the working day was saved');
+        const line = `${realFormatDisplay(rest)} — rest day; the Rest Day Working recorded here was left as it is, as an absence on a rest day `
+            + 'does not show on the Calendar (to remove it, select RDW on the day in Change a Shift)';
+        assert.ok(el('sickFeedback').textContent.includes(line), el('sickFeedback').textContent);
+    });
+});

@@ -505,6 +505,50 @@ describe('recordRangeOverrides — an answered rest day', () => {
     });
 });
 
+// ── AN ABSENCE RANGE LEAVES A REST DAY'S RDW AS IT IS (review, Nov 2026) ─────────────────────────
+// The Calendar hides an absence on a rest day unless it replaced contracted work, so an absence written
+// over a rest day's Rest Day Working replaced a record that showed with one that never does. The writer's
+// own filter (`rangeWriteDates` → `absenceHiddenDates`, al-swapped-days.js) leaves such a day alone; this
+// is that filter reached through the REAL writer. A member found from the roster, never named.
+const { getBaseShift: baseShiftOf } = await import('./roster-data.js');
+describe('recordRangeOverrides — an absence range over a rest day holding Rest Day Working', () => {
+    const who = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate && !m.rosterChanges));
+    const getBaseShift = baseShiftOf;
+    /** A working weekday followed by a non-Sunday rest day on their line, in October 2026. */
+    const pair = (() => {
+        for (let i = 1; i < 60; i++) {
+            const a = new Date(2026, 9, i), b = new Date(2026, 9, i + 1);
+            if (a.getDay() === 0 || b.getDay() === 0) continue;
+            const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (!isRestShift(getBaseShift(who, a)) && isRestShift(getBaseShift(who, b))) return { work: iso(a), rest: iso(b) };
+        }
+        return null;
+    })();
+    beforeEach(() => { _batchWrites.length = 0; });
+
+    test('the working day takes the absence; the Rest Day Working stands', async () => {
+        assert.ok(pair, 'premise: a working day followed by a rest day on their line');
+        const { work, rest } = /** @type {any} */ (pair);
+        const rdw = { id: 'rdw-rest', memberName: who.name, date: rest, type: 'rdw', value: '07:00-15:00', source: 'manual' };
+        setAllOverrides([rdw]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        const res = await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: who.name, dates: [work, rest], changedBy: 'A. Admin' });
+        auth.currentUser = null;
+        assert.deepEqual(_batchWrites.map(w => w.date), [work], 'only the working day is written');
+        assert.equal(res.workingCount, 1);
+        assert.ok(getAllOverrides().some(o => o.id === 'rdw-rest'), 'the Rest Day Working record survives');
+    });
+
+    test('CONTROL: leave over the same day is written as before — free, and shown', async () => {
+        const { work, rest } = /** @type {any} */ (pair);
+        setAllOverrides([{ id: 'rdw-rest', memberName: who.name, date: rest, type: 'rdw', value: '07:00-15:00', source: 'manual' }]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: who.name, dates: [work, rest], changedBy: 'A. Admin' });
+        auth.currentUser = null;
+        assert.deepEqual(_batchWrites.map(w => w.date), [work, rest]);
+    });
+});
+
 // ── WHICH YEAR'S ALLOWANCE (v25.18) ─────────────────────────────────────────────────────────────
 // A January leave day may come out of the previous year's allowance (leave-year.js). Three things a
 // save must get right, each of which a test of the RULE cannot see: the move writes the year (and

@@ -557,6 +557,36 @@ describe('projectAbsenceRange — an absence over work that earned a day in lieu
 
 // The JSDoc called `ovByDate` optional and defaulted it to null; `isWorkingDate` then dereferenced
 // it and threw on the first ordinary working day (whole-app check, 10 Nov 2026).
+// ── WHAT AN ABSENCE RANGE LEAVES AS IT IS, FOR THE CARD TO NAME (review, Nov 2026) ────────────────
+// A rest day holding Rest Day Working or leave that cost nothing is not written (al-swapped-days.js →
+// absenceHiddenDates): an absence there never shows, and would hide what does. The projection hands
+// those days to the card, so the preview and the receipt can name them, and counts only what is written.
+describe('projectAbsenceRange — the days it leaves as they are', () => {
+    const FRI = '2026-06-12';   // worked on fixed pattern 1; SAT above is its rest day
+    const rdw = { id: 'f-rdw', memberName: fixedCea.name, date: SAT, type: 'rdw', value: '07:00-15:00', source: 'manual' };
+    const run = (/** @type {any[]} */ rows) => projectAbsenceRange({ member: fixedCea, memberName: fixedCea.name, overrides: rows,
+        ovByDate: new Map(rows.map(o => [o.date, o])), dates: [FRI, SAT] });
+
+    test('a rest day\'s Rest Day Working is left alone, named, and not counted as an absence day', () => {
+        const r = run([rdw]);
+        assert.deepEqual(r.writing, [FRI]);
+        assert.deepEqual(r.leftAlone, [SAT]);
+    });
+
+    test('free leave on it the same; a bare rest day is a rest day, not a day left alone', () => {
+        assert.deepEqual(run([{ ...rdw, type: 'annual_leave', value: 'AL' }]).leftAlone, [SAT]);
+        const bare = run([]);
+        assert.deepEqual(bare.writing, [FRI]);
+        assert.deepEqual(bare.leftAlone, [], 'nothing on the day to hide');
+    });
+
+    test('named even when nothing is written, so a range of only such days says why it records nothing', () => {
+        const r = projectAbsenceRange({ member: fixedCea, memberName: fixedCea.name, overrides: [rdw], ovByDate: new Map([[SAT, rdw]]), dates: [SAT] });
+        assert.deepEqual(r.writing, []);
+        assert.deepEqual(r.leftAlone, [SAT]);
+    });
+});
+
 describe('projectAlBooking — an omitted override map means "nothing in play"', () => {
     test('it does not throw, and answers exactly as an empty map does', () => {
         const omitted = projectAlBooking({ member: fixedCea, dates: [MON, SAT, SUN] });

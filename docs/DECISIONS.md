@@ -185,8 +185,11 @@ shown that yet.
   (VAL-AL-001). The base roster is the witness, because once leave replaces the record only its type
   survives (`isContractedWorkOverride`, `override-utils.js`). Neither booking path asks about such a
   day: it is settled, and free. The roster review treats the roster's leave over one as it treats leave
-  over an RDW — as the rest day it costs nothing on. Not changed by it: an ABSENCE over such a day
-  still shows on the Calendar.
+  over an RDW — as the rest day it costs nothing on. An ABSENCE is another matter: the Calendar shows
+  one over a rest-day Other day or Spare turn, but hides one over Rest Day Working (an absence on a
+  rest day shows only where it replaced contracted work). So the Absence card leaves a rest day holding
+  RDW, or leave that cost nothing, as it is and names it, for Change a Shift to deal with (review,
+  Nov 2026) — except where the work earned a day in lieu, which the absence takes back as before.
 
 - **The roster upload offers next week from Thursday** (owner, 10 Nov 2026; the Saturday case settled
   by the lead the same day) · **Trigger to revisit: the roster office changing the day it releases

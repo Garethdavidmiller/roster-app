@@ -512,7 +512,7 @@ A member's CONTRACT leave allowance for a year: the grade that decides it ("role
 
 ### `al-entitlement.js`
 Which annual-leave days spend a member's allowance, and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
-- **Exports:** `entitlementFor` · `consumesEntitlement` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
+- **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 The leave file: the one contract between Stage 1 (`scripts/make-leave-file.mjs`, a session reading the clerks' workbook) and Stage 2 (the Operations card) — what a valid file is, and the seal that proves it is the file that was made (docs/AL_UPLOADER_PLAN.md §3). Pure, with no app import, so it loads in Node and the browser; refusals are returned, never thrown. Tested by `al-leave-file.test.mjs`.
@@ -611,8 +611,8 @@ Asking to be taken off a Sunday you are ROSTERED to work — a request about con
 - **Exports:** `offersSundayRelease` · `SUNDAY_RELEASE_ASKED` · `SUNDAY_RELEASE_LABEL` · `releaseRequestLine`
 
 ### `al-swapped-days.js`
-Which days in an annual-leave booking need the swapped-day question, and what to write when the answer is yes — the one rule both booking surfaces and the roster import's Save read. Bound by `.claude/rules/admin.md` → "AL on a rest day is ASKED about, never defaulted"; the header says why "rest day" is not the whole test. Tested by `al-swapped-days.test.mjs`.
-- **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `rangeWriteDates`
+Which days in an annual-leave booking need the swapped-day question, and what to write when the answer is yes — the one rule both booking surfaces and the roster import's Save read. Also the range writer's filter for both cards (`rangeWriteDates`), including the rest days an absence range leaves as they are because an absence would hide what they hold (`absenceHiddenDates`). Bound by `.claude/rules/admin.md` → "AL on a rest day is ASKED about, never defaulted"; the header says why "rest day" is not the whole test. Tested by `al-swapped-days.test.mjs`.
+- **Exports:** `swapDecisionDates` · `replacedTypeForSwap` · `absenceHiddenDates` · `rangeWriteDates`
 
 ### `admin-al-projection.js`
 What an Annual Leave booking WILL do, decided once so the preview, the over-entitlement warning and the write cannot disagree — for the AL range card, the week grid, the Absence card's allowance check and the leave sheet check. Pure. Also home to the range cards' Sunday rule (`rangeSundayCorrections`), stated here so a preview can name the days the writer will set. Bound by `.claude/rules/admin.md` → "AL on a rest day is ASKED about"; the allowance is read through `entitlementFor` (CLAUDE.md → AL entitlement). Tested by `admin-al-projection.test.mjs` and `admin-overrides.test.mjs`.
@@ -655,7 +655,7 @@ The Recorded Annual Leave dates and Recorded Absence dates sub-cards on `admin.h
 - **Exports:** `periodDelete` · `armConfirm` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
 
 ### `admin-sick.js`
-The Record Absence card on `admin.html`: a thin config over `createRangeBookingSection` (`admin-range-booking.js`) with the one-year range cap and the 🪑 preview. Absence is not capped and never asks the swapped-day question, but over a day whose work earned a day in lieu it lowers the leave allowance, so the card names those days and raises the shared over-allowance bar (`projectAbsenceRange`). Nothing on it is scoped to a year (header). Exercised by `e2e/admin.spec.js`.
+The Record Absence card on `admin.html`: a thin config over `createRangeBookingSection` (`admin-range-booking.js`) with the one-year range cap and the 🪑 preview. Absence is not capped and never asks the swapped-day question, but over a day whose work earned a day in lieu it lowers the leave allowance, so the card names those days and raises the shared over-allowance bar (`projectAbsenceRange`). A rest day holding Rest Day Working or free leave is left as it is, and named in the preview and the receipt, because an absence there would never show. Nothing on it is scoped to a year (header). Exercised by `e2e/admin.spec.js`.
 - **Exports:** `initSickSection`
 
 ### `admin-overrides.js`

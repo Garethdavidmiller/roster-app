@@ -5,8 +5,8 @@
 // the "require an answer" half is a save-path property and lives in the e2e.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { swapDecisionDates, replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
-import { teamMembers, getBaseShift, parseISODate, formatISO } from './roster-data.js';
+import { swapDecisionDates, replacedTypeForSwap, rangeWriteDates, absenceHiddenDates } from './al-swapped-days.js';
+import { teamMembers, getBaseShift, getPatternShift, parseISODate, formatISO } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 import { projectAlBooking } from './admin-al-projection.js';
 
@@ -166,4 +166,56 @@ test('the booking projection writes and counts exactly what the range writer wri
     const p = projectAlBooking({ member: JOINER, dates, ovByDate: PRE_SHIFT, swapAnswers: new Map(PRE.map(d => [d, true])) });
     assert.deepEqual(p.writing, rangeWriteDates({ type: 'annual_leave', dates, memberObj: JOINER, ovByDate: PRE_SHIFT, swappedDates: PRE }));
     assert.deepEqual(p.consuming, POST, 'the preview and the allowance check count no day before the start');
+});
+
+// ── AN ABSENCE RANGE LEAVES ALONE A DAY WHERE THE ABSENCE WOULD HIDE WHAT IS THERE (review, Nov 2026) ──
+// The Calendar hides an absence on a base rest day unless it replaced contracted work. The range wrote one
+// over a rest day's Rest Day Working, or over leave that cost nothing — a record that showed, replaced by one
+// that never does, and counted as an absence day. INVENTED people on real patterns: Q. Example on fixed
+// pattern 1 (Monday to Friday, weekends off), and Z. Invented on a line due at work on Boxing Day 2026.
+const Q = { name: 'Q. Example', role: 'CEA', rosterType: 'fixed', currentWeek: 1 };
+const FRI = '2026-10-09', SAT = '2026-10-10';
+const on = (/** @type {string} */ date, /** @type {any} */ rec) => new Map([[date, { memberName: Q.name, date, source: 'manual', ...rec }]]);
+const absenceWrites = (/** @type {Map<string, any>} */ ovByDate, /** @type {any} */ who = Q, /** @type {string[]} */ dates = [FRI, SAT]) =>
+    rangeWriteDates({ type: 'sick', dates, memberObj: who, ovByDate });
+
+test('premise: on fixed pattern 1, Friday is worked and Saturday is a rest day', () => {
+    assert.ok(!isRestShift(getBaseShift(Q, parseISODate(FRI))));
+    assert.ok(isRestShift(getBaseShift(Q, parseISODate(SAT))));
+});
+
+test('a rest day holding Rest Day Working, or leave that cost nothing, is left as it is — and named', () => {
+    for (const rec of [{ type: 'rdw', value: '07:00-15:00' }, { type: 'annual_leave', value: 'AL' }, { type: 'annual_leave', value: 'AL', replacedType: 'rdw' }]) {
+        const ov = on(SAT, rec);
+        assert.deepEqual(absenceWrites(ov), [FRI], `${rec.type} ${rec.replacedType ?? ''}: only the working day takes the absence`);
+        assert.deepEqual(absenceHiddenDates({ dates: [FRI, SAT], memberObj: Q, ovByDate: ov }), [SAT]);
+    }
+});
+
+test('where the absence WOULD show, it is written as before: a swapped-in day, an Other day, a Spare turn, a shift', () => {
+    for (const rec of [{ type: 'annual_leave', value: 'AL', replacedType: 'shift' }, { type: 'other', value: 'TRG RDW' },
+        { type: 'spare_shift', value: 'SPARE' }, { type: 'shift', value: '07:00-15:00' }]) {
+        assert.deepEqual(absenceWrites(on(SAT, rec)), [FRI, SAT], `${rec.type}`);
+    }
+    assert.deepEqual(absenceWrites(on(FRI, { type: 'rdw', value: '13:00-21:00' }), Q, [FRI]), [FRI],
+        'Rest Day Working on a WORKING day is overwritten as any working day is');
+});
+
+test('a rest day already holding a hidden absence is rewritten as before — nothing on it shows either way', () => {
+    assert.deepEqual(absenceWrites(on(SAT, { type: 'sick', value: 'SICK' })), [FRI, SAT]);
+});
+
+test('annual leave is untouched: leave over a rest day\'s Rest Day Working is still written, and free', () => {
+    assert.deepEqual(rangeWriteDates({ type: 'annual_leave', dates: [FRI, SAT], memberObj: Q, ovByDate: on(SAT, { type: 'rdw', value: '07:00-15:00' }) }), [FRI, SAT]);
+});
+
+test('work that earned a day in lieu is still written: the absence takes the day back, as the card says', () => {
+    const BOXING = new Date(2026, 11, 26);
+    const pattern = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL && !m.rosterChanges
+        && m.bilingualContract !== true && !isRestShift(getPatternShift(m, BOXING)));
+    assert.ok(pattern, 'premise: a plain CEA line is due at work on Boxing Day 2026');
+    const Z = { ...pattern, name: 'Z. Invented' };
+    const worked = (/** @type {any} */ who) => new Map([['2026-12-26', { memberName: who.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual' }]]);
+    assert.deepEqual(absenceWrites(worked(Z), Z, ['2026-12-26']), ['2026-12-26'], 'due at work, so the worked day earned a day in lieu');
+    assert.deepEqual(absenceWrites(worked(Q), Q, ['2026-12-26']), [], 'resting by pattern, the same RDW earned nothing: left as it is');
 });

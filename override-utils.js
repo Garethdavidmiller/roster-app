@@ -111,9 +111,11 @@ export function contractEvidence(ov) {
  * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base
  * (unless it replaced contracted work — a swapped-in day) OR any Sunday, and `annual_leave` / Other-family
  * (`other`) on any Sunday. A worked Sunday is always RDW, never AL/Absent, so a Sunday one is legacy or
- * hand-written data — every write path refuses it; an absence on a rest-day base is not (Admin's week
- * grid still records one) and is hidden all the same. `rdw`, `correction`, `spare_shift`, and plain
- * `shift` are never suppressed.
+ * hand-written data — every write path refuses it. An absence on a rest-day base is not refused (Admin's
+ * week grid still records one, and the Absence card does over work that earned a day in lieu, which the
+ * absence takes back) and is hidden all the same; the Absence card leaves a rest day's RDW or free leave
+ * as it is rather than hide it (`absenceHiddenDates`, al-swapped-days.js). `rdw`, `correction`,
+ * `spare_shift`, and plain `shift` are never suppressed.
  * Takes `sunday` as a boolean (not the date) so this module stays free of a roster-data import — that
  * would be a cycle, since roster-data imports from here. Callers pass `isSunday(dateStr)`.
  * @param {{type: string, replacedType?: string|null}} override

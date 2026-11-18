@@ -65,7 +65,7 @@ import { getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { getALEntitlement, dispatcherBaseAL, allowanceRole } from './al-contract.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
-import { isChristmasClosureDate, boxingDayLieuDays, boxingDayForAllowance } from './christmas-leave.js';
+import { isChristmasClosureDate, boxingDayLieuDays, boxingDayForAllowance, allowanceYearsOf } from './christmas-leave.js';
 
 /**
  * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through
@@ -89,6 +89,35 @@ export function entitlementFor(member, year, overrides = []) {
     const contract = getALEntitlement(member, y, overrides);
     if (contract === null) return null;
     return contract + boxingDayLieuDays(member, y, overrides);
+}
+
+/**
+ * Does a record written on `date` lower the member's allowance — the day in lieu its work earned going
+ * with the work? Asked of `entitlementFor` with and without the record, so every rule that earns a day
+ * in lieu (a worked Boxing Day, a Dispatcher's worked bank holiday) answers through the one that
+ * grants it, rather than a second copy of either.
+ *
+ * In EVERY year the day can reach (`allowanceYearsOf`, christmas-leave.js), not just its own: a
+ * worked Boxing Day's day in lieu is in the NEXT year's allowance (owner, 15 Nov 2026), so leave over
+ * that work leaves its own year where it was and takes the day from the year after.
+ *
+ * `written` is the record the save puts there — leave by default; an absence takes the day in lieu
+ * back exactly as leave does, because it too replaces the work (`projectAbsenceRange`,
+ * admin-al-projection.js). Here rather than there since Nov 2026, because the Absence range's writer
+ * asks it too, and that module imports the writer's (`absenceHiddenDates`, al-swapped-days.js).
+ * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
+ * @param {{type: string, value: string}} [written]
+ * @returns {boolean}
+ */
+export function lowersAllowance(member, date, ovByDate, written = { type: 'annual_leave', value: 'AL' }) {
+    const held = ovByDate && typeof ovByDate.values === 'function' ? [...ovByDate.values()].filter(Boolean) : [];
+    const leave = { memberName: member.name, date, ...written, createdAt: { seconds: 4102444800 } };
+    const withLeave = [...held.filter(o => o.date !== date), leave];
+    return allowanceYearsOf(member, date).some(year => {
+        const before = entitlementFor(member, year, held);
+        const after = entitlementFor(member, year, withLeave);
+        return before !== null && after !== null && after < before;
+    });
 }
 
 /**

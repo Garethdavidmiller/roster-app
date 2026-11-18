@@ -544,8 +544,9 @@ function _updateBulkSelCount() {
 
 /**
  * Why Apply leaves a ticked day alone for `type`, beyond the Sunday rule (admin-bulk-apply.js names
- * each): before the member's start date, or — for Absent — a rest day by `isWorkingDate`, the rule the
- * Absence card writes by, so a swapped-in shift saved on a rest day counts as work here too.
+ * each): before the member's start date, or — for Absent — a rest day by `isWorkingDate`, so a
+ * swapped-in shift saved on a rest day counts as work here too. (The Absence card also passes over a rest
+ * day's RDW or free leave, which an absence would hide; the grid records what it is told on such a day.)
  * @param {string} type @returns {(date: string) => import('./admin-bulk-apply.js').LeftAlone}
  */
 function _leftAloneBy(type) {
