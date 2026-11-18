@@ -77,7 +77,9 @@
  * ── NOTHING HERE QUOTES A NAME INTO A LOG ───────────────────────────────────────────────────────
  *
  * Names and dates go back to the card, which draws them; nothing is passed to `console` except an
- * error's code, because the Error Log would keep it.
+ * error's code. Not for the Error Log's sake — it keeps only uncaught errors and slow saves, never a
+ * console line — but because the device may be shared: the console holds every line for as long as
+ * the page is open, and whoever opens the browser's developer tools on that PC next can read them.
  */
 
 import { db, collection, query, where, getDocs, doc, runTransaction, writeBatch, serverTimestamp, writeWithClaimRetry,

@@ -924,6 +924,23 @@ describe('the wrong PIN that shuts the door for everyone is recorded, and the ad
         assert.equal(askedForAdmin(ops), false);
     });
 
+    test('a right PIN and a wrong one together at the edge: the refund reopens the door, and no block is recorded or told', async () => {
+        // Two short of the ceiling. The right PIN is charged (one short), the wrong one reaches it and
+        // trips the block, and the right PIN's refund — which runs beside its mint, while the wrong one
+        // is still sweeping — takes the block back with its charge. Only 199 were wrong, and the door
+        // is open: a record and a notice would describe a block nobody meets.
+        const { store, ops } = build({ seed: { [GLOBAL_SOURCE_KEY]: { ...nearlyFull(), failures: GLOBAL_THROTTLE.maxFailures - 2 } } });
+        const [right, wrong] = await Promise.all([
+            call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN)),
+            call(index.unlockCalendarViewer, pinRequest(WRONG_PIN)),
+        ]);
+        assert.deepEqual([right.code, wrong.code], [200, 401]);
+        assert.deepEqual([store.get(GLOBAL_SOURCE_KEY).failures, store.get(GLOBAL_SOURCE_KEY).blockedUntil],
+            [GLOBAL_THROTTLE.maxFailures - 1, 0], 'premise: the wrong PIN\'s charge stays, the block it tripped went with the refund');
+        assert.equal(store.has(LOCKOUT_RECORD_KEY), false, 'a block nobody meets was recorded');
+        assert.equal(askedForAdmin(ops), false, 'the admin was looked for, about a block that had gone');
+    });
+
     test('an ordinary wrong PIN records nothing and tells nobody', async () => {
         const { store, ops } = build();
         assert.equal((await call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))).code, 401);

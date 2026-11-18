@@ -1316,11 +1316,15 @@ population this check cannot speak for.
 
 **What still covers them is the PDF's own grid.** On the geometry path the grid assigns every day by
 coordinate (`functions/roster-prompt.js`), so the model cannot shift a row; the day is the column's
-position, and that order is read from the sheet's own header row and must run Sunday to Saturday, or
-the upload takes the PDF path (`readGridPage`, `functions/roster-geometry.js`). When an upload falls back to
-the PDF path — any member the grid cannot place turns it off for that document — the geometry witness
-(`functions/roster-geometry.js`) is positional rather than pattern-based and still refuses a claim in
-an empty cell; and when `geometry.status` comes back `unavailable` these members have **no
+position, and that path runs only once the sheet's own header row has been read naming the days
+Sunday to Saturday, or the upload takes the PDF path (`readGridPage`, `functions/roster-geometry.js`).
+When an upload falls back to the PDF path — any member the grid cannot place turns it off for that
+document — the geometry witness (`functions/roster-geometry.js`) is positional rather than
+pattern-based and still refuses a claim in an empty cell. **Its column order is read only where a page
+prints a header**: a page whose header runs in another order gives the witness no rows, and nor then
+does any page of the same file that prints no header of its own; but a page with no header, in a file
+where no page contradicts it, is read Sunday first — the order of every roster measured — on that
+assumption alone. And when `geometry.status` comes back `unavailable` these members have **no
 independent check at all**, which the review states (`geometryCopy`, `roster-alignment.js`) rather
 than leaving silent.
 

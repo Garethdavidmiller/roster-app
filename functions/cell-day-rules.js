@@ -103,9 +103,11 @@ function isPhysicallyBlank(raw) {
 /**
  * Does the PDF PRINT nothing in this cell that says anything — no text at all, or only a lone dash?
  * Asked of a cell's printed text, never of a model's reading: it is what the PDF grid calls an empty
- * cell (`assignRunsToGrid`), the vocabulary's own blank. Counted as occupied, as it was until Nov 2026,
- * a dash-printed Sunday the model read as a shift could never be refused, and the import wrote it as
- * a worked Sunday, pre-ticked; read as empty, the claim is refused and goes to the review.
+ * cell — `readGridPage` (roster-geometry.js) sets each row's occupancy by it, and the cell path's two
+ * review rules (roster-prompt.js) ask it of a cell's text — the vocabulary's own blank. Counted as
+ * occupied, as it was until Nov 2026, a dash-printed Sunday the model read as a shift could never be
+ * refused, and the import wrote it as a worked Sunday, pre-ticked; read as empty, the claim is
+ * refused and goes to the review.
  * @param {any} text
  * @returns {boolean}
  */

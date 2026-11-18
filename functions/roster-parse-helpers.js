@@ -621,6 +621,17 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
     if (!columnScan || typeof columnScan !== 'object') return stats;
     if (!Array.isArray(columnHeaders) || dates.length < 7) return stats;
 
+    // The scan's columns are found by DAY, the way `buildSafeEntries` finds a row's cells (v16.84):
+    // its own spelling first, then whichever of the scan's keys names the same day. The model writes
+    // both lists itself, and a scan keyed "Sunday" beside headers "Sun" is the same column — read by
+    // the header's exact spelling, it gave no signal on any day, and this check never ran for the read.
+    /** @type {Record<number, any>} */
+    const scanByDay = Object.create(null);
+    for (const key of Object.keys(columnScan)) {
+        const dayIndex = headerToDayIndex(key);
+        if (dayIndex !== undefined && !(dayIndex in scanByDay)) scanByDay[dayIndex] = columnScan[key];
+    }
+
     for (const entry of safeEntries) {
         // Build this member's column-read map: date → normalised value (signalled cells only), and
         // which of those the scan read as an EMPTY cell rather than a printed rest code.
@@ -629,7 +640,7 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
         for (const header of columnHeaders) {
             const dayIndex = headerToDayIndex(header);
             if (dayIndex === undefined) continue;
-            const colObj = columnScan[header];
+            const colObj = columnScan[header] !== undefined ? columnScan[header] : scanByDay[dayIndex];
             if (!colObj || typeof colObj !== 'object') continue;
             const v = normaliseScanValue(colObj[entry.memberName]);
             if (v === null) continue;

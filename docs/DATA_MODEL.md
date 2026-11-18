@@ -143,7 +143,7 @@ Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffCo
 ```
 memberName   Must match teamMembers[n].name exactly — used as the document ID
 passwordSetAt  Firestore server timestamp — the LAST time the member set their own password (Settings → Password). Written by the client (owner only).
-resetAt        Firestore server timestamp — the last time this member's account was put back on their surname default: an admin reset (resetMemberPassword), or Set up accounts taking back an account registered outside the app or re-enabling a disabled one (setupRosterAuth). Written only by those Cloud Functions (Admin SDK, bypasses rules), and always BEFORE the password changes.
+resetAt        Firestore server timestamp — the last time this member's account was put back on their surname default: an admin reset (resetMemberPassword), or Set up accounts creating a new account, taking back an account registered outside the app or re-enabling a disabled one (setupRosterAuth). Written only by those Cloud Functions (Admin SDK, bypasses rules), and always BEFORE the password changes.
 ```
 "Migrated" (has set their own password) = `passwordSetAt` present AND `passwordSetAt >= resetAt` (a later admin reset re-flags the account as surname-default). No password material is ever stored — only these two timestamps, which drive the Operations **Account status** table and the Settings status chip/nudge.
 Read: owner or admin. Create/update (client): only the owner, only the `passwordSetAt` key, and it must equal `request.time` (so a client can only stamp "I just set my password now" on its own doc). `resetAt` is un-writable by any client (only the Admin SDK sets it). Delete: denied for everyone.

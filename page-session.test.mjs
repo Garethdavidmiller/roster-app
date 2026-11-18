@@ -287,7 +287,13 @@ describe('back/forward cache', () => {
             fresh.reloadIfRestoredForSomeoneElse();
             change('A. Member', 'A. Member');
             assert.deepEqual(log, [], 'the same member re-saving the session is not a change');
-            change('A. Member', 'A. Member', 'myb_something_else');
+            // Another key's OWN values, as any write in another tab carries them — a notice flag set for
+            // the first time, a draft autosaved. Read as a session they name nobody, which is not this
+            // tab's member, so without the key filter every such write would reload this page. (This
+            // used to send the member's own session JSON under the other key: the names matched with or
+            // without the filter, and deleting it stayed green.)
+            fire('storage', { key: 'myb_notice_seen', oldValue: null, newValue: '1' });
+            fire('storage', { key: 'myb_some_draft', oldValue: JSON.stringify({ rows: 2 }), newValue: JSON.stringify({ rows: 3 }) });
             assert.deepEqual(log, [], 'an unrelated key is ignored');
             change('A. Member', null);
             assert.deepEqual(log, ['reload'], 'signed out in another tab: this tab must not keep their data');

@@ -864,6 +864,47 @@ describe('extractRosterGeometry — the real pdfjs, a hand-built roster', { skip
         } finally { console.warn = w; }
     });
 
+    // A Monday-first file whose second page repeats no header. The member's real week, Monday first:
+    // Monday to Saturday worked but Wednesday, and the Sunday — the LAST column — blank.
+    const MONDAY_FIRST_HEADER = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const CONTINUATION = [['A. Person', '06:00-14:00', '06:00-14:00', 'RD', '06:00-14:00', '06:00-14:00', '06:00-14:00', '']];
+    const weekOf = (/** @type {string[]} */ values) => Object.fromEntries(DATES.map((d, i) => [d, values[i]]));
+
+    test('once one page runs in another order, a page printing NO day header gives no rows either — to the witness too', async () => {
+        const w = console.warn; console.warn = () => {};
+        try {
+            const g = await extractRosterGeometry(buildPdf([
+                rosterPage([MONDAY_FIRST_HEADER, ['Q. Example', '06:00-14:00', '', '', '', '', '', '']]),
+                rosterPage(CONTINUATION),
+            ]));
+            assert.deepEqual([g.available, g.reason, g.pagesMisordered, g.rows.length], [false, 'day-order', 1, 0],
+                'the header-less page was read Sunday first beside a page that says this file is not');
+            // What that read would have cost. A CORRECT read keeps its Saturday — read by position, the
+            // page's blank Sunday column sat where Saturday should be, and the shift was refused as a day out…
+            const right = { memberName: 'A. Person', shifts: weekOf(['RD', '06:00-14:00', '06:00-14:00', 'RD', '06:00-14:00', '06:00-14:00', '06:00-14:00']) };
+            assert.deepEqual(applyGeometryWitness([right], g, DATES).refused, []);
+            assert.equal(right.shifts[DATES[6]], '06:00-14:00');
+            // …and a read that slid a day left, its Sunday disputed, goes to the review rather than being
+            // kept because a Monday column read as a Sunday was occupied.
+            const slid = { memberName: 'A. Person', shifts: weekOf(['06:00-14:00', '06:00-14:00', 'RD', '06:00-14:00', '06:00-14:00', '06:00-14:00', '06:00-14:00']) };
+            settleDisputedSundays([slid], ['A. Person'], applyGeometryWitness([slid], g, DATES), DATES, { 'A. Person': 'BLANK' });
+            assert.match(slid.shifts[DATES[0]], /^UNKNOWN\|/);
+            // A page whose header DID run Sunday to Saturday is still evidence, whatever another page did.
+            const mixed = await extractRosterGeometry(buildPdf([
+                rosterPage(ROSTER), rosterPage([MONDAY_FIRST_HEADER, ['Q. Example', '06:00-14:00', '', '', '', '', '', '']]), rosterPage(CONTINUATION),
+            ]));
+            assert.deepEqual(mixed.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant']);
+        } finally { console.warn = w; }
+    });
+
+    test('a page printing no day header is still read Sunday first when no page of the file runs in another order', async () => {
+        // The measured order, and the witness's evidence for two years: a continuation page is not refused for want of a header.
+        const after = await extractRosterGeometry(buildPdf([rosterPage(ROSTER), rosterPage(CONTINUATION)]));
+        assert.deepEqual(after.rows.map(r => r.name), ['G. Miller', 'S. Silva', 'Vacant', 'A. Person'], 'the page order is kept');
+        const alone = await extractRosterGeometry(buildPdf([rosterPage(CONTINUATION)]));
+        assert.deepEqual([alone.available, alone.dayHeaders, alone.rows.length], [true, 0, 1]);
+    });
+
     test('a scanned sheet — a PDF with no text layer — is unavailable, not a refusal of everything', async () => {
         const g = await extractRosterGeometry(buildPdf([['q 0.5 w 100 100 m 100 700 l S Q']]));
         assert.equal(g.available, false);

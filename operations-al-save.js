@@ -217,7 +217,12 @@ export function createReview({ file, comparison, records, logs, todayStr, me, ho
             const row = el('div', 'al-sheet-last');
             const undo = /** @type {HTMLButtonElement} */ (el('button', 'roster-cancel-btn al-sheet-undo', SAVE_WORDS.undo));
             undo.type = 'button';
-            undo.addEventListener('click', () => { void runUndo(/** @type {any} */ (last)); });
+            // Caught here: the confirm before its own try, or the fresh check after it, could still reject,
+            // and a click has nobody else to hand that to. A code only, as everywhere in this card.
+            undo.addEventListener('click', () => {
+                runUndo(/** @type {any} */ (last)).catch((err) =>
+                    console.error('[AL sheet] the Undo could not run:', /** @type {any} */ (err)?.code ?? /** @type {any} */ (err)?.name ?? 'unknown'));
+            });
             row.append(el('p', '', lastSaveWords({ savedAt: stampDate(last.savedAt), savedBy: last.savedBy, added: last.added.length,
                 latest: last === judged?.newest })), undo);
             root.append(row);

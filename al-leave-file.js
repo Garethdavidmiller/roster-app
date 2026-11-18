@@ -53,7 +53,7 @@ export const LEAVE_FILE_MAX_AGE_DAYS = 14;
 export const LEAVE_FILE_MAX_BYTES = 2_000_000;
 
 export const GRADES = Object.freeze(['CEA', 'CES', 'DISP']);
-export const DAY_KINDS = Object.freeze(['leave', 'sunday-tag', 'sunday-counted']);
+const DAY_KINDS = Object.freeze(['leave', 'sunday-tag', 'sunday-counted']);
 
 /**
  * Where a day was found, which kinds of day it may be, and whether the sheet's own total counts it.
@@ -70,11 +70,11 @@ export const FOUND_IN = Object.freeze({
 });
 
 /** Why a sheet row was NOT the one used for a person. */
-export const ROW_WHY = Object.freeze(['duplicate-identical', 'duplicate-stale', 'duplicate-missing-column-e', 'duplicate-chosen']);
+const ROW_WHY = Object.freeze(['duplicate-identical', 'duplicate-stale', 'duplicate-missing-column-e', 'duplicate-chosen']);
 /** Why somebody on the sheet is not in the file's people. Codes, so there is no free text to render. */
 export const NOT_IMPORTED_REASONS = Object.freeze(['leaver', 'manager', 'no-allowance', 'not-in-app']);
 /** Why a person's corrected remaining differs from the sheet's printed one. */
-export const CORRECTED_BECAUSE = Object.freeze(['grid-misspelt', 'column-e-blank', 'sunday-counted']);
+const CORRECTED_BECAUSE = Object.freeze(['grid-misspelt', 'column-e-blank', 'sunday-counted']);
 
 const TOP_FIELDS = ['format', 'version', 'year', 'source', 'made', 'nameMap', 'people', 'days',
     'absentFromWorkbook', 'notImported', 'unplacedSundayTags', 'digest'];

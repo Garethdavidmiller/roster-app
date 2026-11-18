@@ -294,6 +294,10 @@ async function eachLimited(items, limit, fn) {
 }
 
 /**
+ * Every file is counted ONCE: in one of `linked`, `unlinkedWithKey`, `unlinkedTooNew`,
+ * `unlinkedWithoutKey` and `held`, or in `failed` at its `read` step — so those add up to `files`. A
+ * file found held only when a run looks again is moved from `linked` to `held`. What a run then did
+ * (`rotated`, `cleared`, `changedDuringRun`, a later `failed` step) is counted on top of that.
  * @typedef {object} RotationReport
  * @property {boolean} rotate               false: a preview, and nothing was changed
  * @property {number}  files                files found in the three document folders
@@ -415,7 +419,8 @@ async function rotateDocumentLinks({ bucket, db, rotate = false, newKey, limit =
             if (typeof key !== 'string' || !key) throw new Error('no key');
             const [now] = await file.getMetadata();
             const kept = keysOf(now).filter(k => k !== key);
-            if (kept.some(k => heldKeys.has(k))) { report.held++; return; }
+            // Held since the first look: it moves from `linked` to `held`, so it is still counted once.
+            if (kept.some(k => heldKeys.has(k))) { report.linked--; report.held++; return; }
             expanded = await writeKeys(file, now, [...kept, key]);
         } catch (err) {
             if (changedUnderUs(err)) report.changedDuringRun++;

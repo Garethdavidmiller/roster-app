@@ -249,8 +249,10 @@ never lands in an empty cell, so most simulated one-day misreads pass it, and no
 Every roster measured prints Sunday first, and the header row used to be dropped unread as furniture —
 so a template printed Monday first would have handed every row over a day early, every check agreeing.
 `readGridPage` now reads the header (six of its seven day cells must name a day, through
-`headerToDayIndex`): a page whose header runs in any other order gives no rows, and the cell path runs
-only once a header has been read Sunday to Saturday (`no-day-header` otherwise). No real roster was to
+`headerToDayIndex`): a page whose header runs in any other order gives no rows — and once one does, nor
+does any page of that file printing no header of its own, to the witness as much as to the cell path
+(`extractRosterGeometry`) — and the cell path runs only once a header has been read Sunday to Saturday
+(`no-day-header` otherwise). No real roster was to
 hand, so the first import after it shipped is the check: its path line must not say `no-day-header` —
 if it does, the sheet's header names no day the reader knows, and the cell path is off until it does. **And one row is one
 member's**: a row two names match — a member absent from the sheet whose name is part of a
