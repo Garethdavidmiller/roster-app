@@ -273,7 +273,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
         isDragging = false;
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
-        try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) {}
+        try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) { /* never captured (capture waits for a sideways move), or the pointer has gone */ }
 
         const current = gestureCurrentPanel;
         if (!current) { discardPanels(); _swipeCooldown = false; _gestureActive = false; return; }
@@ -394,7 +394,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
         _gestureActive = false;
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
-        try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) {}
+        try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) { /* never captured (capture waits for a sideways move), or the pointer has gone */ }
 
         if (gestureCurrentPanel) {
             gestureCurrentPanel.style.transition = 'none';
