@@ -156,7 +156,15 @@ export function populateTeamMemberDropdown() {
         .map((member, index) => ({ member, index }))
         .filter(({ member }) => !member.hidden);
 
-    const distinctRoles = [...new Set(visibleMembers.map(({ member }) => member.role || 'CEA'))];
+    // Grades in CONFIG.GRADE_ORDER — the order Admin's picker and the sign-in already use — never the
+    // order a grade first appears in teamMembers, which put Dispatcher before CES here and nowhere
+    // else (owner, 18 Nov 2026). A grade the list does not name goes last.
+    const gradeRank = (/** @type {string} */ role) => {
+        const i = CONFIG.GRADE_ORDER.indexOf(role);
+        return i === -1 ? Infinity : i;
+    };
+    const distinctRoles = [...new Set(visibleMembers.map(({ member }) => member.role || 'CEA'))]
+        .sort((a, b) => gradeRank(a) - gradeRank(b));
     const useGroups = distinctRoles.length > 1;
 
     if (useGroups) {
