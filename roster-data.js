@@ -185,10 +185,12 @@ export function gradeForRole(role) {
 /**
  * Project a member's annual-leave total for ONE calendar year and return the over-entitlement
  * overage, or null when still within entitlement. SINGLE SOURCE for the over-cap warning shown by
- * both AL write paths — the Change-a-Shift week editor (admin-app.js) and the AL booking flow
- * (admin-al.js) — which previously computed this with subtly different data shapes and could drift.
+ * both AL write paths — the Change-a-Shift week editor and the AL booking flow — which previously
+ * computed this with subtly different data shapes and could drift. Its one caller is
+ * `projectAlOverage` (admin-al-projection.js), which both paths use: the week editor's save through
+ * admin-al-week-save.js, the booking flow through admin-al.js.
  *
- * Each caller pre-filters Sundays (uncontracted) and its own exclusions into `existingALDates`:
+ * That caller pre-filters Sundays (uncontracted) and each path's own exclusions into `existingALDates`:
  *  - the week editor excludes the dates this batch OVERWRITES or DELETES;
  *  - the booking flow passes ALL existing AL for the year.
  * A new date already present in `existingALDates` is never double-counted (re-booking a day that is
