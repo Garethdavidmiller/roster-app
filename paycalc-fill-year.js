@@ -155,9 +155,11 @@ export async function fillYearFromCalendar({ periods, member, now, deps }) {
         // preference that fails to save is not worth crashing a page over. A BULK write onto pay
         // data reads that silence as success and then tells the member "Filled 5 payslips" when
         // some were not saved at all — the same shape as the migration defect `lsSetVerified`
-        // exists for. `write` therefore returns a boolean, and only a true lands in `filled`.
-        if (deps.write(p.num, data, snap)) (s ? filled : checked).push(p);
-        else unsaved.push(p);
+        // exists for. `write` therefore returns a boolean, and only a true lands in `filled` (or, for
+        // the calendar's none, in `checked`).
+        if (!deps.write(p.num, data, snap)) unsaved.push(p);
+        else if (s) filled.push(p);
+        else checked.push(p);
     }
     return { filled, unreached, checked, corrupt, unsaved };
 }

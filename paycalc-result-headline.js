@@ -197,7 +197,8 @@ export function renderUnpricedPayslip(line) {
   if (note) { note.textContent = line; note.hidden = !line; }
   if (!line) return;
   const netLabel = document.getElementById('netLabel');
-  if (netLabel) setStatus(netLabel, headlineLabels({ hasActual: false, payday: null }).netLabel);
+  if (netLabel) setStatus(netLabel, headlineLabels({ hasActual: false, payday: null, bpThisPeriod: 0, hppForPeriod: 0,
+    bpIsEstimate: false, hppIsEstimate: false }).netLabel);
   for (const id of ['netDisplay', 'stickyAmount']) {
     const el = document.getElementById(id);
     if (el) el.textContent = '£–';

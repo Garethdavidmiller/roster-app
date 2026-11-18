@@ -32,7 +32,7 @@ const NOT_ON_ROSTER = "That backup was saved under a name this device doesn't re
 
 /** The ROSTER's name for a member slug `keyOwnerSlug` has matched — never the file's words for it. A
  *  slug two names share (memberSlug's doc says it can happen) gives the first; the refusal stands
- *  either way, so the name only says who to sign in as. @param {string} slug @returns {string} */
+ *  either way, so the name only says who to sign in as. @param {string|null} slug @returns {string} */
 function _rosterName(slug) {
     return teamMembers.find(m => memberSlug(m.name) === slug)?.name ?? 'someone else';
 }
