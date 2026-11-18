@@ -74,6 +74,13 @@ describe('isRestGap — a rest day the member came in for is not a gap (review, 
         assert.equal(isRestGap(RESTDAY, member, on({ type: 'shift', value: '06:00-14:00' })), false);
     });
 
+    test('so does a Spare turn, whose value is no worked shift, and an Other day', () => {
+        // `isWorkedShift('SPARE')` is false — standby has no hours yet — but the member was at work, as
+        // WORKED_OVERRIDE_TYPES says. A value-only check merged two bookings across a Spare turn.
+        assert.equal(isRestGap(RESTDAY, member, on({ type: 'spare_shift', value: 'SPARE' })), false);
+        assert.equal(isRestGap(RESTDAY, member, on({ type: 'other', value: 'TRG' })), false);
+    });
+
     test('a record that is not work leaves it a gap — leave, an absence, a rest-day change', () => {
         for (const rec of [{ type: 'annual_leave', value: 'AL' }, { type: 'sick', value: 'SICK' }, { type: 'correction', value: 'RD' }]) {
             assert.equal(isRestGap(RESTDAY, member, on(rec)), true, rec.type);
