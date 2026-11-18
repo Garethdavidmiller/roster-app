@@ -1218,6 +1218,26 @@ test('the nav drawer shows NO footer while the Calendar is locked', async ({ pag
     await expect(page.locator('#navNotifBell')).toHaveCount(0);
 });
 
+// ONE TAB NEVER LEAVES THE DRAWER FROM ITS SEARCH BOX (18 Nov 2026). The drawer's Tab trap counted links and buttons
+// and not the guide search box, so here — a drawer with no footer — a search that matched nothing made the box the
+// last stop Tab could reach, and one Tab from it walked out of the drawer onto the locked page behind.
+test('locked: with the guide search matching nothing, Tab from its box stays in the drawer', async ({ page }) => {
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('.nav-panel-footer'), 'premise: a locked visitor\'s drawer has no footer').toBeHidden();
+    const input = page.locator('#navGuideSearchInput');
+    await input.click();                                         // the first focus loads the search
+    await input.fill('zzzqxv');
+    await expect(page.locator('#navGuideSearchStatus')).toHaveText('No matches in the guides');
+    await input.press('Tab');
+    expect(await page.evaluate(() => !!document.getElementById('navPanel')?.contains(document.activeElement)),
+        'one Tab from the box left the drawer').toBe(true);
+    await page.keyboard.press('Shift+Tab');
+    await expect(input, 'and Shift+Tab comes back round to it').toBeFocused();
+});
+
 test('a VIEWER gets the footer for Lock Calendar — but still no bell', async ({ page }) => {
     await stubPinExchange(page);
     await seedMember(page);

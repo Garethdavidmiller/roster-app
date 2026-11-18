@@ -966,8 +966,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (document.querySelector('.lb-overlay.open')) return;
         if (e.key === 'Escape') { closePanel(); return; }
         if (e.key === 'Tab') {
+            // The guide search box is a stop too (18 Nov 2026). Left out, a search matching nothing in a drawer with
+            // no footer (a locked Calendar's) made it the last thing Tab could reach, and one Tab from it left the drawer.
             const focusable = /** @type {HTMLElement[]} */ (Array.from(panel.querySelectorAll(
-                'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
             ))).filter(el => el.offsetParent !== null); // visible only — skip the collapsed Guides links
             if (focusable.length === 0) return;
             const first  = focusable[0];
