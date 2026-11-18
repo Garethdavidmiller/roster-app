@@ -252,9 +252,9 @@ export function init() {
         // therefore runs AFTER the load (the mark must exist before the read), in a `finally`: a
         // page that failed to load still took time, and dropping its sample would bias the figures
         // towards loads that went well.
-        // The forced set-password step, as on every page that mounts the sign-in (v23.21: a reviewer
-        // who signed in here was asked on the next page instead). Fails open; never awaited here.
-        sessionReady.then(() => initPasswordForce(currentUser)).catch(() => {});
+        // The forced set-password step, as on every page that mounts the sign-in (v23.21). Fails open; never awaited; called
+        // NOW, with the session as its barrier, so the sign-in's one-shot marker is spent as the page opens (password-force.js).
+        initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});
         sessionReady.then(() => {
             initErrorReporter();
             recordUsage('overtime', currentUser);

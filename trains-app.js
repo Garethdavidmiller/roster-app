@@ -209,7 +209,9 @@ function start(member) {
             recordUsage('trains', member);
             recordPageLatency('trains', member);
         });
-        sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+        // Called now, with the session as its barrier: a sign-in's one-shot marker is spent as the page opens,
+        // never only once the session is confirmed (password-force.js, "consume BEFORE any await").
+        initPasswordForce(member, { ready: sessionReady }).catch(() => {});
         return;
     }
     // The station PIN is already the current Firebase user (holdsStaffPin read it), and the rules take
