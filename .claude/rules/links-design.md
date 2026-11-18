@@ -84,6 +84,7 @@ list.
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in |
 | `links-seed.js` | the roster SEED — read today's main cycle and produce a target table |
 | `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between them |
+| `links-design-load.js` | what a READ of the collection means — live, binned, old-length moves, a cached answer, the legacy migration, the list's one order, which design opens — for the load and the refresh alike |
 | `links-design-naming.js` | what a design or a staffing setup may be CALLED — one rule for new, import, duplicate and rename |
 | `links-target-hours.js` | does a target table pay the contract, and the words the card says so in |
 | `links-import.js` | somebody ELSE's proposal → a design, or a refusal — the TRUST BOUNDARY (invariant 6) |
@@ -1156,7 +1157,7 @@ the rule is held by hand, as is this file, which the test does not read.
   `isPre26Design` in `links-design-doc.js` needs ALL THREE: last saved before `LINK_26_FROM` — the START of
   the release day, UTC, because the end would bin a design begun on the new page that day — so a design
   saved or RESTORED since is never moved again; nothing drawn past `PREVIOUS_LINK_LENGTH`; and something
-  drawn within it, so a blank design is left alone. `_splitDocs` shows them in the bin at once, and the
+  drawn within it, so a blank design is left alone. `splitDesignDocs` (`links-design-load.js`) shows them in the bin at once, and the
   empty state and the status line say so at once (on release day the list is usually empty, and the save
   row that carries status is hidden with it). `_binPre26` then moves each one through `store.binIfStill` —
   a TRANSACTION that re-asks the rule (a design it skips is shown live again) and fails offline rather

@@ -9,7 +9,7 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, stubPinExchange, enterPin } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, stubPinExchange, enterPin, scaleText } from './helpers.js';
 import { TIMETABLES, STATIONS } from '../trains-data.js';
 import { busiestStations, matchStations } from '../trains-stations.js';
 
@@ -37,8 +37,9 @@ test.describe('trains', () => {
         await page.goto('/trains.html');
 
         await expect(page.locator('#trCountdown')).toHaveText('67 days to go');
-        // One real weekday (v24.83): 146 counted today's Mondays-and-Fridays 17:37 beside its 17:33 twin.
-        await expect(page.locator('#trTotals')).toContainText('Weekdays 145 → 158');
+        // One real weekday (v24.83): 146 counted today's Mondays-and-Fridays 17:37 beside its 17:33 twin. And
+        // since the external review of 18 Nov 2026, each kind of weekday whose count differs has its own row.
+        await expect(page.locator('#trTotals .tr-total')).toHaveText(['Mon and Fri 144 → 158 +14', 'Tue to Thu 145 → 158 +13', 'Saturdays 100 → 105 +5', 'Sundays 91 → 94 +3']);
         await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
         // Chiltern's books say nothing about Christmas, so the page says it cannot answer for it.
         await expect(page.locator('#trFestive')).toBeVisible();
@@ -64,7 +65,9 @@ test.describe('trains', () => {
         await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trViewChanges')).toBeHidden();
         await expect(page.locator('#trStationTitle')).toHaveText('Aylesbury');
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('6 more trains a day: 47, was 41.');
+        // The answer, then the rest of what changed, a line each — the cost of the gain read with it.
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('6 more trains a day: 47, was 41. First train earlier: 06:01, was 06:35. Fastest journey 2 minutes longer: 53 min, was 51.');
+        await expect(page.locator('#trStation .tr-verdict-also')).toHaveText(['First train earlier: 06:01, was 06:35.', 'Fastest journey 2 minutes longer: 53 min, was 51.']);
         const daily = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' });
         await expect(daily.locator('td').nth(0)).toHaveText('41');
         await expect(daily.locator('td').nth(1)).toHaveText('47');
@@ -82,7 +85,7 @@ test.describe('trains', () => {
         await page.locator('[data-sdir="arr"]').click();
         await expect(page.locator('#trStationHint')).toHaveText('Weekdays · Aylesbury → London Marylebone');
         await expect(page.locator('#trStation')).toContainText('Daytime, leaves Aylesbury at');
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('More trains in the daytime: usually 2 an hour, was 1 to 3.');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('More trains in the daytime: usually 2 an hour, was 1 to 3. 5 more trains a day: 42, was 37. Fastest journey 3 minutes shorter: 55 min, was 58.');
         // Train by train: only the trains that change, the rest one tap away.
         await page.locator('#trStation .tr-route-sum').click();
         await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
@@ -99,8 +102,13 @@ test.describe('trains', () => {
         await page.locator('[data-sdir="dep"]').click();
         await findStation(page, 'beac');
         await page.locator('#trStationPicks .tr-pick', { hasText: 'Beaconsfield' }).click();
-        // 16 since v24.83: a train that passes it now, or starts calling, is counted at the station.
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('Same number of trains a day, but 16 are different — see Train by train below.');
+        // 16 since v24.83: a train that passes it now, or starts calling, is counted at the station. Since 18 Nov
+        // 2026 the sentence names the days it is true of, and a Monday's and a Friday's count follows.
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('Tuesday to Thursday, same number of trains a day, but 16 are different — see Train by train below. '
+            + 'Fastest journey 3 minutes shorter: 21 min, was 24. Mondays and Fridays, 1 more train a day: 53, was 52.');
+        const bcfDaily = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' });
+        await expect(bcfDaily.locator('td').nth(0)).toHaveText('53 (Mon and Fri: 52)');
+        await expect(bcfDaily.locator('td').nth(0).locator('.tr-days')).toBeVisible();
         await expect(page.locator('#trStation')).not.toContainText('not known yet');
         await expect(page.locator('#trStation .tr-route')).toHaveCount(1);
         // …and Oxford counts the train that runs on to Banbury too, where it could count only the
@@ -115,7 +123,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trStationTitle')).toHaveText('Princes Risborough');
         await findStation(page, 'oxf');
         await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 37, was 36.');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 37, was 36. Fastest journey 4 minutes shorter: 68 min, was 72.');
         await expect(page.locator('#trStation .tr-sub')).toHaveCount(0);
         await expect(page.locator('#trStation .tr-route')).toHaveCount(1);
 
@@ -1204,6 +1212,147 @@ test('the trains-a-day box reaches the right-hand edge the blocks around it shar
         column: /** @type {Element} */ (document.querySelector('.tr-ov-side')).getBoundingClientRect().right,
     }));
     expect(Math.abs(edge.box - edge.column), `box ends at ${edge.box}, its column at ${edge.column}`).toBeLessThanOrEqual(1);
+});
+
+// THE DAYS A FIGURE IS TRUE OF (external review, 18 Nov 2026). The totals give each kind of weekday whose
+// count differs its own row, and a card says what the other days have — a line under its answer, small print
+// beside a figure. Named short ("Mon and Fri") in the totals because "Mondays and Fridays" needs 125px and
+// pushed the counts out of their column on a 320px phone (measured): each row and cell is held to its box here,
+// at a phone's narrowest and with a phone's larger text. The text is enlarged ONCE per page load: `scaleText`
+// multiplies whatever size an element already has, so a second call on the same page compounds.
+test('the weekday rows, a card\'s other-day lines and its small print stay inside their boxes on a phone, with larger text too', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    /** Text that leaves the box it is laid out in, for each element `sel` matches. @param {string} sel */
+    const spills = (sel) => page.locator(sel).evaluateAll(els => els.flatMap((box) => {
+        const rects = [], walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            if (!n.textContent?.trim() || n.parentElement?.closest('.sr-only')) continue;
+            const r = document.createRange(); r.selectNodeContents(n); rects.push(...r.getClientRects());
+        }
+        const b = box.getBoundingClientRect();
+        const out = Math.max(0, ...rects.map(r => Math.max(b.left - r.left, r.right - b.right)));
+        return out > 1 ? [`"${box.textContent?.trim()}" leaves its box by ${out.toFixed(1)}px`] : [];
+    }));
+    /** In each totals row, the day, its figures and the change never drawn over one another — side by side, or the
+     *  day above its figures where the text is too large for one line (trains.css, "A phone's larger text"). */
+    const overlaps = () => page.locator('#trTotals .tr-total').evaluateAll(rows => rows.flatMap((row) => {
+        const boxes = ['.tr-total-day', '.tr-total-n', '.tr-delta'].map(c => row.querySelector(c)?.getBoundingClientRect()).filter(b => !!b);
+        const meet = (/** @type {DOMRect} */ a, /** @type {DOMRect} */ b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5
+            && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+        const bad = boxes.some((a, i) => boxes.slice(i + 1).some(b => meet(/** @type {DOMRect} */ (a), /** @type {DOMRect} */ (b))));
+        // …and the figures and their change are read together, on one line, whichever layout the row has.
+        const [, n, delta] = boxes;
+        const apart = n && delta && Math.abs(n.top + n.height / 2 - (delta.top + delta.height / 2)) > 3;
+        return bad ? [`"${row.textContent?.trim()}" runs into itself`] : apart ? [`"${row.textContent?.trim()}": its change is not beside its figures`] : [];
+    }));
+    for (const [width, k] of [[320, 1], [320, 1.3], [375, 1.3]]) {
+        const at = `at ${width}px${k === 1 ? '' : ` with the text ${k} times larger`}`;
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/trains.html');
+        // The overview folds away after a first visit; open it, so the rows measured are rows drawn.
+        if (!(await page.locator('#trOverviewBody').evaluate(e => e.classList.contains('open')))) await page.locator('#trOverviewChevron').click();
+        await expect(page.locator('#trTotals .tr-total')).toHaveCount(4);
+        await expect(page.locator('#trTotals .tr-total').last()).toBeVisible();
+        if (k !== 1) await scaleText(page, k);
+        expect(await spills('#trTotals .tr-total-day, #trTotals .tr-total-n, #trTotals .tr-delta'), `${at}: the totals`).toEqual([]);
+        expect(await overlaps(), `${at}: the totals`).toEqual([]);
+        for (const [name, dir] of [['Princes Risborough', 'dep'], ['Beaconsfield', 'arr']]) {
+            await page.goto('/trains.html');
+            await page.locator('[data-view="stations"]').click();
+            await findStation(page, name.toLowerCase());
+            await page.locator('#trStationPicks .tr-pick', { hasText: name }).first().click();
+            await page.locator(`[data-sdir="${dir}"]`).click();
+            await expect(page.locator('#trStation .tr-verdict-also')).toBeVisible();
+            await expect(page.locator('#trStation .tr-st-table .tr-days')).toHaveCount(dir === 'arr' ? 2 : 1);
+            if (k !== 1) await scaleText(page, k);
+            expect(await spills('#trStation .tr-verdict, #trStation .tr-st-table td'), `${at}: ${name}`).toEqual([]);
+            const [also] = await page.locator('#trStation .tr-verdict-also').evaluateAll(els => els.map(e => e.getBoundingClientRect().top - /** @type {Element} */ (e.parentElement).getBoundingClientRect().top));
+            expect(also, `${at}: ${name}'s other-day line sits under the answer, inside its box`).toBeGreaterThan(10);
+        }
+    }
+});
+
+// A PHONE'S LARGER TEXT (18 Nov 2026). Android's text size scales every font and leaves the screen as wide as
+// it was. At 1.3 times on a 320px phone the Day control ran 23px off the screen on every view, so the page
+// scrolled sideways; at 1.5 times it was 62px, and 22px on a 360px phone; the train list's heads and the two
+// weekday totals ran past their boxes too. trains.css fixes each with a container query in em ("is this box
+// narrow for its text?"), which no width query can ask — this holds every one of them, in each engine. Widths
+// are read against the LAYOUT viewport (clientWidth): an emulated phone zooms out to fit a page that is too
+// wide, which makes innerWidth grow with the overflow and hides it. Measured and NOT held: 1.75 times on a
+// 320px phone and 2 times below 412px, where the train list itself would need another layout.
+test('no view of the page runs off a phone\'s screen with larger text', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    /** Anything past the screen's edge, or past the edge of a box that clips it — never inside a frame that scrolls. */
+    const cutOff = () => page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        const clipper = (/** @type {Element} */ e) => {
+            for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+                const o = getComputedStyle(p).overflowX;
+                if (o === 'auto' || o === 'scroll') return null;
+                if (o === 'hidden' || o === 'clip') return p;
+            }
+            return null;
+        };
+        const bad = [];
+        for (const e of document.querySelectorAll('main *')) {
+            if (!e.getClientRects().length || e.closest('.sr-only')) continue;
+            const r = e.getBoundingClientRect();
+            const box = clipper(e);
+            if (!box && getComputedStyle(e).position !== 'fixed' && r.right > vw + 1) bad.push(`"${(e.textContent || '').trim().slice(0, 30)}" runs ${Math.round(r.right - vw)}px off the screen`);
+            else if (box && r.right > box.getBoundingClientRect().right + 1) bad.push(`"${(e.textContent || '').trim().slice(0, 30)}" is cut off by ${Math.round(r.right - box.getBoundingClientRect().right)}px`);
+        }
+        return [...new Set(bad)].slice(0, 5);
+    });
+    const sideways = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    /** @param {number} width @param {number} k @param {'changes'|'stations'} view */
+    const open = async (width, k, view) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/trains.html');
+        if (view === 'changes') {
+            if (!(await page.locator('#trOverviewBody').evaluate(e => e.classList.contains('open')))) await page.locator('#trOverviewChevron').click();
+            await expect(page.locator('#trTotals .tr-total').last()).toBeVisible();
+        } else {
+            await page.locator('[data-view="stations"]').click();
+            await findStation(page, 'beaconsfield');
+            await page.locator('#trStationPicks .tr-pick', { hasText: 'Beaconsfield' }).first().click();
+            await page.locator('[data-sdir="arr"]').click();
+            await page.locator('#trStation .tr-route-sum').click();
+            await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
+        }
+        if (k !== 1) await scaleText(page, k);
+    };
+    // Premise, so a pass cannot come from somewhere else: the Day label is there at the normal size, and the
+    // container query takes it away at 1.3 times on a 320px phone — in this engine.
+    await open(320, 1, 'changes');
+    await expect(page.locator('.tr-seg-label')).toBeVisible();
+    await open(320, 1.3, 'changes');
+    await expect(page.locator('.tr-seg-label')).toBeHidden();
+    for (const [width, k] of [[320, 1.3], [320, 1.5], [360, 1.5], [412, 1.75]]) {
+        for (const view of /** @type {const} */ (['changes', 'stations'])) {
+            await open(width, k, view);
+            const at = `${view} at ${width}px with the text ${k} times larger`;
+            expect(await cutOff(), at).toEqual([]);
+            expect(await sideways(), `${at}: the page scrolls sideways`).toBe(0);
+        }
+    }
+    // The Day control's steps, each held: at 1.5 times on a 320px phone its segments tighten and stay on ONE line
+    // (the wrap below is for when even that cannot fit), and at 2 times they wrap inside the track rather than
+    // run off the screen.
+    const dayTabs = () => page.locator('.tr-tabs--seg .tr-tab').evaluateAll(tabs => tabs.map(t => {
+        const r = t.getBoundingClientRect();
+        return { top: Math.round(r.top), right: r.right, vw: document.documentElement.clientWidth };
+    }));
+    await open(320, 1.5, 'changes');
+    expect(new Set((await dayTabs()).map(t => t.top)).size, 'the Day segments at 1.5 times on a 320px phone: one line').toBe(1);
+    await open(320, 2, 'changes');
+    expect((await dayTabs()).filter(t => t.right > t.vw + 1), 'the Day segments at 2 times on a 320px phone: on the screen').toEqual([]);
+    // At 1.75 times on a 320px phone the train list is past help, but a station's figures are not: a figure's
+    // label may break inside a word ("Beaconsfield") rather than push the table off the card.
+    await open(320, 1.75, 'stations');
+    expect(await page.locator('#trStation .tr-st-table').evaluate(t => t.getBoundingClientRect().right - /** @type {Element} */ (t.closest('.card')).getBoundingClientRect().right),
+        'the figures at 1.75 times on a 320px phone').toBeLessThanOrEqual(1);
 });
 
 // ── THE WHOLE-APP FIX (Nov 2026) ─────────────────────────────────────────────────────────────────────

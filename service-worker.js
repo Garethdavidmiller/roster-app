@@ -16,7 +16,7 @@
 // The app also sends SKIP_WAITING on the rare edge case where a waiting SW needs a nudge.
 // The cache name includes the app version, so every bump refreshes the cache on all clients.
 
-const APP_VERSION = '26.35';
+const APP_VERSION = '26.36';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -103,7 +103,7 @@ const NETWORK_FIRST_FILES = [
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'newsletter-recency.js', 'notice-archive.js', 'nav-guide-search.js', 'guide-search.js', 'guide-index.js', 'install-prompt.js', 'calendar-notif-prompt.js', 'calendar-doc-access.js', 'calendar-access-state.js', 'calendar-redraw.js', 'calendar-lock-slot.js', 'calendar-snapshot.js', 'text-scale.js', 'notif.js',
     'admin-roster-upload.js', 'roster-import-save.js', 'roster-alignment.js', 'roster-cell-rules.js', 'roster-review-states.js', 'admin-period-dates.js', 'roster-entry-control.js', 'admin-overrides.js', 'admin-override-store.js', 'admin-override-coverage.js', 'override-id.js', 'override-compare.js', 'admin-shift-types.js', 'admin-week-editor.js', 'admin-saved-changes.js', 'admin-shift-rules.js', 'admin-save-receipt.js', 'slow-save.js', 'admin-rangepicker.js', 'admin-deep-link.js',
     'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'al-contract.js', 'christmas-leave.js', 'leave-year.js', 'admin-leave-year.js', 'admin-leave-year-save.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js', 'admin-day-pills.js', 'admin-own-write.js', 'admin-time-inputs.js', 'admin-bulk-apply.js', 'admin-tips.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-pin-lockout.js', 'operations-tips.js', 'operations-doc-links.js', 'operations-reset.js', 'operations-doc-uploads.js', 'operations-al-sheet.js', 'operations-al-save.js', 'al-leave-file.js', 'al-leave-compare.js', 'al-leave-plan.js', 'al-leave-save.js', 'al-leave-words.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-headlines.js', 'trains-cards.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'pdf-viewer.js', 'pdf-viewer-core.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-pin-lockout.js', 'operations-tips.js', 'operations-doc-links.js', 'operations-reset.js', 'operations-doc-uploads.js', 'operations-al-sheet.js', 'operations-al-save.js', 'al-leave-file.js', 'al-leave-compare.js', 'al-leave-plan.js', 'al-leave-save.js', 'al-leave-words.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-weekdays.js', 'trains-verdict.js', 'trains-headlines.js', 'trains-cards.js', 'trains-render.js', 'trains-grid-mirror.js', 'overflow-hint.js', 'newlink-app.js', 'newlink-boot.js', 'newlink-config.js', 'newlink-data.js', 'newlink-render.js', 'pdf-viewer.js', 'pdf-viewer-core.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js', 'links-design-load.js',
     'links-design-naming.js', 'links-design-header.js', 'links-proposals.js', 'links-shortlist.js', 'links-generator-targets.js', 'links-design-store.js', 'links-queued-saves.js', 'links-design-library.js', 'links-import.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-compare-analysis.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js', 'links-grid-input.js',
     'overlay.js', 'card-collapse.js', 'select-sheet.js', 'session.js', 'staff-pin-ended.js', 'silent-sign-in.js', 'viewer-shed.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
@@ -148,6 +148,7 @@ const CORE_ASSETS = [
     "./links-target-sets-store.js",
     "./links-target-hours.js",
     "./links-design-doc.js",
+    "./links-design-load.js",
     "./links-design-naming.js",
     "./links-design-header.js", "./links-queued-saves.js",
     "./links-proposals.js", "./links-shortlist.js",
@@ -181,7 +182,7 @@ const CORE_ASSETS = [
     "./overtime-form.js",
     "./overtime-roster.js",
     "./overtime-manager.js",
-    "./overtime-review-controller.js", "./trains.html", "./trains.css", "./trains-app.js", "./trains-boot.js", "./trains-change.js", "./trains-data.js", "./trains-tips.js", "./trains-stations.js", "./trains-headlines.js", "./trains-cards.js", "./trains-render.js", "./trains-grid-mirror.js",
+    "./overtime-review-controller.js", "./trains.html", "./trains.css", "./trains-app.js", "./trains-boot.js", "./trains-change.js", "./trains-data.js", "./trains-tips.js", "./trains-stations.js", "./trains-weekdays.js", "./trains-verdict.js", "./trains-headlines.js", "./trains-cards.js", "./trains-render.js", "./trains-grid-mirror.js",
     "./newlink.html", "./newlink.css", "./newlink-app.js", "./newlink-boot.js", "./newlink-config.js", "./newlink-data.js", "./newlink-render.js", "./pdf-viewer.js", "./pdf-viewer-core.js",
     "./calendar-app.js",
     "./calendar-state.js",

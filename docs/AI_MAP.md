@@ -411,6 +411,10 @@ Does a generator target table pay the contract — exactly, as the generator's g
 The shape of a link design in memory and in Firestore, and every conversion between the two, plus which designs were drawn for the previous rotation. Pure; its three rules are in the header. `.claude/rules/links-design.md` → Firestore model. Tested by `links-design-doc.test.mjs`.
 - **Exports:** `LEGACY_DOC_ID` · `LINK_26_FROM` · `PREVIOUS_LINK_LENGTH` · `isPre26Design` · `deepCopyPatterns` · `designFromDoc` · `binEntryFromDoc` · `docPayload` · `workingCopy` · `binEntryFrom` · `restoredEntryFrom` · `recordSave` · `lastSavedLabel`
 
+### `links-design-load.js`
+What a read of the design collection means — which designs are live, which binned, which old-length ones move to the bin, whether a cached answer can be trusted, whether the legacy grid migrates, the list's one order and which design opens. Pure; ONE rule for the page load and the list refresh, which differ only in their bin predicate. Tested by `links-design-load.test.mjs`.
+- **Exports:** `splitDesignDocs` · `binOldOnLoad` · `binOldOnRefresh` · `readCannotAnswer` · `migratesLegacy` · `byDesignName` · `designToOpen`
+
 ### `links-generator-targets.js`
 The generator card's target table: the numbers Generate runs against, where they came from (the default, today's roster, this design's own memory or a saved staffing setup) and what may replace them, including the "Saved staffing setups" row and the two reset buttons. The four rules easy to undo are in its header. Bound by `.claude/rules/links-design.md` → The default table and the roster seed, and Saved staffing setups. Tested by `links-generator-targets.test.mjs` and the `links sets:` cases in `e2e/links.spec.js`.
 - **Exports:** `customShiftRefusal` · `createTargetPanel`
@@ -553,12 +557,14 @@ The Admin Annual Leave card's "Which year's allowance" panel and the save behind
 Which calendar year the Annual Leave figures on `admin.html` describe: the precedence between the places the page implies a year — a picked start date, the range picker's view once it has crossed a year, the Change a Shift week, then today. Pure and import-free so the order can be tested; the header says which two rungs must not be "tidied". Read by `updateALBanner` in `admin-app.js`; deliberately not wired on the Absence card (`admin-sick.js` header). Tested by `admin-al-year.test.mjs`.
 - **Exports:** `alFigureYear`
 
-### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js`
+### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js`
 The Trains page (`trains.html`): what changes at Marylebone when the December 2026 timetable starts, organised by the station a customer is going to. Open to every signed-in member and to the station PIN (`auth-policy.js` → `staffPin`; AUTH_AND_SESSIONS.md 24); it reads no network. Tested by `trains-change.test.mjs`, `trains-stations.test.mjs`, `tips-content.test.mjs` and `e2e/trains.spec.js`.
 - `trains-app.js` — the coordinator: the access gate, the page state and its wiring. `trains-boot.js` is its CSP shim.
 - `trains-cards.js` — paints each card from the page state.
 - `trains-change.js` — pure judgements about two timetables: alignment, `timetablePhase`, the railway day.
 - `trains-stations.js` — pure: the timetable seen from one station.
+- `trains-weekdays.js` — pure: which weekdays a figure is true of.
+- `trains-verdict.js` — pure: a station's change in words.
 - `trains-headlines.js` — pure: the "what's changing" list.
 - `trains-render.js` — the page's HTML as strings.
 - `trains-grid-mirror.js` — the stopping grid's column heads kept in view, and its swipe line.
@@ -568,7 +574,9 @@ The Trains page (`trains.html`): what changes at Marylebone when the December 20
 - **Exports of `trains-boot.js`:** none
 - **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `renderLookup` · `setText` · `el`
 - **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `changeLabel` · `timetablePhase` · `dateWords` · `holidaysWithin` · `daysLabel` · `routeName` · `JOURNEY_PLANNER_URL`
-- **Exports of `trains-stations.js`:** `aRealDay` · `boardingTime` · `parseStops` · `stopsKnown` · `callsOf` · `lineOf` · `callingAt` · `endingAt` · `knowableWithoutStops` · `decemberKnown` · `summarise` · `stationView` · `stationTrains` · `verdictFor` · `hourChanged` · `rateWords` · `stopChanges` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList` · `busiestStations` · `matchStations` · `stationBands` · `stoppingGrid` · `orderStations` · `pairColumns` · `lastTrains`
+- **Exports of `trains-stations.js`:** `boardingTime` · `parseStops` · `stopsKnown` · `callsOf` · `lineOf` · `callingAt` · `endingAt` · `knowableWithoutStops` · `decemberKnown` · `summarise` · `stationView` · `stationTrains` · `stopChanges` · `busiestStations` · `matchStations` · `stationBands` · `stoppingGrid` · `orderStations` · `pairColumns` · `lastTrains`
+- **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
+- **Exports of `trains-verdict.js`:** `EDGE_SHIFT_MIN` · `JOURNEY_SHIFT_MIN` · `verdictFor` · `balanceFacts` · `hourChanged` · `rateWords` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList`
 - **Exports of `trains-headlines.js`:** `headlineChanges`
 - **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `renderLastTrains`
 - **Exports of `trains-data.js`:** `CHANGE_DATE` · `FURTHER_CHANGES_UNTIL` · `DEC_VALID_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` · `TIMETABLES`

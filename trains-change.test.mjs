@@ -13,7 +13,8 @@ import assert from 'node:assert/strict';
 import {
     serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, trainsNear, parseTypedTime, daysUntil, changeLabel,
     daysLabel, routeName, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, lineDepth, timetablePhase, dateWords, railwayToday, holidaysWithin } from './trains-change.js';
-import { stoppingGrid, aRealDay, callsOf } from './trains-stations.js';
+import { stoppingGrid, callsOf } from './trains-stations.js';
+import { aRealDay } from './trains-weekdays.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 
 /** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @param {string} [stops] @returns {[string,string,string,string,string]} */

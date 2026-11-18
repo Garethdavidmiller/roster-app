@@ -1008,6 +1008,16 @@ the size stays legible, and the alternative row costs a whole line of the calend
 day cells, the Team View grid and every other page keep scaling as the phone asks. If another
 surface ever seems to need it, the answer is a second line, not another compensating rule.
 
+### Trains at 1.75 times text on a 320px phone, or 2 times below 412px
+
+Measured on 18 November 2026: everything on the Trains page stays on the screen up to 1.5 times text
+at every width, and at 1.75 times from 360px (`trains.css` → "A phone's larger text", held by the e2e
+test "no view of the page runs off a phone's screen with larger text"). Beyond that, **a station's
+train list runs past its card** — by 11px at 1.75 times on a 320px phone, and by 9px to 49px at 2 times
+below 412px — and at 1.75 times on 320px the lookup's column heads by 3px. The next step is not a
+smaller font: it is another layout for the list (each train on two lines), which changes how the table
+reads to a screen reader and wants trying on a real phone first.
+
 ### Shift DURATION in the day panel — considered and declined
 
 An external review proposed a "9 hours" line under `07:00–16:00`, or better a paid figure, with its

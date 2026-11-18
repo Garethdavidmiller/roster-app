@@ -79,6 +79,11 @@ const CAPS = {
     // to their reasons, and rules that shared.css's `.hidden` or an identical twin already set.
     'paycalc.css':    1950,
     'overtime.css':   1900,   // paused since v25.05, kept (owner, 3 Nov 2026); see KNOWN_LIMITATIONS
+    // NEW on 18 Nov 2026, at 913, a deliberate RAISE: a phone's larger text — container queries in em that keep
+    // the Day control, the weekday totals and a station's card on the screen (css-tokens.md → "Larger text"). The
+    // surface is this sheet's alone. A dead-rule sweep found nothing to delete first: every class the sheet styles
+    // is emitted, the -- modifiers by template. The block's general argument went to the rules doc, not twice.
+    'trains.css':     1000,
 };
 
 describe('an already-large stylesheet may not get larger', () => {

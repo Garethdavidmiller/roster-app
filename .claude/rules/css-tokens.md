@@ -555,6 +555,18 @@ phone does not: a different layout, not a smaller one).
 Found twice — `.selectors` (its comment carries the reasoning) and `.container`. Pinned by the `@layout`
 tests in `e2e/pages.spec.js`, which create the scaled-text condition because nothing else can see it.
 
+## Larger text: ask the box, in em — a container query, never a width query
+
+**When a row must change under larger text, the condition is a container query in `em`** — "is this box
+narrow FOR ITS TEXT?" An em in a container query is the container's own font size, so the same 320px
+phone gives a row 21.4em at the normal size and 16.5em at 1.3 times: the query answers for width AND
+text size, where a width query sees neither the text nor the box. Set each threshold BELOW what a 320px
+phone measures at 1 times, and the normal-size page cannot change (prove it by screenshot). The first
+use, with the measurements, is `trains.css` → "A phone's larger text"; the tests ask in both engines,
+because Safari's engine draws a 1.5px border at full width and Chromium's test browser rounds it to
+1px. `text-scale.js` stays the Calendar's answer — it stamps a tier on `<html>` — and is not a pattern
+to copy: a container query needs no probe and no script.
+
 ## Prose is left-aligned once it passes ~2 lines
 
 Centred text is fine for a line or two and works against the reader beyond that — every line starts at

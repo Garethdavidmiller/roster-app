@@ -155,7 +155,12 @@ const CAPS = {
     // unit-tested). What stayed is wiring only this page can do (a refused save re-reads the list, and the save row follows;
     // a delete that lands after a switch keeps the comparison; two spans stamped from SPARE_WORKED_DAYS) and the reason
     // beside each. Set at the measured size: no room is banked.
-    'links-app.js':            2773,   // ← second whole-app check, Nov 2026 (2750 after the first; 2380 at v25.27)
+    // 2773 → 2750 on 18 Nov 2026, brought DOWN with what left (external review: make the next debt change small, one
+    // job): what a READ of the design collection means — the split both readers made, their two bin rules, the cached
+    // and legacy gates, the list's one order, which design opens — went to links-design-load.js, 2,773 measured lines
+    // to 2,744. The formula gives 2800, a raise, so it is clamped to the round number below the old cap, as admin-app.js
+    // was at v23.54: six lines of room. The save conversation in `saveChanges` is the next seam.
+    'links-app.js':            2750,   // ← 18 Nov 2026 (2773 after the second whole-app check; 2380 at v25.27)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
@@ -483,7 +488,11 @@ const CAPS = {
     // 1000 → 850 in the Nov 2026 tidy-up: that seam was cut. The headline builder (`headlineChanges`,
     // `foldSameTrains` and the chip's words) left for trains-headlines.js, pure and tested beside the
     // rest; 767 measured, plus 50, to the next 50. Kept in the table, so crossing 900 again is a decision.
-    'trains-stations.js':       850,
+    // 850 → 750 on 18 Nov 2026, an EXTRACT: naming the weekdays a figure is true of, and saying the rest of what
+    // changed (external review), took the file to 986 with two RULES, and both left. Which weekdays a figure is true
+    // of went to trains-weekdays.js; the verdict, its balance and the phrases it shares with the figures table went to
+    // trains-verdict.js. 664 measured, plus 50, to the next 50.
+    'trains-stations.js':       750,
     // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
     // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
     // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a
