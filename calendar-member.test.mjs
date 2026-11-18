@@ -431,6 +431,38 @@ describe('populateTeamMemberDropdown — who the picker offers', () => {
         });
     });
 
+    describe('groups the grades in the order Admin and the sign-in use', () => {
+        /** The optgroup labels, top to bottom — the grade order the reader sees. */
+        const groupLabels = () => buildDropdown().select._children
+            .filter(c => c._tag === 'optgroup').map(c => c.label);
+
+        test('a Dispatcher listed before the first CES still comes after CES', () => {
+            // The live roster's own shape when this was found (18 Nov 2026): first-appearance order
+            // put Dispatcher second here and third on Admin.
+            withRoster([
+                { name: 'A. Smith', currentWeek: 1, role: 'CEA',        rosterType: 'main' },
+                { name: 'D. Grey',  currentWeek: 1, role: 'Dispatcher', rosterType: 'dispatcher' },
+                { name: 'B. Jones', currentWeek: 2, role: 'CES',        rosterType: 'ces' },
+            ], () => assert.deepEqual(groupLabels(), ['CEA', 'CES', 'Dispatcher']));
+        });
+
+        test('a grade CONFIG.GRADE_ORDER does not name goes last', () => {
+            withRoster([
+                { name: 'E. White', currentWeek: 1, role: 'Trainee',    rosterType: 'main' },
+                { name: 'B. Jones', currentWeek: 2, role: 'CES',        rosterType: 'ces' },
+                { name: 'A. Smith', currentWeek: 1, role: 'CEA',        rosterType: 'main' },
+            ], () => assert.deepEqual(groupLabels(), ['CEA', 'CES', 'Trainee']));
+        });
+
+        test('the live roster: the groups follow CONFIG.GRADE_ORDER exactly', () => {
+            withRoster(LIVE_MEMBERS, () => {
+                const present = new Set(LIVE_MEMBERS.filter(m => !m.hidden).map(m => m.role || 'CEA'));
+                assert.deepEqual(groupLabels(), REAL_CONFIG.GRADE_ORDER.filter(g => present.has(g)),
+                    'the Calendar picker must list grades in the order Admin\'s picker and the sign-in do');
+            });
+        });
+    });
+
     describe('and never refuses somebody who is', () => {
         test('the live roster: every visible member is offered, exactly once', () => {
             withRoster(LIVE_MEMBERS, () => {
