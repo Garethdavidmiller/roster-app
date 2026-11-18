@@ -37,10 +37,16 @@ let _alBookingConfirmed = false;
 /** @type {any} */
 let _alSaveBtnRef       = null;
 
-/** Called by the AL confirm bar "Save anyway" button in admin-app.js. */
+/**
+ * Called by the AL confirm bar "Save anyway" button in admin-app.js — and the answer is for THIS press
+ * only (review, Nov 2026). The click handler takes the flag at its very top, synchronously, so it has
+ * been read by the time `.click()` returns; unless the press never reached the handler. A Save the page
+ * has disabled since the bar went up (a period deleted below, and a rest day asks its question again)
+ * ignores `.click()`, and the flag left set took the NEXT ordinary Save past the allowance check unasked.
+ */
 export function triggerConfirmedALSave() {
     _alBookingConfirmed = true;
-    _alSaveBtnRef?.click();
+    try { _alSaveBtnRef?.click(); } finally { _alBookingConfirmed = false; }
 }
 
 /**

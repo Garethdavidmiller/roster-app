@@ -327,7 +327,9 @@ export function createRangeBookingSection(cfg) {
     updatePreview();
 
     saveBtn.addEventListener('click', async () => {
-        if (saving) return;   // a disabled button cannot be tapped, but it can be .click()ed
+        // A disabled button ignores a tap AND `.click()` (HTML), so "Save anyway" pressed while this is
+        // disabled never arrives here (the cards clear their flag after the press); this guards the listener.
+        if (saving) return;
         // onClick runs before the guard so a section (AL) can capture + reset per-click state
         // even on an early return, exactly as the old top-of-handler code did.
         cfg.onClick?.();

@@ -58,6 +58,7 @@ export function initSickSection({
 }) {
     // "Save anyway" sets the flag and clicks Save again; the click takes it into `confirmed` FIRST
     // and clears it, so an early return can never carry a confirmation into the next save (admin-al.js).
+    // The press clears it too, for a Save disabled since the bar went up, which a click never reaches.
     let confirmNext = false, confirmed = false;
 
     /** The allowance this range leaves the member, read through the one rule (header). @param {string} member @param {any} memberObj @param {string[]} dates @param {Map<string, any>|null} [ovByDate] */
@@ -117,7 +118,10 @@ export function initSickSection({
         // Only a FALLING allowance that leaves the member over raises the bar (header).
         preSave: ({ member, dates, memberObj }) => {
             const { overage } = confirmed || !showALConfirm ? { overage: null } : allowanceAfter(member, memberObj, dates);
-            if (overage) showALConfirm?.(overage.headline, overage.detail, null, [], () => { confirmNext = true; section.saveBtn.click(); });
+            if (overage) showALConfirm?.(overage.headline, overage.detail, null, [], () => {
+                confirmNext = true;
+                try { section.saveBtn.click(); } finally { confirmNext = false; }
+            });
             return !!overage;
         },
     });
