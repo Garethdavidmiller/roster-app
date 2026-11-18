@@ -930,6 +930,12 @@ second tab, the app behind another one) cannot keep a month fresh. Admin's Calen
 week's date in the link (`?date=`) instead of writing the stored month as a second writer. A link that
 names a date still opens that month whenever it is followed.
 
+**18 November 2026 (owner): months ahead are kept too.** The August rule against reopening on a month
+ahead is retired: the half-hour limit already answers its reason (somebody opening the app at their
+next shift on a month they are not working). While it stood, a reload and a resume disagreed inside
+the half hour: a month ahead was dropped by a fresh load (the drawer back from another page) and kept
+by an app shown again from memory. `calendar-state.test.mjs` pins both directions.
+
 **Considered and not done.** Never keeping the month at all: then a phone that closes the app behind
 another one would lose the member's place a minute later, which is the one case the memory is for.
 Keeping it until the end of the day: a month browsed to in the morning would still open in the evening,

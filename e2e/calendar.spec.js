@@ -939,6 +939,34 @@ test('calendar: a month browsed to is kept for half an hour — reloaded or brou
     await expect(heading, 'shown again after half an hour away, still on June').toHaveText('November 2026');
 });
 
+// …AND A MONTH AHEAD, the same way (owner, 18 Nov 2026). Until then a month ahead of today was never
+// restored by a load, so a trip to another page and back through the drawer (a fresh load) put the
+// member back on today's month while the same trip with the app kept in memory did not.
+test('calendar: a month AHEAD browsed to is kept across a reload for half an hour, then today\'s month opens', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 10, 15, 12, 0, 0) });
+    await seedMember(page);
+    await page.goto('/');
+    const heading = page.locator('.month-year');
+    const hide = () => page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(heading).toHaveText('November 2026');
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(heading).toHaveText('January 2027');
+
+    await hide();
+    await page.clock.fastForward('20:00');
+    await page.reload();
+    await expect(heading, 'reloaded twenty minutes later, the month ahead was dropped').toHaveText('January 2027');
+    await hide();
+    await page.clock.fastForward('45:00');
+    await page.reload();
+    await expect(heading, 'reloaded after 45 minutes away, still on the month ahead').toHaveText('November 2026');
+});
+
 // …AND THE OWNER'S OWN PHONE, as it holds the month today: a June stored in June 2026, when every render
 // stored the month on screen, and with no time beside it, because no release before v26.19 wrote one.
 // Before this release that June opened on every launch and was stored again; now it opens on today's
