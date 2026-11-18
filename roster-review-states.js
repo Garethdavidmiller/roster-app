@@ -522,12 +522,14 @@ export function replacedFromState(s) {
  * @returns {Array<{memberName: string, date: string, value: string|null, baseShift: string, swapped?: boolean, replaceId?: string, replacedFrom?: any, deleteOnly?: boolean}>}
  */
 export function guardedWrites(s, memberName, date) {
-    if (!s || s.state !== 'GUARDED' || s.rosterBlocked) return [];
-    const value = guardedWriteValue(s);
-    if (value) return [{ memberName, date, value, baseShift: s.baseShift, swapped: true,
+    // ONE gate: the question's own (`swapQuestionApplies`), so a row can write only what it asked
+    // about, and never on a read the breaker refused. A second copy of its conditions stood here, and
+    // could be deleted with every test green — it protected nothing the gate did not already.
+    if (!swapQuestionApplies(s)) return [];
+    if (s.chosen === 'swapped') return [{ memberName, date, value: s.parsedShift, baseShift: s.baseShift, swapped: true,
         replaceId: s.manualId ?? undefined,
         replacedFrom: replacedFromState(s) }];
-    if (s.manualId && s.chosen === 'free' && swapQuestionApplies(s)) {
+    if (s.manualId && s.chosen === 'free') {
         return [{ memberName, date, value: null, baseShift: s.baseShift, replaceId: s.manualId, deleteOnly: true }];
     }
     return [];

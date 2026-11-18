@@ -96,6 +96,16 @@ describe('pinMatches — constant time, and safe on every wrong input', () => {
         }
     });
 
+    test('an EMPTY entry never matches an empty or blank secret — two empties hash alike', () => {
+        // Every case above has one side non-empty, where the two digests differ anyway, so the empty
+        // check could be deleted with this file green. Its case is BOTH empty once the secret is
+        // trimmed: sha256('') equals sha256(''), and the compare would say yes. The handler refuses
+        // both first (the shape check, and a 503 for a blank secret); this is the function's own floor.
+        for (const blank of ['', '   ', '\n', ' \r\n ']) {
+            assert.equal(pinMatches('', blank), false, `an empty entry matched the secret ${JSON.stringify(blank)}`);
+        }
+    });
+
     test('a MISCONFIGURED secret of the wrong length compares safely', () => {
         // If CALENDAR_VIEWER_PIN were set to something odd, this must return false rather than
         // throwing — a 500 here would distinguish "server misconfigured" from "wrong PIN".

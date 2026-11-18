@@ -44,6 +44,13 @@ let _resetAtMs = /** @type {number|null|'credential'|'throttled'} */ (0);
 let _probeCalls = 0;
 /** @type {Promise<void>|null} */
 let _signInGate    = null;   // if set, email/password sign-in awaits it before resolving (generation-guard test)
+/** If set, a sign-out awaits it before its promise settles — the account is gone at once, as the SDK
+ *  drops it at the call, and only the answer waits (the generation guard's sign-out race). @type {Promise<void>|null} */
+let _signOutGate   = null;
+/** If set, the reset probe awaits it before answering (the generation guard's probe race). @type {Promise<void>|null} */
+let _probeGate     = null;
+/** Every forced token refresh an account signed in by the fake was asked for, by its email. @type {string[]} */
+const _idTokenForced = [];
 const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
 
 // Hoisted so the signOut mock can null currentUser (real Firebase clears it synchronously before
@@ -108,7 +115,16 @@ mock.module('./firebase-client.js', {
         // _signInBehavior may be a string (same every call) OR a function (callNumber, password → code),
         // which lets a test model a transient blip that clears on a later retry, or an ACCOUNT that
         // accepts one password and refuses every other.
-        signInWithEmailAndPassword:     async (/** @type {any} */ _auth, /** @type {string} */ _email, /** @type {string} */ pw) => { const n = ++_signInCalls; _signInPasswords.push(pw); if (_signInGate) await _signInGate; const b = typeof _signInBehavior === 'function' ? _signInBehavior(n, pw) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
+        // A sign-in that SUCCEEDS leaves its account signed in, as the real SDK does — without it
+        // `auth.currentUser` stayed whatever a test left there, so the late-sign-in guard's check of
+        // WHOSE account is signed in had nothing to read, and inverting it changed no outcome.
+        signInWithEmailAndPassword:     async (/** @type {any} */ _auth, /** @type {string} */ email, /** @type {string} */ pw) => {
+            const n = ++_signInCalls; _signInPasswords.push(pw);
+            if (_signInGate) await _signInGate;
+            const b = typeof _signInBehavior === 'function' ? _signInBehavior(n, pw) : _signInBehavior;
+            if (b !== 'ok') _authThrow(b);
+            mockAuth.currentUser = { isAnonymous: false, email, getIdToken: async (/** @type {boolean} */ force) => { if (force) _idTokenForced.push(email); return 'token'; } };
+        },
         // RECORDERS, not features. session.js no longer imports either (the account self-heal and the
         // anonymous fallback both ran only with `ENFORCE_NAMED_SESSION` off, retired v24.34). They
         // stay in the fake so that re-introducing either call is SEEN by the `_createCalled` /
@@ -120,13 +136,14 @@ mock.module('./firebase-client.js', {
             const b = typeof _signOutBehavior === 'function' ? _signOutBehavior(++_signOutCalls) : _signOutBehavior;
             if (b !== 'ok') { const e = new Error(b); /** @type {any} */ (e).code = b; throw e; }
             mockAuth.currentUser = null;
+            if (_signOutGate) await _signOutGate;
         },
         // v20.12: `shedCalendarViewer` re-arms the long-lived MEMBER persistence chain after
         // dropping a shared Calendar viewer. Recorded rather than ignored so the ORDER (sign out,
         // THEN restore persistence) is assertable — reversing it would migrate the shared viewer
         // into IndexedDB, where it survives the browser closing.
         restoreMemberPersistence:       async () => { _persistenceRestores.push('member'); },
-        probeResetAtMs:                 async () => { _probeCalls++; return _resetAtMs; },
+        probeResetAtMs:                 async () => { _probeCalls++; if (_probeGate) await _probeGate; return _resetAtMs; },
     },
 });
 
@@ -157,6 +174,7 @@ const {
     reconcileExpiredIdentity, shedCalendarViewer,
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
+const { CONFIG } = await import('./roster-data.js');
 // The SAME instance session.js imports: what reconcile tells it is what these tests hear.
 const { onStaffPinEnded } = await import('./staff-pin-ended.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
@@ -1595,7 +1613,7 @@ describe('auth generation guard', () => {
         _signInGate      = null;
         auth.currentUser = null;
     });
-    afterEach(() => { _signInGate = null; auth.currentUser = null; });
+    afterEach(() => { _signInGate = null; _signOutGate = null; _probeGate = null; _signInBehavior = 'ok'; auth.currentUser = null; });
 
     test('a superseded attempt that resumes and FAILS does not clobber the winner’s named identity', async () => {
         // Attempt 1 hangs at sign-in; Attempt 2 starts and wins as 'named'; Attempt 1 then resumes and
@@ -1657,6 +1675,117 @@ describe('auth generation guard', () => {
         assert.equal(_signOutCalled, false);
     });
 
+    // ── WHOSE account is signed in decides it, and every await is followed by the same question ──
+    // The guard above asks two things of a superseded attempt: did ANOTHER member's attempt supersede
+    // it, and is the account signed in now THIS attempt's own? Its tests could not ask the second
+    // until the fake left a successful sign-in's account signed in, as the SDK does. And each await
+    // in the attempt is followed by "am I still current?" — so each test below parks the attempt at
+    // one await while another member signs in, and then lets it go on.
+
+    test('the winner\'s sign-in landing ON TOP of a late one is left alone — the account is theirs (v24.56)', async () => {
+        // A's silent re-auth and Q's sign-in are both on their way. A's lands, then Q's lands on top of
+        // it, and only then does A look. The account signed in is Q's: signing "the late one" out now
+        // would sign Q out under Q's own page.
+        _resetAtMs = 0;
+        /** @type {() => void} */ let releaseA = () => {};
+        /** @type {() => void} */ let releaseQ = () => {};
+        _signInGate = new Promise(r => { releaseA = r; });
+        const late = ensureFirebaseSession('A. Person');
+        await signInEntered(1);
+        _signInGate = new Promise(r => { releaseQ = r; });
+        const winner = ensureNamedSession('Q. Example', { delayMs: 0 });
+        await signInEntered(2);
+        _signInGate = null;
+        _signOutCalled = false;
+        releaseA();        // A's request lands first…
+        releaseQ();        // …and Q's lands on top of it, before A has looked
+        assert.equal(await winner, true);
+        await late;
+        assert.equal(_signOutCalled, false, 'the winner was signed out by the attempt it superseded');
+        assert.equal(auth.currentUser?.email, nameToEmail('Q. Example'));
+        assert.equal(getFirebaseIdentity(), 'named');
+    });
+
+    test('an attempt superseded while the restore is still answering does not sign the winner out', async () => {
+        // A's attempt waits for the stored account to be restored; Q signs in meanwhile. When the
+        // restore answers, the account it reads is Q's — and A, superseded, must leave it alone rather
+        // than sign it out to make room for its own.
+        _resetBootRestore();
+        _authNeverEmits = true;
+        try {
+            const late = ensureFirebaseSession('A. Person');
+            for (let i = 0; i < 100 && !_releaseHungRestore; i++) await new Promise(r => setTimeout(r, 1));
+            assert.ok(_releaseHungRestore, 'premise: the attempt is waiting on the restore');
+            auth.currentUser = { isAnonymous: false, email: nameToEmail('Q. Example') };
+            assert.equal(await ensureFirebaseSession('Q. Example'), true, 'Q wins, off the live session');
+            _signOutCalled = false;
+            const release = /** @type {() => void} */ (_releaseHungRestore);
+            _releaseHungRestore = null;
+            release();
+            assert.equal(await late, false);
+            assert.equal(_signOutCalled, false, 'the superseded attempt signed the winner out');
+            assert.equal(auth.currentUser?.email, nameToEmail('Q. Example'));
+            assert.equal(_signInCalls, 0);
+        } finally { _authNeverEmits = false; await _settleHungRestore(); }
+    });
+
+    test('an attempt superseded while it signs the previous account out never signs in after it (v16.69)', async () => {
+        // A third member's account is on the device. A's typed sign-in signs it out first, and Q signs in
+        // while that sign-out is still settling. A must stop there: a typed sign-in has no reset check
+        // after this point to catch it, so it would put A's account over Q's.
+        _resetAtMs = 0;
+        auth.currentUser = { isAnonymous: false, email: nameToEmail('R. Sample') };
+        /** @type {() => void} */ let releaseSignOut = () => {};
+        _signOutGate = new Promise(r => { releaseSignOut = r; });
+        _signOutCalled = false;
+        const late = ensureNamedSession('A. Person', { delayMs: 0, password: 'Person' });
+        for (let i = 0; i < 100 && !_signOutCalled; i++) await new Promise(r => setTimeout(r, 1));
+        assert.equal(_signOutCalled, true, 'premise: the attempt is signing the previous account out');
+        _signOutGate = null;
+        assert.equal(await ensureNamedSession('Q. Example', { delayMs: 0 }), true);
+        releaseSignOut();
+        assert.equal(await late, false);
+        assert.equal(_signInCalls, 1, 'the superseded attempt signed in after its sign-out');
+        assert.equal(auth.currentUser?.email, nameToEmail('Q. Example'));
+    });
+
+    test('a TYPED sign-in superseded between its two passwords never tries the second (v16.69)', async () => {
+        // "Person" typed for A. Person is tried as the surname default first, then as typed. The first is
+        // refused only after Q has signed in, and A's second try would put A's account over Q's.
+        _resetAtMs = 0;
+        _signInBehavior = (/** @type {number} */ n) => (n === 1 ? 'auth/invalid-credential' : 'ok');
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+        const late = ensureNamedSession('A. Person', { delayMs: 0, password: 'Person' });
+        await signInEntered(1);
+        _signInGate = null;
+        assert.equal(await ensureNamedSession('Q. Example', { delayMs: 0 }), true);   // sign-in 2
+        _signOutCalled = false;
+        releaseGate();                                                               // A's first is refused
+        assert.equal(await late, false);
+        assert.equal(_signInCalls, 2, 'the superseded attempt went on to its second password');
+        assert.equal(_signOutCalled, false);
+        assert.equal(auth.currentUser?.email, nameToEmail('Q. Example'));
+    });
+
+    test('a silent attempt superseded while its reset check is out never signs in afterwards (v16.69)', async () => {
+        _resetAtMs = 0;
+        const probesBefore = _probeCalls;
+        /** @type {() => void} */ let releaseProbe = () => {};
+        _probeGate = new Promise(r => { releaseProbe = r; });
+        const late = ensureFirebaseSession('A. Person');                // parks in its reset check
+        for (let i = 0; i < 100 && _probeCalls === probesBefore; i++) await new Promise(r => setTimeout(r, 1));
+        assert.equal(_probeCalls, probesBefore + 1, 'premise: the attempt is in its reset check');
+        _probeGate = null;
+        assert.equal(await ensureNamedSession('Q. Example', { delayMs: 0 }), true);
+        _signOutCalled = false;
+        releaseProbe();
+        assert.equal(await late, false);
+        assert.equal(_signInCalls, 1, 'the superseded attempt signed in after its check');
+        assert.equal(_signOutCalled, false);
+        assert.equal(auth.currentUser?.email, nameToEmail('Q. Example'));
+    });
+
     test('the latest (current) attempt still writes identity normally', async () => {
         // Sanity: with no superseding attempt, the guard is a pure no-op — identity is published.
         const ok = await ensureFirebaseSession('G. Miller');
@@ -1679,6 +1808,49 @@ describe('auth generation guard', () => {
         await p1;   // attempt 1's delayed retry (call 3) runs — its top reset must be gen-guarded
         assert.equal(getFirebaseIdentity(), 'named',
             'a superseded retry must not reset _fbIdentity to none — the global and the store would disagree');
+    });
+});
+
+// ── What a named sign-in does once it lands — and what it never says ────────────────────────────
+describe('a named sign-in, after it lands', () => {
+    beforeEach(() => {
+        store.clear();
+        _existingUser    = null;
+        _signInBehavior  = 'ok';
+        _signInCalls     = 0;
+        _signInGate      = null;
+        _resetAtMs       = 0;
+        _idTokenForced.length = 0;
+        auth.currentUser = null;
+    });
+    afterEach(() => { _signInBehavior = 'ok'; auth.currentUser = null; });
+
+    test('refreshes its token ONCE for a new claim epoch — the sweep is wired in, not only written', async () => {
+        // refreshClaimsIfStale is tested on its own above; this is the call that runs it. Without it a
+        // device keeps a token minted before a new claim until the hourly refresh, and a manager's
+        // first on-behalf writes are refused in that hour.
+        assert.equal(await ensureNamedSession('A. Person', { delayMs: 0 }), true);
+        await new Promise(r => setImmediate(r));   // the sweep is fire-and-forget
+        assert.deepEqual(_idTokenForced, [nameToEmail('A. Person')], 'no forced refresh after a named sign-in');
+        assert.equal(store.get('myb_claim_epoch'), String(CONFIG.CLAIM_EPOCH));
+        // …and once only: the next sign-in on this device asks for nothing more.
+        assert.equal(await ensureNamedSession('A. Person', { delayMs: 0 }), true);
+        await new Promise(r => setImmediate(r));
+        assert.equal(_idTokenForced.length, 1);
+    });
+
+    test('a failed sign-in logs its code, never the account: the email IS the member\'s name', async () => {
+        // A station PC's console is readable by whoever opens its developer tools next.
+        _signInBehavior = 'auth/invalid-credential';
+        /** @type {string[]} */ const lines = [];
+        const w = console.warn;
+        console.warn = (/** @type {any[]} */ ...a) => { lines.push(a.map(String).join(' ')); };
+        try {
+            assert.equal(await ensureFirebaseSession('A. Person'), false);
+        } finally { console.warn = w; }
+        assert.ok(lines.some(l => l.includes('auth/invalid-credential')), 'premise: the refusal was logged');
+        assert.deepEqual(lines.filter(l => l.includes(nameToEmail('A. Person')) || l.includes('Person')), [],
+            'a member\'s name or account reached the console');
     });
 });
 

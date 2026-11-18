@@ -255,6 +255,11 @@ describe('newPasswordProblemField — the caret follows the refusal', () => {
         ['longenough1', 'longenough2'],
         ['springer', 'springer'],     // matching, refused as the surname
         ['Springer!!', 'Springer!!'],
+        // THE BOUNDARY, both sides: exactly the minimum and mismatched is a Confirm problem; one short of
+        // it is a New problem. No case sat on it, so `>` for `>=` sent an 8-character password's caret to
+        // the wrong box with this table green.
+        ['eightch8', 'eightch9'],     // exactly MIN_PASSWORD_LENGTH, mismatched → Confirm
+        ['seven77', 'seven78'],       // one short of it, mismatched → New
     ];
     for (const [next, confirm] of cases) {
         test(`"${next}" / "${confirm}"`, () => {

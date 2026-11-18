@@ -4,7 +4,7 @@
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
-    runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, unconfirmedWriteLine,
+    runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, UNCONFIRMED_LINE, unconfirmedWriteLine,
     trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, OWN_WRITES_WAIT_MS, runWatchedClaimRetry } from './claim-retry.js';
 
 // ── trackBackgroundWrite (review, 11 Nov 2026) — a write no page started, counted until it settles ──
@@ -340,6 +340,15 @@ test('saveFailureMessage — signed-out says unconfirmed, never lost; the other 
     assert.match(saveFailureMessage({ code: 'permission-denied' }), /sign in again/);
     assert.match(saveFailureMessage({ code: 'unavailable' }), /check your connection/);
     assert.match(saveFailureMessage(undefined), /check your connection/);
+});
+
+test('saveFailureMessage — a write whose outcome is unknown says so, and never invites a retry', () => {
+    // No test passed this code, so its line could be deleted green — and then it fell through to
+    // "check your connection and try again", when a retry of a write that may have landed writes a
+    // second copy (AUTH_AND_SESSIONS 22). The page refuses new writes until reload; the words must say that.
+    const out = saveFailureMessage({ code: UNCONFIRMED_CODE });
+    assert.equal(out, UNCONFIRMED_LINE);
+    assert.doesNotMatch(out, /try again/i);
 });
 
 const PD = 'permission-denied';

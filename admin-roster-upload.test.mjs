@@ -920,6 +920,14 @@ describe('computeCellStates — review state machine', () => {
             // No previous import: unchanged from v24.42 — rest day writes nothing.
             assert.deepEqual(guardedWrites({ ...base, manualId: null, chosen: 'free' }, 'X', WD), []);
             assert.deepEqual(guardedWrites({ ...base, chosen: 'swapped', rosterBlocked: true }, 'X', WD), []);
+            // ONE gate, the question's own: a row that asks nothing writes nothing, whichever answer it
+            // carries — a Sunday, Christmas, a refused read, a reading that is not leave or an absence.
+            for (const asksNothing of [{ guarded: 'sunday' }, { christmas: true }, { rosterBlocked: true }, { parsedShift: 'RD' }]) {
+                for (const chosen of ['swapped', 'free']) {
+                    assert.deepEqual(guardedWrites({ ...base, ...asksNothing, chosen }, 'X', WD), [], `${JSON.stringify(asksNothing)} ${chosen}`);
+                }
+            }
+            assert.deepEqual(guardedWrites(undefined, 'X', WD), [], 'no state, no write — and no throw');
         });
     });
 
