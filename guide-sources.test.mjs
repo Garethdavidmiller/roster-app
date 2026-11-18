@@ -867,6 +867,22 @@ test('rangers: a product nobody can source is never badged as a self-contradicti
         'and a reader must be able to tell them apart without reading the word');
 });
 
+// THE KEY EXPLAINS ONLY WHAT A CARD WEARS (whole-app check, Nov 2026). It taught the amber "⚠ Check" badge — a
+// product nobody can read a source for — when no product had been unconfirmed since v20.43: a reader learnt a
+// marker they would never meet, and looked for it. The state stays (the test above keeps its badge apart from the
+// conflict one); its key line comes back with the next product that wears it.
+test('rangers: the key explains only the markers a card on the page wears', () => {
+    const html = RR_HTML.replace(/<!--[\s\S]*?-->/g, ' ');
+    const key = html.match(/<div class="key"[^>]*>([\s\S]*?)<\/div>/);
+    assert.ok(key, 'the Rangers key was not found');
+    const cards = html.replace(key[0], ' ');
+    const marks = [...key[1].matchAll(/<span class="key-item"><span class="([^"]+)">/g)].map(m => m[1].trim().split(/\s+/).at(-1) ?? '');
+    assert.ok(marks.length >= 5, `only ${marks.length} key entries were read — the scan is wrong`);
+    for (const cls of marks) {
+        assert.match(cards, new RegExp(`class="[^"]*\\b${cls}\\b`), `the key explains .${cls}, which no card on the page wears`);
+    }
+});
+
 test('rangers: the Thames 7-Day conflict never leaks onto the 3-Day product', () => {
     // Two different tickets. The 3-Day page names GWR only; merging the finding would invent
     // validity for a product that does not have it.
@@ -1180,6 +1196,38 @@ test('fip: the operators Rail Staff Travel names as outside FIP are on their cou
         assert.match(text(box[0]), /Other operators — FIP not valid/, `${row}'s box lost its heading`);
         for (const name of names) {
             assert.ok(text(box[0]).includes(name), `#${cardId}: "${name}" is named by Rail Staff Travel as outside FIP, and the box no longer says so`);
+        }
+    }
+});
+
+// ── A SUMMARY NAMES ONLY THE MARKERS THE PAGE SHOWS (whole-app check, Nov 2026) ────────────────────────────
+// The Railcard banner said its one unsourced line "is marked Draft", and nothing on the page says Draft: the line
+// reads "not established". Both footers said "each card's own pill gives its date", over three Railcard cards with
+// no pill at all and a Rangers card whose pill is its source conflict. A summary that names a marker the page does
+// not show, or promises one to every card when some go without, sends a reader looking for what is not there.
+test('railcard: the banner names its draft the way the draft line itself reads', () => {
+    const banner = bannerOf(RC_HTML.replace(/<!--[\s\S]*?-->/g, ' '), 'railcard-guide.html');
+    const drafts = [...RC_HTML.matchAll(/<div class="[^"]*\brc-unsourced\b[^"]*"[^>]*>([\s\S]*?)<\/div>/g)].map(m => m[1]);
+    assert.ok(drafts.length, 'premise: the Railcard guide has a draft line (`rc-unsourced`)');
+    const quoted = [...banner.matchAll(/<em>([^<]+)<\/em>/g)].map(m => m[1]);
+    assert.ok(quoted.length, 'the banner no longer says how its draft line is marked');
+    for (const q of quoted) {
+        assert.ok(drafts.some(d => d.includes(q)), `the banner says the draft is marked "${q}", which no draft line on the page says`);
+    }
+});
+
+test('a guide\'s footer promises each card a dated pill only when every card has one', () => {
+    const DATED = /[Cc]hecked(?:&nbsp;|\s)+·(?:&nbsp;|\s)+[A-Z][a-z]{2}(?:&nbsp;|\s)+\d{4}/;
+    for (const [file, top] of /** @type {const} */ ([['railcard-guide.html', 'rc-top'], ['rangers-guide.html', 'rr-top']])) {
+        const html = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, ' ');
+        const tops = [...html.matchAll(new RegExp(`<div class="${top}">([\\s\\S]*?)</div>`, 'g'))].map(m => m[1]);
+        assert.ok(tops.length >= 8, `${file}: found ${tops.length} card tops — the scan is wrong`);
+        const undated = tops.filter(t => !DATED.test(t)).map(t => (t.match(/role="heading"[^>]*>([^<]+)</)?.[1] ?? '?').trim());
+        const foot = html.match(/<div class="foot">([\s\S]*?)<\/div>/)?.[1] ?? '';
+        assert.ok(foot, `${file}: no footer found`);
+        if (undated.length) {
+            assert.doesNotMatch(foot.replace(/<[^>]+>/g, ''), /\beach card\b[^.;]*\bdate\b/i,
+                `${file}: the footer gives every card its own date, and these show none: ${undated.join(', ')}`);
         }
     }
 });

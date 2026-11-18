@@ -138,7 +138,7 @@ test.describe('trains', () => {
         await openLookup(page);
         await page.locator('#trLookupInput').fill('1036');
         await expect(page.locator('#trLookupResult .tr-answer').first())
-            .toHaveText('The 10:36 to Banbury: Will run to Birmingham Snow Hill. From 13 December it does not stop at Kings Sutton.');
+            .toHaveText('The 10:36 to Banbury: Will run to Birmingham Snow Hill. From 13 December it no longer stops at Kings Sutton.');
         await page.locator('#trLookupInput').fill('1715');
         await expect(page.locator('#trLookupResult')).toContainText('on to Stourbridge');
         await page.locator('#trLookupInput').fill('5.15pm');
@@ -204,6 +204,32 @@ test.describe('trains', () => {
         await expect(page.locator('[data-day="SU"]')).toHaveAttribute('aria-pressed', 'true');
     });
 
+    // THE COUNTDOWN NAMES THE CALENDAR DAY (whole-app check, Nov 2026). It counted railway days too, so 00:30 on
+    // Sunday 13 December said "Starts tomorrow" — read as the Monday — and 01:00 on the Monday "Starts today". The
+    // timetable answering is still the railway day's: Saturday night's trains at 00:30 on the Sunday. Local times.
+    test('for three hours after midnight the countdown names the calendar day, and the trains stay the night\'s', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-12-13T00:30:00'));   // Sunday 00:30 — still Saturday night
+        await seedSession(page, 'A. Person');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trCountdown')).toHaveText('Starts today');
+        await expect(page.locator('[data-day="SO"]'), 'Saturday night\'s trains are the ones running').toHaveAttribute('aria-pressed', 'true');
+        await page.clock.setFixedTime(new Date('2026-12-14T01:00:00'));   // Monday 01:00 — still Sunday night
+        await page.reload();
+        await expect(page.locator('#trCountdown')).toHaveText('Now running');
+        await expect(page.locator('[data-day="SU"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    // …and a page left open in view turns its countdown at midnight: it asked only whether the RAILWAY day had turned.
+    test('a page left open over midnight turns its countdown then, not at 03:00', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-12-12T23:58:00'));   // Saturday night
+        await seedSession(page, 'A. Person');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trCountdown')).toHaveText('Starts tomorrow');
+        await page.clock.setFixedTime(new Date('2026-12-13T00:30:00'));
+        await page.clock.runFor(60_000);
+        await expect(page.locator('#trCountdown')).toHaveText('Starts today');
+    });
+
     test('from 13 December the page turns: the old timetable by name, and the lookup answers from the new one (v24.83)', async ({ page }) => {
         // A Sunday after the change. Until v24.83 the columns still said "Now" of the stopped timetable
         // and "the 15:38" — December's Moor Street train — read "No train leaves at exactly 15:38 today".
@@ -232,9 +258,59 @@ test.describe('trains', () => {
         // that both timetables have ended, and that must be seen (v24.92).
         await page.addInitScript(() => localStorage.setItem('myb_trains_overview_seen', '1'));
         await page.goto('/trains.html');
-        await expect(page.locator('#trCountdown')).toHaveText('Timetable ended');
+        await expect(page.locator('#trCountdown')).toHaveText('Timetables ended');
         await expect(page.locator('#trOverviewBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#trEnded')).toBeVisible();
+        // The two cards that answer a question say so too, before their answer: they went on answering from the
+        // ended books in the present tense (whole-app check, Nov 2026).
+        const ended = 'These times come from timetables that have ended. Check the journey planner for today’s trains.';
+        await expect(page.locator('[data-view="changes"]')).toHaveAttribute('aria-pressed', 'true');
+        await openLookup(page);
+        await page.locator('#trLookupInput').fill('17:15');
+        await expect(page.locator('#trLookupResult > p').first()).toHaveText(ended);
+        await expect(page.locator('#trLookupResult .tr-answer')).toContainText('The 17:15 to Oxford');
+        await expect(page.locator('#trLookupResult a', { hasText: 'the journey planner' })).toHaveAttribute('rel', /noopener/);
+        await page.locator('[data-view="stations"]').click();
+        await findStation(page, 'banbury');
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStation > p').first()).toHaveText(ended);
+        await expect(page.locator('#trStation .tr-verdict')).toBeVisible();
+    });
+
+    // ON A DESKTOP A STATION CARD'S NOTES STACK UNDER ITS FIGURES (whole-app check, Nov 2026). From 1024px the card is
+    // two columns, and every note had the same grid cell, so coming back on the Amersham line the leaf-fall note was
+    // drawn on top of the times note. And once both timetables have ended, the line saying so runs across the top.
+    test('on a desktop a station card\'s notes stack under its figures, and the ended line runs across the top', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        const open = async (/** @type {string} */ when, /** @type {string} */ station, /** @type {'dep'|'arr'} */ dir) => {
+            await page.clock.setFixedTime(new Date(when));
+            await seedSession(page, 'A. Person');
+            await page.goto('/trains.html');
+            await page.locator('[data-view="stations"]').click();
+            await findStation(page, station);
+            await page.locator('#trStationInput').press('Enter');
+            await page.locator(`[data-sdir="${dir}"]`).click();
+            await expect(page.locator('#trStation .tr-verdict')).toBeVisible();
+        };
+        const boxes = (/** @type {string} */ sel) => page.locator(sel).evaluateAll(els => els.map(e => {
+            const b = e.getBoundingClientRect();
+            return { top: b.top, bottom: b.bottom, left: b.left, width: b.width, text: (e.textContent ?? '').trim().slice(0, 40) };
+        }));
+        await open('2026-11-20T09:00:00', 'amersham', 'arr');   // leaf fall runs until 10 January
+        await expect(page.locator('#trStation .tr-note', { hasText: 'Leaf fall' })).toBeVisible();
+        const left = await boxes('#trStation .tr-st-table, #trStation .tr-note');
+        expect(left.length, 'premise: the figures and at least two notes').toBeGreaterThanOrEqual(3);
+        for (let i = 1; i < left.length; i++) {
+            expect(left[i].top, `"${left[i].text}" starts where "${left[i - 1].text}" is still drawn`).toBeGreaterThanOrEqual(left[i - 1].bottom - 0.5);
+        }
+        const [list] = await boxes('#trStation .tr-route');
+        expect(list.left, 'premise: two columns — the train list beside the figures').toBeGreaterThan(left[0].left + left[0].width);
+        await open('2027-05-17T09:00:00', 'banbury', 'dep');
+        await expect(page.locator('#trStation > .tr-lead')).toContainText('These times come from timetables that have ended.');
+        const [line] = await boxes('#trStation > .tr-lead');
+        const [verdict] = await boxes('#trStation > .tr-verdict');
+        expect(line.bottom, 'the ended line comes before the answer').toBeLessThanOrEqual(verdict.top + 0.5);
+        expect(Math.abs(line.width - verdict.width), 'and runs across the card, as the answer does').toBeLessThanOrEqual(1);
     });
 
     test('a station card, coming back, as a member reads it: Amersham leaf fall, and the Monday-and-Friday Snow Hill train (v24.83)', async ({ page }) => {
@@ -1180,7 +1256,10 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await page.clock.setFixedTime(new Date('2026-12-13T02:30:00'));   // still Saturday's railway day
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
-        await expect(page.locator('#trCountdown')).toHaveText('Starts tomorrow');
+        // The countdown names the calendar day, so on the Sunday it says "today" from midnight; this expected
+        // "Starts tomorrow", the defect (it read as the Monday). The overview's own words still turn at 03:00.
+        await expect(page.locator('#trCountdown')).toHaveText('Starts today');
+        await expect(page.locator('#trLead')).toContainText('Today’s timetable beside the new one');
         await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
         await page.clock.setFixedTime(new Date('2026-12-13T03:30:00'));   // the change has come; the tab never slept
         await page.locator('[data-view="grid"]').click();
@@ -1195,12 +1274,16 @@ test.describe('trains — the page turns as a whole, and a station computer is s
     // Back or the tab coming back into view, so a station computer's tab — never hidden — kept Saturday's
     // trains into Sunday morning: the lookup answered from them, and the countdown and day tab stayed put.
     // `runFor` is the page's own minute passing; Date stays where `setFixedTime` puts it.
-    test('a page left in view turns at 03:00 by itself: the day, the countdown and the words with them', async ({ page }) => {
+    // The countdown is not among what turns at 03:00 any more: it names the calendar day, so at 02:30 on the Sunday
+    // it already says "Starts today" — this test once expected "Starts tomorrow" there, which is the defect (it read
+    // as the Monday). It turns at midnight instead ("a page left open over midnight turns its countdown then").
+    test('a page left in view turns at 03:00 by itself: the day and the words with it', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-12-13T02:30:00'));   // still Saturday's railway day
         await seedSession(page, 'A. Person');   // an invented member: the page admits any named session
         await page.goto('/trains.html');
-        await expect(page.locator('#trCountdown')).toHaveText('Starts tomorrow');
+        await expect(page.locator('#trCountdown'), 'the calendar day is the day of the change').toHaveText('Starts today');
         await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#trLead')).toContainText('Today’s timetable beside the new one');
         await page.clock.setFixedTime(new Date('2026-12-13T03:30:00'));   // the change has come; nothing pressed, never hidden
         await page.clock.runFor(60_000);
         await expect(page.locator('#trCountdown')).toHaveText('Starts today');
@@ -1237,7 +1320,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await expect(page.locator('#trEnded')).toBeHidden();
         await page.clock.setFixedTime(new Date('2027-05-16T03:30:00'));
         await page.clock.runFor(60_000);
-        await expect(page.locator('#trCountdown')).toHaveText('Timetable ended');
+        await expect(page.locator('#trCountdown')).toHaveText('Timetables ended');
         await expect(page.locator('#trOverviewBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#trEnded')).toBeVisible();
     });

@@ -16,7 +16,8 @@
  */
 
 import { escapeHtml as esc } from './roster-data.js';
-import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, routeKey, LINES, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin } from './trains-change.js';
+import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, routeKey, LINES, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin,
+    JOURNEY_PLANNER_URL } from './trains-change.js';
 import { pairColumns, lineOf, minutesWords, hourNote, hourWords, orderStations, stopChanges, aRealDay, parseStops } from './trains-stations.js';
 import { CHANGE_DATE } from './trains-data.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
@@ -37,6 +38,16 @@ export const DAYTIME = `${String(PATTERN_HOURS.from).padStart(2, '0')}:00 to ${S
 /** The two columns' names before the change, as `timetablePhase` gives them; the page always passes its own.
  *  Derived from the date, as every date on the page is: "From 13 Dec" was typed here. */
 const DEFAULT_LABELS = Object.freeze({ old: 'Now', new: `From ${dateWords(CHANGE_DATE, 0, { short: true })}` });
+
+/**
+ * THE TIMES COME FROM TIMETABLES THAT HAVE ENDED (whole-app check, Nov 2026). Once December's books run out
+ * (`timetablePhase` → 'ended'), the overview says both timetables have ended — and the lookup and the station
+ * card went on answering from them in the present tense, "The 17:15 to Oxford: Same time as before 13 December".
+ * So the two cards that answer a question say first where their times come from, with the planner one tap away,
+ * as the overview's own line does (trains-cards.js → `renderOverview`).
+ */
+const ENDED_NOTE = '<p class="card-explainer tr-lead"><strong>These times come from timetables that have ended.</strong> '
+    + `Check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> for today’s trains.</p>`;
 
 /**
  * The changes view's name, in the tense of the change as the chips are (`changeLabel`): what is
@@ -128,11 +139,12 @@ export function renderHeadlines(items, { showAll, partial }) {
             + `</span><span class="tr-head-go" aria-hidden="true">›</span></button></li>`).join('')}</ul>`
         : '<p class="card-explainer tr-lead">No big changes found for this day.</p>';
     // "Show all 10 changes" read as the whole list, when every retimed train is on a station's card
-    // instead (v24.83): say how many more LINES, and where the small changes are.
+    // instead (v24.83): say how many more LINES, and where the small changes are. A row is "a change",
+    // as the `?` panel calls it: on a railway page, "choose a line" read as the Aylesbury line.
     const more = !showAll && items.length > shown.length
         ? `<button type="button" class="tr-more" id="trHeadsMore">Show ${items.length - shown.length} more</button>` : '';
     const small = items.length
-        ? '<p class="card-explainer tr-note">The biggest changes only. A train a few minutes earlier or later is on its station’s card — choose a line, or use Stations.</p>'
+        ? '<p class="card-explainer tr-note">The biggest changes only. A train a few minutes earlier or later is on its station’s card — choose a change above, or use Stations.</p>'
         : '';
     const note = partial
         ? '<p class="card-explainer tr-note">More stations appear here once Chiltern publishes where December’s trains stop.</p>'
@@ -167,14 +179,14 @@ export function endWords(to, crs, stations, leaving) {
  * each train's time into Marylebone is the small print beneath it.
  * @param {ReturnType<typeof import('./trains-stations.js').stationView>} view
  * @param {{ stations: Readonly<Record<string, string>>, dir: 'dep'|'arr', showTrains: boolean, allTrains?: boolean,
- *   labels?: { old: string, new: string }, started?: boolean, leafFall?: { minutes: number, until: string }|null }} ctx
+ *   labels?: { old: string, new: string }, started?: boolean, ended?: boolean, leafFall?: { minutes: number, until: string }|null }} ctx
  *   showTrains: the list starts open · allTrains: the unchanged trains are shown too · labels: the two
  *   columns' names (`timetablePhase`) · started: the change has happened, for the tense of the chips and
- *   of the list's own words ("5 change" → "5 changed") ·
+ *   of the list's own words ("5 change" → "5 changed") · ended: both timetables have ended (`ENDED_NOTE`) ·
  *   leafFall: coming back on a line whose trains run early for leaf fall until `until`, the note to give
  * @returns {string}
  */
-export function renderStation(view, { stations, dir, showTrains, allTrains = false, labels = DEFAULT_LABELS, started = false, leafFall = null }) {
+export function renderStation(view, { stations, dir, showTrains, allTrains = false, labels = DEFAULT_LABELS, started = false, ended = false, leafFall = null }) {
     const { ending } = view;
     const leaving = dir === 'dep';
     const name = stations[view.crs] ?? view.crs;
@@ -182,10 +194,12 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     // only the trains that end here, labelled, so 36 trains are never taken for the full 37.
     const [now, dec, trains] = view.dec ? [view.now, view.dec, view.trains]
         : ending ? [ending.now, ending.dec, ending.trains] : [view.now, null, null];
+    // Once both timetables have ended, the card says so before anything else (`ENDED_NOTE`).
+    const endedNote = ended ? ENDED_NOTE : '';
     const verdict = `<p class="tr-verdict tr-verdict--${view.verdict.tone}">${esc(view.verdict.text)}</p>`;
     // No train either side: the sentence is the whole answer. A table of noughts under "No change."
     // read as a service carrying on (v24.83).
-    if (dec && !now.total && !dec.total) return verdict;
+    if (dec && !now.total && !dec.total) return endedNote + verdict;
     const label = ending ? `<p class="tr-sub">${esc(leaving ? `Trains that end at ${name}` : `Trains that start at ${name}`)}</p>` : '';
     const throughNote = ending && ending.through > 0
         ? `<p class="card-explainer tr-note">${ending.through === 1 ? 'One other train a day calls' : `${ending.through} other trains a day call`} at ${esc(name)}`
@@ -224,9 +238,11 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
             // Only a LATER December time can be the season: leaf fall moves today's trains earlier, so a
             // December train that is earlier still is a real change (v24.89, the 48-hour review — the
             // note said "a change of 3 minutes or less", and ten such earlier rows sat beneath it).
-            + `The ${esc(labels.old)} column includes that and the ${esc(labels.new)} column does not, so a train up to ${leafFall.minutes} minutes later in the ${esc(labels.new)} column may only be leaf fall. Check the journey planner before ${esc(leafFall.until)}.</p>`
+            // "Check the journey planner before 10 January" read as a deadline, and left out the 10th, the
+            // last leaf-fall day — the note is still up on it (trains-cards.js).
+            + `The ${esc(labels.old)} column includes that and the ${esc(labels.new)} column does not, so a train up to ${leafFall.minutes} minutes later in the ${esc(labels.new)} column may only be leaf fall. For trains up to and including ${esc(leafFall.until)}, check the journey planner.</p>`
         : '';
-    if (!trains) return verdict + table + minutesNote + leafNote;
+    if (!trains) return endedNote + verdict + table + minutesNote + leafNote;
     const changed = trains.filter(t => t.kind !== 'same' || (/** @type {any} */ (t).farShift ?? 0) !== 0);
     const same = trains.length - changed.length;
     const shown = allTrains ? trains : changed;
@@ -271,7 +287,10 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         : `<p class="card-explainer tr-lead">${was('Every train keeps its time.', 'Every train kept its time.')}</p>`;
     const more = !allTrains && same
         ? `<button type="button" class="tr-more" id="trAllTrains">Show the ${same} that ${was(same === 1 ? 'stays' : 'stay', 'stayed')} the same</button>` : '';
-    return label + verdict + table + minutesNote + leafNote + throughNote
+    // The figures and their notes are ONE block: on a desktop it is the left column beside the train list
+    // (trains.css), and as separate grid items every note took the same cell, so the leaf-fall note was drawn
+    // on top of the times note (whole-app check, Nov 2026). On a phone the block is ordinary flow.
+    return endedNote + label + verdict + `<div class="tr-st-figures">${table + minutesNote + leafNote + throughNote}</div>`
         + `<details class="tr-route"${showTrains || allTrains ? ' open' : ''}><summary class="tr-route-sum"><span class="tr-route-name">Train by train</span>`
         + `<span class="tr-route-what">${esc(tally)} · leaving ${esc(leaving ? 'Marylebone' : name)}</span></summary>`
         + list + more + '</details>';
@@ -281,8 +300,9 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
  * The basic hour as a stopping-pattern grid. A column is every daytime hour's train at that minute
  * (trains-stations.js, `stoppingGrid`): a full dot where all of them stop, a half dot where only some
  * do, and "4 of 6 hours" under a minute that does not run every hour. In the December view, a column
- * paired with today's marks a stop it gains (ring) and one it loses (hollow), each with words for a
- * screen reader.
+ * paired with today's marks a stop it gains (a ring with a plus) and one it loses (a ring struck
+ * through), each with words for a screen reader — two SHAPES, because the green and the red were
+ * 1.04:1 apart in lightness (trains.css → `.tr-dot--new`), and the `?` panel names them by shape too.
  *
  * ONE TRAIN AT A TIME, AND THE TWO LINES NAMED (v24.92). On a phone the grid is 39 rows and four of
  * its seven columns, read two ways at once. Each column head is a button: pressed, the grid shows
@@ -423,19 +443,21 @@ export function renderPicks(offered, { typed, selected, stations, last = null })
  * train that ran said "No train leaves at exactly …". The answer names a train's days when it has
  * them (a Mondays-and-Fridays train and its partner read as two trains four minutes apart), the day
  * the member chose rather than "today", and the stops a kept train gains or loses on the way.
- * @param {{ at: string, day: 'SX'|'SO'|'SU', nowRows: TrainRow[], decRows: TrainRow[], started: boolean,
+ * @param {{ at: string, day: 'SX'|'SO'|'SU', nowRows: TrainRow[], decRows: TrainRow[], started: boolean, ended?: boolean,
  *   labels: { old: string, new: string }, change: string, stations: Readonly<Record<string, string>> }} o
- *   at: the parsed time · change: the change date, 'YYYY-MM-DD'
+ *   at: the parsed time · change: the change date, 'YYYY-MM-DD' · ended: both timetables have ended, so the
+ *   answer opens by saying so (`ENDED_NOTE`)
  * @returns {string}
  */
-export function renderLookup({ at, day, nowRows, decRows, started, labels, change, stations }) {
+export function renderLookup({ at, day, nowRows, decRows, started, ended = false, labels, change, stations }) {
     const near = trainsNear(nowRows, decRows, at);
     const from = dateWords(change), until = dateWords(change, -1);
     const rowOf = (/** @type {TrainRow[]} */ rows, /** @type {string|null} */ time, /** @type {string|undefined} */ end, /** @type {string|undefined} */ days = undefined) =>
         time ? rows.find(x => x[0] === time && x[1] === end && (days === undefined || x[3] === days)) : undefined;
     const named = (/** @type {{ station: string, via: string }} */ r, /** @type {string|undefined} */ to) =>
         to && to !== r.station ? stations[to] ?? to : routeName(stations, r.station, r.via);
-    const andList = (/** @type {string[]} */ ws) => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} and ${ws[ws.length - 1]}`;
+    /** "A, B and C" — or, with `word`, "A, B or C". */
+    const andList = (/** @type {string[]} */ ws, word = 'and') => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} ${word} ${ws[ws.length - 1]}`;
     const stopsWords = (/** @type {TrainRow|undefined} */ n, /** @type {TrainRow|undefined} */ d) => {
         // Across Aylesbury's two routes the route is the story. Asked of the ROUTE a train takes, not of
         // its row's code: one run on to Aylesbury Vale Parkway carries no code (onward stops have none)
@@ -444,7 +466,9 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
         const via = (/** @type {TrainRow} */ r) => LINES[routeKey(r)]?.via ?? r[2];
         if (!n || !d || via(n) !== via(d)) return '';
         const { lost, gained } = stopChanges(n, d);
-        const bits = [...(lost.length ? [`does not stop at ${andList(lost.map(c => stations[c] ?? c))}`] : []),
+        // "It does not stop at Haddenham & Thame Parkway and Kings Sutton" could be read as "not at
+        // both" — as if it still stopped at one. It stops at neither, so the list takes "or".
+        const bits = [...(lost.length ? [`no longer stops at ${andList(lost.map(c => stations[c] ?? c), 'or')}`] : []),
             ...(gained.length ? [`also stops at ${andList(gained.map(c => stations[c] ?? c))}`] : [])];
         return bits.length ? ` From ${from} it ${bits.join(', and ')}.` : '';
     };
@@ -517,13 +541,14 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
         : '<p class="card-explainer tr-lead">No trains.</p>';
     const within = `${esc(DAY_NAMES[day])}, leaving within ${NEAR_WINDOW_MIN} minutes of ${esc(at)}`;
     const lc = (/** @type {string} */ s) => s.charAt(0).toLowerCase() + s.slice(1);
+    const endedNote = ended ? ENDED_NOTE : '';
     if (same) {
-        return answer + noExact
+        return endedNote + answer + noExact
             + (near.now.length ? `<p class="card-explainer tr-lead">${within} — <strong>the same trains</strong> ${esc(lc(labels.old))} and ${esc(lc(labels.new))}:</p>`
                 : `<p class="card-explainer tr-lead">${within}:</p>`)
             + `<div class="tr-near-cols tr-near-cols--one"><div>${list(near.now)}</div></div>`;
     }
-    return answer + noExact
+    return endedNote + answer + noExact
         + `<p class="card-explainer tr-lead">${within}:</p>`
         + `<div class="tr-near-cols"><div><h3 class="tr-near-head">${esc(labels.old)}</h3>${list(near.now, onlyIn(near.now, near.dec))}</div>`
         + `<div><h3 class="tr-near-head">${esc(labels.new)}</h3>${list(near.dec, onlyIn(near.dec, near.now))}</div></div>`;

@@ -293,6 +293,9 @@ this mid-transaction and get the right answer fast?"
   and its one import is the self-contained print guard (`print-guard.js`).
 - Sticky header + sticky chip bar eating vertical space on small phones — an accepted trade-off.
 - A–Z order with numeric cards first — intentional.
+- **"If in doubt, ask your supervisor"** (this footer and the Rangers guide's) — deliberate: in the middle of a
+  transaction at the gateline the person to ask is the supervisor on shift, a real role in that moment, not
+  "your manager", CLAUDE.md's contact for rota and leave questions (whole-app check, Nov 2026).
 
 ### The page answers the Marylebone question: three questions, kept apart
 

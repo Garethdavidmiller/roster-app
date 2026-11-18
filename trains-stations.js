@@ -429,7 +429,7 @@ export function rateWords(s, { short = false } = {}) {
 }
 
 /**
- * The stops a kept train gains and loses on the way — "it does not stop at Kings Sutton". The time
+ * The stops a kept train gains and loses on the way — "it no longer stops at Kings Sutton". The time
  * lookup said only where a train ENDS, so the 10:36 read "Will run to Birmingham Snow Hill" and said
  * nothing of Kings Sutton, which it stops calling at (v24.83). Stations past either train's end are
  * not listed: a train that runs further, or ends sooner, says so in its own words.

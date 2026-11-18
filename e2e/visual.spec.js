@@ -769,7 +769,12 @@ test('guide — rangers & rovers mobile 390', async ({ page }) => {
     // see it: the badges are what a reader looks at now, and the Shakespeare card shipped mid-v20.37
     // wearing "⚠ Conflict" over an absence. Pinned by CLASS here; the styling is separated by
     // guide-sources.test.mjs, which fails if the two recipes are identical.
-    await expect(page.locator('.myb-status--unconfirmed, .ch-status--unconfirmed')).not.toHaveCount(0);
+    //
+    // ZERO SINCE THE KEY STOPPED EXPLAINING A BADGE NO CARD WEARS (whole-app check, Nov 2026). No product has
+    // been unconfirmed since v20.43, so the amber "⚠ Check" badge appeared only as the key's example — this
+    // line counted it as the page showing one. Asserted as 0 for the reason `draft` is: a product reappearing
+    // unconfirmed is a real event, and it brings its key line back with it (rangers-guide.html, the key).
+    await expect(page.locator('.myb-status--unconfirmed, .ch-status--unconfirmed')).toHaveCount(0);
     await expect(page.locator('.pill-checked')).not.toHaveCount(0);
     // The Marylebone-first split itself: at least one product valid on Chiltern and NOT here. If
     // this empties, the page has lost the thing it was restructured to say.

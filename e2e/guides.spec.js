@@ -2328,6 +2328,23 @@ test('guide search: the FIP guide\'s Vilnius–Riga conflict is flagged on its c
         .toHaveText('⚠ Source conflict — check the retail system');
 });
 
+// THE RAILCARD GUIDE'S DRAFT REACHES THE DRAWER IN THAT GUIDE'S OWN WORDS (whole-app check, Nov 2026). Its one draft —
+// how long a Jobcentre Plus card lasts — was read at its source, which does not say, and its page says "not
+// established"; the flag said "source not yet verified", the Rangers guide's meaning of a draft: nobody has looked.
+test('guide search: the Railcard guide\'s draft is flagged as the source not saying, not as unread', async ({ page }) => {
+    await seedMemberSession(page, 'A. Person');
+    await page.goto('/trains.html');
+    await expect(page.locator('#trControls')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    const input = page.locator('#navGuideSearchInput');
+    await expect(input).toBeVisible();
+    await input.click();     // the first focus loads the search
+    await input.fill('jobcentre');
+    const row = page.locator('#navGuideSearchResults a[href*="railcard-guide.html#rc-jcp"]');
+    await expect(row, '"jobcentre" finds the card').toBeVisible();
+    await expect(row.locator('.nav-gs-flag--draft')).toHaveText('Draft — the source does not say');
+});
+
 // A HOVER WAITS FOR A MOUSE ON EVERY GUIDE (whole-app check, Nov 2026). The FIP guide's "Print <country>"
 // button darkened its edge on any hover, so on a phone the tapped button kept the edge; every other hover
 // in these sheets waits for a mouse. Read from the stylesheets each page actually parsed, so a new rule is

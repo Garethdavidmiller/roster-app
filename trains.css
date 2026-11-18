@@ -562,15 +562,16 @@ tinted box with the whole sentence in the tone's colour). */
     #trStation:has(.tr-route) {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        /* The last row takes the train list's extra height, so the note stays under the figures. */
-        grid-template-rows: auto auto 1fr;
         column-gap: 24px;
         align-items: start;
     }
-    #trStation > .tr-verdict { grid-column: 1 / -1; }
-    #trStation > .tr-st-table { grid-column: 1; grid-row: 2; }
-    #trStation > .tr-note { grid-column: 1; grid-row: 3; }
-    #trStation > .tr-route { grid-column: 2; grid-row: 2 / span 2; margin-top: 0; }
+    /* Placed in reading order, no row numbers: across the card, what it says before it answers (the line once
+       both timetables have ended, trains-render.js) and the answer; then the figures with their notes, one block,
+       beside the train list. Each note had a row-3 cell of its own, so two notes — the times' and leaf fall's —
+       were drawn on top of each other (whole-app check, Nov 2026). */
+    #trStation > .tr-lead, #trStation > .tr-sub, #trStation > .tr-verdict { grid-column: 1 / -1; }
+    #trStation > .tr-st-figures { grid-column: 1; }
+    #trStation > .tr-route { grid-column: 2; margin-top: 0; }
 }
 .tr-st-table th, .tr-st-table td {
     padding: 8px 8px 8px 0;
