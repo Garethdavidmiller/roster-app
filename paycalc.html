@@ -318,6 +318,9 @@
              saved per payslip is in the card's header hint and the ? panel, and the label says which
              payslip is being edited. -->
         <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — the <strong>Railways Pension Scheme</strong>.</div>
+        <!-- On a payslip worked as a CES only (applyPensionOptOutUI, paycalc-settings.js): the figure is
+             the CEA one, because no CES payslip's pension line is on record (VAL-PAY-007). -->
+        <div class="field-hint" id="pensionCesNote" hidden>The app hasn&rsquo;t seen a CES payslip&rsquo;s pension yet, so this starts at the CEA figure. If the &ldquo;Smart RPS CR Scheme&rdquo; line on your payslip is different, type that here &mdash; it&rsquo;s kept for this payslip.</div>
         <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> Pension exceeds gross pay — check the amount</div>
         <label class="toggle-row">
           <input type="checkbox" id="pensionOptOutCheck">

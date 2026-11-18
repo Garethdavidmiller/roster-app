@@ -111,6 +111,12 @@ export function applyPensionOptOutUI(pObj) {
     if (out) amt.value = '0.00';
   }
   document.getElementById('pensionAmt')?.closest('.pfx')?.classList.toggle('is-disabled', out);
+  // A payslip worked as a CES starts at the CEA figure: every step in PENSION_STEPS was read off CEA
+  // payslips, and no CES payslip's pension line is on record (VAL-PAY-007). Kept rather than left
+  // blank — no figure would be further out — and SAID beside the box, which asks for the payslip's
+  // own. Not inside an opt-out spell, where the box is locked at £0.00 and there is nothing to check.
+  const cesNote = document.getElementById('pensionCesNote');
+  if (cesNote) cesNote.hidden = out || !pObj || !gradeDaysFor(pObj).some(x => x.grade === 'ces');
 }
 
 /**

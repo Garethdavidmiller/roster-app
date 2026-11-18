@@ -44,15 +44,20 @@ export const fmt = n => {
 
 /**
  * An hourly rate: "£21.49" — or, for a rate that is not a whole number of pence, as many places as it
- * has, up to four: "£22.3225". Every grade's rate is whole pence, so this reads exactly as `fmt` for
- * every payslip but one kind — a payslip across a change of grade, priced at the two rates weighted
- * by their days (paycalc-grade.js). Rounded to pence there, "140h × £22.32" would sit beside
- * £3,125.15, a sum the line's own arithmetic does not make.
- * @param {number} r
+ * has, up to `places` (four unless asked): "£22.3225". Every grade's rate is whole pence, so this reads
+ * exactly as `fmt` for every payslip but one kind — a payslip across a change of grade, priced at the
+ * two rates weighted by their days (paycalc-grade.js). Rounded to pence there, "140h × £22.32" would
+ * sit beside £3,125.15, a sum the line's own arithmetic does not make.
+ *
+ * A PREMIUM rate is the same story on EVERY payslip (18 Nov 2026): £21.49 × 1.25 is £26.8625, and
+ * "16h × £26.86" sat beside £429.80, which 16 × £26.86 is not. Its places follow from the multiplier
+ * (×1.25 adds two, ×1.5 one), so a whole-pence grade's premium needs four at most, and the four-place
+ * blend above needs six at 1.25× — the breakdown asks for six there (paycalc-breakdown.js).
+ * @param {number} r @param {number} [places]
  */
-export const fmtRate = r => {
+export const fmtRate = (r, places = 4) => {
     if (Math.abs(r * 100 - Math.round(r * 100)) < 1e-6) return fmt(r);
-    return '£' + r.toFixed(4).replace(/0+$/, '');
+    return '£' + r.toFixed(places).replace(/0+$/, '');
 };
 
 /**

@@ -125,8 +125,10 @@ export const GRADES = {
 // ── Pension (Smart RPS CR Scheme) default per payslip era ──────────────────────
 // The pension contribution steps on specific PAYSLIPS — an RPS review, or a pay award (see below).
 // Newest first; each entry applies to paydays ON/AFTER its `from` (the final null-from entry is the
-// floor). Shared by both grades — the recorded values are payslip-confirmed for CEA;
-// no CES payslip history is on record, so CES uses the same table (same £151.86 today).
+// floor). Shared by both grades — the recorded values are payslip-confirmed for CEA; no CES
+// payslip history is on record, so a CES payslip takes this CEA table as a STAND-IN (VAL-PAY-007):
+// kept rather than left blank, because no figure would be further out, and said on screen beside
+// the pension box of every payslip worked as a CES (applyPensionOptOutUI, paycalc-settings.js).
 // (v18.43 — review item 8; the pension counterpart of getRateForPeriod/getLondonAllowanceForPeriod.)
 //
 // ⚠️ A PAY AWARD MOVES THIS TOO (v21.79). The contribution is a proportion of pensionable pay, so
@@ -134,7 +136,10 @@ export const GRADES = {
 // written as "RPS reviews, SEPARATE from the pay award", and the app went on defaulting to the
 // pre-award figure after the 2026/27 award. Whenever a new award lands, read the "Smart RPS CR
 // Scheme" lines off the award payslip AND the one before it, and add the steps here —
-// MAINTENANCE_CALENDAR.md carries it as a checklist row.
+// MAINTENANCE_CALENDAR.md carries it as a checklist row. The same proportion is why a CES member's
+// contribution is probably a little HIGHER than these CEA figures (VAL-PAY-007): once a CES
+// payslip's line is read, CES gets steps of its own, and a payslip across a promotion is weighted by
+// its days, as `periodRate` weights the rate (getPensionDefault takes one grade until then).
 //
 // THE STEP CAN BEGIN INSIDE A PAYSLIP (twelve payslips re-read 10 Nov 2026). The 2026/27 rise
 // reached the pension a month BEFORE the award payslip: the 31 Jul 2026 payslip prints TWO

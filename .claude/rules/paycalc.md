@@ -64,7 +64,10 @@ Both grades: **140 contracted hours per period**.
 → **£286.10** from the 28 Aug 2026 payslip.
 
 **Pension default** (`Smart RPS CR Scheme`, `PENSION_STEPS`, shared by both grades — the recorded
-values are payslip-confirmed for CEA, and no CES payslip history is on record): **£151.86** from the
+values are payslip-confirmed for CEA, and no CES payslip history is on record, so a CES payslip
+starts at the CEA figure: a stand-in, kept rather than left blank because no figure would be further
+out, and SAID beside the pension box on every payslip worked as a CES, which asks for the payslip's
+own — VAL-PAY-007; `applyPensionOptOutUI`, `paycalc-settings.js`): **£151.86** from the
 28 Aug 2026 payslip (the award payslip) · **£150.74 on the 31 Jul 2026 payslip**, printed as two lines,
 £113.90 + £36.84 · £147.36 from 8 May 2026 · £154.77 from 29 Aug 2025 · £156.29 on the 1 Aug 2025
 payslip (DERIVED from payslip totals, not read off a payslip — VAL-PAY-003; correct it from the real

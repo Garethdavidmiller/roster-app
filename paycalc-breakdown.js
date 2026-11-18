@@ -225,28 +225,32 @@ export function buildBreakdownRows(d) {
         _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
     } = d;
     const fh = fmtHrsMins;
+    // EVERY rate a row multiplies by is printed to as many places as it has (fmtRate), so the row's own
+    // multiplication makes the figure beside it: a payslip across a change of grade is priced at a
+    // blend like £22.3225, and a premium is not whole pence even on a whole-pence grade (£21.49 × 1.25
+    // = £26.8625 — "16h × £26.86" sat beside £429.80). Six places for a premium: the blend's 1.25× needs
+    // them. The hours rows' badges stay to the penny — they carry no amount to multiply out to.
+    const fp = (/** @type {number} */ r) => fmtRate(r, 6);
     let bd = '';
-    // The rate to as many places as it has (fmtRate): a payslip across a change of grade is priced at a
-    // blend like £22.3225, and this row's own multiplication must make the figure beside it.
     bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Mon–Fri (${fh(nonBhNorm)} × ${fmtRate(rate)})</span><span class="b-val">${fmt(gBasicNorm)}</span></div>`;
     if (satCapped > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Saturday (${fh(satCapped)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBasicSat)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Saturday (${fh(satCapped)} × ${fp(r125)})</span><span class="b-val">${fmt(gBasicSat)}</span></div>`;
     if (bhCapped > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Rostered (${fh(bhCapped)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBankHol)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Rostered (${fh(bhCapped)} × ${fp(r125)})</span><span class="b-val">${fmt(gBankHol)}</span></div>`;
     if (bhOtHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Overtime (${fh(bhOtHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBhOt)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Overtime (${fh(bhOtHrs)} × ${fp(r125)})</span><span class="b-val">${fmt(gBhOt)}</span></div>`;
     if (oHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Overtime (${fh(oHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gOvertime)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Overtime (${fh(oHrs)} × ${fp(r125)})</span><span class="b-val">${fmt(gOvertime)}</span></div>`;
     if (rHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Rest Day Working (${fh(rHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gRdw)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Rest Day Working (${fh(rHrs)} × ${fp(r125)})</span><span class="b-val">${fmt(gRdw)}</span></div>`;
     if (sHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Sunday Working (${fh(sHrs)} × ${fmt(r150)})</span><span class="b-val">${fmt(gSunday)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Sunday Working (${fh(sHrs)} × ${fp(r150)})</span><span class="b-val">${fmt(gSunday)}</span></div>`;
     if (bHrs > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Boxing Day Working (${fh(bHrs)} × ${fmt(r300)})</span><span class="b-val">${fmt(gBoxing)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Boxing Day Working (${fh(bHrs)} × ${fp(r300)})</span><span class="b-val">${fmt(gBoxing)}</span></div>`;
     // "Peer Training", the Hours row's own name (paycalc-3-18): "Training Days" is also what the
     // Calendar calls a day a member ATTENDS training, which needs nothing here.
     if (peer > 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Peer Training (${peer} day${peer>1?'s':''} × 2h × ${fmt(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl">Peer Training (${peer} day${peer>1?'s':''} × 2h × ${fmtRate(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
     bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
     if (otherAdj !== 0)
         bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;   // fmt signs a negative "−£"
