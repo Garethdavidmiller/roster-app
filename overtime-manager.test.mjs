@@ -299,7 +299,8 @@ describe('the header', () => {
     test('the short-notice warning is always present', () => {
         // Submitted availability is a record of what somebody said before a cut-off, not a standing
         // promise. Wherever the data is read, the note is read with it.
-        assert.match(render(), /Confirm directly[\s\S]*with the employee before arranging short-notice cover/);
+        // Worded as the help panel words it (overtime-tips.js): one fact, one phrasing.
+        assert.match(render(), /Confirm directly[\s\S]*with the person before arranging short-notice cover/);
     });
 });
 
