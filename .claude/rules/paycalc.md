@@ -353,8 +353,13 @@ Binds this page and the Calendar's 💷 / ✂️ markers.
   and the tedium is a one-time cost to the one member who understands it versus a permanent control
   for everyone who does not. Do not add one without a second member hitting this.
 
-**Chiltern Saturday payroll:** rostered Saturday → `sat` (1.25×); Saturday-on-RD → `rdw` bucket —
-staff use the RDW field, not the Saturday field. Confirmed by Gareth May 2026. Tests assert this.
+**Chiltern Saturday payroll:** rostered Saturday → `sat` (1.25×); a Saturday off worked as RDW → `rdw`
+bucket — staff use the RDW field, not the Saturday field (confirmed by Gareth May 2026). **The RECORD's
+type decides which, never the base roster alone** (owner, 19 Nov 2026): on a rest-day Saturday a record
+of type `rdw` (Admin's RDW pill, the roster's RDW marker) is RDW, and a plain `shift` is a working day
+MOVED there — a weekday swapped for the Saturday — and pays as a rostered Saturday inside the
+contracted hours. Pricing every shift on a Saturday off as RDW put a swapped day on top of the
+contracted hours, about a day's basic pay too high. Tests assert both.
 
 **Chiltern Sunday-on-BH: Sunday wins (1.5×)** — the `dow === 0` check is before `isBH` in the
 suggestion engine. Confirmed by Gareth May 2026.

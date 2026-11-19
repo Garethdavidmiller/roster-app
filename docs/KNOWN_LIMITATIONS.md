@@ -229,6 +229,12 @@ Entries from before v25.87 carry no background figure, so they cannot tell a fro
 connection. One from an installed iPhone app on 11 Nov 2026 (81.8s, token 0.0s) could not, and is
 why the figure was added.
 
+**Readings so far that carry every figure:**
+- 19 Nov 2026, v26.36, Admin, **Android** (Edge, in the browser, not installed): 8.2s, online, on
+  screen throughout, token 0.0s. So the slowness is not iPhone-only. By the order above it points
+  at the connection to Firestore, with the token caveat. One reading 0.2s past the notice is not a
+  case for a change; add each new one here before choosing.
+
 These entries are listed in the Error Log but not counted as unresolved errors (`DIAGNOSTIC_PREFIX`
 in `client-errors.js`), so the Operations strip leaves them out. The admin's Error Log notification
 (v26.04) does announce them, counted apart from errors, so a new reading no longer waits to be

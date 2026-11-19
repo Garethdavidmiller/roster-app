@@ -125,11 +125,11 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.equal(s.bhCount, 0, 'must NOT land in the rostered "Bank Holiday Rostered" bucket');
   });
 
-  test('Saturday override when base is RD → rdw bucket (confirmed payroll rule)', () => {
-    // C. Reen base Sat=RD → rest day worked, goes to RDW not Saturday enhanced rate.
-    // Gareth confirmed May 2026: unrostered Saturday = Rest Day Working.
+  test('Saturday recorded as RDW when base is RD → rdw bucket (confirmed payroll rule)', () => {
+    // C. Reen base Sat=RD → a rest day worked, recorded as RDW: Rest Day Working, not the Saturday
+    // rate. Gareth confirmed May 2026: a Saturday worked on a rest day is "RDW 1.25".
     _setOverridesForTest(new Map([
-      ['2026-04-11', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],
+      ['2026-04-11', { type: 'rdw', value: '10:00-18:00', _ts: 1, _manual: true }],
     ]));
     const s = getRosterSuggestion(period('2026-04-11'), cReen);
     assert.ok(s);
@@ -138,6 +138,24 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.equal(s.rdwM, 0);
     assert.equal(s.satCount, 0);
     assert.equal(s.otCount, 0);
+  });
+
+  test('a plain SHIFT on a rest-day Saturday is a day moved there → rostered Saturday, not RDW (owner, 19 Nov 2026)', () => {
+    // A weekday swapped for the Saturday: the Tuesday recorded as a rest day, the Saturday as an
+    // ordinary shift. It pays "Ord Basic Pay @1.25" inside the contracted hours; as RDW it was paid
+    // on top of them — about a day's basic pay too much.
+    _setOverridesForTest(new Map([
+      ['2026-04-07', { type: 'correction', value: 'RD',       _ts: 1, _manual: true }],   // Tuesday made a rest day
+      ['2026-04-11', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],   // Saturday
+    ]));
+    const s = getRosterSuggestion(period('2026-04-11'), cReen);
+    assert.ok(s);
+    assert.equal(s.satCount, 1);
+    assert.equal(s.satH, 8);
+    assert.equal(s.satM, 0);
+    assert.equal(s.rdwCount, 0, 'a swapped Saturday must not be priced as Rest Day Working');
+    assert.equal(s.otCount, 0);
+    assert.equal(s.days.find(d => d.type === 'sat')?.source, 'override');
   });
 
   test('Sunday override → sun bucket', () => {
@@ -643,10 +661,10 @@ describe('fetchOverridesForPeriod — override priority', () => {
     resetOverrides('checking');
     await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen');
     // manual value (10:00-19:00 = 9h) wins despite lower timestamp.
-    // 2026-04-11 is a Saturday with C. Reen base=RD → rdw bucket (not sat).
+    // 2026-04-11 is a Saturday with C. Reen base=RD; a plain shift there is a rostered Saturday.
     const s = getRosterSuggestion(period(date), cReen);
     assert.ok(s);
-    assert.equal(s.rdwH, 9); // 10:00-19:00 = 9h
+    assert.equal(s.satH, 9); // 10:00-19:00 = 9h
   });
 
   test('within same class, newer createdAt wins', async () => {
@@ -657,10 +675,10 @@ describe('fetchOverridesForPeriod — override priority', () => {
     ]);
     resetOverrides('checking');
     await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen');
-    // 2026-04-11 is a Saturday with C. Reen base=RD → rdw bucket (not sat).
+    // 2026-04-11 is a Saturday with C. Reen base=RD; a plain shift there is a rostered Saturday.
     const s = getRosterSuggestion(period(date), cReen);
     assert.ok(s);
-    assert.equal(s.rdwH, 9); // newer (9h) wins over older (8h)
+    assert.equal(s.satH, 9); // newer (9h) wins over older (8h)
   });
 
   test('docs for other members are ignored', async () => {
@@ -684,7 +702,7 @@ describe('fetchOverridesForPeriod — override priority', () => {
     _setOverridesForTest(new Map([
       [date, { type: 'shift', value: '10:00-19:00', _ts: 1, _manual: true }],
     ]));
-    assert.equal(getRosterSuggestion(period(date), cReen)?.rdwH, 9, 'premise: the stale override would be suggested');
+    assert.equal(getRosterSuggestion(period(date), cReen)?.satH, 9, 'premise: the stale override would be suggested');
     _mockGetDocs = async () => { throw new Error('network error'); };
     resetOverrides('checking');
     const result = await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen');
@@ -740,7 +758,7 @@ describe('getRosterSuggestion — each payslip reads its own recorded changes', 
     _mockGetDocs = async () => mockSnap([]);
     // …and the year fill moves on to its next period:
     await fetchOverridesForPeriod(elsewhere, 'C. Reen');
-    assert.equal(getRosterSuggestion(onScreen, cReen)?.rdwH, 9,
+    assert.equal(getRosterSuggestion(onScreen, cReen)?.satH, 9,
       'the payslip on screen was priced from the last payslip fetched, without its own recorded change');
     assert.equal(getOverridesFetchState(onScreen), 'loaded');
   });
@@ -765,7 +783,7 @@ describe('getRosterSuggestion — each payslip reads its own recorded changes', 
     await fetchOverridesForPeriod(third, 'C. Reen');
     assert.equal(getOverridesFetchState(third), 'base-only', 'a cache answer must be named for its payslip');
     assert.equal(getOverridesFetchState(onScreen), 'loaded', '…and neither touches the payslip that did load');
-    assert.equal(getRosterSuggestion(onScreen, cReen)?.rdwH, 9);
+    assert.equal(getRosterSuggestion(onScreen, cReen)?.satH, 9);
   });
 
   test('a reset forgets every payslip, so a period change can never inherit an earlier answer', async () => {
@@ -905,7 +923,7 @@ describe('getRosterSuggestion — a record dated before the member\'s start date
 
   test('CONTROL: the same kind of record from the start date on is counted', () => {
     _setOverridesForTest(new Map([['2026-04-18', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }]]));
-    assert.equal(getRosterSuggestion(period('2026-04-13', '2026-04-19'), joiner)?.rdwH, 8);
+    assert.equal(getRosterSuggestion(period('2026-04-13', '2026-04-19'), joiner)?.satH, 8);
   });
 });
 

@@ -551,7 +551,7 @@ overwhelmed. "For dummies" is the standard, not an insult. The rules, each learn
 **The four things a surface owes a member, in order.** This is not an imported UX model — it is the
 app's own best pattern, named. Every Hours row already does all four:
 **Discover** it exists (*"Rest Day Working"*) → **Understand** it in one sentence (*"Came in on a
-rest day, or worked a Saturday that wasn't in your roster"*) → **Act** (*"Shows as 'RDW 1.25' on your
+rest day as extra work — a Saturday off included"*) → **Act** (*"Shows as 'RDW 1.25' on your
 payslip"*) → **Deep dive** on demand (the card body, the `?` panel, the guide).
 **Progressive disclosure may hide the fourth. It may never hide the first.** That single line is what
 separates good hiding (*"Holiday Pay Premium — paid once a year on a January payslip"* with the

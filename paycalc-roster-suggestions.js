@@ -427,17 +427,20 @@ export function getRosterSuggestion(p, member) {
         days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
 
       } else if (dow === 6) {
-        const baseIsSpare = baseValue === 'SPARE';
-        if (fromOv && !baseWorked && !baseIsSpare) {
-          // Saturday was a confirmed rest day (RD) and admin recorded a shift — Rest Day Working.
-          // SPARE Saturdays are excluded: SPARE means "rostered but shift TBC", not a rest day.
-          rdwMins += mins; rdwCount++;
-          days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
-        } else if (fromOv) {
-          // Override on a rostered or SPARE Saturday: all hours go to sat (no base to cap against
-          // for SPARE weeks), or cap at base with excess to general overtime for rostered shifts.
-          const rostered = baseIsSpare ? mins : Math.min(mins, baseMins);
-          const ot       = baseIsSpare ? 0   : mins - rostered;
+        // A SHIFT RECORDED ON A REST-DAY SATURDAY IS A WORKING DAY MOVED THERE (owner, 19 Nov 2026) —
+        // a weekday swapped for the Saturday — and pays as a rostered Saturday ("Ord Basic Pay
+        // @1.25", inside the contracted hours), never Rest Day Working. A Saturday that IS rest-day
+        // working is recorded as RDW (Admin's RDW pill, or the roster's RDW marker on an import) and
+        // took the effType === 'rdw' branch above; a rest-day Other day left through resolveOtherPay.
+        // Until then every shift on a rest-day Saturday was priced as RDW, on top of the contracted
+        // hours: about a day's basic pay too much for a swap.
+        // With no rostered shift to cap against (a rest day, or SPARE — "rostered but shift TBC",
+        // which carries no times either) every hour is the Saturday's.
+        const noShiftToCap = !baseWorked;
+        if (fromOv) {
+          // A rostered Saturday caps at its shift, the excess going to general overtime.
+          const rostered = noShiftToCap ? mins : Math.min(mins, baseMins);
+          const ot       = noShiftToCap ? 0    : mins - rostered;
           satMins += rostered; satCount++;
           satFromOv = true;
           days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: 'override' });
