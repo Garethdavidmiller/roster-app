@@ -35,13 +35,15 @@
  * Collapsing those was a real defect: a naive `split('-')` on `TRG 09:00-17:00` shreds into NaN and
  * silently skips every check on that day, which reads as "no problem found".
  *
- * ── AND TWO DAYS THAT TAKE NO CHANGE AT ALL (`checkDayRules`) ───────────────────────────────────
+ * ── AND THE DAYS THAT REFUSE A CHANGE (`checkDayRules`) ──────────────────────────────────────────
  *
  * A day before the member's start date (whole-app check, Nov 2026): the Calendar, its legend and
  * Team Week never show a change there (`isBeforeMemberStart`), so one saved was receipted and then
  * invisible for ever. And an Other day on Boxing Day — "Sundays and Boxing Day can never be
- * training/Other days" (owner, Jul 2026). Both are refused at the grid's pills as a Sunday's are;
- * this is the backstop at Save, for a row that reaches it another way.
+ * training/Other days" (owner, Jul 2026). And a Spare turn on Christmas Day or Boxing Day —
+ * "Christmas days and Boxing days cannot be spare days even if they fall in a usually spare week"
+ * (owner, 19 Nov 2026). All are refused at the grid's pills as a Sunday's are; this is the backstop
+ * at Save, for a row that reaches it another way.
  *
  * And the weeks the grid may be moved to at all — the configured years (`weekStepAllowed`,
  * `linkableDate`), below.
@@ -171,6 +173,13 @@ export function checkShiftRules({ toSave, isFixedType, resolveShift, baseShiftFo
 /** Is the ISO date Boxing Day, 26 December, in any year? @param {string} iso @returns {boolean} */
 export function isBoxingDay(iso) { return /^\d{4}-12-26$/.test(iso); }
 
+/** The name of the ISO date if it is Christmas Day or Boxing Day, in any year — days that can never be
+ *  a Spare turn, even in a spare week (owner, 19 Nov 2026) — else null.
+ *  @param {string} iso @returns {'Christmas Day'|'Boxing Day'|null} */
+export function christmasDayName(iso) {
+    return /^\d{4}-12-25$/.test(iso) ? 'Christmas Day' : isBoxingDay(iso) ? 'Boxing Day' : null;
+}
+
 // ── THE CONFIGURED YEARS ARE THE EDGE OF THE WEEK GRID (whole-app check, Nov 2026) ─────────────────
 // The Calendar and Team Week stop at CONFIG.MIN_YEAR–MAX_YEAR, and so do the bank-holiday tables. Admin's
 // arrows, swipe, date picker and `?date=` did not, so they walked on into weeks with no bank holidays
@@ -204,7 +213,8 @@ export function checkDayRules({ toSave, member, formatDate }) {
     /** @type {string[]} */ const failedDates = [];
     for (const { date, type } of toSave) {
         const why = member && isBeforeMemberStart(member, parseISODate(date)) ? 'before the start date, so a change here would never show on the Calendar'
-            : type === 'other' && isBoxingDay(date) ? 'an "Other" day cannot be recorded on Boxing Day' : '';
+            : type === 'other' && isBoxingDay(date) ? 'an "Other" day cannot be recorded on Boxing Day'
+            : type === 'spare_shift' && christmasDayName(date) ? `a Spare turn cannot be recorded on ${christmasDayName(date)}` : '';
         if (!why) continue;
         if (!failedDates.includes(date)) failedDates.push(date);
         errors.push(`${formatDate(date)}: ${why}`);

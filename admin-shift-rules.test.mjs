@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours, checkDayRules, isBoxingDay, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
+import { checkShiftRules, constrainingTime, effectiveEndMins, parseMinutes, fmtHours, checkDayRules, isBoxingDay, christmasDayName, weekStepAllowed, linkableDate } from './admin-shift-rules.js';
 import { CONFIG } from './roster-data.js';
 import { TYPES } from './admin-shift-types.js';
 
@@ -200,13 +200,26 @@ describe('checkDayRules — before the start date, and an Other day on Boxing Da
         assert.deepEqual(errors, ['2026-06-02: before the start date, so a change here would never show on the Calendar']);
     });
 
-    test('an Other day on Boxing Day is refused, in any year; Spare (its own type) and work are not', () => {
+    test('an Other day on Boxing Day is refused, in any year; work and a Christmas Day Other day are not', () => {
         const { errors, failedDates } = checkDayRules({ member: { name: 'Any' }, formatDate: fmt, toSave: [
             { date: '2026-12-26', type: 'other' }, { date: '2031-12-26', type: 'other' },
-            { date: '2026-12-26', type: 'spare_shift' }, { date: '2026-12-26', type: 'rdw' }, { date: '2026-12-25', type: 'other' }] });
+            { date: '2026-12-26', type: 'rdw' }, { date: '2026-12-25', type: 'other' }] });
         assert.deepEqual(failedDates, ['2026-12-26', '2031-12-26']);
         assert.deepEqual(errors, ['2026-12-26: an "Other" day cannot be recorded on Boxing Day',
                                   '2031-12-26: an "Other" day cannot be recorded on Boxing Day']);
+    });
+
+    test('a Spare turn on Christmas Day or Boxing Day is refused, in any year (owner, 19 Nov 2026)', () => {
+        // "Christmas days and Boxing days cannot be spare days even if they fall in a usually spare week."
+        const { errors, failedDates } = checkDayRules({ member: { name: 'Any' }, formatDate: fmt, toSave: [
+            { date: '2026-12-25', type: 'spare_shift' }, { date: '2027-12-26', type: 'spare_shift' },
+            { date: '2026-12-24', type: 'spare_shift' }, { date: '2026-12-27', type: 'spare_shift' }] });
+        assert.deepEqual(failedDates, ['2026-12-25', '2027-12-26']);
+        assert.deepEqual(errors, ['2026-12-25: a Spare turn cannot be recorded on Christmas Day',
+                                  '2027-12-26: a Spare turn cannot be recorded on Boxing Day']);
+        assert.equal(christmasDayName('2026-12-25'), 'Christmas Day');
+        assert.equal(christmasDayName('2026-12-26'), 'Boxing Day');
+        assert.equal(christmasDayName('2026-12-24'), null);
     });
 
     test('a member with no start date, and an ordinary week, refuse nothing', () => {

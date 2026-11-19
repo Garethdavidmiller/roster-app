@@ -646,7 +646,8 @@ export function init() {
         });
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
-        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day on Boxing Day.
+        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day on Boxing Day;
+        // a Spare turn on Christmas Day or Boxing Day.
         // Here, not in the collector above, whose slice override-utils.test.mjs evaluates with fixed names.
         const dayRules = checkDayRules({ toSave, member: teamMembers.find(m => m.name === memberName), formatDate: formatDisplay });
         dayRules.failedDates.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));

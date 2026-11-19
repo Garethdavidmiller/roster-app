@@ -335,7 +335,7 @@ describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => 
     // reading the contract figure instead.
     const BOXING = new Date(2026, 11, 26);
     const cea = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
-        && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, BOXING)));
+        && m.bilingualContract !== true && !['RD', 'OFF', 'SPARE'].includes(getPatternShift(m, BOXING)));
     /** Working days the member's pattern has in `year`, from March. @param {number} year @param {number} n */
     const workdays = (year, n) => {
         /** @type {string[]} */ const out = [];
@@ -473,7 +473,7 @@ describe('the preview names every day in lieu a booking takes back', () => {
 describe('projectAbsenceRange — an absence over work that earned a day in lieu', () => {
     const BOXING = new Date(2026, 11, 26);
     const pattern = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL && !m.rosterChanges
-        && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, BOXING)));
+        && m.bilingualContract !== true && !['RD', 'OFF', 'SPARE'].includes(getPatternShift(m, BOXING)));
     const person = { ...pattern, name: 'Z. Invented' };
     /** Working days the pattern has in `year`, from March, skipping bank holidays. @param {number} year @param {number} n */
     const workdays = (year, n) => {

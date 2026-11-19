@@ -214,7 +214,7 @@ test('work that earned a day in lieu is still written: the absence takes the day
     /** @type {any} */ let Z = null;
     for (let w = 1; w <= CONFIG.MAIN_ROSTER_WEEKS && !Z; w++) {
         const m = { name: 'Z. Invented', role: 'CEA', rosterType: 'main', currentWeek: w };
-        if (!isRestShift(getPatternShift(m, BOXING))) Z = m;
+        if (!isRestShift(getPatternShift(m, BOXING)) && getPatternShift(m, BOXING) !== 'SPARE') Z = m;
     }
     assert.ok(Z, 'premise: a week of the main line is due at work on Boxing Day 2026');
     const worked = (/** @type {any} */ who) => new Map([['2026-12-26', { memberName: who.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual' }]]);

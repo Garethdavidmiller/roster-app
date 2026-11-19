@@ -98,6 +98,9 @@ everywhere else (`AL on a rest day is ASKED about, never defaulted`) just becaus
   answered swap is a write, so a skipped section must not still write it).
 - Sundays and breaker-refused reads ask nothing, and nor do 25 and 26 December from 2026: the app's
   Christmas leave decides those days, so their rows start unticked and say so (owner, 10 Nov 2026).
+- **A SPARE printed on 25 or 26 December is a GUARDED row under its own reason** (`christmas-spare`,
+  any year): the two days cannot be spare days (owner, 19 Nov 2026), so nothing is written, whatever
+  the base or a saved record says, and an unreadable cell never offers the spare reading.
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
 - **A day before the member's `startDate` writes nothing** (`isBeforeMemberStart`): anything but a

@@ -631,7 +631,7 @@ The Admin week grid's time boxes: two delegated `document` listeners that format
 - **Exports:** `initTimeInputs`
 
 ### `admin-day-pills.js`
-Which changes one week-grid day takes, refused at its pills with the reason in each control's accessible name: a Sunday (layer 1 of CLAUDE.md → "Sundays are non-contracted"), Boxing Day, and a day before the member's start date. On a Sunday or Boxing Day the Other pill offers Spare alone (owner, Nov 2026; header). Tested by `admin-day-pills.test.mjs`.
+Which changes one week-grid day takes, refused at its pills with the reason in each control's accessible name: a Sunday (layer 1 of CLAUDE.md → "Sundays are non-contracted"), Boxing Day, Christmas Day, and a day before the member's start date. On a Sunday the Other pill offers Spare alone; neither Christmas day can be a Spare turn, so Boxing Day's Other pill is off (owner, Nov 2026; header). Tested by `admin-day-pills.test.mjs`.
 - **Exports:** `restrictDayPills`
 
 ### `admin-week-row-state.js`
@@ -708,7 +708,7 @@ What the Admin override cache actually KNOWS: a coverage record of which members
 
 ### `admin-shift-rules.js`
 The two rules a staged shift change must not break, maximum length and minimum rest, plus the days that take no change at all (before the member's start date; an Other day on Boxing Day) and the configured years the week grid may move within. Pure: it DECIDES and returns the sentences and the failed dates; the caller (`validateShiftRules` in `admin-overrides.js`, and `admin-app.js`'s Save) PAINTS. Tested by `admin-shift-rules.test.mjs`.
-- **Exports:** `MAX_SHIFT_MINS` · `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours` · `constrainingTime` · `checkShiftRules` · `isBoxingDay` · `weekStepAllowed` · `linkableDate` · `checkDayRules`
+- **Exports:** `MAX_SHIFT_MINS` · `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours` · `constrainingTime` · `checkShiftRules` · `isBoxingDay` · `christmasDayName` · `weekStepAllowed` · `linkableDate` · `checkDayRules`
 
 ### `admin-deep-link.js`
 Where a hash on `admin.html` lands: which folds to open (including the Recorded Annual Leave dates box, a fold inside a card) and the two-stage scroll that finishes on it. It decides; `openCollapsibleCard` in `admin-app.js` opens. The header numbers three things not to "tidy". Tested by `admin-deep-link.test.mjs`; the landing by `e2e/admin.spec.js`, which asserts the box's bottom edge.

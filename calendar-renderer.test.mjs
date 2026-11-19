@@ -1190,7 +1190,8 @@ describe('buildCalendarContainer — grid structure', () => {
 // the year its day in lieu is added to. A real member, so "due at work" is the real pattern.
 describe('Christmas leave — due at work on 25/26 December shows as leave that is never counted', () => {
     const XMAS = new Date(2026, 11, 25), BOXING = new Date(2026, 11, 26);
-    const due = (/** @type {any} */ m, /** @type {Date} */ d) => !['RD', 'OFF'].includes(realRosterData.getPatternShift(m, d));
+    // Due at work = a shift on the pattern; never a spare day there (owner, 19 Nov 2026).
+    const due = (/** @type {any} */ m, /** @type {Date} */ d) => !['RD', 'OFF', 'SPARE'].includes(realRosterData.getPatternShift(m, d));
     const MEMBER = realRosterData.teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate
         && due(m, XMAS) && due(m, BOXING));
     const RESTER = realRosterData.teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !due(m, BOXING));

@@ -2896,6 +2896,28 @@ describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
         }
     });
 
+    test('a SPARE printed there is shown and records nothing — the days cannot be spare days (owner, 19 Nov 2026)', () => {
+        const worked = { id: 'w1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00' };
+        for (const existing of [[], [worked]]) {
+            const st = states({ [XMAS]: 'SPARE', [BOXING]: 'SPARE' }, existing);
+            for (const d of [XMAS, BOXING]) {
+                const s = st.get(`${m.name}|${d}`);
+                assert.deepEqual([s.state, s.guarded], ['GUARDED', 'christmas-spare'], `${d} with ${existing.length} saved`);
+                const html = rs.guardedRowHtml({ key: `${m.name}|${d}`, s, dayName: 'Fri', dateStr: d, badgeHtml: 'Spare', esc: (/** @type {string} */ v) => v });
+                assert.ok(html.includes('can’t be spare days'), `${d}: says why`);
+            }
+            assert.deepEqual(collectRosterWrites(st), [], 'nothing written, and a worked Boxing Day is not turned into rest');
+        }
+    });
+
+    test('an unreadable cell there never offers the spare reading — picked, it was a "Rest" over the leave', () => {
+        const parsed = { parsed: [{ memberName: m.name, shifts: shiftsWith({ [BOXING]: 'UNKNOWN|SPARE or 13:30-21:00?' }) }],
+            dates: DATES, choices: { [`${m.name}|${BOXING}`]: ['SPARE', '13:30-21:00'] } };
+        const s = computeCellStates(parsed, []).get(`${m.name}|${BOXING}`);
+        assert.equal(s.state, 'UNREADABLE');
+        assert.ok(!(s.options ?? []).some((/** @type {any} */ o) => o.value === 'RD'), 'no rest-day reading is offered');
+    });
+
     test('an earlier import there is an unticked "Clear old", never a question — and the same leave again is left alone', () => {
         const imp = { id: 'i1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00', source: 'roster_import' };
         const s = states({ [BOXING]: 'AL' }, [imp]).get(`${m.name}|${BOXING}`);

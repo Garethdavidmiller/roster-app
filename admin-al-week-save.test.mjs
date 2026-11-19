@@ -407,7 +407,7 @@ describe('a save that moves the Boxing Day day in lieu is costed against the all
     // false one.
     const BOXING = '2026-12-26';
     const cea = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
-        && m.bilingualContract !== true && !['RD', 'OFF'].includes(getPatternShift(m, new Date(2026, 11, 26))));
+        && m.bilingualContract !== true && !['RD', 'OFF', 'SPARE'].includes(getPatternShift(m, new Date(2026, 11, 26))));
     /** Working days the member's pattern has in `year`, from March. @param {number} year */
     const workdaysIn = year => {
         /** @type {string[]} */ const out = [];

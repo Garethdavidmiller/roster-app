@@ -1126,7 +1126,7 @@ const onRosterForEachTest = (m) => {
 describe('N. "Save anyway" answers the press it is given, and no later one', () => {
     beforeEach(() => { _realWorkingDate = true; });
     // Due at work on Boxing Day 2026, so the Absence case below has a day in lieu to take back.
-    const QX = inventedCea(m => !isRestShift(getPatternShift(m, new Date(2026, 11, 26))));
+    const QX = inventedCea(m => !isRestShift(getPatternShift(m, new Date(2026, 11, 26))) && getPatternShift(m, new Date(2026, 11, 26)) !== 'SPARE');
     onRosterForEachTest(QX);
     /** Every working weekday of `m` from `from`, skipping bank holidays and `not`, until `n` are found. */
     const workdays = (/** @type {any} */ m, /** @type {Date} */ from, /** @type {number} */ n, /** @type {string[]} */ not = []) => {

@@ -6,7 +6,9 @@
  *   reason in each one's accessible name — for the three kinds of day that refuse something:
  *     · a SUNDAY: leave, absence and a plain shift are refused (layer 1 of the Sunday rule —
  *       CLAUDE.md "Sundays are non-contracted"; the save-side layers are numbered in their own code);
- *     · BOXING DAY: no Other day (owner, Jul 2026);
+ *     · BOXING DAY: no Other day (owner, Jul 2026), and no Spare turn either, so no Other pill at all;
+ *     · CHRISTMAS DAY: no Spare turn (owner, 19 Nov 2026 — "Christmas days and Boxing days cannot be
+ *       spare days even if they fall in a usually spare week");
  *     · a day BEFORE THE MEMBER'S START DATE: nothing at all — the Calendar never shows one.
  * Does NOT own: the sentences in the row that say why (they are part of the row's markup, in
  *   `buildWeekGridInto`), what an enabled pill does, or the backstops at Save (`checkDayRules`,
@@ -24,6 +26,12 @@
  * admin-week-row-state.js) — one choice is not a decision to ask for. Training, Induction,
  * Assessment, Team Day, Union and Meeting stay refused on both days (confirmed by the owner).
  *
+ * ── …EXCEPT ON 25 OR 26 DECEMBER, WHICH CANNOT BE SPARE DAYS (owner, 19 Nov 2026) ───────────────────
+ *
+ * With Spare refused as well, Boxing Day (and a Sunday Christmas Day) has nothing left under Other, so
+ * the pill itself is turned off with the reason. A weekday Christmas Day keeps its Other days and loses
+ * the Spare chip alone.
+ *
  * ── WHY IT IS ITS OWN MODULE ───────────────────────────────────────────────────────────────────
  *
  * `admin-week-editor.js` was at its ratchet cap with no headroom, and this is a RULE — a pill left on
@@ -36,9 +44,10 @@ import { TYPES } from './admin-shift-types.js';
 /**
  * Turn off what `row`'s day cannot take, and say why on each control turned off.
  * @param {HTMLElement} row a `.day-row` as `buildWeekGridInto` draws it
- * @param {{ sunday: boolean, boxing: boolean, beforeStart: boolean }} day
+ * @param {{ sunday: boolean, boxing: boolean, beforeStart: boolean, christmas?: string|null }} day
+ *   `christmas` names the day when it is Christmas Day or Boxing Day (`christmasDayName`), else null.
  */
-export function restrictDayPills(row, { sunday, boxing, beforeStart }) {
+export function restrictDayPills(row, { sunday, boxing, beforeStart, christmas = null }) {
     /** Disabled buttons drop out of the tab order, so the reason goes in the accessible name — and in
      *  a line in the row, for sighted readers (a `title` was a hover surface no phone shows, v23.50).
      *  @param {Element|null} el @param {string} label */
@@ -64,7 +73,12 @@ export function restrictDayPills(row, { sunday, boxing, beforeStart }) {
         // calculator's Sunday-overtime pre-fill missed it, under-counting pay.
         off(row.querySelector('.pill-shift'), 'Shift — unavailable on Sundays; record Sunday work as Rest Day Working (RDW)');
     }
-    if (sunday || boxing) {
+    if ((sunday || boxing) && christmas) {
+        // Neither an Other day nor a Spare turn is left, so the pill itself is off.
+        off(row.querySelector('.pill-other'), `Other — unavailable on ${christmas}: no Other day or Spare turn`);
+    } else if (christmas) {
+        off(row.querySelector('.other-flavour-btn[data-flavour="SPARE"]'), `Spare — unavailable on ${christmas}`);
+    } else if (sunday || boxing) {
         const where = sunday ? 'on Sundays' : 'on Boxing Day';
         row.dataset.spareOnly = '1';
         row.querySelector('.pill-other')?.setAttribute('aria-label', `Other — only Spare ${where}`);
