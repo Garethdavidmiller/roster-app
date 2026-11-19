@@ -23,7 +23,7 @@ import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.
 import { initPasswordForce } from './password-force.js';
 import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW, SELECTED_MEMBER } from './storage-keys.js';
 import { initTeamView } from './calendar-team-view.js';
-import { wireCalendarDrawer } from './calendar-drawer.js';
+import { wireCalendarDrawer, rewireCalendarDrawer } from './calendar-drawer.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox, confirmDialog } from './overlay.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -56,7 +56,7 @@ import { applyTextScale } from './text-scale.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
 import { setStatus } from './status-text.js';
-import { signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 // ── THE CALENDAR ACCESS BOOTSTRAP (v20.12) ──────────────────────────────────────────────────────
 //
 // This replaced an unconditional `signInAnonymously` fallback. That existed because `overrides` was
@@ -1150,7 +1150,8 @@ async function _runPasswordForce() {
 /** The first grant's member-only steps: the claim sweep (else only in `ensureNamedSession`, which a
  *  named Calendar boot never calls) and the forced set-password step. Run from the ONE-SHOT
  *  `onGranted` — `grant()` sets the access type before calling it, so `named` is readable here, and
- *  every later grant is a viewer re-unlock (a member signing in reloads the page). */
+ *  every later grant is a viewer re-unlock (a member signing in on a page granted before reloads it,
+ *  calendar-access.js → `finishSignIn`). */
 function _onFirstGrant() {
     if (getAccessType() !== 'named') { _resolvePasswordForce(false); return; }   // the notices need not wait
     refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // fire-and-forget, one-shot per device per epoch
@@ -1227,6 +1228,11 @@ initCalendarAccess({
     // A PIN or come-back card means a person is about to type: the speed sample stops there
     // (perf-reporter.js → "A sample is time somebody spent waiting"). The sign-in card says so itself.
     onAwaitingInput: markAwaitingInput,
+    // A sign-in on a card, granted WITHOUT a reload (calendar-access.js → `finishSignIn`): the two things
+    // this page built at load for whoever was signed in then. The menu, for the member now (its pills,
+    // their name, Sign out); and the Back guard, so a restore for them is not reloaded for nothing.
+    // Everything else reads the session when it runs, or is built by the grant that follows.
+    onSignedInInPlace: () => { rewireCalendarDrawer(); rebaseRestoreGuard(); },
     // EVERY grant, not just the first (v20.41): what a re-lock takes away has to come back when
     // access returns, which is precisely what re-entering the PIN after a rotation is. The roster
     // reads and the documents are not reopened HERE: the grant opens both itself, BEFORE this hook

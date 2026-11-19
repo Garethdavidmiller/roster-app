@@ -8,12 +8,12 @@
  * The drawer is set up as the page loads, BEFORE access is decided, so that a locked visitor still
  * has it (the guides, the documents, About). Everything in it that depends on who is signed in — the
  * page pills a member may open, the name and initials in its footer, Sign out, the bell, and which
- * opens the usage counters leave out — is fixed at that moment by `initNavPanel`. Until now that did
- * not matter: a member who signs in on the Calendar reloads it, and the reload builds the drawer
+ * opens the usage counters leave out — is fixed at that moment by `initNavPanel`. Until v26.40 that
+ * did not matter: a member who signed in on the Calendar reloaded it, and the reload built the drawer
  * again for them.
  *
- * Signing in WITHOUT the reload (ROADMAP → "Calendar sign-in without the reload") needs a way to
- * rebuild it in place. The rest of the app already has one: `resetNavPanel()` then `initNavPanel()`
+ * Signing in WITHOUT the reload (v26.40, ROADMAP_HISTORY.md → "Calendar sign-in without the reload")
+ * needs a way to rebuild it in place. The rest of the app already has one: `resetNavPanel()` then `initNavPanel()`
  * again, which the Overtime page uses after its own in-place sign-in and `page-session.js` uses when
  * a session is lost. This module gives the Calendar the same pair:
  *
@@ -22,9 +22,9 @@
  *   · `wireCalendarDrawer(deps)` — builds it for the session saved now. The page calls it once, at
  *     load, exactly where it used to call `initNavPanel` itself.
  *   · `rewireCalendarDrawer()` — takes the drawer down and builds it again for the session saved
- *     NOW, with the same page hooks. **Nothing calls it yet**: it is step 1 of that roadmap entry, and
- *     its caller is step 2 (the sign-in that grants in place). Until then the page behaves exactly as
- *     before.
+ *     NOW, with the same page hooks. Its one caller is the page's `onSignedInInPlace`, which
+ *     calendar-access.js's `finishSignIn` runs when a sign-in on a lock card is granted without a
+ *     reload.
  *
  * Who is signed in is read from the SAVED SESSION, never from the name chosen in the picker: on the
  * station PC the picker is whichever row was chosen last, and the drawer's identity is also the
@@ -94,7 +94,7 @@ export function wireCalendarDrawer(deps) {
 
 /**
  * Take the drawer down and build it again for the session saved NOW — after a sign-in that did not
- * reload the page. `resetNavPanel` closes an open drawer, its two lightboxes and their history entry
+ * reload the page (calendar-access.js → `finishSignIn`). `resetNavPanel` closes an open drawer, its two lightboxes and their history entry
  * first, so this is safe whatever is open. Does nothing before `wireCalendarDrawer` has run.
  * @returns {boolean} whether a drawer was rebuilt
  */

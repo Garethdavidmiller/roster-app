@@ -7,7 +7,7 @@
  * The drawer itself (`nav-panel.js`) is replaced by a recorder, so these assert what the Calendar ASKS
  * for and in what order: a rebuild that built before resetting would leave two drawers, and one that
  * reused the load-time identity would show the person who signed in a menu with no name and no
- * Sign out — the gap step 2 of "Calendar sign-in without the reload" (ROADMAP) depends on this closing.
+ * Sign out — the gap the in-place sign-in (v26.40, calendar-access.js → `finishSignIn`) depends on this closing.
  * The roster and the page-access rules are the real ones, so the admin and member cases are the
  * roster's own.
  */

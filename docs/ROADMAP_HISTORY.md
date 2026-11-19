@@ -89,6 +89,65 @@ part.**
 ---
 
 
+## Calendar sign-in without the reload — SHIPPED v26.39–v26.40, moved 19 Nov 2026
+
+Built on the owner's word (19 November 2026) ahead of its trigger, in two steps. **Step 1 (v26.39)**: the
+Calendar's menu became rebuildable (`calendar-drawer.js`, `rewireCalendarDrawer`) and the Back guard
+learnt that a page can change hands (`page-session.js`, `rebaseRestoreGuard`). **Step 2 (v26.40)**: a
+sign-in on either lock card hands its success to `finishSignIn` (`calendar-access.js`), which grants in
+place on a page that has never been granted and reloads on any other. The three jobs the reload did:
+the menu and the Back guard are rebuilt by the page's `onSignedInInPlace`; the forced set-password
+step runs on the first grant, as it always did, because nothing may grant while a sign-in form's own
+attempt is in flight (the late-identity watcher stands down for it); and a held document tap opens from
+the grant's one write, as the PIN's does. **The reload is kept** for a page granted before (a PIN
+viewer, or a member whose access lapsed mid-visit), where the Calendar was built for somebody else.
+
+**Still to read:** the December 2026 App Speed card's **Signing in** figure, in the first week of
+January 2027 (`LATENCY.md`), and that the forced step still appears after a password reset. The entry
+as it stood on the roadmap, verbatim:
+
+> ### Calendar sign-in without the reload
+> **Status:** Conditional · **Trigger:** staff say signing in on the Calendar is slow, or **Signing in** on the App Speed card is still red on a full month after v26.12 · **Owner:** Gareth · **Review:** the December 2026 card, read in the first week of January 2027
+>
+> **Why.** A member who signs in on the Calendar watches the page reload, and the reload starts the app
+> again from the top, including the round trip to Google's sign-in service that every start makes
+> (`LATENCY.md` → "What the wall actually is"), straight after the sign-in has made one. Every other
+> page carries on in place after a sign-in. The card times a sign-in from pressing "Sign in" until the
+> page is usable, across the reload (`perf-reporter.js`), so this second start sits inside the
+> **Signing in** figure: 28% over 3 seconds on 25 sign-ins in the first half of November 2026, and red
+> at a fifth. v26.12 removed the other wait the app added itself, a first password attempt that could
+> not succeed (`PASSWORD_DESIGN.md` §3.2), so the December card shows what is left.
+>
+> **Why it was not done with v26.12: the reload does three jobs**, and signing in in place has to do
+> each of them another way:
+>
+> - **It rebuilds what the page built from the old session.** The drawer, its page pills and the name
+>   picker are set up as the page loads, before access is decided, so that a locked visitor still has
+>   the drawer. "Sign out and use the staff PIN" on a member's own sign-in card signs them out and reloads
+>   for the same reason (`calendar-lock-cards.js`).
+> - **It runs the forced set-password step**, which runs on the page's first grant (`_runPasswordForce`,
+>   `calendar-app.js`).
+> - **It finishes a document tap the lock held** (`calendar-huddle-viewer.js` → "A tap the lock held
+>   survives a reload").
+>
+> It is also the Calendar's access code, where a change brings tests of the order of events it could
+> break (`.claude/rules/calendar.md`).
+>
+> **Step 1 is done** (19 November 2026, no visible change): the Calendar's menu now has a rebuild,
+> `rewireCalendarDrawer()` (`calendar-drawer.js`), which builds it again for whoever is signed in NOW,
+> and `rebaseRestoreGuard()` (`page-session.js`) tells the Back/forward guard the page now belongs to
+> them, so a later restore is not reloaded for nothing. Nothing on the Calendar calls either yet.
+> **Step 2** is the sign-in that grants in place: call both, refill the name picker
+> (`populateTeamMemberDropdown`), run the forced set-password step and the held document tap without
+> the reload, and keep the reload as the fallback (and for a PIN viewer who then signs in).
+>
+> **Blocker:** none beyond the trigger. **The gain:** small, which is why it waits. About 25 sign-ins
+> a month across the whole app (a sign-in lasts 60 days), each saving one start. **Success:** fewer
+> sign-ins over 3 seconds on the next full month, the forced step still appearing after a password
+> reset, and a held Huddle tap still opening after a sign-in.
+
+---
+
 ## Calendar start latency — CLOSED 19 Sep 2026, moved 25 Sep 2026
 
 Two ROADMAP entries whose questions were answered, moved here verbatim. **The service-worker

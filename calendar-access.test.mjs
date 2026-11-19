@@ -224,7 +224,7 @@ globalThis.localStorage = /** @type {any} */ ({
 
 const {
     unlockWithPin, getAccessType, isViewerMode, initCalendarAccess, lockCalendar, handleAccessLost,
-    calendarAccessReady, calendarAuthReady,
+    calendarAccessReady, calendarAuthReady, finishSignIn,
 } = await import('./calendar-access.js');
 
 // The three cards live in calendar-lock-cards.js since v23.54. Imported AFTER calendar-access.js,
@@ -1007,12 +1007,12 @@ describe('initCalendarAccess', () => {
             assert.equal(loginDismissals, 1, 'the full-screen sign-in stayed over a Calendar already granted');
         });
 
-        test('…but not while the form\'s OWN sign-in is in flight — its success reloads, and that runs the forced set-password step', async () => {
+        test('…but not while the form\'s OWN sign-in is in flight — its success grants, after the forced set-password step\'s marker is written', async () => {
             await openTheForm();
             loginBusy = true;                                     // the member pressed Sign in; Firebase signs them in
             emitAuth({ uid: 'member-1', isAnonymous: false });
-            assert.equal(getAccessType(), 'named');
-            assert.equal(loginDismissals, 0, 'the form went before the reload that runs the forced set-password step');
+            assert.equal(getAccessType(), 'none', 'the restore granted under the form\'s own sign-in — the first grant ran before its marker was written');
+            assert.equal(loginDismissals, 0, 'the form went before its own sign-in had finished');
         });
 
         test('and never the front door\'s INLINE card — that one goes with the slot', async () => {
@@ -2021,5 +2021,108 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
         await unlockWithPin('1234');
         assert.equal(grantNumber(), first + 1, 'a read still out from before the lock would settle under the new grant');
         assert.equal(getAccessType(), 'viewer');
+    });
+});
+
+// ── A SIGN-IN ON A CARD GRANTS IN PLACE (ROADMAP_HISTORY → "Calendar sign-in without the reload") ──
+//
+// Until v26.40 both cards' sign-ins reloaded the page, and the reload did three jobs: it rebuilt what
+// the page had built at load for nobody, it ran the forced set-password step, and it carried a document
+// tap the lock held. `finishSignIn` now grants in place on a page that has never been granted, which
+// does all three; anything else still reloads. These drive the ORDERS it could get wrong
+// (.claude/rules/calendar.md): which hook runs before which, a restore landing under the form's own
+// sign-in, and a grant that happened first.
+describe('a sign-in on a card grants in place, or reloads', () => {
+    /** @param {string[]} seen */
+    function hooks(seen) {
+        return {
+            onGranted: () => seen.push('onGranted'),
+            onEveryGrant: () => seen.push('onEveryGrant'),
+            onSignedInInPlace: () => seen.push(`signedIn:${getAccessType()}`),
+        };
+    }
+    /** What the sign-in core leaves behind on success: the saved session and the member's identity. */
+    function signedIn(name = 'G. Miller') {
+        sessionValue = { name };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+    }
+
+    test('the front door: no reload, the page\'s rebuild BEFORE the grant, the first grant\'s steps once', async () => {
+        const seen = [];
+        await initCalendarAccess(hooks(seen));                // nothing held: the inline sign-in card
+        const card = loginMounts.at(-1);
+        assert.ok(card?.host, 'premise: the inline front-door card is up');
+        signedIn();
+        await card.onSuccess('G. Miller');
+        assert.ok(!ops.includes('reload'), `a sign-in on a never-granted page reloaded it: ${JSON.stringify(ops)}`);
+        assert.equal(getAccessType(), 'named');
+        assert.deepEqual(seen, ['signedIn:none', 'onEveryGrant', 'onGranted'],
+            'the menu was rebuilt after the Calendar appeared, or the first grant\'s steps did not run');
+        assert.equal(lockCardId(), null, 'the sign-in card stayed where the Calendar goes');
+    });
+
+    test('the come-back card: a restore landing under the form waits, and the form\'s success grants ONCE and takes it down', async () => {
+        const seen = [];
+        sessionValue = { name: 'G. Miller' };                 // a session whose identity did not restore
+        await initCalendarAccess(hooks(seen));
+        await new Promise(r => setTimeout(r, 0));
+        await document.getElementById('calLockSubmit')._listeners.get('click')();
+        const form = loginMounts.at(-1);
+        assert.equal(form?.host, undefined, 'premise: the full-screen form is up');
+        loginBusy = true;                                     // Sign in pressed: Firebase signs them in
+        emitAuth({ uid: 'member-1', isAnonymous: false });
+        assert.deepEqual(seen, [], 'a grant ran before the sign-in finished');
+        await form.onSuccess('G. Miller');
+        assert.ok(!ops.includes('reload'), `reloaded: ${JSON.stringify(ops)}`);
+        assert.deepEqual(seen, ['signedIn:none', 'onEveryGrant', 'onGranted']);
+        assert.equal(loginDismissals, 1, 'the full-screen form stayed over the Calendar its own sign-in opened');
+    });
+
+    test('a page granted before — the PIN, then lost — RELOADS, and rebuilds nothing in place', async () => {
+        const seen = [];
+        await initCalendarAccess(hooks(seen));
+        await unlockWithPin('1234');                          // a PIN viewer built the Calendar
+        handleAccessLost();
+        seen.length = 0;
+        signedIn();
+        assert.equal(finishSignIn(), 'reload');
+        assert.ok(ops.includes('reload'), 'a Calendar built for the viewer was handed to the member in place');
+        assert.deepEqual(seen, [], 'the page was rebuilt in place AND reloaded');
+        assert.equal(getAccessType(), 'none');
+    });
+
+    test('a grant that landed DURING the sign-in (the silent attempt) is not repeated — the success reloads', async () => {
+        const seen = [];
+        sessionValue = { name: 'G. Miller' };
+        /** @type {(v?: any) => void} */ let release = () => {};
+        silentGate = new Promise(r => { release = r; });       // the silent attempt outlives the card's bound
+        silentReauthSucceeds = true;
+        const boot = initCalendarAccess(hooks(seen));
+        await waitFor(() => lockCardId() === 'calendarLock' || !!document.getElementById('calLockSubmit')?._listeners?.get('click'), 'the come-back card', 4000);
+        await boot;
+        release();                                            // …and lands while the member types
+        await waitFor(() => getAccessType() === 'named', 'the late silent grant');
+        assert.deepEqual(seen, ['onEveryGrant', 'onGranted']);
+        signedIn();
+        assert.equal(finishSignIn(), 'reload');
+        assert.deepEqual(seen, ['onEveryGrant', 'onGranted'], 'the first grant\'s steps ran twice');
+    });
+
+    test('a sign-in whose live identity does not decide `named` reloads, so the boot decides', async () => {
+        const seen = [];
+        await initCalendarAccess(hooks(seen));
+        sessionValue = { name: 'G. Miller' };
+        currentUser = null;                                   // the identity is not there after all
+        assert.equal(finishSignIn(), 'reload');
+        assert.deepEqual(seen, []);
+        assert.equal(getAccessType(), 'none');
+    });
+
+    test('the cards hand their success to `finishSignIn` — neither reloads by itself', async () => {
+        await initCalendarAccess({ onGranted: () => {} });
+        signedIn();
+        await loginMounts.at(-1).onSuccess('G. Miller');      // the front door's
+        assert.equal(getAccessType(), 'named');
+        assert.ok(!ops.includes('reload'));
     });
 });

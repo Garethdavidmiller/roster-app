@@ -61,8 +61,9 @@ const ANSWER_DEADLINE_MS = 8000;
 /** A tap the LOCK was holding when the page unloaded — see `initHuddleViewer`. sessionStorage, so it
  *  lives with this tab and no other; `myb_held_huddle_tap` is read and written only here. */
 const HELD_TAP_KEY = 'myb_held_huddle_tap';
-/** How old that record may be when the next load reads it. It carries a tap across a RELOAD — the
- *  sign-in that finishes it reloads the page — not into a visit nobody would connect with the tap. */
+/** How old that record may be when the next load reads it. It carries a tap across a RELOAD — a
+ *  sign-in on a Calendar granted before reloads the page (calendar-access.js → `finishSignIn`) — not
+ *  into a visit nobody would connect with the tap. */
 const HELD_TAP_CARRY_MS = 60_000;
 
 /**
@@ -216,8 +217,9 @@ function _tabbableWideTables(root) {
  *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). The subscription attaches only
  *   while it is open and is torn down when it shuts; a `#huddle` tap while shut shows a message
  *   rather than doing nothing, and is FINISHED when access arrives — a notification tap that landed
- *   on the PIN card opens the Huddle once the PIN is entered, or once the member signs in, which
- *   reloads the page (the held tap is carried across that reload). Defaults to always-open, which
+ *   on the PIN card opens the Huddle once the PIN is entered, or once the member signs in — in place,
+ *   or across the reload a sign-in still makes on a page granted before (the held tap is carried
+ *   across it). Defaults to always-open, which
  *   is what every page other than the Calendar means.
  */
 export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
@@ -235,11 +237,12 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // hash is rewritten in place; a tap on an open page pushed an entry of its own, which is taken
     // back off the history instead (the hashchange handler below).
     // ── A TAP THE LOCK HELD SURVIVES A RELOAD (whole-app review, 10 Nov 2026) ─────────────────────
-    // Both sign-ins on a locked Calendar end in `window.location.reload()` (calendar-lock-cards.js),
-    // and the hash had been consumed long before — so a member who answered "Enter the staff PIN, or
-    // sign in, to read the Daily Huddle" by signing in got the Calendar and no Huddle. Only the PIN,
-    // which grants in place, finished the tap. The tap the lock is holding is now written down as the
-    // page unloads (`pagehide`, below) and taken back here: the sign-in finishes it as the PIN does.
+    // Both sign-ins on a locked Calendar ended in `window.location.reload()` until v26.40, and the hash
+    // had been consumed long before — so a member who answered "Enter the staff PIN, or sign in, to
+    // read the Daily Huddle" by signing in got the Calendar and no Huddle. A sign-in now grants in
+    // place on a page not yet granted, and finishes the tap as the PIN does; one that still reloads
+    // (`finishSignIn`'s fallback) needs the tap the lock is holding written down as the page unloads
+    // (`pagehide`, below) and taken back here.
     const held = _takeHeldTap();
     let _autoOpen = window.location.hash === '#huddle';
     // Open-counter arming (v18.22): one count per user open GESTURE (#huddle arrival), consumed by

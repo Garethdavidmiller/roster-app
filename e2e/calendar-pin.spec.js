@@ -97,18 +97,87 @@ test('Escape on the front-door card does NOT leave the page', async ({ page }) =
     await expect(page.locator('#loginPassword')).toHaveValue('abc');
 });
 
-test('signing in from the front door SAVES the session and lands on the roster', async ({ page }) => {
+/** Mark this page in memory: a reload loses the mark, so its survival proves none happened. */
+async function markThisPage(page) { await page.evaluate(() => { /** @type {any} */ (window).__samePage = true; }); }
+/** @returns {Promise<boolean>} whether the page marked by `markThisPage` is still the one loaded */
+async function stillThisPage(page) { return page.evaluate(() => /** @type {any} */ (window).__samePage === true); }
+
+test('signing in from the front door SAVES the session and lands on the roster — in place, with the member\'s menu', async ({ page }) => {
     // The whole point of the reorder: a member with a password gets in from the first screen, with
     // nothing to find. The real shared form, the real sign-in core, the stub's happy path; success
-    // reloads and the boot decision then answers `named` — no second code path.
+    // GRANTS IN PLACE (calendar-access.js → `finishSignIn`) through the boot's own grant — no second
+    // code path, and since v26.40 no reload: the page the member typed on is the page they read.
+    const errors = collectFatalErrors(page);
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
     await page.goto('/index.html');
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await markThisPage(page);
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#calendarLock')).toHaveCount(0);
     const stored = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
     expect(stored).toContain('G. Miller');
+    expect(await stillThisPage(page), 'the sign-in reloaded the page').toBe(true);
+
+    // What the reload used to rebuild: the menu, built at load for nobody, is now the member's…
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
+    await expect(page.locator('#navSignOutBtn')).toBeVisible();
+    await expect(page.locator('#navPanel .nav-panel-pill--operations')).toHaveCount(1);
+    await expect(page.locator('#navPanel')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    // …and the name picker is built for them, on their own roster.
+    await expect(page.locator('#teamMemberSelect')).toHaveValue(/\d+/);
+    expect(await page.locator('#teamMemberSelect option:checked').textContent()).toContain('G. Miller');
+    // …and Back to this page later is no reason to reload it: the Back guard (page-session.js) was
+    // told the page is theirs now. The browser's own leave-and-restore pair, fired as it fires them.
+    await page.evaluate(() => {
+        window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+        window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    });
+    await page.waitForTimeout(500);
+    expect(await stillThisPage(page).catch(() => false), 'a restore of the member\'s own page was reloaded').toBe(true);
+    expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('the member\'s come-back card signs them in in place too, and the full-screen form goes', async ({ page }) => {
+    // A session whose identity did not restore: the silent attempt fails, the come-back card offers
+    // the full-screen form, and the typed sign-in succeeds. A restore landing under the form waits for
+    // it (calendar-access.js → `watchForLateNamedIdentity`), and its success grants without a reload.
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { failSignIn: true }); });
+    await page.goto('/index.html');
+    const signIn = page.locator('#calLockSubmit');
+    await expect(signIn).toBeEnabled({ timeout: 20_000 });
+    await markThisPage(page);
+    // From here a sign-in succeeds, as a typed one does for a member who knows their password.
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.failSignIn = false; e.signInEstablishes = true; });
+    await signIn.click();
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    await page.locator('#loginPassword').fill('miller');
+    await page.locator('#loginSubmit').click();
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#loginOverlay'), 'the form stayed over the Calendar its own sign-in opened').toHaveCount(0);
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+    expect(await stillThisPage(page), 'the sign-in reloaded the page').toBe(true);
+});
+
+test('a PIN viewer whose access lapsed, then signs in, still RELOADS — the Calendar was built for the viewer', async ({ page }) => {
+    // The fallback, kept on purpose (`finishSignIn`): a page granted once holds a Calendar built for that
+    // grant, and the sign-in hands the member a fresh one rather than the viewer's.
+    await stubPinExchange(page);
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
+    await page.goto('/index.html#staff-pin');
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.evaluate(async () => { (await import('./calendar-access.js')).handleAccessLost(); });
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await markThisPage(page);
+    await page.locator('#calLockSignIn').click();
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect.poll(() => stillThisPage(page).catch(() => false), { message: 'the page was not reloaded', timeout: 20_000 }).toBe(false);
 });
 
 test('`#staff-pin` lands on the PIN card first, and the hash is consumed', async ({ page }) => {
@@ -180,22 +249,25 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
     expect(await docReads(page), 'the held read ran once the PIN was in').toBeGreaterThan(before);
 });
 
-// ── …AND BY A SIGN-IN, WHICH RELOADS THE PAGE (whole-app review, 10 Nov 2026) ────────────────────
-// Both sign-ins on the locked Calendar end in a reload, and the tap had been consumed long before, so
-// "Enter the staff PIN, or sign in" was true only of the PIN. The tap the lock is holding is written
-// down as the page unloads and taken back by the next load (calendar-doc-viewer.js and
-// calendar-huddle-viewer.js, `pagehide`).
-test('locked: a Circular deep link is FINISHED by a sign-in too — the reload carries the tap', async ({ page }) => {
+// ── …AND BY A SIGN-IN (whole-app review, 10 Nov 2026) ───────────────────────────────────────────
+// Both sign-ins on the locked Calendar used to end in a reload, and the tap had been consumed long
+// before, so "Enter the staff PIN, or sign in" was true only of the PIN. Since v26.40 a sign-in on a
+// never-granted page grants IN PLACE, and the grant opens the held tap as the PIN's does; a sign-in that
+// still reloads (`finishSignIn`'s fallback) carries it across (`pagehide`, calendar-doc-viewer.js and
+// calendar-huddle-viewer.js). These two are the in-place half, and say so.
+test('locked: a Circular deep link is FINISHED by a sign-in too — in place, as the PIN finishes it', async ({ page }) => {
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
     await page.goto('/index.html#circular');
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
     await page.locator('#docViewerClose').click();
     await expect(page.locator('#docViewer')).toBeHidden();
+    await markThisPage(page);
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#docViewerBody'), 'the member signed in, and the document they tapped for never came')
         .toContainText('No Weekly Retail Circular has been uploaded yet', { timeout: 10_000 });
+    expect(await stillThisPage(page), 'finished by a reload, not in place').toBe(true);
 });
 
 test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page }) => {
@@ -211,10 +283,12 @@ test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page })
     await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+    await markThisPage(page);
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#huddleOpenFileBtn'), 'the member signed in, and the Huddle they tapped for never came')
         .toBeVisible({ timeout: 10_000 });
+    expect(await stillThisPage(page), 'finished by a reload, not in place').toBe(true);
 });
 
 // The Newsletter's ☰ button follows its latest issue (newsletter-recency.js, owner, 14 Nov 2026), and the
@@ -256,12 +330,11 @@ test('a public guide loads with no PIN and no member sign-in', async ({ page }) 
     await expect(page.locator('#calendarLock')).toHaveCount(0);
 });
 
-// ── THE MENU CAN BE REBUILT FOR WHOEVER SIGNS IN (step 1 of "sign-in without the reload") ────────
-// Today a sign-in on the locked Calendar reloads the page, and the reload builds the menu again.
-// Step 2 will grant in place instead, and then nothing would rebuild it: the member would get the
-// locked visitor's menu — no name, no Sign out, no admin pills. calendar-drawer.js's rebuild is what
-// step 2 will call; nothing calls it yet, so this drives it directly, through the page's OWN copy of
-// the module (the import resolves to the instance the page wired), against the real drawer.
+// ── THE MENU CAN BE REBUILT FOR WHOEVER SIGNS IN ("sign-in without the reload", step 1) ───────────
+// A sign-in on the locked Calendar now grants in place, so nothing reloads to rebuild the menu: without
+// calendar-drawer.js's rebuild the member would get the locked visitor's — no name, no Sign out, no
+// admin pills. The front-door test above proves the whole sign-in; this drives the rebuild on its own,
+// through the page's OWN copy of the module (the import resolves to the instance the page wired).
 
 test('the locked Calendar\'s menu, rebuilt in place after a sign-in, is the member\'s — once, and it still works', async ({ page }) => {
     const errors = collectFatalErrors(page);
@@ -1709,6 +1782,20 @@ test('the forced set-password step runs after a slow identity restore', async ({
     });
     await page.goto('/index.html');
     await expect(page.locator('#pwForceOverlay')).toBeVisible({ timeout: 20_000 });
+});
+
+// …AND AFTER A SIGN-IN THAT DOES NOT RELOAD (v26.40). The reload used to be what ran it: the sign-in
+// wrote the marker, the reload's boot read it. Granted in place, the first grant reads it instead — so
+// nothing may grant before the sign-in has finished and written it (calendar-access.js, `finishSignIn`).
+test('the forced set-password step runs after a front-door sign-in, with no reload', async ({ page }) => {
+    await forcePasswordSet(page);
+    await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+    await markThisPage(page);
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible({ timeout: 20_000 });
+    expect(await stillThisPage(page), 'the step ran on a reload, not in place').toBe(true);
 });
 
 // THE CLAIM SWEEP RUNS ON A CALENDAR BOOT TOO. `refreshClaimsIfStale` lived only inside
