@@ -105,7 +105,7 @@ describe('the Absence card', () => {
     // An INVENTED person on a real pattern.
     describe('an absence that takes back a day in lieu', () => {
         const pattern = /** @type {any} */ (teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate && !m.proRatedAL
-            && !m.rosterChanges && m.bilingualContract !== true && !isRestShift(getPatternShift(m, new Date(2026, 11, 26)))));
+            && !m.rosterChanges && m.bilingualContract !== true && !isRestShift(getPatternShift(m, new Date(2026, 11, 26))) && getPatternShift(m, new Date(2026, 11, 26)) !== 'SPARE'));
         const person = { ...pattern, name: 'Z. Invented' };
         const worked = { id: 'zbx', memberName: person.name, date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual', createdAt: new Date(2026, 11, 27) };
         /** The next year filled to `n` days of leave on working weekdays, with the Boxing Day worked. */

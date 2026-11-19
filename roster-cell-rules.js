@@ -28,7 +28,7 @@
  * those paths write a Sunday AL, which is the one thing the seven-layer Sunday rule exists to prevent.
  */
 
-import { isSunday } from './roster-data.js';
+import { isSunday, isChristmasRD, parseISODate } from './roster-data.js';
 import { sundaySafeValue, isOtherValue } from './override-utils.js';
 
 // ── THE TWO REVIEW-ONLY ENCODINGS, DEFINED ONCE (whole-app fix, Nov 2026) ─────────────────────────
@@ -75,7 +75,11 @@ export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFI
  * @param {string} rawShift  parsed value, possibly "RDW|HH:MM-HH:MM"
  * @param {string} baseShift the member's base roster value for that date
  * @param {string} date      "YYYY-MM-DD"
- * @returns {{ value: string, display: string, guarded: 'sunday'|'sunday-other'|'rest-day'|null }}
+ *  · CHRISTMAS DAY AND BOXING DAY ARE NEVER SPARE DAYS (owner, 19 Nov 2026), even in a spare week.
+ *    A SPARE printed on either is rewritten to `RD` and reported as `christmas-spare`, and the review
+ *    treats that like a Sunday training day: shown, and nothing written (`computeCellStates`).
+ *
+ * @returns {{ value: string, display: string, guarded: 'sunday'|'sunday-other'|'rest-day'|'christmas-spare'|null }}
  *
  * `guarded` NAMES THE GUARD THAT CHANGED THE VALUE, and exists so the review can say so (v23.97).
  * Both guards silently rewrite a real thing the PDF said into `RD`, and until now the only record
@@ -90,14 +94,18 @@ export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFI
 export function normaliseCellValue(rawShift, baseShift, date) {
     const parsedValue = isRdwEncoded(rawShift) ? stripRdw(rawShift) : rawShift;
     const isSun       = isSunday(date);
-    const sundaySafe  = isSun ? sundaySafeValue(parsedValue) : parsedValue;
+    const sundaySafe0 = isSun ? sundaySafeValue(parsedValue) : parsedValue;
+    // A spare day on 25 or 26 December is refused whatever the weekday — Sunday's guard lets a Spare
+    // turn through, so this runs after it (owner, 19 Nov 2026; christmas-leave.js, rule 1).
+    const christmasSpare = sundaySafe0 === 'SPARE' && isChristmasRD(parseISODate(date));
+    const sundaySafe  = christmasSpare ? 'RD' : sundaySafe0;
     const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
     const restSafe = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')
         ? 'RD' : sundaySafe;
     // The Sunday guard REFUSED the value only where it made it a rest day. A timed Other day it
     // turns into Sunday work at those times is recorded, not refused (`sundaySafeValue`), so it is
     // not reported as guarded — a review row saying nothing is recorded would then be untrue.
-    const sundayGuarded = sundaySafe !== parsedValue && sundaySafe === 'RD';
+    const sundayGuarded = !christmasSpare && sundaySafe !== parsedValue && sundaySafe === 'RD';
     // A TRAINING OR MEETING DAY ON A SUNDAY IS ITS OWN REASON (owner, 7 Nov 2026: "You can't have
     // training or a meeting on a Sunday"). Leave or an absence there means the member is not at work,
     // so `RD` is the answer; an Other day there is a roster that cannot be right, so nothing is
@@ -105,7 +113,8 @@ export function normaliseCellValue(rawShift, baseShift, date) {
     return {
         value:   normRest(restSafe),
         display: (isRdwEncoded(rawShift) && restSafe !== 'RD') ? `${RDW_PREFIX}${restSafe}` : restSafe,
-        guarded: sundayGuarded ? (isOtherValue(parsedValue) ? 'sunday-other' : 'sunday')
+        guarded: christmasSpare ? 'christmas-spare'
+               : sundayGuarded ? (isOtherValue(parsedValue) ? 'sunday-other' : 'sunday')
                : (restSafe !== sundaySafe ? 'rest-day' : null),
     };
 }

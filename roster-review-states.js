@@ -213,6 +213,9 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     // A Sunday training or meeting day is not a reading anything may write (owner,
                     // 7 Nov 2026) — offered, it would have been a "Rest" button over a Sunday.
                     .filter(o => o.guarded !== 'sunday-other')
+                    // Nor is a spare day on 25 or 26 December (owner, 19 Nov 2026): offered, it was a
+                    // "Rest" button that would record over the member's Christmas leave.
+                    .filter(o => o.guarded !== 'christmas-spare')
                     // A pair that would WRITE the same thing is not a question worth asking (AL vs RD
                     // on a Sunday — both become RD). Compared on `display`, which is what the save
                     // writes: `value` strips the RDW marker, so "RDW at 14:30" and a 14:30 shift — two
@@ -295,11 +298,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // it was a MATCH — not shown, not saved — and the RDW marker went in silence, from the
             // Calendar and from the Pay Calculator's RDW suggestion. Sundays are exempt, as above.
             const matchesBase = normParsed === normBase && (isSun || !isRdwEncoded(parsedShift));
-            if (guarded === 'sunday-other') {
+            if (guarded === 'sunday-other' || guarded === 'christmas-spare') {
                 // A TRAINING OR MEETING DAY CANNOT BE ON A SUNDAY (owner, 7 Nov 2026), so a roster
                 // saying one is not a change to make: not over the base, not over a saved record, not
                 // over an earlier import. The rewritten RD used to be compared with the base, and on a
                 // ROSTERED Sunday it was a ticked DIFF that turned a worked day into rest.
+                // NOR CAN 25 OR 26 DECEMBER BE A SPARE DAY (owner, 19 Nov 2026), for the same reason:
+                // a "use new roster" there would record a rest day over a worked Boxing Day.
                 state = 'GUARDED';
             } else if (!existing || !isManual) {
                 // No override, or only a previous import.
@@ -436,7 +441,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * read like an error: nothing has gone wrong, a rule has been applied, and the row exists so the
  * admin can decide whether that rule fits this particular day.
  *
- * @param {'sunday'|'sunday-other'|'rest-day'|'before-start'|null} guard
+ * @param {'sunday'|'sunday-other'|'rest-day'|'before-start'|'christmas-spare'|null} guard
  * @param {boolean} [asks] the row asks the swapped-day question
  * @param {boolean} [christmas] 25 or 26 December from 2026, which the app's Christmas leave decides
  * @returns {string}
@@ -455,6 +460,11 @@ export function guardCopy(guard, asks = false, christmas = false) {
     // A day before the member's start date (16 Nov 2026): the reason, whatever the roster printed.
     if (guard === 'before-start') {
         return 'Before this member\u2019s start date, so nothing is recorded.';
+    }
+    if (guard === 'christmas-spare') {
+        // Owner, 19 Nov 2026: "Christmas days and Boxing days cannot be spare days even if they fall
+        // in a usually spare week."
+        return 'Christmas Day and Boxing Day can\u2019t be spare days, so nothing is recorded and the day stays as it is.';
     }
     if (guard === 'sunday-other') {
         // Owner, 7 Nov 2026. "Stays as it is" covers all three cases: a rest Sunday, a rostered

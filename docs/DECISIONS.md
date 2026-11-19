@@ -997,6 +997,27 @@ has no time, so the first launch with this release opens on today, whatever was 
 **What would reopen it:** the owner finding half an hour too short or too long in use. It is one
 constant.
 
+## Christmas Day and Boxing Day are never spare days (owner, 19 Nov 2026)
+
+**Decided (owner, 19 Nov 2026):** "Christmas days and Boxing days cannot be spare days even if they
+fall in a usually spare week." Asked what a spare week's 25 or 26 December should then be, the owner
+chose a REST DAY over Christmas leave. So from Christmas 2026:
+
+- A member whose pattern is SPARE on either day is not due at work there (`isChristmasLeaveDay`,
+  `christmas-leave.js`): the Calendar shows Rest, no Christmas leave is listed, and working Boxing Day
+  from a spare week is overtime from a rest day, earning no day in lieu. A SHIFT on the pattern still
+  gets the leave and the day in lieu, as before. That was 9 people on 25 December 2026 and 7 on the 26th.
+- A Spare turn cannot be recorded on either day, in any year: Admin's week grid turns the Spare chip
+  off (and on Boxing Day, which already refused Other days, the whole Other pill), and the Save
+  refuses one (`checkDayRules`). The roster import shows a SPARE printed there as a row that records
+  nothing (`christmas-spare`, `normaliseCellValue`), never as a change to tick.
+
+**It replaced** the 5 Nov 2026 rule that a spare day counted as due at work there, and it answered the
+ROADMAP question of whether a Spare turn on a Boxing Day earns a day in lieu: there can be no such
+turn. **What holds it:** `christmas-leave.test.mjs`, `roster-cell-rules.test.mjs`,
+`admin-roster-upload.test.mjs`, `admin-shift-rules.test.mjs` and `admin-day-pills.test.mjs`; deleting
+each guard line fails them.
+
 ## The Boxing Day day in lieu goes into the next year's allowance (owner, 15 Nov 2026)
 
 **Decided (owner, 15 Nov 2026):** the day of annual leave in lieu for working a Boxing Day the member

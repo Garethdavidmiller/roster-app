@@ -8,8 +8,13 @@
  * everybody (`isChristmasRD`, roster-data.js — unchanged, and still applied before every override).
  * On top of that, from Christmas 2026:
  *
- *   1. Somebody DUE AT WORK on either day by their pattern — a shift or a spare day — is shown on
- *      annual leave and has it listed in their leave records, and it costs them nothing.
+ *   1. Somebody DUE AT WORK on either day by their pattern — a SHIFT — is shown on annual leave and
+ *      has it listed in their leave records, and it costs them nothing. A spare day is NOT due at
+ *      work there (owner, 19 Nov 2026: "Christmas days and Boxing days cannot be spare days even if
+ *      they fall in a usually spare week"): a spare week's 25 or 26 December is a rest day, with no
+ *      leave shown and no day in lieu for working Boxing Day — that is overtime from a rest day. Nor
+ *      can a Spare turn be recorded or imported on either day (admin-day-pills.js, checkDayRules in
+ *      admin-shift-rules.js, normaliseCellValue in roster-cell-rules.js).
  *   2. Never on a Sunday. Sundays are uncontracted, so nobody is due at work on one.
  *   3. Somebody due at work on Boxing Day who WORKS it earns one day of annual leave in lieu, added to
  *      the NEXT year's allowance — counted once for a Dispatcher, whose bank-holiday rule may already
@@ -55,8 +60,8 @@ export const CHRISTMAS_LEAVE_FROM_YEAR = 2026;
 
 /**
  * Is `date` one of the member's Christmas leave days — 25 or 26 December from 2026, not a Sunday, on
- * which their PATTERN had them due at work (a shift or a spare day)? A day before their start date is
- * a rest day in the pattern, so it is never one (rules 1 and 2).
+ * which their PATTERN had them due at work: a shift, never a spare day (rule 1). A day before their
+ * start date is a rest day in the pattern, so it is never one (rules 1 and 2).
  * @param {any} member  teamMembers entry
  * @param {Date} date
  * @returns {boolean}
@@ -66,7 +71,9 @@ export function isChristmasLeaveDay(member, date) {
     if (date.getFullYear() < CHRISTMAS_LEAVE_FROM_YEAR) return false;
     if (date.getDay() === 0) return false;               // rule 2: Sundays are uncontracted
     const pattern = getPatternShift(member, date);
-    return pattern !== 'RD' && pattern !== 'OFF';        // a shift or SPARE — due at work
+    // A shift is due at work; a rest day and a spare day are not — 25 and 26 December cannot be spare
+    // days, even in a spare week (owner, 19 Nov 2026).
+    return pattern !== 'RD' && pattern !== 'OFF' && pattern !== 'SPARE';
 }
 
 /**

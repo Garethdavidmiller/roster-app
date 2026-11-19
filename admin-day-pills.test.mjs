@@ -130,21 +130,39 @@ describe('the words that say what a Sunday offers name what its row leaves on', 
     }
 });
 
-describe('Boxing Day: every pill, and Other offers Spare alone', () => {
+describe('Boxing Day: no Other day and no Spare turn, so no Other pill (owner, 19 Nov 2026)', () => {
     const row = drawRow();
-    restrictDayPills(row, { ...ordinary, boxing: true });
+    restrictDayPills(row, { ...ordinary, boxing: true, christmas: 'Boxing Day' });
 
     test('leave, absence and shifts are not refused — the Sunday rule is not Boxing Day\'s', () => {
-        for (const t of PILL_TYPES) assert.equal(pill(row, t).disabled, false, t);
+        for (const t of PILL_TYPES.filter(t => t !== 'other')) assert.equal(pill(row, t).disabled, false, t);
     });
 
-    test('Other is Spare alone, the chips saying it is Boxing Day', () => {
-        assert.equal(pill(row, 'other').getAttribute('aria-label'), 'Other — only Spare on Boxing Day');
-        assert.equal(spare(row).disabled, false);
-        for (const c of chips(row).filter((/** @type {any} */ c) => c.dataset.flavour !== 'SPARE')) {
-            assert.equal(c.disabled, true, c.dataset.flavour);
-            assert.match(c.getAttribute('aria-label'), /unavailable on Boxing Day$/);
-        }
+    test('the Other pill is off and says why — Boxing Day cannot be a spare day either', () => {
+        assert.equal(pill(row, 'other').disabled, true);
+        assert.equal(pill(row, 'other').getAttribute('aria-label'), 'Other — unavailable on Boxing Day: no Other day or Spare turn');
+        assert.equal(row.dataset.spareOnly, undefined, 'nothing is left to press for the manager');
+    });
+});
+
+describe('Christmas Day: every pill, every Other day, but no Spare turn (owner, 19 Nov 2026)', () => {
+    test('a weekday Christmas Day turns off the Spare chip alone, saying why', () => {
+        const row = drawRow();
+        restrictDayPills(row, { ...ordinary, christmas: 'Christmas Day' });
+        for (const t of PILL_TYPES) assert.equal(pill(row, t).disabled, false, t);
+        assert.equal(spare(row).disabled, true);
+        assert.equal(spare(row).getAttribute('aria-label'), 'Spare — unavailable on Christmas Day');
+        for (const c of chips(row).filter((/** @type {any} */ c) => c.dataset.flavour !== 'SPARE')) assert.equal(c.disabled, false, c.dataset.flavour);
+        assert.equal(row.dataset.spareOnly, undefined);
+    });
+
+    test('a Sunday Christmas Day leaves nothing under Other, so the pill is off — and Sunday\'s rule still holds', () => {
+        const row = drawRow();
+        restrictDayPills(row, { ...ordinary, sunday: true, christmas: 'Christmas Day' });
+        assert.equal(pill(row, 'other').disabled, true);
+        assert.match(pill(row, 'other').getAttribute('aria-label'), /unavailable on Christmas Day/);
+        for (const t of ['annual_leave', 'sick', 'shift']) assert.equal(pill(row, t).disabled, true, t);
+        assert.equal(row.dataset.spareOnly, undefined);
     });
 });
 
@@ -212,9 +230,9 @@ describe('choosing Other where Spare is the only choice (admin-week-row-state.js
     });
 });
 
-test('the week grid asks this module about every row, with the day\'s three facts', () => {
+test('the week grid asks this module about every row, with the day\'s four facts', () => {
     // The wiring, not the rule: the grid's own fake DOM cannot see a disabled pill, so this reads the call.
     const src = readFileSync(new URL('./admin-week-editor.js', import.meta.url), 'utf8');
-    assert.match(src, /restrictDayPills\(row, \{ sunday: isSunday\(dateISO\), boxing, beforeStart \}\);/);
+    assert.match(src, /restrictDayPills\(row, \{ sunday: isSunday\(dateISO\), boxing, beforeStart, christmas: christmasDayName\(dateISO\) \}\);/);
     assert.match(src, /boxing = isBoxingDay\(dateISO\) && !isSunday\(dateISO\)/);
 });

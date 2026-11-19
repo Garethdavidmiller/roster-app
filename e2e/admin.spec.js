@@ -2065,12 +2065,10 @@ test('admin: Boxing Day takes no Other day — the chips say why, and Save refus
     await adminOnWeek(page, 'G. Miller', '2026-12-21');
     const boxing = page.locator('.day-row[data-date="2026-12-26"]');
     await boxing.locator('.day-cb').click();
-    // The pill stays for Spare alone (owner, Nov 2026); the Other-day chips are what is refused.
-    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toBeEnabled();
-    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toHaveAttribute('aria-label', 'Other — only Spare on Boxing Day');
-    await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]')).toBeDisabled();
-    await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]')).toHaveAttribute('aria-label', /unavailable on Boxing Day$/);
-    await expect(boxing.locator('.col-pills')).toContainText('Boxing Day can’t be an Other day');
+    // No Spare turn either (owner, 19 Nov 2026), so nothing is left under Other and the pill is off.
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toBeDisabled();
+    await expect(boxing.locator('.type-pill-btn[data-type="other"]')).toHaveAttribute('aria-label', 'Other — unavailable on Boxing Day: no Other day or Spare turn');
+    await expect(boxing.locator('.col-pills')).toContainText('Boxing Day can’t be an Other day — training, meetings and the rest — or a Spare turn');
     await expect(boxing.locator('.type-pill-btn[data-type="rdw"]'), 'work on Boxing Day is still recordable').toBeEnabled();
     const thu = page.locator('.day-row[data-date="2026-12-24"]');   // a working day, so the save has a batch
     await thu.locator('.day-cb').click();
@@ -2111,23 +2109,39 @@ test('admin: Christmas leave reads AL in the Base roster column at phone width, 
     await expect(page.locator('#formFeedback')).not.toContainText(new RegExp(`${formatDisplay('2026-12-25')}[^;]*on the base roster`));
 });
 
-// SPARE ON A SUNDAY AND ON BOXING DAY (owner, Nov 2026). The saves always took one — a Sunday Spare
-// passes the single-row save, and Boxing Day's backstop refuses only an Other day — but the grid had
-// turned the whole Other pill off on both days, and Spare lives behind it. Now Other offers Spare alone.
-test('admin: a Spare turn can be recorded on a Sunday and on Boxing Day — Other offers Spare alone', async ({ page }) => {
+// SPARE ON A SUNDAY (owner, Nov 2026). The save always took one, but the grid had turned the whole Other
+// pill off, and Spare lives behind it. Now Other offers Spare alone. CHRISTMAS DAY AND BOXING DAY CANNOT
+// BE SPARE DAYS (owner, 19 Nov 2026): the chip is off there, and Save refuses one that arrives another way.
+test('admin: a Spare turn can be recorded on a Sunday, never on Christmas Day or Boxing Day', async ({ page }) => {
     await adminOnWeek(page, 'G. Miller', '2026-12-21');   // Sunday 20 Dec to Saturday 26 Dec 2026
-    for (const date of ['2026-12-20', '2026-12-26']) {
-        const row = page.locator(`.day-row[data-date="${date}"]`);
-        await row.locator('.day-cb').check();
-        await row.locator('.pill-other').click();
-        await expect(row.locator('.other-flavour-btn[data-flavour="SPARE"]'), `${date}: Spare, the only choice, is pressed`)
-            .toHaveAttribute('aria-pressed', 'true');
-        await expect(row.locator('.time-note'), 'a Spare takes no times').toBeVisible();
-    }
+    const sunday = page.locator('.day-row[data-date="2026-12-20"]');
+    await sunday.locator('.day-cb').check();
+    await sunday.locator('.pill-other').click();
+    await expect(sunday.locator('.other-flavour-btn[data-flavour="SPARE"]'), 'Spare, the only choice, is pressed')
+        .toHaveAttribute('aria-pressed', 'true');
+    await expect(sunday.locator('.time-note'), 'a Spare takes no times').toBeVisible();
     await page.locator('#saveBtn').click();
-    await expect(page.locator('#formFeedback')).toContainText('2 changes saved for G. Miller', { timeout: 10000 });
+    await expect(page.locator('#formFeedback')).toContainText('1 change saved for G. Miller', { timeout: 10000 });
     const written = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.map((/** @type {any} */ w) => `${w.date} ${w.type} ${w.value}`));
-    expect(written.sort()).toEqual(['2026-12-20 spare_shift SPARE', '2026-12-26 spare_shift SPARE']);
+    expect(written).toEqual(['2026-12-20 spare_shift SPARE']);
+
+    const xmas = page.locator('.day-row[data-date="2026-12-25"]');
+    await expect(xmas.locator('.other-flavour-btn[data-flavour="SPARE"]')).toBeDisabled();
+    await expect(xmas.locator('.other-flavour-btn[data-flavour="SPARE"]')).toHaveAttribute('aria-label', 'Spare — unavailable on Christmas Day');
+    await expect(xmas.locator('.other-flavour-btn[data-flavour="TRG"]'), 'Christmas Day keeps its Other days').toBeEnabled();
+    await expect(xmas.locator('.col-pills')).toContainText('Christmas Day can’t be a Spare turn');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.batchWrites = []; });
+    const thu = page.locator('.day-row[data-date="2026-12-24"]');   // a working day, so the save has a batch
+    await thu.locator('.day-cb').click();
+    await thu.locator('.type-pill-btn[data-type="annual_leave"]').click();
+    await xmas.locator('.day-cb').check();
+    await xmas.evaluate((r) => {   // a Spare turn reaching Save by another route
+        /** @type {HTMLElement} */ (r).dataset.type = 'other';
+        r.querySelector('.other-flavour-btn[data-flavour="SPARE"]')?.classList.add('active');
+    });
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('25 Dec 2026: a Spare turn cannot be recorded on Christmas Day');
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 
 // A DAY BEFORE A MEMBER'S START DATE TAKES NO CHANGE (whole-app check, Nov 2026; decided default). The

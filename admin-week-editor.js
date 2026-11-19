@@ -32,7 +32,7 @@ import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, isChristmasClosureDate, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
 import { TYPES, PILL_TYPES, typePillHtml } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
-import { isBoxingDay, weekStepAllowed } from './admin-shift-rules.js';
+import { isBoxingDay, christmasDayName, weekStepAllowed } from './admin-shift-rules.js';
 import { restrictDayPills } from './admin-day-pills.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules (admin-week-row-state.js), under the same names.
@@ -187,8 +187,8 @@ export function buildWeekGridInto(container, dateStr) {
         const existing = memberDateMap.get(dateISO);
         // TWO DAYS THAT TAKE NO CHANGE, refused at the pills as a Sunday is, with the reason in the row
         // (admin-shift-rules.js → checkDayRules, the backstop at Save): before the member's start date,
-        // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026) — Spare
-        // excepted, on Boxing Day as on a Sunday (admin-day-pills.js).
+        // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026). Nor a Spare
+        // turn on Christmas Day or Boxing Day (owner, 19 Nov 2026; admin-day-pills.js).
         const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
         // CHRISTMAS LEAVE — the Base roster column shows it as the Calendar does, AL, and the row says why
         // (rules: christmas-leave.js). The column used to show the rest day `getBaseShift` makes both
@@ -230,10 +230,11 @@ export function buildWeekGridInto(container, dateStr) {
             <div class="col-base">${getShiftBadge(baseShown, { showTime: true })}</div>
             <div class="col-pills">
                 ${PILL_TYPES.map(t => typePillHtml(t)).join('\n                ')}
-                ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded, but a Spare turn can</span>` : ''}
+                ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded${christmasDayName(dateISO) ? `, nor a Spare turn on ${christmasDayName(dateISO)}` : ', but a Spare turn can'}</span>` : ''}
                 ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
                 ${beforeStart ? `<span class="start-note">Before the start date (${formatDisplay(formatISO(/** @type {Date} */ (member.startDate)))}) — the Calendar doesn’t show changes here, so none can be recorded</span>`
-                    : boxing ? '<span class="christmas-note">Boxing Day can’t be an Other day — training, meetings and the rest — but a Spare turn can be recorded</span>' : ''}
+                    : boxing ? '<span class="christmas-note">Boxing Day can’t be an Other day — training, meetings and the rest — or a Spare turn</span>'
+                    : christmasDayName(dateISO) === 'Christmas Day' && !isSunday(dateISO) ? '<span class="christmas-note">Christmas Day can’t be a Spare turn</span>' : ''}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
@@ -267,7 +268,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         // What this day cannot take is turned off at its pills, with the reason — the Sunday rule's layer 1,
         // Boxing Day, and before the start date; Other offers Spare alone on a Sunday or Boxing Day.
-        restrictDayPills(row, { sunday: isSunday(dateISO), boxing, beforeStart });
+        restrictDayPills(row, { sunday: isSunday(dateISO), boxing, beforeStart, christmas: christmasDayName(dateISO) });
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
         const pills    = row.querySelectorAll('.type-pill-btn');

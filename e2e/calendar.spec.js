@@ -343,7 +343,7 @@ test('day detail: says whose day it is, under the date and in the dialog\'s name
 test('day detail: a Christmas day a record changed from its Christmas leave says so', async ({ page }) => {
     const XMAS = new Date(2026, 11, 25);
     const member = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.startDate
-        && !['RD', 'OFF'].includes(getPatternShift(m, XMAS)));
+        && !['RD', 'OFF', 'SPARE'].includes(getPatternShift(m, XMAS)));
     expect(member, 'premise: a CEA due at work on Christmas Day 2026').toBeTruthy();
     const times = getPatternShift(member, XMAS);
     await page.clock.setFixedTime(new Date('2026-12-10T09:00:00Z'));

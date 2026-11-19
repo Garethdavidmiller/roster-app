@@ -38,10 +38,10 @@ const XMAS_2026   = new Date(2026, 11, 25);   // a Friday, and a bank holiday
 const BOXING_2026 = new Date(2026, 11, 26);   // a Saturday — NOT a bank holiday (Monday 28th is)
 const BOXING_2028 = new Date(2028, 11, 26);   // a Tuesday, and a bank holiday
 
-/** The roster PATTERN had the member at work: a shift or a spare day. */
+/** The roster PATTERN had the member at work: a shift — never a spare day (owner, 19 Nov 2026). */
 const patternDue = (/** @type {any} */ m, /** @type {Date} */ d) => {
     const p = getPatternShift(m, d);
-    return p !== 'RD' && p !== 'OFF';
+    return p !== 'RD' && p !== 'OFF' && p !== 'SPARE';
 };
 
 const CEA = ACTIVE.find(m => m.role === 'CEA' && !m.startDate && !m.proRatedAL
@@ -66,7 +66,7 @@ test('the fixtures exist on the real roster — otherwise every test below is ch
 });
 
 describe('who is on Christmas leave — the pattern decides, and nothing else changes', () => {
-    test('due at work by the pattern, on either day from 2026: a shift OR a spare day', () => {
+    test('due at work by the pattern, on either day from 2026: a shift, and only a shift', () => {
         for (const m of ACTIVE) {
             for (const d of [XMAS_2026, BOXING_2026]) {
                 assert.equal(isChristmasLeaveDay(m, d), patternDue(m, d), `${m.name} ${formatISO(d)}`);
@@ -74,7 +74,9 @@ describe('who is on Christmas leave — the pattern decides, and nothing else ch
         }
     });
 
-    test('a spare day counts as due at work (owner, 5 Nov 2026)', () => {
+    test('a spare day is NOT due at work — 25 and 26 December cannot be spare days (owner, 19 Nov 2026)', () => {
+        // It was (owner, 5 Nov 2026) until the owner said "Christmas days and Boxing days cannot be
+        // spare days even if they fall in a usually spare week": a spare week's Christmas is a rest day.
         // Found on the real roster rather than invented: some December within reach has somebody
         // spare on one of the two days.
         let found = null;
@@ -87,7 +89,9 @@ describe('who is on Christmas leave — the pattern decides, and nothing else ch
             }
         }
         assert.ok(found, 'no spare day on 25/26 December in 2026–2030 — the fixture needs another year');
-        assert.equal(isChristmasLeaveDay(found.m, found.d), true);
+        assert.equal(isChristmasLeaveDay(found.m, found.d), false);
+        // …so they show Rest, not leave, and working Boxing Day earns no day in lieu.
+        assert.equal(resolveDayShift(null, getBaseShift(found.m, found.d), false, isChristmasLeaveDay(found.m, found.d)).shift, 'RD');
     });
 
     test('never on a Sunday — 26 December 2027 is one, so nobody has it', () => {

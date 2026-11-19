@@ -75,6 +75,19 @@ describe('writing a day the app forbids', () => {
         assert.equal(normaliseCellValue('AL', '06:00-14:00', SUN).guarded, 'sunday', 'leave keeps the plain Sunday reason');
     });
 
+    test('a SPARE on 25 or 26 December is refused under its own reason, in any year (owner, 19 Nov 2026)', () => {
+        // "Christmas days and Boxing days cannot be spare days even if they fall in a usually spare week."
+        // 26 December 2027 is a Sunday, whose own guard lets a Spare turn through — this one does not.
+        for (const date of ['2026-12-25', '2026-12-26', '2027-12-26', '2030-12-25']) {
+            const n = normaliseCellValue('SPARE', 'RD', date);
+            assert.deepEqual([n.value, n.guarded], ['RD', 'christmas-spare'], date);
+        }
+        // CONTROLS: the days either side keep their Spare turn, and a Christmas shift is not this guard's.
+        assert.deepEqual(normaliseCellValue('SPARE', '06:00-14:00', '2026-12-24'), { value: 'SPARE', display: 'SPARE', guarded: null });
+        assert.equal(normaliseCellValue('SPARE', 'RD', '2026-12-27').guarded, null, 'a Sunday Spare turn stands');
+        assert.equal(normaliseCellValue('13:30-21:00', 'RD', '2026-12-26').guarded, null);
+    });
+
     test('the same value on a MONDAY is untouched — the guard is about Sundays, not about AL', () => {
         assert.equal(normaliseCellValue('AL', '06:00-14:00', MON).value, 'AL');
         assert.equal(normaliseCellValue('TRG', '06:00-14:00', MON).value, 'TRG');
