@@ -256,6 +256,48 @@ test('a public guide loads with no PIN and no member sign-in', async ({ page }) 
     await expect(page.locator('#calendarLock')).toHaveCount(0);
 });
 
+// ── THE MENU CAN BE REBUILT FOR WHOEVER SIGNS IN (step 1 of "sign-in without the reload") ────────
+// Today a sign-in on the locked Calendar reloads the page, and the reload builds the menu again.
+// Step 2 will grant in place instead, and then nothing would rebuild it: the member would get the
+// locked visitor's menu — no name, no Sign out, no admin pills. calendar-drawer.js's rebuild is what
+// step 2 will call; nothing calls it yet, so this drives it directly, through the page's OWN copy of
+// the module (the import resolves to the instance the page wired), against the real drawer.
+
+test('the locked Calendar\'s menu, rebuilt in place after a sign-in, is the member\'s — once, and it still works', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
+
+    // The premise: the menu was built for nobody.
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('#navSignOutBtn')).toHaveCount(0);
+    await expect(page.locator('#navPanel .nav-panel-pill--operations')).toHaveCount(0);
+    await page.locator('#navPanelClose').click();
+    await expect(page.locator('#navPanel')).not.toHaveClass(/open/);
+
+    // A sign-in saves the session; then the rebuild step 2 will call.
+    const rebuilt = await page.evaluate(async () => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({ name: 'G. Miller', ver: 2, expiry: Date.now() + 86_400_000 }));
+        const m = await import('./calendar-drawer.js');
+        return m.rewireCalendarDrawer();
+    });
+    expect(rebuilt).toBe(true);
+
+    await expect(page.locator('#navPanel')).toHaveCount(1);          // taken down first: never two drawers
+    await expect(page.locator('#navMenuBtn')).toHaveCount(1);
+    await page.locator('#navMenuBtn').click();                        // the fresh burger opens the fresh drawer
+    await expect(page.locator('#navPanel')).toBeVisible();
+    await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
+    await expect(page.locator('#navPanelAvatar')).toHaveText('GM');
+    await expect(page.locator('#navSignOutBtn')).toBeVisible();
+    await expect(page.locator('#navPanel .nav-panel-pill--operations')).toHaveCount(1);
+    await expect(page.locator('#navLockCalendarBtn')).toBeHidden();  // the PIN's button stays the PIN's
+    await page.keyboard.press('Escape');                              // and it still closes
+    await expect(page.locator('#navPanel')).not.toHaveClass(/open/);
+    expect(errors, errors.join('\n')).toEqual([]);
+});
+
 // ── Unlocking ───────────────────────────────────────────────────────────────────────────────────
 
 test('the correct PIN unlocks the Calendar and the roster appears', async ({ page }) => {

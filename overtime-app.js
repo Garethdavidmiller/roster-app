@@ -22,7 +22,7 @@ import { initLoginOverlay, dismissLoginOverlay, sayStaffPinEndedIn } from './log
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, canOpenOvertime, canOpenNewlink, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -166,8 +166,8 @@ export function init() {
                 if (!currentSession) { window.location.reload(); return; }
                 currentUser = currentSession.name ?? null;
                 dismissLoginOverlay();
-                resetNavPanel();
-                wireNavPanel();
+                resetNavPanel(); wireNavPanel();   // the drawer, rebuilt for whoever signed in…
+                rebaseRestoreGuard();              // …and the page is theirs, so a Back to it need not reload
                 // The gate above ran signed OUT — re-decide for whoever actually signed in.
                 if (requirePage({ status: 'named', member: currentUser }, 'overtime').decision === 'forbidden') {
                     // No page follows, so nothing will read the sign-in timer: drop it, or the next

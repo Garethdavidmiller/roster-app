@@ -22,9 +22,8 @@ import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
 import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW, SELECTED_MEMBER } from './storage-keys.js';
-import { canOpenOvertime, canOpenNewlink } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
 import { initTeamView } from './calendar-team-view.js';
-import { initNavPanel } from './nav-panel.js';
+import { wireCalendarDrawer } from './calendar-drawer.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox, confirmDialog } from './overlay.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -1088,7 +1087,6 @@ calendarAuthReady.finally(() => {
     recordPageLatency('calendar', getSession()?.name || null);
 });
 
-const _calendarSession = getSession();
 // Back after a sign-out elsewhere must not put a member's roster on screen for whoever picks the
 // device up next (page-session.js, v24.52 — every protected page installs the same guard).
 reloadIfRestoredForSomeoneElse();
@@ -1096,26 +1094,14 @@ reloadIfRestoredForSomeoneElse();
 // signed the viewer out (by design) let Back restore the roster it had shown (v24.56, auth review).
 // A restored viewer page asks again instead; while the viewer is still current that is one quiet reload.
 window.addEventListener('pageshow', (e) => { if (e.persisted && getAccessType() === 'viewer') window.location.reload(); });
-initNavPanel({
-    // The nav panel's `authReady` gates the Circular/Newsletter open counters — Firestore writes —
-    // so it needs the AUTH promise, not the access one (v20.22).
+// The menu, built for the session saved NOW — which pills, whose name, Sign out or Lock Calendar.
+// calendar-drawer.js decides it, and can build it again after a sign-in that does not reload.
+wireCalendarDrawer({
     authReady: calendarAuthReady,
-    currentPage: 'calendar',
-    // Also the drawer's open-counter exclusion identity: the SESSION only, never the selected member
-    // (v25.00). A selection left on the admin's row on the station PC dropped every staff open there —
-    // usage-reporter.js has the reasoning.
-    memberName:  _calendarSession?.name || null,
-    isAdmin:         CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
-    isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
-    canOpenOvertime: canOpenOvertime(_calendarSession?.name), canOpenNewlink: canOpenNewlink(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
-    onSignOut:   _calendarSession ? () => signOutAndLeave() : null,
-    // "Lock Calendar" — viewer mode only, and the nav drawer is the right home for it: it is a
-    // leaving-the-desk action, not a Calendar control, and putting it in the header would give every
-    // member a button they can never use. `isViewerMode()` is read at DRAWER-OPEN time (the thunk),
-    // not at init, because access is resolved asynchronously and this call runs before it settles.
-    onLockCalendar: { isViewer: isViewerMode, lock: lockCalendar },
-    // The drawer's two document links are refused at the tap while the Calendar is locked (v23.17).
+    onSignOut: () => signOutAndLeave(),
+    isViewer: isViewerMode,
+    lock: lockCalendar,
     canReadDocuments: hasDocumentAccess,
 });
 // THE NEWSLETTER'S ☰ BUTTON FOLLOWS ITS LATEST ISSUE (newsletter-recency.js, owner, 14 Nov 2026). Asked

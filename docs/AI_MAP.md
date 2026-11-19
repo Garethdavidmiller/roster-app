@@ -50,6 +50,7 @@ gone, and that no card outgrows its cap.
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
 | WHEN the Calendar page may draw — the start-up stage, the one wait for a swipe, the focus owed to the next grid | `calendar-redraw.js` |
+| The Calendar's menu — built for the saved session, and rebuilt in place for whoever signs in | `calendar-drawer.js` |
 | The notification prompt strip and silent renewal on the Calendar (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
 | The install strip on the Calendar, and the route the install notice asks of it | `install-prompt.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
@@ -939,7 +940,7 @@ The pure write-safety rules, every dependency injected: one refresh-and-retry fo
 
 ### `page-session.js`
 How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
-- **Exports:** `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `guardNamedSession`
+- **Exports:** `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `guardNamedSession`
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page; a swipe back asks nothing) and offered to the same member on the next load. Its six rules are the header: never applied silently, never across members, a mirror of the unsaved state at the last hide that deletes only its own copy, a day then gone, a draft is work and not a decision, and work a save has since landed is not unsaved. Written through `keepDraftWhenHidden` (`page-session.js`); used by Admin and Links. Tested in `page-session.test.mjs`.
@@ -1256,6 +1257,10 @@ Is Calendar access held right now? The ONE copy: written only by `calendar-acces
 ### `calendar-redraw.js`
 WHEN the Calendar page may draw, and what its next draw owes: one scheduler, created by `calendar-app.js`, that decides when and on which surface — the start-up stages, the one wait for a swipe, the focus owed to the next grid — and draws nothing itself. Decisions: `.claude/rules/calendar.md`; tested by `calendar-redraw.test.mjs` and the `redraw:` tests in `e2e/calendar.spec.js`.
 - **Exports:** `GESTURE_POLL_MS` · `START_STAGES` · `createRedrawScheduler`
+
+### `calendar-drawer.js`
+The Calendar's menu (the shared drawer), built for the SAVED session — never the picked name — when it is built, and able to be built again for whoever is signed in now, with the same page hooks. Step 1 of ROADMAP → "Calendar sign-in without the reload"; nothing calls the rebuild yet. Tested by `calendar-drawer.test.mjs` and the menu-rebuild test in `e2e/calendar-pin.spec.js`.
+- **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `rewireCalendarDrawer`
 
 ---
 

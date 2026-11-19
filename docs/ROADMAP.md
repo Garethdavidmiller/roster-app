@@ -545,6 +545,14 @@ each of them another way:
 It is also the Calendar's access code, where a change brings tests of the order of events it could
 break (`.claude/rules/calendar.md`).
 
+**Step 1 is done** (19 November 2026, no visible change): the Calendar's menu now has a rebuild,
+`rewireCalendarDrawer()` (`calendar-drawer.js`), which builds it again for whoever is signed in NOW,
+and `rebaseRestoreGuard()` (`page-session.js`) tells the Back/forward guard the page now belongs to
+them, so a later restore is not reloaded for nothing. Nothing on the Calendar calls either yet.
+**Step 2** is the sign-in that grants in place: call both, refill the name picker
+(`populateTeamMemberDropdown`), run the forced set-password step and the held document tap without
+the reload, and keep the reload as the fallback (and for a PIN viewer who then signs in).
+
 **Blocker:** none beyond the trigger. **The gain:** small, which is why it waits. About 25 sign-ins
 a month across the whole app (a sign-in lasts 60 days), each saving one start. **Success:** fewer
 sign-ins over 3 seconds on the next full month, the forced step still appearing after a password
