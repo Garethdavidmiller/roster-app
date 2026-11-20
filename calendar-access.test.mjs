@@ -2108,6 +2108,46 @@ describe('a sign-in on a card grants in place, or reloads', () => {
         assert.deepEqual(seen, ['onEveryGrant', 'onGranted'], 'the first grant\'s steps ran twice');
     });
 
+    test('a late SILENT sign-in landing while the card\'s own sign-in is in flight waits for it — the form\'s success grants in place, once (review, 20 Nov 2026)', async () => {
+        const seen = [];
+        sessionValue = { name: 'G. Miller' };
+        /** @type {(v?: any) => void} */ let release = () => {};
+        silentGate = new Promise(r => { release = r; });
+        silentReauthSucceeds = true;
+        const boot = initCalendarAccess(hooks(seen));
+        await waitFor(() => !!document.getElementById('calLockSubmit')?._listeners?.get('click'), 'the come-back card', 4000);
+        await boot;
+        await document.getElementById('calLockSubmit')._listeners.get('click')();
+        const form = loginMounts.at(-1);
+        loginBusy = true;                                     // Sign in pressed…
+        release();                                            // …and the silent attempt lands meanwhile
+        await new Promise(r => setTimeout(r, 450));
+        assert.equal(getAccessType(), 'none', 'the silent attempt granted under the form — the first grant ran before the forced-step marker');
+        signedIn();
+        await form.onSuccess('G. Miller');
+        assert.ok(!ops.includes('reload'), `reloaded: ${JSON.stringify(ops)}`);
+        assert.deepEqual(seen, ['signedIn:none', 'onEveryGrant', 'onGranted']);
+        loginBusy = false;                                    // the form's attempt settles
+        await new Promise(r => setTimeout(r, 450));
+        assert.deepEqual(seen, ['signedIn:none', 'onEveryGrant', 'onGranted'], 'the waiting grant ran a second time');
+    });
+
+    test('an identity that lands under a sign-in which then FAILS is granted once the attempt settles (review, 20 Nov 2026)', async () => {
+        const seen = [];
+        sessionValue = { name: 'G. Miller' };
+        await initCalendarAccess(hooks(seen));
+        await new Promise(r => setTimeout(r, 0));
+        await document.getElementById('calLockSubmit')._listeners.get('click')();
+        loginBusy = true;                                     // Sign in pressed: Firebase signs them in…
+        emitAuth({ uid: 'member-1', isAnonymous: false });
+        await new Promise(r => setTimeout(r, 450));
+        assert.equal(getAccessType(), 'none', 'granted under the form');
+        loginBusy = false;                                    // …but the attempt times out: no onSuccess
+        await waitFor(() => getAccessType() === 'named', 'the grant once the attempt settled', 2000);
+        assert.deepEqual(seen, ['onEveryGrant', 'onGranted'], 'a live identity was left locked out');
+        assert.ok(!ops.includes('reload'));
+    });
+
     test('a sign-in whose live identity does not decide `named` reloads, so the boot decides', async () => {
         const seen = [];
         await initCalendarAccess(hooks(seen));

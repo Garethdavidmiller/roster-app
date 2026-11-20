@@ -75,7 +75,7 @@ import { speakAfterMount } from './status-text.js';
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.
 import { initLockCards, resetUnlockFailures, hideLockPanel, showLockPanel, showSignInPanel,
-         showMemberPanel, dismissSignInForm, signInInFlight, takePinFirst, PIN_FIRST_HASH } from './calendar-lock-cards.js';
+         showMemberPanel, dismissSignInForm, signInInFlight, afterSignInSettles, takePinFirst, PIN_FIRST_HASH } from './calendar-lock-cards.js';
 import { hasCalendarAccess, setCalendarAccess } from './calendar-access-state.js';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
@@ -126,8 +126,8 @@ let _onAwaitingInput = null;
 /** Runs when a sign-in on a card is granted IN PLACE, before the grant (`finishSignIn`): the page's
  *  own things built at load for nobody. @type {(() => void)|null} */
 let _onSignedInInPlace = null;
-/** Has this page EVER been granted? Never reset: a page built for one grant is not rebuilt in place
- *  for a sign-in (`finishSignIn`). */
+/** Has this page EVER been granted? Reset only as `initCalendarAccess` starts, before any grant: a
+ *  page built for one grant is not rebuilt in place for a sign-in (`finishSignIn`). */
 let _everGranted = false;
 /** @type {(() => void)|null} */
 let _resolveAuth = null;
@@ -229,13 +229,12 @@ function watchForLateNamedIdentity() {
             const late = decideAccess({ session: getSession(), firebaseUser: u });
             if (late === 'viewer') { grantLateViewer(u, stop, gen); return; }
             if (late !== 'named') return;
-            // A sign-in typed on a card is putting this identity in place: ITS success grants
+            // A sign-in typed on a card may be putting this identity in place: ITS success grants
             // (`finishSignIn`), after the session is saved and the forced set-password step's
-            // marker written. Granted from here, a moment earlier, the first grant ran without it.
-            if (signInInFlight()) return;
+            // marker written, so this waits for it (`grantNamedOnceFree`).
             stop();
             console.warn('[CalendarAccess] a named identity restored after the access decision — granting.');
-            grant('named');
+            grantNamedOnceFree();
         }, () => stop());
     } catch { /* an auth layer that cannot be watched simply leaves the panel up */ }
     return stop;
@@ -498,6 +497,18 @@ const SKELETON_AFTER_MS = 400;
  *  running behind the card and a late success still grants. */
 const SILENT_BEFORE_CARD_MS = 4000;
 
+/** Grant `named` now — or, while a card's own sign-in is in flight, once it has settled, and only if
+ *  nothing granted meanwhile: its success grants for itself (`finishSignIn`), after the forced
+ *  set-password step's marker is written, and a grant a moment earlier ran the first grant without
+ *  it (review, 20 Nov 2026). Called by the late-identity watcher and the late silent sign-in. */
+function grantNamedOnceFree() {
+    if (!signInInFlight()) { grant('named'); return; }
+    afterSignInSettles(() => {
+        if (getAccessType() === 'none'
+            && decideAccess({ session: getSession(), firebaseUser: auth.currentUser }) === 'named') grant('named');
+    });
+}
+
 /**
  * Re-establish the member's own Firebase identity with nothing typed, if that is possible.
  *
@@ -683,6 +694,6 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     showMemberPanel(held.name);
     // `null` means the attempt is still in flight past the defer bound. A late success is still a
     // success: honour it exactly the way the watcher honours a late restore.
-    if (ok === null) silent.then(late => { if (late && getAccessType() === 'none') grant('named'); });
+    if (ok === null) silent.then(late => { if (late && getAccessType() === 'none') grantNamedOnceFree(); });
     return 'none';
 }

@@ -161,6 +161,26 @@ export function signInInFlight() {
     return !!form && !!form.querySelector('.login-back--busy');
 }
 
+/** How long `afterSignInSettles` waits at most. The attempt it waits on is itself bounded (an 8s
+ *  sign-in, then `finishSignIn`), so this is only a backstop for a form that never clears. */
+const SIGN_IN_SETTLE_LIMIT_MS = 60_000;
+
+/**
+ * Run `fn` once, after the form's own sign-in has settled — success or failure. For a grant that
+ * stood down for that sign-in (`signInInFlight`): standing down FOR GOOD left a live identity locked
+ * out when the sign-in then failed, with no further auth event to look again (review, 20 Nov 2026).
+ * `fn` re-checks for itself; on a success the sign-in has already granted, and it does nothing.
+ * @param {() => void} fn
+ */
+export function afterSignInSettles(fn) {
+    const started = Date.now();
+    const look = () => {
+        if (signInInFlight() && Date.now() - started < SIGN_IN_SETTLE_LIMIT_MS) { setTimeout(look, 200); return; }
+        fn();
+    };
+    setTimeout(look, 200);
+}
+
 /**
  * Take the come-back card's FULL-SCREEN sign-in form down, for a grant (cal-data-9, 10 Nov 2026).
  * The form is appended to <body>, not the slot, so a grant that landed while it was open — a slow

@@ -160,7 +160,7 @@ The Calendar's access gate: it decides at boot, shows the right card, exchanges 
 
 ### `calendar-lock-cards.js`
 The three cards that can stand where the Calendar goes — the member sign-in card (the front door), the staff-PIN card and the member's come-back card — with their wiring and the unlock backoff. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the four things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `PIN_FIRST_HASH` · `initLockCards` · `resetUnlockFailures` · `takePinFirst` · `hideLockPanel` · `signInInFlight` · `dismissSignInForm` · `showLockPanel` · `showSignInPanel` · `showMemberPanel`
+- **Exports:** `PIN_FIRST_HASH` · `initLockCards` · `resetUnlockFailures` · `takePinFirst` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showLockPanel` · `showSignInPanel` · `showMemberPanel`
 
 ### `calendar-lock-slot.js`
 The one place on the Calendar page where a card stands in for the grid, at most one at a time: mounting and unmounting it (`mountLockCard` replaces, never stacks), the boot skeleton and its timer, and hiding the workspace the card stands in for (`setWorkspaceHidden`). It decides nothing; `calendar-access.js` does. Tested through `calendar-access.test.mjs`.

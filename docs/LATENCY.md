@@ -652,7 +652,12 @@ page is usable, across any reload (`perf-reporter.js`). Two waits inside it were
 - **The Calendar's reload after a sign-in**, which repeated the `accounts:lookup` round trip this file
   is about. **Gone from v26.40** for a sign-in on a Calendar not yet granted (the front door, and a
   member's own come-back card): the sign-in grants in place (`ROADMAP_HISTORY.md` → "Calendar sign-in without the reload").
-  The December card is the first to include it.
+  The December card is the first to include it. **It counts fewer sign-ins than before, and not at
+  random**: a sample is kept only when the page stayed on screen from the moment it LOADED
+  (`_watched`, `perf-reporter.js`), and an in-place sign-in is the locked load's, so a member who
+  switched apps to find their password gives none; the reload used to start that clock afresh. Read
+  December's figure as the members who stayed in the app, and compare its count with November's
+  before its colour (review, 20 Nov 2026).
 
 **Read Signing in again on the December card**, the first full month with v26.12.
 
