@@ -170,7 +170,7 @@ export function _activateRow(row, checkbox, pills, startEl, endEl, type) {
         if (type === 'other') {
             const cb = /** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb'));
             if (cb && row.dataset.baseIsRd === '1') cb.checked = true;
-            // A Sunday or Boxing Day offers Spare alone (admin-day-pills.js): one choice is pressed, not asked for.
+            // An ordinary Sunday offers Spare alone (admin-day-pills.js): one choice is pressed, not asked for.
             const spare = row.dataset.spareOnly === '1' && !row.querySelector('.other-flavour-btn.active')
                 ? row.querySelector('.other-flavour-btn[data-flavour="SPARE"]') : null;
             if (spare) { spare.classList.add('active'); spare.setAttribute('aria-pressed', 'true'); }
@@ -370,6 +370,13 @@ export function applyRowDraft(row, d) {
     const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
     const pill = /** @type {HTMLButtonElement|undefined} */ ([...pills].find(p => /** @type {HTMLElement} */ (p).dataset.type === d.type));
     if (d.remove ? !row.dataset.existingId : (!pill || pill.disabled)) return false;
+    // …nor an Other flavour the row has turned off (a Spare on Christmas Day, owner 19 Nov 2026): put
+    // back pressed, it read as available and Save then refused it (review, 20 Nov 2026).
+    if (d.type === 'other' && d.flavour) {
+        const chip = /** @type {HTMLButtonElement|null} */ ([...row.querySelectorAll('.other-flavour-btn')]
+            .find(b => /** @type {HTMLElement} */ (b).dataset.flavour === d.flavour) ?? null);
+        if (!chip || chip.disabled) return false;
+    }
     // Cleared FIRST, as bulk apply does: `_activateRow` asks the swapped-day question only of a row
     // that is being booked, and a row still marked as its prefill is not.
     row.classList.remove('prefilled-existing');

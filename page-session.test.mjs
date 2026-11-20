@@ -275,6 +275,60 @@ describe('back/forward cache', () => {
         assert.deepEqual(log, ['reload']);
     });
 
+    test('a page signed into IN PLACE and told so (rebaseRestoreGuard) is not reloaded on Back for the same member', async () => {
+        // The harmless case the guard used to pay for: built for nobody, signed in without a reload,
+        // left, and come back to with the same member still signed in. Unrebased it reloads (the
+        // first half proves the premise); rebased it is that member's page and comes straight back.
+        const unrebased = await import('./page-session.js?not-rebased');
+        listeners = {}; log = [];
+        session = null;
+        unrebased.reloadIfRestoredForSomeoneElse();
+        session = { name: 'A. Member' };
+        fire('pagehide');
+        fire('pageshow', { persisted: true });
+        assert.deepEqual(log, ['reload'], 'the premise: without it, the page loaded for nobody is reloaded');
+
+        const rebased = await import('./page-session.js?rebased');
+        listeners = {}; log = [];
+        session = null;
+        rebased.reloadIfRestoredForSomeoneElse();
+        session = { name: 'A. Member' };     // the in-place sign-in…
+        rebased.rebaseRestoreGuard();        // …and the page rebuilt for them
+        fire('pagehide');
+        fire('pageshow', { persisted: true });
+        assert.deepEqual(log, [], 'their own page comes back without a reload');
+    });
+
+    test('a rebased page still reloads for anybody else, or for nobody', async () => {
+        // Rebasing must only ever narrow the reloads to the member the page was rebuilt for.
+        for (const [later, why] of /** @type {const} */ ([[null, 'signed out since'], ['B. Member', 'a colleague signed in since']])) {
+            const fresh = await import(`./page-session.js?rebased-${later ?? 'nobody'}`);
+            listeners = {}; log = [];
+            session = null;
+            fresh.reloadIfRestoredForSomeoneElse();
+            session = { name: 'A. Member' };
+            fresh.rebaseRestoreGuard();
+            fire('pagehide');
+            session = later === null ? null : { name: later };
+            fire('pageshow', { persisted: true });
+            assert.deepEqual(log, ['reload'], why);
+        }
+    });
+
+    test('rebasing before the guard is installed does nothing', async () => {
+        const fresh = await import('./page-session.js?rebase-first');
+        listeners = {}; log = [];
+        session = { name: 'A. Member' };
+        fresh.rebaseRestoreGuard();
+        assert.deepEqual(listeners, {}, 'installs nothing of its own');
+        session = null;
+        fresh.reloadIfRestoredForSomeoneElse();   // the guard, installed for nobody, ignores the earlier call
+        session = { name: 'A. Member' };
+        fire('pagehide');
+        fire('pageshow', { persisted: true });
+        assert.deepEqual(log, ['reload']);
+    });
+
     test('another TAB signing out, or in as somebody else, reloads this one — a renewal does not', () => {
         listeners = {}; log = [];
         const stored = (/** @type {string|null} */ n) => n === null ? null : JSON.stringify({ name: n, ver: 3, expiry: 1 });

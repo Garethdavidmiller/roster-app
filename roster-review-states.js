@@ -298,13 +298,20 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // it was a MATCH — not shown, not saved — and the RDW marker went in silence, from the
             // Calendar and from the Pay Calculator's RDW suggestion. Sundays are exempt, as above.
             const matchesBase = normParsed === normBase && (isSun || !isRdwEncoded(parsedShift));
-            if (guarded === 'sunday-other' || guarded === 'christmas-spare') {
+            // A spare week's 25 or 26 December is a REST DAY (owner, 19 Nov 2026), so a printed SPARE
+            // there over an EARLIER IMPORT is read as a printed rest day is: that import is stale, and
+            // the row offers to clear it (unticked, below). Over nothing or a hand-made record it stays
+            // GUARDED. Holding it GUARDED over an import too kept a draft's shift on Boxing Day with no
+            // control to remove it, stricter than the same sheet printing RD (review, 20 Nov 2026).
+            const christmasSpareGuarded = guarded === 'christmas-spare' && (!existing || isManual);
+            if (guarded === 'sunday-other' || christmasSpareGuarded) {
                 // A TRAINING OR MEETING DAY CANNOT BE ON A SUNDAY (owner, 7 Nov 2026), so a roster
                 // saying one is not a change to make: not over the base, not over a saved record, not
                 // over an earlier import. The rewritten RD used to be compared with the base, and on a
                 // ROSTERED Sunday it was a ticked DIFF that turned a worked day into rest.
                 // NOR CAN 25 OR 26 DECEMBER BE A SPARE DAY (owner, 19 Nov 2026), for the same reason:
-                // a "use new roster" there would record a rest day over a worked Boxing Day.
+                // a "use new roster" there would record a rest day over a hand-recorded worked Boxing
+                // Day. (Over an earlier IMPORT it is a "Clear old" row instead — above.)
                 state = 'GUARDED';
             } else if (!existing || !isManual) {
                 // No override, or only a previous import.
@@ -409,7 +416,8 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // anyone at all once the breaker has tripped — starts UNTICKED, so the default
                 // action on a misread week stops being "save it". So does a Christmas day (above).
                 chosen:      (drift || alignment.blocked) ? false
-                    : ((state === 'DIFF' || state === 'REMOVE_IMPORT') ? !christmas : null),
+                    : ((state === 'DIFF' || state === 'REMOVE_IMPORT')
+                        ? !christmas && guarded !== 'christmas-spare' : null),
                 /** 25 or 26 December from 2026: unticked, asked nothing, and the row says why. */
                 christmas,
                 // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)

@@ -99,8 +99,10 @@ everywhere else (`AL on a rest day is ASKED about, never defaulted`) just becaus
 - Sundays and breaker-refused reads ask nothing, and nor do 25 and 26 December from 2026: the app's
   Christmas leave decides those days, so their rows start unticked and say so (owner, 10 Nov 2026).
 - **A SPARE printed on 25 or 26 December is a GUARDED row under its own reason** (`christmas-spare`,
-  any year): the two days cannot be spare days (owner, 19 Nov 2026), so nothing is written, whatever
-  the base or a saved record says, and an unreadable cell never offers the spare reading.
+  any year): the two days cannot be spare days (owner, 19 Nov 2026), so nothing is written over the
+  base or a hand-made record, and an unreadable cell never offers the spare reading. **Over an earlier
+  IMPORT it reads as the rest day the owner chose** — COVERED where that import is a rest day, else an
+  UNTICKED "Clear old" row, as a printed rest day's is — so a stale draft shift there can be removed.
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
 - **A day before the member's `startDate` writes nothing** (`isBeforeMemberStart`): anything but a

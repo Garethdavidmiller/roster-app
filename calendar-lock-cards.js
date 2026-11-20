@@ -86,6 +86,8 @@ export { PIN_FIRST_HASH };
  * @param {() => void} [deps.onAwaitingInput]  Told when a card that asks somebody to type appears,
  *   so the speed figures leave the typing out (perf-reporter.js `markAwaitingInput`). Injected, so
  *   this module imports no telemetry.
+ * @param {() => unknown} deps.finishSignIn  What a sign-in on either card does once it has succeeded:
+ *   grant in place, or reload (calendar-access.js decides which). Injected for the same reason.
  */
 export function initLockCards(deps) { _deps = deps; }
 
@@ -149,16 +151,49 @@ function dropPinBack() {
 }
 
 /**
+ * Is a sign-in form's OWN attempt in flight — the round trip after "Sign in" was pressed? The form
+ * marks its Back link busy for exactly that window (login-overlay.js), and its success then calls
+ * `finishSignIn`, which grants for itself: anything else that would grant meanwhile stands down.
+ * @returns {boolean}
+ */
+export function signInInFlight() {
+    const form = document.getElementById('loginOverlay');
+    return !!form && !!form.querySelector('.login-back--busy');
+}
+
+/** How long `afterSignInSettles` waits at most. The attempt it waits on is itself bounded (an 8s
+ *  sign-in, then `finishSignIn`), so this is only a backstop for a form that never clears. */
+const SIGN_IN_SETTLE_LIMIT_MS = 60_000;
+
+/**
+ * Run `fn` once, after the form's own sign-in has settled — success or failure. For a grant that
+ * stood down for that sign-in (`signInInFlight`): standing down FOR GOOD left a live identity locked
+ * out when the sign-in then failed, with no further auth event to look again (review, 20 Nov 2026).
+ * `fn` re-checks for itself; on a success the sign-in has already granted, and it does nothing.
+ * @param {() => void} fn
+ */
+export function afterSignInSettles(fn) {
+    const started = Date.now();
+    const look = () => {
+        if (signInInFlight() && Date.now() - started < SIGN_IN_SETTLE_LIMIT_MS) { setTimeout(look, 200); return; }
+        fn();
+    };
+    setTimeout(look, 200);
+}
+
+/**
  * Take the come-back card's FULL-SCREEN sign-in form down, for a grant (cal-data-9, 10 Nov 2026).
  * The form is appended to <body>, not the slot, so a grant that landed while it was open — a slow
  * identity restore, the silent sign-in — took the card away and left the form asking for a password
  * over a Calendar already granted and built. The front door's INLINE card is in the slot and goes
- * with it. A form whose OWN sign-in is in flight is left: its success reloads the page, and that
- * reload is what runs the forced set-password step (its marker is written after the identity lands).
+ * with it. A form whose OWN sign-in is in flight is left, unless that sign-in is the one granting
+ * (`evenMidSignIn`, from `finishSignIn`): its success decides what follows, and a reload — the other
+ * answer — takes the form with the page.
+ * @param {{ evenMidSignIn?: boolean }} [opts]
  */
-export function dismissSignInForm() {
+export function dismissSignInForm({ evenMidSignIn = false } = {}) {
     const form = document.getElementById('loginOverlay');
-    if (!form || form.classList.contains('login-overlay--inline') || form.querySelector('.login-back--busy')) return;
+    if (!form || form.classList.contains('login-overlay--inline') || (!evenMidSignIn && signInInFlight())) return;
     _signInForm?.dismissLoginOverlay();
 }
 
@@ -348,9 +383,10 @@ const warnNoCard = (e) => console.warn('[calendar-lock-cards] The sign-in card d
  * is this page, and the drawer beside the card must stay reachable). One sign-in mounted two ways,
  * rather than a second card written for the Calendar that would drift from the first.
  *
- * On success it RELOADS, and the boot decision then answers `named` — so there is no second code
- * path for "signed in from the front door", exactly as there was none for "signed in from the PIN
- * card's link". `#loginCard`'s recipe is shared with `.cal-lock-card` in shared.css, so the two
+ * On success it hands over to `finishSignIn` (calendar-access.js), which grants in place on a page
+ * that has never been granted, and otherwise reloads so the boot decides — either way through the
+ * one grant the boot uses, so there is no second code path for "signed in from the front door".
+ * `#loginCard`'s recipe is shared with `.cal-lock-card` in shared.css, so the two
  * cards this slot can show are the same size, in the same place, in the same family.
  *
  * @param {string} [notice]  One line under the subtitle saying why the card is up, when the reason
@@ -376,7 +412,7 @@ export async function showSignInPanel(notice = '') {
     const { initLoginOverlay } = mod;
     initLoginOverlay({
         pageLabel: 'Calendar',
-        onSuccess: () => window.location.reload(),
+        onSuccess: () => { _deps.finishSignIn(); },
         host: panel,
         notice,
         alternative: {
@@ -486,7 +522,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
         // overlay pre-selects grade and name and lands on the password field. `presetName` is a
         // convenience the overlay is free to ignore — it never widens who may sign in.
         const open = (/** @type {typeof import('./login-overlay.js')} */ m) =>
-            m.initLoginOverlay({ pageLabel: 'Calendar', onSuccess: () => window.location.reload(), presetName: name });
+            m.initLoginOverlay({ pageLabel: 'Calendar', onSuccess: () => { _deps.finishSignIn(); }, presetName: name });
         if (_signInForm) { open(_signInForm); return; }   // inside the tap — see the block above
         /** @type {typeof import('./login-overlay.js')} */ let mod;
         // A failed load must not leave a dead button: say so and keep the button live. After a

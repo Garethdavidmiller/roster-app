@@ -727,6 +727,18 @@ describe('a staged row read as draft data, and put back', () => {
         assert.equal(restDay.rdwCb.checked, true, 'RDW is automatic on a rest day');
     });
 
+    test('a Spare the row now turns off (Christmas Day) is refused, and the row is left as it was (review, 20 Nov 2026)', () => {
+        const xmas = draftRow({ date: '2026-12-25', type: 'annual_leave', existingId: 'ov1', prefilled: true });
+        xmas.flavours.find(f => f.dataset.flavour === 'SPARE').disabled = true;
+        assert.equal(applyRowDraft(xmas.r, { date: '2026-12-25', type: 'other', flavour: 'SPARE' }), false,
+            'put back pressed, it read as available and Save then refused it');
+        assert.equal(xmas.r.classList.contains('prefilled-existing'), true, 'no phantom edit');
+        assert.equal(xmas.r.dataset.type, 'annual_leave');
+        assert.equal(xmas.flavours.some(f => f.classList.contains('active')), false);
+        // …while a flavour still on that day comes back as before.
+        assert.equal(applyRowDraft(xmas.r, { date: '2026-12-25', type: 'other', flavour: 'TRG' }), true);
+    });
+
     test('the swapped-day answer comes back only where the day is asked about now', () => {
         const asked = draftRow({ alSwapAsk: '1' });
         applyRowDraft(asked.r, { date: '2026-12-08', type: 'annual_leave', swap: 'yes' });

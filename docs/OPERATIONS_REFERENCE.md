@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: November 2026 — v26.30 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.40 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -317,7 +317,7 @@ In one line each (the reasoning is `.claude/rules/roster-import.md`):
 - **A blank cell means different things on different days.** A blank or absent Sunday is `RD`, never a copy of Monday's shift (Sunday is uncontracted and the sheets leave a non-working Sunday empty). **Mon–Sat is the opposite**: the rosters state an unworked weekday explicitly, so a blank there is a cell nobody read and becomes an UNREADABLE review row rather than a silent rest day. Expect a handful where a member appears on TWO rosters and works only part of the week on the second — defaulting them to RD would write rest days over the shifts the other roster's import had just recorded. If the roster office puts explicit `RD`s in those cells, the rows go away. On a row whose Monday to Saturday were all unread, the Sunday is a question too (whole-app fix, Nov 2026).
 - **A worked Sunday does NOT carry an RDW marker, and must never be treated as suspicious for lacking one.** RDW means *a rest day being worked*; Sunday is uncontracted, so its work is inherently overtime and the sheet never labels it.
 - **A code that is not in the table is never read as a rest day** — it reaches the admin as an UNREADABLE review row carrying the raw text.
-- **Leave, an absence or an Other day on a Sunday is never recorded, and leave or an absence on a base REST day is recorded only when the admin answers that it was a swapped working day** — both arrive as GUARDED rows (below), never silently. Full-pay absence applies only to rostered days. Mirrors the in-app rule — CLAUDE.md "Sundays are non-contracted".
+- **Leave, an absence or an Other day on a Sunday is never recorded, a SPARE printed on 25 or 26 December is never recorded (in any year), and leave or an absence on a base REST day is recorded only when the admin answers that it was a swapped working day** — all arrive as GUARDED rows (below), never silently. Full-pay absence applies only to rostered days. Mirrors the in-app rule — CLAUDE.md "Sundays are non-contracted".
 
 ### Review pipeline
 
@@ -338,7 +338,8 @@ computeCellStates(parsedResult, existingOverrides)
                     and mask a future base-roster change)
     GUARDED       = the PDF said something the app's rules refuse to record on that day — leave or an
                     absence on a base REST day, anything on a Sunday, a training or meeting day on a
-                    Sunday, or anything but a rest day before the member's start date. Shown and explained, never silently dropped. Leave or an absence on a rest
+                    Sunday, a SPARE on Christmas Day or Boxing Day, or anything but a rest day before
+                    the member's start date. Shown and explained, never silently dropped. Leave or an absence on a rest
                     day ASKS "Was it a swapped working day?": only "Swapped — record it" writes (stamped
                     `replacedType`); "Rest day — leave it" writes nothing and clears an earlier record
                     on that day; unanswered writes nothing. "Skip all" takes an answer back. On 25 and

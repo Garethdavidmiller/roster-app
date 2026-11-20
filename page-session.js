@@ -46,7 +46,8 @@
  * and the signed-in member is no longer the one the page was built for, reload it. `replace` only
  * keeps THIS page out of the history; every page the member visited earlier is still there, so the
  * guard has to be on all of them. Since v24.56 it also reloads a page left OPEN in another tab when
- * the session there changes to a different member, or to nobody.
+ * the session there changes to a different member, or to nobody. `rebaseRestoreGuard()` tells it a
+ * page has been rebuilt in place for whoever just signed in, so a restore for them is not reloaded.
  *
  * `guardNamedSession({ page, member, established, signIn })` — the follow-up every named page runs
  * once its Firebase session settles: an own session that cannot be confirmed is asked to sign in
@@ -255,6 +256,11 @@ export function signOutAndLeave({ to = null } = {}) {
 /** Whether the back/forward-cache guard is already installed (a coordinator re-entered by an in-place
  *  sign-in calls it twice). */
 let _restoreGuarded = false;
+/** Who the page was built for (module state, so `rebaseRestoreGuard` can move it after an in-place
+ *  sign-in), and who was signed in when it was last left. @type {string|null} */
+let _builtFor = null;
+/** @type {string|null} */
+let _leftAs = null;
 
 /**
  * Reload this page if the browser restores it from the back/forward cache for anybody but the
@@ -268,17 +274,18 @@ let _restoreGuarded = false;
  *   - who was signed in when it was LEFT. An in-place sign-in moves a page from nobody to a member
  *     without a load; the built-for identity alone would miss a later change there.
  * Matching both costs an unneeded reload in one harmless case (a page signed into in place and
- * restored for the same member). The other direction would show one member's data to another.
+ * restored for the same member) — unless the page says it has been rebuilt for that member
+ * (`rebaseRestoreGuard`). The other direction would show one member's data to another.
  */
 export function reloadIfRestoredForSomeoneElse() {
     if (_restoreGuarded) return;
     _restoreGuarded = true;
-    const builtFor = getSession()?.name ?? null;
-    let leftAs = builtFor;
-    window.addEventListener('pagehide', () => { leftAs = getSession()?.name ?? null; });
+    _builtFor = getSession()?.name ?? null;
+    _leftAs = _builtFor;
+    window.addEventListener('pagehide', () => { _leftAs = getSession()?.name ?? null; });
     window.addEventListener('pageshow', (e) => {
         const now = getSession()?.name ?? null;
-        if (e.persisted && (now !== builtFor || now !== leftAs)) { _identityReload = true; window.location.reload(); }
+        if (e.persisted && (now !== _builtFor || now !== _leftAs)) { _identityReload = true; window.location.reload(); }
     });
     // ANOTHER TAB, WHILE THIS ONE IS OPEN (v24.56, auth review). The restore above covers Back; a
     // tab left open did nothing at all — sign out in one tab of a shared PC and Operations stayed
@@ -292,6 +299,20 @@ export function reloadIfRestoredForSomeoneElse() {
         if (e.key !== AUTH_KEY) return;
         if (sessionName(e.oldValue) !== (getSession()?.name ?? null)) { _identityReload = true; window.location.reload(); }
     });
+}
+
+/**
+ * The page has just been rebuilt, in place, for whoever is signed in NOW: from here on it is THEIR
+ * page. Call it after an in-place sign-in has redrawn everything the page built for the previous
+ * identity (its drawer, its data). Without it the guard keeps comparing with the identity the page
+ * was LOADED for, and a restore for the member who signed in costs a needless reload (the harmless
+ * case named on `reloadIfRestoredForSomeoneElse`). It never makes the guard let a DIFFERENT member
+ * through: only the built-for identity moves, to the current one, and the identity at `pagehide` is
+ * still recorded as the page is left, so a later sign-out or change still differs. Called before the
+ * guard is installed it changes nothing: installing reads the session afresh.
+ */
+export function rebaseRestoreGuard() {
+    _builtFor = getSession()?.name ?? null;
 }
 
 /** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed

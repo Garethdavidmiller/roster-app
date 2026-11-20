@@ -75,7 +75,7 @@ import { speakAfterMount } from './status-text.js';
 // the split is along the line this module's own header already stated. `initLockCards` below
 // hands them the four collaborators they cannot import back without a cycle.
 import { initLockCards, resetUnlockFailures, hideLockPanel, showLockPanel, showSignInPanel,
-         showMemberPanel, dismissSignInForm, takePinFirst, PIN_FIRST_HASH } from './calendar-lock-cards.js';
+         showMemberPanel, dismissSignInForm, signInInFlight, afterSignInSettles, takePinFirst, PIN_FIRST_HASH } from './calendar-lock-cards.js';
 import { hasCalendarAccess, setCalendarAccess } from './calendar-access-state.js';
 
 /** The exchange endpoint. Same region + project as every other MYB function. */
@@ -123,6 +123,12 @@ let _onEveryGrant = null;
 /** Told when a lock card that needs somebody to type is up (calendar-app.js → the speed recorder,
  *  which this module does not import). @type {(() => void)|null} */
 let _onAwaitingInput = null;
+/** Runs when a sign-in on a card is granted IN PLACE, before the grant (`finishSignIn`): the page's
+ *  own things built at load for nobody. @type {(() => void)|null} */
+let _onSignedInInPlace = null;
+/** Has this page EVER been granted? Reset only as `initCalendarAccess` starts, before any grant: a
+ *  page built for one grant is not rebuilt in place for a sign-in (`finishSignIn`). */
+let _everGranted = false;
 /** @type {(() => void)|null} */
 let _resolveAuth = null;
 
@@ -223,9 +229,12 @@ function watchForLateNamedIdentity() {
             const late = decideAccess({ session: getSession(), firebaseUser: u });
             if (late === 'viewer') { grantLateViewer(u, stop, gen); return; }
             if (late !== 'named') return;
+            // A sign-in typed on a card may be putting this identity in place: ITS success grants
+            // (`finishSignIn`), after the session is saved and the forced set-password step's
+            // marker written, so this waits for it (`grantNamedOnceFree`).
             stop();
             console.warn('[CalendarAccess] a named identity restored after the access decision — granting.');
-            grant('named');
+            grantNamedOnceFree();
         }, () => stop());
     } catch { /* an auth layer that cannot be watched simply leaves the panel up */ }
     return stop;
@@ -263,6 +272,7 @@ function grant(/** @type {'named'|'viewer'} */ type) {
     // A fresh session starts with a clean slate on the CLIENT backoff too, or a re-lock hours later
     // begins one failure from the delay. The server's window is authoritative and is not touched.
     resetUnlockFailures();
+    _everGranted = true;
     document.body.classList.remove('calendar-locked');
     document.body.classList.add('calendar-unlocked');
     hideLockPanel();
@@ -442,12 +452,39 @@ export async function lockCalendar() {
     window.location.reload();
 }
 
+/**
+ * A sign-in on one of the cards has succeeded: grant IN PLACE, or reload (ROADMAP_HISTORY.md →
+ * "Calendar sign-in without the reload"). Until v26.40 it always reloaded, and the reload did three jobs.
+ *
+ * IN PLACE when this page has never been granted and the live session and identity decide `named`.
+ * Nothing has been built for anybody, so the grant builds the Calendar for this member exactly as the
+ * reload's boot would, and does the three jobs: `onSignedInInPlace` rebuilds what the page built at
+ * load for nobody (the menu, the Back guard's owner); the first grant's `onGranted` runs the forced
+ * set-password step, whose marker the sign-in wrote before calling here; and the grant's one write
+ * opens a document a locked tap was holding, as the PIN's does.
+ *
+ * A RELOAD otherwise, as before: a page granted once (to a PIN viewer, or to a member whose access
+ * lapsed mid-visit) holds a Calendar built for that grant, which no in-place repaint is sure to reach;
+ * and a decision that is not `named` is the boot's to make from ground truth.
+ * @returns {'in-place'|'reload'}
+ */
+export function finishSignIn() {
+    if (_everGranted || decideAccess({ session: getSession(), firebaseUser: auth.currentUser }) !== 'named') {
+        window.location.reload();
+        return 'reload';
+    }
+    dismissSignInForm({ evenMidSignIn: true });   // the come-back card's full-screen form; the front door's goes with the slot
+    if (_onSignedInInPlace) { try { _onSignedInInPlace(); } catch (e) { console.error('[CalendarAccess] the signed-in hook failed', e); } }
+    grant('named');
+    return 'in-place';
+}
+
 // ── The cards ───────────────────────────────────────────────────────────────────────────────────
 //
 // Wired at module scope, so a card can never be shown before its collaborators exist. Each is a
 // function declaration here or an import (the workspace switch is calendar-lock-slot.js's), so
 // hoisting and import binding make this safe here.
-initLockCards({ unlockWithPin, getAccessType, setWorkspaceHidden, unlockUrl: UNLOCK_URL, onAwaitingInput: () => _onAwaitingInput?.() });
+initLockCards({ unlockWithPin, getAccessType, setWorkspaceHidden, unlockUrl: UNLOCK_URL, onAwaitingInput: () => _onAwaitingInput?.(), finishSignIn });
 
 /** How long the decision may take before the page has to say something. Long enough that a normal
  *  boot — where access resolves in the same tick the workspace would have rendered — never flashes
@@ -459,6 +496,18 @@ const SKELETON_AFTER_MS = 400;
  *  card at once). Shorter than `trySilentReauth`'s own 8s ceiling on purpose: the attempt keeps
  *  running behind the card and a late success still grants. */
 const SILENT_BEFORE_CARD_MS = 4000;
+
+/** Grant `named` now — or, while a card's own sign-in is in flight, once it has settled, and only if
+ *  nothing granted meanwhile: its success grants for itself (`finishSignIn`), after the forced
+ *  set-password step's marker is written, and a grant a moment earlier ran the first grant without
+ *  it (review, 20 Nov 2026). Called by the late-identity watcher and the late silent sign-in. */
+function grantNamedOnceFree() {
+    if (!signInInFlight()) { grant('named'); return; }
+    afterSignInSettles(() => {
+        if (getAccessType() === 'none'
+            && decideAccess({ session: getSession(), firebaseUser: auth.currentUser }) === 'named') grant('named');
+    });
+}
 
 /**
  * Re-establish the member's own Firebase identity with nothing typed, if that is possible.
@@ -541,7 +590,7 @@ export function handleAccessLost() {
 /**
  * Decide access and either start the Calendar or show the unlock panel.
  *
- * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null, paintBeforeDecision?: (() => boolean)|null, onAwaitingInput?: (() => void)|null }} deps
+ * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null, paintBeforeDecision?: (() => boolean)|null, onAwaitingInput?: (() => void)|null, onSignedInInPlace?: (() => void)|null }} deps
  *   onGranted runs ONCE, the first time access is granted. It is how `calendar-app.js` defers every
  *   piece of Calendar initialisation — the member dropdown, the render, the fetch, the swipe handler
  *   — so that none of it exists while locked. Running it twice would duplicate all of that.
@@ -556,12 +605,16 @@ export function handleAccessLost() {
  *   onAwaitingInput is told when a card that needs somebody to TYPE goes up — the PIN
  *   card or the member's come-back card — so the page's speed sample stops there. Telemetry stays
  *   in calendar-app.js; this module only says when.
+ *   onSignedInInPlace runs when a sign-in on a card is granted without a reload, BEFORE that grant:
+ *   what the page built at load for whoever was signed in then is rebuilt here (`finishSignIn`).
  * @returns {Promise<'named'|'viewer'|'none'>}
  */
-export async function initCalendarAccess({ onGranted, onEveryGrant = null, paintBeforeDecision = null, onAwaitingInput = null }) {
+export async function initCalendarAccess({ onGranted, onEveryGrant = null, paintBeforeDecision = null, onAwaitingInput = null, onSignedInInPlace = null }) {
     _onGranted = onGranted;
     _onEveryGrant = onEveryGrant;
     _onAwaitingInput = onAwaitingInput;
+    _onSignedInInPlace = onSignedInInPlace;
+    _everGranted = false;   // a page starts never granted; the boot calls this once, before any grant
     // Hide the workspace SYNCHRONOUSLY, before any await. The decision below is asynchronous, and
     // between here and there the browser paints — so leaving the workspace visible would flash an
     // empty Calendar shell at a member who is about to be shown their roster, and worse, would show
@@ -641,6 +694,6 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null, paint
     showMemberPanel(held.name);
     // `null` means the attempt is still in flight past the defer bound. A late success is still a
     // success: honour it exactly the way the watcher honours a late restore.
-    if (ok === null) silent.then(late => { if (late && getAccessType() === 'none') grant('named'); });
+    if (ok === null) silent.then(late => { if (late && getAccessType() === 'none') grantNamedOnceFree(); });
     return 'none';
 }

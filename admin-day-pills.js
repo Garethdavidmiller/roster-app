@@ -15,6 +15,8 @@
  *   admin-shift-rules.js, and the single-row save in admin-app.js).
  *
  * ── SPARE ON A SUNDAY OR BOXING DAY: THE OTHER PILL OFFERS SPARE ALONE (owner decision, Nov 2026) ──
+ *    (except where that day is ALSO Christmas Day or Boxing Day — never a Spare turn, owner 19 Nov
+ *    2026 — so Boxing Day, and a Sunday 25 December, have no Other pill at all: the branch above it)
  *
  * Spare lives in the Other submenu (`PILL_TYPES`, admin-shift-types.js) but is its OWN type,
  * `spare_shift` — a standby turn, not an Other day. Neither Sunday rule forbids it

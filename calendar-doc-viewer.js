@@ -91,7 +91,8 @@ function _orAfter(p, ms) {
  *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). A tap while it is shut shows
  *   what to do and issues NO read, cached or live; the tap is remembered and finished when access
  *   arrives, so a notification deep link that landed on the PIN card still opens the document once
- *   the PIN is in — or once the member signs in, which reloads the page and is carried across it.
+ *   the PIN is in — or once the member signs in, in place, or across the reload a sign-in still makes
+ *   on a page granted before (calendar-access.js → `finishSignIn`), which carries it.
  *   Defaults to always-open. authReady — resolves once a Firebase session exists.
  *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
  *   accessDecided — settles once the Calendar has decided access, granted or locked. This viewer
@@ -187,10 +188,11 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         openDoc(key);
     });
 
-    // A TAP THE LOCK HELD SURVIVES A RELOAD (whole-app review, 10 Nov 2026). Both sign-ins on a locked
-    // Calendar reload the page, and the hash was consumed at the tap — so "or sign in" brought the
-    // member back to a Calendar with no document. The held tap is written down as the page unloads and
-    // taken back at the foot of this function; calendar-huddle-viewer.js has the same pair.
+    // A TAP THE LOCK HELD SURVIVES A RELOAD (whole-app review, 10 Nov 2026). A sign-in on a locked
+    // Calendar reloaded the page until v26.40 (now only on a page granted before, `finishSignIn`), and
+    // the hash was consumed at the tap — so "or sign in" brought the member back to a Calendar with no
+    // document. The held tap is written down as the page unloads and taken back at the foot of this
+    // function; calendar-huddle-viewer.js has the same pair.
     window.addEventListener('pagehide', () => {
         try {
             // Only a tap the LOCK holds has a key: a grant, or an open made with access, clears it.

@@ -267,7 +267,8 @@ export function buildWeekGridInto(container, dateStr) {
         container.appendChild(row);
 
         // What this day cannot take is turned off at its pills, with the reason — the Sunday rule's layer 1,
-        // Boxing Day, and before the start date; Other offers Spare alone on a Sunday or Boxing Day.
+        // Boxing Day, and before the start date; Other offers Spare alone on an ordinary Sunday (never on
+        // 25 or 26 December, which take no Spare turn).
         restrictDayPills(row, { sunday: isSunday(dateISO), boxing, beforeStart, christmas: christmasDayName(dateISO) });
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));

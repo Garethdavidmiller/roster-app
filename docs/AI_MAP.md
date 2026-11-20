@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: November 2026 — v26.30 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.40 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -50,6 +50,7 @@ gone, and that no card outgrows its cap.
 | The document gate on the Calendar — may the Huddle, Circular and Newsletter be read (opened on the grant, shut on access lost) | `calendar-doc-access.js` |
 | Whether Calendar access is HELD right now — the one copy the roster gate and the document gate both read | `calendar-access-state.js` |
 | WHEN the Calendar page may draw — the start-up stage, the one wait for a swipe, the focus owed to the next grid | `calendar-redraw.js` |
+| The Calendar's menu — built for the saved session, and rebuilt in place for whoever signs in | `calendar-drawer.js` |
 | The notification prompt strip and silent renewal on the Calendar (never on the shared PIN viewer) | `calendar-notif-prompt.js` |
 | The install strip on the Calendar, and the route the install notice asks of it | `install-prompt.js` |
 | Daily Huddle viewer — the `#huddle` hash, the subscription, the two render paths, the per-table scroll boxes (wrapTables) | `calendar-huddle-viewer.js` |
@@ -155,11 +156,11 @@ Keyboard navigation and the hover tooltip for the month grid: a roving tabindex 
 
 ### `calendar-access.js`
 The Calendar's access gate: it decides at boot, shows the right card, exchanges the staff PIN for a session-only viewer identity, and re-locks. It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–10, 17–20; running the PIN: OPERATIONS_REFERENCE.md → "Staff PIN access for the Calendar". Tested by `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `handleAccessLost` · `initCalendarAccess`
+- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
 The three cards that can stand where the Calendar goes — the member sign-in card (the front door), the staff-PIN card and the member's come-back card — with their wiring and the unlock backoff. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the four things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `PIN_FIRST_HASH` · `initLockCards` · `resetUnlockFailures` · `takePinFirst` · `hideLockPanel` · `dismissSignInForm` · `showLockPanel` · `showSignInPanel` · `showMemberPanel`
+- **Exports:** `PIN_FIRST_HASH` · `initLockCards` · `resetUnlockFailures` · `takePinFirst` · `hideLockPanel` · `signInInFlight` · `afterSignInSettles` · `dismissSignInForm` · `showLockPanel` · `showSignInPanel` · `showMemberPanel`
 
 ### `calendar-lock-slot.js`
 The one place on the Calendar page where a card stands in for the grid, at most one at a time: mounting and unmounting it (`mountLockCard` replaces, never stacks), the boot skeleton and its timer, and hiding the workspace the card stands in for (`setWorkspaceHidden`). It decides nothing; `calendar-access.js` does. Tested through `calendar-access.test.mjs`.
@@ -707,7 +708,7 @@ What the Admin override cache actually KNOWS: a coverage record of which members
 - **Exports:** `emptyCoverage` · `withMember` · `withAll` · `hasAuthorityFor` · `coversEveryone` · `replaceMemberSlice` · `mergeCappedRead`
 
 ### `admin-shift-rules.js`
-The two rules a staged shift change must not break, maximum length and minimum rest, plus the days that take no change at all (before the member's start date; an Other day on Boxing Day) and the configured years the week grid may move within. Pure: it DECIDES and returns the sentences and the failed dates; the caller (`validateShiftRules` in `admin-overrides.js`, and `admin-app.js`'s Save) PAINTS. Tested by `admin-shift-rules.test.mjs`.
+The two rules a staged shift change must not break, maximum length and minimum rest, plus the days that take no change at all (before the member's start date; an Other day on Boxing Day; a Spare turn on Christmas Day or Boxing Day) and the configured years the week grid may move within. Pure: it DECIDES and returns the sentences and the failed dates; the caller (`validateShiftRules` in `admin-overrides.js`, and `admin-app.js`'s Save) PAINTS. Tested by `admin-shift-rules.test.mjs`.
 - **Exports:** `MAX_SHIFT_MINS` · `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours` · `constrainingTime` · `checkShiftRules` · `isBoxingDay` · `christmasDayName` · `weekStepAllowed` · `linkableDate` · `checkDayRules`
 
 ### `admin-deep-link.js`
@@ -939,7 +940,7 @@ The pure write-safety rules, every dependency injected: one refresh-and-retry fo
 
 ### `page-session.js`
 How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
-- **Exports:** `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `guardNamedSession`
+- **Exports:** `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `guardNamedSession`
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page; a swipe back asks nothing) and offered to the same member on the next load. Its six rules are the header: never applied silently, never across members, a mirror of the unsaved state at the last hide that deletes only its own copy, a day then gone, a draft is work and not a decision, and work a save has since landed is not unsaved. Written through `keepDraftWhenHidden` (`page-session.js`); used by Admin and Links. Tested in `page-session.test.mjs`.
@@ -1256,6 +1257,10 @@ Is Calendar access held right now? The ONE copy: written only by `calendar-acces
 ### `calendar-redraw.js`
 WHEN the Calendar page may draw, and what its next draw owes: one scheduler, created by `calendar-app.js`, that decides when and on which surface — the start-up stages, the one wait for a swipe, the focus owed to the next grid — and draws nothing itself. Decisions: `.claude/rules/calendar.md`; tested by `calendar-redraw.test.mjs` and the `redraw:` tests in `e2e/calendar.spec.js`.
 - **Exports:** `GESTURE_POLL_MS` · `START_STAGES` · `createRedrawScheduler`
+
+### `calendar-drawer.js`
+The Calendar's menu (the shared drawer), built for the SAVED session — never the picked name — when it is built, and able to be built again for whoever is signed in now, with the same page hooks. The rebuild runs when a lock card's sign-in is granted without a reload (`finishSignIn`, through the page's `onSignedInInPlace`). Tested by `calendar-drawer.test.mjs` and the menu-rebuild test in `e2e/calendar-pin.spec.js`.
+- **Exports:** `calendarDrawerOptions` · `wireCalendarDrawer` · `rewireCalendarDrawer`
 
 ---
 

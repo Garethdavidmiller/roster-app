@@ -2910,6 +2910,31 @@ describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
         }
     });
 
+    test('a SPARE printed over an EARLIER IMPORT reads as the rest day the owner chose — an unticked "Clear old" (review, 20 Nov 2026)', () => {
+        // A draft's shift, or a pre-v26.38 Spare, left by an earlier upload. Kept GUARDED, it stayed with
+        // no control to remove it — stricter than the same sheet printing RD there.
+        for (const old of [{ type: 'shift', value: '13:30-21:00' }, { type: 'spare_shift', value: 'SPARE' }]) {
+            const imp = { id: 'i1', memberName: m.name, date: BOXING, ...old, source: 'roster_import' };
+            const st = states({ [BOXING]: 'SPARE' }, [imp]);
+            const s = st.get(`${m.name}|${BOXING}`);
+            assert.deepEqual([s.state, s.chosen], ['REMOVE_IMPORT', false], `${old.type}: offered, never ticked`);
+            assert.deepEqual(collectRosterWrites(st), [], `${old.type}: nothing happens unless the admin ticks it`);
+            s.chosen = true;
+            const w = collectRosterWrites(st);
+            assert.deepEqual(w.map(x => [x.replaceId, x.value, x.deleteOnly]), [['i1', null, true]],
+                `${old.type}: ticked, the old import goes and nothing is written in its place`);
+        }
+        // Before 2026 the Christmas-leave rule does not untick a row, so this one must, on its own: 2025.
+        const d25 = '2025-12-26';
+        const days25 = ['2025-12-21', '2025-12-22', '2025-12-23', '2025-12-24', '2025-12-25', d25, '2025-12-27'];
+        const imp25 = { id: 'i3', memberName: m.name, date: d25, type: 'shift', value: '13:30-21:00', source: 'roster_import' };
+        const s25 = computeCellStates({ parsed: [{ memberName: m.name, shifts: { [d25]: 'SPARE' } }], dates: days25 }, [imp25])
+            .get(`${m.name}|${d25}`);
+        assert.deepEqual([s25.state, s25.christmas, s25.chosen], ['REMOVE_IMPORT', false, false], '2025: offered, never ticked');
+        const rest = { id: 'i2', memberName: m.name, date: XMAS, type: 'correction', value: 'RD', source: 'roster_import' };
+        assert.equal(states({ [XMAS]: 'SPARE' }, [rest]).get(`${m.name}|${XMAS}`).state, 'COVERED', 'the same rest day again is left alone');
+    });
+
     test('an unreadable cell there never offers the spare reading — picked, it was a "Rest" over the leave', () => {
         const parsed = { parsed: [{ memberName: m.name, shifts: shiftsWith({ [BOXING]: 'UNKNOWN|SPARE or 13:30-21:00?' }) }],
             dates: DATES, choices: { [`${m.name}|${BOXING}`]: ['SPARE', '13:30-21:00'] } };
