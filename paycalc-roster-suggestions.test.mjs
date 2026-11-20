@@ -110,20 +110,30 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.equal(s.bhOtM, 0);
   });
 
-  test('BH override when base is RD → bhOt bucket, not bh (non-rostered BH worked, v15.70)', () => {
-    // L. Springer base = RD on May Day (2026-05-04, a bank holiday). Working it via a Shift
-    // override is Bank Holiday OVERTIME ("Bank Holiday Overtime 1.25") — same 1.25× rate, correct
-    // payslip field. Confirmed by Gareth. (A plain shift on a rest-day SATURDAY is a moved day since
-    // 19 Nov 2026; this bank-holiday rule was not changed with it.)
+  test('a plain SHIFT on a rest-day bank holiday is a day moved there → Bank Holiday Rostered, not overtime (owner, 20 Nov 2026)', () => {
+    // L. Springer base = RD on May Day (2026-05-04, a bank holiday). A shift recorded there is a
+    // working day moved onto it, priced as the Saturday rule prices one on a Saturday off: "Bank
+    // Holiday Rostered 1.25", inside the contracted hours. As Bank Holiday Overtime (to 20 Nov 2026)
+    // it was paid on top of them — about a day's basic pay too much for a swap.
     _setOverridesForTest(new Map([
       ['2026-05-04', { type: 'shift', value: '09:00-17:00', _ts: 1, _manual: true }],
     ]));
     const s = getRosterSuggestion(period('2026-05-04'), lSpringer);
     assert.ok(s);
-    assert.equal(s.bhOtCount, 1);
-    assert.equal(s.bhOtH, 8);   // 09:00-17:00
-    assert.equal(s.bhOtM, 0);
-    assert.equal(s.bhCount, 0, 'must NOT land in the rostered "Bank Holiday Rostered" bucket');
+    assert.equal(s.bhCount, 1);
+    assert.equal(s.bhH, 8);     // 09:00-17:00, every hour of it: no rostered shift to cap against
+    assert.equal(s.bhM, 0);
+    assert.equal(s.bhOtCount, 0, 'a swapped bank holiday must not be priced as Bank Holiday Overtime');
+    assert.equal(s.days.find(d => d.type === 'bh')?.source, 'override');
+  });
+
+  test('a rest-day bank holiday recorded as RDW is still Bank Holiday Overtime — the record\'s type decides', () => {
+    _setOverridesForTest(new Map([
+      ['2026-05-04', { type: 'rdw', value: '09:00-17:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-05-04'), lSpringer);
+    assert.ok(s);
+    assert.deepEqual([s.bhOtCount, s.bhOtH, s.bhOtM, s.bhCount], [1, 8, 0, 0]);
   });
 
   test('Saturday recorded as RDW when base is RD → rdw bucket (confirmed payroll rule)', () => {

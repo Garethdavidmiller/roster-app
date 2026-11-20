@@ -240,6 +240,34 @@ describe('the background fill treats an hours box and its minutes box as ONE fig
         assert.equal(_els.rdwM.value, '45');
     });
 
+    // A RECORD THAT MOVED CATEGORY IS NOT COUNTED TWICE (review, 20 Nov 2026). A payslip filled before
+    // v26.41 holds a swapped bank holiday as Bank Holiday Overtime (gold, from the calendar); the
+    // calendar now gives the same hours as Bank Holiday Rostered. Kept, the old gold figure doubled it.
+    test('a gold figure the calendar no longer gives is cleared on COMPLETE data — the moved hours are not counted twice', () => {
+        gold();
+        _els.bhOtH.value = '8'; _els.bhOtH.classList.add('roster-suggested');   // restored gold from the snapshot
+        const moved = { bhH: 8, bhM: 0, bhOtH: 0, bhOtM: 0 };
+        _applyRosterSuggestion(moved, false, { clearZeros: true });
+        assert.equal(_els.bhH.value, 8, 'the new box fills');
+        assert.equal(_els.bhOtH.value, '', 'the old box kept the same 8 hours — counted twice');
+        assert.equal(_els.bhOtH.classList.contains('roster-suggested'), false);
+    });
+
+    test('…never on incomplete data, and never a figure somebody typed, in any box of the pair', () => {
+        gold();
+        _els.bhOtH.value = '8'; _els.bhOtH.classList.add('roster-suggested');
+        _applyRosterSuggestion({ bhH: 8, bhM: 0, bhOtH: 0, bhOtM: 0 });               // base-only / cached: no clearZeros
+        assert.equal(_els.bhOtH.value, '8', 'cleared on data that may be missing exactly these hours');
+        gold();
+        _els.bhOtH.value = '8';                                                   // typed: not gold
+        _applyRosterSuggestion({ bhOtH: 0, bhOtM: 0 }, false, { clearZeros: true });
+        assert.equal(_els.bhOtH.value, '8', 'typed overtime was destroyed');
+        gold();
+        _els.rdwH.value = '7'; _els.rdwH.classList.add('roster-suggested'); _els.rdwM.value = '15';   // half typed
+        _applyRosterSuggestion({ rdwH: 0, rdwM: 0 }, true, { clearZeros: true });
+        assert.deepEqual([_els.rdwH.value, _els.rdwM.value], ['7', '15'], 'a pair with a typed half is the member\'s');
+    });
+
     test('a pair the member never typed is still filled, and a gold pair is still refreshed', () => {
         gold();
         _applyRosterSuggestion(CAL);

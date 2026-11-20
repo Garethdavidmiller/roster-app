@@ -26,7 +26,7 @@
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
          DAY_NAMES, MONTH_ABB, escapeHtml, parseISODate, isWorkedShift } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS } from './override-utils.js';
+import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS, isChristmasOrBoxingDay } from './override-utils.js';
 import { isWorkingDate } from './al-entitlement.js';
 import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, isChristmasClosureDate, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
@@ -198,10 +198,16 @@ export function buildWeekGridInto(container, dateStr) {
         // below still reads `baseShift`, the closure's rest day — work there is RDW, as the hint says.
         // Asked of the SAME resolver the Calendar draws with, so neither can describe a day differently.
         const xmasDue   = isChristmasLeaveDay(member, date);
-        const xmasShows = xmasDue ? resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), true).shift : '';
-        const baseShown = xmasDue ? resolveDayShift(null, baseShift, isSunday(dateISO), true).shift : baseShift;
+        const xmasShows = xmasDue ? resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), true, isChristmasOrBoxingDay(dateISO)).shift : '';
+        const baseShown = xmasDue ? resolveDayShift(null, baseShift, isSunday(dateISO), true, isChristmasOrBoxingDay(dateISO)).shift : baseShift;
         const xmasDay   = date.getDate() === 25 ? 'Christmas Day' : 'Boxing Day';
-        const christmasNote = !xmasDue ? ''
+        // A Spare saved here before Spare turns were refused is not drawn on the Calendar (override-utils.js,
+        // `isOverrideDisplaySuppressed`), so the row says so beside it rather than "nothing to record"
+        // (review, 20 Nov 2026) — and says how it goes: its pill is on for that one act.
+        const hiddenSpare = existing?.type === 'spare_shift' && isChristmasOrBoxingDay(dateISO);
+        const christmasNote = hiddenSpare
+                ? `${xmasDay}: a Spare saved here before Spare turns were refused is not shown on the Calendar — select Other to remove it`
+            : !xmasDue ? ''
             : xmasShows === 'AL'
                 ? `${xmasDay}: due at work, so on annual leave that is never counted — nothing to record`
             : date.getDate() === 26 && isWorkedShift(xmasShows)
@@ -287,8 +293,9 @@ export function buildWeekGridInto(container, dateStr) {
                 row.classList.remove('prefilled-existing');
                 if (already) {
                     _deactivateRow(row, checkbox, pills, startEl, endEl);
-                    // Time inputs return to tabindex=-1, so focus stays on the pill.
-                    pill.focus();
+                    // Time inputs return to tabindex=-1, so focus stays on the pill — unless it was on only
+                    // to remove a record the day no longer takes, and is off again (admin-week-row-state.js).
+                    if (pill.disabled) /** @type {HTMLElement|null} */ (checkbox)?.focus(); else pill.focus();
                 } else {
                     _activateRow(row, checkbox, pills, startEl, endEl, type);
                     // Shift or RDW pre-fill the base shift's times, unless something is already entered.

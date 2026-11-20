@@ -1,6 +1,6 @@
 // @ts-check
 import { getBaseShift, parseISODate } from './roster-data.js';
-import { resolveEffectiveShift } from './override-utils.js';
+import { resolveEffectiveShift, isChristmasOrBoxingDay } from './override-utils.js';
 import { consumesEntitlement } from './al-entitlement.js';
 // admin-al-spare-note.js — the one sentence the AL booking preview says about Spare days.
 //
@@ -85,5 +85,5 @@ export function spareShiftNote(spareCount, totalDays) {
 export function countSpareDays(memberObj, dates, ovByDate) {
     if (!memberObj) return 0;
     return dates.filter(d => consumesEntitlement(memberObj, d, ovByDate)
-        && resolveEffectiveShift(ovByDate?.get(d) ?? null, getBaseShift(memberObj, parseISODate(d)), false).shift === 'SPARE').length;
+        && resolveEffectiveShift(ovByDate?.get(d) ?? null, getBaseShift(memberObj, parseISODate(d)), false, isChristmasOrBoxingDay(d)).shift === 'SPARE').length;
 }

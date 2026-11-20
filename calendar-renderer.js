@@ -19,7 +19,7 @@ import {
     getPatternShift,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, escapeHtml,
 } from './roster-data.js';
-import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isBeforeMemberStart, isOtherValue, parseOtherValue, OTHER_FLAVOURS, isChristmasOrBoxingDay } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave, allowanceForBoxingDay } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 import { getCurrentMember } from './calendar-member.js';
@@ -572,7 +572,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // christmas-leave.js has the rules. `isChristmasLeaveDay` already says no before a start date.
         const christmasDue = isChristmasLeaveDay(member, currentDate);
         const { shift: _effShift, rdwTime, derivedRdw: otherDerivedRdw, christmasLeave } =
-            resolveDayShift(override, shift, isSunday(dateStr), christmasDue);
+            resolveDayShift(override, shift, isSunday(dateStr), christmasDue, isChristmasOrBoxingDay(dateStr));
         shift = _effShift;
         // WHAT THE MEMBER WAS ROSTERED, for the panel's "changed from" pair. `getBaseShift` makes
         // both Christmas days a rest day for everybody, so on a day the member was DUE at work the

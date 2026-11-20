@@ -1252,6 +1252,19 @@ describe('Christmas leave — due at work on 25/26 December shows as leave that 
         assert.equal(cell.dataset.detailBy, undefined);
     });
 
+    test('a Spare saved on Boxing Day before Save refused one is not drawn — the day is what it would be without it (owner, 20 Nov 2026)', () => {
+        for (const [m, shows] of [[RESTER, (/** @type {any} */ c) => c.dataset.detailShiftValue !== 'SPARE'],
+                                  [MEMBER, (/** @type {any} */ c) => c.dataset.detailShiftValue === 'AL' && c.dataset.detailChristmas === '26']]) {
+            _overrideCache.set(`${m.name}|2026-12-26`, { type: 'spare_shift', value: 'SPARE', note: '', source: 'roster_import' });
+            const cell = cellFor(build(m), 26);
+            assert.ok(shows(cell), `${m === MEMBER ? 'due at work' : 'resting'}: drew ${cell.dataset.detailShiftValue}`);
+            assert.doesNotMatch(cell.getAttribute('aria-label') ?? '', /Spare/, 'the day\'s name still said Spare');
+        }
+        // …and the day before is untouched: a Spare on 24 December is still a Spare day.
+        _overrideCache.set(`${RESTER.name}|2026-12-24`, { type: 'spare_shift', value: 'SPARE', note: '', source: 'roster_import' });
+        assert.equal(cellFor(build(RESTER), 24).dataset.detailShiftValue, 'SPARE');
+    });
+
     test('not due at work: a rest day, and nothing about Christmas leave or a day in lieu', () => {
         _overrideCache.set(`${RESTER.name}|2026-12-26`, { type: 'rdw', value: '06:00-14:00', note: '', source: 'manual' });
         const cell = cellFor(build(RESTER), 26);

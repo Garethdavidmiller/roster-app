@@ -421,7 +421,10 @@ export function init() {
           const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
           if (_refreshP) {
             const _refreshS = getRosterSuggestion(_refreshP, getLoggedMember());
-            if (_refreshS) { _applyRosterSuggestion(_refreshS); calculate(); updateRosterHint(); }   // the hint again AFTER the fill
+            // clearZeros on the server's complete answer only: a gold figure the calendar no longer gives
+            // is taken off the screen (never saved — this refresh saves nothing), so a record that moved
+            // category is not counted twice (paycalc-roster-hint.js, `_calendarOwns`).
+            if (_refreshS) { _applyRosterSuggestion(_refreshS, false, { clearZeros: status === 'loaded' }); calculate(); updateRosterHint(); }   // the hint again AFTER the fill
           }
         });
       }

@@ -2144,6 +2144,33 @@ test('admin: a Spare turn can be recorded on a Sunday, never on Christmas Day or
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 
+// …AND ONE SAVED THERE BEFORE SAVE REFUSED IT CAN STILL BE TAKEN AWAY (owner, 20 Nov 2026: "Fix"). It sat
+// under an Other pill Boxing Day has off, so selecting it again — how every saved day is removed — did
+// nothing. The pill is on for that one act, and the save deletes the record.
+test('admin: a Spare saved on Boxing Day before it was refused is removed by selecting Other again', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'm_2026-12-26_G.%20Miller', memberName: 'G. Miller', date: '2026-12-26',
+            type: 'spare_shift', value: 'SPARE', note: '', source: 'roster_import', changedBy: 'G. Miller' }] };
+    });
+    await adminOnWeek(page, 'G. Miller', '2026-12-21');
+    const boxing = page.locator('.day-row[data-date="2026-12-26"]');
+    const other = boxing.locator('.pill-other');
+    await expect(other, 'the saved Spare is drawn under Other').toHaveAttribute('aria-pressed', 'true');
+    await expect(other).toBeEnabled();
+    await expect(boxing.locator('.col-pills'), 'the row says the Calendar does not show it, and how it goes')
+        .toContainText('is not shown on the Calendar — select Other to remove it');
+    await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]'), 'the pill offers removal, never a new Other day').toBeDisabled();
+    await other.click();
+    await expect(boxing, 'selecting it again clears the row').not.toHaveAttribute('data-type', /./);
+    await expect(other, 'and Boxing Day still takes no Other day').toBeDisabled();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('G. Miller', { timeout: 10000 });
+    const deleted = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).map((/** @type {string} */ p) => p.split('/').pop()));
+    expect(deleted).toEqual(['m_2026-12-26_G.%20Miller']);
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written in its place').toBe(0);
+});
+
 // A DAY BEFORE A MEMBER'S START DATE TAKES NO CHANGE (whole-app check, Nov 2026; decided default). The
 // Calendar, its legend and Team Week never show one (`isBeforeMemberStart`), so a change saved there was
 // accepted, receipted and then invisible for ever.

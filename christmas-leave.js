@@ -198,19 +198,21 @@ export function boxingDayLieuDays(member, year, overrides = []) {
  * `resolveEffectiveShift` with Christmas leave on top — what every surface that DRAWS a day calls (the
  * Calendar, Team Week View, the month legend, Overtime's roster and Admin's week grid), so no two can
  * show a Christmas day differently. Where `christmasLeave` (`isChristmasLeaveDay(member, date)`) is
- * true and NO override applies — none, or one suppressed exactly as it would be on any other day — the
+ * true and NO override applies — none, or one suppressed as `isOverrideDisplaySuppressed` says (as on any
+ * other day, and a Spare, which these two days cannot have, besides) — the
  * day is 'AL' and `christmasLeave` comes back true. Everything else is the shared ladder, unchanged.
  * @param {any} override  the day's override, or null
  * @param {string} baseShift  `getBaseShift` for the day
  * @param {boolean} sunday
  * @param {boolean} christmasLeave
+ * @param {boolean} christmasDay  `isChristmasOrBoxingDay(date)` — a legacy Spare there is not drawn
  * @returns {{ shift: string, rdwTime: string, derivedRdw: boolean, christmasLeave: boolean }}
  */
-export function resolveDayShift(override, baseShift, sunday, christmasLeave) {
-    if (christmasLeave && (!override || isOverrideDisplaySuppressed(override, baseShift, sunday))) {
+export function resolveDayShift(override, baseShift, sunday, christmasLeave, christmasDay) {
+    if (christmasLeave && (!override || isOverrideDisplaySuppressed(override, baseShift, sunday, christmasDay))) {
         return { shift: 'AL', rdwTime: '', derivedRdw: false, christmasLeave: true };
     }
-    return { ...resolveEffectiveShift(override, baseShift, sunday), christmasLeave: false };
+    return { ...resolveEffectiveShift(override, baseShift, sunday, christmasDay), christmasLeave: false };
 }
 
 /**
@@ -242,7 +244,7 @@ export function christmasLeaveDates({ member, year, overrides }) {
         .filter(d => {
             const iso = formatISO(d), due = isChristmasLeaveDay(member, d), winner = winners.get(iso) ?? null;
             if (!due && !(winner?.type === 'annual_leave' && isChristmasClosureDate(iso))) return false;
-            return resolveDayShift(winner, 'RD', d.getDay() === 0, due).shift === 'AL';
+            return resolveDayShift(winner, 'RD', d.getDay() === 0, due, true).shift === 'AL';
         })
         .map(d => formatISO(d));
 }

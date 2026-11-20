@@ -442,6 +442,25 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
   const written = [], cleared = [];
   for (const { hId, mId, cat } of HM_PAIRS) {
     const hVal = s[hId], mVal = s[mId];
+    // A CALENDAR FIGURE THE CALENDAR NO LONGER GIVES (review, 20 Nov 2026). When a record moves
+    // CATEGORY — v26.37 priced a plain shift on a Saturday off as a rostered Saturday, not RDW, and
+    // v26.41 one on a rest-day bank holiday as Bank Holiday Rostered, not Bank Holiday Overtime — a
+    // payslip filled before keeps its old figure in the old box, still gold, while the new box fills:
+    // the same hours twice, with the old row not even drawn at zero. On COMPLETE data, a box the
+    // calendar filled and nobody has touched (every filled box still gold) is cleared when the
+    // calendar's answer for it is now nothing, in ANY category and on the background refresh too.
+    // A hand-typed figure is never gold, so the rule below (CLEARABLE_CATS) still protects it.
+    if (clearZeros && (hVal == null || hVal === 0) && (mVal == null || mVal === 0)) {
+      const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
+      const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
+      if (elH && elM && _calendarOwns(elH, elM)) {
+        elH.value = ''; elM.value = '';
+        elH.classList.remove('roster-suggested');
+        elM.classList.remove('roster-suggested');
+        cleared.push(cat);
+        continue;
+      }
+    }
     if (force) {
       const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
       const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
@@ -503,6 +522,13 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
  * and the two are not close enough to trade.
  */
 const CLEARABLE_CATS = new Set(['sat', 'sun', 'bh', 'box']);
+
+/** Is this pair the calendar's own figure — something in it, and every filled box still gold?
+ *  @param {HTMLInputElement} elH @param {HTMLInputElement} elM */
+function _calendarOwns(elH, elM) {
+  const filled = [elH, elM].filter(el => el.value.trim() !== '');
+  return filled.length > 0 && filled.every(el => el.classList.contains('roster-suggested'));
+}
 
 /** Has the member typed anything into this category's hours or minutes box? @param {string} cat */
 function _hasEntry(cat) {

@@ -115,15 +115,21 @@ export function contractEvidence(ov) {
  * week grid still records one, and the Absence card does over work that earned a day in lieu, which the
  * absence takes back) and is hidden all the same; the Absence card leaves a rest day's RDW or free leave
  * as it is rather than hide it (`absenceHiddenDates`, al-swapped-days.js). `rdw`, `correction`,
- * `spare_shift`, and plain `shift` are never suppressed.
- * Takes `sunday` as a boolean (not the date) so this module stays free of a roster-data import — that
- * would be a cycle, since roster-data imports from here. Callers pass `isSunday(dateStr)`.
+ * and plain `shift` are never suppressed; `spare_shift` only on 25 or 26 December, in any year:
+ * the two days cannot be spare days (owner, 19 Nov 2026), so a Spare saved there before Save refused
+ * one (v26.38) — a Christmas 2025 import, say — shows the day as it would be without it (owner, 20 Nov
+ * 2026: "Fix"). Every write path already refuses one, so only such legacy records reach this.
+ * Takes `sunday` and `christmasDay` as booleans (not the date) so this module stays free of a
+ * roster-data import — that would be a cycle, since roster-data imports from here. Callers pass
+ * `isSunday(dateStr)` and `isChristmasOrBoxingDay(dateStr)`. Both are REQUIRED: a caller that leaves
+ * one out fails the typecheck rather than drawing a day differently from its neighbours.
  * @param {{type: string, replacedType?: string|null}} override
  * @param {string} baseShift  the member's base roster shift for that date
  * @param {boolean} sunday    whether the date is a Sunday
+ * @param {boolean} christmasDay  whether the date is 25 or 26 December (`isChristmasOrBoxingDay`)
  * @returns {boolean} true → ignore the override, keep the base shift
  */
-export function isOverrideDisplaySuppressed(override, baseShift, sunday) {
+export function isOverrideDisplaySuppressed(override, baseShift, sunday, christmasDay) {
     switch (override.type) {
         // A rest-day base hides an absence UNLESS the absence replaced contracted work — a swapped-in
         // day, whose only record is `replacedType` (review A3: it rendered as Rest over a real absence).
@@ -131,8 +137,20 @@ export function isOverrideDisplaySuppressed(override, baseShift, sunday) {
             && isContractedWorkOverride(override.replacedType ? { type: override.replacedType } : null) !== true);
         case 'annual_leave': return sunday;
         case 'other':        return sunday;
+        case 'spare_shift':  return christmasDay === true;
         default:             return false;
     }
+}
+
+/**
+ * Is `dateStr` 25 or 26 December, in ANY year? The display rule's `christmasDay` input — any year,
+ * unlike Christmas leave (`isChristmasClosureDate`, from 2026), because the no-Spare rule is one Save
+ * enforces in any year too (`checkDayRules`). Pure string test, so this module needs no date import.
+ * @param {string} dateStr  "YYYY-MM-DD"
+ * @returns {boolean}
+ */
+export function isChristmasOrBoxingDay(dateStr) {
+    return /^\d{4}-12-2[56]$/.test(String(dateStr ?? ''));
 }
 
 /**
@@ -729,6 +747,7 @@ const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift']);
  * @param {any}     override  The override for this member+date, or null/undefined.
  * @param {string}  baseShift The base shift from getBaseShift (Christmas/startDate already applied).
  * @param {boolean} sunday    isSunday(dateStr) — Sundays are non-contracted (suppression input).
+ * @param {boolean} christmasDay  isChristmasOrBoxingDay(dateStr) — no Spare there (suppression input).
  * @returns {{ shift: string, rdwTime: string, derivedRdw: boolean }}
  *   shift      canonical effective shift: `baseShift` when there is no override or it is
  *              suppressed; `'RDW'` for an rdw override; the raw Other grammar value for a
@@ -739,8 +758,8 @@ const SUNDAY_RDW_DISPLAY_TYPES = new Set(['shift']);
  *   derivedRdw true when the day is rest-day working by DERIVATION, not an `rdw` override: a parseable
  *              Other day with the flag or a rest-day base, or a timed `shift` on a Sunday. Read for Other days.
  */
-export function resolveEffectiveShift(override, baseShift, sunday) {
-    if (!override || isOverrideDisplaySuppressed(override, baseShift, sunday)) {
+export function resolveEffectiveShift(override, baseShift, sunday, christmasDay) {
+    if (!override || isOverrideDisplaySuppressed(override, baseShift, sunday, christmasDay)) {
         return { shift: baseShift, rdwTime: '', derivedRdw: false };
     }
     if (override.type === 'rdw') {

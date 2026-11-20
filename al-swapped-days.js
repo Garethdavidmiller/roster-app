@@ -53,7 +53,7 @@
 import { isSunday, getBaseShift, parseISODate } from './roster-data.js';
 import { isChristmasClosureDate } from './christmas-leave.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, nextReplacedType, isBeforeMemberStart,
-         isOverrideDisplaySuppressed } from './override-utils.js';
+         isOverrideDisplaySuppressed, isChristmasOrBoxingDay } from './override-utils.js';
 import { isWorkingDate, lowersAllowance } from './al-entitlement.js';
 
 /**
@@ -148,7 +148,8 @@ export function absenceHiddenDates({ dates, memberObj, ovByDate = null }) {
         if (!existing || !isWorkingDate(memberObj, d, ovByDate)) return false;
         const base = getBaseShift(memberObj, parseISODate(d));
         const absence = { type: ABSENT.type, replacedType: nextReplacedType(existing, ABSENT.type) };
-        return isOverrideDisplaySuppressed(absence, base, false) && !isOverrideDisplaySuppressed(existing, base, false)
+        const xmas = isChristmasOrBoxingDay(d);
+        return isOverrideDisplaySuppressed(absence, base, false, xmas) && !isOverrideDisplaySuppressed(existing, base, false, xmas)
             && !lowersAllowance(memberObj, d, ovByDate, ABSENT);
     });
 }
