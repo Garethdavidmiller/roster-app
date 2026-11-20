@@ -112,8 +112,9 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
 
   test('BH override when base is RD → bhOt bucket, not bh (non-rostered BH worked, v15.70)', () => {
     // L. Springer base = RD on May Day (2026-05-04, a bank holiday). Working it via a Shift
-    // override is Bank Holiday OVERTIME ("Bank Holiday Overtime 1.25"), mirroring the
-    // Saturday-on-RD → RDW rule — same 1.25× rate, correct payslip field. Confirmed by Gareth.
+    // override is Bank Holiday OVERTIME ("Bank Holiday Overtime 1.25") — same 1.25× rate, correct
+    // payslip field. Confirmed by Gareth. (A plain shift on a rest-day SATURDAY is a moved day since
+    // 19 Nov 2026; this bank-holiday rule was not changed with it.)
     _setOverridesForTest(new Map([
       ['2026-05-04', { type: 'shift', value: '09:00-17:00', _ts: 1, _manual: true }],
     ]));
@@ -142,7 +143,9 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
 
   test('a plain SHIFT on a rest-day Saturday is a day moved there → rostered Saturday, not RDW (owner, 19 Nov 2026)', () => {
     // A weekday swapped for the Saturday: the Tuesday recorded as a rest day, the Saturday as an
-    // ordinary shift. It pays "Ord Basic Pay @1.25" inside the contracted hours; as RDW it was paid
+    // ordinary shift. The Tuesday record is the realistic shape only — the engine does NOT read it:
+    // the record's TYPE on the Saturday alone decides (a plain shift with no weekday change prices
+    // the same, deliberately). It pays "Ord Basic Pay @1.25" inside the contracted hours; as RDW it was paid
     // on top of them — about a day's basic pay too much.
     _setOverridesForTest(new Map([
       ['2026-04-07', { type: 'correction', value: 'RD',       _ts: 1, _manual: true }],   // Tuesday made a rest day
@@ -745,7 +748,8 @@ describe('fetchOverridesForPeriod — override priority', () => {
 // payslip the fill had reached — its recorded Saturday back to nothing — and its Replace cleared
 // what the other payslip's map called zero. Each answer is kept under the payslip it is for.
 describe('getRosterSuggestion — each payslip reads its own recorded changes', () => {
-  // C. Reen's Saturdays are rest days, so a recorded shift on one is 9h of RDW, and without it nothing.
+  // C. Reen's Saturdays are rest days, so a recorded shift on one is 9h of Saturday hours (a moved
+  // day, since 19 Nov 2026), and without it nothing.
   const onScreen  = period('2026-04-11');
   const elsewhere = period('2026-05-16');
   const recordedSat = () => mockSnap([{ date: '2026-04-11', memberName: 'C. Reen', type: 'shift',

@@ -409,8 +409,10 @@ export function getRosterSuggestion(p, member) {
           }
         } else if (fromOv && baseValue !== 'SPARE') {
           // Shift override on a bank holiday whose base day was a REST day (not rostered, not
-          // SPARE) — you worked a BH you weren't scheduled for, so it's Bank Holiday OVERTIME,
-          // mirroring the Saturday-on-rest-day → RDW rule below. Same 1.25× rate as `bh`, but
+          // SPARE) — you worked a BH you weren't scheduled for, so it's Bank Holiday OVERTIME.
+          // (This once mirrored a Saturday-on-rest-day → RDW rule; since 19 Nov 2026 a plain shift
+          // on a rest-day Saturday is a moved day instead — the BH case was NOT changed with it, and
+          // is an open owner question, not a decision.) Same 1.25× rate as `bh`, but
           // this lands the hours in the correct payslip field ("Bank Holiday Overtime 1.25")
           // for reconciliation. (We reach here only when baseWorked is false — the rostered-BH
           // case was caught above; SPARE = "rostered, shift TBC", so it stays a rostered `bh`.)
