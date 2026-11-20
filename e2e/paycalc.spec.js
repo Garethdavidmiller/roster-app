@@ -400,6 +400,37 @@ test('paycalc: a refreshed calendar figure the member saves keeps following the 
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
+// …AND ONE THE CALENDAR MOVES TO ANOTHER BOX IS NOT COUNTED TWICE (review, 20 Nov 2026). v26.37 prices a
+// plain shift on a Saturday off as a rostered Saturday, not RDW (v26.41 does the same for a bank holiday),
+// so a payslip filled before holds the day in the old box, gold. Reopened, the new box filled and the old
+// one stayed: the same hours twice, the old row not even drawn at zero, Replace unable to clear it.
+test('paycalc: a calendar figure that moves box is taken out of the old one — never counted twice', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    // Sat 18 Jul 2026 is a rest day on G. Miller's roster. The record's TYPE is read at each load.
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        const type = sessionStorage.getItem('satType') || 'rdw';
+        w.__E2E = { ...(w.__E2E || {}), docs: [{ id: 'o1', memberName: 'G. Miller', date: '2026-07-18', type, value: '08:00-16:00', source: 'manual' }] };
+    });
+    const loaded = () => expect(page.locator('#rosterStateBadge')).toContainText('Includes recorded changes', { timeout: 10000 });
+    await page.goto('/paycalc.html');
+    await loaded();
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(page.locator('#rdwH'), 'premise: recorded as RDW, the calendar\'s 8 hours filled and saved').toHaveValue('8');
+    const satBefore = Number(await page.locator('#satH').inputValue() || 0);
+
+    await page.evaluate(() => sessionStorage.setItem('satType', 'shift'));   // the same day, now a moved working day
+    await page.reload();
+    await loaded();
+    await expect(page.locator('#satH'), 'the day is now a rostered Saturday').toHaveValue(String(satBefore + 8));
+    await expect(page.locator('#rdwH'), 'and is no longer Rest Day Working as well').toHaveValue('');
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // Whole-app review, Oct 2026: a SETTING change (the loan plan, the pension scheme) ran the payslip's
 // autosave, which writes the whole form — the calendar's display-only suggestion with it (invariant 11:
 // viewing never persists) — and wrote over saved entries that could not be read.

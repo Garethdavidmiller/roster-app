@@ -742,6 +742,14 @@ describe('a staged row read as draft data, and put back', () => {
         assert.equal(other.disabled, false);
         _activateRow(boxing.r, null, boxing.pills, boxing.startEl, boxing.endEl, 'correction');          // replaced by another type
         assert.equal(other.disabled, true, 'not the row\'s type any more, so off');
+        // …and a kept draft cannot put a NEW choice back on that pill (review, 20 Nov 2026): once a reload
+        // has drawn the record, the pill is on, and a Training or Spare draft read as available, then was
+        // refused at Save. A removal still comes back.
+        prefillRow(boxing.r, { id: 'ov1', date: '2026-12-26', type: 'spare_shift', value: 'SPARE' });
+        for (const flavour of ['TRG', 'SPARE']) {
+            assert.equal(applyRowDraft(boxing.r, { date: '2026-12-26', type: 'other', flavour }), false, flavour);
+        }
+        assert.equal(applyRowDraft(boxing.r, { date: '2026-12-26', remove: true }), true);
         // A pill the day takes is never touched by any of this.
         const open = draftRow({ date: '2026-12-08', existingId: 'ov2' });
         prefillRow(open.r, { id: 'ov2', date: '2026-12-08', type: 'annual_leave', value: 'AL' });

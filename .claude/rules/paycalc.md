@@ -236,6 +236,13 @@ Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled field
   instead of throwing, so `fetchOverridesForPeriod` returns `'cached'`, treated as `base-only` (⚠
   badge; the single Fill neither applies nor clears on it; the year fill names the period unreached,
   and gives up on a fetch after 15s — `paycalc-fill-year.js`, rule 3).
+- **A gold figure the calendar no longer gives is taken off, on COMPLETE data only** (20 Nov 2026,
+  `_calendarOwns`, `paycalc-roster-hint.js`): when a record moves box (the Saturday and bank holiday
+  rules above), a payslip filled before keeps the old box's gold figure while the new box fills — the
+  same hours twice. A pair the calendar filled and nobody touched (every filled box gold) is cleared
+  when the calendar's answer for it is now nothing, in any category and on the background refresh too
+  (display-only there, like the fill). A hand-typed figure is never gold, so `CLEARABLE_CATS` still
+  guards it. `e2e/paycalc.spec.js` → "a calendar figure that moves box".
 - **The single Fill re-checks that the payslip on screen is still the one it fetched for** before
   writing (the comment after its await in `paycalc-roster-hint.js`).
 - **A payslip with no special-rate hours is entered when it says so** (18 Nov 2026). Every hours box is

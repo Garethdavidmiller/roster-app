@@ -143,6 +143,15 @@ describe('Boxing Day: no Other day and no Spare turn, so no Other pill (owner, 1
         assert.equal(pill(row, 'other').getAttribute('aria-label'), 'Other — unavailable on Boxing Day: no Other day or Spare turn');
         assert.equal(row.dataset.spareOnly, undefined, 'nothing is left to press for the manager');
     });
+
+    test('every chip behind it is off too, saying why — the pill can be on again to remove a saved record (review, 20 Nov 2026)', () => {
+        const chips = [...row.querySelectorAll('.other-flavour-btn')];
+        assert.ok(chips.length > 1, 'premise: the strip has its chips');
+        for (const b of chips) {
+            assert.equal(b.disabled, true, b.dataset.flavour);
+            assert.match(b.getAttribute('aria-label') ?? '', / — unavailable on Boxing Day$/, b.dataset.flavour);
+        }
+    });
 });
 
 describe('Christmas Day: every pill, every Other day, but no Spare turn (owner, 19 Nov 2026)', () => {

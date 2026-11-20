@@ -201,7 +201,13 @@ export function buildWeekGridInto(container, dateStr) {
         const xmasShows = xmasDue ? resolveDayShift(existing ?? null, baseShift, isSunday(dateISO), true, isChristmasOrBoxingDay(dateISO)).shift : '';
         const baseShown = xmasDue ? resolveDayShift(null, baseShift, isSunday(dateISO), true, isChristmasOrBoxingDay(dateISO)).shift : baseShift;
         const xmasDay   = date.getDate() === 25 ? 'Christmas Day' : 'Boxing Day';
-        const christmasNote = !xmasDue ? ''
+        // A Spare saved here before Spare turns were refused is not drawn on the Calendar (override-utils.js,
+        // `isOverrideDisplaySuppressed`), so the row says so beside it rather than "nothing to record"
+        // (review, 20 Nov 2026) — and says how it goes: its pill is on for that one act.
+        const hiddenSpare = existing?.type === 'spare_shift' && isChristmasOrBoxingDay(dateISO);
+        const christmasNote = hiddenSpare
+                ? `${xmasDay}: a Spare saved here before Spare turns were refused is not shown on the Calendar — select Other to remove it`
+            : !xmasDue ? ''
             : xmasShows === 'AL'
                 ? `${xmasDay}: due at work, so on annual leave that is never counted — nothing to record`
             : date.getDate() === 26 && isWorkedShift(xmasShows)

@@ -2158,6 +2158,9 @@ test('admin: a Spare saved on Boxing Day before it was refused is removed by sel
     const other = boxing.locator('.pill-other');
     await expect(other, 'the saved Spare is drawn under Other').toHaveAttribute('aria-pressed', 'true');
     await expect(other).toBeEnabled();
+    await expect(boxing.locator('.col-pills'), 'the row says the Calendar does not show it, and how it goes')
+        .toContainText('is not shown on the Calendar — select Other to remove it');
+    await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]'), 'the pill offers removal, never a new Other day').toBeDisabled();
     await other.click();
     await expect(boxing, 'selecting it again clears the row').not.toHaveAttribute('data-type', /./);
     await expect(other, 'and Boxing Day still takes no Other day').toBeDisabled();

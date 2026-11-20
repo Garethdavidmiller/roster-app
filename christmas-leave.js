@@ -198,7 +198,8 @@ export function boxingDayLieuDays(member, year, overrides = []) {
  * `resolveEffectiveShift` with Christmas leave on top — what every surface that DRAWS a day calls (the
  * Calendar, Team Week View, the month legend, Overtime's roster and Admin's week grid), so no two can
  * show a Christmas day differently. Where `christmasLeave` (`isChristmasLeaveDay(member, date)`) is
- * true and NO override applies — none, or one suppressed exactly as it would be on any other day — the
+ * true and NO override applies — none, or one suppressed as `isOverrideDisplaySuppressed` says (as on any
+ * other day, and a Spare, which these two days cannot have, besides) — the
  * day is 'AL' and `christmasLeave` comes back true. Everything else is the shared ladder, unchanged.
  * @param {any} override  the day's override, or null
  * @param {string} baseShift  `getBaseShift` for the day

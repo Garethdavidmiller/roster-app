@@ -10,6 +10,8 @@
  *     · CHRISTMAS DAY: no Spare turn (owner, 19 Nov 2026 — "Christmas days and Boxing days cannot be
  *       spare days even if they fall in a usually spare week");
  *     · a day BEFORE THE MEMBER'S START DATE: nothing at all — the Calendar never shows one.
+ *   A record SAVED before a day refused its type keeps its own pill usable for one act, removing it
+ *   (`_onToRemove`, admin-week-row-state.js, after these rules run): never for a new choice.
  * Does NOT own: the sentences in the row that say why (they are part of the row's markup, in
  *   `buildWeekGridInto`), what an enabled pill does, or the backstops at Save (`checkDayRules`,
  *   admin-shift-rules.js, and the single-row save in admin-app.js).
@@ -76,8 +78,12 @@ export function restrictDayPills(row, { sunday, boxing, beforeStart, christmas =
         off(row.querySelector('.pill-shift'), 'Shift — unavailable on Sundays; record Sunday work as Rest Day Working (RDW)');
     }
     if ((sunday || boxing) && christmas) {
-        // Neither an Other day nor a Spare turn is left, so the pill itself is off.
+        // Neither an Other day nor a Spare turn is left, so the pill itself is off — and every chip behind
+        // it, because the pill can be ON again for one act, removing a record saved before (review,
+        // 20 Nov 2026: `_onToRemove`, admin-week-row-state.js), and its strip must offer nothing new.
         off(row.querySelector('.pill-other'), `Other — unavailable on ${christmas}: no Other day or Spare turn`);
+        row.querySelectorAll('.other-flavour-btn').forEach(b =>
+            off(b, `${(b.textContent ?? '').trim()} — unavailable on ${christmas}`));
     } else if (christmas) {
         off(row.querySelector('.other-flavour-btn[data-flavour="SPARE"]'), `Spare — unavailable on ${christmas}`);
     } else if (sunday || boxing) {

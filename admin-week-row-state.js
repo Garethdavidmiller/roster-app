@@ -232,7 +232,10 @@ export function _syncOverwriteBadge(row) {
 // a day refused its type — a Spare on Boxing Day from before v26.38, a legacy Sunday leave — sat under
 // a pill `restrictDayPills` had turned OFF, so the tap did nothing. The held pill is turned back on for
 // that ONE act: pressed again it clears the row, and the moment it is not the row's type it is off
-// again, so it can never be picked afresh. The reason stays on it, with how to remove the record.
+// again, so it can never be picked afresh, a kept draft cannot put a choice back on it (`applyRowDraft`),
+// and on 25/26 December the Other chips behind it are off too (`restrictDayPills`). Editing the held
+// record's own times is still possible: Save's day rules (`checkDayRules`, the Sunday save) answer that.
+// The reason stays on the pill, with how to remove the record.
 
 /** Turn the held record's own pill back on, if the day has it off, so selecting it again removes it.
  *  @param {NodeListOf<Element>} pills */
@@ -395,7 +398,8 @@ export function readRowDraft(row) {
 /**
  * Put one row back into the staged state `d` describes, through the same two states a tap reaches.
  * False — and the row left exactly as it was — when the row can no longer take it: a removal of a
- * record that is not there any more, or a type this day does not offer (a Sunday's disabled pills).
+ * record that is not there any more, or a type this day does not offer (a Sunday's disabled pills, or a
+ * pill on only to remove a record saved before the day refused its type).
  * @param {HTMLElement} row
  * @param {RowDraft} d
  * @returns {boolean}
@@ -406,7 +410,9 @@ export function applyRowDraft(row, d) {
     const startEl  = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
     const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
     const pill = /** @type {HTMLButtonElement|undefined} */ ([...pills].find(p => /** @type {HTMLElement} */ (p).dataset.type === d.type));
-    if (d.remove ? !row.dataset.existingId : (!pill || pill.disabled)) return false;
+    // A pill on only to REMOVE a saved record the day no longer takes (`_onToRemove`) offers that, and
+    // nothing a draft could put back (review, 20 Nov 2026) — the day's rule is what the pill was off for.
+    if (d.remove ? !row.dataset.existingId : (!pill || pill.disabled || pill.dataset.removeOnly === '1')) return false;
     // …nor an Other flavour the row has turned off (a Spare on Christmas Day, owner 19 Nov 2026): put
     // back pressed, it read as available and Save then refused it (review, 20 Nov 2026).
     if (d.type === 'other' && d.flavour) {

@@ -1017,7 +1017,8 @@ chose a REST DAY over Christmas leave. So from Christmas 2026:
   (`isOverrideDisplaySuppressed`, whose `christmasDay` input every caller must pass, so the typecheck
   fails one that forgets). Admin still draws the record, so it can be removed: its pill, off on that
   day, is on for that one act (`_onToRemove`, `admin-week-row-state.js`), as for any saved record a
-  day no longer takes.
+  day no longer takes — and on 25/26 December the Other chips behind it are off too, a kept draft cannot
+  put a choice back on it, and the row says the Calendar does not show the record.
 
 **It replaced** the 5 Nov 2026 rule that a spare day counted as due at work there, and it answered the
 ROADMAP question of whether a Spare turn on a Boxing Day earns a day in lieu: there can be no such
