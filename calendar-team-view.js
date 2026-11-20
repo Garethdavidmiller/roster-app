@@ -16,7 +16,7 @@ import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
 import { lazyImport } from './sw-register.js';
 import { watchOverflowHint } from './overflow-hint.js';
-import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
+import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, isChristmasOrBoxingDay } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift, isUncountedChristmasLeave } from './christmas-leave.js';
 import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
 
@@ -208,7 +208,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         // and an Other day's derived-RDW-ness comes back as derivedRdw.
         // Christmas leave (v25.37) shows here as it does on the member's own calendar — christmas-leave.js.
         const { shift, rdwTime, derivedRdw, christmasLeave } =
-            resolveDayShift(override, baseShiftTV, isSunday(dateStr), isChristmasLeaveDay(member, date));
+            resolveDayShift(override, baseShiftTV, isSunday(dateStr), isChristmasLeaveDay(member, date), isChristmasOrBoxingDay(dateStr));
 
         // `label` is the accessible name (used as the cell's aria-label) so meaning
         // never depends on colour alone (the rest cell is just a coloured "–") and

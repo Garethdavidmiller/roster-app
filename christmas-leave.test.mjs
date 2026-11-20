@@ -23,7 +23,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 import { teamMembers, getBaseShift, getPatternShift, isWorkedShift, formatISO, CONFIG } from './roster-data.js';
 import { getALEntitlement } from './al-contract.js';
-import { resolveEffectiveShift } from './override-utils.js';
+import { resolveEffectiveShift, isChristmasOrBoxingDay } from './override-utils.js';
 import {
     CHRISTMAS_LEAVE_FROM_YEAR, isChristmasLeaveDay, isChristmasClosureDate, boxingDayLieuDays,
     allowanceForBoxingDay, boxingDayForAllowance, allowanceYearsOf,
@@ -368,6 +368,20 @@ describe('a day shown wrongly — what each surface draws', () => {
         const sick = ov(CEA, '2026-12-25', 'sick', 'SICK');
         assert.equal(resolveEffectiveShift(sick, 'RD', false).shift, 'RD', 'premise: suppressed on a rest day');
         assert.equal(resolveDayShift(sick, 'RD', false, true).christmasLeave, true);
+    });
+
+    test('a Spare saved on 25 or 26 December is not drawn, in ANY year — on any other date it is (owner, 20 Nov 2026)', () => {
+        for (const date of ['2025-12-25', '2025-12-26', '2026-12-26', '2030-12-25']) {
+            const spare = ov(CEA, date, 'spare_shift', 'SPARE');
+            assert.equal(isChristmasOrBoxingDay(date), true, date);
+            assert.equal(resolveDayShift(spare, 'RD', false, false, true).shift, 'RD', `${date}: a spare week's Christmas is a rest day`);
+            assert.deepEqual(resolveDayShift(spare, 'RD', false, true, true),
+                { shift: 'AL', rdwTime: '', derivedRdw: false, christmasLeave: true }, `${date}: due at work, so Christmas leave`);
+        }
+        for (const date of ['2026-12-24', '2026-12-27', '2026-11-25', '2026-01-26', '']) {
+            assert.equal(isChristmasOrBoxingDay(date), false, date || '(none)');
+            assert.equal(resolveDayShift(ov(CEA, date, 'spare_shift', 'SPARE'), 'RD', false, false, false).shift, 'SPARE', date);
+        }
     });
 
     test('NOT due: exactly the shared ladder, field for field', () => {

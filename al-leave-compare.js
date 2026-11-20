@@ -63,7 +63,7 @@
  */
 
 import { getBaseShift, parseISODate, isSunday } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart, isOverrideDisplaySuppressed } from './override-utils.js';
+import { shouldReplaceOverride, isBeforeMemberStart, isOverrideDisplaySuppressed, isChristmasOrBoxingDay } from './override-utils.js';
 import { consumesEntitlement, alPosition, entitlementFor, entitlementNote, countedAlDates } from './al-entitlement.js';
 import { projectAlBooking } from './admin-al-projection.js';
 import { isChristmasClosureDate, isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
@@ -183,7 +183,7 @@ export function comparePerson({ person, days, member, records, year, todayStr, f
     for (const [date, w] of [...winners].sort(([a], [b]) => a.localeCompare(b))) {
         if (w.type !== 'annual_leave' || date < firstDate || date > lastDate || sheetLeave.has(date)) continue;
         const day = parseISODate(date);
-        if (isBeforeMemberStart(member, day) || isOverrideDisplaySuppressed(w, getBaseShift(member, day), isSunday(date))) continue;
+        if (isBeforeMemberStart(member, day) || isOverrideDisplaySuppressed(w, getBaseShift(member, day), isSunday(date), isChristmasOrBoxingDay(date))) continue;
         if (isChristmasClosureDate(date)) continue;
         // Next January belongs here only when the app takes it from THIS year (header).
         if (date > `${year}-12-31` && leaveYearOf({ ...w, date }) !== year) continue;
@@ -242,8 +242,9 @@ export function comparePerson({ person, days, member, records, year, todayStr, f
 function drawnDay({ member, day, date, ov, pattern }) {
     const sunday = isSunday(date);
     const before = isBeforeMemberStart(member, day);
-    const r = resolveDayShift(before ? null : ov, pattern, sunday, isChristmasLeaveDay(member, day));
-    const shown = !before && !!ov && !isOverrideDisplaySuppressed(ov, pattern, sunday);
+    const xmas = isChristmasOrBoxingDay(date);
+    const r = resolveDayShift(before ? null : ov, pattern, sunday, isChristmasLeaveDay(member, day), xmas);
+    const shown = !before && !!ov && !isOverrideDisplaySuppressed(ov, pattern, sunday, xmas);
     return { shift: r.shift, rdwTime: r.rdwTime, fromPattern: !shown && !r.christmasLeave, type: shown ? String(ov.type ?? '') : null };
 }
 

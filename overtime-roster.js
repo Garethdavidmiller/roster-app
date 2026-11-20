@@ -37,7 +37,7 @@
 
 import { db, COLLECTIONS, collection, query, where, getDocs } from './firebase-client.js';
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, collectOverrideRecords, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
+import { isRestShift, collectOverrideRecords, shouldReplaceOverride, isBeforeMemberStart, isChristmasOrBoxingDay } from './override-utils.js';
 import { isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { shiftSpanMinutes, rosterBadge } from './overtime-format.js';
 
@@ -173,7 +173,7 @@ function resolveWeek(member, dates, overrides) {
         // Before the member started there is no roster at all: `getBaseShift` already says rest,
         // and a record must not undo it — the guard the Calendar, Team Week and the legend apply.
         const override = isBeforeMemberStart(member, day) ? null : (overrides[date] || null);
-        const eff = resolveDayShift(override, base, isSunday(date), isChristmasLeaveDay(member, day));
+        const eff = resolveDayShift(override, base, isSunday(date), isChristmasLeaveDay(member, day), isChristmasOrBoxingDay(date));
         // The hours slot an override may carry (an RDW time, an Other day's actual times) is more
         // specific than the shift value, so it wins when present — the same precedence the calendar
         // renders from.

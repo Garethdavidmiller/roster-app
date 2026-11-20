@@ -1010,7 +1010,14 @@ chose a REST DAY over Christmas leave. So from Christmas 2026:
 - A Spare turn cannot be recorded on either day, in any year: Admin's week grid turns the Spare chip
   off (and on Boxing Day, which already refused Other days, the whole Other pill), and the Save
   refuses one (`checkDayRules`). The roster import shows a SPARE printed there as a row that records
-  nothing (`christmas-spare`, `normaliseCellValue`), never as a change to tick.
+  nothing (`christmas-spare`, `normaliseCellValue`), never as a change to tick — over an earlier
+  import, an unticked "Clear old" row instead (20 Nov 2026).
+- **A Spare saved there before Save refused one is not drawn** (owner, 20 Nov 2026: "Fix"), in any
+  year: the day shows what it would be without it — Rest, or Christmas leave for somebody due at work
+  (`isOverrideDisplaySuppressed`, whose `christmasDay` input every caller must pass, so the typecheck
+  fails one that forgets). Admin still draws the record, so it can be removed: its pill, off on that
+  day, is on for that one act (`_onToRemove`, `admin-week-row-state.js`), as for any saved record a
+  day no longer takes.
 
 **It replaced** the 5 Nov 2026 rule that a spare day counted as due at work there, and it answered the
 ROADMAP question of whether a Spare turn on a Boxing Day earns a day in lieu: there can be no such

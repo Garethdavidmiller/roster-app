@@ -727,6 +727,28 @@ describe('a staged row read as draft data, and put back', () => {
         assert.equal(restDay.rdwCb.checked, true, 'RDW is automatic on a rest day');
     });
 
+    test('a record saved before the day refused its type can be REMOVED by selecting it again — and never picked afresh (owner, 20 Nov 2026)', () => {
+        // A Spare on Boxing Day from before v26.38: restrictDayPills has the Other pill off.
+        const boxing = draftRow({ date: '2026-12-26', existingId: 'ov1', disabled: ['other'] });
+        const other = boxing.pills.find(p => p.dataset.type === 'other');
+        prefillRow(boxing.r, { id: 'ov1', date: '2026-12-26', type: 'spare_shift', value: 'SPARE' });
+        assert.equal(other.classList.contains('active'), true, 'premise: the saved Spare is drawn under Other');
+        assert.equal(other.disabled, false, 'its pill is on, so a tap can take it away');
+        _deactivateRow(boxing.r, null, boxing.pills, boxing.startEl, boxing.endEl);   // …the tap
+        assert.equal(boxing.r.dataset.type, undefined);
+        assert.equal(isStagedRow(boxing.r), true, 'a staged removal of the saved record');
+        assert.equal(other.disabled, true, 'and the pill is off again — the day still takes no Other');
+        prefillRow(boxing.r, { id: 'ov1', date: '2026-12-26', type: 'spare_shift', value: 'SPARE' });   // unticked: back to the record
+        assert.equal(other.disabled, false);
+        _activateRow(boxing.r, null, boxing.pills, boxing.startEl, boxing.endEl, 'correction');          // replaced by another type
+        assert.equal(other.disabled, true, 'not the row\'s type any more, so off');
+        // A pill the day takes is never touched by any of this.
+        const open = draftRow({ date: '2026-12-08', existingId: 'ov2' });
+        prefillRow(open.r, { id: 'ov2', date: '2026-12-08', type: 'annual_leave', value: 'AL' });
+        _deactivateRow(open.r, null, open.pills, open.startEl, open.endEl);
+        assert.equal(open.pills.some(p => p.disabled), false);
+    });
+
     test('a Spare the row now turns off (Christmas Day) is refused, and the row is left as it was (review, 20 Nov 2026)', () => {
         const xmas = draftRow({ date: '2026-12-25', type: 'annual_leave', existingId: 'ov1', prefilled: true });
         xmas.flavours.find(f => f.dataset.flavour === 'SPARE').disabled = true;

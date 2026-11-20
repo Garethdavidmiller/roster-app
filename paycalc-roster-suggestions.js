@@ -407,18 +407,15 @@ export function getRosterSuggestion(p, member) {
             bhOtMins += ot; bhOtCount++;
             days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'bhOt', source: 'override' });
           }
-        } else if (fromOv && baseValue !== 'SPARE') {
-          // Shift override on a bank holiday whose base day was a REST day (not rostered, not
-          // SPARE) — you worked a BH you weren't scheduled for, so it's Bank Holiday OVERTIME.
-          // (This once mirrored a Saturday-on-rest-day → RDW rule; since 19 Nov 2026 a plain shift
-          // on a rest-day Saturday is a moved day instead — the BH case was NOT changed with it, and
-          // is an open owner question, not a decision.) Same 1.25× rate as `bh`, but
-          // this lands the hours in the correct payslip field ("Bank Holiday Overtime 1.25")
-          // for reconciliation. (We reach here only when baseWorked is false — the rostered-BH
-          // case was caught above; SPARE = "rostered, shift TBC", so it stays a rostered `bh`.)
-          bhOtMins += mins; bhOtCount++;
-          days.push({ date: new Date(cur), shift: effValue, type: 'bhOt', source: 'override' });
         } else {
+          // The base roster's own bank holiday shift, or a SHIFT RECORDED ON A REST-DAY BANK
+          // HOLIDAY — a working day moved there, priced as the Saturday rule below prices one on a
+          // Saturday off (owner, 20 Nov 2026): "Bank Holiday Rostered 1.25", inside the contracted
+          // hours. A bank holiday worked as rest day working is recorded as RDW and took the
+          // effType === 'rdw' branch above ("Bank Holiday Overtime 1.25", on top). Until then every
+          // shift on a rest-day bank holiday was Bank Holiday Overtime: a swapped day on top of the
+          // contracted hours, about a day's basic pay too much. With no rostered shift to cap
+          // against (a rest day, or SPARE), every hour is the bank holiday's.
           bhMins += mins; bhCount++;
           if (fromOv) bhFromOv = true;
           days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });

@@ -150,6 +150,7 @@ export function _activateRow(row, checkbox, pills, startEl, endEl, type) {
         p.classList.toggle('active', on);
         p.setAttribute('aria-pressed', String(on));
     });
+    _offAgainUnlessHeld(pills);
     if (TYPES[type]?.fixed) {
         row.classList.add('fixed-type');
         if (startEl) startEl.tabIndex = -1;
@@ -225,6 +226,40 @@ export function _syncOverwriteBadge(row) {
         : '⚠ Removing');
 }
 
+// ── A SAVED RECORD THE DAY NO LONGER TAKES CAN STILL BE REMOVED (owner, 20 Nov 2026: "Fix") ─────────
+//
+// A saved day is removed by selecting its type again (or ✕ in Saved Changes). A record saved before
+// a day refused its type — a Spare on Boxing Day from before v26.38, a legacy Sunday leave — sat under
+// a pill `restrictDayPills` had turned OFF, so the tap did nothing. The held pill is turned back on for
+// that ONE act: pressed again it clears the row, and the moment it is not the row's type it is off
+// again, so it can never be picked afresh. The reason stays on it, with how to remove the record.
+
+/** Turn the held record's own pill back on, if the day has it off, so selecting it again removes it.
+ *  @param {NodeListOf<Element>} pills */
+function _onToRemove(pills) {
+    pills.forEach(el => {
+        const p = /** @type {HTMLButtonElement} */ (el);
+        if (!p.classList.contains('active') || !p.disabled) return;
+        p.dataset.offLabel = p.getAttribute('aria-label') ?? '';
+        p.dataset.removeOnly = '1';
+        p.disabled = false;
+        p.setAttribute('aria-label', `${p.dataset.offLabel}. Saved here before — select to remove it`);
+    });
+}
+
+/** A pill turned on only to remove a record goes back off once it is not the row's type.
+ *  @param {NodeListOf<Element>} pills */
+function _offAgainUnlessHeld(pills) {
+    pills.forEach(el => {
+        const p = /** @type {HTMLButtonElement} */ (el);
+        if (p.dataset.removeOnly !== '1' || p.classList.contains('active')) return;
+        p.disabled = true;
+        p.setAttribute('aria-label', p.dataset.offLabel ?? '');
+        delete p.dataset.removeOnly;
+        delete p.dataset.offLabel;
+    });
+}
+
 /**
  * Draw a row in the state its saved record puts it in — the record's type, Other flavour, RDW tick and
  * times — marked as an untouched prefill, from a clean row, so it also puts back a row edited since.
@@ -247,6 +282,7 @@ export function prefillRow(row, existing) {
     const meta     = TYPES[isSpare ? 'other' : existing.type];
     _deactivateRow(row, checkbox, pills, startEl, endEl);
     _activateRow(row, checkbox, pills, startEl, endEl, isSpare ? 'other' : existing.type);
+    _onToRemove(pills);
     if (checkbox) checkbox.checked = false;
     const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
     if (rdHint) rdHint.hidden = true;
@@ -286,6 +322,7 @@ export function _deactivateRow(row, checkbox, pills, startEl, endEl) {
     if (checkbox) checkbox.checked = false;
     row.classList.remove('active', 'fixed-type', 'selected', 'row-error', 'other-spare');
     pills.forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
+    _offAgainUnlessHeld(pills);
     if (startEl) {
         startEl.value = '';
         startEl.classList.remove('input-error');
