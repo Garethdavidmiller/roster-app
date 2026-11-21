@@ -2321,6 +2321,10 @@ button.lightbox-bug-link {
     width: min(260px, 72vw);
     background: var(--nav-surface);
     color: var(--nav-text);
+    /* The drawer's own text size, not the page's: it inherited the BODY's, 16px on the Calendar and
+       14px everywhere else, so anything sized by inheritance — the line box the Reference toggle sits
+       in — drew 1px lower on the Calendar than on every other page. */
+    font-size: var(--type-body);
     z-index: calc(var(--z-drawer) + 1);
     transform: translateX(-100%);
     /* visibility:hidden removes the off-screen drawer's links/buttons from the
@@ -2387,7 +2391,7 @@ button.lightbox-bug-link {
 .nav-panel-icon {
     width: 32px;
     height: 32px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm);   /* 25% of the icon, the About panel's 64px logo's ratio near enough */
     flex-shrink: 0;
 }
 
@@ -2397,14 +2401,16 @@ button.lightbox-bug-link {
     min-width: 0;
 }
 
+/* The app's name WRAPS rather than ellipses: in a 320px window the drawer is 230px and the name had
+   102px, so it read "Marylebone …". Two balanced lines ("Marylebone / Roster") cost the head about 4px
+   there; from 360px, and on a desktop, it fits one line and nothing moves. */
 .nav-panel-title {
     font-size: var(--type-body);
     font-weight: 700;
     letter-spacing: -0.2px;
     line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
 }
 
 .nav-panel-version {
@@ -2415,17 +2421,20 @@ button.lightbox-bug-link {
     margin-top: 1px;
 }
 
+/* The same ✕ as the navy sheets' `.lb-close` — a 22px glyph that brightens to white under a mouse —
+   so the drawer and the panels it opens close with one mark. It keeps its own resting colour: the
+   sheets' 50% white is a literal, and the drawer's ✕ has always rested brighter, at its muted text. */
 .nav-panel-close {
     background: none;
     border: none;
-    color: white;
-    font-size: var(--type-large);
+    color: var(--nav-text-muted);
+    font-size: 22px;
     cursor: pointer;
     padding: 4px 8px;
-    opacity: 0.75;
     line-height: 1;
     touch-action: manipulation;
-    border-radius: 4px;
+    transition: color var(--dur-med) var(--ease-standard);
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
     font-family: inherit;
     min-width: 44px;
@@ -2436,7 +2445,7 @@ button.lightbox-bug-link {
 }
 .nav-panel-close:active { opacity: 0.4; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-close:hover { opacity: 1; }
+    .nav-panel-close:hover { color: var(--nav-text); }
 }
 
 /* Scrollable body */
@@ -2472,7 +2481,7 @@ button.lightbox-bug-link {
     align-items: center;
     gap: 8px;
     padding: 9px 16px;
-    border-radius: 22px;
+    border-radius: var(--radius-pill);
     background: var(--nav-raised);
     color: var(--nav-text);
     font-size: var(--type-body);
@@ -2535,27 +2544,32 @@ button.lightbox-bug-link {
    POSITIONED: as a flex item it pushed this one pill's label ~23px right, off the one left edge every
    pill's text shares with the rows below, and so differently on every page. Out of flow it marks
    without moving anything; the ring is the redundant, colour-blind-safe half of the signal, and
-   `aria-current` (set in nav-panel.js) is what actually carries it. */
+   `aria-current` (set in nav-panel.js) is what actually carries it.
+   The dot sits at the pill's EMPTY right end, inset by the pill's own padding: at `left: 6px` it was
+   glued to the emoji, in the 16px the label is inset by. A glyph, not a drawn circle — a forced-colours
+   theme repaints a background as Canvas and would erase it — sized in em so it scales with the label. */
 .nav-panel-pill--current {
     position: relative;
     cursor: default;
     pointer-events: none;
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 0 0 2px var(--on-navy-muted);
 }
 .nav-panel-pill--current::before {
     content: "●";
     position: absolute;
-    left: 6px;
+    right: var(--space-4);
     top: 50%;
     transform: translateY(-50%);
-    font-size: 8px;
+    font-size: 0.6em;
     line-height: 1;
     opacity: 0.85;
 }
 
-/* Information section — flat, always open */
+/* Information section — flat, always open. Both drawer section eyebrows are `--type-badge`, the size
+   the same role wears on the navy sheets (App Notices' section labels); at `--type-micro` they were the
+   only 10px eyebrows on navy. */
 .nav-panel-section-heading {
-    font-size: var(--type-micro);
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -2594,7 +2608,7 @@ button.lightbox-bug-link {
    drawer's one "two generations" note. One eyebrow rank for both; the gold chevron still marks
    this one as collapsible, and the button keeps its full tap target. */
 .nav-panel-guides-heading {
-    font-size: var(--type-micro);
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -2693,6 +2707,14 @@ button.lightbox-bug-link {
     padding: 0 8px 2px;
     min-height: 16px;
 }
+/* EMPTY, it takes no room: its reserved line put 24px of nothing between the box and the guides
+   under it. Collapsed rather than `display: none`, so the live region stays in the accessibility tree
+   and its first message is still announced; a count appearing then moves the list down one line,
+   which is the moment the list is being replaced by results anyway. */
+.nav-gs-status:empty { min-height: 0; padding-block: 0; }
+/* The search failed to load: a fault the reader should see, not a faint hint. The drawer's secondary
+   text, a step brighter than the hint's faint, on the one line that says something did not work. */
+.nav-gs-status[data-state="error"] { color: var(--nav-text-muted); padding-block: 2px 4px; }
 /* The drawer's TWO-LINE ROW — a title with a quiet second line under it — declared once for both
    consumers: the static guide list (what that guide answers) and a search result (which guide the hit
    came from). A second copy of the recipe is how the two would drift. */
@@ -2731,7 +2753,9 @@ button.nav-panel-link--notices {
     align-items: center;
     gap: 10px;
     border-radius: var(--radius-panel);
-    padding: 40px 40px 32px;
+    /* `--space-5` at the sides, as the one-time notices on the same sheet: 40px left a 300px sheet a
+       220px measure. The ✕ (y 14–58) clears the centred content, whose first line starts at 40px. */
+    padding: 40px var(--space-5) 32px;
     width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
 }
@@ -2746,7 +2770,7 @@ button.nav-panel-link--notices {
     align-items: stretch;
     gap: 10px;
     border-radius: var(--radius-panel);
-    padding: 40px 40px 32px;
+    padding: 40px var(--space-5) 32px;   /* the sides as #navComingSoonContent's, above */
     width: min(var(--modal-compact), var(--modal-cap));
     max-height: 80vh;
     max-height: 80dvh;
@@ -2777,10 +2801,12 @@ button.nav-panel-link--notices {
 /* `display: flex` beats the UA's `[hidden]`, so an EMPTY archive's list stayed: a 0px box taking the gap
    twice, still read out as an empty group (whole-app review, Nov 2026). */
 .nav-notices-list[hidden] { display: none; }
+/* The on-navy rungs, not literals: the raised fill and hairline the drawer's own chips use, and the
+   app's discrete-card corner (`--radius`). Each a step firmer than the 7%/10% it replaced. */
 .notices-item {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    background: var(--on-navy-raised);
+    border: 1px solid var(--on-navy-hairline);
+    border-radius: var(--radius);
     padding: 10px 12px;
     display: flex;
     flex-direction: column;
@@ -2811,7 +2837,7 @@ button.nav-panel-link--notices {
 .notices-item-section--newlink  { color: var(--on-navy-newlink); }
 .notices-item-date {
     font-size: var(--type-badge);
-    color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */
+    color: var(--on-navy-muted);   /* 0.70; it was 0.35 (2.79:1), then a 0.65 literal, to clear WCAG AA */
     white-space: nowrap;
 }
 .notices-item-title {
@@ -2918,22 +2944,34 @@ button.nav-panel-link--notices {
     user-select: none;
 }
 
+/* TWO LINES, then an ellipsis. In a 320px window the name has about 55px beside the bell and Sign out,
+   so a one-line ellipsis showed five letters of a long surname. Two lines of 13px at 1.25 are 33px,
+   inside the 44px row the bell and Sign out already set, so the footer does not grow. It breaks
+   ANYWHERE in a word (`break-all`, not only `overflow-wrap: anywhere`): measured with the longest name
+   on the roster, `anywhere` alone wrapped at the space and showed the initial on one line and seven
+   letters on the next, where `break-all` fills both lines. A name that fits one line is untouched. */
 .nav-panel-member {
     font-size: var(--type-label);
+    line-height: 1.25;
     color: var(--nav-text-muted);
     font-weight: 500;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    word-break: break-all;
     min-width: 0;
 }
 
 /* `.nav-panel-signout` and `.nav-panel-footer` set a display, which beats the `hidden` attribute's UA
    rule. Without these, Lock Calendar (rendered hidden, revealed for a PIN viewer) showed to every
    signed-in member as an action that does nothing, and a locked visitor's footer showed as an empty
-   bar with a blank name. */
-.nav-panel-lock[hidden] { display: none !important; }
-.nav-panel-footer[hidden] { display: none !important; }
+   bar with a blank name. No `!important`: at (0,2,0) each already outranks the (0,1,0) rule that sets
+   its display, and no other rule names either class. */
+.nav-panel-lock[hidden] { display: none; }
+.nav-panel-footer[hidden] { display: none; }
 
 .nav-panel-signout {
     background: none;
@@ -2970,6 +3008,24 @@ button.nav-panel-link--notices {
 .nav-panel-guides-toggle:focus-visible {
     outline: var(--focus-outline-gold);
     outline-offset: 2px;
+}
+
+/* 44px TARGETS UNDER A FINGER (owner, Nov 2026). Measured at 320/375px: the pills drew 35px, the rows
+   37, the search box 38, the drawer head's About button 32 and the Reference toggle 22. A mouse keeps
+   the drawer as it was — density is a pointer decision (css-tokens.md) — and this block comes AFTER
+   every base rule it overrides, which is the only order in which it wins.
+   · Pills, rows and the box simply grow (about 9px a pill: accepted for the target).
+   · The About button grows inside a head the 44px ✕ already sets, so the head keeps its height.
+   · The Reference toggle (22px: 4px padding round a 14px line) grows by padding and takes the same back
+     as negative margin, so its label stays exactly where it was and only the target reaches out. It
+     reaches UP, 18px into the empty gap under Latest, and only 4px down: the search box starts 8px
+     under the label, and a symmetric 11px would have put 7px of the toggle's target under the box. */
+@media (pointer: coarse) {
+    .nav-panel-brand { min-height: 44px; }
+    .nav-panel-guides-toggle { min-height: 44px; padding-block: 22px 8px; margin-block: -18px -4px; }
+    .nav-panel-pill,
+    .nav-panel-link,
+    .nav-gs-input { min-height: 44px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -700,7 +700,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             .then(m => m.initGuideSearch({ guides: NAV_GUIDES }))
             .catch(() => {
                 const st = document.getElementById('navGuideSearchStatus');
-                if (st) st.textContent = 'Search is unavailable — the guides below still open.';
+                if (st) { st.textContent = 'Search is unavailable — the guides below still open.'; st.dataset.state = 'error'; }
             });
     });
 
