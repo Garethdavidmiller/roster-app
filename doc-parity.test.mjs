@@ -31,6 +31,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { NAV_GUIDES } from './nav-destinations.js';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 const CLAUDE = read('./CLAUDE.md');
@@ -946,13 +947,9 @@ test('the suite-size patterns still match their own examples — guard the guard
 // The truth comes from NAV_GUIDES, which is what the drawer renders and what
 // `firestore-contract-parity.test.mjs` already checks the analytics ids against — so this compares
 // the docs to the same source the app uses, not to a number typed here.
-const NAV_PANEL = read('./nav-panel.js');
-
-/** How many guides the app actually has, read from the list the drawer renders. */
+/** How many guides the app actually has: the list the drawer renders (nav-destinations.js), imported. */
 function guideCount() {
-    const block = NAV_PANEL.match(/const NAV_GUIDES\s*=\s*\[([\s\S]*?)\n\];/);
-    assert.ok(block, 'NAV_GUIDES not found in nav-panel.js — this test is checking nothing');
-    return [...block[1].matchAll(/url:\s*'\.\/[^']+\.html'/g)].length;
+    return NAV_GUIDES.filter(g => /^\.\/[^/]+\.html$/.test(g.url)).length;
 }
 
 const NUMBER_WORD = {

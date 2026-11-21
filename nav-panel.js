@@ -49,82 +49,10 @@ import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopIntercept
 import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
-// The App Notices archive's rules are notice-archive.js's; the pages that archive a notice import these
-// two from here, as they always have.
-export { archiveNotice, isNoticeExpired } from './notice-archive.js';
+import { NAV_PAGES, NAV_INFORMATION, NAV_GUIDES, SECTION_MODS, visiblePills } from './nav-destinations.js';
 
-/**
- * Page navigation destinations. The current page is NOT omitted — it renders as an inert
- * `aria-current` pill (see `_inject`), so the row is the same shape on every page and the
- * drawer doubles as a map rather than a list of exits.
- * colorClass is the page's own colour, Admin's navy with gold text (css-tokens.md → "A page is one
- * colour and one emoji"); `label` is its emoji and name, which its header and About badges repeat.
- */
-const NAV_PAGES = [
-    { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
-    { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
-    { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
-    { id: 'operations', label: '🔧 Operations',   url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
-    { id: 'links',      label: '🔗 Links',         url: './links.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
-    // Overtime's audience only (filtered, not the boundary — the page and server gate themselves).
-    // PAUSED (owner, Nov 2026): `canOpenOvertime` is false for everyone while CONFIG.OVERTIME_ENABLED is off.
-    { id: 'overtime',   label: '⏱️ Overtime',      url: './overtime.html',   colorClass: 'nav-panel-pill--overtime',   overtimeAudienceOnly: true },
-    // Trains is every member's (owner, 20 Oct 2026). A gate here and the auth-policy role always move
-    // together — page-contract-parity checks it.
-    { id: 'trains',     label: '🚆 Trains',        url: './trains.html',     colorClass: 'nav-panel-pill--trains'     },
-    // The new link's shortlisted proposals: the admin's and the named previewers' while it is a preview
-    // (`canOpenNewlink`) — the gate and auth-policy.js's role move together (page-contract-parity).
-    { id: 'newlink',    label: '🔁 New link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
-    // SETTINGS IS A PAGE, SO IT IS A PILL (the header has why); its badges' indigo (shared.css has
-    // why). It comes last, so "work pages first" holds by position.
-    { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },
-];
-
-/**
- * Information section — flat, always-open. Live workplace documents only.
- * A link with `comingSoon: true` (instead of `url`) renders as a button that
- * opens the "coming soon" lightbox rather than navigating.
- * (Guides moved to their own collapsible submenu — see NAV_GUIDES.)
- * The Newsletter's row is drawn `hidden` unless its latest issue is under six weeks old, and asked again
- * on every open (newsletter-recency.js, owner, 14 Nov 2026), so an old issue is never offered as the latest.
- */
-const NAV_INFORMATION = [
-    {
-        heading: 'Workplace',
-        links: [
-            { icon: '📋', label: 'Daily Huddle',           url: './#huddle' },
-            // Each document by its whole name, as the in-app viewer says it (calendar-doc-viewer.js `DOCS`).
-            { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No Weekly Retail Circular has been uploaded yet — it\'s usually available on Friday.' },
-            { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No Marylebone Newsletter has been uploaded yet — check back soon.' },
-        ],
-    },
-];
-
-/**
- * Reference — collapsible submenu (tap "Reference" to fold or unfold it). Static reference
- * pages, grouped together so the Information section stays focused on live docs.
- * Adding a guide = one entry here, with an `openId` — and that id in the `firestore.rules` analytics
- * allowlist and in `OPEN_META` (operations-reports.js); firestore-contract-parity.test.mjs checks all three.
- *
- * `openId` is the anonymous open-counter id. It lives on the ENTRY and is stamped onto the rendered
- * link as `data-open-id`, so the click handler reads it off the element rather than inferring it from
- * the href: a filename is not a stable key (`'./paycalc-guide.html'.includes('guide.html')` once
- * filed every Pay Calculator Guide open under the Staff Guide). A guide added here without an
- * `openId` is not counted, which firestore-contract-parity.test.mjs fails on.
- */
-// EVERY GUIDE CARRIES ONE LINE SAYING WHAT IT ANSWERS. A bare title names a subject you must ALREADY
-// KNOW to pick ("FIP Travel Guide" for "can I get cheap travel in Europe?"), and search cannot rescue
-// it — CLAUDE.md → "Plain English that TEACHES". `sub` is the question, in the reader's words, never
-// a description of the document.
-const NAV_GUIDES = [
-    // "Recording", never "Booking": the app records leave already agreed, and absence — it books nothing (admin.html's
-    // "Record Annual Leave"; the guide's own "record annual leave that's already been agreed").
-    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Recording leave and absence, using the app', url: './staff-guide.html',    openId: 'guide-staff'    },
-    { icon: '💷', label: 'Pay Calculator Guide', sub: 'What your payslip figures mean',        url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
-    { icon: '🎫', label: 'Railcard Guide',       sub: 'Which railcard gives what discount',    url: './railcard-guide.html', openId: 'guide-railcard' },
-    { icon: '🗺️', label: 'Rangers & Rovers',     sub: 'Area passes at the gateline',           url: './rangers-guide.html',  openId: 'guide-rangers'  },
-    { icon: '🇪🇺', label: 'FIP Travel Guide',     sub: 'Free and discounted travel in Europe',  url: './fip-guide.html',      openId: 'guide-fip'      },
-];
+// The drawer's destinations — NAV_PAGES, NAV_INFORMATION, NAV_GUIDES, SECTION_MODS — and the pill
+// filter are DATA, in nav-destinations.js: imported by the tests rather than read out of this file as text.
 
 /**
  * This page's bare filename, for the `?from=` hint appended to a guide link so the guide's
@@ -199,6 +127,9 @@ registerPopInterceptor(() => _historyPushed && !_landedOnOwnEntry());
 // The body's "more below" fade, as every scrolling lightbox wears; open to close.
 /** @type {() => void} */ let _stopBodyFade = () => {};
 
+/** How long after an open the drawer and its two lightboxes move focus to their ✕: long enough for the CSS
+ *  transition to have started, so a screen reader announces the dialog rather than the button alone. */
+const FOCUS_DELAY_MS = 60;
 /** How long a drawer document tap waits for a session before reading anyway — a "here's a response"
  *  budget, not a general timeout. The whole open stays inside `DOC_FETCH_BUDGET_MS`. */
 const DOC_AUTH_WAIT_MS = 2000;
@@ -220,8 +151,9 @@ const blockedBellText = (currentPage) => 'Notifications are blocked for this app
  * Tear down an already-initialised nav panel so initNavPanel() can rebuild it from scratch with a
  * different identity. initNavPanel self-guards (burger.dataset.navPanelInit) and _inject APPENDS its
  * DOM (a second call would duplicate the drawer), so there is otherwise no way to refresh the footer
- * name / admin pills after the panel is wired. Used on the admin in-place B1-teardown path, where the
- * nav was optimistically wired with a stale identity before the session was cleared and re-entered.
+ * name / admin pills after the panel is wired. Three callers: page-session.js, when a session ends in place
+ * and the sign-in is shown over the page (the drawer was wired with the identity that has gone); and the two
+ * in-place sign-ins that rebuild it for the member who signed in — overtime-app.js and calendar-drawer.js.
  * Removes the injected DOM, drops the burger's listeners (via clone-replace) and clears the guard.
  */
 export function resetNavPanel() {
@@ -309,7 +241,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // Delay focus so the CSS transition has started — screen readers announce the dialog heading
         // rather than the close button label alone. …Unless the drawer has closed since: the ✕ would
         // take focus inside a panel already aria-hidden, and lose it when the slide-out ended.
-        setTimeout(() => { if (_panelOpen) closeBtn?.focus(); }, 60);
+        setTimeout(() => { if (_panelOpen) closeBtn?.focus(); }, FOCUS_DELAY_MS);
     }
 
     // Shared closed-state DOM mutations. Callers move focus OUT of the panel
@@ -501,15 +433,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     }
 
     // Close panel before navigating so the panel doesn't flash behind the new page.
-    // "Coming soon" and "App Notices" links are buttons — close the panel and open
-    // their lightboxes instead of navigating.
+    // The document rows and "App Notices" are buttons — they open the latest issue or a lightbox
+    // instead of navigating.
     panel.addEventListener('click', e => {
-        const comingSoon = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--coming-soon'));
-        if (comingSoon) {
-            _closePanelVisualOnly();    // keep the history entry for the lightbox
-            _openComingSoon(comingSoon);
-            return;
-        }
         const circular = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--circular'));
         if (circular) { _openLatestDoc(circular, getLatestCircular, 'circular'); return; }
         const newsletter = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--newsletter'));
@@ -805,19 +731,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (csIcon)  csIcon.textContent  = icon;
         if (csBody)  csBody.textContent  = body;
         csLightbox.setAttribute('aria-label', title);
-
-        lockBodyScroll();
-        _comingSoonOpen = true;   // before the frame and the timer below, which both ask it
-        csLightbox.classList.add('visible');
-        // A CLOSE BEFORE THIS FRAME, OR THE TIMER, RETIRES THEM (15 Nov 2026), as createLightbox's does:
-        // an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run after the
-        // close, the frame faded the panel back in over the page and the timer moved focus into it.
-        requestAnimationFrame(() => { if (_comingSoonOpen) csLightbox.classList.add('open'); });
-        document.addEventListener('keydown', _onComingSoonKey);
-        // Reuse the panel's single history entry (normally already present, as
-        // the lightbox opens from the open panel); push one only if missing.
-        if (!_historyPushed) _pushDrawerEntry();
-        setTimeout(() => { if (_comingSoonOpen) csClose?.focus(); }, 60);
+        csLb.open();
     }
 
     /**
@@ -852,48 +766,76 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     /** Another overlay open over a drawer lightbox (a dialog, a viewer a notification tap opened) owns the keyboard — `_isTopOverlay`'s rule, read from the DOM because these share the drawer's history entry (test audit, 7 Nov 2026). */
     const _overlayAbove = (/** @type {Element|null} */ own) => Array.from(document.querySelectorAll('.lb-overlay.open')).some(el => el !== own);
 
-    // Called by user action (Escape, ✕, backdrop) — pop the shared entry.
-    function _closeComingSoon() {
-        if (!csLightbox || !_comingSoonOpen) return;   // ONCE: a second ✕/backdrop tap mid-fade unlocked twice (test audit)
-        _comingSoonOpen = false;
-        document.removeEventListener('keydown', _onComingSoonKey);
-        if (_historyPushed) {
-            _historyPushed = false;
-            suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
-            history.back();
+    /**
+     * The lifecycle the drawer's two lightboxes share — the info panel and App Notices. NOT createLightbox
+     * (.claude/rules/nav-drawer.md): both reuse the DRAWER's one history entry, so they hand-roll it, and
+     * this is the one copy (they were two, line for line). What each keeps for itself is its content and
+     * what Tab does in it. Its open state is the module's flag (`isOpen`/`setOpen`), because
+     * `resetNavPanel` and the popstate handler ask it with no lightbox in hand.
+     * @param {{ el: HTMLElement|null, closeBtn: HTMLElement|null, isOpen: () => boolean, setOpen: (v: boolean) => void, onTab: (e: KeyboardEvent) => void }} cfg
+     */
+    function _drawerLightbox({ el, closeBtn, isOpen, setOpen, onTab }) {
+        function open() {
+            if (!el) return;
+            lockBodyScroll();
+            setOpen(true);   // before the frame and the timer below, which both ask it
+            el.classList.add('visible');
+            // A CLOSE BEFORE THIS FRAME, OR THE TIMER, RETIRES THEM (15 Nov 2026), as createLightbox's does:
+            // an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run after the
+            // close, the frame faded the panel back in over the page and the timer moved focus into it.
+            requestAnimationFrame(() => { if (isOpen()) el.classList.add('open'); });
+            document.addEventListener('keydown', onKey);
+            // Reuse the panel's single history entry (normally already present, as
+            // the lightbox opens from the open panel); push one only if missing.
+            if (!_historyPushed) _pushDrawerEntry();
+            setTimeout(() => { if (isOpen()) closeBtn?.focus(); }, FOCUS_DELAY_MS);
         }
-        _finishNavLightboxClose(/** @type {HTMLElement} */ (csLightbox));
+        // Called by user action (Escape, ✕, backdrop) — pop the shared entry.
+        function close() {
+            if (!el || !isOpen()) return;   // ONCE: a second ✕/backdrop tap mid-fade unlocked twice (test audit)
+            setOpen(false);
+            document.removeEventListener('keydown', onKey);
+            if (_historyPushed) {
+                _historyPushed = false;
+                suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
+                history.back();
+            }
+            _finishNavLightboxClose(el);
+        }
+        // Called from popstate — history.back() already happened.
+        function closeFromBack() {
+            if (!el) return;
+            setOpen(false);
+            _historyPushed = false;
+            document.removeEventListener('keydown', onKey);
+            _finishNavLightboxClose(el);
+        }
+        /** Escape closes it; Tab stays inside (`onTab` says where it goes). @param {any} e */
+        function onKey(e) {
+            // Stale-survivor guard: a copy surviving a reset-while-open would swallow every Tab page-wide
+            // and its Escape would steal the REBUILT drawer's history entry. Self-remove.
+            if (!isOpen()) { document.removeEventListener('keydown', onKey); return; }
+            if (_overlayAbove(el)) return;   // one Escape closed both, and Tab was dragged back under it
+            if (e.key === 'Escape') { close(); return; }
+            if (e.key === 'Tab') { e.preventDefault(); onTab(e); }
+        }
+        closeBtn?.addEventListener('click', close);
+        // Only close on a tap on the backdrop itself — the ✕ already has its own listener and event
+        // bubbling would otherwise close twice; and a text selection dragged out onto it is not a tap
+        // (`closeOnBackdropTap`).
+        if (el) closeOnBackdropTap(el, close);
+        return { open, closeFromBack, onKey };
     }
 
-    // Called from popstate — history.back() already happened.
-    function _closeComingSoonFromBack() {
-        if (!csLightbox) return;
-        _comingSoonOpen = false;
-        _historyPushed  = false;
-        document.removeEventListener('keydown', _onComingSoonKey);
-        _finishNavLightboxClose(/** @type {HTMLElement} */ (csLightbox));
-    }
+    // The info panel has one focusable element (the ✕), so Tab stays on it.
+    const csLb = _drawerLightbox({
+        el: /** @type {HTMLElement|null} */ (csLightbox), closeBtn: csClose,
+        isOpen: () => _comingSoonOpen, setOpen: v => { _comingSoonOpen = v; },
+        onTab: () => csClose?.focus(),
+    });
 
-    // Escape closes the lightbox. Tab is trapped — the lightbox has only one
-    // focusable element (the ✕ button) so Tab would immediately escape otherwise.
-    /** @param {any} e */
-    function _onComingSoonKey(e) {
-        // Stale-survivor guard: a copy surviving a reset-while-open would swallow every Tab page-wide
-        // and its Escape would steal the REBUILT drawer's history entry. Self-remove.
-        if (!_comingSoonOpen) { document.removeEventListener('keydown', _onComingSoonKey); return; }
-        if (_overlayAbove(csLightbox)) return;   // one Escape closed both, and Tab was dragged back under it
-        if (e.key === 'Escape') { _closeComingSoon(); return; }
-        if (e.key === 'Tab')    { e.preventDefault(); csClose?.focus(); }
-    }
-
-    csClose?.addEventListener('click', _closeComingSoon);
-    // Only close on a tap on the backdrop itself — csClose already has its own listener and event
-    // bubbling would otherwise call _closeComingSoon twice; and a text selection dragged out onto it
-    // is not a tap (`closeOnBackdropTap`).
-    if (csLightbox) closeOnBackdropTap(csLightbox, _closeComingSoon);
-
-    // App Notices archive lightbox — same bespoke pattern as the coming-soon
-    // lightbox (reuses the panel's single history entry; no createLightbox).
+    // App Notices archive lightbox — its lifecycle is `_drawerLightbox`'s, like the info
+    // panel's (it reuses the panel's single history entry; no createLightbox).
     const noticesLightbox = document.getElementById('navNoticesLightbox');
     const noticesClose    = document.getElementById('navNoticesClose');
     const noticesList     = document.getElementById('navNoticesList');
@@ -903,9 +845,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!noticesLightbox) return;
         // Render the archive (notice-archive.js reads it, and an unreadable one reads as empty).
         const notices = readArchivedNotices();
-        // One entry per section a notice can archive under, or its chip falls back to the neutral
-        // grey; `calendar-notices.test.mjs` fails on an archived section with no entry here.
-        const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains', 'New link': 'newlink' };
         if (noticesList) {
             noticesList.innerHTML = '';
             notices.forEach(/** @param {any} n */ n => {
@@ -914,7 +853,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 const header  = document.createElement('div');
                 header.className = 'notices-item-header';
                 const sectionEl = document.createElement('span');
-                const sectionMod = /** @type {Record<string, any>} */ (SECTION_MODS)[n.section];
+                const sectionMod = SECTION_MODS[n.section];   // nav-destinations.js — a section with none stays grey
                 sectionEl.className = `notices-item-section${sectionMod ? ' notices-item-section--' + sectionMod : ''}`;
                 sectionEl.textContent = n.section || '';
                 const dateEl  = document.createElement('span');
@@ -936,57 +875,22 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         }
         if (noticesList)  noticesList.hidden  = notices.length === 0;
         if (noticesEmpty) noticesEmpty.hidden = notices.length > 0;
-        // Open the lightbox
-        lockBodyScroll();
-        _noticesOpen = true;   // before the frame and the timer below, which both ask it
-        noticesLightbox.classList.add('visible');
-        // A close before this frame, or the timer, retires them — see _openComingSoon (15 Nov 2026).
-        requestAnimationFrame(() => { if (_noticesOpen) noticesLightbox.classList.add('open'); });
-        document.addEventListener('keydown', _onNoticesKey);
-        if (!_historyPushed) _pushDrawerEntry();
-        setTimeout(() => { if (_noticesOpen) noticesClose?.focus(); }, 60);
+        noticesLb.open();
     }
 
-    function _closeNotices() {
-        if (!noticesLightbox || !_noticesOpen) return;   // ONCE — see _closeComingSoon (test audit)
-        _noticesOpen = false;
-        document.removeEventListener('keydown', _onNoticesKey);
-        if (_historyPushed) {
-            _historyPushed = false;
-            suppressNextPop();   // don't let the echo reach the overlay stack (v16.23)
-            history.back();
-        }
-        _finishNavLightboxClose(/** @type {HTMLElement} */ (noticesLightbox));
-    }
-
-    function _closeNoticesFromBack() {
-        if (!noticesLightbox) return;
-        _noticesOpen    = false;
-        _historyPushed  = false;
-        document.removeEventListener('keydown', _onNoticesKey);
-        _finishNavLightboxClose(/** @type {HTMLElement} */ (noticesLightbox));
-    }
-
-    /** @param {any} e */
-    function _onNoticesKey(e) {
-        // Stale-survivor guard — see _onComingSoonKey.
-        if (!_noticesOpen) { document.removeEventListener('keydown', _onNoticesKey); return; }
-        if (_overlayAbove(noticesLightbox)) return;   // the topmost rule — see _onComingSoonKey
-        if (e.key === 'Escape') { _closeNotices(); return; }
-        if (e.key === 'Tab') {
-            // TWO STOPS, the ✕ and the list: the list SCROLLS, and one the keyboard cannot reach cannot
-            // be scrolled (axe scrollable-region-focusable). A hidden (empty) list is no stop.
-            e.preventDefault();
+    const noticesLb = _drawerLightbox({
+        el: /** @type {HTMLElement|null} */ (noticesLightbox), closeBtn: noticesClose,
+        isOpen: () => _noticesOpen, setOpen: v => { _noticesOpen = v; },
+        // TWO STOPS, the ✕ and the list: the list SCROLLS, and one the keyboard cannot reach cannot
+        // be scrolled (axe scrollable-region-focusable). A hidden (empty) list is no stop.
+        onTab: e => {
             const stops = [noticesClose, noticesList].filter(el => el && !el.hidden);
             const at = stops.indexOf(/** @type {HTMLElement} */ (document.activeElement));
             stops[(at + (e.shiftKey ? -1 : 1) + stops.length) % stops.length]?.focus();
-        }
-    }
+        },
+    });
     // Register both with resetNavPanel's teardown list (an earlier init's were removed by its reset).
-    _navLbKeyHandlers = [_onComingSoonKey, _onNoticesKey];
-
-    noticesClose?.addEventListener('click', _closeNotices);
-    if (noticesLightbox) closeOnBackdropTap(noticesLightbox, _closeNotices);
+    _navLbKeyHandlers = [csLb.onKey, noticesLb.onKey];
 
     // Close panel on Escape; trap Tab focus within the panel while it is open (the
     // !panel.contains(active) guard pulls escaped focus back in). Stored module-level so
@@ -1034,8 +938,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // Not at the address the entry was pushed at: a tap's hash navigation pushed above it, so the entry is
         // still there beneath — the drawer closes all the same, and steps off the entry later (above).
         if (_hereHref() !== _entryHref) _leftBehind = _navEntry;
-        if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
-        if (_noticesOpen)   { _closeNoticesFromBack(); return; }
+        if (_comingSoonOpen) { csLb.closeFromBack(); return; }
+        if (_noticesOpen)   { noticesLb.closeFromBack(); return; }
         closePanelFromBack();
     };
     window.addEventListener('popstate', _popstateHandler);
@@ -1055,28 +959,21 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
     // Render every permitted destination. The current page is shown too — as an
     // inert "you are here" pill (aria-current) rather than being filtered out —
     // so the drawer doubles as a map, not just a list of exits.
-    const pills = NAV_PAGES
-        .filter(p => !p.adminOnly || isAdmin)
-        .filter(p => !p.linksDesignerOnly || isLinksDesigner)
-        .filter(p => !p.overtimeAudienceOnly || canOpenOvertime)
-        .filter(p => !p.newlinkAudienceOnly || canOpenNewlink)
-        .map(p => p.id === currentPage
+    const pills = visiblePills(NAV_PAGES, { isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink }, currentPage)
+        .map(p => p.current
             ? `<span class="nav-panel-pill ${p.colorClass} nav-panel-pill--current" aria-current="page">${p.label}</span>`
             : `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
         .join('');
 
-    // Render the per-group sub-heading only when there is more than one group — with a single
-    // group ("Workplace") it just echoes the "Information" section heading directly above it (A5).
-    const infoGroups = NAV_INFORMATION.map(group => `
-        ${NAV_INFORMATION.length > 1 ? `<p class="nav-panel-group-heading">${group.heading}</p>` : ''}
+    // The Latest documents: one flat list (nav-destinations.js).
+    const infoLinks = `
         <ul class="nav-panel-links">
-            ${group.links.map(/** @param {any} link */ link => {
-                if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
+            ${NAV_INFORMATION.map(link => {
                 if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
                 if (link.newsletter)  return `<li${newsletterInMenu() ? '' : ' hidden'}><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}"><span aria-hidden="true">${link.icon}</span> ${link.label}</button></li>`;
                 return `<li><a href="${link.url}" class="nav-panel-link"><span aria-hidden="true">${link.icon}</span> ${link.label}</a></li>`;
             }).join('')}
-        </ul>`).join('');
+        </ul>`;
 
     // Guides — expanded by default; the toggle can collapse the list. They navigate in the SAME TAB,
     // and the click handler appends ?from=<this page> so the guide's ← comes back HERE (guide-back.js).
@@ -1149,7 +1046,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
                          monthly newsletter is wrong for two of three, and every drawer item is
                          information. "Latest" is true of all three and needs no idiom. -->
                     <p class="nav-panel-section-heading">Latest</p>
-                    ${infoGroups}
+                    ${infoLinks}
                 </div>
                 <div class="nav-panel-section">
                     <!-- EXPANDED BY DEFAULT (owner): a collapsed section is one you have to know is

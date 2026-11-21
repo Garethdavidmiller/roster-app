@@ -22,6 +22,7 @@ import { readFileSync } from 'node:fs';
 import { buildGuideIndex, GUIDE_PAGES, PROVISIONAL_MARKERS } from './scripts/guide-index-lib.mjs';
 import { GUIDE_INDEX } from './guide-index.js';
 import { searchGuideIndex } from './guide-search.js';
+import { NAV_GUIDES } from './nav-destinations.js';
 
 const read = (/** @type {string} */ n) => readFileSync(new URL(`./${n}`, import.meta.url), 'utf8');
 
@@ -31,9 +32,7 @@ test('contract 1 — the committed index matches a fresh generation from the gui
 });
 
 test('contract 2 — every drawer guide is represented, and the index names no page the drawer lacks', () => {
-    const nav = read('nav-panel.js');
-    // NAV_GUIDES rows are exactly the url entries that also carry an openId — NAV_PAGES has none.
-    const navGuides = [...nav.matchAll(/url: '\.\/([a-z-]+\.html)',\s*openId:/g)].map(m => m[1]);
+    const navGuides = NAV_GUIDES.map(g => g.url.replace(/^\.\//, ''));   // the drawer's list (nav-destinations.js)
     assert.deepEqual([...new Set(GUIDE_INDEX.map(u => u.page))].sort(), [...navGuides].sort());
     assert.deepEqual([...GUIDE_PAGES].sort(), [...navGuides].sort(),
         'GUIDE_PAGES (the generator) and NAV_GUIDES (the drawer) disagree about which guides exist');

@@ -98,11 +98,11 @@ list.
 
 ## Access control
 
-- The `NAV_PAGES` entry has `linksDesignerOnly: true`, and `initNavPanel({ isLinksDesigner })` drops
-  the pill for anyone else. Every coordinator derives `isLinksDesigner` from `CONFIG.LINKS_DESIGNERS`;
-  `links-app.js` passes `true`, because its page gate (`requirePage(…, 'links')`, `auth-policy.js`)
-  has already decided — signed out gets the shared in-place sign-in, and a signed-in non-designer is
-  sent to `admin.html`.
+- The `NAV_PAGES` entry (`nav-destinations.js`) has `linksDesignerOnly: true`, and the drawer drops
+  the pill for anyone whose `isLinksDesigner` gate is false. Every page takes the gate from
+  `navGatesFor(name)` (`auth-policy.js`), which reads `CONFIG.LINKS_DESIGNERS`. The page itself is
+  gated by `requirePage(…, 'links')` — signed out gets the shared in-place sign-in, and a signed-in
+  non-designer is sent to `admin.html`.
 - **Granting access takes three steps, or the new designer can open the page and save nothing.**
   (1) Add the name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — that decides what the nav and the
   page gate show, and nothing else. (2) Run `npm run generate:roster-members` in the same commit: the

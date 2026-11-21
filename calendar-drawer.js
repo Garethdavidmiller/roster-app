@@ -34,8 +34,7 @@
 
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { getSession } from './session.js';
-import { CONFIG } from './roster-data.js';
-import { canOpenOvertime, canOpenNewlink } from './auth-policy.js';   // pill gating only — never a boundary
+import { navGatesFor } from './auth-policy.js';   // pill gating only — never a boundary
 
 /**
  * The page hooks the drawer is wired to. They do not depend on who is signed in, so a rebuild reuses
@@ -65,10 +64,7 @@ export function calendarDrawerOptions(session, deps) {
         // Also the drawer's open-counter exclusion identity: the SESSION only, never the selected
         // member (v25.00) — see the module header.
         memberName: name,
-        isAdmin: !!name && CONFIG.ADMIN_NAMES.includes(name),
-        isLinksDesigner: !!name && CONFIG.LINKS_DESIGNERS.includes(name),
-        canOpenOvertime: canOpenOvertime(name ?? undefined),
-        canOpenNewlink: canOpenNewlink(name ?? undefined),
+        ...navGatesFor(name),   // the pill gates (auth-policy.js); all false locked or on the staff PIN
         onLogoClick: deps.onLogoClick,
         // No session, no Sign out: the drawer then renders no member footer at all.
         onSignOut: name ? () => deps.onSignOut() : null,

@@ -53,11 +53,12 @@ const PAGE_EVIDENCE_LABELS = {
 const RESULT_LIMIT = 8;
 
 /**
- * Wire the search box. Idempotent per page load; called once by nav-panel.js on first focus.
+ * Wire the search box. Called once per drawer BUILD, by nav-panel.js on the box's first focus — a
+ * rebuilt drawer (`resetNavPanel` then `initNavPanel`) has a fresh box and wires it again.
  *
- * @param {{ guides: {icon: string, label: string, url: string, openId: string}[] }} cfg
- *   `guides` is nav-panel's own NAV_GUIDES — passed in rather than imported so the drawer keeps
- *   the single declaration of which guides exist (it is deliberately not exported).
+ * @param {{ guides: ReadonlyArray<{icon: string, label: string, url: string, openId: string}> }} cfg
+ *   `guides` is the drawer's NAV_GUIDES (nav-destinations.js), handed over by nav-panel.js, so the
+ *   results can only ever name a guide the drawer lists.
  */
 export function initGuideSearch({ guides }) {
     const input    = /** @type {HTMLInputElement|null} */ (document.getElementById('navGuideSearchInput'));
