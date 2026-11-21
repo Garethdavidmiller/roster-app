@@ -2388,8 +2388,8 @@ test('paycalc: the Holiday Pay Premium joins take-home ONLY when the tick is on'
 // their figures in July and left them there gets a skewed tax estimate for the rest of the year,
 // with no error and no visible difference.
 //
-// What makes it worth a browser is that the page ALREADY SAYS THE RIGHT THING: `_updateYtdNote`
-// writes "not in use" into the header chip and "worked out from this payslip alone" into the
+// What makes it worth a browser is that the page ALREADY SAYS THE RIGHT THING: `updateYtdNote`
+// (paycalc-ytd-card.js) writes "not in use" into the header chip and "worked out from this payslip alone" into the
 // note from the same rule, independently of the arithmetic. So without the guard the chip and the
 // figure disagree, and the chip is the honest one. The assertion therefore pairs them.
 //

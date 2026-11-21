@@ -1,7 +1,7 @@
 // @ts-check
 // MYB Roster — Pay Calculator core maths
 // Pure functions only — no DOM, no Firebase, no browser globals.
-// Imported by paycalc-app.js (browser) and paycalc.test.mjs (Node test runner).
+// Imported by most of the paycalc-*.js modules (browser) and their tests (Node test runner).
 
 export const P_YR = 13; // 13 four-weekly pay periods per year
 
@@ -223,7 +223,8 @@ export function awardFromForYear(tyLabel) {
 /**
  * True if `p` is a period paid BEFORE its tax year's award was applied — i.e. it was paid at the
  * prior year's (pre-award) rate. Requires a recorded `pre` rate AND an award date, AND payday < that
- * date. Single predicate: getRateForPeriod, updateRateForPeriod and confirmSettings, and the header hint.
+ * date. Single predicate, called by getRateForPeriod and periodRate (paycalc-settings.js) — which
+ * calculate(), the rate field (updateRateForPeriod) and the Settings summary (settingsSummary) all read.
  * @param {{ payday: Date }} p
  * @param {string} grade
  * @param {string} tyLabel

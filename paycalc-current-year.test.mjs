@@ -93,7 +93,7 @@ describe('a NEW tax year cannot arrive without coming through this file', () => 
 
 describe('the current tax year is present at all', () => {
     test('every table carries an entry for it — a missing one silently falls back a year', () => {
-        // `resolveYear` warns and uses 2025/26 when a table lacks the year. A console warning in a
+        // `getThresholds` (paycalc-calc.js) warns and uses 2025/26 when a table lacks the year. A console warning in a
         // browser nobody is watching is not a control: the member still gets a number, and it is
         // last year's. These four assertions are what stop that being invisible.
         for (const [name, table] of /** @type {[string, Record<string, any>][]} */ ([
