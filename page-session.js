@@ -55,9 +55,11 @@
  * release this device's push record, clear the session and tear down the drawer first, because the
  * drawer was wired with the old member's name and pills, and on a shared device neither that nor the
  * member's targeted notices may stay behind the sign-in.
- * A session that could not be DECIDED — Firebase's start-up stalled, so the policy says `pending` —
- * is the one case that clears nothing (v24.61): the sign-in is shown over a kept session, and a
- * late-landing identity reloads the page into itself.
+ * A session that could not be DECIDED — the policy says `pending` because the sign-in reached no
+ * answer: Firebase's start-up stalled, or the attempt failed transiently (the network, the reset check
+ * unavailable, a rate limit, Firebase's internal error, an account or viewer the browser could not
+ * shed) — is the one case that clears nothing (v24.61): the sign-in is shown over a kept session, and
+ * a late-landing identity reloads the page into itself.
  *
  * ── WHAT IT DELIBERATELY DOES NOT OWN ──────────────────────────────────────────────────────────
  *
@@ -318,15 +320,23 @@ export function rebaseRestoreGuard() {
 /** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed
  *  late, the last time it reloaded for that. Local to this module — one reader, one writer. */
 const LATE_IDENTITY_RELOAD = 'myb_late_identity_reload';
+/** Set once this page load has allowed a reload with sessionStorage unusable — see below. */
+let _reloadAllowedWithoutStorage = false;
 /** Whether a late-identity reload may run now: not within two minutes of the last one. Stamps when it
  *  says yes. sessionStorage (one tab's journey), read directly in a try/catch — iOS private mode throws.
+ *  Where it throws, one reload is still allowed rather than none — but only ONE per page load (review,
+ *  Nov 2026): it said yes to every call, so the cap was no cap at all there. Memory cannot outlive the
+ *  reload it allows, so across loads that tab is bounded only by each load's single late landing.
  *  @param {number} now @returns {boolean} */
 export function lateReloadAllowed(now) {
     try {
         const last = parseInt(sessionStorage.getItem(LATE_IDENTITY_RELOAD) || '0', 10) || 0;
         if (now - last < LATE_RELOAD_GAP_MS) return false;
         sessionStorage.setItem(LATE_IDENTITY_RELOAD, String(now));
-    } catch { /* no sessionStorage: allow the one reload rather than none */ }
+    } catch {
+        if (_reloadAllowedWithoutStorage) return false;
+        _reloadAllowedWithoutStorage = true;
+    }
     return true;
 }
 /** Two minutes: longer than any start-up stall plus the SDK's own 30s lookup timeout, so a second
@@ -338,30 +348,41 @@ function sessionName(raw) {
     try { return (raw && JSON.parse(raw)?.name) || null; } catch { return null; }
 }
 
+/** What the shared sign-in says once this page has signed the member out on this device. */
+export const SIGNED_OUT_NOTICE = 'You’ve been signed out on this device. Sign in again to carry on.';
+
 /**
  * Once the page's own Firebase session settles: sign in again now if it could not be confirmed, and
  * again later if the account goes mid-visit.
  * @param {{ page: string, pageLabel: string, member: string, established: Promise<any>|any,
- *           signIn?: () => void }} opts
- *        `signIn` defaults to the shared in-place sign-in, reloading on success.
+ *           signIn?: () => void, about?: import('./login-overlay.js').LoginAbout|null }} opts
+ *        `signIn` defaults to the shared in-place sign-in, reloading on success. That card is FOR
+ *        `member` (their grade and name chosen, the password next) and, once this page has cleared the
+ *        session, says so (`SIGNED_OUT_NOTICE`): a blank card asking for grade and name again read like
+ *        a fault (review, Nov 2026). `about` is what it says the page is, for a page whose card at load
+ *        carries one (Trains). A page that passes its own `signIn` words its own card.
  * @returns {Promise<void>}
  */
-export function guardNamedSession({ page, pageLabel, member, established, signIn }) {
+export function guardNamedSession({ page, pageLabel, member, established, signIn, about = null }) {
     // Loaded on demand: the Calendar and the Pay Calculator import this module for the sign-out
     // routines and never call this one, and the sign-in is 44 KB they would otherwise load at start.
     // Every page that DOES call it already has the module (it shows its own sign-in at load).
-    const showSignIn = signIn ?? (() => import('./login-overlay.js')
-        .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, onSuccess: () => window.location.reload() }))
-        .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }));
+    /** @type {(signedOut: boolean) => void} */
+    const showSignIn = signIn ? () => signIn() : (signedOut) => { import('./login-overlay.js')
+        .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, about, presetName: member,
+            notice: signedOut ? SIGNED_OUT_NOTICE : '', onSuccess: () => window.location.reload() }))
+        .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }); };
     // The sign-in waits for the reset's history step to land (v25.06): it pushes an entry of its own.
     // This device's push record goes FIRST, as at every other end of a member's hold (audit A1) — never
     // awaited, so the sign-in does not wait on it. The identity has usually gone already (that is why
     // the sign-in is back), so the release drops the browser subscription and the next send's 410
     // deletes the record — as on the Calendar after a reset refusal.
-    const relogin = () => { releasePushForEndingHold(); clearSession(); resetNavPanel(); whenHistorySettled(showSignIn); };
-    // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means
-    // Firebase's start-up stalled past its bound (`terminalAuthEvent`, session.js): the member has not
-    // been refused, the network has not answered. Keep the local session and the drawer, show the
+    const relogin = () => { releasePushForEndingHold(); clearSession(); resetNavPanel(); whenHistorySettled(() => showSignIn(true)); };
+    // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means the
+    // sign-in reached no answer — Firebase's start-up stalled past its bound, or the attempt failed
+    // transiently: a network error, the reset check unavailable, a rate limit, Firebase's internal
+    // error, a shed that failed (`terminalAuthEvent`, session.js). The member has not been refused, so
+    // the card does not say they were signed out. Keep the local session and the drawer, show the
     // sign-in — which can also sign them in, if they would rather not wait — and if the identity
     // this page belongs to lands late, reload into it rather than leave a page whose writes would fail.
     // ONE automatic reload per two minutes (24-hour review). On a connection that accepts and never
@@ -369,7 +390,7 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
     // identity "lands late" on EVERY load, and an uncapped reload was a loop with the sign-in
     // flashing inside it. After the one reload the overlay stays, and it can still sign them in.
     const holdForLateIdentity = () => {
-        showSignIn();
+        showSignIn(false);
         const email = nameToEmail(member);
         const stop = onAuthStateChanged(auth, (/** @type {any} */ user) => {
             if (!user || user.isAnonymous || user.email !== email) return;

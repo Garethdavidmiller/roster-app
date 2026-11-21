@@ -41,7 +41,9 @@ let lastConfirm = '';
 let inFlight = 0;
 mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { log.push('confirm'); lastConfirm = o.message; return confirmAnswer; }, whenHistorySettled: (/** @type {() => void} */ fn) => fn() } });
 mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight } });
-mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => log.push(`login:${o.pageLabel}`) } });
+/** What the shared sign-in was last opened with — RECORDED, so a test can say what the card was told. @type {any} */
+let lastLoginOpts = null;
+mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => { lastLoginOpts = o; log.push(`login:${o.pageLabel}`); } } });
 
 /** sessionStorage for the late-identity reload cap. @type {Map<string,string>} */
 const ss = new Map();
@@ -84,7 +86,7 @@ const settle = async () => {
     for (let i = 0; i < 100 && !log.some(e => e.startsWith('login:')); i++) await new Promise(r => setTimeout(r, 20));
 };
 
-beforeEach(() => { ss.clear(); ls.clear(); docListeners = {}; /** @type {any} */ (global.document).visibilityState = 'visible'; authCb = null; inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
+beforeEach(() => { lastLoginOpts = null; ss.clear(); ls.clear(); docListeners = {}; /** @type {any} */ (global.document).visibilityState = 'visible'; authCb = null; inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
 
 describe('guardNamedSession', () => {
     test('an unconfirmed own session: clear, tear down the drawer, THEN the sign-in — and no watch', async () => {
@@ -150,6 +152,65 @@ describe('guardNamedSession', () => {
         authCb(me);
         assert.deepEqual(log, ['authUnwatch'], 'no second reload inside the window — the overlay stays, and can sign them in');
         assert.equal(ps.lateReloadAllowed(Date.now() + ps.LATE_RELOAD_GAP_MS + 1), true, 'and the cap lifts after the gap');
+    });
+
+    test('with sessionStorage THROWING (iOS private mode), one reload per page load still — never one per call (review, Nov 2026)', async () => {
+        // A fresh module instance: a page load is what the in-memory fallback lasts for.
+        const fresh = await import('./page-session.js?storage-throws');
+        const real = global.sessionStorage;
+        const refuse = () => { const e = new Error('The operation is insecure.'); e.name = 'SecurityError'; throw e; };
+        global.sessionStorage = /** @type {any} */ ({ getItem: refuse, setItem: refuse });
+        try {
+            const now = Date.now();
+            assert.equal(fresh.lateReloadAllowed(now), true, 'the one reload is still allowed rather than none');
+            assert.equal(fresh.lateReloadAllowed(now + 1), false, 'a second reload on the same load — the loop the cap exists to stop');
+            assert.equal(fresh.lateReloadAllowed(now + fresh.LATE_RELOAD_GAP_MS + 1), false, 'without storage the gap cannot be measured, so it never lifts on this load');
+        } finally { global.sessionStorage = real; }
+    });
+
+    test('the shared sign-in after a LOST session names the member and says they were signed out (review, Nov 2026)', async () => {
+        // It said nothing and asked for grade and name again, which read like a fault rather than a sign-out.
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: true });
+        currentUser = null;
+        watchArgs.onLost();
+        await settle();
+        assert.equal(lastLoginOpts?.presetName, 'A. Member', 'the card was not for the member it lost');
+        assert.equal(lastLoginOpts?.notice, ps.SIGNED_OUT_NOTICE, 'the card did not say why it was up');
+        assert.equal(ps.SIGNED_OUT_NOTICE, 'You’ve been signed out on this device. Sign in again to carry on.');
+        assert.equal(lastLoginOpts?.about, null, 'a page that passes no `about` gets none');
+    });
+
+    test('…and so does one that could not be confirmed at load, which is cleared too', async () => {
+        decision = 'login';
+        await ps.guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: 'A. Member', established: Promise.resolve() });
+        await settle();
+        assert.equal(lastLoginOpts?.presetName, 'A. Member');
+        assert.equal(lastLoginOpts?.notice, ps.SIGNED_OUT_NOTICE);
+    });
+
+    test('…but an UNDECIDED session, which is kept, is not told it was signed out — only who the card is for', async () => {
+        decision = 'pending';
+        await ps.guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: 'A. Member', established: false });
+        await settle();
+        assert.equal(lastLoginOpts?.presetName, 'A. Member');
+        assert.equal(lastLoginOpts?.notice, '', 'a slow network was described as a sign-out');
+    });
+
+    test('a page whose own card explains it (Trains) has the same explanation on the card a lost session gets', async () => {
+        const about = { lines: ['What this page is.'] };
+        decision = 'login';
+        await ps.guardNamedSession({ page: 'trains', pageLabel: 'Trains', member: 'A. Member', established: null, about });
+        await settle();
+        assert.equal(lastLoginOpts?.about, about);
+    });
+
+    test('…and Trains is WIRED to pass it: the explanation its card at load carries (the wiring, read from source)', async () => {
+        // The rule above is the helper's; this is the call site. Without `about` a member who lost their
+        // session mid-visit met a card without the staff PIN's way in that the page's own card offers.
+        const { readFileSync } = await import('node:fs');
+        const src = readFileSync(new URL('./trains-app.js', import.meta.url), 'utf8');
+        assert.match(src, /initLoginOverlay\(\{[^}]*about: SIGN_IN_ABOUT/, 'premise: the card at load explains the page');
+        assert.match(src, /guardNamedSession\(\{[^}]*about: SIGN_IN_ABOUT/, 'the card a lost session gets does not say what the page is');
     });
 
     test('a page with its own sign-in (Admin) gets that, not the shared one', async () => {

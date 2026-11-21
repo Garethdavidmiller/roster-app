@@ -145,7 +145,8 @@ function start(member) {
     if (member) {
         const established = ensureNamedSession(member);
         resolveSession(established);
-        guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established });
+        // The card a lost session gets says what the card at load says — the station PIN's way in too.
+        guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established, about: SIGN_IN_ABOUT });
     }
     const isAdmin = !!member && CONFIG.ADMIN_NAMES.includes(member);
 
