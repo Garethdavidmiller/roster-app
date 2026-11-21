@@ -48,7 +48,8 @@ import { projectAnnualLeaveOverage, parseISODate, isSunday, getBaseShift } from 
 import { isRestShift, isBeforeMemberStart } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 import { swapDecisionDates, rangeWriteDates, absenceHiddenDates } from './al-swapped-days.js';
-import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType, lowersAllowance } from './al-entitlement.js';
+import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType, lowersAllowance,
+    spareUnderneath, spareWeekDays, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 
@@ -185,8 +186,40 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
         if (ovByDate.get(date)?.type === 'annual_leave' && consumesEntitlement(member, date, ovByDate) === consumes) alreadyBooked.push(date);
     }
 
+    // A SPARE WEEK COSTS AT MOST FOUR DAYS, ACROSS THE WHOLE BOOKING (owner, 21 Nov 2026). Each day
+    // above was costed against the leave already SAVED, which cannot see the other new days of the
+    // same week — so a whole new Spare week would have read as six. Per week: the leave on its Spare
+    // days that is saved and stays (not re-written by this booking) has spent some of the four, and
+    // the booking's own Spare days take what is left, earliest first. The rest are written, free.
+    _capSpareWeeks({ member, ovByDate, all, consuming, freeWritten });
+
     const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost, alreadyBooked };
     return { ...out, counts: _counts(out) };
+}
+
+/**
+ * Moves a booking's Spare days beyond a week's four from `consuming` to `freeWritten`, in place.
+ * `spareUnderneath` and the cap are al-entitlement.js's; this only adds the days not saved yet.
+ * @param {{ member: any, ovByDate: Map<string, any>, all: string[], consuming: string[], freeWritten: string[] }} a
+ */
+function _capSpareWeeks({ member, ovByDate, all, consuming, freeWritten }) {
+    const booking = new Set(all);
+    /** @type {Map<string, string[]>} */ const byWeek = new Map();
+    for (const d of consuming) {
+        if (!spareUnderneath(member, d, ovByDate)) continue;
+        const key = spareWeekDays(d)[0];
+        byWeek.set(key, [...(byWeek.get(key) ?? []), d]);
+    }
+    for (const [monday, days] of byWeek) {
+        const saved = spareWeekDays(monday).filter(d => !booking.has(d) && ovByDate.get(d)?.type === 'annual_leave'
+            && spareUnderneath(member, d, ovByDate) && consumesEntitlement(member, d, ovByDate)).length;
+        const free = [...days].sort().slice(Math.max(0, SPARE_WEEK_MAX_DAYS - saved));
+        for (const d of free) {
+            consuming.splice(consuming.indexOf(d), 1);
+            freeWritten.push(d);
+        }
+    }
+    freeWritten.sort();
 }
 
 /**

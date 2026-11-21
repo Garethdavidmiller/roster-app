@@ -192,6 +192,18 @@ shown that yet.
   per-workflow and ref-independent on purpose (`deploy-functions.yml`, `deploy-rules.yml`); and a change
   to `firestore.indexes.json` alone still needs a version bump.
 
+- **A Spare week's leave costs at most four days** (owner, 21 Nov 2026 — "A full spare week off
+  should be charged as 4 days AL"; part weeks "1 a day, at most 4"; "count only"). A Spare week is four
+  days' work of 35 hours, but the roster marks all seven days Spare, so a whole week off was charged as
+  six (Monday to Saturday). Each day still Spare costs one, and a week stops costing at four, in date
+  order (`pastSpareWeekCap`, `al-entitlement.js`); the booking preview applies it across the days being
+  booked (`_capSpareWeeks`, `admin-al-projection.js`) and its Spare line says so. **Count only:** every
+  day is still written as leave, so the Calendar shows the whole week off and nothing saved had to
+  change. Weighed and not chosen: writing leave on four days and Rest Day on two (weeks already booked
+  would still count six), and charging any leave in a Spare week as four. A Spare week a roster upload
+  turned into named shifts is charged as shifts. How the clerks' grid books one is AL_WORKBOOK.md §10
+  question 17.
+
 - **Leave over rest-day working is free, whatever kind** (owner, 10 Nov 2026 — "Free, like plain
   RDW") · **Trigger to revisit: payroll charging a day of leave over a rest-day Training, Meeting or
   Spare record.** Leave booked across a base rest day holding RDW, an Other day (Training, Meeting … —

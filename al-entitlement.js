@@ -61,7 +61,7 @@
  * pure, which is what lets the boundary (a day that is today) be tested at all.
  */
 
-import { getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { getBaseShift, isSunday, parseISODate, formatISO } from './roster-data.js';
 import { getALEntitlement, dispatcherBaseAL, allowanceRole } from './al-contract.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
@@ -137,6 +137,70 @@ export function lowersAllowance(member, date, ovByDate, written = { type: 'annua
  * @returns {boolean}
  */
 export function consumesEntitlement(member, date, ovByDate = null) {
+    if (!costsWithoutSpareCap(member, date, ovByDate)) return false;
+    // …AND A SPARE WEEK NEVER COSTS MORE THAN FOUR (owner, 21 Nov 2026): `pastSpareWeekCap`.
+    return !pastSpareWeekCap(member, date, ovByDate);
+}
+
+/**
+ * The most leave in one Spare week costs (owner, 21 Nov 2026). A Spare week is four days' work of
+ * 35 hours, but the roster marks all of it Spare, so a whole week off was charged as six days, Monday
+ * to Saturday. Each Spare day still costs one day; the week stops costing at four.
+ */
+export const SPARE_WEEK_MAX_DAYS = 4;
+
+/**
+ * Is the work underneath `date` still a SPARE turn — on standby, the shift not yet assigned? Read
+ * as `consumesEntitlement` reads what was underneath: a record's own evidence first (leave or an
+ * absence carries what it replaced, `contractEvidence`), else the base roster. A Spare week a roster
+ * upload has since turned into named shifts is not Spare any more, and is charged as shifts are.
+ * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
+ * @returns {boolean}
+ */
+export function spareUnderneath(member, date, ovByDate) {
+    const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
+    const evidence = contractEvidence(ov);
+    if (evidence && evidence.type) return evidence.type === 'spare_shift';
+    return getBaseShift(member, parseISODate(date)) === 'SPARE';
+}
+
+/**
+ * The Monday to Saturday of the week holding `date`, as ISO dates. A roster week runs Sunday to
+ * Saturday and a Sunday never costs a day, so the days that can cost are the same either way.
+ * @param {string} date @returns {string[]}
+ */
+export function spareWeekDays(date) {
+    const d = parseISODate(date);
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7));
+    return Array.from({ length: 6 }, (_, i) => formatISO(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)));
+}
+
+/**
+ * Has this Spare week already spent its four days BEFORE `date`? The first four Spare days with leave
+ * in a week cost a day each, in date order, and any after them cost nothing — so a whole week costs
+ * four and a part week costs a day a day (owner, 21 Nov 2026: "1 a day, at most 4"). Only leave over a
+ * day that is still Spare counts (`spareUnderneath`), and only a day that would cost on its own.
+ * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
+ * @returns {boolean}
+ */
+export function pastSpareWeekCap(member, date, ovByDate) {
+    if (!spareUnderneath(member, date, ovByDate)) return false;
+    let before = 0;
+    for (const day of spareWeekDays(date)) {
+        if (day >= date) break;
+        const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(day) : null;
+        if (ov?.type === 'annual_leave' && spareUnderneath(member, day, ovByDate) && costsWithoutSpareCap(member, day, ovByDate)) before++;
+    }
+    return before >= SPARE_WEEK_MAX_DAYS;
+}
+
+/**
+ * Would leave on `date` cost a day ON ITS OWN — every rule but the Spare week's? `consumesEntitlement`
+ * is this plus the week's cap; the cap asks this of the week's earlier days, so it cannot recurse.
+ * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
+ * @returns {boolean}
+ */
+export function costsWithoutSpareCap(member, date, ovByDate) {
     if (!member || !date) return false;
     if (isSunday(date)) return false;
     // Before the member joined, nothing costs a day — a record's own evidence included (header).

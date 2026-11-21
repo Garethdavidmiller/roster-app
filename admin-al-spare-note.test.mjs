@@ -6,7 +6,7 @@
 // costs exactly one day of annual leave.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
+import { spareShiftNote, countSpareDays, spareDaysOf } from './admin-al-spare-note.js';
 import { teamMembers, getBaseShift, isSunday } from './roster-data.js';
 import { projectAlBooking } from './admin-al-projection.js';
 
@@ -150,5 +150,23 @@ test('over a month of Spare turns, the note counts exactly the days the booking 
     const spare = new Map(dates.map(d => [d, { type: 'spare_shift', value: 'SPARE' }]));
     const booked = projectAlBooking({ member: f.m, dates, ovByDate: spare });
     assert.ok(booked.consuming.length > 0 && booked.freeWritten.length > 0, 'premise: the month holds working days and rest days');
-    assert.equal(countSpareDays(f.m, dates, spare), booked.consuming.length);
+    // Since 21 Nov 2026 a Spare week stops costing at four, so the Spare days BOOKED can outnumber
+    // the days CHARGED — and the note is handed both (admin-al.js), so each must be right.
+    const spareDays = spareDaysOf(f.m, dates, spare);
+    assert.equal(countSpareDays(f.m, dates, spare), spareDays.length);
+    assert.equal(spareDays.filter(d => booked.consuming.includes(d)).length, booked.consuming.length,
+        'every day the booking charges is a Spare day the note counts');
+    assert.deepEqual([...booked.consuming, ...booked.freeWritten].filter(d => spareDays.includes(d)).sort(), spareDays,
+        'and every Spare day it counts is written, charged or free');
+});
+
+// A SPARE WEEK USES AT MOST FOUR (owner, 21 Nov 2026). When the booking charges fewer Spare days
+// than it holds, "Each still uses 1 day" is no longer true, so the note says the cap and the figure.
+test('a booking past a Spare week\'s four says the cap and what it does use', () => {
+    assert.equal(spareShiftNote(6, 6, 4),
+        '📋 6 of these days are Spare days — on standby, with the shift not yet assigned. A Spare week uses at most 4 days of annual leave, so they use 4 days.');
+    assert.match(spareShiftNote(2, 2, 0), /so they use none\.$/);
+    assert.match(spareShiftNote(1, 1, 0), /^📋 This is a Spare day — .* this week's are already booked, so it uses none\.$/);
+    assert.doesNotMatch(spareShiftNote(6, 6, 4), /Each still uses 1 day/);
+    assert.equal(spareShiftNote(3, 6, 3), spareShiftNote(3, 6), 'charged in full reads as before');
 });

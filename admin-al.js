@@ -14,7 +14,7 @@ import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
-import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
+import { spareShiftNote, spareDaysOf } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
 
@@ -131,7 +131,9 @@ export function initALSection({
      */
     function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, projection, sundays = [], sundayNote = '' }) {
         // A day that is STILL Spare — not one a roster upload has since assigned (admin-al-spare-note.js).
-        const spareCount = countSpareDays(memberObj, dates, memberOvByDate);
+        const spareDays = spareDaysOf(memberObj, dates, memberOvByDate);
+        // …and how many of them it CHARGES: a Spare week stops costing at four (owner, 21 Nov 2026).
+        const spareCharged = spareDays.filter(d => projection.consuming.includes(d)).length;
         const c = projection.counts;
         // DAYS THAT ALREADY HOLD LEAVE ARE NOT NEW DAYS (review, Nov 2026). The save writes them again,
         // at the cost they already had, so "5 days" over three days already booked was booked where the
@@ -151,7 +153,8 @@ export function initALSection({
             label = days(projection.consuming.filter(/** @param {string} d */ d => !held.has(d)).length);
             const parts = heldNote ? [heldNote] : [];
             // A written day that costs nothing is an RDW day — worked, but declining overtime is not
-            // leave. It is reported because it IS being recorded, just not charged.
+            // leave — or a Spare day past its week's four (owner, 21 Nov 2026). It is reported because
+            // it IS being recorded, just not charged.
             // …EXCEPT A WORKED BOXING DAY (6 Nov 2026 review): its leave is free, but the work it
             // replaces earned a day in lieu, which goes with it. "At no cost" was untrue of it, so it
             // is named on its own, and the over-allowance check counts the day it takes back.
@@ -181,7 +184,7 @@ export function initALSection({
         }
         const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
         // Wording, and why a Spare day costs exactly one: admin-al-spare-note.js's header.
-        const noteText  = isSpareRole ? spareShiftNote(spareCount, dates.length) : '';
+        const noteText  = isSpareRole ? spareShiftNote(spareDays.length, dates.length, spareCharged) : '';
         const spareNote = noteText ? `<br><em>${esc(noteText)}</em>` : '';
         return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }

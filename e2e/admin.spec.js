@@ -4796,6 +4796,54 @@ test('admin: the AL preview names a Spare day and says it costs one day of leave
         .not.toMatch(/hours|more than 1 AL day/i);
 });
 
+// A SPARE WEEK COSTS AT MOST FOUR DAYS (owner, 21 Nov 2026). The rule is unit-tested in
+// al-entitlement.test.mjs and the booking's week pass in admin-al-projection.test.mjs; this drives the
+// real card, because the preview's total and its Spare line read the projection through admin-al.js.
+test('admin: booking a whole Spare week off previews four days, and says why', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    // A Monday-to-Saturday Spare week, found from the roster for the reason the test above gives, with
+    // no bank holiday in it and inside one month, so one page of the picker holds both ends.
+    const pick = await page.evaluate(async () => {
+        const rd = await import('./roster-data.js');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) continue;
+            for (let i = 1; i <= 200; i++) {
+                const mon = new Date(today); mon.setDate(mon.getDate() + i);
+                if (mon.getDay() !== 1) continue;
+                const week = Array.from({ length: 6 }, (_, k) => { const d = new Date(mon); d.setDate(d.getDate() + k); return d; });
+                if (week[5].getMonth() !== mon.getMonth()) continue;
+                if (!week.every(d => rd.getBaseShift(m, d) === 'SPARE' && !rd.isBankHoliday(d))) continue;
+                return { name: m.name, from: iso(week[0]), to: iso(week[5]),
+                    monthsAhead: (mon.getFullYear() - today.getFullYear()) * 12 + (mon.getMonth() - today.getMonth()) };
+            }
+        }
+        return null;
+    });
+    expect(pick, 'no CEA/CES member has a whole Spare week inside one month in the next 200 days').not.toBeNull();
+    const p = /** @type {any} */ (pick);
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    for (let i = 0; i < p.monthsAhead; i++) {
+        await page.locator('#alRpNext').click();
+        await page.waitForTimeout(60);
+    }
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.from}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.to}"]`).click();
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('4 days of Annual Leave');
+    await expect(preview).toContainText('2 days recorded at no cost');
+    await expect(preview).toContainText('6 of these days are Spare days');
+    await expect(preview).toContainText('A Spare week uses at most 4 days of annual leave, so they use 4 days.');
+    await expect(preview).not.toContainText('Each still uses 1 day');
+});
+
 // OWNER-REPORTED (v24.44): a Spare week that a roster upload had turned into real shifts was still
 // called Spare when one of those days was booked off — "the shift not yet assigned", about a day
 // whose shift had been. The note read the BASE roster; it must read what the Calendar shows.
