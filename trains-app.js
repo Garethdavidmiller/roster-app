@@ -118,7 +118,10 @@ export function init() {
         const pin = admitsStaffPin('trains') ? holdsStaffPin(undefined, () => start(null)) : reconcileExpiredIdentity().then(() => false);
         pin.then((held) => { if (held) { start(null); return; } document.body.classList.add('auth-ready'); initLoginOverlay({
             pageLabel: 'Trains', about: SIGN_IN_ABOUT,   // the way in for the station PIN, which opens this page too (trains-render.js)
-            // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.
+            // No session here: reload into a fresh sign-in. Belt and braces — a session that failed to
+            // save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first, and
+            // Private Browsing has not refused storage since iOS 11), so only a session lost in between
+            // (another tab signing out, site data cleared) lands here.
             onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
         }); });
         return;

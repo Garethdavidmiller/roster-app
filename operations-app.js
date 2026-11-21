@@ -84,8 +84,11 @@ export function init() {
     if (_access.decision === 'login') {
         // Not signed in → the shared in-place sign-in. On success init() runs again, and the authorised
         // body below runs exactly ONCE. Do NOT resolveSession(false) here: sessionReady is one-shot.
-        // A reload instead if init() throws, or if the session did not save (iOS private mode): the
-        // 'login' branch again would find the overlay mounted and soft-lock on "Signed in…".
+        // A reload instead if init() throws, or if there is no session by then: the 'login' branch
+        // again would find the overlay mounted and soft-lock on "Signed in…". The no-session case is
+        // belt and braces — a session that failed to save never reaches onSuccess (`runNamedSignIn`
+        // refuses with kind 'storage' first, and Private Browsing has not refused storage since
+        // iOS 11), so only a session lost in between (another tab signing out, site data cleared).
         const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
         initLoginOverlay({ pageLabel: 'Operations', onSuccess });
         return;

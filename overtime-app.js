@@ -160,9 +160,9 @@ export function init() {
             pageLabel: 'Overtime',
             onSuccess: () => {
                 currentSession = getSession();
-                // No session saved (iOS private mode can refuse the write): reload into a fresh
-                // sign-in, as the other pages do, rather than tell a real participant the page is
-                // not open to them (v24.56).
+                // No session: reload into a fresh sign-in rather than refuse a real participant (v24.56).
+                // Belt and braces — a failed save never reaches onSuccess (`runNamedSignIn` refuses with
+                // kind 'storage' first; iOS Private Browsing stopped refusing storage at iOS 11).
                 if (!currentSession) { window.location.reload(); return; }
                 currentUser = currentSession.name ?? null;
                 dismissLoginOverlay();

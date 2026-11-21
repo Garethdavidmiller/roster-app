@@ -89,7 +89,10 @@ export function init() {
     // role-gated page must not treat "pending" as "allowed".
     const access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'newlink');
     if (access.decision === 'login') {
-        // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.
+        // No session in onSuccess: reload into a fresh sign-in. Belt and braces — a session that
+        // failed to save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first,
+        // and Private Browsing has not refused storage since iOS 11), so only a session lost in
+        // between (another tab signing out, site data cleared) lands here.
         initLoginOverlay({
             pageLabel: 'New link', about: ABOUT,
             onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
