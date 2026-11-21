@@ -2933,6 +2933,28 @@ test('paycalc: a Dispatcher is told the calculator does not cover their pay, and
     expect(errors, 'Uncaught JS exceptions on the unsupported-role gate').toHaveLength(0);
 });
 
+// THE REFUSAL KEEPS THE PAGE CHROME (Nov 2026). `_showUnsupportedRole` wired the drawer with no
+// `onLogoClick` and never built About or the header logo, so on this card alone the drawer head ("about
+// this app") and the header logo ("Back to calendar") did nothing. Behaviour, not wiring: the tap must
+// open the panel, and the logo must leave.
+test('paycalc: on the unsupported-role card the drawer head opens About and the header logo goes back to the calendar', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page, 'D. Minto');
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#unsupportedGradeBanner')).toBeVisible();
+
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanel')).toHaveClass(/open/);
+    await page.locator('#navPanelBrand').click();
+    await expect(page.locator('#iconLightbox'), 'the drawer head opens About on the refusal card too').toHaveClass(/open/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#iconLightbox')).not.toHaveClass(/open/);
+
+    await page.locator('#appIcon').click();
+    await expect(page, 'the header logo goes back to the calendar').not.toHaveURL(/paycalc\.html/);
+    expect(errors, 'Uncaught JS exceptions on the unsupported-role chrome').toHaveLength(0);
+});
+
 // A MANAGER is refused the same way and told something different (owner, 7 Nov 2026): who the
 // calculator is FOR, and why they might point their team at it. Not "yet", not "will be added" —
 // managers are not in line for it, so either would be untrue to this reader. D. Watts is a

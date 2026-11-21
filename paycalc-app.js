@@ -65,7 +65,7 @@ import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
-import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
+import { initPaycalcLightboxes, initPaycalcAbout } from './paycalc-lightboxes.js';
 import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
@@ -96,12 +96,15 @@ function _showUnsupportedRole(member) {
     document.body.classList.add('role-unsupported');
     document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');
     paintRoleCard(member);   // the words differ by who is reading — paycalc-role-card.js
+    // About and the header logo, as on every page — without them the drawer head and the logo did nothing here.
+    const openAboutLightbox = initPaycalcAbout();
     initNavPanel({
         currentPage: 'paycalc',
         memberName:  member?.name || null,
         isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(member?.name ?? ''),
         isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(member?.name ?? ''),
         canOpenOvertime: canOpenOvertime(member?.name ?? ''), canOpenNewlink: canOpenNewlink(member?.name ?? ''),
+        onLogoClick: () => openAboutLightbox?.(),
         onSignOut: () => signOutAndLeave({ to: './' }),
     });
     markPageReady();

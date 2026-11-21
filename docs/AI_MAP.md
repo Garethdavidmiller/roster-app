@@ -788,8 +788,8 @@ The two opt-in money banners on the result card, back pay and the Holiday Pay Pr
 - **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner`
 
 ### `paycalc-lightboxes.js`
-The overlays on `paycalc.html`: About, Help, the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). Tested by `paycalc-notice-order.test.mjs`.
-- **Exports:** `initPaycalcLightboxes`
+The overlays on `paycalc.html`: About, Help, the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). The About panel and the header logo are also their own call (`initPaycalcAbout`), which the unsupported-role card makes too. Tested by `paycalc-notice-order.test.mjs`; the refusal card's chrome by `e2e/paycalc.spec.js`.
+- **Exports:** `initPaycalcAbout` · `initPaycalcLightboxes`
 
 ### `paycalc-periods.js`
 Period arithmetic and the payslip lists for `paycalc.html`: the period grid (`p.num` is an internal id, never the printed number), the new-starter clamp, the one builder of every payslip list, deep links by payday or month, navigation, and the Year to Date source rules: which payslip may be in hand, offered, stamped, in use, or asked for. Rules: `.claude/rules/paycalc.md` → New-starter visibility clamp and "Year to Date figures are ANCHORED". Tested by `paycalc-periods.test.mjs`.

@@ -26,6 +26,26 @@ import { TAX_YEARS } from './paycalc-calc.js';
 
 import { setStatus } from './status-text.js';
 /**
+ * The page chrome every Pay Calculator view needs, the refusal card's included: the About panel
+ * (lifecycle, SW status, bug link and print button are the shared about-lightbox.js) and the header
+ * logo as a back-to-calendar button — About opens from the drawer head. Returns About's OPEN, for
+ * `initNavPanel`'s `onLogoClick`, never the object (about-lightbox.js says what that cost).
+ *
+ * Its own export because the unsupported-role card wires the drawer too and, until Nov 2026, did not
+ * wire this: the drawer head ("about this app") and the header logo ("Back to calendar") did nothing
+ * there. The refusal opens none of the page's other lightboxes, so it cannot take them all.
+ * @returns {(() => void)|null}
+ */
+export function initPaycalcAbout() {
+  const about = initAboutLightbox({
+    appLabel: 'Marylebone Roster — Pay Calculator',
+    getUserName: () => getLoggedMember()?.name,
+  });
+  wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
+  return about?.open ?? null;
+}
+
+/**
  * Initialise all paycalc lightboxes and the decimal hours converter.
  *
  * Returns the openAboutLightbox handle so the coordinator can pass it to initNavPanel, and
@@ -59,18 +79,7 @@ export function initPaycalcLightboxes() {
   const _ownerPending = hasPendingLegacyMigration(getLoggedMember()?.name);
 
   // ── ABOUT LIGHTBOX ──────────────────────────────────────────────────────────
-  // Lifecycle, SW status, bug link, and print button are the shared about-lightbox.js.
-  // Header logo is a back-to-calendar button — About opens from the drawer logo.
-  let openAboutLightbox = null;
-  (function () {
-    const about = initAboutLightbox({
-      appLabel: 'Marylebone Roster — Pay Calculator',
-      getUserName: () => getLoggedMember()?.name,
-    });
-    if (about) openAboutLightbox = about.open;
-
-    wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
-  })();
+  const openAboutLightbox = initPaycalcAbout();
 
   // ── HELP LIGHTBOX ───────────────────────────────────────────────────────────
   // Generic lightbox driven by HELP_CONTENT — opened by any .help-btn[data-help].
