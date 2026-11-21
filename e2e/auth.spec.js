@@ -987,6 +987,27 @@ test('login overlay geometry is identical across every page that shows it', asyn
     }
 });
 
+// EVERY PAGE'S CARD SAYS WHAT THE PAGE IS (owner, 21 Nov 2026). Admin, Pay, New link and Trains explained
+// themselves on the sign-in card; Settings, Operations and Links did not, so the same card read differently
+// from page to page. Every page that puts up the shared sign-in now carries an explanation. The five a member
+// reaches with their own account also say the PIN does not open them (AUTH_AND_SESSIONS 18, 24) and carry the
+// shared-screen footnote; Trains' card is the way in FOR the PIN, and New link's says who the page is for.
+test('every page\'s sign-in card says what the page is, and that the staff PIN does not open it', async ({ page }) => {
+    const SAYS_PIN_DOES_NOT_OPEN = ['/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/links.html'];
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
+    for (const url of PAGES) {
+        await page.goto(url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        const about = page.locator('#loginOverlay #loginAbout');
+        await expect(about, `${url}: the card does not say what the page is`).toBeVisible();
+        if (SAYS_PIN_DOES_NOT_OPEN.includes(url)) {
+            await expect(about, `${url}: the card does not say the staff PIN won’t open it`).toContainText('the staff PIN doesn’t open it');
+            await expect(page.locator('#loginOverlay #loginFootnote'), `${url}: no shared-screen footnote`).toBeVisible();
+        }
+    }
+});
+
 // ── A HIDDEN FIELD STAYS HIDDEN, WHATEVER A PAGE STYLES BY ELEMENT (whole-app review, Nov 2026) ─────
 // Both sign-in cards carry a username field for the password manager, `.visually-hidden`. Admin's and
 // Operations' own `input[type="text"] { width: 100%; padding; border }` out-ranked that utility, so on

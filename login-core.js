@@ -125,3 +125,44 @@ export function resetRequestFailureLine(err, timedOut) {
     if (status === '503') return 'Reset requests aren’t available at the moment — contact the admin directly.';
     return 'Couldn’t send the request — check your connection, or contact the admin directly.';
 }
+
+// ── WHAT A PAGE IS, ON ITS SIGN-IN CARD (owner, 21 Nov 2026) ─────────────────────────────────────────
+// Admin, Pay, New link and Trains pass their own explanation (`about`) to initLoginOverlay; the pages
+// below did not, so the same card read differently from page to page. Theirs live here, read by page
+// label, so the card says the same thing at load AND when a session is lost mid-visit (page-session.js
+// passes no `about` of its own for these pages) without each coordinator carrying another copy. Each
+// says what the page holds, that the staff PIN does not open it (AUTH_AND_SESSIONS 18, 24), and has the
+// shared-screen footnote Admin's and Pay's carry. `e2e/auth.spec.js` holds every page's card to it.
+const SHARED_SCREEN = 'On a shared screen, sign out from the menu when you finish.';
+const SIGN_IN_ABOUT_BY_PAGE = Object.freeze({
+    Settings: Object.freeze({
+        lines: Object.freeze([
+            'Your password, your work email for account recovery, and notifications on this device.',
+            'They belong to your own account, so you sign in as yourself — the staff PIN doesn’t open it.',
+        ]),
+        footnote: SHARED_SCREEN,
+    }),
+    Operations: Object.freeze({
+        lines: Object.freeze([
+            'The admin’s tools: the Daily Huddle and circulars, the weekly roster upload, and staff sign-in accounts.',
+            'Only the admin can use it, so you sign in as yourself — the staff PIN doesn’t open it.',
+        ]),
+        footnote: SHARED_SCREEN,
+    }),
+    Links: Object.freeze({
+        lines: Object.freeze([
+            'The workspace where new roster links are designed and checked.',
+            'Only the colleagues designing them can use it, so you sign in as yourself — the staff PIN doesn’t open it.',
+        ]),
+        footnote: SHARED_SCREEN,
+    }),
+});
+
+/**
+ * The sign-in card's explanation for a page that does not pass its own (the note above).
+ * @param {string} pageLabel  initLoginOverlay's `pageLabel`
+ * @returns {{ lines: readonly string[], footnote: string } | null}
+ */
+export function signInAboutFor(pageLabel) {
+    return Object.hasOwn(SIGN_IN_ABOUT_BY_PAGE, pageLabel) ? SIGN_IN_ABOUT_BY_PAGE[/** @type {keyof typeof SIGN_IN_ABOUT_BY_PAGE} */ (pageLabel)] : null;
+}

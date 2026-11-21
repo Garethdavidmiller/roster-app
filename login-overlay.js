@@ -40,7 +40,7 @@ import { saveSession, clearSession, getSession, ensureNamedSession, isTransientA
 import { isCredentialRejection } from './auth-identity.js';
 // The card's DOM-free rules — the sign-in core, which links its explanation may carry, and what a failed
 // reset request says — are login-core.js's, re-exported so every caller and test keeps importing them here.
-import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine } from './login-core.js';
+import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine, signInAboutFor } from './login-core.js';
 export { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine };
 // Already loaded wherever this card is: session.js imports it. The words are its own, shared with a
 // page that has no card (paused Overtime, which imports `sayStaffPinEndedIn` from here).
@@ -261,10 +261,13 @@ function fillAbout(overlay, about) {
  *   given: the preset is a convenience, never a gate. Empty does nothing.
  * @param {LoginAbout|null} [opts.about]  What the page IS, under the subtitle, with an optional link
  *   to its guide and a footnote at the foot (see `LoginAbout`). It also describes the dialog, so a
- *   screen reader announces it with the card. Absent renders nothing: every other page is unchanged.
+ *   screen reader announces it with the card. Absent, the page's entry in login-core.js's
+ *   `signInAboutFor` is used (Settings, Operations, Links); with neither, nothing renders.
  * @returns {void}
  */
-export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '', presetName = '', about = null }) {
+export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternative = null, notice = '', presetName = '', about: pageAbout = null }) {
+    // A page that passes no explanation of its own gets the one login-core.js keeps for it, if any.
+    const about = pageAbout ?? signInAboutFor(pageLabel);
     // Inject the overlay (idempotent — never double-mount).
     if (document.getElementById('loginOverlay')) return;
     const inline = !!host;
