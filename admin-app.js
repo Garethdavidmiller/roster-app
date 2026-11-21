@@ -12,7 +12,7 @@
  * Edit here for: login, page wiring, the Save collector. Not here: the grid, a save's write, shared CSS.
  */
 
-import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
+import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
@@ -22,7 +22,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
+import { PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
 import { typePillHtml } from './admin-shift-types.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
@@ -42,7 +42,8 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './admin-tips.js';
-import { mergeBookedPeriods, composeOtherValue } from './override-utils.js';
+import { mergeBookedPeriods } from './override-utils.js';
+import { collectWeekRows } from './admin-week-collect.js';
 import { alPosition, consumesEntitlement, costsWithoutSpareCap, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
@@ -521,141 +522,16 @@ export function init() {
         _alPendingSkipped = [];   // and the last save's skipped days: this one answers for itself
         _alPendingKept    = [];
 
-        /** @type {any[]} */
-        let toSave = [];
-        const swapAnswers = new Map();   // date → was this rest day a swapped working day? (this save's)
-        /** @type {any[]} */
-        const toDelete = [];
-        /** @type {any[]} */
-        const errors = [];
-
-        /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')).forEach(row => {
-            if (!row.dataset.type) {
-                // Row was pre-filled with an existing override but user deactivated it → delete.
-                if (row.dataset.existingId) toDelete.push(row.dataset.existingId);
-                return;
-            }
-            // Pre-filled rows the user hasn't changed don't need re-saving.
-            if (row.classList.contains('prefilled-existing')) return;
-
-            const date    = row.dataset.date || '';
-            let   type    = row.dataset.type || '';
-
-            // ── Sunday write guard — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js) ──
-            // A bespoke copy on purpose: each of the four types gets a DIFFERENT answer here (see
-            // below), so this cannot be a loop over the declaration. `override-utils.test.mjs` pins
-            // it to that list instead, so a fifth forbidden type fails there rather than being
-            // silently written by this path.
-            //
-            // A worked Sunday is always RDW, never a plain shift (Sundays are uncontracted). The Shift
-            // pill is disabled on Sunday rows, but promote defensively here too — matching the roster-
-            // upload path — so a legacy or time-edited Sunday shift can never be written as a non-RDW
-            // shift (which renders as an ordinary badge and the pay estimate's Sunday-OT pre-fill
-            // misses). 'shift' and 'rdw' share the same timed value composition, so this flows cleanly.
-            if (type === 'shift' && isSunday(date)) type = 'rdw';
-
-            // ── THE SWAPPED-DAY ANSWER IS REQUIRED ───────────────────────────────────────────
-            // AL on a base REST day costs nothing unless the member was SWAPPED onto it, which only the
-            // person recording it knows. The row asks; this refuses to save it unanswered (al-swapped-days.js).
-            if (type === 'annual_leave' && row.dataset.alSwapAsk === '1' && !row.dataset.alSwap) {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: say whether this rest day was a swapped working day`);
-                return;
-            }
-            if (type === 'annual_leave' && row.dataset.alSwap) swapAnswers.set(date, row.dataset.alSwap === 'yes');
-            // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
-            if (type === 'annual_leave' && isSunday(date)) {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: annual leave cannot be recorded on a Sunday`);
-                return;
-            }
-            if (type === 'sick' && isSunday(date)) {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
-                return;
-            }
-            // The flavour BEFORE the Sunday guard: Spare sits under the Other pill but is its own type,
-            // and IS legal on a Sunday.
-            const otherFlavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour;
-            if (type === 'other' && isSunday(date) && otherFlavour !== 'SPARE') {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: an "Other" day cannot be recorded on a Sunday`);
-                return;
-            }
-            const typeMeta    = TYPES[type];
-            const startEl = /** @type {HTMLInputElement} */ (row.querySelector('.day-start'));
-            const endEl   = /** @type {HTMLInputElement} */ (row.querySelector('.day-end'));
-            const note    = '';
-
-            let value;
-            if (type === 'other') {
-                // Compose the Other-family grammar from the row's sub-controls:
-                // FLAVOUR[" RDW"][" HH:MM-HH:MM"]. Times are OPTIONAL — blank means the pay
-                // defaults apply (base shift on a rostered day, 8h RDW on an Other rest-day) —
-                // but a half-filled or malformed pair is still an error.
-                const flavour = otherFlavour;
-                // An explicit flavour choice — no silent Training default (owner decision).
-                if (!flavour) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day, Union, Meeting or Spare)`);
-                    return;
-                }
-                if (flavour === 'SPARE') {
-                    // Spare is its OWN type — a standby placeholder, no RDW or times: written as spare_shift.
-                    toSave.push({ memberName, date, type: 'spare_shift', value: 'SPARE', note, existingId: row.dataset.existingId || null });
-                    return;
-                }
-                // composeOtherValue is the grammar's WRITER, beside its reader parseOtherValue. A rest-day
-                // base FORCES the RDW marker, or the saved value would lie about how the day is paid.
-                const _composed = composeOtherValue({
-                    flavour,
-                    rdwTicked: (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked,
-                    baseIsRd:  row.dataset.baseIsRd === '1',
-                    start:     (/** @type {HTMLInputElement} */ (row.querySelector('.day-start'))).value,
-                    end:       (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value,
-                });
-                if (_composed.error) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: ${_composed.error}`);
-                    return;
-                }
-                value = _composed.value;
-            } else if (typeMeta && typeMeta.fixed) {
-                value = typeMeta.fixedValue;
-            } else {
-                const s = startEl.value.trim();
-                const e = endEl.value.trim();
-                const timeRe = TIME_RE;
-                if (!s || !e) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: fill in the start and end time`);
-                    return;
-                }
-                if (!timeRe.test(s) || !timeRe.test(e)) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: times must be in HH:MM format (e.g. 07:00)`);
-                    return;
-                }
-                if (s === e) {
-                    // Same hazard as the Other path: equal times validate as a 0h shift but PAY as
-                    // 24h via the overnight wrap in the duration maths.
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: start and end times are the same`);
-                    return;
-                }
-                value = `${s}-${e}`;
-            }
-
-            // `swapped` is a WRITE INSTRUCTION, not a field — admin-overrides.js strips it before the
-            // Firestore set, because `hasOnly()` in the rules would refuse a document carrying it.
-            toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null,
-                          ...(type === 'annual_leave' && row.dataset.alSwap === 'yes' ? { swapped: true } : {}) });
-        });
+        // What the rows ask to write, and why any cannot be (admin-week-collect.js, review 21 Nov 2026).
+        const collected = collectWeekRows({ rows: /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')),
+            memberName, formatDate: formatDisplay });
+        let toSave = collected.toSave;
+        const { toDelete, errors, swapAnswers } = collected;
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
         // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day on Boxing Day;
         // a Spare turn on Christmas Day or Boxing Day.
-        // Here, not in the collector above, whose slice override-utils.test.mjs evaluates with fixed names.
+        // Here, after the collector (admin-week-collect.js): it reads the member, which the collector does not.
         const dayRules = checkDayRules({ toSave, member: teamMembers.find(m => m.name === memberName), formatDate: formatDisplay });
         dayRules.failedDates.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
         if (dayRules.errors.length)           return showError("Can't save — " + dayRules.errors.join(' · '));

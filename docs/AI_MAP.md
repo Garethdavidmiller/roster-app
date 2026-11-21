@@ -647,6 +647,10 @@ What a write the Admin page makes ITSELF — a Saved Changes or Recorded dates d
 What the week card's "Apply to ticked days" is waiting for, as the line under it says, and the line Apply leaves naming each day it left alone. Pure; it consults `SUNDAY_FORBIDDEN_TYPES` through `isForbiddenOnSunday`, never restating it, and is NOT a layer of the Sunday rule (header). Tested by `admin-bulk-apply.test.mjs`.
 - **Exports:** `bulkApplyWaitingFor` · `bulkSkippedLine`
 
+### `admin-week-collect.js`
+What one press of the week grid's Save asks to write, read from the grid's rows: the batch, the saved records the grid has unset, the swapped-day answers and why a row cannot be saved, each refused row marked. It reads no cache and writes nothing; `admin-al-week-save.js` then decides what the batch means for annual leave. The Sunday answers (CLAUDE.md, layer 6) are in the header. Tested by `override-utils.test.mjs`.
+- **Exports:** `collectWeekRows`
+
 ### `admin-al-week-save.js`
 What ONE week-grid save does about the annual leave in it — the batch to write, the days left alone, an unanswered rest day withheld, and the over-allowance message — and the same question for a delete from Saved Changes (`planAlDelete`). Pure; `admin-al-projection.js` says what a date means, this what a batch does with them. The two load-bearing orderings are in the header. Tested by `admin-al-week-save.test.mjs`.
 - **Exports:** `planAlWeekSave` · `planAlDelete`
@@ -1008,8 +1012,8 @@ Can `window.print()` do anything here, and what to say when it cannot: in a home
 - **Exports:** `PRINT_UNAVAILABLE_TEXT` · `OPEN_IN_SAFARI_LABEL` · `printIsBlocked` · `openInSafari` · `printOrExplain` · `explainNoPrint`
 
 ### `clock-input.js`
-The rules of a TEXT clock box — what counts as a time, what the box shows while one is typed, and what it holds once it is left. Pure, no imports. Every time box in the app is text rather than `<input type="time">`, because Chromium draws that from the OS format settings, so nothing in the browser validates the value and these rules do; one rule for every box (CLAUDE.md → 3-digit time input). Tested by `clock-input.test.mjs`.
-- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput`
+The rules of a TEXT clock box — what counts as a time, what the box shows while one is typed, and what it holds once it is left. Pure, no imports. Every time box in the app is text rather than `<input type="time">`, because Chromium draws that from the OS format settings, so nothing in the browser validates the value and these rules do; one rule for every box (CLAUDE.md → 3-digit time input), and one rule for a filled-in pair of times, which a Shift's and an Other day's writers share. Tested by `clock-input.test.mjs`.
+- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `timePairError` · `composeTimedValue`
 
 ### `override-utils.js`
 The pure override rules shared by the Calendar, Team Week View, Admin and the pay engine: `resolveEffectiveShift`, the ONE ladder every display draws a day from (CLAUDE.md → Change impact); priority and the cache reconcile; the one write shape the rules' `hasOnly()` accepts; what an override says about the contract; the Other-day grammar (OTHER_DAYS.md); and the Sunday rule (`SUNDAY_FORBIDDEN_TYPES` — CLAUDE.md → "Sundays are non-contracted" numbers its layers). Each export's JSDoc carries its reasoning. Tested by `override-utils.test.mjs`; at its `coordinator-ratchet.test.mjs` cap, so extract before adding.

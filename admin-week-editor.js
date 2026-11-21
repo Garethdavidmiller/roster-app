@@ -505,7 +505,7 @@ export function updateSaveBtn() {
         // THE BAR GOING DOES NOT TAKE THE KEYBOARD WITH IT (review, 21 Nov 2026): its Save or Discard
         // had focus, and hiding it sent focus to <body>. It goes to the receipt when there is one,
         // else to the week's date button, the control the grid is read from.
-        const leaving = total === 0 && !stagedBar.hidden && stagedBar.contains(document.activeElement);
+        const leaving = total === 0 && !stagedBar.hidden && !!stagedBar.contains?.(globalThis.document?.activeElement ?? null);
         stagedBar.hidden = total === 0;
         if (leaving) {
             const receipt = document.getElementById('formFeedback');
