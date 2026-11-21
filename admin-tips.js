@@ -21,9 +21,9 @@ export const CARD_TIPS = {
                 // GOLD, the app's word for that colour — a reader compares it with the screen, and admin.css draws it.
                 { icon: '2️⃣', html: 'Tick a day, then choose its type (a day with a saved change shows its types already). The row turns <strong>gold</strong>, with a gold edge, to show it is ready to save; select <strong>Save changes</strong> when you have finished.' },
                 { icon: '☑️', html: 'A ticked day with no type yet has the gold edge only, and saves nothing until it has one.' },
-                // Three of the six pills are off on a Sunday, and Other offers Spare alone there; Boxing Day has no Other pill
+                // Three of the six pills are off on a Sunday, and Other offers Spare alone there; 25 and 26 December have no Other pill
                 // (admin-day-pills.js), so "any day" needs this. admin-day-pills.test.mjs holds these words to the row.
-                { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong>, <strong>Rest Day</strong> and, under <strong>Other</strong>, <strong>Spare</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW. <strong>Christmas Day</strong> and <strong>Boxing Day</strong> can’t be a Spare turn, and Boxing Day can’t be an Other day either (training, meetings and the rest).' },
+                { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong>, <strong>Rest Day</strong> and, under <strong>Other</strong>, <strong>Spare</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW. <strong>Christmas Day</strong> and <strong>Boxing Day</strong> can’t be an Other day (training, meetings and the rest) or a Spare turn.' },
                 { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
                 // Owner, 10 Nov 2026: a tick chooses a day for Apply, and never removes anything.
                 { icon: '🗑️', html: 'To remove a saved change, select its type again — the day reads <strong>⚠ Removing</strong> — then <strong>Save changes</strong>. A tick only chooses a day for <strong>Apply</strong>.' },

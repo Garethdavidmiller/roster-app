@@ -154,25 +154,24 @@ describe('Boxing Day: no Other day and no Spare turn, so no Other pill (owner, 1
     });
 });
 
-describe('Christmas Day: every pill, every Other day, but no Spare turn (owner, 19 Nov 2026)', () => {
-    test('a weekday Christmas Day turns off the Spare chip alone, saying why', () => {
-        const row = drawRow();
-        restrictDayPills(row, { ...ordinary, christmas: 'Christmas Day' });
-        for (const t of PILL_TYPES) assert.equal(pill(row, t).disabled, false, t);
-        assert.equal(spare(row).disabled, true);
-        assert.equal(spare(row).getAttribute('aria-label'), 'Spare — unavailable on Christmas Day');
-        for (const c of chips(row).filter((/** @type {any} */ c) => c.dataset.flavour !== 'SPARE')) assert.equal(c.disabled, false, c.dataset.flavour);
-        assert.equal(row.dataset.spareOnly, undefined);
-    });
-
-    test('a Sunday Christmas Day leaves nothing under Other, so the pill is off — and Sunday\'s rule still holds', () => {
-        const row = drawRow();
-        restrictDayPills(row, { ...ordinary, sunday: true, christmas: 'Christmas Day' });
-        assert.equal(pill(row, 'other').disabled, true);
-        assert.match(pill(row, 'other').getAttribute('aria-label'), /unavailable on Christmas Day/);
-        for (const t of ['annual_leave', 'sick', 'shift']) assert.equal(pill(row, t).disabled, true, t);
-        assert.equal(row.dataset.spareOnly, undefined);
-    });
+describe('Christmas Day: no Other day and no Spare turn either, so no Other pill (owner, 21 Nov 2026)', () => {
+    // "There cannot be training or meeting on December 25th or 26th." Until then a weekday Christmas
+    // Day kept its Other days and lost the Spare chip alone.
+    for (const sunday of [false, true]) {
+        test(`${sunday ? 'a Sunday' : 'a weekday'} Christmas Day: the Other pill and every chip are off, saying why`, () => {
+            const row = drawRow();
+            restrictDayPills(row, { ...ordinary, sunday, christmas: 'Christmas Day' });
+            assert.equal(pill(row, 'other').disabled, true);
+            assert.equal(pill(row, 'other').getAttribute('aria-label'), 'Other — unavailable on Christmas Day: no Other day or Spare turn');
+            for (const c of chips(row)) {
+                assert.equal(c.disabled, true, c.dataset.flavour);
+                assert.match(c.getAttribute('aria-label') ?? '', / — unavailable on Christmas Day$/, c.dataset.flavour);
+            }
+            assert.equal(row.dataset.spareOnly, undefined);
+            // CONTROL: the rest is the Sunday rule's, never Christmas Day's.
+            for (const t of ['annual_leave', 'sick', 'shift']) assert.equal(pill(row, t).disabled, sunday, t);
+        });
+    }
 });
 
 describe('before the start date: nothing at all', () => {

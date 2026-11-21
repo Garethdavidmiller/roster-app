@@ -476,7 +476,7 @@ export function guardCopy(guard, asks = false, christmas = false) {
         return 'Christmas Day and Boxing Day can\u2019t be spare days, so nothing is recorded and the day stays as it is.';
     }
     if (guard === 'christmas-other') {
-        // Owner, Jul 2026: Boxing Day can never be a training or Other day, and nobody works 25 December.
+        // Owner, 21 Nov 2026: "There cannot be training or meeting on December 25th or 26th".
         return 'Training and meetings can\u2019t be on Christmas Day or Boxing Day, so nothing is recorded and the day stays as it is.';
     }
     if (guard === 'sunday-other') {

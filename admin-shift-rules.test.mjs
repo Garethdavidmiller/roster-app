@@ -189,7 +189,7 @@ describe('the pieces', () => {
 });
 
 // ── THE DAYS THAT TAKE NO CHANGE AT ALL (whole-app check, Nov 2026) ────────────────────────────────
-describe('checkDayRules — before the start date, and an Other day on Boxing Day', () => {
+describe('checkDayRules — before the start date, and an Other day on Christmas Day or Boxing Day', () => {
     const starter = { name: 'Starter', startDate: new Date(2026, 5, 3) };   // Wed 3 June 2026
     const fmt = (/** @type {string} */ d) => d;
 
@@ -200,13 +200,14 @@ describe('checkDayRules — before the start date, and an Other day on Boxing Da
         assert.deepEqual(errors, ['2026-06-02: before the start date, so a change here would never show on the Calendar']);
     });
 
-    test('an Other day on Boxing Day is refused, in any year; work and a Christmas Day Other day are not', () => {
+    test('an Other day on Christmas Day or Boxing Day is refused, in any year; work there, and Christmas Eve, are not (owner, 21 Nov 2026)', () => {
         const { errors, failedDates } = checkDayRules({ member: { name: 'Any' }, formatDate: fmt, toSave: [
-            { date: '2026-12-26', type: 'other' }, { date: '2031-12-26', type: 'other' },
-            { date: '2026-12-26', type: 'rdw' }, { date: '2026-12-25', type: 'other' }] });
-        assert.deepEqual(failedDates, ['2026-12-26', '2031-12-26']);
+            { date: '2026-12-26', type: 'other' }, { date: '2031-12-26', type: 'other' }, { date: '2026-12-25', type: 'other' },
+            { date: '2026-12-26', type: 'rdw' }, { date: '2026-12-24', type: 'other' }] });
+        assert.deepEqual(failedDates, ['2026-12-26', '2031-12-26', '2026-12-25']);
         assert.deepEqual(errors, ['2026-12-26: an "Other" day cannot be recorded on Boxing Day',
-                                  '2031-12-26: an "Other" day cannot be recorded on Boxing Day']);
+                                  '2031-12-26: an "Other" day cannot be recorded on Boxing Day',
+                                  '2026-12-25: an "Other" day cannot be recorded on Christmas Day']);
     });
 
     test('a Spare turn on Christmas Day or Boxing Day is refused, in any year (owner, 19 Nov 2026)', () => {

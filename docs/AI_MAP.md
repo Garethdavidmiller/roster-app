@@ -712,7 +712,7 @@ What the Admin override cache actually KNOWS: a coverage record of which members
 - **Exports:** `emptyCoverage` · `withMember` · `withAll` · `hasAuthorityFor` · `coversEveryone` · `replaceMemberSlice` · `mergeCappedRead`
 
 ### `admin-shift-rules.js`
-The two rules a staged shift change must not break, maximum length and minimum rest, plus the days that take no change at all (before the member's start date; an Other day on Boxing Day; a Spare turn on Christmas Day or Boxing Day) and the configured years the week grid may move within. Pure: it DECIDES and returns the sentences and the failed dates; the caller (`validateShiftRules` in `admin-overrides.js`, and `admin-app.js`'s Save) PAINTS. Tested by `admin-shift-rules.test.mjs`.
+The two rules a staged shift change must not break, maximum length and minimum rest, plus the days that take no change at all (before the member's start date; an Other day on Christmas Day or Boxing Day; a Spare turn on Christmas Day or Boxing Day) and the configured years the week grid may move within. Pure: it DECIDES and returns the sentences and the failed dates; the caller (`validateShiftRules` in `admin-overrides.js`, and `admin-app.js`'s Save) PAINTS. Tested by `admin-shift-rules.test.mjs`.
 - **Exports:** `parseMinutes` · `effectiveEndMins` · `fmtHours` · `constrainingTime` · `checkShiftRules` · `isBoxingDay` · `christmasDayName` · `weekStepAllowed` · `linkableDate` · `checkDayRules`
 
 ### `admin-deep-link.js`
