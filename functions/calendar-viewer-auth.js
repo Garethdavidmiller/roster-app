@@ -459,7 +459,8 @@ function viewerClaims() {
 const LOCKOUT_RECORD_KEY = '_lockout-record';
 /** At most one push to the admin per this long, however often the block is tripped. */
 const LOCKOUT_ALERT_GAP_MS = 24 * 60 * 60 * 1000;
-/** How long a block that has ended stays on Operations' strip. */
+/** How long a block that has ended stays on Operations' strip. The page's copy is `RECENT_MS` in
+ *  operations-pin-lockout.js; operations-pin-lockout.test.mjs fails when the two disagree. */
 const LOCKOUT_RECENT_MS = 24 * 60 * 60 * 1000;
 /** Block times kept: a block lasts 15 minutes, so a day cannot hold 100 of them. */
 const LOCKOUT_KEPT = 100;

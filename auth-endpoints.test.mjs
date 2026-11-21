@@ -1418,11 +1418,21 @@ describe('setupRosterAuth never re-enables an account on its old password', () =
         });
     }
 
-    test('a push-record release that fails does not stop the re-enable', async () => {
-        const { eps } = build({ existingUsers: [disabledAccount(MEMBER)], releaseFail: 'firestore down' });
+    // A RELEASE THAT FAILS HOLDS THE ENABLE (review D4, Nov 2026). It used to be best-effort: the account
+    // was enabled anyway, and an enabled roster member is never in `disabledLeaverUids`, so no later run
+    // released the previous holder's records — their phones went on receiving this member's notices.
+    test('a push-record release that fails keeps the account DISABLED, unclaimed, and reported', async () => {
+        const { eps, authOps, released } = build({ existingUsers: [disabledAccount(MEMBER)], releaseFail: 'firestore down' });
         const out = await call(eps.setupRosterAuth, asAdmin({}));
-        assert.deepEqual(out.body.reclaimed, [MEMBER]);
-        assert.ok(!out.body.failed.some((f) => f.startsWith(MEMBER)), out.body.failed.join(' | '));
+        assert.deepEqual(released, [uidFor(MEMBER)], 'premise: the release was tried');
+        const ops = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        assert.ok(!ops.some((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === false),
+            'enabled although the previous holder\'s devices still receive this member\'s notices');
+        assert.ok(!ops.some((o) => o.op === 'setCustomUserClaims'), 'claimed although the re-enable was held');
+        assert.deepEqual(out.body.reclaimed, [], 'not reported as handed back');
+        const line = out.body.failed.find((f) => f.startsWith(`${MEMBER} (re-enable-failed`));
+        assert.ok(line, out.body.failed.join(' | '));
+        assert.match(line, /notification records could not be removed \(firestore down\), so it stays disabled — run Set up accounts again/);
     });
 });
 
@@ -1717,6 +1727,77 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
         assert.deepEqual(out.body.disabled, [], 'and nobody was reported disabled');
         assert.deepEqual(authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === managerAccount.uid)?.claims,
             { name: MANAGER, member: MANAGER, manager: true }, 'they are processed, and keep the manager tier');
+    });
+});
+
+// ── A CONFIRM DISABLES WHAT THE PREVIEW NAMED (review D1, Nov 2026) ─────────────────────────────
+// The confirm recomputed the leavers and disabled whatever it found, which may not be what the admin
+// read: a roster change deployed between the preview and the confirm made a colleague a "leaver" on a
+// button that never named them. The client now sends the previewed uids back; the sweep disables the
+// OVERLAP and names both kinds of difference. A confirm without them is a page cached from before.
+describe('setupRosterAuth disables only the leavers the admin previewed', () => {
+    const leaver = { uid: 'uid_leaver', email: 'x.gone@myb-roster.local', displayName: 'X. Gone', disabled: false };
+    const newer  = { uid: 'uid_newer',  email: 'y.gone@myb-roster.local', displayName: 'Y. Gone', disabled: false };
+    const confirmWith = (confirmUids) => asAdmin({ removeOrphans: true, confirmOrphanRemoval: true, confirmUids });
+    const disabledUids = (authOps) => authOps.filter((o) => o.op === 'updateUser' && o.patch && o.patch.disabled === true).map((o) => o.uid);
+
+    test('the preview carries each leaver\'s uid beside its label, in the same order', async () => {
+        const { eps } = build({ existingUsers: [leaver, newer] });
+        const out = await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true }));
+        assert.deepEqual(out.body.orphansToDisable, ['X. Gone', 'Y. Gone']);
+        assert.deepEqual(out.body.orphanUids, [leaver.uid, newer.uid]);
+    });
+
+    test('a leaver who appeared after the preview is left ENABLED and named — only the previewed one goes', async () => {
+        const { eps, authOps, released } = build({ existingUsers: [leaver, newer] });
+        const out = await call(eps.setupRosterAuth, confirmWith([leaver.uid]));
+        assert.deepEqual(disabledUids(authOps), [leaver.uid], 'an account the Confirm button never named was disabled');
+        assert.ok(!authOps.some((o) => o.uid === newer.uid), 'nothing at all was done to the account nobody previewed');
+        assert.deepEqual(released, [leaver.uid]);
+        assert.deepEqual(out.body.disabled, ['X. Gone']);
+        assert.deepEqual(out.body.notPreviewed, ['Y. Gone'], 'the admin is told, so they preview again');
+        assert.deepEqual(out.body.confirmSkipped, []);
+    });
+
+    test('a previewed account that is no longer a leaver is left alone and reported by uid', async () => {
+        // Back on the roster since the preview: its account is now a member's, and is never swept.
+        const member = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: MEMBER, disabled: false,
+            customClaims: { name: MEMBER, member: MEMBER } };
+        const { eps, authOps } = build({ existingUsers: [leaver, member] });
+        const out = await call(eps.setupRosterAuth, confirmWith([leaver.uid, member.uid, 'uid_deleted_since']));
+        assert.deepEqual(disabledUids(authOps), [leaver.uid]);
+        assert.deepEqual(out.body.confirmSkipped, [member.uid, 'uid_deleted_since']);
+        assert.deepEqual(out.body.notPreviewed, []);
+    });
+
+    test('an empty list disables nobody — and says who it left', async () => {
+        const { eps, authOps } = build({ existingUsers: [leaver] });
+        const out = await call(eps.setupRosterAuth, confirmWith([]));
+        assert.deepEqual(disabledUids(authOps), []);
+        assert.deepEqual(out.body.notPreviewed, ['X. Gone']);
+    });
+
+    test('a malformed list is an empty one, never the old disable-everyone', async () => {
+        const { eps, authOps } = build({ existingUsers: [leaver] });
+        await call(eps.setupRosterAuth, confirmWith('uid_leaver'));
+        assert.deepEqual(disabledUids(authOps), []);
+    });
+
+    test('a confirm posted as a Buffer reaches the same sweep (the shared body reader)', async () => {
+        const { eps, authOps } = build({ existingUsers: [leaver, newer] });
+        const out = await call(eps.setupRosterAuth,
+            asAdmin(Buffer.from(JSON.stringify({ removeOrphans: true, confirmOrphanRemoval: true, confirmUids: [newer.uid] }))));
+        assert.deepEqual(disabledUids(authOps), [newer.uid]);
+        assert.deepEqual(out.body.notPreviewed, ['X. Gone']);
+    });
+
+    // FOR A CLIENT OLDER THAN THIS RELEASE ONLY: Functions and Hosting deploy in parallel, and an
+    // Operations page cached from before sends no list. It keeps the behaviour it was built against.
+    test('a confirm WITHOUT the list still disables every leaver found, and answers as it did', async () => {
+        const { eps, authOps } = build({ existingUsers: [leaver, newer] });
+        const out = await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
+        assert.deepEqual(disabledUids(authOps).sort(), [leaver.uid, newer.uid].sort());
+        assert.ok(!('confirmSkipped' in out.body) && !('notPreviewed' in out.body), JSON.stringify(out.body));
     });
 });
 

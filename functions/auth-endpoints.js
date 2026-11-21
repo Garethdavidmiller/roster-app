@@ -19,7 +19,7 @@
  * The pure DECISIONS in these endpoints already live in roster-parse-helpers.js
  * (resolveRosterAuthConfig, claimsForTier, computeOrphanLabels; summariseAccountGaps and
  * summariseSignIns for the reads), member-identity.js and account-lifecycle.js (passwordWriteRefused,
- * unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids), and are unit-tested there —
+ * unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids, sweepAgainstPreview), and are unit-tested there —
  * this module is the ORCHESTRATION around them.
  *
  * Deploy surface: index.js re-exports the returned handlers under the SAME names, so
@@ -43,7 +43,7 @@ const { requireAdmin, readJsonBody } = require('./request-helpers');
 const { mustReclaim, claimedByAnotherMember, unlinkOtherProviders } = require('./member-identity');
 const { buildResetRequestEndpoint } = require('./reset-request');
 const { buildAccountReadEndpoints, listAllUsers } = require('./account-reads');
-const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids } = require('./account-lifecycle');
+const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, disabledLeaverUids, sweepAgainstPreview } = require('./account-lifecycle');
 
 /**
  * Stamp `passwordStatus/{member}.resetAt`, the marker a device's SILENT sign-in is refused against
@@ -108,20 +108,23 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  * Body (JSON) — ACTION flags only:
  *   {
  *     "removeOrphans": true,          // optional — preview which leaver accounts WOULD be disabled
- *     "confirmOrphanRemoval": true    // optional — actually disable them (dry-run without it)
+ *     "confirmOrphanRemoval": true,   // optional — actually disable them (dry-run without it)
+ *     "confirmUids": ["…"]            // with the confirm — the preview's `orphanUids`
  *   }
  *
  * removeOrphans: scans all @myb-roster.local accounts not in the server active set. WITHOUT
  * confirmOrphanRemoval it is a DRY RUN — returns `orphansToDisable` (a preview) and disables
- * nothing. WITH confirmOrphanRemoval it disables them AND revokes their refresh tokens. Disabled
- * accounts cannot sign in; they are not deleted (use the Firebase Console to delete permanently).
+ * nothing. WITH confirmOrphanRemoval it disables them AND revokes their refresh tokens — only those
+ * in `confirmUids` too (`sweepAgainstPreview`, account-lifecycle.js). Disabled accounts cannot sign
+ * in; they are not deleted (use the Firebase Console to delete permanently).
  *
  * Auth: Authorization: Bearer <Firebase ID token with admin custom claim>
  *
  * Response:
  *   { created, skipped, reclaimed, disabled, failed, demoted: string[],
  *     orphanSweepFailed?: true,
- *     orphanDryRun?: true, orphansToDisable?: string[],   // these two: dry-run preview only
+ *     orphanDryRun?: true, orphansToDisable?: string[], orphanUids?: string[],   // dry-run preview only
+ *     confirmSkipped?: string[], notPreviewed?: string[],   // a confirm WITH confirmUids: uids / labels
  *     disabledLeaverPushRemoved?: number }   // a confirmed sweep: push records of leavers ALREADY disabled
  *   `reclaimed` names every member whose account this run put back on the surname default and
  *   signed out — an account registered from outside (taken back) or a disabled one re-enabled.
@@ -143,9 +146,9 @@ const setupRosterAuth = onRequest(
         if (!(await requireAdmin(req, res))) return;
 
         // B4: only ACTION flags come from the body (the member and role lists are SERVER-OWNED, below).
-        // parseSetupActionFlags reads them from rawBody too — v2 parses req.body only for a JSON
-        // Content-Type — so no flag is silently dropped. Unit-tested in roster-parse-helpers.test.mjs.
-        const { removeOrphans, confirmOrphanRemoval } = parseSetupActionFlags(req.body, req.rawBody);
+        // parseSetupActionFlags reads them through the shared body reader (jsonBodyOf) — v2 parses req.body
+        // only for a JSON Content-Type — so no flag is silently dropped. Unit-tested in roster-parse-helpers.test.mjs.
+        const { removeOrphans, confirmOrphanRemoval, confirmUids } = parseSetupActionFlags(req.body, req.rawBody);
 
         // ── Server-owned member + role lists (B4) ────────────────────────────────────────────────
         // Read from roster-members.json (generated from roster-data.js), NOT the client payload, so a
@@ -275,15 +278,15 @@ const setupRosterAuth = onRequest(
                             // is reset as an admin reset is — stamp, surname default, sessions revoked,
                             // the previous holder's push records released — and ONLY THEN enabled. A
                             // failure leaves it disabled for the next run. Named in `reclaimed`.
+                            // The release is one of those steps (review D4, Nov 2026): it was best-effort, and
+                            // an enabled roster member's account is never in `disabledLeaverUids`, so nothing
+                            // retried — the previous holder's phones went on receiving this member's notices.
                             await stampResetAt(name);
                             await getAuth().updateUser(uid, { password, displayName: name, ...unlinkOtherProviders(existing) });
                             await getAuth().revokeRefreshTokens(uid);
-                            try {
-                                const n = await releasePushForOwner(uid);
-                                if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) left on a re-enabled account: ${email}`);
-                            } catch (pushErr) {
-                                console.warn(`[setupRosterAuth] Could not remove push records on a re-enabled account (${email}): ${pushErr.message}`);
-                            }
+                            const n = await releasePushForOwner(uid).catch((pushErr) => { throw new Error(
+                                `the previous holder's notification records could not be removed (${pushErr.message}), so it stays disabled — run Set up accounts again`); });
+                            if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) left on a re-enabled account: ${email}`);
                             await getAuth().updateUser(uid, { disabled: false });
                             reclaimed.push(name);
                             console.warn(`[setupRosterAuth] Re-enabled a disabled account on the default password, signed out: ${email}`);
@@ -347,7 +350,8 @@ const setupRosterAuth = onRequest(
         // hour. Wrapped so a listUsers failure cannot 500 the request AFTER the loop above ran, and
         // throw away the report of what WAS provisioned (v16.23): a partial report + orphanSweepFailed.
         let orphanSweepFailed = false, disabledLeaverPushRemoved = 0;
-        const orphansToDisable = [];  // dry-run preview: labels that WOULD be disabled
+        const orphansToDisable = [], orphanUids = [];  // dry-run preview: labels that WOULD be disabled, and their uids
+        let preview = null;   // a confirm's sweepAgainstPreview answer, when the client sent confirmUids
         if (removeOrphans) {
             try {
                 // Every account first (listAllUsers, account-reads.js), so a page that fails to load
@@ -355,9 +359,15 @@ const setupRosterAuth = onRequest(
                 const users = await listAllUsers();
                 // computeOrphanLabels (unit-tested) owns the "which accounts are leaver orphans"
                 // filter (@myb-roster.local, not in activeEmails, not already disabled).
-                for (const { uid, label } of computeOrphanLabels(users, activeEmails)) {
+                const found = computeOrphanLabels(users, activeEmails);
+                // A confirm disables only what the admin previewed, AND is still a leaver (D1,
+                // account-lifecycle.js). Without `confirmUids` — a page cached from before this release
+                // — it is every leaver found, as it was; that branch exists only for such a client.
+                if (confirmOrphanRemoval && confirmUids !== null) preview = sweepAgainstPreview(found, confirmUids);
+                for (const { uid, label } of preview ? preview.toDisable : found) {
                     if (!confirmOrphanRemoval) {
                         orphansToDisable.push(label);   // DRY RUN — preview only, disable nothing
+                        orphanUids.push(uid || '');     // aligned with the labels; sent back with the confirm
                         continue;
                     }
                     try {
@@ -402,7 +412,8 @@ const setupRosterAuth = onRequest(
             ...(orphanSweepFailed ? { orphanSweepFailed: true } : {}),
             // Present only for a removeOrphans request WITHOUT confirm — the admin previews these,
             // then re-submits with confirmOrphanRemoval:true to actually disable them.
-            ...(removeOrphans && !confirmOrphanRemoval ? { orphanDryRun: true, orphansToDisable } : {}),
+            ...(removeOrphans && !confirmOrphanRemoval ? { orphanDryRun: true, orphansToDisable, orphanUids } : {}),
+            ...(preview ? { confirmSkipped: preview.skipped, notPreviewed: preview.notPreviewed } : {}),
             ...(removeOrphans && confirmOrphanRemoval ? { disabledLeaverPushRemoved } : {}),
         });
     }
@@ -411,10 +422,12 @@ const setupRosterAuth = onRequest(
 /**
  * resetMemberPassword — admin break-glass (PASSWORD_DESIGN.md §5). Stamps `passwordStatus/{member}.
  * resetAt` FIRST (Admin SDK, bypassing Firestore rules — no stamp, no reset: stampResetAt), then puts
- * ONE member's Firebase Auth password back to their surname default and signs their other devices
- * out; at their next sign-in the forced overlay (CONFIG.FORCE_PASSWORD_SET) has them choose their
- * own. The only ADMIN / server-side password-write path — self-service changes go through the client
- * `changeOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
+ * ONE member's Firebase Auth password back to their surname default and signs them out on every
+ * device (revokeRefreshTokens ends every session); at their next sign-in the forced overlay
+ * (CONFIG.FORCE_PASSWORD_SET) has them choose their own.
+ * The admin's reset of ONE named account; setupRosterAuth is the other server-side password write
+ * (a new account, a take-back and a re-enable, each on the surname default). Self-service changes go
+ * through the client `changeOwnPassword` (`updatePassword`) in firebase-client.js, which the server never sees.
  *
  * Admin-only (requireAdmin). Target must be a SERVER-OWNED provisioned account (roster-members.json),
  * never a raw client name.
@@ -440,7 +453,9 @@ const resetMemberPassword = onRequest(
         const cfg = resolveRosterAuthConfig(rosterMembers);
         if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid — run `npm run generate:roster-members`' });
         if (!cfg.processMembers.includes(member)) {
-            return res.status(404).json({ error: `Unknown member "${member}" — run Set up accounts first` });
+            // Not on the roster the Functions were deployed with: Set up accounts reads that same file, so
+            // it cannot help. The remedy is the roster change, regenerated and deployed.
+            return res.status(404).json({ error: `"${member}" is not on the deployed roster. Add them to the roster, run \`npm run generate:roster-members\`, and reset again once the Functions deploy has finished.` });
         }
 
         try {

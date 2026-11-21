@@ -1187,8 +1187,8 @@ WHO a notice for the admin may reach — one rule for the reset-request doorbell
 - **Exports:** `enabledAdminUids`
 
 ### `functions/account-lifecycle.js`
-The pure rules Set up accounts and the admin reset apply at the edges of an account's life: whether a failed password write proves nothing changed and what the admin is then told, which elevated claims a re-stamp takes away, and which leavers are already disabled. The header carries the reasoning; `auth-endpoints.js` is the orchestration. Tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`.
-- **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids`
+The pure rules Set up accounts and the admin reset apply at the edges of an account's life: whether a failed password write proves nothing changed and what the admin is then told, which elevated claims a re-stamp takes away, which leavers are already disabled, and which a confirmed sweep may disable against its preview. The header carries the reasoning; `auth-endpoints.js` is the orchestration. Tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`.
+- **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids` · `sweepAgainstPreview`
 
 ### `functions/reset-request.js`
 `requestPasswordReset`, the public doorbell a locked-out member rings — one of the two unauthenticated endpoints: it records the request, never resets anything, and tells the admin's devices only. Built by `buildAuthEndpoints`, which hands in the kill switch. The header says how the abuse surface is bounded; the throttle, the coalescing window and the notice's words are `roster-parse-helpers.js`'s. Tested through the real handler by `auth-endpoints.test.mjs`.

@@ -184,8 +184,9 @@ describe('request-helpers: one body reader and one bearer parser for every endpo
     test('every shape the runtime hands over reads as the same object', () => {
         const want = { member: 'L. Springer' };
         const json = JSON.stringify(want);
+        // The last: JSON sent as a form, which the runtime parses into one key holding the whole text.
         for (const [body, rawBody] of [[want, undefined], [Buffer.from(json), undefined], [json, undefined],
-            [{}, Buffer.from(json)], [undefined, Buffer.from(json)], ['', json]]) {
+            [{}, Buffer.from(json)], [undefined, Buffer.from(json)], ['', json], [{ [json]: '' }, Buffer.from(json)]]) {
             assert.deepEqual(H.jsonBodyOf(body, rawBody), want,
                 `${Buffer.isBuffer(body) ? 'Buffer' : JSON.stringify(body)} + ${rawBody ? 'rawBody' : 'nothing'}`);
         }
@@ -196,6 +197,7 @@ describe('request-helpers: one body reader and one bearer parser for every endpo
         for (const bad of [undefined, null, '', '   ', Buffer.alloc(0), '{not json', '[1,2]', '"x"', '7', 7]) {
             assert.deepEqual(H.jsonBodyOf(/** @type {any} */ (bad)), {}, JSON.stringify(bad));
         }
+        assert.deepEqual(H.jsonBodyOf(/** @type {any} */ (['x'])), {}, 'an array body is no body');
         assert.deepEqual(H.readJsonBody(undefined), {});
     });
 
