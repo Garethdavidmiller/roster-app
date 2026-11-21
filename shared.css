@@ -2565,9 +2565,11 @@ button.lightbox-bug-link {
     opacity: 0.85;
 }
 
-/* Information section — flat, always open */
+/* Information section — flat, always open. Both drawer section eyebrows are `--type-badge`, the size
+   the same role wears on the navy sheets (App Notices' section labels); at `--type-micro` they were the
+   only 10px eyebrows on navy. */
 .nav-panel-section-heading {
-    font-size: var(--type-micro);
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -2606,7 +2608,7 @@ button.lightbox-bug-link {
    drawer's one "two generations" note. One eyebrow rank for both; the gold chevron still marks
    this one as collapsible, and the button keeps its full tap target. */
 .nav-panel-guides-heading {
-    font-size: var(--type-micro);
+    font-size: var(--type-badge);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
