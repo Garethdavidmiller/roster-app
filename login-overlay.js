@@ -390,7 +390,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // `createLightbox` is INJECTED, not imported by select-sheet.js — and without it `openOptionSheet`
     // returns null and the trigger is a button that does nothing. Silent: the control renders, it
     // just never opens. Every other caller passes it; this one has to as well.
-    enhanceSelect(gradeSelect, { title: 'Select your grade', createLightbox });
+    const refreshGrade = enhanceSelect(gradeSelect, { title: 'Select your grade', createLightbox });
     // ── THE PASSWORD BOX IS FOCUSED INSIDE THE TAP ON A NAME (iPhone audit, 7 Nov 2026) ────────────
     //
     // The `change` handler below focuses the password box once the name is set — but the sheet sets
@@ -418,6 +418,23 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // cannot take focus, so keyboard sign-in dies silently at the grade step. Repainting explicitly
     // orders the two. The observer stays for everything we do NOT drive.
     const syncName = () => { try { refreshName?.(); } catch { /* a repaint must never block sign-in */ } };
+    const syncGrade = () => { try { refreshGrade?.(); } catch { /* the same */ } };
+
+    /** Hold the person in the card still while a sign-in is in flight (review, Nov 2026). The
+     *  pickers stayed live, so changing the name mid-flight let the EARLIER person's failure land on
+     *  the new one: the reset link raised, the 30-second lock applied and the password they had just
+     *  typed wiped. Disabling the selects is what the triggers mirror (`enhanceSelect` paints
+     *  `disabled` across); the explicit repaint makes that immediate rather than a microtask later.
+     *  Released by deriving, not remembering: the grade is always choosable, and the name is
+     *  choosable once a grade is — `populateNames`'s own rule. A pick that lands after this from a
+     *  sheet already closing is the case the settle check in `attempt` exists for.
+     *  @param {boolean} inert */
+    function setPickersInert(inert) {
+        gradeSelect.disabled = inert;
+        nameSelect.disabled = inert || !gradeSelect.value;
+        syncGrade();
+        syncName();
+    }
 
     // ── WHO IS THIS CARD FOR? (v23.58) ──────────────────────────────────────────────────────────
     //
@@ -619,7 +636,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // Replace the control rather than leaving a re-tappable button: the request is recorded
             // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
             resetBtn.hidden = true;
-            setResetStatus('Request sent. The admin will reset your password and let you know.', 'ok');
+            setResetStatus('Request sent. Once the admin has reset it, sign in with your surname in lowercase and choose a new password.', 'ok');
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
             if (!current()) return;
@@ -653,9 +670,33 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     }
     function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setLoginStatus(''); }
 
+    /** One more credential failure for `who`, and the 30-second lock at the third. Counted PER PERSON
+     *  (sessions-3): a newcomer's first mistake is their first, not the previous person's third —
+     *  which locked them out and pushed them to a reset. Records only: painting the card is the
+     *  caller's, and only for the person the card is showing.
+     *  @param {string} who */
+    function countFailureFor(who) {
+        if (_failFor !== who) { _failFor = who; _failCount = 0; }
+        _failCount++;
+        if (_failCount < 3) return;
+        _lockedUntil = Date.now() + 30_000;
+        _lockedFor = who;
+        clearTimeout(_lockTimer);
+        _lockTimer = setTimeout(() => {
+            if (_failFor === _lockedFor) _failCount = 0;   // the holder starts afresh; a newcomer keeps their own streak
+            _lockedUntil = 0;
+            _lockedFor = '';
+            if (!_signingIn) {                             // somebody else's attempt owns the button
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign in →';
+            }
+        }, 30_000);
+    }
+
     async function attempt() {
         if (_attempting || lockHolds()) return;
         _attempting = true;
+        let repaintForCard = false;   // set when an attempt settles for somebody no longer in the card
         try {
             const name = nameSelect.value;
             usernameInput.value = name;   // a preset name is set in code and raises no change event
@@ -667,7 +708,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             errorEl.classList.remove('visible');
 
             if (!gradeSelect.value)   { showError('Please select your grade.'); gradeTrigger()?.focus(); return; }
-            if (!name)                { showError('Please select your name.'); return; }
+            if (!name)                { showError('Choose your name first.'); nameTrigger()?.focus(); return; }
             if (!typedPw.trim())      { showError('Please enter your password.'); passwordInput.focus(); return; }
 
             lsSet(GRADE_KEY, gradeSelect.value);
@@ -678,6 +719,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             submitBtn.disabled = true;
             submitBtn.textContent = 'Signing in…';
             _signingIn = true;
+            setPickersInert(true);
             backLink.classList.add('login-back--busy');
             backLink.setAttribute('aria-disabled', 'true');
             overlay.querySelector('.login-about-link')?.setAttribute('aria-disabled', 'true');
@@ -694,34 +736,32 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
+                // Is the card still showing the person this attempt was for? The pickers are inert in
+                // flight (`setPickersInert`), but a pick from a sheet that was already closing when the
+                // member pressed Enter still lands. Then this failure is the EARLIER person's: it is
+                // counted for them (the streak and the lock are per person), and nothing of it is
+                // painted on the card in front of somebody else — not the error, not the reset
+                // emphasis, not a wiped password, not their lock on the button (review, Nov 2026).
+                if (nameSelect.value !== name) {
+                    if (_result.kind === 'credential') countFailureFor(name);
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Sign in →';
+                    repaintForCard = true;   // once `_signingIn` is down, the button as the new person stands
+                    return;
+                }
                 // Client 3-strikes → 30s lockout — ONLY on a genuine wrong password (`kind:'credential'`),
                 // never on a network/timeout/rate-limit failure (which would punish a connectivity
                 // problem) or any other cause (`'other'`, which no password could fix). Firebase does
                 // the real rate-limiting; this is a UX brake on hammering.
                 if (_result.kind === 'credential') {
-                    // Counted PER PERSON (sessions-3): a newcomer's first mistake is their first, not the
-                    // previous person's third — which locked them out and pushed them to a reset.
-                    if (_failFor !== name) { _failFor = name; _failCount = 0; }
-                    _failCount++;
+                    countFailureFor(name);
                     // From the SECOND failure (FIX, v18.94). v18.93 revealed on the first, which
                     // contradicted its own stated rationale — "the remedy for a mistype is to try
                     // again" — since failure #1 is precisely the mistype case.
                     if (_failCount >= 2) promptResetRequest();
                     if (_failCount >= 3) {
-                        _lockedUntil = Date.now() + 30_000;
-                        _lockedFor = name;
                         submitBtn.disabled = true;
                         submitBtn.textContent = 'Try again in 30s';
-                        clearTimeout(_lockTimer);
-                        _lockTimer = setTimeout(() => {
-                            if (_failFor === _lockedFor) _failCount = 0;   // the holder starts afresh; a newcomer keeps their own streak
-                            _lockedUntil = 0;
-                            _lockedFor = '';
-                            if (!_signingIn) {                             // somebody else's attempt owns the button
-                                submitBtn.disabled = false;
-                                submitBtn.textContent = 'Sign in →';
-                            }
-                        }, 30_000);
                         showError(/** @type {string} */ (_result.error));
                         passwordInput.value = '';
                         passwordInput.focus();
@@ -785,6 +825,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // Auth is no longer in flight once attempt() settles (the success path has already left
             // the page, so re-enabling Back here is moot for it but correct for every other exit).
             _signingIn = false;
+            setPickersInert(false);
+            if (repaintForCard) showLockFor();
             backLink.classList.remove('login-back--busy');
             backLink.removeAttribute('aria-disabled');
             overlay.querySelector('.login-about-link')?.removeAttribute('aria-disabled');

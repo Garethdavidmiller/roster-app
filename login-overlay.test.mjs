@@ -12,15 +12,46 @@
  * session.js: so session.js is not mocked here, firebase-client.js (→ the CDN SDK) is, along with
  * the browser-only modules the card imports (overlay.js, the picker, the perf reporter) and ls.js.
  *
- * NOT covered here (deliberate): the DOM wiring of attempt() itself (reading form values, button
+ * Mostly NOT covered here (deliberate): the DOM wiring of attempt() itself (reading form values, button
  * text, the lockout, the in-place vs reload onSuccess) is exercised by the Playwright suite
- * (e2e/auth.spec.js), not this unit file. The load-bearing contract — "commit the local session ONLY
+ * (e2e/auth.spec.js). The exception is the last block, which mounts the real card on a minimal fake
+ * DOM for what a browser test cannot time reliably: a change of person WHILE a sign-in is in flight. The load-bearing contract — "commit the local session ONLY
  * after auth genuinely resolves, time-boxed" — lives entirely in runNamedSignIn and is fully
  * exercised below.
  */
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mock } from 'node:test';
+
+/** A minimal element for the card's block at the end of this file — only what initLoginOverlay touches. */
+class FakeEl {
+    /** @param {string} [id] */
+    constructor(id = '') {
+        this.id = id; this.value = ''; this.disabled = false; this.hidden = false; this.type = '';
+        this.textContent = ''; this.className = ''; this._html = '';
+        /** @type {any[]} */ this.options = [];
+        /** @type {Map<string, string>} */ this._attrs = new Map();
+        /** @type {Record<string, Function[]>} */ this._on = {};
+        /** @type {Set<string>} */ const cls = new Set();
+        this.classList = {
+            add: (/** @type {string} */ c) => { cls.add(c); },
+            remove: (/** @type {string} */ c) => { cls.delete(c); },
+            contains: (/** @type {string} */ c) => cls.has(c),
+            toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => { if (on ?? !cls.has(c)) cls.add(c); else cls.delete(c); },
+        };
+    }
+    set innerHTML(v) { this._html = v; if (v === '') this.options = []; }
+    get innerHTML() { return this._html; }
+    /** @param {any} child */ appendChild(child) { this.options.push(child); return child; }
+    remove() {}
+    /** @param {string} k @param {any} v */ setAttribute(k, v) { this._attrs.set(k, String(v)); }
+    /** @param {string} k */ getAttribute(k) { return this._attrs.get(k) ?? null; }
+    /** @param {string} k */ removeAttribute(k) { this._attrs.delete(k); }
+    /** @param {string} type @param {Function} fn */ addEventListener(type, fn) { (this._on[type] ??= []).push(fn); }
+    /** @param {any} e */ dispatchEvent(e) { for (const fn of this._on[e.type] ?? []) fn(e); return true; }
+    focus() { /** @type {any} */ (globalThis).document.activeElement = this; }
+    get isConnected() { return true; }
+}
 
 // A fake of the Firebase SDK behind firebase-client.js — just what session.js calls on a TYPED
 // sign-in. Each control is a code the SDK call rejects with, or 'ok'.
@@ -28,6 +59,8 @@ const realIdentity = await import('./auth-identity.js');
 const fakeAuth = { currentUser: /** @type {any} */ (null) };
 let signInCode  = 'ok';
 let signOutCode = 'ok';
+/** When set, every typed sign-in waits on it — how the card's block holds an attempt IN FLIGHT. @type {Promise<void>|null} */
+let signInGate = null;
 /** The server's record of the sign-in the fake hands back (`metadata.lastSignInTime`), or none. @type {string|undefined} */
 let serverSignInTime;
 mock.module('./firebase-client.js', { namedExports: {
@@ -37,6 +70,7 @@ mock.module('./firebase-client.js', { namedExports: {
     nameToEmail:                realIdentity.nameToEmail,
     normaliseSurname:           realIdentity.normaliseSurname,
     signInWithEmailAndPassword: async (/** @type {any} */ _auth, /** @type {string} */ email) => {
+        if (signInGate) await signInGate;
         if (signInCode !== 'ok') throw Object.assign(new Error(signInCode), { code: signInCode });
         fakeAuth.currentUser = { uid: 'u-member', isAnonymous: false, email, getIdToken: async () => 't',
             ...(serverSignInTime ? { metadata: { lastSignInTime: serverSignInTime } } : {}) };
@@ -63,15 +97,24 @@ mock.module('./ls.js', { namedExports: {
 } });
 let unlocks = 0;   // scroll-lock releases — see dismissLoginOverlay below
 mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => { unlocks++; }, trapFocus: () => {}, createLightbox: () => ({ open() {}, close() {} }) } });
-// The sign-in pickers go through the app's own sheet (v23.49). This suite is about `runNamedSignIn`
-// — what it commits and when — so the picker is stubbed to a no-op returning a no-op refresher
-// rather than driven here: its own behaviour is covered by select-sheet.test.mjs (the rules), the
-// parity suite (the wiring) and e2e/auth.spec.js (a real click on a real row, which is the only
-// place the z-index defect this shipped with could ever have been seen).
-mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {} } });
+// The sign-in pickers go through the app's own sheet (v23.49). Its own behaviour is covered by
+// select-sheet.test.mjs (the rules), the parity suite (the wiring) and e2e/auth.spec.js (a real click
+// on a real row, which is the only place the z-index defect this shipped with could ever have been
+// seen), so here it is a stand-in: a trigger per select, named `<id>Trigger` as the real one is, whose
+// repaint copies `disabled` across — the one property of the real paint the card's block below reads.
+/** @type {Map<string, any>} */
+const triggers = new Map();
+mock.module('./select-sheet.js', { namedExports: { enhanceSelect: (/** @type {any} */ select) => {
+    const t = new FakeEl(`${select.id}Trigger`);
+    triggers.set(t.id, t);
+    const paint = () => { t.disabled = !!select.disabled; };
+    paint();
+    return paint;
+} } });
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
-const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay, resetRequestFailureLine } = await import('./login-overlay.js');
+const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay, resetRequestFailureLine, initLoginOverlay } = await import('./login-overlay.js');
+const { getMembersForGrade, CONFIG } = await import('./roster-data.js');
 
 // The card's DOM-free rules live in login-core.js (Nov 2026) and are re-exported here: the SAME
 // functions, so every test below that reaches them through login-overlay.js tests the real ones.
@@ -450,5 +493,140 @@ describe('resetRequestFailureLine — what a failed reset request says', () => {
             assert.match(line, /contact the admin directly\.$/);
             assert.doesNotMatch(line, /connection|try again|PIN|!/i);
         }
+    });
+});
+
+// ── THE CARD ITSELF: A CHANGE OF PERSON WHILE A SIGN-IN IS IN FLIGHT (review, Nov 2026) ──────────────
+// The grade and name pickers stayed live during the round trip, so a member could change the name
+// under an attempt — and the EARLIER person's failure then landed on the new one: the reset link
+// raised, the 30-second lock on the button, the password they had just typed wiped. Two defences, one
+// test each: the pickers are inert in flight, and an attempt that settles for somebody no longer in
+// the card paints nothing on it. The real card, the real sign-in core and the real session.js, on a
+// fake DOM just wide enough for them; only the Firebase SDK is faked (above), and held by `signInGate`.
+describe('the sign-in card — a sign-in in flight belongs to the person it was for', () => {
+    const grade = CONFIG.GRADE_ORDER.find((/** @type {string} */ g) => getMembersForGrade(g).length >= 2);
+    const [A, B] = getMembersForGrade(grade).map((/** @type {any} */ m) => m.name);
+
+    /** @type {any} */ let savedDocument;
+    /** @type {any} */ let savedWindow;
+    /** @type {any} */ let savedOption;
+    before(() => {
+        // The lock's 30-second timer is FAKED, so no test waits it out (or leaves it holding the run
+        // open); the waits below are on `setImmediate`, which is left real.
+        mock.timers.enable({ apis: ['setTimeout'] });
+        savedDocument = /** @type {any} */ (globalThis).document;
+        savedWindow = /** @type {any} */ (globalThis).window;
+        savedOption = /** @type {any} */ (globalThis).Option;
+    });
+    after(() => {
+        mock.timers.reset();
+        /** @type {any} */ (globalThis).document = savedDocument;
+        /** @type {any} */ (globalThis).window = savedWindow;
+        /** @type {any} */ (globalThis).Option = savedOption;
+    });
+    beforeEach(() => {
+        signInCode = 'auth/invalid-credential'; signOutCode = 'ok'; signInGate = null;
+        fakeAuth.currentUser = null; store.clear(); triggers.clear();
+    });
+
+    /** Mount a fresh inline card and hand back its controls. @param {string} [presetName] */
+    function mount(presetName = '') {
+        /** @type {Map<string, any>} */ const els = new Map();
+        const absent = new Set(['#loginAbout', '.login-about-link', '#loginFootnote', '#loginNotice', '#loginAlternative', '#loginAlternativeHint']);
+        const overlay = new FakeEl('loginOverlay');
+        /** @type {any} */ (overlay).querySelector = (/** @type {string} */ sel) => {
+            if (absent.has(sel)) return null;
+            if (sel.endsWith('Trigger')) return triggers.get(sel.slice(1)) ?? null;
+            const key = sel === 'a.login-back' ? '.login-back' : sel;
+            if (!els.has(key)) els.set(key, new FakeEl(key.replace(/^[#.]/, '')));
+            return els.get(key);
+        };
+        /** @type {any} */ (globalThis).document = {
+            activeElement: null,
+            getElementById: () => null,
+            createElement: () => overlay,
+        };
+        /** @type {any} */ (globalThis).window = {};
+        /** @type {any} */ (globalThis).Option = class { constructor(/** @type {string} */ text, /** @type {string} */ value) { this.textContent = text; this.value = value; } };
+        initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => {}, host: /** @type {any} */ ({ appendChild() {} }), presetName });
+        const $ = (/** @type {string} */ sel) => /** @type {any} */ (overlay).querySelector(sel);
+        return {
+            grade: $('#loginGrade'), name: $('#loginName'), password: $('#loginPassword'), submit: $('#loginSubmit'),
+            error: $('#loginError'), reset: $('#loginResetRequest'),
+            gradeTrigger: () => triggers.get('loginGradeTrigger'), nameTrigger: () => triggers.get('loginNameTrigger'),
+            send: () => $('#loginForm').dispatchEvent({ type: 'submit', preventDefault() {} }),
+        };
+    }
+    /** Let an attempt run to the end: its awaits are promise jobs, and `setImmediate` comes after them. @param {any} card */
+    async function settle(card) {
+        for (let i = 0; i < 200 && card.submit.textContent === 'Signing in…'; i++) await new Promise(r => setImmediate(r));
+        assert.notEqual(card.submit.textContent, 'Signing in…', 'premise: the attempt settled');
+    }
+    /** Hold every sign-in open until the returned function is called. @returns {() => void} */
+    function hold() {
+        /** @type {() => void} */ let open = () => {};
+        signInGate = new Promise(r => { open = () => { signInGate = null; r(); }; });
+        return () => open();
+    }
+
+    test('premise: a grade with two members to switch between', () => {
+        assert.ok(grade && A && B && A !== B);
+    });
+
+    test('the grade and name pickers, and their triggers, are inert while the sign-in is in flight — and come back after', async () => {
+        const card = mount(A);
+        assert.equal(card.name.value, A, 'premise: the preset chose the person');
+        const release = hold();
+        card.password.value = 'not-their-password-1';
+        card.send();
+        assert.equal(card.grade.disabled, true, 'the grade picker stayed live in flight');
+        assert.equal(card.name.disabled, true, 'the name picker stayed live in flight');
+        assert.equal(card.gradeTrigger().disabled, true, 'the grade trigger stayed tappable in flight');
+        assert.equal(card.nameTrigger().disabled, true, 'the name trigger stayed tappable in flight');
+        release();
+        await settle(card);
+        assert.equal(card.grade.disabled, false);
+        assert.equal(card.name.disabled, false, 'a grade is chosen, so the name is choosable again');
+        assert.equal(card.gradeTrigger().disabled, false);
+        assert.equal(card.nameTrigger().disabled, false);
+    });
+
+    test('a failure that lands after the card has moved to somebody else is not painted on them — and still counts for its own person', async () => {
+        const card = mount(A);
+        // A's first two wrong passwords: the second raises the reset link, as it should — for A.
+        for (let i = 0; i < 2; i++) { card.password.value = `wrong-${i}-for-A`; card.send(); await settle(card); }
+        assert.equal(card.reset.classList.contains('login-reset-request--prompted'), true, 'premise: A was pointed at a reset');
+        // A's THIRD, held in flight; meanwhile the card moves to B (a pick from a sheet already closing
+        // when Enter was pressed lands like this) and B types their own password.
+        const release = hold();
+        card.password.value = 'wrong-2-for-A';
+        card.send();
+        card.name.value = B;
+        card.name.dispatchEvent({ type: 'change' });
+        card.password.value = 'what-B-typed';
+        release();
+        await settle(card);
+        assert.equal(card.password.value, 'what-B-typed', 'A’s failure wiped the password B had typed');
+        assert.equal(card.error.classList.contains('visible'), false, 'A’s error was shown to B');
+        assert.equal(card.reset.classList.contains('login-reset-request--prompted'), false, 'A’s reset emphasis was put on B');
+        assert.equal(card.submit.disabled, false, 'A’s 30-second lock was put on B');
+        assert.equal(card.submit.textContent, 'Sign in →');
+        // …and it was A's third failure all the same: back to A, the lock is theirs.
+        card.name.value = A;
+        card.name.dispatchEvent({ type: 'change' });
+        assert.equal(card.submit.textContent, 'Try again in 30s', 'the failure was dropped rather than counted for A');
+        assert.equal(card.submit.disabled, true);
+    });
+
+    test('"Choose your name first." sends the caret to the name picker’s trigger, as the grade line does', async () => {
+        const card = mount();
+        card.grade.value = grade;
+        card.grade.dispatchEvent({ type: 'change' });
+        card.submit.focus();   // where a tap on the button leaves it
+        card.password.value = 'anything-at-all';
+        card.send();
+        await new Promise(r => setImmediate(r));
+        assert.equal(card.error.textContent, 'Choose your name first.');
+        assert.equal(/** @type {any} */ (globalThis).document.activeElement, card.nameTrigger(), 'the caret stayed on the button');
     });
 });
