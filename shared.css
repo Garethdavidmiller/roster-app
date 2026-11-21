@@ -2707,6 +2707,14 @@ button.lightbox-bug-link {
     padding: 0 8px 2px;
     min-height: 16px;
 }
+/* EMPTY, it takes no room: its reserved line put 24px of nothing between the box and the guides
+   under it. Collapsed rather than `display: none`, so the live region stays in the accessibility tree
+   and its first message is still announced; a count appearing then moves the list down one line,
+   which is the moment the list is being replaced by results anyway. */
+.nav-gs-status:empty { min-height: 0; padding-block: 0; }
+/* The search failed to load: a fault the reader should see, not a faint hint. The drawer's secondary
+   text, a step brighter than the hint's faint, on the one line that says something did not work. */
+.nav-gs-status[data-state="error"] { color: var(--nav-text-muted); padding-block: 2px 4px; }
 /* The drawer's TWO-LINE ROW — a title with a quiet second line under it — declared once for both
    consumers: the static guide list (what that guide answers) and a search result (which guide the hit
    came from). A second copy of the recipe is how the two would drift. */

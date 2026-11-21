@@ -148,6 +148,9 @@ export function initGuideSearch({ guides }) {
         // and a second copy in nav-panel.js would disagree the first time somebody typed a comma.
         // One writer here, one reader there.
         results.dataset.gsActive = active ? '1' : '';
+        // Every message this writes is an ordinary one: drop the error tone nav-panel.js gives the
+        // "Search is unavailable" line, should this element ever have carried it.
+        delete status.dataset.state;
         if (!active) {
             results.hidden = true;
             results.textContent = '';
