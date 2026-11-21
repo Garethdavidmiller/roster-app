@@ -292,13 +292,20 @@ export function init() {
 
         discardBtn.addEventListener('click', () => {
             banner.style.display = 'none';
-            // The discard action navigates/re-renders, which moves focus itself; just drop
-            // the saved reference so it can't be restored over the new view.
+            // The discard action navigates/re-renders. Focus goes back to the control that asked to
+            // leave — the week arrow or the member picker — once it has, unless the new view took
+            // it; the banner hiding under the pressed button sent it to <body> (review, 21 Nov 2026).
+            const asker = /** @type {HTMLElement|null} */ (_bannerReturnFocus);
             _bannerReturnFocus = null;
+            // (A hidden button can still be the active element until the next style pass, so focus
+            // still inside the banner counts as lost too.)
+            const lost = () => !document.activeElement || document.activeElement === document.body || banner.contains(document.activeElement);
+            const refocus = () => { if (asker?.isConnected && lost()) asker.focus({ preventScroll: true }); };
             userMadeChanges = false;
             // …and disarm the over-limit bar, or "Save anyway" writes the batch just discarded.
             hideALConfirm('week');
-            if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; fn(); }
+            if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; Promise.resolve(fn()).finally(refocus); }
+            else refocus();
         });
         keepBtn.addEventListener('click', () => {
             banner.style.display = 'none';
@@ -726,6 +733,9 @@ export function init() {
         userMadeChanges = false;
         // "Save anyway" after a discard must not write the batch back.
         hideALConfirm('week');
+        // The bar is about to go under the pressed button: the keyboard goes to the week's date button
+        // first, rather than to the last receipt, which is about the work just thrown away (21 Nov 2026).
+        /** @type {HTMLElement|null} */ (document.getElementById('weekNavLabel'))?.focus({ preventScroll: true });
         renderWeekGrid();
     });
 

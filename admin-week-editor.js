@@ -502,7 +502,16 @@ export function updateSaveBtn() {
     const stagedBar   = document.getElementById('stagedBar');
     const stagedCount = document.getElementById('stagedCount');
     if (stagedBar) {
+        // THE BAR GOING DOES NOT TAKE THE KEYBOARD WITH IT (review, 21 Nov 2026): its Save or Discard
+        // had focus, and hiding it sent focus to <body>. It goes to the receipt when there is one,
+        // else to the week's date button, the control the grid is read from.
+        const leaving = total === 0 && !stagedBar.hidden && stagedBar.contains(document.activeElement);
         stagedBar.hidden = total === 0;
+        if (leaving) {
+            const receipt = document.getElementById('formFeedback');
+            /** @type {HTMLElement|null} */ ((receipt?.textContent?.trim() ? receipt : null) ?? document.getElementById('weekNavLabel'))
+                ?.focus({ preventScroll: true });
+        }
         if (stagedCount) {
             const parts = [];
             if (saveCount) parts.push(`${saveCount} day${saveCount > 1 ? 's' : ''}`);

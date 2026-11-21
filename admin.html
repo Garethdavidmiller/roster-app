@@ -221,7 +221,7 @@
 
             <button type="button" class="btn-save" id="saveBtn" disabled>Save changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then save your changes</p>
-            <div class="feedback" id="formFeedback" role="status" aria-live="polite"></div>
+            <div class="feedback" id="formFeedback" tabindex="-1" role="status" aria-live="polite"></div>
 
         </div>
     </div>
@@ -305,7 +305,7 @@
                 <div class="al-leaveyear-title"><span aria-hidden="true">🗓️</span> Which year’s allowance</div>
                 <p class="al-leaveyear-hint">January leave comes out of that year’s allowance. A day can come out of the year before instead, while that year still has days left.</p>
                 <div id="alLeaveYearBody"></div>
-                <div class="feedback" id="alLeaveYearFeedback" role="status" aria-live="polite"></div>
+                <div class="feedback" id="alLeaveYearFeedback" tabindex="-1" role="status" aria-live="polite"></div>
             </div>
 
             <!-- Collapsible: all booked AL dates for the selected member -->

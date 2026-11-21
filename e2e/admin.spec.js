@@ -238,6 +238,8 @@ test('admin: a January leave day can be moved to last year\'s allowance, and bac
     await expect(y2026).toHaveAttribute('aria-pressed', 'true');
     await expect(figures).toHaveText('2026: 31 days left · 2027: 32 days left');
     await expect(page.locator('#alLeaveYearFeedback')).toContainText('now comes out of 2026’s allowance');
+    // The panel is redrawn twice around the save; the keyboard's place is the year just chosen (21 Nov 2026).
+    await expect(y2026, 'focus is not dropped to the page when the panel redraws').toBeFocused();
     const moved = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data);
     expect(moved).toMatchObject({ date: DAY, type: 'annual_leave', value: 'AL', leaveYear: 2026, source: 'manual', changedBy: 'G. Miller' });
 
@@ -389,6 +391,28 @@ async function openAdminOnDecember(page) {
     });
     await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
 }
+
+// THE KEYBOARD IS NOT LEFT ON <body> WHEN A BAR GOES FROM UNDER IT (review, 21 Nov 2026). The sticky
+// bar's Save and the unsaved banner's "Discard and continue" both hid the very button that was pressed.
+test('admin: after the sticky bar\'s Save, and after "Discard and continue", focus is somewhere real', async ({ page }) => {
+    await openAdminOnDecember(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.authUser = true; });
+    const absent = () => page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="sick"]:not([disabled])') }).first();
+    await clickInView(absent().locator('.type-pill-btn[data-type="sick"]'));
+    await page.locator('#stagedSaveBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#formFeedback')).toContainText('✓');
+    await expect(page.locator('#formFeedback'), 'the receipt, once the bar has gone').toBeFocused();
+
+    await clickInView(absent().locator('.type-pill-btn[data-type="sick"]'));
+    await page.locator('#nextWeekBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#unsavedBanner')).toBeVisible();
+    await page.locator('#unsavedDiscardBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#unsavedBanner')).toBeHidden();
+    await expect(page.locator('#nextWeekBtn'), 'back to the arrow that asked to leave').toBeFocused();
+});
 
 // THE DIALOG OVER THE DRAWER OWNS THE KEYBOARD (v25.06, whole-app review). The drawer's own keydown
 // handler had no topmost check, so with "Leave this page anyway?" open over it, Tab dragged focus into
@@ -1967,6 +1991,7 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
         // that question, which is not what this loop is about.
         await page.locator('#stagedDiscardBtn').click();
         await expect(page.locator('#saveBtn')).toBeDisabled();
+        await expect(page.locator('#weekNavLabel'), 'the bar went from under the keyboard, which goes to the week').toBeFocused();
     }
 });
 
