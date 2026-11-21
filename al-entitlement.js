@@ -191,7 +191,7 @@ export function spareWeekDays(date) {
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
  * @returns {boolean}
  */
-export function pastSpareWeekCap(member, date, ovByDate) {
+function pastSpareWeekCap(member, date, ovByDate) {
     if (!spareUnderneath(member, date, ovByDate)) return false;
     let before = 0;
     for (const day of spareWeekDays(date)) {
