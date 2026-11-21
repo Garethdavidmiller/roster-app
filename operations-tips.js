@@ -127,7 +127,7 @@ export const CARD_TIPS = {
         title: 'Password Reset Requests',   // no emoji: no other Operations panel's title wears one (the card's header does)
         sections: [{ items: [
             { icon: '🔑', html: 'Staff who tap <strong>“Can’t get in? Ask the admin to reset your password”</strong> on the sign-in screen appear here. Nothing is reset automatically — <strong>you</strong> do it, from Account status below.' },
-            { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out of their other devices.' },
+            { icon: '⚠️', html: '<strong>Requests are not verified.</strong> The sign-in screen has no way to prove who is tapping, so anyone could file a request in someone else\'s name. <strong>Confirm with the member before resetting</strong> — a reset puts them back on their surname default and signs them out on every device.' },
             { icon: '🆕', html: 'A row saying <strong>“No account yet”</strong> means they have no login account yet, so there is nothing to reset. Run <strong>Set up accounts</strong> instead.' },
             { icon: '🚫', html: 'A row saying <strong>“Account disabled”</strong> means the account is switched off, so a reset would not let them in. Run <strong>Set up accounts</strong> instead: it switches the account back on with their surname as the password, and signs them out.' },
             { icon: '🧹', html: '<strong>Clear</strong> removes the row once you have dealt with it. If they ask again it comes back, with the count showing how many times.' },
@@ -152,7 +152,7 @@ export const CARD_TIPS = {
             { heading: 'Resetting a password', items: [
                 // Both lines rewritten at v21.94: Reset is offered to EVERYONE (see
                 // `buildRow` — v18.84), and the new password is compelled, not optional.
-                { icon: '↩️', html: '<strong>Reset</strong> is offered next to <strong>everyone</strong>. Use it if someone has forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out of their other devices. Resetting an account that is already on the default is harmless, and still signs their other devices out.' },
+                { icon: '↩️', html: '<strong>Reset</strong> is offered next to <strong>everyone</strong>. Use it if someone has forgotten their password — it goes back to their <strong>surname default</strong> and they\'re signed out on every device. Resetting an account that is already on the default is harmless, and still signs them out on every device.' },
                 { icon: '🔒', html: 'They sign in with their surname again, and the app then <strong>asks them to choose a new password</strong> before they can carry on.' },
                 { icon: '📵', html: 'If their phone is <strong>lost or stolen</strong>, tick the box in the Reset dialog. No reset notice is sent — it would show on that phone — and their notifications stop on every device, so <strong>tell them yourself</strong>.' },
             ]},

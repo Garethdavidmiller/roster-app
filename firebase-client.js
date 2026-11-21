@@ -589,8 +589,9 @@ export async function getAllStaffContacts() {
 }
 
 // ---- Password migration status (PASSWORD_DESIGN.md §6) ----
-// `passwordStatus/{memberName}` (doc id = display name). `resetAt` is written ONLY by the
-// resetMemberPassword Cloud Function (Admin SDK, bypasses rules); `passwordSetAt` is written by the
+// `passwordStatus/{memberName}` (doc id = display name). `resetAt` is written ONLY by Cloud Functions
+// (Admin SDK, bypasses rules) — resetMemberPassword, and setupRosterAuth wherever it puts an account on
+// the surname default (a new account, a take-back, a re-enable); `passwordSetAt` is written by the
 // member's own client after a successful updatePassword. Migrated ⇔ passwordSetAt newer than any
 // resetAt. Kept SEPARATE from staffContact so the security-sensitive resetAt never shares a
 // member-writable doc.

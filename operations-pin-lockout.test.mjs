@@ -161,3 +161,22 @@ describe('the strip: one report for the card\'s three items, and a withdraw for 
         assert.deepEqual(buildAttentionItems({ pinLockout: { count: 0 } }), [], 'none: no item');
     });
 });
+
+// ── ONE DAY, ON BOTH SIDES (review D8, Nov 2026) ────────────────────────────────────────────────
+// The page's `RECENT_MS` and the server's `LOCKOUT_RECENT_MS` are two copies of one window, with
+// nothing that held them together: a page whose day ran longer kept a line the server had dropped,
+// and a shorter one took down a line the server still sent — the strip's count and the card's line
+// then disagreeing. Asked by BEHAVIOUR at the server's own boundary, so either copy moving fails.
+test('the page keeps an ended block for exactly the window the server does', async () => {
+    const { createRequire } = await import('node:module');
+    const { LOCKOUT_RECENT_MS, lockoutSummary } = createRequire(import.meta.url)('./functions/calendar-viewer-auth.js');
+    assert.ok(Number.isFinite(LOCKOUT_RECENT_MS) && LOCKOUT_RECENT_MS > 0, 'premise: the server names a window');
+    const endedAt = (/** @type {number} */ age) => ({ active: false, blockedUntil: NOW - age + 15 * MIN, lastBlockedAt: NOW - age, blocks: 1 });
+    for (const age of [LOCKOUT_RECENT_MS - 1, LOCKOUT_RECENT_MS]) {
+        const server = lockoutSummary({ blocks: [NOW - age], blockedUntil: NOW - age + 15 * MIN }, NOW);
+        const page = readLockout(endedAt(age), NOW);
+        assert.equal(page === null, server === null,
+            `a block ${age} ms old: the server ${server ? 'still reports it' : 'has dropped it'}, the page ${page ? 'still shows it' : 'has dropped it'}`);
+    }
+    assert.ok(readLockout(endedAt(LOCKOUT_RECENT_MS - 1), NOW), 'premise: the boundary was crossed, not missed');
+});

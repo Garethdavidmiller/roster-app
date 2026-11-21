@@ -68,7 +68,7 @@ export const LOST_PHONE = Object.freeze({
 export function resetQuestion(name) {
     return {
         title: 'Reset password?',
-        message: `Reset ${name}'s password back to their surname default and sign them out of their other devices? Tell them to sign in with their surname — the app will then ask them to choose a new one.`,
+        message: `Reset ${name}'s password back to their surname default and sign them out on every device? Tell them to sign in with their surname — the app will then ask them to choose a new one.`,
         confirmLabel: 'Reset',
         danger: true,
         option: LOST_PHONE,
@@ -104,7 +104,7 @@ export function resetFailure(name, err) {
     if (isFetchTimeout(err?.cause)) {
         return { retry: false, note: {
             title: 'Couldn’t confirm the reset',
-            message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and their other devices already signed out.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
+            message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and they may already be signed out on every device.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
         } };
     }
     const refused = serverRefusal(err);
@@ -145,7 +145,7 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
     if (revokeFailed) {
         parts.push('Their other devices couldn’t be signed out straight away. The password change still ends those sign-ins when they next renew, within the hour — reset again to sign them out now.');
     } else {
-        parts.push(lost ? 'They are signed out on every device, the lost phone included.' : 'Their other sessions were signed out.');
+        parts.push(lost ? 'They are signed out on every device, the lost phone included.' : 'They are signed out on every device.');
     }
     if (takenBack) {
         parts.push(`This account had been registered outside the app, so it was taken back: anyone signed in on it was signed out. Run Set up accounts next — until then ${name} cannot use the app on it. Then let them know their password is their surname.`);

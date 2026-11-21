@@ -1334,6 +1334,22 @@ test('getMembersForGrade(Management) returns every CONFIG.MANAGER_NAMES manager 
     assert.ok(names.length >= CONFIG.MANAGER_NAMES.length, 'Management group must not be empty');
 });
 
+// A LEAVER LEFT ON A ROLE LIST KEEPS A WORKING LOGIN (review D5, Nov 2026). setupRosterAuth unions every
+// role name into the set it provisions and never sweeps (resolveRosterAuthConfig, so that a sweep can
+// never disable an admin or a designer), so a name hidden or removed from teamMembers but still in
+// CONFIG.ADMIN_NAMES or CONFIG.LINKS_DESIGNERS is re-enabled and re-claimed on every run — an admin's
+// tier included. The managers' half is the test above; these are the other two lists.
+for (const list of /** @type {const} */ (['ADMIN_NAMES', 'LINKS_DESIGNERS'])) {
+    test(`every CONFIG.${list} name is a current member — a leaver on it keeps a working login`, () => {
+        const current = new Set(['CEA', 'CES', 'Dispatcher', 'Management'].flatMap(g => getMembersForGrade(g).map(m => m.name)));
+        assert.ok(CONFIG[list].length > 0, `premise: CONFIG.${list} names somebody`);
+        for (const name of CONFIG[list]) {
+            assert.ok(current.has(name), `${name} is in CONFIG.${list} but is not a current member (hidden, or no longer in teamMembers) — `
+                + `take them off CONFIG.${list} and run npm run generate:roster-members, or Set up accounts keeps their login working`);
+        }
+    });
+}
+
 test('parseSmartFloat: empty/null/undefined returns 0', () => {
     assert.equal(parseSmartFloat(''), 0);
     assert.equal(parseSmartFloat(null), 0);

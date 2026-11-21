@@ -87,12 +87,17 @@ global.document = /** @type {any} */ ({
 /** @type {any} */ let _next;
 let _calls = 0;
 
-/** What setupRosterAuth answers when the button is pressed, or an Error for the request to throw. */
+/** What setupRosterAuth answers when the button is pressed, or an Error for the request to throw.
+ *  An ARRAY is a queue: each request takes the next answer (the dry run, then the confirm). */
 /** @type {any} */ let _setupReply = new Error('unused');
+/** Every setupRosterAuth request body, parsed — what the card actually SENT. @type {any[]} */
+let _setupSent = [];
+/** The claims on the admin's fresh ID token. @type {Record<string, any>} */
+let _claims = { admin: true };
 
 mock.module('./firebase-client.js', {
     namedExports: {
-        auth: { currentUser: { uid: 'admin', getIdTokenResult: async () => ({ token: 't', claims: { admin: true } }) } },
+        auth: { currentUser: { uid: 'admin', getIdTokenResult: async () => ({ token: 't', claims: _claims }) } },
         getAccountSetupGaps: async () => {
             _calls += 1;
             if (_next instanceof Error) throw _next;
@@ -112,9 +117,11 @@ mock.module('./roster-data.js', {
 });
 mock.module('./fetch-timeout.js', {
     namedExports: {
-        fetchWithTimeout: async () => {
-            if (_setupReply instanceof Error) throw _setupReply;
-            return { ok: true, json: async () => _setupReply, text: async () => '' };
+        fetchWithTimeout: async (/** @type {string} */ _url, /** @type {any} */ init) => {
+            _setupSent.push(JSON.parse(init.body));
+            const reply = Array.isArray(_setupReply) ? _setupReply.shift() : _setupReply;
+            if (reply instanceof Error) throw reply;
+            return { ok: true, json: async () => reply, text: async () => '' };
         },
         isFetchTimeout: () => false,
     },
@@ -150,7 +157,7 @@ const GAPPY   = {
     leavers: ['B. Khalil'],
 };
 
-beforeEach(() => { _calls = 0; });
+beforeEach(() => { _calls = 0; _setupSent = []; _claims = { admin: true }; });
 
 describe('a false all-clear — the failure this card exists to prevent', () => {
     test('a FAILED check reports nothing to the strip', async () => {
@@ -287,6 +294,97 @@ describe('the members Set up accounts will reset are named, before it is pressed
         assert.match(gaps.textContent, /B\. Toth \(something-new\)/);
         assert.deepEqual(remedies(gaps), ['Press Set up accounts below.']);
     });
+});
+
+// ── TWO REASONS SET UP ACCOUNTS REFUSES (review D3, Nov 2026) ───────────────────────────────────
+// The shared PIN account at a member's address, and an account whose permissions name another member,
+// came back as "wrong permissions" with "Press Set up accounts below." — and the press only reported
+// the refusal. Each now says what the button says when it refuses it.
+describe('the gaps Set up accounts cannot mend say so, with their own remedy', () => {
+    /** @param {any} gaps */
+    const remedies = (gaps) => gaps.find((/** @type {any} */ e) => e.className === 'auth-gap-line').children
+        .filter((/** @type {any} */ c) => typeof c !== 'string' && c.className === 'auth-gap-fix').map((/** @type {any} */ c) => c.textContent);
+
+    test('each is named in words, and its remedy is the refusal\'s — the press is not offered for them alone', async () => {
+        const { gaps, reported } = await wire({ setUp: [
+            { name: 'B. Toth', why: 'viewer-linked' }, { name: 'S. Silva', why: 'other-member' }, { name: 'A. Hared', why: 'other-member' },
+        ], leavers: [] });
+        assert.match(gaps.textContent, /B\. Toth \(linked to the staff PIN account\)/);
+        assert.match(gaps.textContent, /S\. Silva \(account claimed for another member\)/);
+        assert.doesNotMatch(gaps.textContent, /wrong permissions/);
+        assert.deepEqual(remedies(gaps), [
+            'B. Toth: the address is linked to the shared staff PIN account, which Set up accounts will not take over. The next staff PIN unlock clears it — then press Set up accounts.',
+            'S. Silva and A. Hared: the account at that address is claimed for another member, so Set up accounts will not adopt it. Check it in the Firebase console.',
+        ]);
+        assert.deepEqual(reported, [{ setUp: 3, leavers: 0, pinLockout: null }], 'still counted: each is a member who cannot sign in properly');
+    });
+
+    test('beside a gap the press DOES mend, the press is offered first', async () => {
+        const { gaps } = await wire({ setUp: [{ name: 'B. Toth', why: 'no-account' }, { name: 'S. Silva', why: 'viewer-linked' }], leavers: [] });
+        const r = remedies(gaps);
+        assert.equal(r[0], 'Press Set up accounts below.');
+        assert.match(r[1], /^S\. Silva: the address is linked to the shared staff PIN account/);
+    });
+});
+
+// ── THE CONFIRM SENDS WHAT THE PREVIEW NAMED (review D1, Nov 2026) ──────────────────────────────
+// The server disables only the overlap of these uids with the leavers it finds at the confirm, and
+// names the two differences; this is the card's half — what it sends, and what it then says.
+describe('the leaver confirm is tied to the preview the admin read', () => {
+    const PREVIEW = { created: [], skipped: [], orphanDryRun: true, orphansToDisable: ['X. Gone', 'Y. Gone'], orphanUids: ['u1', 'u2'] };
+
+    /** Press Set up accounts with the leavers box ticked, then Confirm. @param {any[]} replies */
+    async function previewThenConfirm(replies) {
+        await wire(CLEAN);
+        els.authSetupOrphans.checked = true;
+        els.authConfirmOrphans = makeEl('button', 'authConfirmOrphans');   // what the preview's HTML holds
+        _setupReply = [...replies];
+        await els.authSetupBtn.fire('click');
+        await drain();
+        await els.authConfirmOrphans.fire('click');
+        await drain();
+        return els.authSetupResult.textContent;
+    }
+
+    test('the confirm carries the previewed uids', async () => {
+        await previewThenConfirm([PREVIEW, { created: [], skipped: [], disabled: ['X. Gone', 'Y. Gone'] }]);
+        assert.deepEqual(_setupSent, [{ removeOrphans: true },
+            { removeOrphans: true, confirmOrphanRemoval: true, confirmUids: ['u1', 'u2'] }]);
+    });
+
+    test('what the server left alone is named — a skipped uid by the label the admin read', async () => {
+        const text = await previewThenConfirm([PREVIEW,
+            { created: [], skipped: [], disabled: ['X. Gone'], confirmSkipped: ['u2'], notPreviewed: ['Z. New'] }]);
+        assert.match(text, /🚫 Disabled leavers \(1\): X\. Gone/);
+        assert.match(text, /⏭️ Not disabled — no longer found as a leaver since the preview \(1\): Y\. Gone/);
+        assert.match(text, /⚠️ Not disabled — not in the preview you confirmed \(1\): Z\. New — press Set up accounts again with the leavers box ticked to preview them\./);
+    });
+
+    test('a preview from an older server (no uids) confirms with an EMPTY list — never "everyone it finds"', async () => {
+        const { orphanUids: _drop, ...older } = PREVIEW;
+        await previewThenConfirm([older, { created: [], skipped: [], disabled: [] }]);
+        assert.deepEqual(_setupSent[1].confirmUids, []);
+    });
+
+    test('an older server\'s confirm answer — neither list — reads as it always did', async () => {
+        const text = await previewThenConfirm([PREVIEW, { created: [], skipped: [], disabled: ['X. Gone', 'Y. Gone'] }]);
+        assert.match(text, /🚫 Disabled leavers \(2\): X\. Gone, Y\. Gone/);
+        assert.doesNotMatch(text, /Not disabled/);
+    });
+});
+
+// The Firebase console cannot set a custom claim (review D2, Nov 2026): the card sent the admin there.
+test('a missing admin claim points at the runbook, never at the console, and sends nothing', async () => {
+    await wire(CLEAN);
+    _claims = {};
+    await els.authSetupBtn.fire('click');
+    await drain();
+    const text = els.authSetupResult.textContent;
+    assert.match(text, /The Firebase console cannot restore it: follow “Restoring a lost admin claim” in RECOVERY_RUNBOOK\.md/);
+    assert.doesNotMatch(text, /Set the admin claim in the Firebase console/);
+    assert.deepEqual(_setupSent, [], 'the call would only be refused');
+    const runbook = readFileSync(new URL('./docs/RECOVERY_RUNBOOK.md', import.meta.url), 'utf8');
+    assert.match(runbook, /^#+ .*Restoring a lost admin claim/m, 'the section the card names exists');
 });
 
 describe('the retry', () => {

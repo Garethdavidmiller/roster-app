@@ -112,7 +112,7 @@ test('a member nobody told is the admin\'s errand, whether or not the sign-out w
     assert.match(untold?.message ?? '', new RegExp(`No reset notice reached ${NAME.replace('.', '\\.')}'s devices, so they have NOT been told`));
     assert.doesNotMatch(untold?.message ?? '', /has no notifications/, 'a send that failed is blamed on the member\'s phone');
     assert.match(untold?.message ?? '', /their password is now their surname and they are signed out\./);
-    assert.match(untold?.message ?? '', /Their other sessions were signed out\./);
+    assert.match(untold?.message ?? '', /They are signed out on every device\./);
     assert.doesNotMatch(untold?.message ?? '', /lost phone/, 'an ordinary reset never speaks of a lost phone');
 
     const both = resetOutcome(NAME, { ...LANDED, revoked: false, revokeFailed: true, notified: false });
