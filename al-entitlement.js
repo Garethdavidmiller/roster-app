@@ -66,6 +66,7 @@ import { getALEntitlement, dispatcherBaseAL, allowanceRole } from './al-contract
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
 import { isChristmasClosureDate, boxingDayLieuDays, boxingDayForAllowance, allowanceYearsOf } from './christmas-leave.js';
+import { roleOn } from './roster-roles.js';
 
 /**
  * A member's WHOLE annual-leave allowance for a year — the one door every surface reads it through
@@ -158,9 +159,16 @@ export const SPARE_WEEK_MAX_DAYS = 4;
  * @returns {boolean}
  */
 export function spareUnderneath(member, date, ovByDate) {
+    // CEA AND CES ONLY (owner, 21 Nov 2026). Their Spare week is four days' work of 35 hours, which is
+    // what the cap is for; a Dispatcher's Spare days each cost one day, as they always did.
+    const role = roleOn(member, parseISODate(date));
+    if (role !== 'CEA' && role !== 'CES') return false;
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
     const evidence = contractEvidence(ov);
-    if (evidence && evidence.type) return evidence.type === 'spare_shift';
+    // Evidence that SAYS something about the contract answers; an absence or leave carried as what was
+    // replaced says nothing, so the base roster decides — as `costsWithoutSpareCap` reads the same day
+    // (review, 21 Nov 2026: leave over a recorded absence on a Spare day was never counted as Spare).
+    if (evidence && evidence.type && isContractedWorkOverride({ type: evidence.type }) !== null) return evidence.type === 'spare_shift';
     return getBaseShift(member, parseISODate(date)) === 'SPARE';
 }
 
@@ -266,7 +274,12 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
     const winnerByDate = /** @type {Map<string, any>} */ (new Map());
     for (const o of overrides) {
         if (!o || o.memberName !== member.name) continue;
-        if (!o.date || !(o.date.startsWith(yearStr) || o.date.startsWith(nextJanuary))) continue;
+        // …and the last days of the December BEFORE, which are never counted here but may share a Spare
+        // week with this January's first days: the week's four is spent in date order, so a year read
+        // without them charged 1 and 2 January as if the week began on New Year's Day (review, 21 Nov 2026).
+        if (!o.date) continue;
+        const weekBefore = o.date >= `${y - 1}-12-26` && o.date.startsWith(`${y - 1}-12-`);
+        if (!(o.date.startsWith(yearStr) || o.date.startsWith(nextJanuary) || weekBefore)) continue;
         if (exclude && exclude.has(o.date)) continue;
         if (shouldReplaceOverride(winnerByDate.get(o.date), o)) winnerByDate.set(o.date, o);
     }

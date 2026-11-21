@@ -84,7 +84,10 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
     // The allowance AFTER this save (6 Nov 2026 review): recording or removing a worked Boxing Day
     // gives or takes its day in lieu, so the batch is costed against what the allowance will be.
     const afterOf = (/** @type {any[]} */ batch) => overridesAfterSave(overrides, { memberName,
-        writes: batch.map(e => ({ date: e.date, type: e.type, value: e.value })), deleteIds: toDelete });
+        // A declared swap is the entry's `swapped`, or this save's answer for the day: either way the
+        // writer records contracted work under the leave, so the after picture must too (21 Nov 2026).
+        writes: batch.map(e => ({ date: e.date, type: e.type, value: e.value,
+            swapped: e.swapped === true || (e.type === 'annual_leave' && swapAnswers?.get?.(e.date) === true) })), deleteIds: toDelete });
     // Existing leave for the year, less the dates this batch OVERWRITES or DELETES — they are
     // re-accounted through `consuming`, or removed outright. ONE set for both paths below: the
     // no-leave path once built its own and left out leave another type overwrites, so turning a day

@@ -19,15 +19,18 @@ import { spareShiftNote, spareDaysOf } from './admin-al-spare-note.js';
 const esc = escapeHtml;
 
 /**
- * What a saved booking says it recorded: `n` days written for `m`, `held` of them already leave, so not
- * new (the preview's own count, renderReady). "Recorded 5 days" over three already booked said 5 where
- * the balance fell by 2.
- * @param {number} n @param {string} m @param {number} held
+ * What a saved booking says it recorded: `n` days for `m` — the days charged plus `held`, the days that
+ * were already leave, so not new (the preview's own count, renderReady); `free` written at no cost.
+ * "Recorded 5 days" over three already booked said 5 where the balance fell by 2.
+ * @param {number} n @param {string} m @param {number} held @param {number} [free]
  */
-function recordedWords(n, m, held) {
-    if (!held) return `Recorded ${n} day${n > 1 ? 's' : ''} of Annual Leave for ${m}`;
+function recordedWords(n, m, held, free = 0) {
+    // Days recorded at no cost are named as the preview names them (21 Nov 2026): "Recorded 6 days"
+    // over a Spare week the preview had called "4 days (+ 2 days recorded at no cost)" contradicted it.
+    const noCost = free > 0 ? `${free} day${free > 1 ? 's' : ''} at no cost` : '';
+    if (!held) return `Recorded ${n} day${n !== 1 ? 's' : ''} of Annual Leave for ${m}${noCost ? ` (+ ${noCost})` : ''}`;
     const fresh = n - held;
-    return `${fresh ? `Recorded ${fresh} new day${fresh > 1 ? 's' : ''} of Annual Leave` : 'No new days of Annual Leave'} for ${m} (${held} already booked)`;
+    return `${fresh ? `Recorded ${fresh} new day${fresh > 1 ? 's' : ''} of Annual Leave` : 'No new days of Annual Leave'} for ${m} (${[`${held} already booked`, noCost].filter(Boolean).join(', ')})`;
 }
 
 // Module-level state for the AL over-entitlement confirmation flow.
@@ -95,13 +98,12 @@ export function initALSection({
     function checkEntitlement({ member, dates, memberObj, swapAnswers }) {
         if (confirmedOverLimit) return false;
         const ovByDate = buildMemberDateMap(member);
-        const { consuming, writing } = projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers });
+        const { consuming, writes } = projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers });
         // Against the allowance AFTER the save (6 Nov 2026 review): leave over a worked Boxing Day
         // takes back its day in lieu, so the same booking can fit before and not after.
         const overage = projectAlOverage({
             member: memberObj, memberName: member, overrides: getAllOverrides(), consuming,
-            after: overridesAfterSave(getAllOverrides(), { memberName: member,
-                writes: writing.map(date => ({ date, type: 'annual_leave', value: 'AL' })) }),
+            after: overridesAfterSave(getAllOverrides(), { memberName: member, writes }),
         });
         if (overage) {
             showALConfirm(overage.headline, overage.detail, null); // null = AL booking path (not week editor)
@@ -150,7 +152,10 @@ export function initALSection({
             label = days(settled, ' so far');
             restNote = ` <em>(+ ${[heldNote, `${c.unanswered} rest day${c.unanswered > 1 ? 's' : ''} to answer below`].filter(Boolean).join(', ')})</em>`;
         } else {
-            label = days(projection.consuming.filter(/** @param {string} d */ d => !held.has(d)).length);
+            // WHAT THE BALANCE MOVES BY — the projection's `charged` (21 Nov 2026). The new days charged,
+            // except where a Spare week's four moved between days already booked and days booked now.
+            const charged = projection.charged ?? projection.consuming.filter(/** @param {string} d */ d => !held.has(d)).length;
+            label = charged === 0 ? 'No days' : days(charged);
             const parts = heldNote ? [heldNote] : [];
             // A written day that costs nothing is an RDW day — worked, but declining overtime is not
             // leave — or a Spare day past its week's four (owner, 21 Nov 2026). It is reported because
@@ -204,8 +209,8 @@ export function initALSection({
             : null,
         renderReady,
         // A day that already held leave is written again but is not a new day (renderReady says why).
-        successFeedback: (n, m, held = 0) => `✓ ${recordedWords(n, m, held)}`,
-        successToast:    (n, m, held = 0) => recordedWords(n, m, held),
+        successFeedback: (n, m, held = 0, free = 0) => `✓ ${recordedWords(n, m, held, free)}`,
+        successToast:    (n, m, held = 0, free = 0) => recordedWords(n, m, held, free),
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
         // ASK ABOUT REST DAYS IN THE RANGE, AND REFUSE TO SAVE UNTIL EACH IS ANSWERED (v23.75).

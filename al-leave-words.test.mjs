@@ -39,7 +39,8 @@ function day(over = {}) {
     return { state: 'match', pattern: 'RD', drawn: PATTERN, appYear: null, swapQuestion: false, ...over };
 }
 /** The count keys that need a look — every key but agreement, Sundays and the explained carry-over. */
-const LOOK_KEYS = COUNT_KEYS.filter(k => !['match', 'sunday', 'carried'].includes(k));
+// 'spare-week' is explained, like 'carried': past a Spare week's four, by rule (21 Nov 2026).
+const LOOK_KEYS = COUNT_KEYS.filter(k => !['match', 'sunday', 'carried', 'spare-week'].includes(k));
 
 test('every date carries its weekday and its year — the sheet runs into the next January', () => {
     assert.equal(dayLabel('2026-02-24'), 'Tue 24 Feb 2026');

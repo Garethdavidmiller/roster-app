@@ -417,8 +417,11 @@ describe('the day in lieu reaches the over-entitlement warning (v25.37)', () => 
         // was, and everything above stays green while the page misses the day.
         const src = readFileSync(new URL('./admin-al.js', import.meta.url), 'utf8');
         const call = src.slice(src.indexOf('projectAlOverage({'), src.indexOf('});', src.indexOf('projectAlOverage({')));
-        assert.match(call, /after:\s*overridesAfterSave\(getAllOverrides\(\),[\s\S]*writing\.map/,
-            'admin-al.js must pass `after: overridesAfterSave(getAllOverrides(), { … writing … })` to projectAlOverage');
+        // Since 21 Nov 2026 the writes are the projection's own (`writes`, with each day's swap), so the
+        // after picture records what each day replaced exactly as the save will.
+        assert.match(call, /after:\s*overridesAfterSave\(getAllOverrides\(\),[\s\S]*\bwrites\b/,
+            'admin-al.js must pass `after: overridesAfterSave(getAllOverrides(), { … writes })` to projectAlOverage');
+        assert.match(src, /const \{[^}]*\bwrites\b[^}]*\} = projectAlBooking\(/, '…and `writes` must be the projection\'s');
     });
 });
 

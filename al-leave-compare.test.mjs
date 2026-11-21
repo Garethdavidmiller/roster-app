@@ -314,6 +314,18 @@ describe('every state is reached, for the reason the header gives', () => {
         for (const d of res.days) seen.add(d.state);
         seen.add(stateOf(compare(JOINER, [leave(JOINER, find(JOINER, '2026-08-01', any))]), find(JOINER, '2026-08-01', any)));
         seen.add(stateOf(compare(CEA, [leave(CEA, j)], [AL(CEA, j, { leaveYear: YEAR - 1 })], { sheet: { carriedForward: 1 } }), j));
+        // A whole Spare week of leave: its fifth and sixth days are past the week's four (21 Nov 2026).
+        const SPARE_CEA = { name: 'Spare Tester', rosterType: 'main', currentWeek: 1, role: 'CEA' };
+        const week = ['2026-02-09', '2026-02-10', '2026-02-11', '2026-02-12', '2026-02-13', '2026-02-14'];
+        // The sheet charging all six (its Used), the app four: a gap of exactly the two the rule explains.
+        const spared = compare(SPARE_CEA, week.map(d => leave(SPARE_CEA, d)), week.map(d => AL(SPARE_CEA, d)), { sheet: { used: 6 } });
+        assert.deepEqual(week.map(d => stateOf(spared, d)), ['match', 'match', 'match', 'match', 'spare-week', 'spare-week'],
+            'premise: 9–14 Feb 2026 is the invented member\'s Spare week, and its last two days cost nothing');
+        assert.equal(spared.needsALook, false, 'an explained difference, so not one that needs a look');
+        assert.equal(spared.figuresGap, -2, 'premise: the sheet\'s balance is two lower');
+        const unexplained = compare(SPARE_CEA, week.map(d => leave(SPARE_CEA, d)), week.map(d => AL(SPARE_CEA, d)), { sheet: { used: 7 } });
+        assert.equal(unexplained.needsALook, true, 'a gap the rule does not explain still needs a look');
+        seen.add('spare-week');
         assert.deepEqual([...seen].sort(), [...DAY_STATES].sort());
     });
 });

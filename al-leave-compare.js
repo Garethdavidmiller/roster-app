@@ -26,6 +26,9 @@
  *   not-in-app    nothing recorded, and the pattern has them working: the app is a day short
  *   rest-day      nothing recorded, on a rest day — Admin would ask whether it was a swapped day
  *   free-in-app   leave recorded, but costing nothing (a rest day; asked about only where Admin asks)
+ *   spare-week    leave recorded on a Spare day past its week's four, costing nothing (owner, 21 Nov
+ *                 2026) — an explained difference, so not one that needs a look; whether the sheet books
+ *                 such a day at all is AL_WORKBOOK.md §10 question 17
  *   other-year    leave that costs a day, charged to the other year's allowance (leave-year.js)
  *   carried       an other-year day the sheet pays for with a day carried forward (below)
  *   differs       a shift, an absence or a rest day recorded there instead
@@ -64,7 +67,7 @@
 
 import { getBaseShift, parseISODate, isSunday } from './roster-data.js';
 import { shouldReplaceOverride, isBeforeMemberStart, isOverrideDisplaySuppressed, isChristmasOrBoxingDay } from './override-utils.js';
-import { consumesEntitlement, alPosition, entitlementFor, entitlementNote, countedAlDates } from './al-entitlement.js';
+import { consumesEntitlement, costsWithoutSpareCap, alPosition, entitlementFor, entitlementNote, countedAlDates } from './al-entitlement.js';
 import { projectAlBooking } from './admin-al-projection.js';
 import { isChristmasClosureDate, isChristmasLeaveDay, resolveDayShift } from './christmas-leave.js';
 import { leaveYearOf } from './leave-year.js';
@@ -72,7 +75,7 @@ import { usedRow } from './al-leave-file.js';
 
 /** The states a sheet day can be in, in the order the card lists them. */
 export const DAY_STATES = Object.freeze(['not-in-app', 'rest-day', 'free-in-app', 'other-year', 'differs', 'worked',
-    'before-start', 'carried', 'match', 'sunday']);
+    'before-start', 'carried', 'match', 'spare-week', 'sunday']);
 /** The day states that need somebody to look: every one where the sheet and the app count the day differently. */
 export const NEEDS_A_LOOK = Object.freeze(['not-in-app', 'rest-day', 'free-in-app', 'other-year', 'differs', 'worked',
     'before-start']);
@@ -220,7 +223,11 @@ export function comparePerson({ person, days, member, records, year, todayStr, f
         || NEEDS_A_LOOK.some(s => counts[s] > 0);
     // The safety net (header): the two figures differ and no reason above says why.
     const figuresGap = sheet && position.remaining !== null ? sheet.corrected - position.remaining : 0;
-    counts.figures = !reasons && figuresGap !== 0 ? 1 : 0;
+    // …except a gap the Spare week's rule explains (21 Nov 2026): the sheet charges a day the app leaves
+    // free past the week's four, so the sheet's balance is lower by exactly those days. The days are
+    // still listed, and the summary names them for the clerks (AL_WORKBOOK.md §10 question 17).
+    const spareExplained = out.filter(d => d.state === 'spare-week' && d.countedBySheet).length;
+    counts.figures = !reasons && figuresGap !== 0 && figuresGap !== -spareExplained ? 1 : 0;
     return { name: person.name, grade: person.grade, sheet,
              app: { ...position, note: entitlementNote({ member, year, overrides: mine }) },
              allowanceDiffers, carried, days: out, appOnly, beyond, counts, figuresGap,
@@ -264,7 +271,12 @@ function leaveDayState({ member, date, ov, winners, chargedTo }) {
     // on a rest day is settled by its record, and Admin never asks about it (review, 14 Nov 2026).
     const asks = () => projectAlBooking({ member, dates: [date], ovByDate: winners }).asked.includes(date);
     if (ov && ov.type === 'annual_leave') {
-        if (!consumesEntitlement(member, date, winners)) return { state: 'free-in-app', appYear: null, swapQuestion: asks() };
+        if (!consumesEntitlement(member, date, winners)) {
+            // Free because a Spare week's four is spent, not because it is a rest day (review, 21 Nov 2026):
+            // it was told "recorded over a rest day" and put the person under "needs a look".
+            if (costsWithoutSpareCap(member, date, winners)) return { state: 'spare-week', appYear: null, swapQuestion: false };
+            return { state: 'free-in-app', appYear: null, swapQuestion: asks() };
+        }
         const appYear = leaveYearOf({ ...ov, date });
         return { state: appYear === chargedTo ? 'match' : 'other-year', appYear, swapQuestion: false };
     }

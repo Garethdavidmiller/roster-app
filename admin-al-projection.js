@@ -45,11 +45,11 @@
 // can name those days before the write instead of calling them "skipped" (whole-app check, 10 Nov 2026).
 
 import { projectAnnualLeaveOverage, parseISODate, isSunday, getBaseShift } from './roster-data.js';
-import { isRestShift, isBeforeMemberStart } from './override-utils.js';
+import { isRestShift, isBeforeMemberStart, nextReplacedType, nextLeaveYear, shouldReplaceOverride } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
-import { swapDecisionDates, rangeWriteDates, absenceHiddenDates } from './al-swapped-days.js';
+import { swapDecisionDates, rangeWriteDates, absenceHiddenDates, replacedTypeForSwap } from './al-swapped-days.js';
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType, lowersAllowance,
-    spareUnderneath, spareWeekDays, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
+    spareWeekDays } from './al-entitlement.js';
 import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
 import { carriedFrom } from './leave-year.js';
 
@@ -115,6 +115,13 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *
  * And one more subset of `writing`, because a day can be written and change nothing:
  *
+ * And two answers about the whole save (review, 21 Nov 2026):
+ *
+ *   `charged` — how far the balance moves: the cost of every day it can change, after less before.
+ *                  The new days charged, except where a Spare week's four moved between days already
+ *                  booked and days booked now — the figure the preview and the receipt say.
+ *   `writes`  — the leave records as the save will write them, with `swapped`, for `overridesAfterSave`.
+ *
  *   `alreadyBooked` — a day that already HOLDS leave, which the save only writes again at the same
  *                  cost it had (both costing a day, or both free). Counted in `consuming` or
  *                  `freeWritten` as before, so the over-allowance check is unchanged (it never
@@ -131,7 +138,8 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *        `false` (genuine rest, free). A date ABSENT is unanswered, which is a state, not a default.
  * @returns {{asked: string[], unanswered: string[], consuming: string[], freeWritten: string[],
  *            skipped: string[], answeredFree: string[], christmas: string[], writing: string[], lieuLost: string[],
- *            alreadyBooked: string[],
+ *            alreadyBooked: string[], charged: number,
+ *            writes: Array<{date: string, type: string, value: string, swapped: boolean}>,
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
  *                     skipped:number, answeredFree:number, christmas:number, writing:number, lieuLost:number,
  *                     alreadyBooked:number}}}
@@ -139,7 +147,7 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
 export function projectAlBooking({ member, dates, ovByDate: given = null, swapAnswers = null }) {
     const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [], lieuLost: [],
         alreadyBooked: [] };
-    if (!member || !Array.isArray(dates)) return { ...empty, counts: _counts(empty) };
+    if (!member || !Array.isArray(dates)) return { ...empty, charged: 0, writes: [], counts: _counts(empty) };
     // Omitted means "nothing in play", as it does for every rule below — `isWorkingDate` alone
     // dereferences the map, and threw on the first ordinary working day without one.
     const ovByDate = given ?? new Map();
@@ -157,6 +165,7 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
     /** @type {string[]} */ const writing = [];
     /** @type {string[]} */ const lieuLost = [];
     /** @type {string[]} */ const alreadyBooked = [];
+    /** @type {Set<string>} */ const swappedSet = new Set();
 
     for (const date of all) {
         let swapped = false;
@@ -167,6 +176,7 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
             // `skipped` that is an ANSWER rather than a range rule — see the block comment above.
             if (answer !== true) { skipped.push(date); answeredFree.push(date); continue; }
             swapped = true;
+            swappedSet.add(date);
         } else if (isBeforeMemberStart(member, parseISODate(date)) || !isWorkingDate(member, date, ovByDate)) {
             // Not asked and not worked: a Sunday, a rest day the record already settled, or a day before
             // the member's start date, which the range writer never writes (`rangeWriteDates`).
@@ -186,41 +196,63 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
         if (ovByDate.get(date)?.type === 'annual_leave' && consumesEntitlement(member, date, ovByDate) === consumes) alreadyBooked.push(date);
     }
 
-    // A SPARE WEEK COSTS AT MOST FOUR DAYS, ACROSS THE WHOLE BOOKING (owner, 21 Nov 2026). Each day
-    // above was costed against the leave already SAVED, which cannot see the other new days of the
-    // same week — so a whole new Spare week would have read as six. Per week: the leave on its Spare
-    // days that is saved and stays (not re-written by this booking) has spent some of the four, and
-    // the booking's own Spare days take what is left, earliest first. The rest are written, free.
-    _capSpareWeeks({ member, ovByDate, all, consuming, freeWritten });
+    // EVERY DAY IS COSTED ON THE LEAVE AS IT WILL STAND (review, 21 Nov 2026). Each day above was costed
+    // against the leave already SAVED, which cannot see the booking's other new days — and a Spare week
+    // spends its four in date order across all of them (`pastSpareWeekCap`), so a whole new week read as
+    // six, and a second copy of the cap here charged in a different order from the count, raising a
+    // false "over" on a week whose end was already booked. So the booking's own leave is added to the
+    // map exactly as the save writes it (`writtenLeave`), and the ONE rule is asked again of every day.
+    const afterMap = new Map(ovByDate);
+    for (const d of writing) afterMap.set(d, writtenLeave(member.name, d, ovByDate.get(d), swappedSet.has(d)));
+    const costs = (/** @type {Map<string, any>} */ map, /** @type {string} */ d) =>
+        map.get(d)?.type === 'annual_leave' && consumesEntitlement(member, d, map);
+    const charging = writing.filter(d => consumesEntitlement(member, d, afterMap));
+    consuming.splice(0, consuming.length, ...charging);
+    freeWritten.splice(0, freeWritten.length, ...writing.filter(d => !charging.includes(d)));
+    // Already leave, and not a day this save starts charging (a rest day now answered "swapped" is a new
+    // day spent). A day already booked that a Spare week's four now leaves free is still already booked.
+    alreadyBooked.splice(0, alreadyBooked.length,
+        ...writing.filter(d => ovByDate.get(d)?.type === 'annual_leave' && !(costs(afterMap, d) && !costs(ovByDate, d))));
+    // What the balance actually moves by: every day whose cost can change — the booking's, and the rest
+    // of each Spare week it touches — after less before. Equal to the new days charged, except where a
+    // week's four moved between days already booked and days booked now.
+    const touched = new Set(writing);
+    for (const d of writing) for (const w of spareWeekDays(d)) touched.add(w);
+    let charged = 0;
+    for (const d of touched) charged += Number(costs(afterMap, d)) - Number(costs(ovByDate, d));
 
     const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost, alreadyBooked };
-    return { ...out, counts: _counts(out) };
+    return { ...out, charged, writes: writing.map(d => ({ date: d, type: 'annual_leave', value: 'AL', swapped: swappedSet.has(d) })),
+        counts: _counts(out) };
 }
 
 /**
- * Moves a booking's Spare days beyond a week's four from `consuming` to `freeWritten`, in place.
- * `spareUnderneath` and the cap are al-entitlement.js's; this only adds the days not saved yet.
- * @param {{ member: any, ovByDate: Map<string, any>, all: string[], consuming: string[], freeWritten: string[] }} a
+ * The leave record a save writes on `date`, as `recordRangeOverrides` writes it (admin-overrides.js):
+ * what it replaced (`replacedType` — a declared swap records contracted work), and the year a moved
+ * January day is charged to (`leaveYear`). The projection and `overridesAfterSave` cost the leave as it
+ * will stand with this, so a swapped rest day costs a day there just as it will once saved.
+ * @param {string} memberName @param {string} date @param {any} existing the record on the day now
+ * @param {boolean} swapped declared a swapped-in working day
+ * @returns {any}
  */
-function _capSpareWeeks({ member, ovByDate, all, consuming, freeWritten }) {
-    const booking = new Set(all);
-    /** @type {Map<string, string[]>} */ const byWeek = new Map();
-    for (const d of consuming) {
-        if (!spareUnderneath(member, d, ovByDate)) continue;
-        const key = spareWeekDays(d)[0];
-        byWeek.set(key, [...(byWeek.get(key) ?? []), d]);
-    }
-    for (const [monday, days] of byWeek) {
-        const saved = spareWeekDays(monday).filter(d => !booking.has(d) && ovByDate.get(d)?.type === 'annual_leave'
-            && spareUnderneath(member, d, ovByDate) && consumesEntitlement(member, d, ovByDate)).length;
-        const free = [...days].sort().slice(Math.max(0, SPARE_WEEK_MAX_DAYS - saved));
-        for (const d of free) {
-            consuming.splice(consuming.indexOf(d), 1);
-            freeWritten.push(d);
-        }
-    }
-    freeWritten.sort();
+function writtenLeave(memberName, date, existing, swapped) {
+    return writtenRecord(memberName, { date, type: 'annual_leave', value: 'AL', swapped }, existing);
 }
+
+/**
+ * Any record a save writes, as the writer builds it (admin-overrides.js): the newest on its day, what it
+ * replaced and, for leave, its year. One recipe for `writtenLeave` and `overridesAfterSave`.
+ * @param {string} memberName @param {{date: string, type: string, value?: string, swapped?: boolean}} w
+ * @param {any} existing the record on the day before the save
+ * @returns {any}
+ */
+function writtenRecord(memberName, w, existing) {
+    return { memberName, date: w.date, type: w.type, value: w.value ?? '', createdAt: { seconds: 4102444800 },   // 2100-01-01: the day's winner
+        replacedType: w.swapped ? replacedTypeForSwap(existing, w.type) : nextReplacedType(existing, w.type),
+        leaveYear: nextLeaveYear(existing, w.type, w.date) };
+}
+
+
 
 /**
  * The Sundays a RANGE booking — leave or absence — sets as rest days. A Sunday in the range whose
@@ -330,16 +362,22 @@ function _counts(sets) {
  * @param {Array<any>} overrides every override in play
  * @param {object} save
  * @param {string} save.memberName whose records the writes are
- * @param {Array<{date: string, type: string, value?: string}>} [save.writes] what the save writes
+ * @param {Array<{date: string, type: string, value?: string, swapped?: boolean}>} [save.writes] what the save
+ *        writes; `swapped` marks a rest day declared a swapped-in working day, as the writer reads it
  * @param {Iterable<string>} [save.deleteIds] the ids of the records it deletes
  * @returns {Array<any>}
  */
 export function overridesAfterSave(overrides, { memberName, writes = [], deleteIds = [] }) {
     const gone = new Set(deleteIds);
     const kept = (overrides || []).filter(o => !(o && gone.has(o.id)));
-    // Later than any real timestamp, so a written day's record is that day's winner.
-    const newest = { seconds: 4102444800 };   // 2100-01-01
-    return [...kept, ...writes.map(w => ({ memberName, date: w.date, type: w.type, value: w.value ?? '', createdAt: newest }))];
+    // AS THE WRITER WRITES THEM (review, 21 Nov 2026): what each replaced, a declared swap included, so
+    // leave over a swapped rest day costs here as it will once saved, and a Spare week's four is spent
+    // here as the count will spend it. The record each replaces is the day's winner before the save.
+    /** @type {Map<string, any>} */ const before = new Map();
+    for (const o of overrides || []) {
+        if (o && o.memberName === memberName && o.date && shouldReplaceOverride(before.get(o.date), o)) before.set(o.date, o);
+    }
+    return [...kept, ...writes.map(w => writtenRecord(memberName, w, before.get(w.date)))];
 }
 
 /**
@@ -398,8 +436,14 @@ export function projectAlOverage({ member, memberName, overrides, consuming, exc
     for (const yearStr of years) {
         const entitlement = entitlementFor(member, yearStr, allowance);
         if (entitlement === null) continue;
-        const existingALDates = countedAlDates({ overrides, member, year: yearStr, exclude });
-        const newALDates = consuming.filter(d => yearFor(d) === yearStr);
+        // WITH THE LEAVE AS IT WILL STAND, COUNT IT AS IT WILL STAND (review, 21 Nov 2026): a Spare week
+        // spends its four in date order across saved and new days alike, so "saved + new" double-charged a
+        // week whose end was booked and raised a false "2 days over". The after picture carries what each
+        // written day replaced (`overridesAfterSave`), so it is the count the year will have. Without it —
+        // no caller here omits it now — saved and new days are added as before.
+        const existingALDates = after ? countedAlDates({ overrides: after, member, year: yearStr })
+            : countedAlDates({ overrides, member, year: yearStr, exclude });
+        const newALDates = after ? [] : consuming.filter(d => yearFor(d) === yearStr);
         const overage = projectAnnualLeaveOverage({
             name: memberName, year: yearStr, existingALDates, newALDates, entitlement,
         });

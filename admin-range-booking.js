@@ -60,10 +60,11 @@ import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim
  *   sundayNote?: string }) => string} cfg.renderReady  Ready-state innerHTML. `sundays` are the Sundays
  *   this save will set as rest days (`rangeSundayCorrections`) — counted in `restCount`/`skipped`, but
  *   not skipped — and `sundayNote` says so in words, or is '' when there are none.
- * @param {(workingCount: number, member: string, alreadyBooked: number) => string} cfg.successFeedback  Inline ✓
- *   feedback text. `alreadyBooked` is how many of the written days already held leave (`projection`'s,
- *   only when the writer wrote exactly the days the plan did; 0 without a projection).
- * @param {(workingCount: number, member: string, alreadyBooked: number) => string} cfg.successToast     Bottom-toast text.
+ * @param {(recorded: number, member: string, alreadyBooked: number, free: number) => string} cfg.successFeedback  Inline ✓
+ *   feedback text. `recorded` is the days charged plus `alreadyBooked`, the written days that already
+ *   held leave, and `free` the days written at no cost (`projection`'s, only when the writer wrote
+ *   exactly the days the plan did; otherwise the writer's own count, 0 and 0).
+ * @param {(recorded: number, member: string, alreadyBooked: number, free: number) => string} cfg.successToast     Bottom-toast text.
  * @param {() => (string|null)} cfg.getCurrentUser  Live getter for the logged-in user name.
  * @param {Function}          [cfg.showInChangeAShift] Jumps Change a Shift to a member + date.
  * @param {Function}          [cfg.showSuccess]   Scroll-independent bottom success toast.
@@ -384,7 +385,9 @@ export function createRangeBookingSection(cfg) {
         saving = true;
         setSaveInFlight(true);
         saveBtn.disabled    = true;
-        saveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
+        // No count on the button (21 Nov 2026): the range's length was neither the days charged nor
+        // the days written — "Saving 7 days…" under a preview of "4 days" over a Spare week.
+        saveBtn.textContent = 'Saving…';
 
         // Before the write: see `_receipt`.
         const receipt = _receipt(member, plan);
@@ -409,26 +412,42 @@ export function createRangeBookingSection(cfg) {
             const lines = [...receipt.leftAlone, ...sundays, ...(cleared.length ? [clearedDaysLine(cleared)] : [])];
             // Days that already held leave, as the preview counted them — only when the writer wrote the
             // plan's days, for the Sundays' reason above: a receipt may not name a day it did not change.
-            const held = workingCount === plan.toWrite ? (plan.projection?.counts.alreadyBooked ?? 0) : 0;
+            const asPlanned = workingCount === plan.toWrite;
+            const proj = asPlanned ? plan.projection : null;
+            const held = proj?.counts.alreadyBooked ?? 0;
+            // …and the days it CHARGED and wrote at no cost, as the preview said them (21 Nov 2026): the
+            // count written read "Recorded 6 days" over a Spare week the preview called "4 days (+ 2 …)".
+            const heldSet = new Set(proj?.alreadyBooked ?? []);
+            const lieu = new Set(proj?.lieuLost ?? []);
+            // An Absence card's projection has no leave lists: nothing written there is "at no cost".
+            const free = Array.isArray(proj?.freeWritten) ? proj.freeWritten.filter((/** @type {string} */ d) => !heldSet.has(d) && !lieu.has(d)).length : 0;
+            const recorded = proj && typeof proj.charged === 'number' ? proj.charged + held : workingCount;
             _say('success');
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
-            _showSaved(cfg.successFeedback(workingCount, member, held), member, lines);
+            _showSaved(cfg.successFeedback(recorded, member, held, free), member, lines);
             // A receipt that names days does not time out — the week grid's rule (v21.38): a manager
             // checking it against a paper request can outlast any number picked here.
             if (!lines.length) fadeFeedback(feedbackEl, 'feedback', 7000);
             // The form resets and Change-a-Shift scrolls into view below, so also fire
             // the bottom toast — confirmation must be visible regardless of scroll.
-            cfg.showSuccess?.(cfg.successToast(workingCount, member, held));
+            cfg.showSuccess?.(cfg.successToast(recorded, member, held, free));
 
-            // The range clears; the MONTH stays (owner's decided default, 10 Nov 2026). Moving the
-            // picker back to today crossed a year after a next-year booking, and the banner above
-            // switched to this year's figures beside "✓ Recorded" — it now keeps the year just booked.
-            picker.reset({ keepView: true });
-            updatePreview();
+            // A SAVE THAT LANDS LATE MAY FIND THE PAGE MOVED ON (review, 21 Nov 2026): slow, or held
+            // offline until the signal came back, while the admin went on to somebody else. The range
+            // and the jump belong to the member it was for — only while the card is still on them;
+            // otherwise the dates being picked for the next person were cleared, and the page pulled back.
+            const stillHere = cfg.memberSelect.value === member;
+            if (stillHere) {
+                // The range clears; the MONTH stays (owner's decided default, 10 Nov 2026). Moving the
+                // picker back to today crossed a year after a next-year booking, and the banner above
+                // switched to this year's figures beside "✓ Recorded" — it now keeps the year just booked.
+                picker.reset({ keepView: true });
+                updatePreview();
+            }
             cfg.afterSave?.();
             // Jump the Change a Shift section to show what was just recorded.
-            cfg.showInChangeAShift?.(member, dates[0]);
+            if (stillHere) cfg.showInChangeAShift?.(member, dates[0]);
         } catch (err) {
             console.error(`[Admin] ${cfg.logLabel} save failed:`, err);
             // Whatever is said, a change staged on a day that DID land was cleared, and is named (admin-own-write.js).
