@@ -805,7 +805,7 @@ Which grade each of a payslip's days was worked under, from the roster's dated g
 
 ### `paycalc-roster-hint.js`
 The roster-assist hint bar on `paycalc.html`: rendering the suggestion, the Fill buttons that write it (overwriting, as an explicit tap), and the snapshot of which saved figures came from the calendar. The suggestion engine is `paycalc-roster-suggestions.js`; viewing a period never persists a suggestion (`.claude/rules/paycalc.md` invariant 11). Tested by `paycalc-roster-hint.test.mjs`.
-- **Exports:** `HM_PAIRS` · `_confBadge` · `snapKey` · `recordCalendarFigures` · `_restoreRosterSuggested` · `updateRosterHint` · `updateJoinerNotice` · `toggleRosterDays` · `clearRosterSuggestedAll` · `_applyRosterSuggestion` · `fillCategoryFromRoster` · `fillFromRoster`
+- **Exports:** `HM_PAIRS` · `_confBadge` · `snapKey` · `recordCalendarFigures` · `_restoreRosterSuggested` · `updateRosterHint` · `updateJoinerNotice` · `toggleRosterDays` · `clearRosterSuggestedAll` · `_applyRosterSuggestion` · `fillCategoryFromRoster` · `refreshFromCalendarInBackground` · `fillFromRoster`
 
 ### `paycalc-hpp-schedule.js`
 WHICH payslip carries WHICH tax year's Holiday Pay Premium (the first January payslip of the FOLLOWING tax year, outside the year's own window), answered in both directions, once. Pure, no imports: the grid and the tax-year table are passed in. Rule: `.claude/rules/paycalc.md` invariant 4. Tested by `paycalc-hpp-schedule.test.mjs` against the real `TAX_YEARS`.
@@ -828,7 +828,7 @@ The Holiday Pay Premium card (this year's figure from three amount sources, last
 
 ### `paycalc-backpay.js`
 The back-pay card: the lump owed for a pay award backdated to 1 April, computed from the member's hours or entered from the payslip, kept per tax year and opt-in to the take-home. Every rule is `.claude/rules/paycalc.md` → Back-pay (and invariants 1, 5 and 14); the three figure decisions are `paycalc-backpay-state.js`, the award arithmetic `paycalc-backpay-accrual.js`. Tested by `paycalc-backpay.test.mjs`, which drives the real `calcBackPay` against a fake `document`.
-- **Exports:** `paidInPeriodNum` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `_backdatedFromPNum` · `applyBpMode` · `_bpAwardTaxYear` · `prefillBackPay` · `restoreBpState` · `raiseByPercent` · `bpStoryHtml` · `calcBackPay`
+- **Exports:** `paidInPeriodNum` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `_backdatedFromPNum` · `applyBpMode` · `_bpAwardTaxYear` · `prefillBackPay` · `restoreBpState` · `raiseByPercent` · `bpStoryHtml` · `calcBackPay` · `bpState` · `onBackPayChange` · `runCalcBackPay` · `applyBpRisePct` · `refreshBackPayCard` · `syncBackPayForViewedYear`
 
 ### `paycalc-backpay-accrual.js`
 What a pay award owes, period by period — pure, no DOM: one period's arrears, the April fraction of an award's first period (`awardWindowFactor`), and the share of the lump that is not premium pay. A module of its own so the Holiday Pay Premium's Year to Date estimate (`paycalc-hpp.js`) reuses the card's arithmetic without an import cycle. Bound by `.claude/rules/paycalc.md` invariants 1 and 14; tested by `paycalc-backpay.test.mjs`, `paycalc-periods.test.mjs` and `paycalc-hpp.test.mjs`.

@@ -27,6 +27,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
 import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
 import { fd, fdShort, fdLong, fdList, fmt } from './paycalc-format.js';
+import { numVal } from './paycalc-inputs.js';
 import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod, blobFitsGrade } from './paycalc-backpay-state.js';
 
 import { setStatus } from './status-text.js';
@@ -889,4 +890,80 @@ export function calcBackPay() {
   // PENDING_AWARD_PCT, or typed) — the result card must say "estimated" wherever it surfaces this figure.
   return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum,
            bpIsEstimate: !!awardTy?.rateUnconfirmed, bpIncluded };
+}
+
+// ── THE CARD'S STATE, AS THE TAKE-HOME READS IT (moved from paycalc-app.js, Nov 2026) ─────────
+
+/** What calculate() prices from this card — set only by `_applyBpState`. bpVarAmount is not tracked:
+ *  nothing consumes it since HPP stopped taking back pay, and any change to it moves the amount too. */
+const _bp = { amount: 0, pNum: 0, isEstimate: false, included: false, fromPayslip: false };
+/** @type {() => void} */ let _onBpChange = () => {};
+
+/** The card's state as the result card reads it (a copy). @returns {typeof _bp} */
+export function bpState() { return { ..._bp }; }
+
+/** The coordinator's re-price, run whenever the card's state changes. @param {() => void} fn */
+export function onBackPayChange(fn) { _onBpChange = fn; }
+
+/** Adopt what calcBackPay()/prefillBackPay() return, and re-price only if it changed. The amount
+ *  source is read off the card's own radio once the card has settled it — calcBackPay can put a manual
+ *  pick back to compute — and is part of the state, because a typed lump can equal the worked-out one
+ *  to the penny and the banner's note must still follow the switch.
+ *  @param {{ bpAmount: any, bpPNum: any, bpIsEstimate?: boolean, bpIncluded?: boolean }} r */
+function _applyBpState({ bpAmount, bpPNum, bpIsEstimate = false, bpIncluded = false }) {
+  const fromPayslip = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpModeManual'))?.checked);
+  if (bpPNum !== _bp.pNum || bpIsEstimate !== _bp.isEstimate || bpIncluded !== _bp.included
+      || fromPayslip !== _bp.fromPayslip || Math.abs(bpAmount - _bp.amount) > 0.001) {
+    Object.assign(_bp, { amount: bpAmount, pNum: bpPNum, isEstimate: bpIsEstimate, included: bpIncluded, fromPayslip });
+    _onBpChange();
+  }
+}
+
+/** Recompute the card from its boxes and adopt the result. */
+export function runCalcBackPay() { _applyBpState(calcBackPay()); }
+
+// Last values auto-filled into the New rate/London boxes, so applyBpRisePct can tell a still-auto
+// value (safe to refresh) from one the member has hand-corrected (must not clobber).
+let _bpAutoNewR = '', _bpAutoNewL = '';
+/** "Pay rise %" shortcut: with a percentage entered, fill New rate/London from Old × (1 + %). A
+ *  convenience only — the New boxes stay editable, and a blank % keeps them fully manual. Re-runs
+ *  whenever the % or either Old figure changes. */
+export function applyBpRisePct() {
+  const pct = numVal('bpRisePct');
+  if (pct > 0) {
+    const newREl = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
+    const newLEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
+    const newR = raiseByPercent(numVal('oldRate'),   pct);
+    const newL = raiseByPercent(numVal('oldLondon'), pct);
+    // Only a New box that is blank or still holds our last auto value — never a hand-corrected one.
+    if (newR && (newREl.value === '' || newREl.value === _bpAutoNewR)) { newREl.value = newR.toFixed(2); _bpAutoNewR = newREl.value; }
+    if (newL && (newLEl.value === '' || newLEl.value === _bpAutoNewL)) { newLEl.value = newL.toFixed(2); _bpAutoNewL = newLEl.value; }
+  }
+  runCalcBackPay();
+}
+
+/** Prefill + recompute the card for the selected award year: on card open, and on a period change
+ *  through syncBackPayForViewedYear (so switching tax years re-prefills the rates). */
+export function refreshBackPayCard() {
+  _applyBpState(prefillBackPay());
+  applyBpRisePct();
+}
+
+/** Sync the card to the VIEWED award year: restore that year's own saved blob, or — with none —
+ *  prefill its default (compute for the current award, enter-from-payslip for a prior one). Runs at
+ *  init AND on every period change, so the banner and the take-home follow the payslip on screen;
+ *  per-year keys (bpKey(ty)) load each year's state rather than resetting its tick. */
+export function syncBackPayForViewedYear() {
+  if (!restoreBpState()) { refreshBackPayCard(); return; }
+  // Re-seed the "these New values came from the %" markers, so a restored box the member corrected
+  // by hand is never re-filled by applyBpRisePct.
+  const _rv = /** @param {string} id */ id => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
+  const _pct = parseFloat(_rv('bpRisePct'));
+  if (_pct > 0) {
+    const dR = raiseByPercent(parseFloat(_rv('oldRate'))   || 0, _pct);
+    const dL = raiseByPercent(parseFloat(_rv('oldLondon')) || 0, _pct);
+    if (dR && _rv('newRateInput') === dR.toFixed(2)) _bpAutoNewR = _rv('newRateInput');
+    if (dL && _rv('newLondon')    === dL.toFixed(2)) _bpAutoNewL = _rv('newLondon');
+  }
+  runCalcBackPay();
 }
