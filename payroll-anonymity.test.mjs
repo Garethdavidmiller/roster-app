@@ -355,7 +355,7 @@ describe('no roster name sits beside a LEAVE FIGURE — an allowance, a joining 
             "test('getALEntitlement: a CEA on a FIXED roster (Q. Example) gets 32, not 34', () => {",
             '// Q. Example has proRatedAL: { 2026: 24 }; standard CEA entitlement is 32.',
             "// one Dispatcher's joining year skipped the lieu count — Q. Example was credited a flat 12",
-            "assert.equal(r.headline, 'Q. Example will be 1 day over their 2026 AL entitlement');",
+            "assert.equal(r.headline, 'Q. Example will be 1 day over their 2026 annual leave allowance');",
             "assert.equal(text, '✓ Deleted 2 AL days for Q. Example');",
         ]) {
             assert.equal(leaveFigureOffences(line, Q).length, 1, `not caught: ${line}`);

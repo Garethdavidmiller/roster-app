@@ -5,6 +5,7 @@
 // not merely redundant — `SICK` is a word this app does not put in front of staff.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { TYPES, PILL_TYPES, rowValueText, pillName, typePillHtml } from './admin-shift-types.js';
 import { OTHER_FLAVOURS } from './override-utils.js';
 
@@ -86,4 +87,23 @@ test('the pill shows its short label, and carries a name only where the name say
         assert.equal(named, pillName(type) === pill ? null : pillName(type), type);
     }
     assert.match(typePillHtml('rdw'), /aria-label="RDW, Rest Day Working">RDW<\/button>$/);
+});
+
+// ── Every type has its colour rule in admin.css (Nov 2026) ──────────────────────────────────────
+// `typePillHtml` names each pill `.pill-<type>`, and a Saved Changes row names its badge
+// `.lpill-<type>` (admin-saved-changes.js). Neither is checked anywhere else: a type added to the
+// table without its rule draws as an uncoloured pill or badge, and nothing fails. Read as text, with
+// comments stripped so a selector only mentioned in a comment does not count.
+const adminCss = readFileSync(new URL('./admin.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+/** Does admin.css hold a rule whose selector is exactly `sel` (it opens a `{` block)? @param {string} sel */
+const hasRule = (sel) => new RegExp(`(^|[\\s,}])${sel.replace(/[.]/g, '\\.')}\\s*\\{`).test(adminCss);
+
+test('every pill type has its .pill-<type> and .pill-<type>.active rule in admin.css', () => {
+    const missing = PILL_TYPES.flatMap(t => [`.pill-${t}`, `.pill-${t}.active`]).filter(sel => !hasRule(sel));
+    assert.deepEqual(missing, [], `admin.css has no rule for ${missing.join(', ')} — add it beside the other .pill-* colours`);
+});
+
+test('every type in TYPES has its .lpill-<type> rule in admin.css', () => {
+    const missing = Object.keys(TYPES).map(t => `.lpill-${t}`).filter(sel => !hasRule(sel));
+    assert.deepEqual(missing, [], `admin.css has no rule for ${missing.join(', ')} — add it beside the other .lpill-* colours`);
 });

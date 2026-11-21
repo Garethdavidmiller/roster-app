@@ -40,6 +40,7 @@
 import { DAY_NAMES, MONTH_ABB, getBaseShift, formatISO, isSunday, parseISODate, isWorkedShift } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
+import { formatDayMonthYear, formatWeekdayDate } from './date-format.js';
 
 /**
  * @param {string} dateStr
@@ -68,10 +69,10 @@ export function isRestGap(dateStr, memberObj, ovByDate = null) {
     return isRestShift(shift);
 }
 
-/** @param {string} d */
+/** "Fri 18 Sep" — `formatWeekdayDate`'s spelling, read off a YYYY-MM-DD (date-format.js owns the words).
+ *  @param {string} d */
 export function fmtPeriodDate(d) {
-    const dt = parseISODate(d);
-    return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
+    return formatWeekdayDate(parseISODate(d));
 }
 
 /**
@@ -88,14 +89,13 @@ export function fmtPeriodRange(start, end) {
 }
 
 /**
- * Formats YYYY-MM-DD as "18 Mar 2026". Returns "—" for empty input. (Moved from admin-overrides.js,
- * which re-exports it, when that file reached its line cap.)
+ * Formats YYYY-MM-DD as "18 Mar 2026" — `formatDayMonthYear`'s spelling (date-format.js owns the
+ * words). Returns "—" for empty input. (Moved from admin-overrides.js, which re-exports it, when that
+ * file reached its line cap.)
  * @param {string} str
  */
 export function formatDisplay(str) {
-    if (!str) return '—';
-    const [y, m, d] = str.split('-');
-    return `${parseInt(d, 10)} ${MONTH_ABB[parseInt(m, 10) - 1]} ${y}`;
+    return str ? formatDayMonthYear(parseISODate(str)) : '—';
 }
 
 /**

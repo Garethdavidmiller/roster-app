@@ -12,7 +12,7 @@
  * Edit here for: login, page wiring, the Save collector. Not here: the grid, a save's write, shared CSS.
  */
 
-import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
+import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
@@ -22,7 +22,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
+import { PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
 import { typePillHtml } from './admin-shift-types.js';
 import { syncWeekAfterOwnWrite, withClearedDays } from './admin-own-write.js';
@@ -42,7 +42,8 @@ import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './admin-tips.js';
-import { mergeBookedPeriods, composeOtherValue } from './override-utils.js';
+import { mergeBookedPeriods } from './override-utils.js';
+import { collectWeekRows } from './admin-week-collect.js';
 import { alPosition, consumesEntitlement, costsWithoutSpareCap, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
@@ -268,7 +269,7 @@ export function init() {
         userMadeChanges = true;
         // A new edit invalidates a showing over-limit bar: its batch predates the edit, and "Save anyway"
         // would write it and discard the newer edit. Save again recollects and re-checks.
-        hideALConfirm();
+        hideALConfirm('week');
     }
 
     // Warn browser/OS before closing or navigating away — and ask in the page before a drawer link
@@ -292,13 +293,20 @@ export function init() {
 
         discardBtn.addEventListener('click', () => {
             banner.style.display = 'none';
-            // The discard action navigates/re-renders, which moves focus itself; just drop
-            // the saved reference so it can't be restored over the new view.
+            // The discard action navigates/re-renders. Focus goes back to the control that asked to
+            // leave — the week arrow or the member picker — once it has, unless the new view took
+            // it; the banner hiding under the pressed button sent it to <body> (review, 21 Nov 2026).
+            const asker = /** @type {HTMLElement|null} */ (_bannerReturnFocus);
             _bannerReturnFocus = null;
+            // (A hidden button can still be the active element until the next style pass, so focus
+            // still inside the banner counts as lost too.)
+            const lost = () => !document.activeElement || document.activeElement === document.body || banner.contains(document.activeElement);
+            const refocus = () => { if (asker?.isConnected && lost()) asker.focus({ preventScroll: true }); };
             userMadeChanges = false;
             // …and disarm the over-limit bar, or "Save anyway" writes the batch just discarded.
-            hideALConfirm();
-            if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; fn(); }
+            hideALConfirm('week');
+            if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; Promise.resolve(fn()).finally(refocus); }
+            else refocus();
         });
         keepBtn.addEventListener('click', () => {
             banner.style.display = 'none';
@@ -482,7 +490,7 @@ export function init() {
         banner.classList.toggle('al-banner-low',     remaining > 0 && remaining <= 5);
 
         warnEl.hidden      = remaining > 0;
-        warnEl.textContent = remaining === 0 ? 'Limit reached' : `${Math.abs(remaining)} over limit`;
+        warnEl.textContent = remaining === 0 ? 'Allowance used up' : `${Math.abs(remaining)} over allowance`;
 
         // Show remaining balance on the collapsed card header so staff see it at a glance
         const headerBalEl = document.getElementById('alHeaderBalance');
@@ -507,148 +515,23 @@ export function init() {
         try {
         hideFeedback();
         const memberName = fieldMember.value;
-        if (!memberName) return showError('No member selected.');
+        if (!memberName) return showError('Select a staff member at the top first.');
 
         // Clear any previous row-level errors
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
         _alPendingSkipped = [];   // and the last save's skipped days: this one answers for itself
         _alPendingKept    = [];
 
-        /** @type {any[]} */
-        let toSave = [];
-        const swapAnswers = new Map();   // date → was this rest day a swapped working day? (this save's)
-        /** @type {any[]} */
-        const toDelete = [];
-        /** @type {any[]} */
-        const errors = [];
-
-        /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')).forEach(row => {
-            if (!row.dataset.type) {
-                // Row was pre-filled with an existing override but user deactivated it → delete.
-                if (row.dataset.existingId) toDelete.push(row.dataset.existingId);
-                return;
-            }
-            // Pre-filled rows the user hasn't changed don't need re-saving.
-            if (row.classList.contains('prefilled-existing')) return;
-
-            const date    = row.dataset.date || '';
-            let   type    = row.dataset.type || '';
-
-            // ── Sunday write guard — the list is `SUNDAY_FORBIDDEN_TYPES` (override-utils.js) ──
-            // A bespoke copy on purpose: each of the four types gets a DIFFERENT answer here (see
-            // below), so this cannot be a loop over the declaration. `override-utils.test.mjs` pins
-            // it to that list instead, so a fifth forbidden type fails there rather than being
-            // silently written by this path.
-            //
-            // A worked Sunday is always RDW, never a plain shift (Sundays are uncontracted). The Shift
-            // pill is disabled on Sunday rows, but promote defensively here too — matching the roster-
-            // upload path — so a legacy or time-edited Sunday shift can never be written as a non-RDW
-            // shift (which renders as an ordinary badge and the pay estimate's Sunday-OT pre-fill
-            // misses). 'shift' and 'rdw' share the same timed value composition, so this flows cleanly.
-            if (type === 'shift' && isSunday(date)) type = 'rdw';
-
-            // ── THE SWAPPED-DAY ANSWER IS REQUIRED ───────────────────────────────────────────
-            // AL on a base REST day costs nothing unless the member was SWAPPED onto it, which only the
-            // person recording it knows. The row asks; this refuses to save it unanswered (al-swapped-days.js).
-            if (type === 'annual_leave' && row.dataset.alSwapAsk === '1' && !row.dataset.alSwap) {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: say whether this rest day was a swapped working day`);
-                return;
-            }
-            if (type === 'annual_leave' && row.dataset.alSwap) swapAnswers.set(date, row.dataset.alSwap === 'yes');
-            // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
-            if (type === 'annual_leave' && isSunday(date)) {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: annual leave cannot be recorded on a Sunday`);
-                return;
-            }
-            if (type === 'sick' && isSunday(date)) {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
-                return;
-            }
-            // The flavour BEFORE the Sunday guard: Spare sits under the Other pill but is its own type,
-            // and IS legal on a Sunday.
-            const otherFlavour = (/** @type {HTMLElement|null} */ (row.querySelector('.other-flavour-btn.active')))?.dataset.flavour;
-            if (type === 'other' && isSunday(date) && otherFlavour !== 'SPARE') {
-                row.classList.add('row-error');
-                errors.push(`${formatDisplay(date)}: an "Other" day cannot be recorded on a Sunday`);
-                return;
-            }
-            const typeMeta    = TYPES[type];
-            const startEl = /** @type {HTMLInputElement} */ (row.querySelector('.day-start'));
-            const endEl   = /** @type {HTMLInputElement} */ (row.querySelector('.day-end'));
-            const note    = '';
-
-            let value;
-            if (type === 'other') {
-                // Compose the Other-family grammar from the row's sub-controls:
-                // FLAVOUR[" RDW"][" HH:MM-HH:MM"]. Times are OPTIONAL — blank means the pay
-                // defaults apply (base shift on a rostered day, 8h RDW on an Other rest-day) —
-                // but a half-filled or malformed pair is still an error.
-                const flavour = otherFlavour;
-                // An explicit flavour choice — no silent Training default (owner decision).
-                if (!flavour) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: choose the type of Other day (Training, Induction, Assessment, Team Day, Union, Meeting or Spare)`);
-                    return;
-                }
-                if (flavour === 'SPARE') {
-                    // Spare is its OWN type — a standby placeholder, no RDW or times: written as spare_shift.
-                    toSave.push({ memberName, date, type: 'spare_shift', value: 'SPARE', note, existingId: row.dataset.existingId || null });
-                    return;
-                }
-                // composeOtherValue is the grammar's WRITER, beside its reader parseOtherValue. A rest-day
-                // base FORCES the RDW marker, or the saved value would lie about how the day is paid.
-                const _composed = composeOtherValue({
-                    flavour,
-                    rdwTicked: (/** @type {HTMLInputElement|null} */ (row.querySelector('.other-rdw-cb')))?.checked,
-                    baseIsRd:  row.dataset.baseIsRd === '1',
-                    start:     (/** @type {HTMLInputElement} */ (row.querySelector('.day-start'))).value,
-                    end:       (/** @type {HTMLInputElement} */ (row.querySelector('.day-end'))).value,
-                });
-                if (_composed.error) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: ${_composed.error}`);
-                    return;
-                }
-                value = _composed.value;
-            } else if (typeMeta && typeMeta.fixed) {
-                value = typeMeta.fixedValue;
-            } else {
-                const s = startEl.value.trim();
-                const e = endEl.value.trim();
-                const timeRe = TIME_RE;
-                if (!s || !e) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: fill in the start and end time`);
-                    return;
-                }
-                if (!timeRe.test(s) || !timeRe.test(e)) {
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: times must be in HH:MM format (e.g. 07:00)`);
-                    return;
-                }
-                if (s === e) {
-                    // Same hazard as the Other path: equal times validate as a 0h shift but PAY as
-                    // 24h via the overnight wrap in the duration maths.
-                    row.classList.add('row-error');
-                    errors.push(`${formatDisplay(date)}: start and end times are the same`);
-                    return;
-                }
-                value = `${s}-${e}`;
-            }
-
-            // `swapped` is a WRITE INSTRUCTION, not a field — admin-overrides.js strips it before the
-            // Firestore set, because `hasOnly()` in the rules would refuse a document carrying it.
-            toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null,
-                          ...(type === 'annual_leave' && row.dataset.alSwap === 'yes' ? { swapped: true } : {}) });
-        });
+        // What the rows ask to write, and why any cannot be (admin-week-collect.js, review 21 Nov 2026).
+        const collected = collectWeekRows({ rows: /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')),
+            memberName, formatDate: formatDisplay });
+        let toSave = collected.toSave;
+        const { toDelete, errors, swapAnswers } = collected;
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
         // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day on Boxing Day;
         // a Spare turn on Christmas Day or Boxing Day.
-        // Here, not in the collector above, whose slice override-utils.test.mjs evaluates with fixed names.
+        // Here, after the collector (admin-week-collect.js): it reads the member, which the collector does not.
         const dayRules = checkDayRules({ toSave, member: teamMembers.find(m => m.name === memberName), formatDate: formatDisplay });
         dayRules.failedDates.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
         if (dayRules.errors.length)           return showError("Can't save — " + dayRules.errors.join(' · '));
@@ -725,7 +608,10 @@ export function init() {
     document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
         userMadeChanges = false;
         // "Save anyway" after a discard must not write the batch back.
-        hideALConfirm();
+        hideALConfirm('week');
+        // The bar is about to go under the pressed button: the keyboard goes to the week's date button
+        // first, rather than to the last receipt, which is about the work just thrown away (21 Nov 2026).
+        /** @type {HTMLElement|null} */ (document.getElementById('weekNavLabel'))?.focus({ preventScroll: true });
         renderWeekGrid();
     });
 
@@ -938,7 +824,7 @@ export function init() {
     /** Clears the week editor feedback area. */
     function hideFeedback() {
         formFeedback.className = 'feedback';
-        hideALConfirm();
+        hideALConfirm('week');
     }
 
     // ---- AL over-limit confirm bar ----
@@ -948,6 +834,12 @@ export function init() {
     /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
     /** @type {HTMLElement|null} */ let _alOpener = null;
     /** @type {(() => void)|null} */ let _alResume = null;   // a range card's own "Save anyway" (the Absence card's, admin-sick.js)
+    // WHOSE QUESTION THE BAR IS ASKING (review, 21 Nov 2026). Four cards share one bar — the week grid,
+    // Annual Leave, Absence and Saved Changes — and each took it down on its own routine events, so
+    // editing an AL range dismissed the week grid's question unanswered, and the week's Save the AL
+    // card's. A card now takes down only its OWN question; a member change, Cancel and Save anyway
+    // still clear whatever is showing, because each of those ends the question for everybody.
+    /** @type {'week'|'al'|'sick'|'saved'|null} */ let _alOwner = null;
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -963,8 +855,11 @@ export function init() {
      * @param {any[]|null}  pendingSave  toSave batch to resume, or null for AL booking path
      * @param {string[]}    pendingDelete  IDs to delete in the same batch
      * @param {(() => void)|null} [resume] what "Save anyway" runs for a range card other than AL's
+     * @param {'week'|'al'|'sick'|'saved'} [owner] the card asking; by default the week grid when it
+     *        hands a batch, else the AL card
      */
-    function showALConfirm(msg, sub, pendingSave, pendingDelete = [], resume = null) {
+    function showALConfirm(msg, sub, pendingSave, pendingDelete = [], resume = null, owner) {
+        _alOwner = owner ?? (pendingSave ? 'week' : 'al');
         clearTimeout(_feedbackTimer);   // an earlier success line's fade must not take the question down (Oct 2026)
         _alPendingSave   = pendingSave;
         _alPendingDelete = pendingDelete;
@@ -977,8 +872,11 @@ export function init() {
         alConfirmBar.classList.add('visible');
         alConfirmSaveBtn.focus();
     }
-    /** Hides the AL over-entitlement confirmation bar and clears pending save state. */
-    function hideALConfirm() {
+    /** Hides the AL over-entitlement confirmation bar and clears pending save state — or, given a card,
+     *  only when the question showing is that card's (`_alOwner`). @param {'week'|'al'|'sick'|'saved'} [onlyFor] */
+    function hideALConfirm(onlyFor) {
+        if (onlyFor && _alOwner && onlyFor !== _alOwner) return;
+        _alOwner = null;
         alConfirmBar.classList.remove('visible');
         _alPendingSave   = null;
         _alPendingDelete = [];
@@ -1039,7 +937,7 @@ export function init() {
         updateALBanner, updateALBookedBox, updateSickBookedBox,
         // ONLY the AL picker feeds this: the Absence card has no per-year figure (admin-sick.js).
         setALPickerYear: (/** @type {number} */ y) => { alPickerViewYear = y; },
-        getCurrentUser: () => currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
+        getCurrentUser: () => currentUser, showALConfirm, hideALConfirm: () => hideALConfirm('al'), showInChangeAShift,
         showSuccess,
     })?.updateAlPreview ?? null;
 
@@ -1050,7 +948,9 @@ export function init() {
         sickMember,
         syncSickMemberDisplay, populateMemberDropdown, lastMember,
         updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser: () => currentUser, showInChangeAShift,
-        showSuccess, showALConfirm, hideALConfirm,   // an absence can take back a day in lieu (admin-sick.js)
+        showSuccess,   // an absence can take back a day in lieu (admin-sick.js): the bar, as the Absence card's
+        showALConfirm: (/** @type {string} */ m, /** @type {string} */ sub, /** @type {any} */ p, /** @type {any[]} */ d, /** @type {any} */ r) => showALConfirm(m, sub, p, d, r, 'sick'),
+        hideALConfirm: () => hideALConfirm('sick'),
     })?.updateSickPreview ?? null;
 
 
@@ -1220,7 +1120,7 @@ export function init() {
         const savedHint = document.querySelector('#overridesToggleHeader .hint');
         // NO AL hint here: admin.html's own is audience-neutral. One sentence, one home (al-copy-parity).
         if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
-        if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
+        if (savedHint) savedHint.textContent = 'Your saved changes — ✎ to edit, ✕ to delete';
 
         // Nothing auto-opens: every card ships collapsed for everyone. An auto-open must never be a
         // SECOND writer of a collapse state. DECISIONS.md → "Admin task navigator".
@@ -1345,7 +1245,8 @@ export function init() {
             },
             markChanged,
             onEditRow: handleEdit,
-            showALConfirm,   // a Saved Changes delete that lowers an allowance asks first (admin-saved-changes.js)
+            // a Saved Changes delete that lowers an allowance asks first (admin-saved-changes.js)
+            showALConfirm: (/** @type {string} */ m, /** @type {string} */ sub, /** @type {any} */ p, /** @type {any[]} */ d, /** @type {any} */ r) => showALConfirm(m, sub, p, d, r, 'saved'),
         });
         // Each kept row carries the whole record its row was DRAWN from (readWeekDraft), checked on Restore.
         keepDraftWhenHidden(hasUnsavedChanges, {

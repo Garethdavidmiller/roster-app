@@ -109,6 +109,7 @@ export function drawnWords(day) {
 export function appWords(day, year) {
     switch (day.state) {
     case 'match': return 'In the app as annual leave';
+    case 'spare-week': return 'In the app as annual leave — past this Spare week’s 4, so it costs nothing there';
     case 'not-in-app': return `Not in the app — ${patternWords(day.pattern)} on their pattern`;
     case 'rest-day': return 'Not in the app — a rest day on their pattern. Was it a swapped working day?';
     case 'free-in-app': return day.swapQuestion
@@ -124,8 +125,8 @@ export function appWords(day, year) {
     }
 }
 
-/** A figure in words, as the Admin banner says it: "3 left", "0 left", "1 over limit". @param {number} n */
-const leftWords = n => (n < 0 ? `${-n} over limit` : `${n} left`);
+/** A figure in words, as the Admin banner says it: "3 left", "0 left", "1 over allowance". @param {number} n */
+const leftWords = n => (n < 0 ? `${-n} over allowance` : `${n} left`);
 
 /** The per-person figures line. @param {import('./al-leave-compare.js').PersonComparison} p */
 export function figuresLine(p) {
@@ -235,6 +236,8 @@ const TOTAL_WORDS = /** @type {Record<string, [string, string]>} */ ({
     'worked': ['day has work recorded in the app', 'days have work recorded in the app'],
     'before-start': ['day of leave on the sheet comes before a start date in the app', 'days of leave on the sheet come before a start date in the app'],
     'app-only': ['day of leave is in the app and not on the sheet', 'days of leave are in the app and not on the sheet'],
+    // Explained, not a difference to chase — but the sheet may charge it, so the clerks are told (21 Nov 2026).
+    'spare-week': ['day of leave is past a Spare week’s 4, so it costs nothing in the app', 'days of leave are past a Spare week’s 4, so they cost nothing in the app'],
     'beyond': ['day of leave after the sheet’s last date comes out of this year’s allowance in the app', 'days of leave after the sheet’s last date come out of this year’s allowance in the app'],
     'undated': ['day over quota is on the sheet with no date, so it cannot be checked', 'days over quota are on the sheet with no date, so they cannot be checked'],
     'figures': ['person’s figures differ with nothing on the sheet to show why', 'people’s figures differ with nothing on the sheet to show why'],

@@ -1,7 +1,5 @@
 // @ts-check
-import { getBaseShift, parseISODate } from './roster-data.js';
-import { resolveEffectiveShift, isChristmasOrBoxingDay } from './override-utils.js';
-import { costsWithoutSpareCap, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
+import { costsWithoutSpareCap, spareUnderneath, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 // admin-al-spare-note.js — the one sentence the AL booking preview says about Spare days.
 //
 // ── WHY A MODULE FOR ONE SENTENCE ──────────────────────────────────────────────────────────────
@@ -20,7 +18,7 @@ import { costsWithoutSpareCap, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 // ── WHAT IT MAY AND MAY NOT SAY (owner decision, 14 Sep 2026) ──────────────────────────────────
 //
 // **A day is a day.** A Spare day costs exactly ONE day of annual leave, whatever the shift turns
-// out to be, and NOTHING here may suggest otherwise. The text this replaced said a shift over seven
+// out to be — the one exception is the week's cap, below. The text this replaced said a shift over seven
 // hours "may use more than 1 AL day", which was wrong three ways: the app's own accounting charges
 // whole dates (`countedAlDates` returns a Set of them, `alPosition` subtracts their count), the
 // depot's workbook charges one day per Spare day in the register, and the sentence was an inversion
@@ -46,9 +44,10 @@ import { costsWithoutSpareCap, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 // The count read the BASE roster alone, so a Spare week the weekly roster upload had since turned
 // into real shifts went on being called Spare: the owner booked one of those days off and was told
 // "This is a Spare day — on standby, with the shift not yet assigned", about a day whose shift had
-// been assigned. The day's kind is whatever the Calendar shows for it — the override first, the
-// base only when there is none — so this asks `resolveEffectiveShift`, the one resolver the Calendar
-// and Team Week View use, rather than writing a fourth copy of that ladder.
+// been assigned. The day's kind is read from the record first and the base only when the record says
+// nothing about the contract — `spareUnderneath` (al-entitlement.js), the same rule the Spare week's
+// cap reads, so the note and the count can never call one day two things (21 Nov 2026; it asked
+// `resolveEffectiveShift` before, which could not see a Spare day under leave already booked).
 //
 // It is also written in the THIRD PERSON. A manager books leave on somebody else's behalf from this
 // same card, so "you're on standby" would be addressed to the wrong person half the time.
@@ -74,10 +73,13 @@ export function spareShiftNote(spareCount, totalDays, charged = spareCount) {
         const cap = `A Spare week uses at most ${SPARE_WEEK_MAX_DAYS} days of annual leave`;
         if (spareCount === 1) {
             const subject = totalDays === 1 ? 'This is a Spare day' : '1 of these days is a Spare day';
-            return `📋 ${subject} — ${MEANING}. ${cap}, and this week's are already booked, so it uses none.`;
+            return `📋 ${subject} — ${MEANING}. ${cap}, and this week's ${SPARE_WEEK_MAX_DAYS} are already booked, so it uses none.`;
         }
         const uses = charged === 0 ? 'none' : `${charged} day${charged === 1 ? '' : 's'}`;
-        return `📋 ${spareCount} of these days are Spare days — ${MEANING}. ${cap}, so they use ${uses}.`;
+        // Fewer than four of them and still not all charged: the rest of the week's four were booked
+        // earlier, and the note says so — a lower figure with no reason reads like a mistake.
+        const why = spareCount <= SPARE_WEEK_MAX_DAYS ? ', counting the days already booked that week' : '';
+        return `📋 ${spareCount} of these days are Spare days — ${MEANING}. ${cap}${why}, so they use ${uses}.`;
     }
     // The cost sentence is the point of the note and is never omitted or softened: it is the
     // question the old wording left open.
@@ -113,6 +115,7 @@ export function countSpareDays(memberObj, dates, ovByDate) {
  */
 export function spareDaysOf(memberObj, dates, ovByDate) {
     if (!memberObj) return [];
-    return dates.filter(d => costsWithoutSpareCap(memberObj, d, ovByDate)
-        && resolveEffectiveShift(ovByDate?.get(d) ?? null, getBaseShift(memberObj, parseISODate(d)), false, isChristmasOrBoxingDay(d)).shift === 'SPARE');
+    // ONE "is this day Spare" (review, 21 Nov 2026): the cap's own `spareUnderneath`, which reads what a
+    // record replaced — so a day already on leave over a Spare day is counted here as the cap counts it.
+    return dates.filter(d => costsWithoutSpareCap(memberObj, d, ovByDate) && spareUnderneath(memberObj, d, ovByDate));
 }

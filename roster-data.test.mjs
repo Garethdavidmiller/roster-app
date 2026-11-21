@@ -465,7 +465,7 @@ test('projectAnnualLeaveOverage: one over the cap → over:1 with the confirm st
     const r = _proj(['2026-02-10'], ['2026-02-11', '2026-02-12'], 2);
     assert.equal(r.over, 1);
     assert.equal(r.projectedTotal, 3);
-    assert.equal(r.headline, 'A. Example will be 1 day over their 2026 AL entitlement');
+    assert.equal(r.headline, 'A. Example will be 1 day over their 2026 annual leave allowance');
     assert.equal(r.detail, '3 days used of 2 allowed in 2026');
 });
 

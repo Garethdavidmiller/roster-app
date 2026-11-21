@@ -165,8 +165,10 @@ test('over a month of Spare turns, the note counts exactly the days the booking 
 test('a booking past a Spare week\'s four says the cap and what it does use', () => {
     assert.equal(spareShiftNote(6, 6, 4),
         '📋 6 of these days are Spare days — on standby, with the shift not yet assigned. A Spare week uses at most 4 days of annual leave, so they use 4 days.');
-    assert.match(spareShiftNote(2, 2, 0), /so they use none\.$/);
-    assert.match(spareShiftNote(1, 1, 0), /^📋 This is a Spare day — .* this week's are already booked, so it uses none\.$/);
+    assert.match(spareShiftNote(2, 2, 0), /, counting the days already booked that week, so they use none\.$/);
+    assert.match(spareShiftNote(3, 3, 2), /counting the days already booked that week, so they use 2 days\.$/,
+        'three Spare days charging two: the reason is the earlier booking, and the note says so');
+    assert.match(spareShiftNote(1, 1, 0), /^📋 This is a Spare day — .* this week's 4 are already booked, so it uses none\.$/);
     assert.doesNotMatch(spareShiftNote(6, 6, 4), /Each still uses 1 day/);
     assert.equal(spareShiftNote(3, 6, 3), spareShiftNote(3, 6), 'charged in full reads as before');
 });

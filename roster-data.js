@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.43';
+export const APP_VERSION = '26.44';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -208,7 +208,7 @@ export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDa
     const over = projectedTotal - entitlement;
     return {
         over, projectedTotal,
-        headline: `${name} will be ${over} day${over !== 1 ? 's' : ''} over their ${year} AL entitlement`,
+        headline: `${name} will be ${over} day${over !== 1 ? 's' : ''} over their ${year} annual leave allowance`,
         detail:   `${projectedTotal} days used of ${entitlement} allowed in ${year}`,
     };
 }

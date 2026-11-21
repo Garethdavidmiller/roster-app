@@ -517,7 +517,7 @@ A member's CONTRACT leave allowance for a year: the grade that decides it ("role
 
 ### `al-entitlement.js`
 Which annual-leave days spend a member's allowance, and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
-- **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `spareWeekDays` · `pastSpareWeekCap` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
+- **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 The leave file: the one contract between Stage 1 (`scripts/make-leave-file.mjs`, a session reading the clerks' workbook) and Stage 2 (the Operations card) — what a valid file is, and the seal that proves it is the file that was made (docs/AL_UPLOADER_PLAN.md §3). Pure, with no app import, so it loads in Node and the browser; refusals are returned, never thrown. Tested by `al-leave-file.test.mjs`.
@@ -647,12 +647,16 @@ What a write the Admin page makes ITSELF — a Saved Changes or Recorded dates d
 What the week card's "Apply to ticked days" is waiting for, as the line under it says, and the line Apply leaves naming each day it left alone. Pure; it consults `SUNDAY_FORBIDDEN_TYPES` through `isForbiddenOnSunday`, never restating it, and is NOT a layer of the Sunday rule (header). Tested by `admin-bulk-apply.test.mjs`.
 - **Exports:** `bulkApplyWaitingFor` · `bulkSkippedLine`
 
+### `admin-week-collect.js`
+What one press of the week grid's Save asks to write, read from the grid's rows: the batch, the saved records the grid has unset, the swapped-day answers and why a row cannot be saved, each refused row marked. It reads no cache and writes nothing; `admin-al-week-save.js` then decides what the batch means for annual leave. The Sunday answers (CLAUDE.md, layer 6) are in the header. Tested by `override-utils.test.mjs`.
+- **Exports:** `collectWeekRows`
+
 ### `admin-al-week-save.js`
 What ONE week-grid save does about the annual leave in it — the batch to write, the days left alone, an unanswered rest day withheld, and the over-allowance message — and the same question for a delete from Saved Changes (`planAlDelete`). Pure; `admin-al-projection.js` says what a date means, this what a batch does with them. The two load-bearing orderings are in the header. Tested by `admin-al-week-save.test.mjs`.
 - **Exports:** `planAlWeekSave` · `planAlDelete`
 
 ### `admin-al-spare-note.js`
-The one sentence the Annual Leave booking preview says about Spare days, and the count of days that are still Spare and cost a day. A day is a day (owner decision): nothing may suggest a Spare day costs more (header). Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
+The one sentence the Annual Leave booking preview says about Spare days, and the days that are still Spare and cost a day. A day is a day (owner decision): a Spare day costs one, and a CEA's or CES's Spare week at most four, which the note then says (header). Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
 - **Exports:** `spareShiftNote` · `countSpareDays` · `spareDaysOf`
 
 ### `admin-period-dates.js`
@@ -693,7 +697,7 @@ The Saved Changes list on `admin.html` and un-recording from it: the list with i
 
 ### `admin-override-store.js`
 The Admin override cache, the staged reads that fill it, the states they put on screen, and every guarded write's ONE transaction: `commitIfUnchanged`, the deletes behind it, and `commitChecked` for an ordinary save. Bound by `.claude/rules/admin.md` → "Every save of a day is CHECKED"; the header names the three things silent when wrong. Tested by `admin-override-store.test.mjs` and, through the writers, `admin-overrides.test.mjs` and `e2e/admin.spec.js`.
-- **Exports:** `initOverrideStore` · `whenOverridesReady` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `OVERRIDES_QUERY_CAP` · `getAllOverrides` · `mutateCache` · `coversAllStaff` · `loadFailedFor` · `isTruncated` · `setAllOverrides` · `idsReplacedBy` · `withManualDuplicates` · `deleteChunks` · `removeFromCache` · `whenLoadSettled` · `loadOverrides` · `CHANGED_ELSEWHERE_LINE` · `UNCHECKED_DELETE_LINE` · `findChangedSince` · `staleDeleteVerdict` · `DELETE_REFUSED` · `asShown` · `commitIfUnchanged` · `deleteIfUnchanged` · `commitChecked` · `LEAVE_YEAR_CHANGED_LINE` · `ensureMemberLoaded`
+- **Exports:** `initOverrideStore` · `whenOverridesReady` · `isOverrideCacheLoaded` · `hasOverrideAuthorityFor` · `OVERRIDES_QUERY_CAP` · `getAllOverrides` · `mutateCache` · `coversAllStaff` · `loadFailedFor` · `isTruncated` · `setAllOverrides` · `idsReplacedBy` · `withManualDuplicates` · `deleteChunks` · `removeFromCache` · `whenLoadSettled` · `loadOverrides` · `CHANGED_ELSEWHERE_LINE` · `UNCHECKED_DELETE_LINE` · `staleDeleteVerdict` · `DELETE_REFUSED` · `asShown` · `commitIfUnchanged` · `deleteIfUnchanged` · `commitChecked` · `LEAVE_YEAR_CHANGED_LINE` · `ensureMemberLoaded`
 
 ### `override-id.js`
 The ONE document id a manual override is written to (`manualOverrideId`), so two editors saving one day land on the same document instead of leaving two. Roster imports keep random ids by design (header). Pure. Tested by `override-utils.test.mjs` and, wired, by `admin-overrides.test.mjs` ("two editors saving the same day").
@@ -709,7 +713,7 @@ What the Admin override cache actually KNOWS: a coverage record of which members
 
 ### `admin-shift-rules.js`
 The two rules a staged shift change must not break, maximum length and minimum rest, plus the days that take no change at all (before the member's start date; an Other day on Boxing Day; a Spare turn on Christmas Day or Boxing Day) and the configured years the week grid may move within. Pure: it DECIDES and returns the sentences and the failed dates; the caller (`validateShiftRules` in `admin-overrides.js`, and `admin-app.js`'s Save) PAINTS. Tested by `admin-shift-rules.test.mjs`.
-- **Exports:** `MAX_SHIFT_MINS` · `MIN_REST_MINS` · `parseMinutes` · `effectiveEndMins` · `fmtHours` · `constrainingTime` · `checkShiftRules` · `isBoxingDay` · `christmasDayName` · `weekStepAllowed` · `linkableDate` · `checkDayRules`
+- **Exports:** `parseMinutes` · `effectiveEndMins` · `fmtHours` · `constrainingTime` · `checkShiftRules` · `isBoxingDay` · `christmasDayName` · `weekStepAllowed` · `linkableDate` · `checkDayRules`
 
 ### `admin-deep-link.js`
 Where a hash on `admin.html` lands: which folds to open (including the Recorded Annual Leave dates box, a fold inside a card) and the two-stage scroll that finishes on it. It decides; `openCollapsibleCard` in `admin-app.js` opens. The header numbers three things not to "tidy". Tested by `admin-deep-link.test.mjs`; the landing by `e2e/admin.spec.js`, which asserts the box's bottom edge.
@@ -1008,8 +1012,8 @@ Can `window.print()` do anything here, and what to say when it cannot: in a home
 - **Exports:** `PRINT_UNAVAILABLE_TEXT` · `OPEN_IN_SAFARI_LABEL` · `printIsBlocked` · `openInSafari` · `printOrExplain` · `explainNoPrint`
 
 ### `clock-input.js`
-The rules of a TEXT clock box — what counts as a time, what the box shows while one is typed, and what it holds once it is left. Pure, no imports. Every time box in the app is text rather than `<input type="time">`, because Chromium draws that from the OS format settings, so nothing in the browser validates the value and these rules do; one rule for every box (CLAUDE.md → 3-digit time input). Tested by `clock-input.test.mjs`.
-- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput`
+The rules of a TEXT clock box — what counts as a time, what the box shows while one is typed, and what it holds once it is left. Pure, no imports. Every time box in the app is text rather than `<input type="time">`, because Chromium draws that from the OS format settings, so nothing in the browser validates the value and these rules do; one rule for every box (CLAUDE.md → 3-digit time input), and one rule for a filled-in pair of times, which a Shift's and an Other day's writers share. Tested by `clock-input.test.mjs`.
+- **Exports:** `isClockTime` · `formatClockInput` · `finaliseClockInput` · `timePairError` · `composeTimedValue`
 
 ### `override-utils.js`
 The pure override rules shared by the Calendar, Team Week View, Admin and the pay engine: `resolveEffectiveShift`, the ONE ladder every display draws a day from (CLAUDE.md → Change impact); priority and the cache reconcile; the one write shape the rules' `hasOnly()` accepts; what an override says about the contract; the Other-day grammar (OTHER_DAYS.md); and the Sunday rule (`SUNDAY_FORBIDDEN_TYPES` — CLAUDE.md → "Sundays are non-contracted" numbers its layers). Each export's JSDoc carries its reasoning. Tested by `override-utils.test.mjs`; at its `coordinator-ratchet.test.mjs` cap, so extract before adding.

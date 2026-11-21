@@ -268,7 +268,7 @@
 
     /* ── Admin row / nav state backgrounds ──────────────────────── */
     --row-selected-bg:        oklch(95.1% 0.0138 248.0deg);
-    --week-current-bg:        oklch(96.0% 0.0159 233.0deg);
+    --week-current-bg:        color-mix(in oklch, var(--accent-gold) 22%, white); /* today's gold, as the Calendar marks today (was a light blue) */
 
     /* ── Neutral palette ──────────────────────────────────────────
        Four text greys, two border weights, two background fills.

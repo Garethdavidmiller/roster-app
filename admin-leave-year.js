@@ -113,15 +113,32 @@ export function initLeaveYearPanel(given) {
         deps.feedback.className = `feedback${kind ? ' ' + kind : ''}`;
     }
 
+    /** @type {{ date: string, year: string }|null} the year button a keyboard user was on when the panel redrew */
+    let keepFocus = null;
+
     function refresh() {
         const member = deps.getMember();
         const name = member?.name ?? null;
-        if (name !== shownFor) { shownFor = name; say('', ''); }
+        if (name !== shownFor) { shownFor = name; say('', ''); keepFocus = null; }
+        // A REDRAW KEEPS THE KEYBOARD'S PLACE (review, 21 Nov 2026). The panel is rebuilt whole, before
+        // the save and again after it, which sent the focus of the year just pressed to <body>. It goes
+        // back to that day's button once one is pressable again (both are disabled while it saves),
+        // and only while nothing else has taken the focus in between.
+        const active = /** @type {HTMLElement|null} */ (globalThis.document?.activeElement ?? null);
+        if (active?.classList?.contains('leaveyear-opt') && deps.body.contains(active)) {
+            keepFocus = { date: active.dataset.date || '', year: active.dataset.year || '' };
+        } else if (active && active !== globalThis.document?.body) keepFocus = null;
         const groups = (leaveYearChoiceEnabled() && member && deps.hasAuthority(member.name))
             ? leaveYearChoices({ overrides: deps.getOverrides(), member, todayStr: deps.todayStr() })
             : [];
         deps.root.hidden = groups.length === 0;
         deps.body.innerHTML = groups.length ? leaveYearPanelHtml(groups, { busyDate: busyFor === name ? busyDate : null }) : '';
+        if (!keepFocus) return;
+        const kept = keepFocus;
+        const day = /** @type {HTMLButtonElement[]} */ ([...deps.body.querySelectorAll('.leaveyear-opt')]).filter(b => b.dataset.date === kept.date);
+        const target = day.find(b => b.dataset.year === kept.year && !b.disabled) ?? day.find(b => !b.disabled);
+        if (target) { target.focus({ preventScroll: true }); keepFocus = null; }
+        else if (!day.length) { /** @type {HTMLElement} */ (deps.feedback).focus?.({ preventScroll: true }); keepFocus = null; }
     }
 
     deps.body.addEventListener('click', async (e) => {

@@ -215,7 +215,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     .filter(o => o.guarded !== 'sunday-other')
                     // Nor is a spare day on 25 or 26 December (owner, 19 Nov 2026): offered, it was a
                     // "Rest" button that would record over the member's Christmas leave.
-                    .filter(o => o.guarded !== 'christmas-spare')
+                    .filter(o => o.guarded !== 'christmas-spare' && o.guarded !== 'christmas-other')
                     // A pair that would WRITE the same thing is not a question worth asking (AL vs RD
                     // on a Sunday — both become RD). Compared on `display`, which is what the save
                     // writes: `value` strips the RDW marker, so "RDW at 14:30" and a 14:30 shift — two
@@ -303,7 +303,8 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // the row offers to clear it (unticked, below). Over nothing or a hand-made record it stays
             // GUARDED. Holding it GUARDED over an import too kept a draft's shift on Boxing Day with no
             // control to remove it, stricter than the same sheet printing RD (review, 20 Nov 2026).
-            const christmasSpareGuarded = guarded === 'christmas-spare' && (!existing || isManual);
+            // …and an Other day printed on either is held the same way (`christmas-other`, review 21 Nov 2026).
+            const christmasSpareGuarded = (guarded === 'christmas-spare' || guarded === 'christmas-other') && (!existing || isManual);
             if (guarded === 'sunday-other' || christmasSpareGuarded) {
                 // A TRAINING OR MEETING DAY CANNOT BE ON A SUNDAY (owner, 7 Nov 2026), so a roster
                 // saying one is not a change to make: not over the base, not over a saved record, not
@@ -417,7 +418,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // action on a misread week stops being "save it". So does a Christmas day (above).
                 chosen:      (drift || alignment.blocked) ? false
                     : ((state === 'DIFF' || state === 'REMOVE_IMPORT')
-                        ? !christmas && guarded !== 'christmas-spare' : null),
+                        ? !christmas && guarded !== 'christmas-spare' && guarded !== 'christmas-other' : null),
                 /** 25 or 26 December from 2026: unticked, asked nothing, and the row says why. */
                 christmas,
                 // 'chosen' for DIFF / REMOVE_IMPORT = true (approved) or false (skipped)
@@ -449,7 +450,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * read like an error: nothing has gone wrong, a rule has been applied, and the row exists so the
  * admin can decide whether that rule fits this particular day.
  *
- * @param {'sunday'|'sunday-other'|'rest-day'|'before-start'|'christmas-spare'|null} guard
+ * @param {'sunday'|'sunday-other'|'rest-day'|'before-start'|'christmas-spare'|'christmas-other'|null} guard
  * @param {boolean} [asks] the row asks the swapped-day question
  * @param {boolean} [christmas] 25 or 26 December from 2026, which the app's Christmas leave decides
  * @returns {string}
@@ -473,6 +474,10 @@ export function guardCopy(guard, asks = false, christmas = false) {
         // Owner, 19 Nov 2026: "Christmas days and Boxing days cannot be spare days even if they fall
         // in a usually spare week."
         return 'Christmas Day and Boxing Day can\u2019t be spare days, so nothing is recorded and the day stays as it is.';
+    }
+    if (guard === 'christmas-other') {
+        // Owner, Jul 2026: Boxing Day can never be a training or Other day, and nobody works 25 December.
+        return 'Training and meetings can\u2019t be on Christmas Day or Boxing Day, so nothing is recorded and the day stays as it is.';
     }
     if (guard === 'sunday-other') {
         // Owner, 7 Nov 2026. "Stays as it is" covers all three cases: a rest Sunday, a rostered

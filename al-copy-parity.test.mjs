@@ -94,8 +94,8 @@ describe('Annual Leave copy states the rule the save follows', () => {
     test('the PREVIEW tip does not promise a count with rest days already removed', () => {
         // It used to say "with rest days and Sundays already taken out of that count", which is now
         // only half true: a rest day answered "swapped" IS in the count, and that is the whole point.
-        const preview = al.split('\n').find(l => l.includes('how many working days'));
-        assert.ok(preview, "the preview tip ('how many working days') is no longer in this block");
+        const preview = al.split('\n').find(l => l.includes('how many days of leave'));
+        assert.ok(preview, "the preview tip ('how many days of leave') is no longer in this block");
         assertNoAutomaticClaim(preview, 'the AL preview tip');
         assert.match(preview, /swapped/i, 'the preview tip does not say when a rest day IS counted');
     });

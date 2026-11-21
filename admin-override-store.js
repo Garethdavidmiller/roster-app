@@ -358,7 +358,7 @@ export const UNCHECKED_DELETE_LINE = "Couldn't check for newer changes, so nothi
  * @param {Array<{id: string}>} rows
  * @returns {Promise<Array<any>>}
  */
-export async function findChangedSince(rows) {
+async function findChangedSince(rows) {
     /** @type {any[]} */
     const changed = [];
     for (let i = 0; i < rows.length; i += 20) {

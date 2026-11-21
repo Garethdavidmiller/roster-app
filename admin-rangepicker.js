@@ -7,7 +7,8 @@
  * Does NOT own: AL/sick save logic, week grid, or any other admin section.
  */
 
-import { CONFIG, DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, DAY_NAMES, MONTH_NAMES, formatISO, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { formatWeekdayDate } from './date-format.js';
 
 /**
  * Returns an array of ISO date strings from fromVal to toVal inclusive,
@@ -130,17 +131,22 @@ export function buildRangePicker(prefix, opts = {}) {
     prevBtn.addEventListener('click', () => { moveMonth(-1); render(); });
     nextBtn.addEventListener('click', () => { moveMonth(+1); render(); });
     clearBtn.addEventListener('click', () => {
+        // The ✕ hides itself once nothing is chosen (`updateChips`), and a hidden button that held
+        // focus drops a keyboard user to <body> (Nov 2026). So focus moves to the calendar's one Tab
+        // stop — the day a new start is picked from — and only when it was on the ✕: a press that
+        // did not hold focus has nothing to hand back.
+        const hadFocus = document.activeElement === clearBtn;
         fromISO = toISO = hoverISO = '';
         fromInput.value = toInput.value = '';
         toInput.dispatchEvent(new Event('change'));
         render();
         updateChips();
+        if (hadFocus) /** @type {HTMLElement|null} */ (grid.querySelector('[tabindex="0"]'))?.focus({ preventScroll: true });
     });
 
-    /** @param {any} iso */
+    /** "Fri 18 Sep" — date-format.js owns the words. @param {string} iso */
     function fmt(iso) {
-        const d = parseISODate(iso);
-        return `${DAY_NAMES[d.getDay()].slice(0,3)} ${d.getDate()} ${MONTH_ABB[d.getMonth()]}`;
+        return formatWeekdayDate(parseISODate(iso));
     }
 
     function updateChips() {
