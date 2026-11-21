@@ -187,8 +187,8 @@ export function buildWeekGridInto(container, dateStr) {
         const existing = memberDateMap.get(dateISO);
         // TWO DAYS THAT TAKE NO CHANGE, refused at the pills as a Sunday is, with the reason in the row
         // (admin-shift-rules.js → checkDayRules, the backstop at Save): before the member's start date,
-        // which the Calendar never shows, and an Other day on Boxing Day (owner, Jul 2026). Nor a Spare
-        // turn on Christmas Day or Boxing Day (owner, 19 Nov 2026; admin-day-pills.js).
+        // which the Calendar never shows, and an Other day or a Spare turn on Christmas Day or Boxing Day
+        // (owner: Jul, 19 Nov and 21 Nov 2026; admin-day-pills.js).
         const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
         // CHRISTMAS LEAVE — the Base roster column shows it as the Calendar does, AL, and the row says why
         // (rules: christmas-leave.js). The column used to show the rest day `getBaseShift` makes both
@@ -239,8 +239,7 @@ export function buildWeekGridInto(container, dateStr) {
                 ${isSunday(dateISO) ? `<span class="sunday-note">Sunday isn’t a contracted day — work is recorded as RDW; leave, absence and Other days can’t be recorded${christmasDayName(dateISO) ? `, nor a Spare turn on ${christmasDayName(dateISO)}` : ', but a Spare turn can'}</span>` : ''}
                 ${christmasNote ? `<span class="christmas-note">${escapeHtml(christmasNote)}</span>` : ''}
                 ${beforeStart ? `<span class="start-note">Before the start date (${formatDisplay(formatISO(/** @type {Date} */ (member.startDate)))}) — the Calendar doesn’t show changes here, so none can be recorded</span>`
-                    : boxing ? '<span class="christmas-note">Boxing Day can’t be an Other day — training, meetings and the rest — or a Spare turn</span>'
-                    : christmasDayName(dateISO) === 'Christmas Day' && !isSunday(dateISO) ? '<span class="christmas-note">Christmas Day can’t be a Spare turn</span>' : ''}
+                    : christmasDayName(dateISO) && !isSunday(dateISO) ? `<span class="christmas-note">${christmasDayName(dateISO)} can’t be an Other day — training, meetings and the rest — or a Spare turn</span>` : ''}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">

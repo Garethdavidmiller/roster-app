@@ -39,8 +39,9 @@
  *
  * A day before the member's start date (whole-app check, Nov 2026): the Calendar, its legend and
  * Team Week never show a change there (`isBeforeMemberStart`), so one saved was receipted and then
- * invisible for ever. And an Other day on Boxing Day — "Sundays and Boxing Day can never be
- * training/Other days" (owner, Jul 2026). And a Spare turn on Christmas Day or Boxing Day —
+ * invisible for ever. And an Other day on Christmas Day or Boxing Day — "Sundays and Boxing Day can
+ * never be training/Other days" (owner, Jul 2026); "There cannot be training or meeting on December
+ * 25th or 26th" (owner, 21 Nov 2026). And a Spare turn on Christmas Day or Boxing Day —
  * "Christmas days and Boxing days cannot be spare days even if they fall in a usually spare week"
  * (owner, 19 Nov 2026). All are refused at the grid's pills as a Sunday's are; this is the backstop
  * at Save, for a row that reaches it another way.
@@ -213,7 +214,7 @@ export function checkDayRules({ toSave, member, formatDate }) {
     /** @type {string[]} */ const failedDates = [];
     for (const { date, type } of toSave) {
         const why = member && isBeforeMemberStart(member, parseISODate(date)) ? 'before the start date, so a change here would never show on the Calendar'
-            : type === 'other' && isBoxingDay(date) ? 'an "Other" day cannot be recorded on Boxing Day'
+            : type === 'other' && christmasDayName(date) ? `an "Other" day cannot be recorded on ${christmasDayName(date)}`
             : type === 'spare_shift' && christmasDayName(date) ? `a Spare turn cannot be recorded on ${christmasDayName(date)}` : '';
         if (!why) continue;
         if (!failedDates.includes(date)) failedDates.push(date);

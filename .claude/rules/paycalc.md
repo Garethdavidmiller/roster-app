@@ -429,8 +429,8 @@ default** (`OTHER_RDW_DEFAULT_MINS`) that the member adjusts — an RDW day is a
 overtime — and the minutes ROUTE BY DAY exactly like a plain rdw override: **Boxing Day → `box` (3×),
 a bank holiday → `bhOt`, anything else → `rdw`**; a rest-day base without the RDW flag still resolves
 to rdw (belt and braces — as-base would pay £0). A member is **never paid less than their rostered
-shift** even if training runs short. **Sundays and Boxing Day (26 Dec) can never be training days**
-(confirmed by Gareth Jul 2026) — so the `Boxing Day → box (3×)` routing above is a defensive fallback
+shift** even if training runs short. **Sundays, Christmas Day and Boxing Day can never be training days**
+(confirmed by Gareth: Boxing Day Jul 2026, Christmas Day 21 Nov 2026) — so the `Boxing Day → box (3×)` routing above is a defensive fallback
 for a case that does not occur in practice. Tests assert all of this in
 `paycalc-roster-suggestions.test.mjs`.
 
