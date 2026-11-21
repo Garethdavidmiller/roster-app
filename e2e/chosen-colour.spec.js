@@ -146,7 +146,10 @@ test('admin: the week picker\'s chosen day and week, and the leave range, wear t
     await page.keyboard.press('Escape');
     await expect(page.locator('.dp-content')).toBeHidden();
 
-    // The leave range: two ends in the colour, the days between in its tint.
+    // The leave range: two ends in the colour, the days between in its tint. The ends are a DISC of
+    // the colour drawn on the cell (a `closest-side` radial gradient, as the date picker's chosen day
+    // in a week), because a filled cell with `border-radius: 50%` was an oval — so the colour is read
+    // off the cell's background IMAGE, as the date picker's is above.
     await page.locator('#alToggleHeader').click();
     await expect(page.locator('#alRangePicker')).toBeVisible();
     await page.locator('#alRpNext').click();
@@ -154,7 +157,7 @@ test('admin: the week picker\'s chosen day and week, and the leave range, wear t
     await page.locator('#alRpGrid .rp-day[data-iso="2026-09-11"]').click();
     for (const end of ['.rp-from', '.rp-to']) {
         const p = await paint(page.locator(`#alRpGrid ${end}`));
-        expect(p.bg, `the range's ${end === '.rp-from' ? 'first' : 'last'} day`).toBe(accent);
+        expect(p.image, `the range's ${end === '.rp-from' ? 'first' : 'last'} day`).toContain(accent);
         expect(p.fg).toBe(ink);
     }
     await expect(page.locator('#alRpGrid .rp-in-range')).toHaveCount(2);

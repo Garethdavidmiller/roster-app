@@ -219,7 +219,7 @@
            and `align-items: center` centres the box, not its lines. */
         .al-banner-stat .stat-lbl { font-size: var(--type-micro); font-weight: 700; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
         /* WRAPS, as the Calendar's twin does, or the card cuts the banner. Quieter by size and colour, never a fade. */
-        .al-banner-stat .stat-breakdown { font-size: 9px; line-height: 1.25; text-align: center; color: var(--text-mid); }
+        .al-banner-stat .stat-breakdown { font-size: var(--type-micro); line-height: 1.25; text-align: center; color: var(--text-mid); }
         /* FOUR STATS ON ONE ROW STOP FITTING BELOW ~356px: "ENTITLEMENT" will not shrink, and the card
            CUTS the surplus. So 2×2 there — an ellipsis, a mid-word break or a smaller micro-label all
            lose information — and the dividers go with the single row. 359px keeps every working width. */
@@ -376,9 +376,12 @@
             font-size: var(--type-body);
             font-weight: 600;
             color: var(--text-dark);
-            padding: 7px 8px;
+            /* The arrows' 44px and the field recipe's edge: it was 33px on a 1px hairline beside them.
+               7px sides, not 8px: the 2px edge must not take a pixel from the label's measured fit. */
+            min-height: 44px;
+            padding: 7px;
             background: white;
-            border: 1px solid var(--border-light);
+            border: var(--field-border);
             border-radius: var(--radius-field);
             white-space: nowrap;
             overflow: hidden;        /* clip date text if wrap is narrower than content */
@@ -386,9 +389,6 @@
             cursor: pointer;
             -webkit-user-select: none;
             user-select: none;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .week-nav-label:hover { border-color: var(--border-mid); }
         }
         /* The affordance that the week label opens a picker: the CHEVRON every picker trigger wears,
            as Team View's identical week label does (`--caret-chevron`, shared.css). */
@@ -405,8 +405,9 @@
             background-size: contain;
             opacity: 0.55;
         }
-        /* Gold border + tinted fill when the displayed week is the current week (the comment said
-           "Blue border" from the rule's first version; it has been gold for a long time). */
+        /* The current week is marked in TODAY's colour, as the Calendar marks today (gold, navy text):
+           a gold edge on a gold tint (`--week-current-bg`, mixed with white). It was a light blue,
+           the one blue state on a gold page. */
         .week-nav-label.is-current-week {
             border-color: var(--accent-gold);
             background: var(--week-current-bg);
@@ -420,7 +421,7 @@
         .bulk-bar {
             background: var(--bg-faint);
             border: 1px solid var(--border-light);
-            border-radius: 10px;
+            border-radius: var(--radius);   /* the day rows' card corner, beside it */
             padding: 10px 14px;
             margin-bottom: 12px;
             display: none;
@@ -493,7 +494,7 @@
             font-weight: 600;
             color: var(--primary-blue);
             background: var(--blue-light);
-            border-radius: 10px;
+            border-radius: var(--radius-pill);
             padding: 2px 8px;
             white-space: nowrap;
             align-self: center;
@@ -511,7 +512,7 @@
             font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
-            border-radius: var(--radius-xs);
+            border-radius: var(--radius-button);
             cursor: pointer;
             white-space: nowrap;
             transition: border-color var(--dur-fast), color var(--dur-fast);
@@ -525,8 +526,7 @@
 
         /* LEFT-ALIGNED, like the "Tick days" chips above them (polish round 2). Centred, the pills'
            first row started 39px right of the chips at 390px and the leftover pill sat alone in the
-           middle — two alignments inside one three-step card. The PER-ROW pills (`.col-pills`) stay
-           centred on phones: that is a separate, documented decision (see `.col-pills`). */
+           middle. The per-row pills (`.col-pills`) are left-aligned too, so the card has one edge. */
         .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
 
         /* Type pills — outline when idle, filled when active. Their heights are a pointer's: 34px
@@ -606,10 +606,14 @@
             padding: 7px 14px;
             margin-top: 2px;
             cursor: pointer;
-            white-space: nowrap;
+            /* WRAPS INSIDE THE BAR: `nowrap` ran 'Apply "Rest Day Working" to ticked days' off the card
+               at 360px and cut it at 320px. The number stays on the first line; the words balance. */
+            max-width: 100%;
+            text-align: left;
             transition: background var(--dur-fast);
             font-family: inherit;
         }
+        #bulkApplyLabel { min-width: 0; text-wrap: balance; }
 
         @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover:not(:disabled) { background: var(--primary-blue-dark); } }
         /* Navy, as the week arrows: the ring is drawn on the pale bulk bar, not on the button. */
@@ -755,8 +759,12 @@
            roster-upload conflict card (v15.68): --al-confirm-bg cream + a muted --conflict-strong
            left accent, instead of the old bright-orange accent + amber fill. */
         .day-row.has-override { background: var(--al-confirm-bg); --row-bar: var(--conflict-strong); border-left-color: var(--conflict-strong); }
-        /* Active (prefilled) override: a touch deeper warm cream so it reads a step stronger. */
-        .day-row.has-override.active { background: color-mix(in srgb, var(--al-confirm-accent) 12%, white); }
+        /* A SAVED DAY BEING EDITED speaks the grid's "ready to save" gold: the gold bar on a gold wash
+           over the cream, so a staged change on a saved day no longer looks like the untouched saved
+           day beside it, where only the small chip differed. Untouched (`prefilled-existing`, also
+           `.active`): a touch deeper warm cream and the brown bar — after this rule, which it beats on order. */
+        .day-row.has-override.active { --row-bar: var(--accent-gold); border-left-color: var(--accent-gold); background: color-mix(in srgb, var(--accent-gold) 20%, var(--al-confirm-bg)); }
+        .day-row.has-override.prefilled-existing { --row-bar: var(--conflict-strong); border-left-color: var(--conflict-strong); background: color-mix(in srgb, var(--al-confirm-accent) 12%, white); }
 
         /* An expanded row is already made tall by its pills and times, so it keeps 10px top and bottom
            rather than a resting row's 18px (a phone, below) or 15px (a mouse, near the file's end). */
@@ -781,8 +789,8 @@
                 flex-shrink: 0;
             }
             .day-row.active .col-pills::before,
-            .day-row.selected .col-pills::before { content: 'Type:'; }
-            .day-row.active .col-time::before    { content: 'Time:'; }
+            .day-row.selected .col-pills::before { content: 'Type'; }
+            .day-row.active .col-time::before    { content: 'Time'; }
 
             /* Hairline separator between day-header row and the type/time controls */
             .day-row.active .col-pills,
@@ -837,13 +845,9 @@
             display: flex;
             gap: 4px;
             flex-wrap: wrap;
-            /* CENTRED ONLY WHERE THEY WRAP (v22.22). Six pills do not fit one narrow line, and a
-               centred last row is the tidier way to break them — so this stays for phones. On a
-               wide screen they fit on one line, and centring then made them the ODD BLOCK in the
-               row: measured at 1280px, the day label starts at 159, the time inputs at 119 and the
-               pills at 221. Three left edges inside one row, and the pills' was the only one that
-               was not a padding edge. See the ≥1024px override. */
-            justify-content: center;
+            /* LEFT AT EVERY WIDTH, the card's one left edge (polish pass, Nov 2026). Centred on phones
+               (v22.22), they sat beside the bulk bar's left-aligned pills: two alignments in one card. */
+            justify-content: flex-start;
         }
 
         /* Per-row type pills — sleek capsules (v15.60): generous horizontal padding + a
@@ -869,7 +873,7 @@
         .time-hint {
             display: none;
             flex-basis: 100%;
-            font-size: var(--type-micro);
+            font-size: var(--type-small);   /* the app's hint size — it was 10px */
             color: var(--text-faint);
             padding-left: 2px;
         }
@@ -933,7 +937,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 4px 14px;
-            padding: 8px 10px 2px;
+            padding: 8px 0 2px;   /* the card's own left edge, as every block on it (it was 10px in) */
             font-size: var(--type-badge);
             color: var(--text-mid);
             line-height: 1.5;
@@ -991,7 +995,7 @@
             color: white;
             border: none;
             padding: 2px 7px;
-            border-radius: 10px;
+            border-radius: var(--radius-pill);
             text-transform: uppercase;
             letter-spacing: 0.3px;
             margin-left: 4px;
@@ -1059,7 +1063,7 @@
             padding: 9px 13px;
             background: var(--surface-sunken);
             border: 1px solid var(--border-light);
-            border-radius: 10px;
+            border-radius: var(--radius);
             font-size: var(--type-label);
             line-height: 1.4;
             color: var(--text-mid);
@@ -1099,7 +1103,7 @@
             gap: 12px;
             background: var(--al-confirm-bg);
             border-top: 2px solid var(--al-confirm-accent);
-            border-radius: 14px 14px 0 0;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
             /* all four insets: iOS ignores the manifest's portrait lock, and in landscape the Dynamic
                Island takes the left or right edge (v24.61) */
             padding: 16px max(18px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
@@ -1232,20 +1236,22 @@
            own arrow. It grows to share the row and stops at 240px, past which a month picker is
            just a wide empty box. */
         .overrides-month-filter {
-            padding: 6px 26px 6px 8px;
+            /* 32px on the right clears the 16px arrow at right 10px (26px ran the month into it). */
+            padding: 6px 32px 6px 8px;
             width: auto;
             flex: 1 1 auto;
             min-width: 150px;
             max-width: 240px;
-            border: 2px solid var(--border-mid);
-            border-radius: var(--radius-sm);
+            border: var(--field-border);
+            border-radius: var(--radius-field);
             font-size: var(--type-medium); /* 16px minimum — iOS Safari zooms viewport on focus below this */
             font-family: inherit;
             color: var(--text-dark);
-            background-color: white; /* longhand: shorthand would wipe the SVG chevron from the select rule */
+            background-color: var(--field-bg); /* longhand: shorthand would wipe the SVG chevron from the select rule */
             cursor: pointer;
         }
         .overrides-month-filter:focus-visible {
+            background-color: white;
             outline: var(--focus-outline);
             outline-offset: 2px;
             box-shadow: var(--focus-ring);
@@ -1333,7 +1339,7 @@
         /* Small tag shown on overrides written by the weekly PDF upload */
         .source-pill {
             display: inline-block;
-            font-size: 9px;
+            font-size: var(--type-micro);
             font-weight: 700;
             padding: 1px 5px;
             border-radius: var(--radius-sm);
@@ -1426,7 +1432,7 @@
             flex: 1;
             padding: 8px 10px;
             border: 2px solid var(--border-mid);
-            border-radius: var(--radius-sm);
+            border-radius: var(--radius-field);
             font-size: var(--type-label);
             color: var(--text-light);
             background: var(--bg-faint);
@@ -1524,9 +1530,8 @@
             position: relative;
         }
         @media (hover: hover) and (pointer: fine) {
-            .rp-day:hover:not(.rp-from):not(.rp-to):not(.rp-in-range):not(.rp-filler) {
-                background: var(--bg-light);
-                border-radius: 50%;
+            .rp-day:hover:not(.rp-from):not(.rp-to):not(.rp-in-range):not(.rp-filler):not(.rp-preview) {
+                background: radial-gradient(circle closest-side, var(--bg-light) 95%, transparent 100%);
             }
         }
         /* The light-surface ring (v25.21; gold was ~1.5:1 on the white panel and vanishes on a gold end). */
@@ -1548,14 +1553,34 @@
            ends were navy and the run between them `--blue-light`): a pale tint for the days inside, the
            full colour on the two ends, and fainter tints of it while a range is still being drawn.
            Today's dot takes the ink on an end, or a gold dot on a gold circle would vanish. */
+        /* The ends are TRUE CIRCLES, the date picker's idiom (shared.css, `.dp-inweek.dp-sel`): a
+           `closest-side` disc drawn on the cell, never `border-radius: 50%` on a cell wider than it is
+           tall, which drew ovals. An end beside the band carries half the band behind its disc, so the
+           run reads as one piece. The tints are written out each time so page-identity-parity can see
+           the page's colour in them. */
         .rp-in-range { background: color-mix(in oklch, var(--page-accent) 20%, white); color: var(--text-dark); }
-        .rp-preview  { background: color-mix(in oklch, var(--page-accent) 10%, transparent); }
-        .rp-preview-end { background: color-mix(in oklch, var(--page-accent) 30%, transparent); border-radius: 50%; }
+        .rp-preview  { background: color-mix(in oklch, var(--page-accent) 10%, white); }
+        .rp-preview-end { background: radial-gradient(circle closest-side, color-mix(in oklch, var(--page-accent) 30%, white) 95%, transparent 100%); }
+        .rp-preview + .rp-preview-end, .rp-from + .rp-preview-end {
+            background: radial-gradient(circle closest-side, color-mix(in oklch, var(--page-accent) 30%, white) 95%, transparent 100%),
+                        linear-gradient(to left, transparent 50%, color-mix(in oklch, var(--page-accent) 10%, white) 50%);
+        }
         .rp-from, .rp-to {
-            background: var(--page-accent);
+            background: radial-gradient(circle closest-side, var(--page-accent) 95%, transparent 100%);
             color: var(--page-accent-ink);
             font-weight: 700;
-            border-radius: 50%;
+        }
+        .rp-from:has(+ .rp-in-range, + .rp-to) {
+            background: radial-gradient(circle closest-side, var(--page-accent) 95%, transparent 100%),
+                        linear-gradient(to right, transparent 50%, color-mix(in oklch, var(--page-accent) 20%, white) 50%);
+        }
+        .rp-from:has(+ .rp-preview) {
+            background: radial-gradient(circle closest-side, var(--page-accent) 95%, transparent 100%),
+                        linear-gradient(to right, transparent 50%, color-mix(in oklch, var(--page-accent) 10%, white) 50%);
+        }
+        .rp-in-range + .rp-to, .rp-from + .rp-to {
+            background: radial-gradient(circle closest-side, var(--page-accent) 95%, transparent 100%),
+                        linear-gradient(to left, transparent 50%, color-mix(in oklch, var(--page-accent) 20%, white) 50%);
         }
         .rp-from.rp-today::after, .rp-to.rp-today::after { background: var(--page-accent-ink); }
 
@@ -2217,11 +2242,6 @@
             .day-row { padding-top: 10px; padding-bottom: 10px; }
         }
 
-        /* From 681px the six pills fit one line, so they join the row's left edge with the times below
-           them (v22.22); a phone keeps them centred where they wrap (`.col-pills`). */
-        @media (min-width: 681px) {
-            .col-pills { justify-content: flex-start; }
-        }
         /* ≥1400px: spacing only — the container is capped at --content-max-width, so the columns are
            the width they are at 1280. */
         @media (min-width: 1400px) {
@@ -2308,7 +2328,7 @@
             align-items: center;
             gap: 12px;
             background: var(--primary-blue);
-            border-top: 2px solid rgba(255,255,255,0.15);
+            border-top: 2px solid var(--on-navy-raised-strong);
             padding: 10px max(16px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
             box-shadow: 0 -4px 16px rgba(0,0,0,0.18);
         }
@@ -2335,6 +2355,8 @@
            "Save changes" ran 22px off the screen. Balanced, it breaks after the comma; its longest word is
            its floor, so with large text the buttons wrap their own words too. `--staged-bar-h` is
            measured, so the page follows the taller bar. */
+        /* On-navy colours are the shared tokens. The 0.85 near-white of the label and Discard's words
+           stays literal: no token sits between `--on-navy-muted` (0.70) and white (paycalc.css, the same note). */
         .staged-bar-label {
             flex: 1;
             font-size: var(--type-label);
@@ -2344,14 +2366,14 @@
         }
         .staged-bar-label strong { color: white; }
         .staged-bar-btns { display: flex; gap: 8px; }
-        /* --radius-button, the app's action-button corner (desktop audit, Nov 2026: these were 6px). */
+        /* --radius-button, the app's action-button corner, and `--type-button`, the card's Save size. */
         .staged-discard-btn {
             background: transparent;
-            border: 1.5px solid rgba(255,255,255,0.4);
+            border: 1.5px solid var(--on-navy-faint);
             color: rgba(255,255,255,0.85);
             border-radius: var(--radius-button);
             padding: 7px 14px;
-            font-size: var(--type-label);
+            font-size: var(--type-button);
             font-weight: 600;
             cursor: pointer;
             font-family: inherit;
@@ -2363,14 +2385,16 @@
             color: var(--primary-blue);
             border-radius: var(--radius-button);
             padding: 7px 14px;
-            font-size: var(--type-label);
+            font-size: var(--type-button);
             font-weight: 700;
             cursor: pointer;
             font-family: inherit;
             touch-action: manipulation;
         }
+        /* A thumb's 44px, as the card's own Save (the bar's were 32px). After both base rules. */
+        @media (pointer: coarse) { .staged-discard-btn, .staged-save-btn { min-height: 44px; } }
         @media (hover: hover) and (pointer: fine) {
-            .staged-discard-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.7); color: white; }
+            .staged-discard-btn:hover:not(:disabled) { border-color: var(--on-navy-muted); color: white; }
             .staged-save-btn:hover:not(:disabled)    { background: var(--accent-gold-dark); }
         }
         /* Both are disabled while a save is held (v24.23), and without this they stayed gold and
@@ -2403,7 +2427,7 @@
             font-size: var(--type-badge);
             font-weight: 700;
             padding: 5px 10px;
-            border-radius: var(--radius-xs);
+            border-radius: var(--radius-button);
             cursor: pointer;
             white-space: nowrap;
             font-family: inherit;
