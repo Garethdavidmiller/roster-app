@@ -1,6 +1,6 @@
 /**
  * nav-guide-fold.test.mjs — the drawer's guide list follows the Reference fold, query or none.
- * Run: node --experimental-test-module-mocks --test nav-guide-fold.test.mjs   (part of `npm run test:unit`)
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs nav-guide-fold.test.mjs   (part of `npm run test:unit`)
  *
  * Reference folded while a search was showing, then the drawer closed and reopened: the reopen clears
  * the query, and `render()` un-hid the full guide list beneath a heading still marked folded — every

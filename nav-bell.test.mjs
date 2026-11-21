@@ -1,6 +1,7 @@
 /**
  * nav-bell.test.mjs — the drawer's notification bell: a refresh never paints over a tap, and the
- * toggle says its state once. Run: node --experimental-test-module-mocks --test nav-bell.test.mjs
+ * toggle says its state once.
+ * Run: node --experimental-test-module-mocks scripts/run-tests.mjs nav-bell.test.mjs   (part of `npm run test:unit`)
  *
  * Each drawer open starts a bell refresh it does not wait for. A tap while that refresh was still
  * reading repainted the bell, when the read answered, with the state from BEFORE the tap: 🔕 "off"

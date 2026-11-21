@@ -67,7 +67,7 @@ function _currentPageFile() {
 /** Is this document the Calendar — the app's root, as a directory or as `index.html`? Where a `./#…`
  *  link is only a hash change, so the drawer must not let it navigate (`./#…` from an explicit
  *  /index.html resolves to `/#…`: a path change and a full reload where a hash change was meant). */
-const _onCalendarPage = () => /(^|\/)(index\.html)?$/.test(window.location.pathname);
+const _onCalendarPage = () => /(^|\/)(index\.html)?$/.test(window.location?.pathname ?? '');
 
 let _panelOpen      = false;
 // A single shallow history entry, shared by the panel and any lightbox that
@@ -724,8 +724,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      */
     function _openComingSoon(triggerEl, overrideBody) {
         if (!csLightbox) return;
-        const title = triggerEl?.dataset.csTitle || 'Coming soon';
-        const icon  = triggerEl?.dataset.csIcon  || '🔔';
+        // Every trigger names itself (a document row, the blocked bell); these are only a neutral fallback —
+        // "Coming soon" with a bell outlived the coming-soon links it was for (review, 21 Nov 2026).
+        const title = triggerEl?.dataset.csTitle || 'Menu';
+        const icon  = triggerEl?.dataset.csIcon  || 'ℹ️';
         const body  = overrideBody ?? triggerEl?.dataset.csBody ?? '';
         if (csTitle) csTitle.textContent = title;
         if (csIcon)  csIcon.textContent  = icon;
@@ -1083,11 +1085,11 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
             ${footerHtml}
         </div>
         <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"
-             aria-label="Coming soon" aria-modal="true">
+             aria-label="Menu" aria-modal="true">
             <div class="lb-content" id="navComingSoonContent">
                 <button type="button" id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-icon" id="navComingSoonIcon" aria-hidden="true">📰</div>
-                <div class="nav-cs-title" id="navComingSoonTitle">Coming soon</div>
+                <div class="nav-cs-title" id="navComingSoonTitle">Menu</div>
                 <div class="nav-cs-body" id="navComingSoonBody"></div>
             </div>
         </div>

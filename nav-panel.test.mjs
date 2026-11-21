@@ -629,7 +629,7 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
         /** @type {any} */ ($('navMenuBtn')).fire('click');
         const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
         link.dataset.csTitle = 'Weekly Retail Circular';
-        link.dataset.csBody = 'No Weekly Retail Circular has been uploaded yet — it\'s usually available on Friday.';
+        link.dataset.csBody = 'No Weekly Retail Circular has been uploaded yet — a new one usually arrives on a Friday.';
         /** @type {any} */ ($('navPanel')).fire('click', {
             target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
         await flush();
