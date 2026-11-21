@@ -834,7 +834,7 @@ export function calcBackPay() {
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
         : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
     } else {
-      setStatus(noticeEl, '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.');
+      setStatus(noticeEl, '⚠️ This lump sum is taxed in the period it is paid. Choose the payslip above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.');
     }
     if (_basicOnly.length) {
       // ITS OWN PARAGRAPH (v21.70). This used to be appended after a leading space onto the tax

@@ -478,7 +478,13 @@ export function ytdAutoSource(ty, now = new Date()) {
 export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date(), firstPNum = _firstEmployed()) {
   if (raw != null || !hasFigures) return null;
   const src = ytdAutoSource(ty, now);
-  return src >= firstPNum ? src : null;
+  // NEVER A PAYSLIP THAT CANNOT BE IN HAND (21 Nov 2026). Before the year's first payday,
+  // `ytdAutoSource` clamps into the year and names its first payslip — not yet issued, and not
+  // offered by the picker either, so the card showed its placeholder while storage held a source.
+  // Last year's whole-year totals typed in March were then read as April's, and May's payslip was
+  // charged the year's tax again (£2,967.84 where £435.00 was right). The same rule as the picker.
+  const srcP = getPeriods().find((/** @type {any} */ x) => x.num === src);
+  return srcP && ytdSourceOffered(srcP, ty, now, firstPNum) ? src : null;
 }
 
 /**
@@ -543,9 +549,11 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   if (next) return { ...out, note: readTaxCode(taxCode).nonCumulative
     ? `Your Year to Date figures are from ${from}, but a tax code ending in W1, M1 or X works out each payslip on its own, so these figures are not used.`
     : misfit
-      // The figures are complete and from the right payslip; the code is what they disagree with
-      // (owner, 15 Nov 2026). The Income Tax line carries the two figures; this says what to check.
-      ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip's tax is worked out from this payslip alone. Check the code in Your Settings is the one on that payslip.`
+      // The figures are complete, but they and the code disagree (owner, 15 Nov 2026). Either side can
+      // be wrong: the code in Your Settings, or the payslip chosen as their source — a source filed one
+      // payslip out reads exactly like a wrong code (21 Nov 2026). The Income Tax line carries the two
+      // figures; this says what to check, the source first because it is on this card.
+      ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip's tax is worked out from this payslip alone. Check they came from that payslip, and that the code in Your Settings is the one printed on it.`
       : `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> to sharpen this payslip's tax estimate.` };
   // Only a payslip NEWER than the source is worth updating from (17 Nov 2026). On the source itself, or
   // one before it, the payslip before this one is OLDER than the figures already held — so the note
@@ -553,9 +561,13 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   // had just sent them to the newest. The next payslip then found them misfitting its code.
   const prevP = getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1);
   const upd = prevP && prevP.num > src && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
-    ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
+    ? ` To sharpen this one, copy the figures from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}).`
     : '';
-  return { ...out, note: `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax is worked out from this payslip alone.${upd}` };
+  // The payslip they DO sharpen is named (21 Nov 2026): "the payslip straight after it … to sharpen
+  // it" used one "it" for the source and the next for this payslip, in a 32-word sentence.
+  const nextP = getPeriods().find((/** @type {any} */ x) => x.num === src + 1);
+  const sharpens = nextP ? `your <strong>${fdShort(nextP.payday)} payslip</strong>` : 'the payslip straight after it';
+  return { ...out, note: `Your Year to Date figures are from ${from}, so they only sharpen ${sharpens}. This payslip's tax is worked out from this payslip alone.${upd}` };
 }
 
 /**
@@ -663,7 +675,7 @@ export function nextPeriod(onPeriodChange) {
  *  - never on a payslip already paid: the year keeps ONE pair of figures, so asking for an older
  *    payslip's would undo the estimate the member is waiting on;
  *  - never on the tax year's first payslip, where Year to Date starts fresh;
- *  - never for a non-cumulative code (W1, M1, X) or NT, which the figures cannot change;
+ *  - never for a non-cumulative code (W1, M1, X), NT or a flat-rate code, which the figures cannot change;
  *  - never for a code the calculator does not recognise (`recognised` is computeTax's): it is priced
  *    on the standard allowance, and Year to Date figures make a wrong code's estimate WORSE, which is
  *    why the "Check against your payslip" line holds that advice back too;
@@ -684,6 +696,9 @@ export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised = true, m
   const read = readTaxCode(taxCode);   // as computeTax reads it, so the two cannot disagree about one
   if (read.nonCumulative) return null;
   if (read.base === 'NT') return null;
+  // A FLAT-RATE code (BR, D0, D1 and the Scottish flat rates) takes the same share of every pound,
+  // so figures that fit it — the only ones used since 21 Nov 2026 — never move its tax.
+  if (/^(S?BR|S?D[01]|SD[23])$/.test(read.base)) return null;
   if (recognised === false) return null;
   if (misfit) return null;
   if (inUse || (src && src >= p.num)) return null;

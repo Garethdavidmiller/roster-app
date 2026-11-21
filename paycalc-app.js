@@ -29,7 +29,7 @@ import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { paintRoleCard, PAYCALC_SIGN_IN_ABOUT } from './paycalc-role-card.js';
-import { signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 import {
   CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum,
   hasBoxingDay, hasBankHoliday,
@@ -134,7 +134,9 @@ export function init() {
       // (AUTH_ARCHITECTURE.md Phase 9). If init() throws mid-wiring it falls back to a reload, so the
       // in-place path is never less robust than the reload one; and it reloads (a fresh overlay)
       // rather than re-enter a soft-lock when saveSession silently failed (iOS private mode).
-      const onSuccess = () => { try { if (!getSession()?.name) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
+      // rebaseRestoreGuard first: the guard above recorded this page as nobody's, so a Back to it after
+      // the in-place sign-in reloaded for nothing (the Calendar and Overtime already rebase).
+      const onSuccess = () => { try { if (!getSession()?.name) { window.location.reload(); return; } rebaseRestoreGuard(); init(); } catch { window.location.reload(); } };
       initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess, about: PAYCALC_SIGN_IN_ABOUT });
       return;
     }
@@ -330,6 +332,11 @@ export function init() {
       // the markup's own hint, read before the first write.
       const _hintEl = /** @type {HTMLElement} */ (document.getElementById('settingsHint'));
       _settingsHintDefault ??= _hintEl.textContent ?? '';
+      // The "New tax year" notice names ONE year, so it goes when another is on screen. Only Save
+      // hid it before, and a member who stepped to a year already checked was left reading 2026/27's
+      // notice over 2025/26's settings — and Save then checked the wrong year (review, 21 Nov 2026).
+      const _yearNotice = document.getElementById('settingsNewYearNotice');
+      if (_yearNotice && _yearNotice.dataset.ty !== ty.label) _yearNotice.classList.add('hidden');
       if (tyConfirmed) {
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
         // The rate THIS payslip was paid at (periodRate), with its "pre-rise" qualifier — never the
@@ -351,6 +358,7 @@ export function init() {
             setSettingsCardOpen(true);
             const notice = document.getElementById('settingsNewYearNotice');
             if (notice) {
+              notice.dataset.ty = ty.label;
               notice.textContent = ty.rateUnconfirmed
                 ? `New tax year ${ty.label} — a pay award has been accepted but isn't on payslips yet. Your rate stays on last year's until the award lands on a payslip, then it updates automatically. Check your tax code, then select Save settings.`
                 : `New tax year ${ty.label} — your hourly rate updates automatically. Check your tax code and pension, then select Save settings.`;
@@ -386,7 +394,7 @@ export function init() {
       const _dayListEl    = document.getElementById('rosterDayList');
       const _daysToggleEl = document.getElementById('rosterDaysToggle');
       if (_dayListEl)    _dayListEl.style.display = 'none';
-      if (_daysToggleEl) _daysToggleEl.textContent = 'Show days ▼';
+      if (_daysToggleEl) { _daysToggleEl.textContent = 'Show days ▼'; _daysToggleEl.setAttribute('aria-expanded', 'false'); }
 
       // Update roster suggestion card and joiner notice for this period.
       updateRosterHint();
@@ -535,13 +543,13 @@ export function init() {
           const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
           const _hasCustomPension = d.pension != null && Math.abs(d.pension - periodDefaultPension(_pObj)) > 0.005;
           if (!isDataEmpty(d) || _hasCustomPension) {
-            setStatus(el, '✓ Entries saved for this period');
+            setStatus(el, '✓ Entries saved for this payslip');
             el.className   = 'save-status saved';
             return;
           }
         }
       }
-      el.textContent = 'No entries saved for this period';
+      el.textContent = 'No entries saved for this payslip';
       el.className   = 'save-status unsaved';
     }
 
@@ -848,6 +856,7 @@ export function init() {
         bhOtHrs, gBhOt, oHrs, gOvertime, rHrs, gRdw, sHrs, r150, gSunday, bHrs, r300, gBoxing,
         peer, gPeer, LONDON, otherAdj, slSkip, slPaidOff, plan, pgLoan, usingCumulative,
         _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
+        ytdFrom: _srcP ? fdShort(_srcP.payday) : '',
       });
       if (bd !== _lastBdBodyHtml) {
         // #bdRows, not #bdBody: the pension and absence notes are static siblings in the panel and

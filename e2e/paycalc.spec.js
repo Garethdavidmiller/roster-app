@@ -852,11 +852,11 @@ test('paycalc: a payslip with no special-rate hours counts as entered once ticke
     await expect(row, 'no hours on screen: the tick is offered').toBeVisible();
     await expect(tick).not.toBeChecked();
     await expect(block).toContainText('0 of 8 paid payslips entered');
-    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this period');
+    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this payslip');
 
     await clickInView(row);                                   // the whole row is the label
     await expect(tick).toBeChecked();
-    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this period');
+    await expect(page.locator('#saveStatus')).toHaveText('✓ Entries saved for this payslip');
     await expect(block, 'the ticked payslip counts as entered').toContainText('1 of 8 paid payslips entered');
     expect((await saved())?.noSpecialHours, 'the page saved the tick').toBe(true);
 
@@ -2256,7 +2256,7 @@ test('paycalc: "Clear all entries" needs a second tap, and disarms itself', asyn
     await expect(btn).toHaveText('Clear all entries');
     expect(await saved(57), 'the second tap clears the payslip on screen').toBeNull();
     expect(await saved(58), '…and only that one').not.toBeNull();
-    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this period');
+    await expect(page.locator('#saveStatus')).toHaveText('No entries saved for this payslip');
     await page.clock.runFor(4000);   // the cleared arm's timers are gone: nothing re-arms or changes
     await expect(btn).toHaveText('Clear all entries');
     expect(errors, 'Uncaught JS exceptions on the Pay Calculator').toHaveLength(0);
@@ -2515,7 +2515,7 @@ test('paycalc: Year to Date figures that cannot come from the tax code are not u
     await expect(summary).not.toContainText('may be due on this payslip');
     await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
     await expect(page.locator('#ytdUptoNote')).toContainText("they don't fit your tax code");
-    await expect(page.locator('#provChips')).not.toContainText('Cumulative tax');
+    await expect(page.locator('#provChips')).not.toContainText('Year to Date figures ·');
     await expect(page.locator('#netYtdNudge'), 'the figures are the right payslip\'s already: nothing to ask for').toBeHidden();
 
     // THE £ — the figures do not reach it. Emptied, the take-home must not move, and the line under it

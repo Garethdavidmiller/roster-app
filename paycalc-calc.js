@@ -539,8 +539,8 @@ export function readTaxCode(taxCode) {
 }
 
 /**
- * How far the Year to Date Tax Paid may be ABOVE a normal working of the code before the figures are
- * judged not to come from it (owner, 15 Nov 2026). Real payslips worked out the normal way land
+ * How far the Year to Date Tax Paid may be above or below a normal working of the code before the
+ * figures are judged not to come from it (owner, 15 Nov 2026; below too from 21 Nov). Real payslips worked out the normal way land
  * within 25p of this calculator's own cumulative figure (paycalc.md → "(code × 10) + 9"), so £2 is
  * rounding room, not a margin of opinion. computeTax says why it is there.
  */
@@ -660,12 +660,22 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // payslip on its own (a week 1 / month 1 basis nothing on the payslip names), a code that has
     // just changed, or a mistyped figure. The cumulative method then reported the difference as a
     // REFUND and took no tax at all: a take-home a whole payslip's tax too high, on the screenshot that
-    // reported it. So such figures are not used, and the result says why. Only OVER the code: below it is a
-    // code lowered mid-year, which real cumulative PAYE collects exactly as the method below does.
+    // reported it. So such figures are not used, and the result says why.
+    // AND UNDER THE CODE TOO (owner, 21 Nov 2026). It was over only, on the reading that Tax Paid
+    // below the code is a code lowered mid-year, which cumulative PAYE collects. In practice it was
+    // far more often a code in Your Settings with LESS tax-free pay than the payslip's (often the
+    // 1257L default left in place), or figures filed one payslip early — and each charged the whole
+    // year's "shortfall" on the next payslip, unflagged (£609.60 where £415.80 was right). The cost,
+    // accepted: a code genuinely lowered since gets this payslip's tax on its own, and the line says
+    // payroll may take more. K codes are left out of this side: the 50% limit below legitimately
+    // leaves a K-code year's Tax Paid short, and payroll collects the rest later, as this method does.
     // Period 1 has no payslip before it in the year, so there is nothing to compare.
     if (N > 1) {
       const expected = taxPennies(taxOnAmount(ytdPay, N - 1));
-      if (ytdTax - expected > YTD_FIT_TOLERANCE) return { ...standard(), ytdMisfit: { expected, paid: ytdTax } };
+      const gap = ytdTax - expected;
+      if (gap > YTD_FIT_TOLERANCE || (gap < -YTD_FIT_TOLERANCE && !isKCode)) {
+        return { ...standard(), ytdMisfit: { expected, paid: ytdTax } };
+      }
     }
     const cumGross = ytdPay + sacGross;
     const cumTaxDue = taxPennies(taxOnAmount(cumGross, N));   // the year's liability, to the penny below

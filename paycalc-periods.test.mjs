@@ -1103,9 +1103,15 @@ describe('ytdUpdateFrom — when the take-home asks for the latest Year to Date 
         // spread is wide because the K-code 50% limit and the pay itself cap the tax at the low end.
         const t = getThresholds(TY.label);
         const periodN = nov20.num - 48 - TY.first + 1;
+        // Figures are used only when they FIT the code (15 Nov and 21 Nov 2026), so the spread includes
+        // the Tax Paid the code itself takes, read off the misfit an impossible figure reports.
+        // Over a low and a high year, because a banded code moves at its band edges.
+        /** @param {string} code @param {number} ytdPay */
+        const own = (code, ytdPay) => computeTax(0, code, t, { ytdPay, ytdTax: 1e9, periodN }).ytdMisfit?.expected ?? 0;
         /** @param {string} code */
-        const moves = code => new Set([0, 1000, 2000, 4000, 8000, 16000].map(ytdTax =>
-            computeTax(2400, code, t, { ytdPay: 15000, ytdTax, periodN }).tax)).size > 1;
+        const moves = code => [[15000, 2400], [40000, 2400], [15000, 6000]].some(([ytdPay, pay]) =>
+            new Set([0, 1000, 2000, 4000, 8000, 16000, own(code, ytdPay)].map(ytdTax =>
+                computeTax(pay, code, t, { ytdPay, ytdTax, periodN }).tax)).size > 1);
         const codes = ['1257L', ' 1257l ', '', '1257L W1', '1257LM1', '1257LX', 'K100', 'S1257L', 'C1257L',
             '0T', 'BR', 'D0', 'SD2', 'NT', 'CNT', 'nt', ' NT ', 'N T', 'SNT', 'NTX', '1257L W1 ',
             // The ways a payslip prints week 1 / month 1, which both readers learnt together (15 Nov 2026).
@@ -1116,6 +1122,8 @@ describe('ytdUpdateFrom — when the take-home asks for the latest Year to Date 
         // And the cases that matter most, named, in case the engine ever treats them all alike.
         assert.equal(ask({ taxCode: '1257L W1' }), null, 'week 1 never uses the figures');
         assert.equal(ask({ taxCode: 'NT' }), null, 'no tax to sharpen');
+        assert.equal(ask({ taxCode: 'BR' }), null, 'a flat rate takes the same share of every pound');
+        assert.equal(ask({ taxCode: '0T' }), oct23, 'but 0T is banded, and moves at its band edge');
         assert.equal(ask({ taxCode: '1257L' }), oct23);
     });
 
@@ -1168,10 +1176,10 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     test('on any other payslip they are not, and the note offers the payslip before it once that is paid', () => {
         const later = status({ p: dec18 });
         assert.deepEqual([later.chip, later.chipLive, later.noteLive], ['not in use', false, false]);
-        assert.equal(later.note, `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax is worked out from this payslip alone.`,
+        assert.equal(later.note, `Your Year to Date figures are from ${from}, so they only sharpen your <strong>20 Nov payslip</strong>. This payslip's tax is worked out from this payslip alone.`,
             'on 7 Nov the 20 Nov payslip has not been paid, so there is nothing newer to copy');
-        assert.equal(status({ p: dec18, now: NOV21 }).note, `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax `
-            + `is worked out from this payslip alone. Update them from your <strong>20 Nov payslip</strong> (P${payslipPeriodNum(nov20)}) to sharpen it.`);
+        assert.equal(status({ p: dec18, now: NOV21 }).note, `Your Year to Date figures are from ${from}, so they only sharpen your <strong>20 Nov payslip</strong>. This payslip's tax `
+            + `is worked out from this payslip alone. To sharpen this one, copy the figures from your <strong>20 Nov payslip</strong> (P${payslipPeriodNum(nov20)}).`);
     });
 
     // ── NEVER AN OLDER PAYSLIP THAN THE SOURCE (17 Nov 2026) ──────────────────────────────────────
@@ -1179,7 +1187,7 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
     // held. The note told a member with 23 Oct figures, looking back at 23 Oct, to update them from
     // 25 Sep — and following it put stale totals in, which the next payslip then found misfitting.
     test('on the source payslip or an earlier one, nothing older is offered to update from', () => {
-        const plain = `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax is worked out from this payslip alone.`;
+        const plain = `Your Year to Date figures are from ${from}, so they only sharpen your <strong>20 Nov payslip</strong>. This payslip's tax is worked out from this payslip alone.`;
         for (const p of [oct23, byNum(56), byNum(55)]) {
             assert.equal(status({ p, now: NOV21 }).note, plain, `viewing ${p.payday.toDateString()} with figures from 23 Oct`);
         }
@@ -1239,13 +1247,15 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
         }
         // The pair over its code is the state this note exists for, so the loop must have met it.
         assert.ok(computeTax(3100, '1257L', t, { ytdPay: 13200, ytdTax: 1650, periodN }).ytdMisfit, 'premise: a misfit was met');
+        // …and the pair UNDER its code too (21 Nov 2026): £1,091.80 is far less than BR or D0 takes.
+        assert.ok(computeTax(3100, 'BR', t, { ytdPay: 13200, ytdTax: 1091.80, periodN }).ytdMisfit, 'premise: a misfit under the code was met');
     });
 
     test('figures that do not fit the tax code: not in use, and the note says to check the code', () => {
         const s = status({ misfit: true });
         assert.deepEqual([s.chip, s.chipLive, s.noteLive], ['not in use', false, false]);
         assert.equal(s.note, `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip's tax `
-            + 'is worked out from this payslip alone. Check the code in Your Settings is the one on that payslip.');
+            + 'is worked out from this payslip alone. Check they came from that payslip, and that the code in Your Settings is the one printed on it.');
         assert.match(status({ misfit: true, taxCode: '1257L M1' }).note, /W1, M1 or X/, 'a week 1 / month 1 code is the stronger reason');
     });
 
@@ -1277,6 +1287,18 @@ describe('ytdAnchorStatus / ytdSourceToStamp — what the Year to Date card says
         assert.equal(ytdSourceToStamp('', true, TY, NOV7), null, 'anything recorded counts — only a key never written is stamped');
         assert.equal(ytdSourceToStamp('56', true, TY, NOV7), null, 'a recorded source is kept');
         assert.equal(ytdSourceToStamp(null, false, TY, NOV7), null, 'no figures, nothing to anchor');
+    });
+
+    // NEVER A PAYSLIP THAT CANNOT BE IN HAND (21 Nov 2026). Between the March and April paydays the
+    // standing assumption clamps into the new year and names its first payslip — not yet issued, and
+    // not offered by the picker. Last year's totals typed then were read as April's, and May's payslip
+    // was charged the whole year's tax again.
+    test('figures typed before the year\'s first payday are not filed against a payslip not yet issued', () => {
+        const MAR20 = new Date(2026, 2, 20, 10);
+        assert.equal(ytdAutoSource(TY, MAR20), first.num, 'premise: the assumption clamps to the year\'s first payslip');
+        assert.equal(ytdSourceOffered(first, TY, MAR20, 37), false, 'premise: which the picker does not offer yet');
+        assert.equal(ytdSourceToStamp(null, true, TY, MAR20, 37), null, 'so nothing is recorded');
+        assert.equal(ytdSourceToStamp(null, true, TY, NOV7, 37), oct23.num, 'and the ordinary stamp is untouched');
     });
 });
 
@@ -1351,7 +1373,8 @@ describe('the Year to Date rules keep to the payslips a joiner was employed for'
             assert.equal(ytdSourceToStamp(null, true, TY, NOV30), null, 'a first entry is not stamped 20 Nov');
             // A source OLDER than 20 Nov, so the start date — not the newer-than-the-source rule — is
             // what keeps 20 Nov off the note.
-            assert.ok(!/20 Nov/.test(ytdAnchorStatus({ p: dec18, ty: TY, src: 57, hasFigures: true, now: DEC20 }).note),
+            // (The note names the payslip the figures sharpen since 21 Nov 2026, so the check is on the OFFER.)
+            assert.ok(!/copy the figures from your <strong>20 Nov/.test(ytdAnchorStatus({ p: dec18, ty: TY, src: 57, hasFigures: true, now: DEC20 }).note),
                 'the note does not offer 20 Nov to update from');
             // From their own first payslip on, everything works as for anyone else.
             assert.equal(ytdUpdateFrom({ p: jan15, ty: TY, src: 0, inUse: false, taxCode: '1257L', now: DEC20 }), dec18);

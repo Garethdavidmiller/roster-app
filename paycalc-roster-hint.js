@@ -417,6 +417,8 @@ export function toggleRosterDays() {
   const opening = list.style.display === 'none';
   list.style.display = opening ? '' : 'none';
   btn.textContent    = opening ? 'Hide days ▲' : 'Show days ▼';
+  // Said to a screen reader as well as drawn: every other disclosure on the page reports its state.
+  btn.setAttribute('aria-expanded', String(opening));
 }
 
 /** Removes the roster-suggested highlight from all hour input fields. */
@@ -666,6 +668,8 @@ export async function fillFromRoster(autosave) {
     // Cleared with the receipt, so the next fill is a change, and is announced.
     const live = document.getElementById('rosterFillStatus');
     setStatus(live, said);
-    setTimeout(() => { hint.textContent = prev; if (live) live.textContent = ''; }, 4000);
+    // Put back only while the receipt is still what shows: a payslip changed in those 4 seconds has
+    // written its own hint, and the old payslip's text must not land over it (review, 21 Nov 2026).
+    setTimeout(() => { if (hint.textContent === said) hint.textContent = prev; if (live) live.textContent = ''; }, 4000);
   }
 }

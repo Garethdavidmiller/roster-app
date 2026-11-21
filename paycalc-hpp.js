@@ -420,7 +420,7 @@ function _renderHppManual(ty, mode) {
       const part = y.upTo && yearLast && y.upTo.num < yearLast.num && payslipMayBeInHand(yearLast)
         ? ` <span class="hpp-partial-hint">It covers ${ty.label} only up to that payslip, so it may be low — the Year to Date pay on your ${fdLong(yearLast.payday)} payslip covers the whole year.</span>` : '';
       basisEl.innerHTML = !y.below
-        ? `Rough estimate from your Year to Date pay up to your ${fdLong(y.upTo.payday)} payslip: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${part}${lumpNote}${premiumNote}`
+        ? `Rough estimate from your Year to Date pay up to your ${fdLong(y.upTo.payday)} payslip: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay and London Allowance) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${part}${lumpNote}${premiumNote}`
         : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — fill in your hours on each payslip in the calculator instead, or enter the figure yourself.`;
     }
     return;

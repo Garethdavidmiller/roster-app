@@ -237,6 +237,11 @@ export function initPaycalcStickyTotal() {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault(); // Space must not also scroll the page
       resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Focus goes WITH the scroll (review, 21 Nov 2026): the bar hides once the £ is on screen, and a
+      // keyboard user was left focused on a control that had gone. The figure takes focus but stays
+      // out of the Tab order (-1), and the scroll above is the only movement.
+      const figure = document.getElementById('netDisplay');
+      if (figure) { figure.tabIndex = -1; figure.focus({ preventScroll: true }); }
     }
   });
 }

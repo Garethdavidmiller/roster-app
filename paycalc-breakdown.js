@@ -165,7 +165,8 @@ function _refundNote(refund) {
  * 2026): computeTax did not use them, so the figure is this payslip's tax on its own, and the member
  * is shown the two numbers that disagree. Before, the same figures read as an over-collected year —
  * "a tax refund … may be due", no tax at all — and a take-home a whole payslip's tax too high. The
- * last sentence is the case that does refund: a code raised since that payslip, typed in already.
+ * last sentence is the case that does refund: a code raised since that payslip, typed in already —
+ * or, when LESS was paid than the code takes (21 Nov 2026), what to check and the case that collects.
  * The code is quoted only when it is plain letters and digits (`plainTaxCode`); markup otherwise.
  * @param {{ expected: number, paid: number }} misfit  computeTax's `ytdMisfit`
  * @param {string} code  the code as computeTax read it
@@ -176,8 +177,14 @@ export function ytdMisfitNote(misfit, code, from = '') {
     const plain = plainTaxCode(code);
     const theCode = plain ? `tax code <strong>${shownTaxCode(plain)}</strong>` : 'your tax code';
     const thePayslip = from ? `your ${from} payslip` : 'the payslip they came from';
-    return `Your Year to Date figures don't fit ${theCode}: it would have taken about ${fmt(misfit.expected)} by ${thePayslip}, `
-        + `not ${fmt(misfit.paid)}. So this payslip's tax is worked out on its own. If your code has just changed, payroll may give some back.`;
+    const head = `Your Year to Date figures don't fit ${theCode}: it would have taken about ${fmt(misfit.expected)} by ${thePayslip}, `
+        + `not ${fmt(misfit.paid)}. So this payslip's tax is worked out on its own.`;
+    // LESS PAID THAN THE CODE TAKES (owner, 21 Nov 2026) is most often a different code on that
+    // payslip, or figures from another payslip than the one chosen — so the line names both first.
+    // The case where payroll really is owed more, a code lowered since, comes last.
+    return misfit.paid < misfit.expected
+        ? `${head} Check the code on that payslip matches Your Settings, and that the figures came from it. If your code was lowered since, payroll may take more than this.`
+        : `${head} If your code has just changed, payroll may give some back.`;
 }
 
 /**
@@ -213,7 +220,7 @@ function _netNote({ _bpThisPeriod, _hppForPeriod, _bpIsEstimate, _hppIsEstimate 
  *   gSunday:number, bHrs:number, r300:number, gBoxing:number, peer:number, gPeer:number,
  *   LONDON:number, otherAdj:number, slSkip:boolean, slPaidOff?:boolean, plan:string,
  *   pgLoan:boolean, usingCumulative:boolean, _bpThisPeriod:number, _bpIsEstimate:boolean,
- *   _hppForPeriod:number, _hppIsEstimate:boolean
+ *   _hppForPeriod:number, _hppIsEstimate:boolean, ytdFrom?:string
  * }} d
  * @returns {string} innerHTML for #bdRows (the static pension/absence notes are siblings in #bdBody)
  */
@@ -222,7 +229,7 @@ export function buildBreakdownRows(d) {
         nonBhNorm, rate, gBasicNorm, satCapped, r125, gBasicSat, bhCapped, gBankHol,
         bhOtHrs, gBhOt, oHrs, gOvertime, rHrs, gRdw, sHrs, r150, gSunday, bHrs, r300, gBoxing,
         peer, gPeer, LONDON, otherAdj, slSkip, slPaidOff = false, plan, pgLoan, usingCumulative,
-        _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
+        _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate, ytdFrom = '',
     } = d;
     const fh = fmtHrsMins;
     // EVERY rate a row multiplies by is printed to as many places as it has (fmtRate), so the row's own
@@ -253,7 +260,7 @@ export function buildBreakdownRows(d) {
         bd += `<div class="bd-row"><span class="b-lbl">Peer Training (${peer} day${peer>1?'s':''} × 2h × ${fmtRate(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
     bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
     if (otherAdj !== 0)
-        bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;   // fmt signs a negative "−£"
+        bd += `<div class="bd-row"><span class="b-lbl">Other payslip adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;   // fmt signs a negative "−£"
     // The stopped-deducting cutover outranks the one-off skip (mirrors the summary-row precedence).
     // Worded as the observable fact, never "repaid in full" (v19.27): a loan moved to direct debit
     // stops being deducted while still owed.
@@ -262,7 +269,7 @@ export function buildBreakdownRows(d) {
     else if (slSkip && (plan !== 'none' || pgLoan))
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
     if (usingCumulative)
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your ${ytdFrom ? `${ytdFrom} payslip` : 'last payslip'}</span><span class="b-val"></span></div>`;
     if (_bpThisPeriod > 0)
         bd += `<div class="bd-row bd-extra"><span class="b-lbl">Back pay lump sum (pay award${_bpIsEstimate ? ' — estimate' : ''})</span><span class="b-val">+${fmt(_bpThisPeriod)}</span></div>`;
     if (_hppForPeriod > 0)
@@ -343,7 +350,7 @@ export function buildActualCheck(actual, estimated, used = {}) {
     if (ad < 0.005)
         return `<div class="check-actual-line check-ok"><span aria-hidden="true">✓</span> Matches your payslip exactly.</div>`;
     if (ad <= 2)
-        return `<div class="check-actual-line check-ok"><span aria-hidden="true">✓</span> Matches your payslip to within ${fmt(ad)} — the expected rounding from payroll's cumulative tax method.</div>`;
+        return `<div class="check-actual-line check-ok"><span aria-hidden="true">✓</span> Matches your payslip to within ${fmt(ad)} — normal payroll rounding.</div>`;
     const dir = diff > 0 ? 'more' : 'less';
     const gap = `${fmt(ad)} ${dir} than this estimate.`;
     const knowsCode = typeof used.taxCode === 'string';
@@ -450,7 +457,7 @@ export function buildActualComparison({ actual, estimate }) {
 export function buildProvChips(d) {
     let h = '';
     if (d.usingCumulative)
-        h += `<span class="prov-chip">✓ Cumulative tax${d.srcLabel ? ` · from your ${d.srcLabel} payslip` : ''}</span>`;
+        h += `<span class="prov-chip">✓ Year to Date figures${d.srcLabel ? ` · from your ${d.srcLabel} payslip` : ''}</span>`;
     if (d.bpAmount && d.bpAmount > 0)
         h += `<span class="prov-chip prov-chip--add">+ ${fmt(d.bpAmount)} back pay</span>`;
     if (d.hppAmount && d.hppAmount > 0)

@@ -738,8 +738,8 @@ describe('computeTax', () => {
     // worked out with, on both paths — not whatever was typed.
     assert.equal(computeTax(2000, '', T25).code, '1257L', 'a blank box is the default code');
     assert.equal(computeTax(2000, ' 1182l ', T25).code, '1182L', 'tidied as the calculation tidies it');
-    // Tax Paid under what 1182L takes by period 7 (£2,726.00), so the pair fits and the cumulative path runs.
-    const cum = computeTax(2000, '1182L', T25, { ytdPay: 20000, ytdTax: 2700, periodN: 8 });
+    // Tax Paid exactly what 1182L takes by period 7, so the pair fits and the cumulative path runs.
+    const cum = computeTax(2000, '1182L', T25, { ytdPay: 20000, ytdTax: dueBy('1182L', T25, 20000, 7), periodN: 8 });
     assert.equal(cum.usingCumulative, true, 'premise: the pair fits 1182L');
     assert.equal(cum.code, '1182L', 'the cumulative path reports it too');
   });
@@ -777,7 +777,7 @@ describe('computeTax', () => {
     const blank = computeTax(2000, '', T25), spaces = computeTax(2000, '   ', T25);
     assert.deepEqual([spaces.code, spaces.recognised], ['1257L', true]);
     assert.equal(spaces.tax, blank.tax);
-    const cum = { ytdPay: 20000, ytdTax: 2600, periodN: 8 };   // under 1257L's £2,645.20 by period 7: it fits
+    const cum = { ytdPay: 20000, ytdTax: dueBy('1257L', T25, 20000, 7), periodN: 8 };   // 1257L's own £2,645.20 by period 7: it fits
     assert.equal(computeTax(2000, '   ', T25, cum).usingCumulative, true, 'premise: the cumulative path runs');
     assert.equal(computeTax(2000, '   ', T25, cum).tax, computeTax(2000, '', T25, cum).tax,
       'the same on the cumulative path, which used to miss the +9 for a box of spaces');
@@ -909,10 +909,10 @@ describe('computeTax', () => {
   test('0T high earner: basic-rate band is the fixed £37,700 (not 50,270 − 0)', () => {
     // Cumulative to period 13 with cumGross £45,000 and no allowance (0T). The 20% band is the fixed
     // £37,700 of taxable income; the £7,300 above it is 40%. The old (TAX.b − allowance) formula gave
-    // a £50,270 band and taxed the whole £45,000 at 20%. Tax Paid is £40 under what 0T takes on £40,000
-    // by period 12 (£9,040), so the figures FIT the code and the cumulative method — the band structure,
-    // via cumTaxDue — is what runs (owner, 15 Nov 2026: figures over their code are not used).
-    const sacGross = 5000, ytdPay = 40000, ytdTax = 9000;
+    // a £50,270 band and taxed the whole £45,000 at 20%. Tax Paid is what 0T takes on £40,000 by
+    // period 12 (£9,040), so the figures FIT the code and the cumulative method — the band structure,
+    // via cumTaxDue — is what runs (owner, 15 Nov and 21 Nov 2026: figures off their code are not used).
+    const sacGross = 5000, ytdPay = 40000, ytdTax = dueBy('0T', T25, 40000, 12);
     const { tax, usingCumulative } = computeTax(sacGross, '0T', T25, { ytdPay, ytdTax, periodN: 13 });
     assert.equal(usingCumulative, true, 'premise: the figures fit 0T');
     const expected = 37700 * 0.20 + (45000 - 37700) * 0.40 - ytdTax;
@@ -920,9 +920,9 @@ describe('computeTax', () => {
   });
 
   test('W1 suffix → non-cumulative even when YTD values provided', () => {
-    // A pair that FITS 1257L (under its £225.80 by period 4), so the cumulative path is the plain code's
-    // and only the suffix can switch it off — a pair over the code would be refused whatever the suffix.
-    const opts = { ytdPay: 5000, ytdTax: 100, periodN: 5 };
+    // A pair that FITS 1257L (its own £225.80 by period 4), so the cumulative path is the plain code's
+    // and only the suffix can switch it off — a pair off the code would be refused whatever the suffix.
+    const opts = { ytdPay: 5000, ytdTax: dueBy('1257L', T25, 5000, 4), periodN: 5 };
     const { tax: cumTax, usingCumulative: isCum } = computeTax(1200, '1257L', T25, opts);
     const { tax: w1Tax, usingCumulative: isW1Cum } = computeTax(1200, '1257LW1', T25, opts);
     // W1 should NOT use cumulative path
@@ -1023,7 +1023,7 @@ describe('computeTax', () => {
   });
 
   test('cumulative PAYE: uses ytdPay + sacGross across periodN', () => {
-    // Period 5, YTD pay = 4800, YTD tax = 180 (under 1257L's £185.80 by period 4: it fits), this period gross = 1200
+    // Period 5, YTD pay = 4800, YTD tax = 185.80 (1257L's own figure by period 4: it fits), this period gross = 1200
     // cumGross = 6000; PA scaled × 5 = (12579/13) × 5 — the cumulative path grants HMRC's
     // (code × 10) + 9, measured against real payslips (see resolvePA in paycalc-calc.js).
     const pa = 12579 / P_YR;
@@ -1033,9 +1033,9 @@ describe('computeTax', () => {
     const TAX = T25.tax;
     const basicBand = Math.max(0, TAX.b * 5 - Math.max(0, scaledPa));
     const cumTaxDue = taxable <= basicBand ? taxable * TAX.r20 : basicBand * TAX.r20 + (taxable - basicBand) * TAX.r40;
-    const expected = Math.max(0, cumTaxDue - 180);
+    const expected = Math.max(0, cumTaxDue - 185.80);
 
-    const { tax, usingCumulative } = computeTax(1200, '1257L', T25, { ytdPay: 4800, ytdTax: 180, periodN: 5 });
+    const { tax, usingCumulative } = computeTax(1200, '1257L', T25, { ytdPay: 4800, ytdTax: 185.80, periodN: 5 });
     assert.equal(usingCumulative, true, 'should use cumulative path');
     approx(tax, expected, 'cumulative tax');
   });
@@ -1093,7 +1093,15 @@ describe('computeTax', () => {
   // top: a take-home of −£173.99 (−£252.99 with Plan 2). The bound is now what NI and loans leave, and
   // `payLimited` says so, so the summary can say the figures look wrong.
   const T2627 = getThresholds('2026/27');
-  const MISTYPED = { ytdPay: 8 * 3142.84, ytdTax: 348, periodN: 9 };
+  // From the second payslip a Tax Paid that far under the code is not used at all (owner, 21 Nov
+  // 2026), so the bound is reached on the year's FIRST payslip, which has nothing before it to compare:
+  // a Taxable Pay typed there that no first payslip could carry.
+  const MISTYPED = { ytdPay: 8 * 3142.84, ytdTax: 348, periodN: 1 };
+  test('a Tax Paid far under the code, from the second payslip on, is not used — the payslip is taxed on its own', () => {
+    const r = computeTax(3142.84, '1257L', T2627, { ...MISTYPED, periodN: 9 });
+    assert.deepEqual([r.usingCumulative, r.payLimited], [false, false]);
+    assert.equal(r.tax, computeTax(3142.84, '1257L', T2627).tax);
+  });
   test('cumulative PAYE: the deductions together never exceed the pay — a mistyped Tax Paid', () => {
     const ni = computeNI(3142.84, T2627.ni), sl = computeSL(3142.84, 'plan2', T2627.sl);
     for (const other of [ni, ni + sl]) {
@@ -1351,11 +1359,33 @@ describe('Year to Date figures must fit the tax code before the cumulative metho
     assert.deepEqual(at(normalWay + 2.01).ytdMisfit, { expected: normalWay, paid: normalWay + 2.01 });
   });
 
-  test('UNDER the code is a code lowered mid-year: still cumulative, and the shortfall is collected', () => {
+  // UNDER THE CODE TOO (owner, 21 Nov 2026). It was read as a code lowered mid-year and collected in
+  // one payslip; in practice it was a Settings code with less tax-free pay than the payslip's, or
+  // figures filed one payslip early, and the whole year's "shortfall" landed on the next payslip.
+  test('UNDER the code is not used either: the payslip is taxed on its own, and the two figures are reported', () => {
     const r = computeTax(NINTH, '1100L', T26, { ytdPay, ytdTax: normalWay - 300, periodN: 9 });
-    assert.equal(r.usingCumulative, true);
-    assert.equal(r.ytdMisfit, null);
-    approx(r.tax, dueBy('1100L', T26, ytdPay + NINTH, 9) - normalWay + 300, 'the £300 short comes back on this payslip', 0.005);
+    assert.equal(r.usingCumulative, false);
+    assert.equal(r.tax, computeTax(NINTH, '1100L', T26).tax, 'this payslip on its own — not the £300 on top');
+    assert.deepEqual(r.ytdMisfit, { expected: normalWay, paid: normalWay - 300 });
+  });
+
+  test('the line is £2 under the code as well as over — and not a penny more', () => {
+    const at = (/** @type {number} */ paid) => computeTax(NINTH, '1100L', T26, { ytdPay, ytdTax: paid, periodN: 9 });
+    assert.equal(at(normalWay - 2).usingCumulative, true, '£2 under still fits');
+    assert.equal(at(normalWay - 2.01).usingCumulative, false, '£2.01 under does not');
+  });
+
+  test('the owner\'s case: a payslip on 1383M, Settings left at 1257L — the old answer charged the year again', () => {
+    // Eight payslips of £3,142.84 on 1383M, worked out the normal way; the ninth priced on 1257L.
+    const pay = 3142.84, onPayslip = dueBy('1383M', T26, pay * 8, 8);
+    const r = computeTax(pay, '1257L', T26, { ytdPay: pay * 8, ytdTax: onPayslip, periodN: 9 });
+    assert.equal(r.usingCumulative, false, 'figures from 1383M do not fit 1257L');
+    assert.equal(r.tax, computeTax(pay, '1257L', T26).tax, 'so the ninth is priced on its own, not with the year\'s difference on top');
+  });
+
+  test('a K code under its working still runs cumulatively: the 50% limit leaves its Tax Paid short by design', () => {
+    const r = computeTax(NINTH, 'K300', T26, { ytdPay, ytdTax: dueBy('K300', T26, ytdPay, 8) - 300, periodN: 9 });
+    assert.deepEqual([r.usingCumulative, r.ytdMisfit], [true, null]);
   });
 
   // THE SECOND PAYSLIP IS CHECKED TOO (17 Nov 2026). Only the year's FIRST payslip has nothing before

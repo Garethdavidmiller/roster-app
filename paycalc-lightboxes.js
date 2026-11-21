@@ -123,6 +123,7 @@ export function initPaycalcLightboxes() {
     // in front of them. Opened over that card, it would cover the two boxes it asks them to fill —
     // so it counts as seen, and a later visit does not tell them a second time.
     if (window.location.hash === '#payslipCard') { lsSet(NOTICE_YTD_KEY, '1'); return noop; }
+    if (window.location.hash) return noop;   // a link opened another card — never cover it (21 Nov 2026)
     if (_ownerPending) return noop;   // data-ownership prompt takes priority this load
 
     const lb = document.getElementById('noticeYtdLightbox');
