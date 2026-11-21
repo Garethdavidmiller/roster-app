@@ -418,7 +418,7 @@
       </div>
     </div>
     <div class="save-row">
-      <span class="save-status" id="saveStatus">No entries saved for this period</span>
+      <span class="save-status" id="saveStatus">No entries saved for this payslip</span>
       <button type="button" class="clear-btn" id="clearBtn">Clear all entries</button>
     </div>
     <a class="roster-view-link" id="rosterViewLink" href="./">← View these dates in your roster calendar</a>
@@ -460,7 +460,7 @@
         <p class="visually-hidden" id="rosterFillStatus" role="status" aria-live="polite"></p>
         <div class="roster-card-actions">
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from calendar</button>
-          <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
+          <button class="roster-days-toggle" id="rosterDaysToggle" type="button" aria-expanded="false" aria-controls="rosterDayList" style="display:none">Show days ▼</button>
         </div>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
@@ -743,13 +743,13 @@
     <div class="bp-active-banner" id="bpActiveBanner" style="display:none">
       <span class="banner-text" id="bpBannerText"></span>
       <label class="banner-optin"><input type="checkbox" id="bpBannerTick"><span>Add this lump sum to this payslip's take-home estimate</span></label>
-      <button type="button" class="banner-link" id="bpBannerViewLink">view back pay card</button>
+      <button type="button" class="banner-link" id="bpBannerViewLink">Open Pay Rise Back Pay</button>
       <div class="bp-banner-note" id="bpBannerNote"></div>
     </div>
     <div class="hpp-active-banner" id="hppActiveBanner" style="display:none">
       <span class="banner-text" id="hppBannerText"></span>
       <label class="banner-optin"><input type="checkbox" id="hppBannerTick"><span>Add this to this payslip's take-home estimate</span></label>
-      <button type="button" class="banner-link" id="hppBannerViewLink">view HPP card</button>
+      <button type="button" class="banner-link" id="hppBannerViewLink">Open Holiday Pay Premium</button>
       <div class="bp-banner-note" id="hppBannerNote"></div>
     </div>
     <!-- Hidden by the CLASS, which is what paycalc-app.js toggles: with an inline display:none as well,
@@ -800,7 +800,7 @@
       </div>
     </div>
     <button type="button" class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
-      Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
+      Full pay breakdown <span class="bd-arrow">▼</span>
     </button>
     <div class="bd-body" id="bdBody">
       <div id="bdRows"></div>
@@ -831,7 +831,7 @@
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
         <h2><span aria-hidden="true">📊</span> Year to Date Figures</h2>
-        <span class="hint">Optional — sharpens the tax estimate; copy two figures from your latest payslip</span>
+        <span class="hint">Optional — copy two figures from the newest payslip you have; they sharpen the tax on the payslip after it</span>
       </div>
       <div class="card-header-actions">
         <!-- Status chip (v18.40 — review item 6): whether the entered figures sharpen the VIEWED
@@ -864,7 +864,7 @@
             </div>
           </div>
         </div>
-        <div class="field-hint">Both are in the <strong>Year to Date</strong> box at the bottom left of your payslip. Check the tax code in Your Settings is the one at the top of the same payslip: with the wrong code, these figures make the estimate less accurate, not more.</div>
+        <div class="field-hint">Both are in the <strong>Year to Date</strong> box at the bottom left of your payslip. They sharpen the tax on the payslip <strong>after</strong> the one you copy them from, not on that one. Check the tax code in Your Settings is the one at the top of the same payslip: with the wrong code, these figures make the estimate less accurate, not more.</div>
       </div>
 
       <!-- Source payslip anchor (v17.98): records WHICH payslip the two totals were copied from,
@@ -899,7 +899,7 @@
     <div class="card-body collapsible-body" id="hppCardBody">
 
       <!-- Explainer leads the card so a member reads WHAT HPP is before meeting last year's figure. -->
-      <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered on each payslip above. <button type="button" class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
+      <p class="card-explainer">When you take annual leave, Chiltern only pays your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered on each payslip above. <button type="button" class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
 
       <!-- Prior year HPP — hidden when viewing the first tax year (no prior year exists) -->
       <div id="priorHppSection" class="hidden">
@@ -1074,7 +1074,7 @@
         <select id="backPayPeriod">
           <option value="">— select when the lump sum will land —</option>
         </select>
-        <div class="field-hint">Pick the payslip the lump sum will land on — you’ll get a tax note for that period.</div>
+        <div class="field-hint">Pick the payslip the lump sum will land on — that payslip then shows how the lump sum is taxed.</div>
         <!-- Opt-in state-holder — the VISIBLE control lives in the paid-in-period banner
              (#bpBannerTick) which proxies this tick. Kept in the DOM (hidden) so calcBackPay /
              _saveBpState / restoreBpState keep reading it on every period (v17.30). -->
@@ -1088,7 +1088,7 @@
       <div class="backpay-notice" id="backPayNotice" style="display:none"></div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
       <button type="button" class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
-        Per-period breakdown &nbsp;<span class="bd-arrow">▼</span>
+        Per-period breakdown <span class="bd-arrow">▼</span>
       </button>
       <div class="bd-body" id="backPayRows"></div>
     </div>
@@ -1099,14 +1099,14 @@
     <div class="card-header card-header-toggle" id="decimalConverterToggle">
       <div>
         <h2><span aria-hidden="true">🔢</span> Decimal Hours Converter</h2>
-        <span class="hint">Chiltern payslips show hours as decimals — convert here</span>
+        <span class="hint">Turn a payslip decimal into hours and minutes</span>
       </div>
       <div class="card-header-actions">
         <span class="card-toggle-arrow">▼</span>
       </div>
     </div>
     <div class="card-body collapsible-body" id="decimalConverterBody">
-      <p class="card-explainer">Your payslip shows hours as a decimal — <strong>7.5</strong> means 7&nbsp;hours 30&nbsp;minutes, <strong>0.25</strong> means 15&nbsp;minutes. Convert a figure here before typing it in above.</p>
+      <p class="card-explainer">Your payslip shows hours as a decimal — <strong>7.5</strong> means 7&nbsp;hours 30&nbsp;minutes, <strong>0.25</strong> means 15&nbsp;minutes. Convert one here to check a payslip line. The hours boxes above take decimals as they are.</p>
       <div class="decimal-conv-row">
         <div class="decimal-conv-field">
           <label for="decimalHrsInput">Decimal from payslip</label>
@@ -1192,7 +1192,7 @@
        and the Home Screen app are two browsers to the figures, each with its own copy. -->
   <div class="disclaimer">
     <p class="disclaimer-privacy">🔒 Your pay data is saved in this browser on this device. The app never sends it to a server.</p>
-    <p class="disclaimer-text">⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app works out tax the way payroll does — adding up the whole year so far — usually closer to your real payslip, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button></p>
+    <p class="disclaimer-text">⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your tax-free allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app works out the next payslip's tax the way payroll does — adding up the whole year so far — usually closer to your real payslip, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button></p>
   </div>
 
 

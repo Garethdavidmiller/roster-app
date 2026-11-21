@@ -2,17 +2,18 @@
 /**
  * paycalc-backpay.js — Back-pay lump sum calculator for paycalc.html.
  *
- * Owns: prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, and the pure story strip
- *   (bpStoryHtml).
- * Does NOT own: coordinator state (_bpAmount/_bpPNum live in paycalc-app.js),
- *   calculation engine (paycalc-app.js), settings (paycalc-settings.js), which figure goes in
- *   which box (paycalc-backpay-state.js), or the award arithmetic itself
- *   (paycalc-backpay-accrual.js — re-exported below, so its importers are unchanged).
+ * Owns: prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, the pure story strip
+ *   (bpStoryHtml), and the card's state as the take-home reads it (bpState, and the wrappers that
+ *   adopt calcBackPay's answer — runCalcBackPay, applyBpRisePct, refreshBackPayCard,
+ *   syncBackPayForViewedYear; moved from paycalc-app.js, Nov 2026).
+ * Does NOT own: the calculation engine (paycalc-app.js), settings (paycalc-settings.js), which
+ *   figure goes in which box (paycalc-backpay-state.js), or the award arithmetic itself
+ *   (paycalc-backpay-accrual.js — imported from there by everyone, the tests included).
  * Edit here for: back-pay calculation logic, lump sum breakdown rendering.
  * Do not edit here for: pay maths, period navigation, HPP formula.
  *
- * calcBackPay() returns { bpAmount, bpVarAmount, bpPNum, bpIsEstimate, bpIncluded } — coordinator
- * (paycalc-app.js) compares against its own state and calls calculate() if changed.
+ * calcBackPay() returns { bpAmount, bpVarAmount, bpPNum, bpIsEstimate, bpIncluded }; the wrappers
+ * at the foot compare it with bpState and re-price (onBackPayChange → calculate()) if it changed.
  */
 
 import { parseSmartFloat } from './roster-data.js';
@@ -20,13 +21,13 @@ import {
   getTaxYearForOffset, taxYearForPeriod, awardRatesFor, awardFromForYear,
 } from './paycalc-calc.js';
 import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
-import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
-export { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
+import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod, awardWindow } from './paycalc-backpay-accrual.js';
 import { awardGrade, getEffectiveContr, getProRateFactor, settledRate } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
-import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
-import { fd, fdShort, fdLong, fdList, fmt } from './paycalc-format.js';
+import { _decodeHours } from './paycalc-hpp.js';
+import { fd, fdShort, fdLong, fdList, fmt, isDataEmpty } from './paycalc-format.js';
+import { numVal } from './paycalc-inputs.js';
 import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod, blobFitsGrade } from './paycalc-backpay-state.js';
 
 import { setStatus } from './status-text.js';
@@ -156,7 +157,7 @@ export function prefillBackPay() {
   // If the award YEAR changed since the boxes were last filled, the old year's figures are
   // meaningless — clear them so this year's real rates prefill in below (the fills are blank-guarded,
   // so without this a stale 2026/27 estimate would persist under a 2025/26 label). Within a year the
-  // guard is a no-op, preserving any manual corrections. Coordinator's _applyBpRisePct then refills a
+  // guard is a no-op, preserving any manual corrections. applyBpRisePct (below) then refills a
   // cleared New from the % (pending) or leaves the prefilled New (settled).
   if (_lastAwardYear !== ty.label) {
     for (const el of [oldRateEl, newRateEl, oldLondonEl, newLondonEl, pctEl0]) if (el) el.value = '';
@@ -209,7 +210,7 @@ export function prefillBackPay() {
     if (!oldRateEl.value)   oldRateEl.value   = settledRate(_grade, ty).toFixed(2);
     if (!oldLondonEl.value) oldLondonEl.value = ty.londonAllow.toFixed(2);
     // Default the "Pay rise %" to THIS year's offered award, when one is on record, so the card opens
-    // with an estimate. The coordinator's _applyBpRisePct() then derives the New rate/London from it.
+    // with an estimate. applyBpRisePct() (below) then derives the New rate/London from it.
     // Adjustable — and only for the unconfirmed award year (once real rates are known this branch
     // isn't taken).
     const pctEl = /** @type {HTMLInputElement | null} */ (document.getElementById('bpRisePct'));
@@ -218,7 +219,7 @@ export function prefillBackPay() {
   } else {
     // Settled award (e.g. 2025/26): the NEW rate is on record too, so prefill it — a historic
     // award opens fully populated (CEA 2025/26: old £20.06 → new £20.74). No "Pay rise %" default
-    // (the real figures are known), so _applyBpRisePct is a no-op and won't touch these boxes.
+    // (the real figures are known), so applyBpRisePct is a no-op and won't touch these boxes.
     if (!newRateEl.value && award && award.rate != null) newRateEl.value = award.rate.toFixed(2);
     if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
     if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
@@ -738,16 +739,13 @@ export function calcBackPay() {
   // The window's payslips, and those the member was employed for: none of them means they joined
   // after the period the award covers, which is its own state, not "nothing … yet" (paycalc-2-17).
   let _inWindow = 0, _employedInWindow = 0;
-  periods.forEach(/** @param {any} p */ p => {
+  // The window (awardWindow, the one definition): the award tax year's payslips from its first
+  // (fromPNum, _backdatedFromPNum) — never a following year's, so a "paid in" period there cannot
+  // apply 2025/26's rate diff to 2026/27 work — none paid on or after the award date (they owe no
+  // arrears; without this a historic award viewed at a late period double-counts), up to the cap.
+  // A cap of 0 has always meant none here (`_capPNum &&`), hence `|| Infinity`.
+  awardWindow(periods, awardTy, { capNum: _capPNum || Infinity, awardFrom: _awardFrom }).forEach(/** @param {any} p */ p => {
     try {
-      if (p.num < fromPNum) return;   // fromPNum is always the award year's first period (_backdatedFromPNum)
-      if (_capPNum && p.num > _capPNum) return;
-      // Skip periods outside the award tax year (e.g. when "paid in" period is
-      // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
-      if (awardTy && getTaxYearForOffset(p.num - 48) !== awardTy) return;
-      // Skip periods already paid at the new rate (a settled award's mid-year application date) — they
-      // owe no arrears. Without this the accrual would double-count a historic award viewed at a late period.
-      if (_awardFrom && p.payday >= _awardFrom) return;
       _inWindow++;
       if (getProRateFactor(p) > 0) _employedInWindow++;
       const parsed = readSavedPeriod(p.num);
@@ -834,7 +832,7 @@ export function calcBackPay() {
         ? 'ℹ️ The lump sum was taxed in full on that payslip.'
         : '⚠️ The lump sum is taxed in full on that payslip — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.';
     } else {
-      setStatus(noticeEl, '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.');
+      setStatus(noticeEl, '⚠️ This lump sum is taxed in the period it is paid. Choose the payslip above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.');
     }
     if (_basicOnly.length) {
       // ITS OWN PARAGRAPH (v21.70). This used to be appended after a leading space onto the tax
@@ -892,4 +890,80 @@ export function calcBackPay() {
   // PENDING_AWARD_PCT, or typed) — the result card must say "estimated" wherever it surfaces this figure.
   return { bpAmount: newBpAmt, bpVarAmount: newBpVarAmt, bpPNum: newBpPNum,
            bpIsEstimate: !!awardTy?.rateUnconfirmed, bpIncluded };
+}
+
+// ── THE CARD'S STATE, AS THE TAKE-HOME READS IT (moved from paycalc-app.js, Nov 2026) ─────────
+
+/** What calculate() prices from this card — set only by `_applyBpState`. bpVarAmount is not tracked:
+ *  nothing consumes it since HPP stopped taking back pay, and any change to it moves the amount too. */
+const _bp = { amount: 0, pNum: 0, isEstimate: false, included: false, fromPayslip: false };
+/** @type {() => void} */ let _onBpChange = () => {};
+
+/** The card's state as the result card reads it (a copy). @returns {typeof _bp} */
+export function bpState() { return { ..._bp }; }
+
+/** The coordinator's re-price, run whenever the card's state changes. @param {() => void} fn */
+export function onBackPayChange(fn) { _onBpChange = fn; }
+
+/** Adopt what calcBackPay()/prefillBackPay() return, and re-price only if it changed. The amount
+ *  source is read off the card's own radio once the card has settled it — calcBackPay can put a manual
+ *  pick back to compute — and is part of the state, because a typed lump can equal the worked-out one
+ *  to the penny and the banner's note must still follow the switch.
+ *  @param {{ bpAmount: any, bpPNum: any, bpIsEstimate?: boolean, bpIncluded?: boolean }} r */
+function _applyBpState({ bpAmount, bpPNum, bpIsEstimate = false, bpIncluded = false }) {
+  const fromPayslip = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpModeManual'))?.checked);
+  if (bpPNum !== _bp.pNum || bpIsEstimate !== _bp.isEstimate || bpIncluded !== _bp.included
+      || fromPayslip !== _bp.fromPayslip || Math.abs(bpAmount - _bp.amount) > 0.001) {
+    Object.assign(_bp, { amount: bpAmount, pNum: bpPNum, isEstimate: bpIsEstimate, included: bpIncluded, fromPayslip });
+    _onBpChange();
+  }
+}
+
+/** Recompute the card from its boxes and adopt the result. */
+export function runCalcBackPay() { _applyBpState(calcBackPay()); }
+
+// Last values auto-filled into the New rate/London boxes, so applyBpRisePct can tell a still-auto
+// value (safe to refresh) from one the member has hand-corrected (must not clobber).
+let _bpAutoNewR = '', _bpAutoNewL = '';
+/** "Pay rise %" shortcut: with a percentage entered, fill New rate/London from Old × (1 + %). A
+ *  convenience only — the New boxes stay editable, and a blank % keeps them fully manual. Re-runs
+ *  whenever the % or either Old figure changes. */
+export function applyBpRisePct() {
+  const pct = numVal('bpRisePct');
+  if (pct > 0) {
+    const newREl = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
+    const newLEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
+    const newR = raiseByPercent(numVal('oldRate'),   pct);
+    const newL = raiseByPercent(numVal('oldLondon'), pct);
+    // Only a New box that is blank or still holds our last auto value — never a hand-corrected one.
+    if (newR && (newREl.value === '' || newREl.value === _bpAutoNewR)) { newREl.value = newR.toFixed(2); _bpAutoNewR = newREl.value; }
+    if (newL && (newLEl.value === '' || newLEl.value === _bpAutoNewL)) { newLEl.value = newL.toFixed(2); _bpAutoNewL = newLEl.value; }
+  }
+  runCalcBackPay();
+}
+
+/** Prefill + recompute the card for the selected award year: on card open, and on a period change
+ *  through syncBackPayForViewedYear (so switching tax years re-prefills the rates). */
+export function refreshBackPayCard() {
+  _applyBpState(prefillBackPay());
+  applyBpRisePct();
+}
+
+/** Sync the card to the VIEWED award year: restore that year's own saved blob, or — with none —
+ *  prefill its default (compute for the current award, enter-from-payslip for a prior one). Runs at
+ *  init AND on every period change, so the banner and the take-home follow the payslip on screen;
+ *  per-year keys (bpKey(ty)) load each year's state rather than resetting its tick. */
+export function syncBackPayForViewedYear() {
+  if (!restoreBpState()) { refreshBackPayCard(); return; }
+  // Re-seed the "these New values came from the %" markers, so a restored box the member corrected
+  // by hand is never re-filled by applyBpRisePct.
+  const _rv = /** @param {string} id */ id => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
+  const _pct = parseFloat(_rv('bpRisePct'));
+  if (_pct > 0) {
+    const dR = raiseByPercent(parseFloat(_rv('oldRate'))   || 0, _pct);
+    const dL = raiseByPercent(parseFloat(_rv('oldLondon')) || 0, _pct);
+    if (dR && _rv('newRateInput') === dR.toFixed(2)) _bpAutoNewR = _rv('newRateInput');
+    if (dL && _rv('newLondon')    === dL.toFixed(2)) _bpAutoNewL = _rv('newLondon');
+  }
+  runCalcBackPay();
 }

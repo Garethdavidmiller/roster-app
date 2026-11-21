@@ -124,6 +124,9 @@ export function renderYearCard({ ty, plan, pgLoan, slPaidOffFromP, bpLump }) {
         `<div class="yearso-row"><span class="lbl">${lbl}</span><span class="val">≈ ${fmt(val)}</span></div>`;
     el.innerHTML =
         `<div class="yearso-head">This tax year so far <span class="yearso-count">${y.entered} of ${y.paid} paid payslip${y.paid !== 1 ? 's' : ''} entered</span></div>` +
+        // Said because the Year to Date card beside it asks for "Taxable Pay" and "Tax Paid": these are
+        // this calculator's own sums, and copying them there would feed the estimate back to itself.
+        `<div class="yearso-proj">Added up from what you've entered here — not the figures printed on your payslip.</div>` +
         row('Taxable pay', y.taxable) + row('Tax', y.tax) + row('National Insurance', y.ni) +
         (y.sl > 0 ? row('Student Loan', y.sl) : '') +
         row('Take-home', y.net) +

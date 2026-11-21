@@ -320,6 +320,13 @@ shown that yet.
   alone. The accepted cost: a code raised since that payslip, already typed in, gets the standard
   figure, with a line saying payroll may give some back. Rule: `.claude/rules/paycalc.md` →
   invariant 18.
+  **Extended to figures UNDER the code (owner, 21 Nov 2026).** The owner found the next payslip's tax
+  too high after entering Year to Date figures. Under the code had been read as a code lowered
+  mid-year, which cumulative PAYE collects; a review found it was far more often a Settings code with
+  less tax-free pay than the payslip's (often the 1257L default) or figures filed one payslip early,
+  and each charged the whole year's "shortfall" on the next payslip with nothing said. The accepted
+  cost: a code genuinely lowered since gets the standard figure, with a line saying payroll may take
+  more. K codes stay over-only, because the 50% limit leaves their Tax Paid short by design.
 
 - **The Pay Calculator's "other payslip adjustment" stays TAXED, and expense refunds stay out of it**
   (owner, 7 Oct 2026). The guide used to suggest an expense belonged there, but the box is added to

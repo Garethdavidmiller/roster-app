@@ -145,10 +145,9 @@ mock.module('./session.js', {
 
 mock.module('./paycalc-roster-suggestions.js', {
     namedExports: {
-        // Pure lookup in the real module, but it cannot come along: its own file reaches Firebase.
-        // Bank holidays only move the pay ARITHMETIC, which is paycalc-year-summary's subject, not
-        // this file's — every count and list asserted below is independent of them.
-        bhsForYear: () => [],
+        // (Bank holidays are the real ones now — bhsForYear moved to paycalc-periods.js, Nov 2026. They
+        // only move the pay ARITHMETIC, which is paycalc-year-summary's subject, not this file's —
+        // every count and list asserted below is independent of them.)
         getOverridesFetchState: () => 'loaded',
         // Recorded, so section D can see the stale-fetch invalidation happen before the restore.
         resetOverrides: () => { _events.push('reset'); },

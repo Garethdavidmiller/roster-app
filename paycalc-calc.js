@@ -1,7 +1,7 @@
 // @ts-check
 // MYB Roster — Pay Calculator core maths
 // Pure functions only — no DOM, no Firebase, no browser globals.
-// Imported by paycalc-app.js (browser) and paycalc.test.mjs (Node test runner).
+// Imported by most of the paycalc-*.js modules (browser) and their tests (Node test runner).
 
 export const P_YR = 13; // 13 four-weekly pay periods per year
 
@@ -223,7 +223,8 @@ export function awardFromForYear(tyLabel) {
 /**
  * True if `p` is a period paid BEFORE its tax year's award was applied — i.e. it was paid at the
  * prior year's (pre-award) rate. Requires a recorded `pre` rate AND an award date, AND payday < that
- * date. Single predicate: getRateForPeriod, updateRateForPeriod and confirmSettings, and the header hint.
+ * date. Single predicate, called by getRateForPeriod and periodRate (paycalc-settings.js) — which
+ * calculate(), the rate field (updateRateForPeriod) and the Settings summary (settingsSummary) all read.
  * @param {{ payday: Date }} p
  * @param {string} grade
  * @param {string} tyLabel
@@ -249,8 +250,8 @@ export function isPreAwardPeriod(p, grade, tyLabel) {
  * @returns {number}
  */
 export function getRateForPeriod(p, grade, tyLabel, settledRate) {
-  const a = awardRatesFor(grade, tyLabel);
-  return (a && a.pre != null && isPreAwardPeriod(p, grade, tyLabel)) ? a.pre : settledRate;
+  // isPreAwardPeriod is true only with a recorded `pre` for this grade and year, so it is never null here.
+  return isPreAwardPeriod(p, grade, tyLabel) ? /** @type {number} */ (awardRatesFor(grade, tyLabel)?.pre) : settledRate;
 }
 
 // HPP formula confirmed by Chiltern payroll (Marie Firby): (Gross − Basic) × 4/52
@@ -316,12 +317,18 @@ export function calcBandedTax(taxable, bands, scale = 1) {
 }
 
 /**
- * Return the TAX_YEARS entry whose offset range contains the given period offset.
- * Falls back to the first entry if not found.
+ * Return the TAX_YEARS entry whose offset range contains the given period offset — or, outside the
+ * table, the NEAREST year: the first before its range, the last after it (Nov 2026 debt pass). It
+ * fell back to the first year either side, so a payslip past the table's end (the 2027/28 rollover
+ * not yet done) read as 2025/26 — its rates, its award, its window. No payslip the page offers is
+ * outside the table (the period grid is the table's own range), so this changes no figure today;
+ * it stops a missed rollover reaching two years back.
  * @param {number} offset - Period number relative to P48 anchor.
  */
 export function getTaxYearForOffset(offset) {
-  return TAX_YEARS.find(ty => offset >= ty.first && offset <= ty.last) || TAX_YEARS[0];
+  const found = TAX_YEARS.find(ty => offset >= ty.first && offset <= ty.last);
+  if (found) return found;
+  return offset > TAX_YEARS[TAX_YEARS.length - 1].last ? TAX_YEARS[TAX_YEARS.length - 1] : TAX_YEARS[0];
 }
 
 /**
@@ -539,8 +546,8 @@ export function readTaxCode(taxCode) {
 }
 
 /**
- * How far the Year to Date Tax Paid may be ABOVE a normal working of the code before the figures are
- * judged not to come from it (owner, 15 Nov 2026). Real payslips worked out the normal way land
+ * How far the Year to Date Tax Paid may be above or below a normal working of the code before the
+ * figures are judged not to come from it (owner, 15 Nov 2026; below too from 21 Nov). Real payslips worked out the normal way land
  * within 25p of this calculator's own cumulative figure (paycalc.md → "(code × 10) + 9"), so £2 is
  * rounding room, not a margin of opinion. computeTax says why it is there.
  */
@@ -660,12 +667,22 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // payslip on its own (a week 1 / month 1 basis nothing on the payslip names), a code that has
     // just changed, or a mistyped figure. The cumulative method then reported the difference as a
     // REFUND and took no tax at all: a take-home a whole payslip's tax too high, on the screenshot that
-    // reported it. So such figures are not used, and the result says why. Only OVER the code: below it is a
-    // code lowered mid-year, which real cumulative PAYE collects exactly as the method below does.
+    // reported it. So such figures are not used, and the result says why.
+    // AND UNDER THE CODE TOO (owner, 21 Nov 2026). It was over only, on the reading that Tax Paid
+    // below the code is a code lowered mid-year, which cumulative PAYE collects. In practice it was
+    // far more often a code in Your Settings with LESS tax-free pay than the payslip's (often the
+    // 1257L default left in place), or figures filed one payslip early — and each charged the whole
+    // year's "shortfall" on the next payslip, unflagged (£609.60 where £415.80 was right). The cost,
+    // accepted: a code genuinely lowered since gets this payslip's tax on its own, and the line says
+    // payroll may take more. K codes are left out of this side: the 50% limit below legitimately
+    // leaves a K-code year's Tax Paid short, and payroll collects the rest later, as this method does.
     // Period 1 has no payslip before it in the year, so there is nothing to compare.
     if (N > 1) {
       const expected = taxPennies(taxOnAmount(ytdPay, N - 1));
-      if (ytdTax - expected > YTD_FIT_TOLERANCE) return { ...standard(), ytdMisfit: { expected, paid: ytdTax } };
+      const gap = ytdTax - expected;
+      if (gap > YTD_FIT_TOLERANCE || (gap < -YTD_FIT_TOLERANCE && !isKCode)) {
+        return { ...standard(), ytdMisfit: { expected, paid: ytdTax } };
+      }
     }
     const cumGross = ytdPay + sacGross;
     const cumTaxDue = taxPennies(taxOnAmount(cumGross, N));   // the year's liability, to the penny below
@@ -726,4 +743,46 @@ export function computeSL(sacGross, plan, slByYear, skip = false) {
   // by the PAYSLIP_ACTUALS.sl regression in paycalc.test.mjs.
   const threshold = Math.floor(slPlan.t * 100) / 100;   // penny-floored periodic threshold
   return Math.floor(Math.max(0, sacGross - threshold) * slPlan.r);
+}
+
+/**
+ * Price ONE payslip from its gross: the pension off the top (salary sacrifice), then National
+ * Insurance and the student loans on what is left, then income tax, then the take-home as the
+ * summary rows show it. The ONE pricing pipeline (Nov 2026 debt pass): `calculate()` in
+ * paycalc-app.js and `computeYearSoFar` in paycalc-year-summary.js each hand-rolled this sequence,
+ * held together only by a third copy in a test, so a deduction rule changed in one could silently
+ * leave the year so far disagreeing with the payslips it sums.
+ *
+ * It decides NOTHING about its inputs: which gross (lumps folded in or not), which pension (the box,
+ * the saved figure, the opt-out spell, the period default), whether the loans have stopped, and
+ * whether the Year to Date figures may be used at all (`calculate()`'s source + 1 anchoring) all
+ * belong to the caller. NI and the loans come BEFORE the tax because neither depends on it and the
+ * cumulative tax is bounded by what they leave (`otherDeductions`, computeTax).
+ *
+ * @param {object} i
+ * @param {number} i.gross        - the payslip's gross BEFORE the pension, any opt-in lumps included
+ * @param {number} i.pension      - the pension deducted, already resolved and floored by the caller
+ * @param {string} i.taxCode      - the Tax Code box's text (computeTax reads it through readTaxCode)
+ * @param {{ tax: any, scottishTax: any, ni: any, sl: any }} i.thresholds - getThresholds() for its year
+ * @param {string} i.plan         - the undergraduate plan, 'none' for none
+ * @param {boolean} i.pgLoan      - a Postgraduate Loan as well
+ * @param {boolean} [i.slSkip]    - this payslip's "not deducted this period" tick
+ * @param {boolean} [i.slPaidOff] - deductions have stopped from an earlier payslip (both loans)
+ * @param {{ ytdPay?: number|null, ytdTax?: number|null, periodN?: number|null }} [i.taxOptions] -
+ *   handed to computeTax as they are (the Year to Date figures and period number); its
+ *   `otherDeductions` is this payslip's NI + loans, set here
+ * @returns {ReturnType<typeof computeTax> & { sacGross: number, ni: number, slUnder: number,
+ *   slPost: number, sl: number, afterPension: number, net: number }}
+ *   sacGross — the UNROUNDED pay after pension the deductions are worked out on; afterPension and
+ *   net — the summary's rows, to the penny (takeHomePay).
+ */
+export function pricePayslip({ gross, pension, taxCode, thresholds, plan, pgLoan, slSkip = false, slPaidOff = false, taxOptions = {} }) {
+  const sacGross = Math.max(0, gross - pension);
+  const ni       = computeNI(sacGross, thresholds.ni);
+  const slUnder  = slPaidOff ? 0 : computeSL(sacGross, plan, thresholds.sl, slSkip);
+  const slPost   = (pgLoan && !slPaidOff) ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
+  const sl       = slUnder + slPost;
+  const taxed    = computeTax(sacGross, taxCode, thresholds, { ...taxOptions, otherDeductions: ni + sl });
+  const { afterPension, net } = takeHomePay({ gross, pension, tax: taxed.tax, ni, sl });
+  return { ...taxed, sacGross, ni, slUnder, slPost, sl, afterPension, net };
 }

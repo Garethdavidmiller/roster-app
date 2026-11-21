@@ -13,11 +13,12 @@
  * Do not edit here for: pay maths, period date maths, roster pre-fill.
  */
 
-import { GRADES, taxYearForPeriod, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
+import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRateForPeriod, isPreAwardPeriod, awardRatesFor, awardFromForYear } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, appendPayslipOptions, offerRecordedPayslip } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix, readSavedPeriod } from './paycalc-migrations.js';
 import { gradeForRole } from './roster-data.js';
 import { byDays, gradeSplitLine, windowGrade } from './paycalc-grade.js';
+import { awardWindow } from './paycalc-backpay-accrual.js';
 import {
   getGradeSetting, gradeDaysFor, getContr, getLoggedMember, gradeToOffer, renderGradePrompt,
   saveGradeSetting, loadGradeSetting, isPeriodPriced, unpricedLineFor,
@@ -336,11 +337,9 @@ export function settledRateFor(p, ty = taxYearForPeriod(p)) {
  */
 export function awardGrade(awardTy) {
   if (awardTy) {
-    const awardFrom = awardFromForYear(awardTy.label);
-    const cap = todaysPeriodNum();
-    const parts = getPeriods()
-      .filter(/** @param {any} p */ p => p.num >= 48 + awardTy.first && p.num <= cap
-        && getTaxYearForOffset(p.num - 48) === awardTy && !(awardFrom && p.payday >= awardFrom))
+    // The window calcBackPay accrues (awardWindow), capped at today's payslip only — as it always
+    // has been here; the card also stops before the payslip the lump is paid in.
+    const parts = awardWindow(getPeriods(), awardTy, { capNum: todaysPeriodNum() })
       .flatMap(/** @param {any} p */ p => gradeDaysFor(p));
     const { grade, mixed } = windowGrade(parts);
     if (mixed) console.warn('[PayCalc] back pay: the ' + awardTy.label + ' award window spans a change of grade — priced at the later one');

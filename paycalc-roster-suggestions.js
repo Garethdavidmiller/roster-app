@@ -11,7 +11,8 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc-app.js).
  */
 
-import { getBaseShift, formatISO, getBankHolidays, parseISODate } from './roster-data.js';
+import { getBaseShift, formatISO, parseISODate } from './roster-data.js';
+import { bhsForYear } from './paycalc-periods.js';
 import { parseOtherValue, resolveOtherPay, OTHER_RDW_DEFAULT_MINS, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
@@ -92,18 +93,11 @@ export function getOverridesFetchState(p) {
 }
 
 // ── BANK HOLIDAY HELPERS ──────────────────────────────────────────────────────
-// Boxing Day (26 Dec) is handled separately at 3× rate, so it is excluded here.
-// Filtered list and a Set<MM-DD> are cached per year — both are hot in the 28-day
-// period scan in getRosterSuggestion and in hasBankHoliday() during recalc.
-const _bhYearCache = new Map();
+// The year's bank holidays less Boxing Day (bhsForYear) are pure period maths, so they live in
+// paycalc-periods.js (Nov 2026): kept here, they made that module — and every test of it — load this
+// file's Firestore import. A Set<MM-DD> per year is cached here, hot in getRosterSuggestion's
+// 28-day scan.
 const _bhDateKeyCache = new Map();
-export function bhsForYear(/** @type {any} */ year) {
-  if (!_bhYearCache.has(year)) {
-    _bhYearCache.set(year,
-      getBankHolidays(year).filter(/** @param {any} d */ d => !(d.getMonth() === 11 && d.getDate() === 26)));
-  }
-  return _bhYearCache.get(year);
-}
 
 function _isDateBH(/** @type {any} */ d) {
   const y = d.getFullYear();
@@ -199,7 +193,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
 
 // ── SUGGESTION ENGINE ─────────────────────────────────────────────────────────
 /** A bare Training day from the pattern, on a bank holiday: the contracted day (owner, 7 Nov 2026). */
-export const BARE_TRAINING_DAY_MINS = 7 * 60;
+const BARE_TRAINING_DAY_MINS = 7 * 60;
 /** How the day list names those 7 hours — a default the member checks, never a record. */
 const BARE_DAY_LABEL = `${BARE_TRAINING_DAY_MINS / 60}h default — adjust to actual`;
 

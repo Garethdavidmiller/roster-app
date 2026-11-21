@@ -33,8 +33,8 @@ const {
   fetchOverridesForPeriod,
   resetOverrides,
   getOverridesFetchState,
-  bhsForYear,
 } = await import('./paycalc-roster-suggestions.js');
+const { bhsForYear } = await import('./paycalc-periods.js');
 
 const { teamMembers, parseISODate, formatISO } = await import('./roster-data.js');
 const cReen = teamMembers.find(m => m.name === 'C. Reen');

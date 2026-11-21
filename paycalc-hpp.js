@@ -5,7 +5,6 @@
  * Owns: _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp, what a confirmed
  *   prior-year premium is stored as (priorHppToStore, commitPriorHppActual), and whether a year's
  *   premium is still the member's to estimate (premiumStillToEstimate — the January notice's reader).
- *   It re-exports isDataEmpty, which lives in paycalc-format.js.
  * Does NOT own: period arithmetic (paycalc-periods.js), settings (paycalc-settings.js),
  *   calculation engine (paycalc-app.js), back-pay (paycalc-backpay.js).
  * Edit here for: HPP maths, prior-year HPP section, variable-pay formula.
@@ -23,14 +22,13 @@ import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPa
 import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import { fmt, fdList, fdLong } from './paycalc-format.js';
 import { hppPayslipForTaxYear, hppPaidInTaxYear, periodsInTaxYear } from './paycalc-hpp-schedule.js';
-import { paidInPeriodNum, _awardBackdateDate, awardLumpNonPremium } from './paycalc-backpay-accrual.js';
+import { paidInPeriodNum, _awardBackdateDate, awardLumpNonPremium, awardWindow } from './paycalc-backpay-accrual.js';
 import { resolveAuthoritativeRates } from './paycalc-backpay-state.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
 // isDataEmpty (no hours or special flags entered) lives in paycalc-format.js — the fill-year module
-// needs it without this import chain — and is re-exported for the coordinator and paycalc-backpay.js.
-export { isDataEmpty } from './paycalc-format.js';
+// needs it without this import chain — and every caller imports it from there.
 import { isDataEmpty } from './paycalc-format.js';
 
 /**
@@ -187,10 +185,7 @@ function _expectedNonPremiumYtd(ty) {
   // no Taxable Pay figure, and counting its basic would leave the estimate a payslip's basic short.
   const now    = new Date();
   const capNum = srcNum || ([...getPeriods()].reverse().find(/** @param {any} p */ p => p.payday <= now)?.num ?? 0);
-  const covered = getPeriods().filter(/** @param {any} p */ p => {
-    const o = p.num - 48;
-    return o >= ty.first && o <= ty.last && p.num <= capNum;
-  });
+  const covered = periodsInTaxYear(ty, getPeriods()).filter(/** @param {any} p */ p => p.num <= capNum);
   const upTo = covered[covered.length - 1] ?? null;
   const unpriced = covered.find(/** @param {any} p */ p => !isPeriodPriced(p)) ?? null;
   if (unpriced) return { nonPremium: 0, count: covered.length, upTo, unpricedAward: null, unrecordedPremium: null, unpriced };
@@ -253,7 +248,7 @@ function _awardLumpInYear(ty, grade) {
   const carrier = periods.find(/** @param {any} p */ p => p.num === carrierNum);
   if (!carrier) return null;
   const nonPremium = awardLumpNonPremium({
-    window: periodsInTaxYear(ty, periods).filter(p => p.payday < from),
+    window: awardWindow(periods, ty, { awardFrom: from }),   // the award's own window, no cap (awardWindow)
     auth: resolveAuthoritativeRates(ty, awardRatesFor(grade, ty.label)),
     backdate: _awardBackdateDate(ty),
     effContr: getEffectiveContr, proRateFactor: getProRateFactor,
@@ -420,7 +415,7 @@ function _renderHppManual(ty, mode) {
       const part = y.upTo && yearLast && y.upTo.num < yearLast.num && payslipMayBeInHand(yearLast)
         ? ` <span class="hpp-partial-hint">It covers ${ty.label} only up to that payslip, so it may be low — the Year to Date pay on your ${fdLong(yearLast.payday)} payslip covers the whole year.</span>` : '';
       basisEl.innerHTML = !y.below
-        ? `Rough estimate from your Year to Date pay up to your ${fdLong(y.upTo.payday)} payslip: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay + London) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${part}${lumpNote}${premiumNote}`
+        ? `Rough estimate from your Year to Date pay up to your ${fdLong(y.upTo.payday)} payslip: ${fmt(extra)} premium pay (your Year to Date Taxable Pay minus expected basic pay and London Allowance) × 7.69% · due January ${ty.hppPaidJan} <span class="hpp-partial-hint">This is an approximation from your Year to Date pay — for the accurate figure, fill in your hours on each payslip in the calculator and choose the first option.</span>${part}${lumpNote}${premiumNote}`
         : `Your Year to Date Taxable Pay looks lower than the expected basic pay, so there's no premium to estimate from it — fill in your hours on each payslip in the calculator instead, or enter the figure yourself.`;
     }
     return;
@@ -449,12 +444,10 @@ function _renderHppManual(ty, mode) {
  *             paidCount: number, skipped: number[], total: number, missingPaid: Date[] }}
  */
 function _hoursEstimate(ty, allPeriods) {
-  const periods = allPeriods.filter(/** @param {any} p */ p => {
-    const o = p.num - 48;
-    // Exclude periods ENTIRELY before a mid-year joiner's start (getProRateFactor 0 — never for a
-    // noProRate return or a member with no startDate), and payslips under a role with no rates.
-    return o >= ty.first && o <= ty.last && getProRateFactor(p) !== 0 && isPeriodPriced(p);
-  });
+  // Exclude periods ENTIRELY before a mid-year joiner's start (getProRateFactor 0 — never for a
+  // noProRate return or a member with no startDate), and payslips under a role with no rates.
+  const periods = periodsInTaxYear(ty, allPeriods)
+    .filter(/** @param {any} p */ p => getProRateFactor(p) !== 0 && isPeriodPriced(p));
 
   let totalVar     = 0;
   let pCount       = 0;
@@ -769,10 +762,7 @@ export function updatePriorHpp(ty) {
   // from your Year to Date pay"), counted as done, and taken to the January payslip — a figure not on
   // record, dressed as one (paycalc.md invariant 1). Nothing is computed; the block asks for theirs.
   if (est === 0 && !hasActual && source === 'hours') {
-    const _priorPeriods = getPeriods().filter(/** @param {any} p */ p => {
-      const o = p.num - 48;
-      return o >= priorTy.first && o <= priorTy.last;
-    });
+    const _priorPeriods = periodsInTaxYear(priorTy, getPeriods());
 
     if (isActualsDev(getLoggedMember())) {
       const _act = readPayslipActuals();

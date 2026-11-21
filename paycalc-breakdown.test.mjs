@@ -149,6 +149,17 @@ test('buildSummaryRows: figures that do not fit the code say so under Income Tax
     assert.ok(!/don't fit/.test(buildSummaryRows({ ...SUM_BASE, taxYtdMisfit: null })), 'and when there is nothing to fit');
 });
 
+test('ytdMisfitNote: less paid than the code takes names the two things to check, and that payroll may take more', () => {
+    const under = ytdMisfitNote({ expected: 3721.80, paid: 3528.20 }, '1257L', '23 Oct');
+    assert.match(under, /would have taken about £3,721\.80 by your 23 Oct payslip, not £3,528\.20/);
+    assert.match(under, /Check the code on that payslip matches Your Settings, and that the figures came from it\./);
+    assert.match(under, /If your code was lowered since, payroll may take more than this\./);
+    assert.ok(!/give some back/.test(under), 'nothing comes back when less was paid');
+    const over = ytdMisfitNote({ expected: 3528.20, paid: 3721.80 }, '1257L', '23 Oct');
+    assert.match(over, /If your code has just changed, payroll may give some back\./);
+    assert.ok(!/take more/.test(over), 'and nothing more is taken when more was paid');
+});
+
 test('ytdMisfitNote: a code that is not plain letters and digits is described, never written in', () => {
     const note = ytdMisfitNote({ expected: 10, paid: 20 }, '<img src=x onerror=1>');
     assert.ok(!/<img/.test(note));
@@ -347,9 +358,9 @@ test('buildBreakdownRows: peer training pluralises days; otherAdj shows sign', (
     // A negative adjustment reads "−£12.50", beside the "+£" of a positive one (whole-app review):
     // it printed "£-12.50", the extraction having copied the old template's sign after the £.
     const neg = buildBreakdownRows({ ...BD_BASE, otherAdj: -12.5 });
-    assert.ok(neg.includes('Other payroll adjustment</span><span class="b-val">−£12.50</span>'));
+    assert.ok(neg.includes('Other payslip adjustment</span><span class="b-val">−£12.50</span>'));
     const pos = buildBreakdownRows({ ...BD_BASE, otherAdj: 12.5 });
-    assert.ok(pos.includes('Other payroll adjustment</span><span class="b-val">+£12.50</span>'));
+    assert.ok(pos.includes('Other payslip adjustment</span><span class="b-val">+£12.50</span>'));
 });
 
 test('buildBreakdownRows: SL-skip note only with an active plan; cumulative + bp/hpp extra rows', () => {
@@ -495,9 +506,9 @@ test('buildActualCheck: told nothing about the settings, it says what it said be
 test('buildProvChips: empty on a normal payslip; one chip per active source', () => {
     assert.equal(buildProvChips({ usingCumulative: false }), '', 'normal payslip → no chips at all');
     const cum = buildProvChips({ usingCumulative: true, srcLabel: '6 Jun' });
-    assert.match(cum, /✓ Cumulative tax · from your 6 Jun payslip/);
+    assert.match(cum, /✓ Year to Date figures · from your 6 Jun payslip/);
     assert.ok(!/prov-chip--add/.test(cum), 'method chips are neutral, not gold');
-    assert.match(buildProvChips({ usingCumulative: true }), /✓ Cumulative tax</, 'no source label → no dangling "from your"');
+    assert.match(buildProvChips({ usingCumulative: true }), /✓ Year to Date figures</, 'no source label → no dangling "from your"');
     const all = buildProvChips({ usingCumulative: true, srcLabel: '18 Dec', bpAmount: 824, hppAmount: 312.5, hoursFromCalendar: true });
     assert.match(all, /\+ £824\.00 back pay/);
     assert.match(all, /\+ £312\.50 Holiday Pay Premium/);

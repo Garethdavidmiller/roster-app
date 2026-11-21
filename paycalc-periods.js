@@ -2,7 +2,7 @@
 /**
  * paycalc-periods.js — Period arithmetic and select UI for paycalc.html.
  *
- * Owns: CONFIG (period anchor + tax years), getPeriods cache, hasBankHoliday /
+ * Owns: CONFIG (period anchor + tax years), getPeriods cache, bhsForYear / hasBankHoliday /
  *   hasBoxingDay, CONDITIONAL_ROWS, period select DOM helpers, tax-year tab sync,
  *   period navigation (prev / next / jump).
  * Does NOT own: grade/settings persistence (paycalc-settings.js), calculation
@@ -14,19 +14,24 @@
 import {
   P_YR, TAX_YEARS, getTaxYearForOffset, readTaxCode,
 } from './paycalc-calc.js';
-import { bhsForYear } from './paycalc-roster-suggestions.js';
+import { getBankHolidays } from './roster-data.js';
+import { periodsInTaxYear } from './paycalc-hpp-schedule.js';
 import { fdLong, fdShort } from './paycalc-format.js';
 import { MONTH_ABB } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
-// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js,
-//     and raise LAST_OFFSET to the new year's last payslip. That is ALL that moves here:
+// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js.
+//     NOTHING here moves by hand (.claude/rules/paycalc.md → "The tax year rollover"):
+//   · LAST_OFFSET is the last tax year's last payslip, READ from TAX_YEARS (Nov 2026 debt pass —
+//     it was a literal restating the table, so a new year could be added and never offered).
 //   · ANCHOR_DATE never moves. Every payslip a member saves is keyed by its number, `48 + offset`
 //     (getPeriods), so a new anchor would silently re-date every saved entry.
-//   · FIRST_OFFSET never rises in passing. The pension opt-out, the student-loan stop and the Year
-//     to Date source are stored as payslip numbers, and dropping a year from the list leaves those
-//     naming a payslip no list offers — retiring a year needs its own decision and a migration.
+//   · FIRST_OFFSET never rises in passing, which is why it is a literal and NOT read from
+//     TAX_YEARS[0]: the pension opt-out, the student-loan stop and the Year to Date source are stored
+//     as payslip numbers, and dropping a year from the list leaves those naming a payslip no list
+//     offers — retiring a year needs its own decision and a migration, not a side effect of an edit
+//     to the table.
 //
 // NB: `num` below is an INTERNAL, monotonic offset id (37…62), NOT the number printed on the
 // payslip. The payslip counts weeks-into-the-tax-year (×4 per period, resetting each April):
@@ -37,7 +42,7 @@ export const CONFIG = {
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
   FIRST_OFFSET:   -11,   // internal num 37 — first period of 2025/26 (~11 Apr 2025; printed "Period 4")
-  LAST_OFFSET:     14,   // internal num 62 — last period of 2026/27 (payday 12 Mar 2027; printed "Period 52")
+  LAST_OFFSET:    TAX_YEARS[TAX_YEARS.length - 1].last,   // today 14: internal num 62, the last of 2026/27 (payday 12 Mar 2027; printed "Period 52")
   TAX_YEARS,             // imported from paycalc-calc.js
 };
 
@@ -184,9 +189,25 @@ export function hasBoxingDay(/** @type {any} */ p) {
 }
 
 // ── BANK HOLIDAY DETECTION ────────────────────────────────────────────────────
-// bhsForYear is exported from paycalc-roster-suggestions.js — one definition
-// shared with the suggestion engine. Boxing Day (26 Dec) excluded; handled
-// separately by hasBoxingDay() at 3× rate.
+/** @type {WeakMap<Date[], Date[]>} */
+const _bhsByList = new WeakMap();
+/**
+ * The year's bank holidays the pay calculator prices as bank holidays: every one but Boxing Day
+ * (26 Dec), which is priced on its own at 3× (hasBoxingDay). One definition, shared with the
+ * suggestion engine (paycalc-roster-suggestions.js); it lived there until Nov 2026, which made this
+ * pure module load Firestore. Hot in the 28-day period scan and in hasBankHoliday() during recalc,
+ * so the filtered list is kept per list getBankHolidays returns (which is itself kept per year).
+ * @param {number} year @returns {Date[]}
+ */
+export function bhsForYear(year) {
+  const all = /** @type {Date[]} */ (getBankHolidays(year));   // kept per year by roster-data.js
+  let bhs = _bhsByList.get(all);
+  if (!bhs) {
+    bhs = all.filter((/** @type {Date} */ d) => !(d.getMonth() === 11 && d.getDate() === 26));
+    _bhsByList.set(all, bhs);
+  }
+  return bhs;
+}
 
 /** True if any bank holiday (excluding Boxing Day) falls within this period. */
 export function hasBankHoliday(/** @type {any} */ p) {
@@ -478,7 +499,13 @@ export function ytdAutoSource(ty, now = new Date()) {
 export function ytdSourceToStamp(raw, hasFigures, ty, now = new Date(), firstPNum = _firstEmployed()) {
   if (raw != null || !hasFigures) return null;
   const src = ytdAutoSource(ty, now);
-  return src >= firstPNum ? src : null;
+  // NEVER A PAYSLIP THAT CANNOT BE IN HAND (21 Nov 2026). Before the year's first payday,
+  // `ytdAutoSource` clamps into the year and names its first payslip — not yet issued, and not
+  // offered by the picker either, so the card showed its placeholder while storage held a source.
+  // Last year's whole-year totals typed in March were then read as April's, and May's payslip was
+  // charged the year's tax again (£2,967.84 where £435.00 was right). The same rule as the picker.
+  const srcP = getPeriods().find((/** @type {any} */ x) => x.num === src);
+  return srcP && ytdSourceOffered(srcP, ty, now, firstPNum) ? src : null;
 }
 
 /**
@@ -543,9 +570,11 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   if (next) return { ...out, note: readTaxCode(taxCode).nonCumulative
     ? `Your Year to Date figures are from ${from}, but a tax code ending in W1, M1 or X works out each payslip on its own, so these figures are not used.`
     : misfit
-      // The figures are complete and from the right payslip; the code is what they disagree with
-      // (owner, 15 Nov 2026). The Income Tax line carries the two figures; this says what to check.
-      ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip's tax is worked out from this payslip alone. Check the code in Your Settings is the one on that payslip.`
+      // The figures are complete, but they and the code disagree (owner, 15 Nov 2026). Either side can
+      // be wrong: the code in Your Settings, or the payslip chosen as their source — a source filed one
+      // payslip out reads exactly like a wrong code (21 Nov 2026). The Income Tax line carries the two
+      // figures; this says what to check, the source first because it is on this card.
+      ? `Your Year to Date figures are from ${from}, but they don't fit your tax code, so this payslip's tax is worked out from this payslip alone. Check they came from that payslip, and that the code in Your Settings is the one printed on it.`
       : `Your Year to Date figures are from ${from} — fill in both <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> to sharpen this payslip's tax estimate.` };
   // Only a payslip NEWER than the source is worth updating from (17 Nov 2026). On the source itself, or
   // one before it, the payslip before this one is OLDER than the figures already held — so the note
@@ -553,9 +582,13 @@ export function ytdAnchorStatus({ p, ty, src, hasFigures, inUse = false, taxCode
   // had just sent them to the newest. The next payslip then found them misfitting its code.
   const prevP = getPeriods().find((/** @type {any} */ x) => x.num === p.num - 1);
   const upd = prevP && prevP.num > src && prevP.num >= firstPNum && prevP.num < _todayAt(now).today
-    ? ` Update them from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}) to sharpen it.`
+    ? ` To sharpen this one, copy the figures from your <strong>${fdShort(prevP.payday)} payslip</strong> (P${payslipPeriodNum(prevP)}).`
     : '';
-  return { ...out, note: `Your Year to Date figures are from ${from} — they only sharpen the payslip straight after it, so this payslip's tax is worked out from this payslip alone.${upd}` };
+  // The payslip they DO sharpen is named (21 Nov 2026): "the payslip straight after it … to sharpen
+  // it" used one "it" for the source and the next for this payslip, in a 32-word sentence.
+  const nextP = getPeriods().find((/** @type {any} */ x) => x.num === src + 1);
+  const sharpens = nextP ? `your <strong>${fdShort(nextP.payday)} payslip</strong>` : 'the payslip straight after it';
+  return { ...out, note: `Your Year to Date figures are from ${from}, so they only sharpen ${sharpens}. This payslip's tax is worked out from this payslip alone.${upd}` };
 }
 
 /**
@@ -623,8 +656,7 @@ export function updateTyTabs() {
 export function jumpToTaxYear(tyIndex, onPeriodChange) {
   const ty      = CONFIG.TAX_YEARS[tyIndex];
   if (!ty) return;
-  const periods = getPeriods();
-  const first   = periods.find((/** @type {any} */ p) => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
+  const first   = periodsInTaxYear(ty, getPeriods())[0];
   if (!first) return;
   _setSelectPeriod(document.getElementById('periodSelect'), first.num);
   onPeriodChange();
@@ -663,7 +695,7 @@ export function nextPeriod(onPeriodChange) {
  *  - never on a payslip already paid: the year keeps ONE pair of figures, so asking for an older
  *    payslip's would undo the estimate the member is waiting on;
  *  - never on the tax year's first payslip, where Year to Date starts fresh;
- *  - never for a non-cumulative code (W1, M1, X) or NT, which the figures cannot change;
+ *  - never for a non-cumulative code (W1, M1, X), NT or a flat-rate code, which the figures cannot change;
  *  - never for a code the calculator does not recognise (`recognised` is computeTax's): it is priced
  *    on the standard allowance, and Year to Date figures make a wrong code's estimate WORSE, which is
  *    why the "Check against your payslip" line holds that advice back too;
@@ -684,6 +716,9 @@ export function ytdUpdateFrom({ p, ty, src, inUse, taxCode, recognised = true, m
   const read = readTaxCode(taxCode);   // as computeTax reads it, so the two cannot disagree about one
   if (read.nonCumulative) return null;
   if (read.base === 'NT') return null;
+  // A FLAT-RATE code (BR, D0, D1 and the Scottish flat rates) takes the same share of every pound,
+  // so figures that fit it — the only ones used since 21 Nov 2026 — never move its tax.
+  if (/^(S?BR|S?D[01]|SD[23])$/.test(read.base)) return null;
   if (recognised === false) return null;
   if (misfit) return null;
   if (inUse || (src && src >= p.num)) return null;

@@ -668,6 +668,9 @@ test.describe('trains', () => {
     // --radius-sm, 8px under the page's 12px tabs and buttons. The two that ACT rather than reveal, "Change station"
     // and the grid's "Show every station", are Overtime's small outlined pill by design, and are left out.
     test('every show-more button on the page wears the button corner too', async ({ page }) => {
+        // A WEEKDAY, pinned (21 Nov 2026): the page opens on today's timetable, and a Saturday has five
+        // big changes or fewer, so on a weekend there was no "Show N more" to measure and this failed.
+        await page.clock.setFixedTime(new Date('2026-10-07T09:00:00Z'));
         await seedSession(page, 'C. Reen');
         await page.goto('/trains.html');
         await expect(page.locator('#trHeadsMore')).toBeVisible();

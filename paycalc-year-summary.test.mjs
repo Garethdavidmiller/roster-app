@@ -25,6 +25,11 @@ let _periods = [];
 let _proRate = () => 1;
 /** Which payslip numbers sit inside an opt-out spell (the real rule is paycalc-pension.js). @type {(p:any)=>boolean} */
 let _optedOut = () => false;
+/** The grade periodRate prices at (default CEA, the one-grade member every other case is). */
+let _grade = 'cea';
+/** A grade's settled rate for a tax year, as recorded (£21.49 for a CEA in 2026/27).
+ *  @param {string} grade @param {string} label */
+const settledFor = (grade, label) => /** @type {number} */ (_calc.awardRatesFor(grade, label)?.rate);
 
 mock.module('./paycalc-periods.js', {
     namedExports: {
@@ -44,8 +49,9 @@ mock.module('./paycalc-settings.js', {
     namedExports: {
         // A CEA all year (one grade, no change): calculate()'s rate source answers the settled £21.49
         // through the real mid-year step, exactly as it does for such a member.
+        // The ONE-PIPELINE grid below sets `_grade` to price a CES year too, at its own settled rate.
         periodRate:           (/** @type {any} */ ty, /** @type {any} */ p) => ({
-            rate: _calc.getRateForPeriod(p, 'cea', ty.label, 21.49), preAward: false }),
+            rate: _calc.getRateForPeriod(p, _grade, ty.label, settledFor(_grade, ty.label)), preAward: false }),
         // Read by the real paycalc-hpp.js this suite loads: the same one-grade answers.
         awardGrade:           () => 'cea',
         settledRateFor:       () => 21.49,
@@ -88,7 +94,7 @@ mock.module('./roster-data.js', {
 
 const _calc = await import('./paycalc-calc.js');
 const { computeYearSoFar } = await import('./paycalc-year-summary.js');
-const { computeGross, computeTax, computeNI, computeSL, getThresholds, takeHomePay } = await import('./paycalc-calc.js');
+const { computeGross, getThresholds, pricePayslip } = await import('./paycalc-calc.js');
 
 // ── Fixture ───────────────────────────────────────────────────────────────────
 
@@ -112,16 +118,16 @@ const T25 = getThresholds('2026/27');
 const RATE = 21.49, CONTR = 140, LONDON = 286.10, PENSION = 147.36;
 const OPTS = { taxCode: '1257L', plan: 'none', pgLoan: false, now: NOW };
 
-/** Mirror one payslip through the same real engine, so the totals assert the wiring. `lump` is a
- *  gross bp/HPP lump folded into gross BEFORE pension/tax/NI/SL — exactly as calculate() does. */
+/** One payslip priced by calculate()'s own pipeline (pricePayslip — the real function, no third copy
+ *  of the deduction sequence), so the totals assert the WIRING: which gross, pension, plan and skip
+ *  computeYearSoFar hands it. `lump` is a gross bp/HPP lump folded into gross BEFORE pension/tax/NI/SL
+ *  — exactly as calculate() does. `sacGross` is the unrounded pay after pension; `net` and
+ *  `afterPension` are the result card's rows, to the penny. */
 function mirror({ oHrs = 0, sHrs = 0, pension = PENSION, plan = 'none', slSkip = false, lump = 0, london = LONDON }) {
     const g = computeGross({ rate: RATE, effContr: CONTR, satHrs: 0, bhHrs: 0, bhOtHrs: 0,
         oHrs, rHrs: 0, sHrs, bHrs: 0, peerDays: 0, london, otherAdj: 0 });
-    const sacGross = g.gross + lump - pension;
-    const tax = computeTax(sacGross, '1257L', T25).tax;
-    const ni  = computeNI(sacGross, T25.ni);
-    const sl  = computeSL(sacGross, plan, T25.sl, slSkip);
-    return { sacGross, tax, ni, sl, net: sacGross - tax - ni - sl, pension };
+    const r = pricePayslip({ gross: g.gross + lump, pension, taxCode: '1257L', thresholds: T25, plan, pgLoan: false, slSkip });
+    return { sacGross: r.sacGross, afterPension: r.afterPension, tax: r.tax, ni: r.ni, sl: r.sl, net: r.net, pension };
 }
 
 function reset() {
@@ -129,6 +135,7 @@ function reset() {
     _periods = [P60, P61, P62, P63];
     _proRate = () => 1;
     _optedOut = () => false;
+    _grade = 'cea';
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -381,11 +388,10 @@ describe('computeYearSoFar', () => {
         const y = computeYearSoFar(TY, OPTS);
         assert.equal(y.entered, 3);
         const mirrored = [mirror({ oHrs: 3 + 1 / 60 }), mirror({ sHrs: 2 + 1 / 60 }), mirror({ oHrs: 1 + 1 / 60 })];
-        const shown = mirrored.map(m => takeHomePay({ gross: m.sacGross + m.pension, pension: m.pension, tax: m.tax, ni: m.ni, sl: m.sl }));
-        const net = shown.reduce((s, x) => s + x.net, 0), taxable = shown.reduce((s, x) => s + x.afterPension, 0);
+        const net = mirrored.reduce((s, m) => s + m.net, 0), taxable = mirrored.reduce((s, m) => s + m.afterPension, 0);
         assert.equal(Math.round(y.net * 100), Math.round(net * 100), `the year £${y.net} — the payslips shown add to £${net.toFixed(2)}`);
         assert.equal(Math.round(y.taxable * 100), Math.round(taxable * 100));
-        const unrounded = mirrored.reduce((s, m) => s + m.net, 0);
+        const unrounded = mirrored.reduce((s, m) => s + (m.sacGross - m.tax - m.ni - m.sl), 0);
         assert.notEqual(Math.round(unrounded * 100), Math.round(net * 100), 'premise: summing unrounded figures lands on another penny');
     });
 
@@ -397,5 +403,95 @@ describe('computeYearSoFar', () => {
         const asNumbers = computeYearSoFar(TY, OPTS);
         assert.ok(Math.abs(asText.taxable - asNumbers.taxable) < 0.005,
             `£${asText.taxable.toFixed(2)} for text against £${asNumbers.taxable.toFixed(2)} for the same figures`);
+    });
+});
+
+// ── ONE PRICING PIPELINE (Nov 2026 debt pass) ──────────────────────────────────────────────────────
+// calculate() and computeYearSoFar each priced a payslip with their own copy of the deduction
+// sequence, and this file held a third. Both now call pricePayslip (paycalc-calc.js). What can still
+// part them is the INPUTS each resolves — the rate, the pension, the stop, the skip, the lump — so
+// the grid below resolves each payslip's inputs as calculate() does, prices it through the real
+// pipeline, and asks that the year so far is exactly the sum of those take-homes, to the penny.
+describe('the year so far is the sum of the take-homes the result card shows, payslip by payslip', () => {
+    beforeEach(reset);
+
+    const TY25 = _calc.TAX_YEARS[0];   // 2025/26: its award step (24 Oct 2025) falls inside this slice
+    const P43 = { num: 43, payday: new Date(2025, 8, 26) };   // before the award: CEA at £20.06, London £267.08
+    const P44 = { num: 44, payday: new Date(2025, 9, 24) };   // the award payslip
+    const P45 = { num: 45, payday: new Date(2025, 10, 21) };
+    const SLICES = [
+        { ty: TY, periods: [P60, P61, P62, P63], now: NOW },                      // P63 is still to pay
+        { ty: TY25, periods: [P43, P44, P45], now: new Date(2025, 11, 1) },
+    ];
+    // Three paid payslips: hours of every kind, the period default pension, the payslip's own pension,
+    // a pasted negative one (floored), an adjustment, peer days and the loan skip.
+    const SAVED = [
+        { otH: 6, otM: 15, sunH: 7, satH: 8, peer: 1 },
+        { rdwH: 10, rdwM: 7, pension: 100, slSkip: true, otherAdj: 42.5 },
+        { otH: 30, sunH: 22, satH: 16, pension: -50 },
+    ];
+    const CODES = ['1257L', 'S1257L', 'K500', 'BR', 'SD0', 'D0', '0T', 'NT', 'C1257L', '1257LW1', 'OT'];
+    const LOANS = [
+        { plan: 'none', pgLoan: false }, { plan: 'plan1', pgLoan: false }, { plan: 'plan2', pgLoan: true },
+        { plan: 'plan4', pgLoan: false }, { plan: 'plan5', pgLoan: false }, { plan: 'none', pgLoan: true },
+    ];
+
+    /** One payslip as calculate() would price it: the rate the payslip was paid at, the pension box
+     *  (its own figure floored at £0, else the period default, £0.00 inside an opt-out spell), the stop
+     *  from its payslip on, and an opt-in lump in its gross. @param {any} ty @param {any} p @param {any} d
+     *  @param {any} o */
+    const asTheCardShows = (ty, p, d, o) => {
+        const rate = _calc.getRateForPeriod(p, _grade, ty.label, settledFor(_grade, ty.label));
+        const g = computeGross({ rate, effContr: CONTR, satHrs: d.satH || 0, bhHrs: 0, bhOtHrs: 0,
+            oHrs: (d.otH || 0) + (d.otM || 0) / 60, rHrs: (d.rdwH || 0) + (d.rdwM || 0) / 60, sHrs: d.sunH || 0,
+            bHrs: 0, peerDays: d.peer || 0, london: _calc.getLondonAllowanceForPeriod(p, ty), otherAdj: d.otherAdj || 0 });
+        const pension = _optedOut(p) ? 0 : (d.pension != null ? Math.max(0, d.pension) : PENSION);
+        const lump = o.bpLump && o.bpLump.pNum === p.num ? o.bpLump.amount : 0;
+        return pricePayslip({ gross: g.gross + lump, pension, taxCode: o.taxCode, thresholds: getThresholds(ty.label),
+            plan: o.plan, pgLoan: o.pgLoan, slSkip: !!d.slSkip,
+            slPaidOff: !!(o.slPaidOffFromP && p.num >= o.slPaidOffFromP) });
+    };
+
+    test('every grade, pension state, loan, stop and tax code: to the penny', () => {
+        let runs = 0, nonZeroLoans = 0;
+        const pennies = (/** @type {number} */ x) => Math.round(x * 100);
+        for (const { ty, periods, now } of SLICES) for (const grade of ['cea', 'ces'])
+        for (const optOut of [false, true]) for (const code of CODES) for (const loan of LOANS)
+        for (const stop of [false, true]) for (const lump of [false, true]) {
+            reset();
+            _periods = periods;
+            _grade = grade;
+            const [a, b, c] = periods;
+            _optedOut = (/** @type {any} */ p) => optOut && p.num >= c.num;   // a spell from the third payslip
+            periods.slice(0, 3).forEach((p, i) => _ls.set(`myb_pc_p${p.num}`, JSON.stringify(SAVED[i])));
+            const o = { ...loan, taxCode: code, now, slPaidOffFromP: stop ? b.num : 0,
+                bpLump: lump ? { pNum: a.num, amount: 612.34 } : null };
+            const y = computeYearSoFar(ty, o);
+            const slips = [a, b, c].map((p, i) => asTheCardShows(ty, p, SAVED[i], o));
+            const at = `${ty.label} ${grade} ${code} ${loan.plan}${loan.pgLoan ? '+PGL' : ''}${stop ? ' stopped' : ''}${optOut ? ' opted out' : ''}${lump ? ' lump' : ''}`;
+            assert.equal(y.entered, 3, at);
+            assert.equal(pennies(y.net), pennies(slips.reduce((s, r) => s + r.net, 0)), `take-home, ${at}`);
+            assert.equal(pennies(y.taxable), pennies(slips.reduce((s, r) => s + r.afterPension, 0)), `pay after pension, ${at}`);
+            assert.equal(pennies(y.tax), pennies(slips.reduce((s, r) => s + r.tax, 0)), `tax, ${at}`);
+            assert.equal(pennies(y.ni), pennies(slips.reduce((s, r) => s + r.ni, 0)), `NI, ${at}`);
+            assert.equal(pennies(y.sl), pennies(slips.reduce((s, r) => s + r.sl, 0)), `loans, ${at}`);
+            if (y.sl > 0) nonZeroLoans++;
+            runs++;
+        }
+        assert.equal(runs, 2 * 2 * 2 * CODES.length * LOANS.length * 2 * 2, 'premise: the whole grid ran');
+        assert.ok(nonZeroLoans > runs / 3, `premise: loans actually deduct in much of the grid (${nonZeroLoans} of ${runs})`);
+    });
+
+    // The pipeline has ONE home. A copy re-inlined in either caller would pass the grid above on the
+    // day it is written and drift from it on the next deduction rule — the state this replaced.
+    test('neither caller prices a payslip by hand', async () => {
+        const { readFileSync } = await import('node:fs');
+        for (const file of ['paycalc-app.js', 'paycalc-year-summary.js']) {
+            const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8').replace(/\/\/.*$|\/\*[\s\S]*?\*\//gm, '');
+            assert.match(src, /\bpricePayslip\(/, `${file} no longer prices through pricePayslip`);
+            for (const step of ['computeTax', 'computeNI', 'computeSL', 'takeHomePay']) {
+                assert.doesNotMatch(src, new RegExp(`\\b${step}\\(`), `${file} calls ${step} itself — price through pricePayslip`);
+            }
+        }
     });
 });

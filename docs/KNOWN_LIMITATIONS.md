@@ -924,12 +924,13 @@ infrastructure.
 ## Pay calculator
 
 ### The pay-period grid ends on 12 Mar 2027 — extend it once the 2027/28 figures are out, before 7 March
-`CONFIG.LAST_OFFSET` (`paycalc-periods.js`) stops at the last 2026/27 payday. Extending it needs the
+The period grid (`CONFIG.LAST_OFFSET`, `paycalc-periods.js`, read from the last `TAX_YEARS` row) stops
+at the last 2026/27 payday. Extending it needs the
 2027/28 row in `TAX_YEARS`, the thresholds tables and the Student Loan tables, and most of those are
 not published until early 2027 — adding a year now would mean guessing figures the calculator then
 presents as fact, which is the one thing `.claude/rules/paycalc.md` forbids. The next pay award is not
 needed: the year is added without it, and the award's figures follow once it is announced. It
-is the existing "TAX YEAR ROLLOVER" step in `paycalc-periods.js`, due before the first 2027/28
+is the rollover in `.claude/rules/paycalc.md` → "The tax year rollover", due before the first 2027/28
 payslip's shifts begin — Sunday 7 March 2027, for the payslip paid on 9 April — not at the tax year's
 start; `MAINTENANCE_CALENDAR.md` carries the date.
 

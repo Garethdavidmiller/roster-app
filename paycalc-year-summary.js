@@ -7,8 +7,9 @@
  *   deliberately-rough full-year projection. `renderYearCard` (paycalc-year-card.js) renders the
  *   result into its own sidebar card (#ytdYearSoFar).
  * Does NOT own: any DOM (the caller passes the current loan/tax-code settings in `opts`), the
- *   per-period maths (all from paycalc-calc.js — the same functions calculate() uses, so the
- *   per-payslip figures here match what the calculator shows for that payslip), or persistence.
+ *   per-period maths (all from paycalc-calc.js — computeGross and pricePayslip, the same pipeline
+ *   calculate() prices with, so the per-payslip figures here match what the calculator shows for
+ *   that payslip), or persistence.
  * Edit here for: what the year-so-far summary counts and how it projects.
  * Do not edit here for: pay maths (paycalc-calc.js), the Year to Date source anchor
  *   (paycalc-periods.js — `ytdAutoSource`, `ytdSourceOffered`).
@@ -20,8 +21,7 @@
  */
 
 import {
-  computeGross, computeTax, computeNI, computeSL, getThresholds, takeHomePay,
-  getLondonAllowanceForPeriod, TAX_YEARS,
+  computeGross, pricePayslip, getThresholds, getLondonAllowanceForPeriod, TAX_YEARS,
 } from './paycalc-calc.js';
 import { getPeriods } from './paycalc-periods.js';
 import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
@@ -29,7 +29,8 @@ import {
   periodRate, getEffectiveContr, getProRateFactor, isPeriodPriced,
 } from './paycalc-settings.js';
 import { readSavedPeriod } from './paycalc-migrations.js';
-import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js';
+import { _decodeHours, savedPeriodPension } from './paycalc-hpp.js';
+import { isDataEmpty } from './paycalc-format.js';
 
 /**
  * Sum the year's entered payslips into a so-far + projected view.
@@ -134,19 +135,14 @@ export function computeYearSoFar(ty, opts) {
       const lumpGross = ((opts.bpLump && opts.bpLump.pNum === p.num) ? opts.bpLump.amount : 0)
                       + ((hppJanNum && hppJanNum === p.num && opts.hppLump) ? opts.hppLump.amount : 0);
 
-      /** Net take-home for a given gross-before-pension (mirrors calculate(): pension-sacrifice,
-       *  then non-cumulative tax + NI + SL with the repaid cutover / per-period skip). */
+      const paidOff = !!(opts.slPaidOffFromP && p.num >= opts.slPaidOffFromP);
+      /** Take-home for a given gross-before-pension, priced by calculate()'s own pipeline
+       *  (pricePayslip): non-cumulative — no Year to Date figures, see the header note — with the
+       *  repaid cutover and this payslip's own skip, rounded as the result card rounds it. */
       const netFor = (/** @type {number} */ grossBeforePension) => {
-        const sacGross = Math.max(0, grossBeforePension - pension);
-        const pTax = computeTax(sacGross, opts.taxCode, T).tax;   // non-cumulative — see header note
-        const pNi  = computeNI(sacGross, T.ni);
-        const paidOff = !!(opts.slPaidOffFromP && p.num >= opts.slPaidOffFromP);
-        const pSl = paidOff ? 0
-          : computeSL(sacGross, opts.plan, T.sl, !!d.slSkip)
-          + (opts.pgLoan ? computeSL(sacGross, 'postgrad', T.sl, !!d.slSkip) : 0);
-        // As the result card rounds them (takeHomePay) — tax and NI are worked out on the unrounded pay.
-        const shown = takeHomePay({ gross: grossBeforePension, pension, tax: pTax, ni: pNi, sl: pSl });
-        return { sacGross: shown.afterPension, pTax, pNi, pSl, pNet: shown.net };
+        const r = pricePayslip({ gross: grossBeforePension, pension, taxCode: opts.taxCode, thresholds: T,
+          plan: opts.plan, pgLoan: opts.pgLoan, slSkip: !!d.slSkip, slPaidOff: paidOff });
+        return { sacGross: r.afterPension, pTax: r.tax, pNi: r.ni, pSl: r.sl, pNet: r.net };
       };
 
       const base = netFor(g.gross);

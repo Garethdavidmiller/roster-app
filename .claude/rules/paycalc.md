@@ -38,7 +38,7 @@ are about to break. Each states WHAT must hold; the WHY is below, or in the modu
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary silently under-reported tax years — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so the headers are not the only EXPLANATION — they are the only route that costs the reader nothing and asks nothing of them first: a member who has never heard of HPP has no reason to open a guide looking for it. Never hide, group or shorten these headers without an owner decision; the case that nearly did is DECISIONS.md → "More pay tools" … DECLINED, and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
 | 17 | **A payslip is priced at the grade held on its days** (owner, 13 Nov 2026). The roster dates a grade (`roleHistory`), so a promotion re-prices nothing before it; a payslip that SPANS one is each grade's rate weighted by its days, UNROUNDED — `calculate()` asks `periodRate`, never the field's two decimals, which would leave 140 contracted hours 45p short of 35 at one rate and 105 at the other. A grade chosen by hand covers WHOLE payslips from the one the member names, and only the roster's own dates split one. A member who never changed grade is priced to the last binary digit as before (`byDays` hands back the shared figure itself). The back-pay card prices ONE grade, so a promotion dated inside an award's backdated months fails a data test before it can be priced. By days is the owner's reading, not yet a payslip's: VAL-PAY-005 holds it open until the real one settles it. | `paycalc-grade.js` · `paycalc-settings.js` (`periodRate`, `settledRateFor`, `awardGrade`) · `paycalc-grade.test.mjs` · `paycalc-grade-wiring.test.mjs` |
-| 18 | **Year to Date figures are used only when they FIT the tax code** (owner, 15 Nov 2026). Tax Paid more than £2 over what the code takes, worked out over the year, by the payslip the figures came from cannot have come from that code: the payslip is then taxed ON ITS OWN and the line under Income Tax shows both figures — never £0 tax and "a refund may be due", which is what such figures read as before. Only OVER the code: under it is a code lowered mid-year, which cumulative PAYE collects. The figure is a whole payslip's tax: a real screenshot showed a take-home that high. | `paycalc-calc.js` → `computeTax` (`ytdMisfit`) · `paycalc.test.mjs` ("must fit the tax code") · `e2e/paycalc.spec.js` ("cannot come from the tax code") |
+| 18 | **Year to Date figures are used only when they FIT the tax code** (owner, 15 Nov 2026; both directions from 21 Nov). Tax Paid more than £2 over OR under what the code takes, worked out over the year, by the payslip the figures came from did not come from that code worked out the normal way: the payslip is then taxed ON ITS OWN and the line under Income Tax shows both figures. Over the code read as £0 tax and "a refund may be due"; under it charged the whole year's "shortfall" on the next payslip — most often a Settings code with less tax-free pay than the payslip's, or figures filed one payslip early. K codes are checked only over: the 50% limit leaves their Tax Paid short by design. | `paycalc-calc.js` → `computeTax` (`ytdMisfit`) · `paycalc.test.mjs` ("must fit the tax code") · `e2e/paycalc.spec.js` ("cannot come from the tax code") |
 
 Unverified assumptions behind these figures are in `VALIDATION_REGISTER.md`, not here; the back-pay
 accrual and the 28 Aug 2026 award step were settled against a real payslip and are in that file's
@@ -96,6 +96,23 @@ empty while no award is pending). When its payslip lands: bump `GRADES.rate`, se
 `AWARD_RATES.rate`, add the following year with `pre` = this rate, set the year's
 `londonAllow`/`londonAllowPre`/`londonAllowFrom` on `TAX_YEARS`, drop `rateUnconfirmed`, and add the
 `PENSION_STEPS` step from the award payslip.
+
+**The tax year rollover — 2027/28, live before Sun 7 Mar 2027** (its first payslip's shifts start
+then; MAINTENANCE_CALENDAR.md carries the date). By hand, all in `paycalc-calc.js`, and the test that
+catches each miss:
+1. **A `TAX_YEARS` row**: `first` = the last year's `last` + 1, `last` = `first` + 12, `hppPaidJan` the
+   January after it ends, `londonAllow` the current figure, NO `rateUnconfirmed`, no award fields. The
+   period selector follows it (`LAST_OFFSET` reads the last row). **Nothing fails if the row is never
+   added** — the calendar row is the only reminder. A wrong `first`/`last` or `hppPaidJan`:
+   `paycalc-hpp-schedule.test.mjs` (13 payslips a year, no overlap, the first January after).
+2. **The four threshold tables** (`TAX_BY_YEAR`, `NI_BY_YEAR`, `SL_BY_YEAR`, `SCOTTISH_TAX_BY_YEAR`),
+   read from GOV.UK's employer tables, never copied forward: `paycalc-current-year.test.mjs` →
+   "every configured tax year has an entry in all four tables"; and its `CURRENT` must move to the
+   new year ("CURRENT is the newest tax year"), with the Scottish and loan literals re-read there.
+3. **Not at the rollover:** `AWARD_RATES`, `GRADES`, `PENSION_STEPS` and `PENDING_AWARD_PCT` move with
+   the AWARD (above); until then the year prices at the current settled rate. The legacy-migration
+   year is a fixed label (`paycalc-migrations.js`), and a payslip outside the table reads as its
+   NEAREST year (`getTaxYearForOffset`), so neither moves with the table.
 
 **Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours,
 London Allowance and the pension default; all later periods use standard amounts automatically.
@@ -297,18 +314,23 @@ Binds this page and the Calendar's 💷 / ✂️ markers.
   `computeTax` checks first that the Tax Paid is what the code takes on the Taxable Pay by the payslip
   the figures came from (period N − 1) — real payslips land within 25p; more than **£2** over
   (`YTD_FIT_TOLERANCE`) means a payroll taxing each payslip ON ITS OWN (a week 1 / month 1 basis a
-  payslip may print as nothing more than "1257L"), a code changed since, or a mistyped figure. The
+  payslip may print as nothing more than "1257L"), a code changed since, or a mistyped figure; more
+  than £2 UNDER (owner, 21 Nov 2026) means a code in Your Settings with less tax-free pay than the
+  payslip's, figures filed against the wrong payslip, or a code lowered since. The
   payslip is then priced on its own (the standard method) and `ytdMisfit: { expected, paid }` goes to the summary, whose Income Tax line names
   both figures and says a code that has just changed may bring some back; the Year to Date card says
   "they don't fit your tax code", its chip reads "not in use", and the take-home's line does not ask
   for the same figures again.
-  - **Why it exists, why only OVER the code, and why period 1 is not compared:** invariant 18 and the
-    comment at the check in `computeTax`. With figures that fit, the cumulative method alone produces
-    an over-collection only on a payslip paying less than its share of the allowance, where the
-    standard method takes nil too.
-  - **The cost, accepted by the owner:** a member who types a code raised since the payslip the figures
-    came from gets the standard figure, with the line saying payroll may give some back, rather than
-    the refund itself.
+  - **Why it exists, why both directions, why K codes only over, and why period 1 is not compared:**
+    invariant 18 and the comment at the check in `computeTax`. With figures that fit, the cumulative
+    method alone produces an over-collection only on a payslip paying less than its share of the
+    allowance, where the standard method takes nil too.
+  - **The costs, accepted by the owner:** a member who types a code raised since the payslip the
+    figures came from gets the standard figure, with the line saying payroll may give some back,
+    rather than the refund itself; and one whose code was LOWERED since gets the standard figure with
+    the line saying payroll may take more (21 Nov 2026), rather than the collection itself.
+  - **A flat-rate code (BR, D0, D1, the Scottish flat rates) can never be moved by figures that fit**,
+    so the take-home's line never asks for them there (`ytdUpdateFrom`), as for NT.
 - **An over-collected cumulative year that FITS its code is REPORTED, never netted.** Real cumulative
   PAYE refunds it — with figures that fit, a short-paid payslip. `computeTax` keeps the deduction at £0
   and returns the over-collection as `refund`; the summary's Income Tax row says a refund of about £X
@@ -448,7 +470,7 @@ below are in the comments of `prefillBackPay`, `restoreBpState` and `calcBackPay
   rates, mode, manual amount, paid-in and tick persist independently and the include-tick never resets
   on a year switch. Saved in `calcBackPay` only once the member has changed that year's card, or once
   that year already has a saved blob — **viewing alone writes nothing** — and restored by
-  `restoreBpState()` at init. The coordinator's `_syncBackPayForViewedYear()` runs on EVERY period
+  `restoreBpState()` at init. `syncBackPayForViewedYear()` (`paycalc-backpay.js`) runs on EVERY period
   change, not only while the card is open; the lump joins take-home only when `_bpPNum === _pNum`.
 - **Amount source toggle (`bpMode`):** COMPUTE the lump from your hours or ENTER the figure from your
   payslip (`#bpManualAmt`). The **current award defaults to compute**; a **prior/already-paid award
@@ -468,14 +490,15 @@ below are in the comments of `prefillBackPay`, `restoreBpState` and `calcBackPay
   (`#bpRisePctField`) shows only for an unconfirmed future award. Manual mode is unaffected.
 - **The rates come from `AWARD_RATES`, never the mutable `GRADES` default**, so confirming a later
   award can never corrupt an earlier award's "old" rate. `prefillBackPay` fills OLD = `award.pre`, and
-  NEW = `award.rate` for a **settled** year, else the `PENDING_AWARD_PCT` estimate (`_applyBpRisePct()`,
+  NEW = `award.rate` for a **settled** year, else the `PENDING_AWARD_PCT` estimate (`applyBpRisePct()`,
   framed by `#bpEstimateNote`). A grade/year with no recorded `pre` leaves the OLD box blank — never
   guessed.
 - **The award-application date is single-sourced** as the year's `londonAllowFrom` (read via
   `awardFromForYear(tyLabel)` — NOT stored on `AWARD_RATES`), and `isPreAwardPeriod(p, grade, tyLabel)`
-  is the one shared predicate — used by `getRateForPeriod` and `confirmSettings` (`paycalc-settings.js`),
-  and through `periodRate` there, the one answer to "what rate was this payslip paid at", by both the
-  rate field (`updateRateForPeriod`) and the Settings summary in `paycalc-app.js`.
+  is the one shared predicate — called by `getRateForPeriod` and by `periodRate` (`paycalc-settings.js`),
+  the one answer to "what rate was this payslip paid at", which `calculate()`, the rate field
+  (`updateRateForPeriod`) and the Settings summary (`settingsSummary`, `paycalc-settings.js` — repainted
+  by `confirmSettings`) all read.
 - **Accrual correctness** (each reason is beside its line in `calcBackPay`/`prefillBackPay`): (a) stop
   at `awardFromForYear` for a settled award — periods paid on/after it owe £0; (b) cap at
   `todaysPeriodNum()` (today, not the SELECTED period); (c) **exclude the paid-in period itself**
@@ -521,7 +544,7 @@ a static explainer above the story**: the controls below are the mechanics, not 
 
 **Back-pay estimate is AUTOMATIC, inclusion is OPT-IN (owner decision).** At init the coordinator calls
 `restoreBpState()`: **true** (a same-year saved blob exists — even all-blank, which is a deliberate
-clear that must stick) → recompute the saved figures; **false** → `_refreshBackPayCard()` computes
+clear that must stick) → recompute the saved figures; **false** → `refreshBackPayCard()` computes
 the DEFAULT estimate with the card closed. **The lump only JOINS take-home when the member ticks "Add
 this lump sum to this payslip's take-home estimate" (`#bpIncludeTick`, in the paid-in wrap) — OFF by
 default (owner, Jul 2026).** The tick is persisted in the bp blob (`inc`) and returned by
@@ -676,8 +699,10 @@ and `armedAt`: a confirming tap within 500 ms of arming (`CLEAR_CONFIRM_MIN_MS`)
 of the same gesture.
 
 **`CONDITIONAL_ROWS`** (`paycalc-periods.js`, beside `updateBhRows(p)`, which iterates it) — a
-data-driven array: condition → row IDs → field IDs. Adding a conditional row means one array entry,
-not new show/hide logic.
+data-driven array: condition → row IDs → field IDs. It holds the bank holiday rows alone: the Boxing
+Day row is shown and hidden BY HAND in `onPeriodChange` (`paycalc-app.js`, beside the Boxing Day
+banner it toggles too). A new conditional row can be one entry here, unless it carries something else
+to toggle, as Boxing Day does.
 
 **Per-member localStorage namespacing** (invariant 3) — all per-member paycalc keys are prefixed with a
 member segment (`myb_pc_<slug>_…`) so two staff sharing a browser cannot read each other's pay data;
@@ -779,7 +804,7 @@ cut-off the picker offers it too, because payslips are issued before payday).
   their EFFECT (clear the boxes; the £ must move on source + 1 and must not move anywhere else).
 - **`#ytdUptoNote` and `#ytdStatusChip`** (the header chip, readable while the card is collapsed:
   green "✓ in use", neutral "not in use", hidden with nothing to report) are written together by
-  `_updateYtdNote` from `ytdAnchorStatus`, whose doc comment says when each is empty and why — "in
+  `updateYtdNote` (`paycalc-ytd-card.js`) from `ytdAnchorStatus`, whose doc comment says when each is empty and why — "in
   use" is what `computeTax` DID, never what the boxes hold. The source select's placeholder is the
   short "— choose a payslip —"; the two £ inputs carry example-figure placeholders ("e.g.
   21,758.94"), never the zero-like "0.00".
