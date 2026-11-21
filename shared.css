@@ -2481,7 +2481,7 @@ button.lightbox-bug-link {
     align-items: center;
     gap: 8px;
     padding: 9px 16px;
-    border-radius: 22px;
+    border-radius: var(--radius-pill);
     background: var(--nav-raised);
     color: var(--nav-text);
     font-size: var(--type-body);
@@ -2544,20 +2544,23 @@ button.lightbox-bug-link {
    POSITIONED: as a flex item it pushed this one pill's label ~23px right, off the one left edge every
    pill's text shares with the rows below, and so differently on every page. Out of flow it marks
    without moving anything; the ring is the redundant, colour-blind-safe half of the signal, and
-   `aria-current` (set in nav-panel.js) is what actually carries it. */
+   `aria-current` (set in nav-panel.js) is what actually carries it.
+   The dot sits at the pill's EMPTY right end, inset by the pill's own padding: at `left: 6px` it was
+   glued to the emoji, in the 16px the label is inset by. A glyph, not a drawn circle — a forced-colours
+   theme repaints a background as Canvas and would erase it — sized in em so it scales with the label. */
 .nav-panel-pill--current {
     position: relative;
     cursor: default;
     pointer-events: none;
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+    box-shadow: inset 0 0 0 2px var(--on-navy-muted);
 }
 .nav-panel-pill--current::before {
     content: "●";
     position: absolute;
-    left: 6px;
+    right: var(--space-4);
     top: 50%;
     transform: translateY(-50%);
-    font-size: 8px;
+    font-size: 0.6em;
     line-height: 1;
     opacity: 0.85;
 }
