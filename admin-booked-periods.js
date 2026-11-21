@@ -297,8 +297,13 @@ export function createBookedPeriods(deps) {
      * with one rule; omit it and every non-Sunday recorded date is listed, which is what the
      * absence card still does.
      *
+     * `listed` (optional) is which recorded dates are SHOWN when that differs from which are counted:
+     * a Spare day past its week's four is leave the member is on, and costs nothing (owner, 21 Nov
+     * 2026), so it is listed in its period while the period's pill counts only what is charged.
+     *
      * @param {{ type: string, memberName: string, boxId: string, bodyId: string,
      *           consumes?: (memberObj: any, dateStr: string, ovByDate: Map<string, any>|null) => boolean,
+     *           listed?: (memberObj: any, dateStr: string, ovByDate: Map<string, any>|null) => boolean,
      *           countFn: (n: number) => string, countClass: string, feedbackId: string,
      *           preferredYear?: string|null, christmas?: Record<string, string[]>,
      *           christmasFor?: (year: string) => string[] }} cfg
@@ -358,10 +363,15 @@ export function createBookedPeriods(deps) {
         // too: a rest day the member WORKED splits two runs of leave (review, Nov 2026). The ✕'s reach
         // below does not — it walks out over the rest days the booking itself spanned, worked since or not.
         const ovByDate  = deps.memberDateMap ? deps.memberDateMap(memberName) : null;
+        const shows     = cfg.listed ?? cfg.consumes;
         const dateList  = [...new Set(entries.map(e => e.date))]
             .filter(d => !deps.isSunday(d))
-            .filter(d => !cfg.consumes || cfg.consumes(memberObj, d, ovByDate))
+            .filter(d => !shows || shows(memberObj, d, ovByDate))
             .sort();
+        // What each period's pill COUNTS, when that is fewer than it lists — a Spare week's fifth and
+        // sixth days (owner, 21 Nov 2026). Null when everything listed is counted, as before.
+        const charged = cfg.listed && cfg.consumes
+            ? new Set(dateList.filter(d => /** @type {any} */ (cfg.consumes)(memberObj, d, ovByDate))) : null;
         if (!dateList.length && !hasXmas) return hide();
         const periods = dateList.length ? deps.mergePeriods(dateList,
             d => deps.isRestGap(d, memberObj, ovByDate), d => deps.addDays(d, 1)) : [];
@@ -593,11 +603,22 @@ export function createBookedPeriods(deps) {
                     note.textContent = `${moved.length === 1 ? '1 day' : `${moved.length} days`} from ${movedTo(moved[0])}’s allowance`;
                     dates.appendChild(note);
                 }
+                // A SPARE WEEK USES AT MOST FOUR (owner, 21 Nov 2026): the days past it are listed,
+                // since the member is off, and the row says why the pill counts fewer.
+                const inRow = dateList.filter(d => d >= p.start && d <= p.end);
+                const chargedHere = charged ? inRow.filter(d => charged.has(d)).length : p.count;
+                const uncharged = charged ? inRow.length - chargedHere : 0;
+                if (uncharged > 0) {
+                    const note = deps.doc.createElement('span');
+                    note.className = 'al-period-note';
+                    note.textContent = `${uncharged === 1 ? '1 Spare day' : `${uncharged} Spare days`} not counted — a Spare week uses at most 4`;
+                    dates.appendChild(note);
+                }
                 row.appendChild(dates);
 
                 const count = deps.doc.createElement('span');
                 count.className = countClass;
-                count.textContent = countFn(p.count);
+                count.textContent = countFn(chargedHere);
                 row.appendChild(count);
 
                 row.appendChild(deleteButton(dateStr, reach(p.start, -1), reach(p.end, 1), p.count));
