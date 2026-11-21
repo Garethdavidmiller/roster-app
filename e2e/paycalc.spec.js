@@ -3094,13 +3094,15 @@ test('paycalc: the sign-in card says what the calculator is, who it is for, and 
     expect(errors, 'Uncaught JS exceptions on the explained sign-in card').toHaveLength(0);
 });
 
-// ...and only on this page: every other page's sign-in card is exactly what it was.
-test('the sign-in explanation is the Pay Calculator\'s alone — another page\'s card is unchanged', async ({ page }) => {
+// ...and only on this page: another page's card carries its OWN explanation (owner, 21 Nov 2026 — every
+// page's card says what the page is; e2e/auth.spec.js holds them all), never the Pay Calculator's words
+// or its guide link.
+test('the sign-in explanation is the Pay Calculator\'s alone — another page\'s card is its own', async ({ page }) => {
     await page.goto('/settings.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
-    await expect(page.locator('#loginAbout')).toHaveCount(0);
-    await expect(page.locator('#loginFootnote')).toHaveCount(0);
-    expect(await page.locator('#loginOverlay').getAttribute('aria-describedby')).toBeNull();
+    await expect(page.locator('#loginAbout')).toBeVisible();
+    await expect(page.locator('#loginAbout')).not.toContainText(/take-home pay/i);
+    await expect(page.locator('#loginAbout .login-about-link')).toHaveCount(0);
 });
 
 // The guide link is a second way OFF the sign-in card, so it keeps the Back link's rule: a sign-in in

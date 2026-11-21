@@ -434,7 +434,8 @@ test('a throttled attempt says something different from a wrong PIN', async ({ p
     await stubPinExchange(page, { status: 429 });
     await page.goto('/index.html');
     await enterPin(page, '1234');
-    await expect(page.locator('#calLockMsg')).toContainText(/too many attempts/i);
+    await expect(page.locator('#calLockMsg')).toContainText(/paused after too many wrong entries/i);
+    await expect(page.locator('#calLockMsg')).toContainText(/sign in instead/i);   // the one other way in
     await expect(page.locator('#calLockMsg')).not.toContainText(/not recognised/i);
 });
 

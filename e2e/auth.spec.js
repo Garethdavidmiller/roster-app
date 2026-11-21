@@ -609,15 +609,19 @@ test('reset request link: two credential failures EMPHASISE it (it never appears
     await expect(btn).not.toHaveClass(/login-reset-request--prompted/);
     // Baseline taken HERE, not before the first attempt: the error message appearing above the link
     // legitimately pushes it down the card. The claim under test is narrower — that the EMPHASIS
-    // moves nothing — so the two measurements must differ only in the emphasis.
-    const before = await btn.boundingBox();
+    // moves nothing — so the two measurements must differ only in the emphasis. Measured within the
+    // CARD, not the screen: a card taller than a phone's screen (Settings' since its explanation, 21 Nov
+    // 2026) scrolls as the password box takes focus, which moves everything on screen and nothing on the card.
+    const onCard = () => btn.evaluate(el => el.getBoundingClientRect().top
+        - /** @type {HTMLElement} */ (document.getElementById('loginCard')).getBoundingClientRect().top);
+    const before = await onCard();
 
     await page.locator('#loginPassword').fill('wrongagain');
     await page.locator('#loginSubmit').click();
     await expect(btn).toHaveClass(/login-reset-request--prompted/);
     // A control that relocates at the moment of frustration is harder to use, not easier.
-    const after = await btn.boundingBox();
-    expect(after.y, 'the link must not move when it is emphasised').toBeCloseTo(before.y, 0);
+    const after = await onCard();
+    expect(after, 'the link must not move when it is emphasised').toBeCloseTo(before, 0);
 });
 
 test('reset request link: a network/transient failure does NOT push the reset route', async ({ page }) => {
