@@ -19,10 +19,10 @@ import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrN
 import { printedStamp, formatClock } from './date-format.js';
 import {
   RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, takeHomePay,
+  taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
+  computeGross, pricePayslip,
 } from './paycalc-calc.js';
-import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
+import { resetOverrides } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
@@ -48,11 +48,14 @@ import {
 import { payCalculatorPrices } from './pay-audience.js';
 import {
   updateRosterHint, updateJoinerNotice, toggleRosterDays,
-  fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
+  fillCategoryFromRoster, fillFromRoster, refreshFromCalendarInBackground,
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS, recordCalendarFigures,
 } from './paycalc-roster-hint.js';
-import { isDataEmpty, calcHPP, commitPriorHppActual, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
-import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
+import { calcHPP, commitPriorHppActual, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
+import {
+  _bpAwardTaxYear, _backdatedFromPNum, applyBpMode, bpState, onBackPayChange,
+  runCalcBackPay, applyBpRisePct, refreshBackPayCard, syncBackPayForViewedYear,
+} from './paycalc-backpay.js';
 import { hppTaxYearForPayslip } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse, createLightbox, openCardNamedByHash } from './overlay.js';
@@ -63,7 +66,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fdShort, fdLong, fmt, minutesFieldText } from './paycalc-format.js';
+import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } from './paycalc-form-data.js';
@@ -166,13 +169,9 @@ export function init() {
     }
 
     // ── COORDINATOR STATE ─────────────────────────────────────────────────────────
-    // Back pay state — set by _applyBpState() when calcBackPay() runs.
-    // Read by calculate() to add the lump sum into that period's gross before tax/NI.
-    let _bpAmount     = 0; // gross back pay for the "paid in" period (0 = none)
-    let _bpPNum       = 0; // period number that receives the back pay (0 = none)
-    let _bpIsEstimate = false; // lump derives from an unconfirmed award → label it "estimated"
-    let _bpIncluded   = false; // the card's opt-in tick — the lump only joins the take-home when true
-    let _bpFromPayslip = false; // the lump was typed from the payslip, so hours cannot sharpen it
+    // The back-pay card keeps its own state (bpState, paycalc-backpay.js); calculate() reads it to add
+    // the lump into that period's gross before tax/NI, and re-prices whenever it changes.
+    onBackPayChange(() => calculate());
 
     // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
     // per browser session. Cleared on page reload. Uses tax year label as the key.
@@ -271,7 +270,7 @@ export function init() {
         todayPeriodBtn.classList.toggle('hidden', pNum === _defaultPeriodNum);
       }
 
-      const ty = getTaxYearForOffset(p.num - 48);
+      const ty = taxYearForPeriod(p);
       const startStr = fdShort(p.start);
       const cutLongStr = fdLong(p.cutoff);
       // The payday is NOT repeated here: the select above already reads "Paid 31 Jul 2026 · P20", so
@@ -406,34 +405,10 @@ export function init() {
 
       // Fetch admin-added overrides from Firestore in the background.
       if (session2?.name) {
-        const _fetchedPNum = p.num;
         _hoursTouchedSinceFetch = false; // start watching for in-flight user edits
-        fetchOverridesForPeriod(p, session2.name).then(status => {
-          if (status === 'cancelled') return;
-          // Guard: if the user switched period before the fetch resolved, do not
-          // autosave override data from the old period into the new period.
-          if (currentPeriodNum() !== _fetchedPNum) return;
-          updateRosterHint(); // display-only refresh of the hint bar — always safe
-          // In-flight edits win: if the user typed into or cleared any hours field while the
-          // fetch was in flight, do NOT re-apply the suggestion or autosave over their work —
-          // a cleared auto-fill would otherwise be silently reinstated. The latest calendar
-          // data still shows in the hint bar above, so they can tap "Fill from calendar".
-          if (_hoursTouchedSinceFetch) return;
-          // Never over a CORRUPT period's blob (`_periodLoadWasCorrupt` says why); the hint bar above
-          // still refreshed, so "Fill from calendar" — an explicit action — can replace it.
-          if (_periodLoadWasCorrupt) return;
-          // Refresh the gold fields filled while 'checking' — DISPLAY-ONLY (owner decision; invariant
-          // 11): the suggestion feeds the live £ but is NOT saved, or merely VIEWING a payslip would
-          // count it as "entered" for HPP, the year so far and back pay. Saving needs an explicit act:
-          // typing anything (autosave takes the gold values with it) or the Fill from calendar buttons.
-          const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
-          if (_refreshP) {
-            const _refreshS = getRosterSuggestion(_refreshP, getLoggedMember());
-            // clearZeros on the server's complete answer only: a gold figure the calendar no longer gives
-            // is taken off the screen (never saved — this refresh saves nothing), so a record that moved
-            // category is not counted twice (paycalc-roster-hint.js, `_calendarOwns`).
-            if (_refreshS) { _applyRosterSuggestion(_refreshS, false, { clearZeros: status === 'loaded' }); calculate(); updateRosterHint(); }   // the hint again AFTER the fill
-          }
+        // Display-only: it re-fills the gold fields and the £, and saves nothing (paycalc-roster-hint.js).
+        refreshFromCalendarInBackground(p, session2.name, {
+          calculate, touchedSinceFetch: () => _hoursTouchedSinceFetch, loadWasCorrupt: () => _periodLoadWasCorrupt,
         });
       }
 
@@ -443,7 +418,7 @@ export function init() {
       // The back-pay card follows the viewed payslip's award year ALWAYS, not only while it is open,
       // so the banner and the take-home reflect the payslip on screen (calculate() still gates the
       // lump on `_bpPNum === _pNum`); per-year keys keep each year's tick, rates and amount apart.
-      _syncBackPayForViewedYear();
+      syncBackPayForViewedYear();
 
       stampPaycalcPrintLine();
     }
@@ -473,7 +448,7 @@ export function init() {
         recordCalendarFigures(pNum);   // the snapshot describes what was just saved: gold pairs at their saved values (paycalc-3-1)
         updateSaveStatus(pNum);
       } catch { /* storage unavailable */ }
-      _runCalcBackPay();   // the lump accrues from SAVED hours, so it re-prices from what was just saved (paycalc-2-2)
+      runCalcBackPay();   // the lump accrues from SAVED hours, so it re-prices from what was just saved (paycalc-2-2)
       calculate();
     }
     /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
@@ -604,7 +579,7 @@ export function init() {
       _adjNegative = false;
       updateAdjSign();
       updateSaveStatus(pNum);
-      _runCalcBackPay();   // the lump accrues from SAVED hours, and these were just deleted — as autosave re-prices it
+      runCalcBackPay();   // the lump accrues from SAVED hours, and these were just deleted — as autosave re-prices it
       calculate();
       // Clearing blanks the fields programmatically — refresh the roster card so
       // rows don't keep showing ✓ matched against now-empty fields.
@@ -646,12 +621,12 @@ export function init() {
       // Resolve thresholds for the selected period's tax year
       const _pNum   = currentPeriodNum();
       const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
-      if (!_curP) { renderYtdLine(null); return; }
+      if (!_curP) { renderYtdLine(null); return; }   // from here on there is always a payslip
       syncNoSpecialTick();   // hours on screen, typed or gold, supersede the no-special-rate-hours tick
       const _ty     = taxYearForPeriod(_curP);
       const thresholds = getThresholds(_ty.label);
       const _proRateFactor = getProRateFactor(_curP);
-      const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
+      const LONDON = getLondonAllowanceForPeriod(_curP, _ty) * _proRateFactor;
 
       // The payslip's rate from the one source the rate field and the Settings hint also read
       // (periodRate): its grades' rates weighted by their days, UNROUNDED. The field shows it to the
@@ -697,6 +672,8 @@ export function init() {
 
       // Back pay joins only on its paid-in payslip AND once the member has ticked it in (opt-in, OFF
       // by default — the card computes and shows the lump either way).
+      const { amount: _bpAmount, pNum: _bpPNum, isEstimate: _bpIsEstimate, included: _bpIncluded,
+              fromPayslip: _bpFromPayslip } = bpState();
       const _bpThisPeriod = (_bpPNum > 0 && _bpPNum === _pNum && _bpIncluded) ? _bpAmount : 0;
 
       // The HPP card FIRST, because it is what stores the premiums read below: this year's whenever a
@@ -751,11 +728,6 @@ export function init() {
           : periodDefaultPension(_curP);
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
-      const sacGross   = Math.max(0, grossWithBp - pension);
-
-      // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases), BEFORE the
-      // tax: neither depends on it, and the cumulative tax is bounded by what they leave (computeTax).
-      const ni = computeNI(sacGross, thresholds.ni);
 
       // Plan 5 is not repayable before 2026/27 — disable the option on a 2025/26 period so it can't be
       // newly picked. thresholds.sl has no plan5 key for 2025/26 (paycalc-calc.js), so availability
@@ -785,10 +757,7 @@ export function init() {
       const slPaidOff       = !!(_slPaidOffFromP && _pNum >= _slPaidOffFromP);
       // One undergraduate plan AND a Postgraduate Loan can be repaid together — HMRC deducts each
       // independently (9% above the plan threshold; 6% above the £21,000 PGL threshold). The TOTAL feeds
-      // net + the break bar; the summary shows a separate line per active loan.
-      const slUnder = slPaidOff ? 0 : computeSL(sacGross, plan, thresholds.sl, slSkip);
-      const slPost  = (pgLoan && !slPaidOff) ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
-      const sl = slUnder + slPost;
+      // net + the break bar; the summary shows a separate line per active loan (pricePayslip, below).
 
       // Income tax — cumulative PAYE when the Year to Date figures are given (W1/M1/X excluded). A
       // blank or unparseable box passes NULL, never 0: computeTax needs BOTH figures, and "Taxable Pay
@@ -801,17 +770,22 @@ export function init() {
       // the payslip straight after the one they came from; any other payslip uses the standard
       // method, or stale figures are silently treated as last-payslip totals and skew the tax.
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
-      if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
-      const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
-      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown, payLimited: taxPayLimited, ytdMisfit: taxYtdMisfit } = computeTax(
-        sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
-        { ytdPay: ytdP, ytdTax: ytdT, periodN, otherDeductions: ni + sl },
-      );
+      if (!(_ytdSrc && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
+      const periodN = (_curP.num - 48) - _ty.first + 1;
+      // The payslip is PRICED by the one pipeline the year so far also uses (pricePayslip): NI and the
+      // loans on the pay after pension, then the tax, then the take-home as the summary's rows show it,
+      // each to the penny (takeHomePay). Everything above decided its inputs; nothing below re-prices.
+      const {
+        sacGross, ni, slUnder, slPost, sl, afterPension: _shownAfterPension, net,
+        tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown,
+        payLimited: taxPayLimited, ytdMisfit: taxYtdMisfit,
+      } = pricePayslip({
+        gross: grossWithBp, pension, plan, pgLoan, slSkip, slPaidOff, thresholds,
+        taxCode: /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value,
+        taxOptions: { ytdPay: ytdP, ytdTax: ytdT, periodN },
+      });
       paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
       updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed, !!taxYtdMisfit);   // "in use" is what computeTax did
-
-      // The take-home is the summary's rows subtracted, each to the penny as shown (takeHomePay).
-      const { afterPension: _shownAfterPension, net } = takeHomePay({ gross: grossWithBp, pension, tax, ni, sl });
 
       // The loan rows of the summary, which never leave a £0 unexplained — buildLoanLines says how.
       const _slPaidOffP = slPaidOff ? getPeriods().find(/** @param {any} x */ x => x.num === _slPaidOffFromP) : null;
@@ -870,11 +844,11 @@ export function init() {
       // this estimate — because a target one path forgets keeps the previous render, and one branch's
       // number then sits under the other's label. `actual` is resolved HERE: the gate is about
       // identity, which belongs with the session, not with the words.
-      const _actualKey = _curP ? formatISO(_curP.payday) : null;
-      const _actual    = _actualKey && isActualsDev(getLoggedMember())
+      const _actualKey = formatISO(_curP.payday);
+      const _actual    = isActualsDev(getLoggedMember())
         ? readPayslipActuals()[_actualKey] : null;
       renderResultHeadline({
-        actual: _actual, net, payday: _curP ? _curP.payday : null,
+        actual: _actual, net, payday: _curP.payday,
         bpThisPeriod: _bpThisPeriod, hppForPeriod: _hppForPeriod,
         bpIsEstimate: _bpIsEstimate, hppIsEstimate: _hppIsEstimate,
       });
@@ -892,7 +866,7 @@ export function init() {
         copy: backPayBannerCopy({
           thisPeriod: _bpThisPeriod, amount: _bpAmount, isEstimate: _bpIsEstimate, fromPayslip: _bpFromPayslip,
           aprilYear: _bpAvailableHere ? _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4) : '',
-          inHand: !!_curP && payslipMayBeInHand(_curP),
+          inHand: payslipMayBeInHand(_curP),
         }),
       });
 
@@ -909,83 +883,6 @@ export function init() {
         // The OPT-IN back-pay lump, so year-so-far agrees with the result card (see the module).
         bpLump: (_bpIncluded && _bpPNum > 0 && _bpAmount > 0) ? { pNum: _bpPNum, amount: _bpAmount } : null,
       });
-    }
-
-    // ── BACK PAY STATE WRAPPERS ───────────────────────────────────────────────────
-    // Adopt what calcBackPay()/prefillBackPay() return, and re-price only if it changed.
-    /** @param {{ bpAmount: any, bpPNum: any, bpIsEstimate?: boolean, bpIncluded?: boolean }} _
-     *  (bpVarAmount is deliberately not tracked: nothing consumes it since HPP stopped taking back
-     *  pay, and any change to it moves bpAmount too, so the re-price still fires.) The amount source
-     *  is read off the card's own radio once the card has settled it — calcBackPay can put a manual
-     *  pick back to compute — and is part of the state, because a typed lump can equal the worked-out
-     *  one to the penny and the banner's note must still follow the switch. */
-    function _applyBpState({ bpAmount, bpPNum, bpIsEstimate = false, bpIncluded = false }) {
-      const fromPayslip = !!(/** @type {HTMLInputElement|null} */ (document.getElementById('bpModeManual'))?.checked);
-      if (bpPNum !== _bpPNum ||
-          bpIsEstimate !== _bpIsEstimate ||
-          bpIncluded   !== _bpIncluded   ||
-          fromPayslip  !== _bpFromPayslip ||
-          Math.abs(bpAmount    - _bpAmount)    > 0.001) {
-        _bpAmount     = bpAmount;
-        _bpPNum       = bpPNum;
-        _bpIsEstimate = bpIsEstimate;
-        _bpIncluded   = bpIncluded;
-        _bpFromPayslip = fromPayslip;
-        calculate();
-      }
-    }
-    function _runCalcBackPay() { _applyBpState(calcBackPay()); }
-
-    // Last values we auto-filled into the New rate/London boxes, so _applyBpRisePct can tell a
-    // still-auto value (safe to refresh) from one the user has hand-corrected (must not clobber).
-    let _bpAutoNewR = '', _bpAutoNewL = '';
-    /**
-     * "Pay rise %" shortcut: when a percentage is entered, fill the New rate/London from
-     * Old × (1 + %). A convenience only — the New boxes stay editable, and leaving the % blank
-     * keeps them fully manual. Re-runs whenever the % or either Old figure changes.
-     */
-    function _applyBpRisePct() {
-      const pct = numVal('bpRisePct');
-      if (pct > 0) {
-        const newREl = /** @type {HTMLInputElement} */ (document.getElementById('newRateInput'));
-        const newLEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
-        const newR = raiseByPercent(numVal('oldRate'),   pct);
-        const newL = raiseByPercent(numVal('oldLondon'), pct);
-        // Only fill a New box that is blank or still holds our last auto value — never overwrite
-        // a figure the user hand-corrected to their payslip.
-        if (newR && (newREl.value === '' || newREl.value === _bpAutoNewR)) { newREl.value = newR.toFixed(2); _bpAutoNewR = newREl.value; }
-        if (newL && (newLEl.value === '' || newLEl.value === _bpAutoNewL)) { newLEl.value = newL.toFixed(2); _bpAutoNewL = newLEl.value; }
-      }
-      _runCalcBackPay();
-    }
-
-    // Prefill + recompute the back-pay card for the currently-selected award year. Called on card
-    // open AND from onPeriodChange when the card is open (so switching tax years re-prefills rates).
-    function _refreshBackPayCard() {
-      _applyBpState(prefillBackPay());
-      _applyBpRisePct();
-    }
-
-    // Sync the back-pay card to the VIEWED award year: restore that year's own saved blob, or — when
-    // it has none — prefill its default (compute for the current award, enter-from-payslip for a
-    // prior one). Runs at init AND on every period change, so the banner and the take-home follow the
-    // payslip on screen; per-year keys (bpKey(ty)) load each year's state rather than resetting its tick.
-    function _syncBackPayForViewedYear() {
-      if (restoreBpState()) {
-        // Re-seed the "these New values were derived from the %" markers, so a restored box the
-        // member corrected by hand is never re-filled by _applyBpRisePct.
-        const _rv = /** @param {string} id */ id => /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? '';
-        const _pct = parseFloat(_rv('bpRisePct'));
-        if (_pct > 0) {
-          const dR = raiseByPercent(parseFloat(_rv('oldRate'))   || 0, _pct);
-          const dL = raiseByPercent(parseFloat(_rv('oldLondon')) || 0, _pct);
-          if (dR && _rv('newRateInput') === dR.toFixed(2)) _bpAutoNewR = _rv('newRateInput');
-          if (dL && _rv('newLondon')    === dL.toFixed(2)) _bpAutoNewL = _rv('newLondon');
-        }
-        _runCalcBackPay();
-      } else {
-        _refreshBackPayCard();
-      }
     }
 
     function toggleBpBreakdown() {
@@ -1132,16 +1029,16 @@ export function init() {
     // Back-pay inputs. New fields: a manual edit just recalcs. Old fields + the "Pay rise %"
     // shortcut: re-derive the New figures from Old × (1 + %) when a % is present, then recalc.
     ['newRateInput','newLondon'].forEach(/** @param {string} id */ id => {
-      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', _runCalcBackPay);
+      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', runCalcBackPay);
     });
     ['oldRate','oldLondon','bpRisePct'].forEach(/** @param {string} id */ id => {
-      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', _applyBpRisePct);
+      /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', applyBpRisePct);
     });
     // Amount-source toggle + manual amount: flipping the mode shows/hides the field group and
     // recomputes; typing the manual figure recomputes.
     document.getElementsByName('bpMode').forEach(/** @param {any} r */ r =>
-      r.addEventListener('change', () => { applyBpMode(); _runCalcBackPay(); }));
-    document.getElementById('bpManualAmt')?.addEventListener('input', _runCalcBackPay);
+      r.addEventListener('change', () => { applyBpMode(); runCalcBackPay(); }));
+    document.getElementById('bpManualAmt')?.addEventListener('input', runCalcBackPay);
 
     // HPP amount-source toggle + manual inputs: flip the mode → show/hide the matching field group,
     // persist the choice for the viewed tax year, and recompute (calculate() → calcHPP reads the mode
@@ -1166,16 +1063,16 @@ export function init() {
     initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
       /** @param {any} open */ open => {
         if (!open) return;
-        // prefillBackPay fills the rate boxes for the selected award year; _applyBpRisePct then
+        // prefillBackPay fills the rate boxes for the selected award year; applyBpRisePct then
         // derives the New rate/London from any defaulted "Pay rise %" (unconfirmed award). Shared
         // with onPeriodChange so a year switch while open re-prefills.
-        _refreshBackPayCard();
+        refreshBackPayCard();
       });
 
     // The back-pay breakdown, its paid-in payslip and its opt-in tick; Save settings
     /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn')).addEventListener('click', toggleBpBreakdown);
-    /** @type {HTMLElement} */ (document.getElementById('backPayPeriod')).addEventListener('change', _runCalcBackPay);
-    /** @type {HTMLElement} */ (document.getElementById('bpIncludeTick')).addEventListener('change', _runCalcBackPay);
+    /** @type {HTMLElement} */ (document.getElementById('backPayPeriod')).addEventListener('change', runCalcBackPay);
+    /** @type {HTMLElement} */ (document.getElementById('bpIncludeTick')).addEventListener('change', runCalcBackPay);
     wireIosTap(/** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')), () => confirmSettings(calculate), { releaseFocus: true });
 
     // Hours card — show more toggle
@@ -1229,9 +1126,9 @@ export function init() {
       if (_pa && penUntouched) _pa.value = periodDefaultPension(_gP).toFixed(2);
       // Recompute the back-pay card for the NEW grade: its saved blob holds the old grade's award
       // rates, and without this the stale lump stayed in read-only boxes with no way to repair it.
-      // calcBackPay re-enforces AWARD_RATES (and saves the corrected figures); _applyBpState re-prices
+      // calcBackPay re-enforces AWARD_RATES (and saves the corrected figures); the card re-prices
       // only if the lump changed, so the calculate() below stays for the pension and rate.
-      _runCalcBackPay();
+      runCalcBackPay();
       calculate();
     };
     /** @type {HTMLElement} */ (document.getElementById('gradeSelect')).addEventListener('change', _onGradeChange);
@@ -1464,7 +1361,7 @@ export function init() {
     initYearCard({
       afterFill: (r) => {
         if ([...r.filled, ...r.checked].some((/** @type {any} */ p) => p.num === currentPeriodNum())) loadPeriodData(currentPeriodNum());
-        _runCalcBackPay();   // filled hours inside the award window move the lump (paycalc-2-2)
+        runCalcBackPay();   // filled hours inside the award window move the lump (paycalc-2-2)
         calculate();
       },
     });

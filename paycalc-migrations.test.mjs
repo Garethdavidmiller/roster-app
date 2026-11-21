@@ -22,7 +22,6 @@ import {
     parseSavedPeriod, keyOwnerSlug,
 } from './paycalc-migrations.js';
 import { teamMembers } from './roster-data.js';
-import { TAX_YEARS } from './paycalc-calc.js';
 
 // Mirror of the private _memberSlug() in paycalc-migrations.js: lowercase, alphanumerics only.
 const slug = (/** @type {string} */ name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -493,11 +492,11 @@ describe('a migration that cannot write does not delete', () => {
     test('the Year to Date figures are not lost half-way', () => {
         // Two independent values sharing one migration. The tax half failing must not take the pay
         // half's source with it, and vice versa — they are deleted separately for that reason.
-        // Built from the REAL first tax year, via the real key helper — a hand-written slug
+        // Built from the REAL legacy year, via the real key helper — a hand-written slug
         // here would pass while the production key moved somewhere else entirely.
         const L = legacyNames();
-        const payKey = ytdPayKey(TAX_YEARS[0]);
-        const taxKey = ytdTaxKey(TAX_YEARS[0]);
+        const payKey = ytdPayKey({ label: '2025/26' });   // the legacy year, by label (LEGACY_TAX_YEAR)
+        const taxKey = ytdTaxKey({ label: '2025/26' });
         global.localStorage = makeFailingStorage(
             { [L.ytdPay]: '12345.67', [L.ytdTax]: '2345.67', myb_pc_cea_migrated: '1' },
             (k) => k === taxKey);

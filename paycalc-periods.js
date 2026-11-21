@@ -2,7 +2,7 @@
 /**
  * paycalc-periods.js — Period arithmetic and select UI for paycalc.html.
  *
- * Owns: CONFIG (period anchor + tax years), getPeriods cache, hasBankHoliday /
+ * Owns: CONFIG (period anchor + tax years), getPeriods cache, bhsForYear / hasBankHoliday /
  *   hasBoxingDay, CONDITIONAL_ROWS, period select DOM helpers, tax-year tab sync,
  *   period navigation (prev / next / jump).
  * Does NOT own: grade/settings persistence (paycalc-settings.js), calculation
@@ -14,19 +14,24 @@
 import {
   P_YR, TAX_YEARS, getTaxYearForOffset, readTaxCode,
 } from './paycalc-calc.js';
-import { bhsForYear } from './paycalc-roster-suggestions.js';
+import { getBankHolidays } from './roster-data.js';
+import { periodsInTaxYear } from './paycalc-hpp-schedule.js';
 import { fdLong, fdShort } from './paycalc-format.js';
 import { MONTH_ABB } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
-// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js,
-//     and raise LAST_OFFSET to the new year's last payslip. That is ALL that moves here:
+// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js.
+//     NOTHING here moves by hand (.claude/rules/paycalc.md → "The tax year rollover"):
+//   · LAST_OFFSET is the last tax year's last payslip, READ from TAX_YEARS (Nov 2026 debt pass —
+//     it was a literal restating the table, so a new year could be added and never offered).
 //   · ANCHOR_DATE never moves. Every payslip a member saves is keyed by its number, `48 + offset`
 //     (getPeriods), so a new anchor would silently re-date every saved entry.
-//   · FIRST_OFFSET never rises in passing. The pension opt-out, the student-loan stop and the Year
-//     to Date source are stored as payslip numbers, and dropping a year from the list leaves those
-//     naming a payslip no list offers — retiring a year needs its own decision and a migration.
+//   · FIRST_OFFSET never rises in passing, which is why it is a literal and NOT read from
+//     TAX_YEARS[0]: the pension opt-out, the student-loan stop and the Year to Date source are stored
+//     as payslip numbers, and dropping a year from the list leaves those naming a payslip no list
+//     offers — retiring a year needs its own decision and a migration, not a side effect of an edit
+//     to the table.
 //
 // NB: `num` below is an INTERNAL, monotonic offset id (37…62), NOT the number printed on the
 // payslip. The payslip counts weeks-into-the-tax-year (×4 per period, resetting each April):
@@ -37,7 +42,7 @@ export const CONFIG = {
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
   FIRST_OFFSET:   -11,   // internal num 37 — first period of 2025/26 (~11 Apr 2025; printed "Period 4")
-  LAST_OFFSET:     14,   // internal num 62 — last period of 2026/27 (payday 12 Mar 2027; printed "Period 52")
+  LAST_OFFSET:    TAX_YEARS[TAX_YEARS.length - 1].last,   // today 14: internal num 62, the last of 2026/27 (payday 12 Mar 2027; printed "Period 52")
   TAX_YEARS,             // imported from paycalc-calc.js
 };
 
@@ -184,9 +189,25 @@ export function hasBoxingDay(/** @type {any} */ p) {
 }
 
 // ── BANK HOLIDAY DETECTION ────────────────────────────────────────────────────
-// bhsForYear is exported from paycalc-roster-suggestions.js — one definition
-// shared with the suggestion engine. Boxing Day (26 Dec) excluded; handled
-// separately by hasBoxingDay() at 3× rate.
+/** @type {WeakMap<Date[], Date[]>} */
+const _bhsByList = new WeakMap();
+/**
+ * The year's bank holidays the pay calculator prices as bank holidays: every one but Boxing Day
+ * (26 Dec), which is priced on its own at 3× (hasBoxingDay). One definition, shared with the
+ * suggestion engine (paycalc-roster-suggestions.js); it lived there until Nov 2026, which made this
+ * pure module load Firestore. Hot in the 28-day period scan and in hasBankHoliday() during recalc,
+ * so the filtered list is kept per list getBankHolidays returns (which is itself kept per year).
+ * @param {number} year @returns {Date[]}
+ */
+export function bhsForYear(year) {
+  const all = /** @type {Date[]} */ (getBankHolidays(year));   // kept per year by roster-data.js
+  let bhs = _bhsByList.get(all);
+  if (!bhs) {
+    bhs = all.filter((/** @type {Date} */ d) => !(d.getMonth() === 11 && d.getDate() === 26));
+    _bhsByList.set(all, bhs);
+  }
+  return bhs;
+}
 
 /** True if any bank holiday (excluding Boxing Day) falls within this period. */
 export function hasBankHoliday(/** @type {any} */ p) {
@@ -635,8 +656,7 @@ export function updateTyTabs() {
 export function jumpToTaxYear(tyIndex, onPeriodChange) {
   const ty      = CONFIG.TAX_YEARS[tyIndex];
   if (!ty) return;
-  const periods = getPeriods();
-  const first   = periods.find((/** @type {any} */ p) => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
+  const first   = periodsInTaxYear(ty, getPeriods())[0];
   if (!first) return;
   _setSelectPeriod(document.getElementById('periodSelect'), first.num);
   onPeriodChange();

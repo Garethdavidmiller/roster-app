@@ -789,7 +789,7 @@ The overlays on `paycalc.html`: About, Help, the decimal hours converter, the da
 
 ### `paycalc-periods.js`
 Period arithmetic and the payslip lists for `paycalc.html`: the period grid (`p.num` is an internal id, never the printed number), the new-starter clamp, the one builder of every payslip list, deep links by payday or month, navigation, and the Year to Date source rules: which payslip may be in hand, offered, stamped, in use, or asked for. Rules: `.claude/rules/paycalc.md` → New-starter visibility clamp and "Year to Date figures are ANCHORED". Tested by `paycalc-periods.test.mjs`.
-- **Exports:** `CONFIG` · `getPeriods` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `hasBoxingDay` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
+- **Exports:** `CONFIG` · `getPeriods` · `payslipPeriodNum` · `computeEarliestVisiblePNum` · `setEarliestVisiblePeriod` · `getEarliestVisiblePNum` · `visiblePeriods` · `isTaxYearVisible` · `todaysPeriodNum` · `currentPeriodNum` · `hasBoxingDay` · `bhsForYear` · `hasBankHoliday` · `CONDITIONAL_ROWS` · `updateBhRows` · `_setSelectPeriod` · `appendPayslipOptions` · `offerRecordedPayslip` · `periodLinkMissNote` · `periodPaidInMonth` · `buildPeriodSelect` · `payslipMayBeInHand` · `ytdSourceOffered` · `ytdAutoSource` · `ytdSourceToStamp` · `ytdSourceAfterRetype` · `ytdAnchorStatus` · `buildYtdSourceSelect` · `buildBackPayPeriodSelect` · `updateTyTabs` · `jumpToTaxYear` · `prevPeriod` · `nextPeriod` · `ytdUpdateFrom`
 
 ### `paycalc-settings.js`
 Each payslip's rate, contracted hours and pension, and Settings save/load: the one answer to the rate a payslip was paid at (`periodRate`), the one place the pension opt-out is applied (`getPensionDefault`), the pension controls, and the Settings card's desktop place and deep link. It re-exports the grade setting's readers from `paycalc-grade-setting.js`. Rules: `.claude/rules/paycalc.md` invariants 8, 12, 13 and 17. Tested by `paycalc-settings.test.mjs`.
@@ -805,7 +805,7 @@ Which grade each of a payslip's days was worked under, from the roster's dated g
 
 ### `paycalc-roster-hint.js`
 The roster-assist hint bar on `paycalc.html`: rendering the suggestion, the Fill buttons that write it (overwriting, as an explicit tap), and the snapshot of which saved figures came from the calendar. The suggestion engine is `paycalc-roster-suggestions.js`; viewing a period never persists a suggestion (`.claude/rules/paycalc.md` invariant 11). Tested by `paycalc-roster-hint.test.mjs`.
-- **Exports:** `HM_PAIRS` · `_confBadge` · `snapKey` · `recordCalendarFigures` · `_restoreRosterSuggested` · `updateRosterHint` · `updateJoinerNotice` · `toggleRosterDays` · `clearRosterSuggestedAll` · `_applyRosterSuggestion` · `fillCategoryFromRoster` · `fillFromRoster`
+- **Exports:** `HM_PAIRS` · `_confBadge` · `snapKey` · `recordCalendarFigures` · `_restoreRosterSuggested` · `updateRosterHint` · `updateJoinerNotice` · `toggleRosterDays` · `clearRosterSuggestedAll` · `_applyRosterSuggestion` · `fillCategoryFromRoster` · `refreshFromCalendarInBackground` · `fillFromRoster`
 
 ### `paycalc-hpp-schedule.js`
 WHICH payslip carries WHICH tax year's Holiday Pay Premium (the first January payslip of the FOLLOWING tax year, outside the year's own window), answered in both directions, once. Pure, no imports: the grid and the tax-year table are passed in. Rule: `.claude/rules/paycalc.md` invariant 4. Tested by `paycalc-hpp-schedule.test.mjs` against the real `TAX_YEARS`.
@@ -813,7 +813,7 @@ WHICH payslip carries WHICH tax year's Holiday Pay Premium (the first January pa
 
 ### `paycalc-hpp.js`
 The Holiday Pay Premium card (this year's figure from three amount sources, last year's figure and its confirmation) and the saved-payslip readers it shares with back pay and the year summary. Back pay is never fed into the premium, London Allowance accrues none, and a joiner is never pro-rated. Rules: `.claude/rules/paycalc.md` invariants 5 to 7 and → "HPP amount source". Tested by `paycalc-hpp.test.mjs`.
-- **Exports:** `isDataEmpty` · `resolveHppForPeriod` · `_decodeHours` · `savedPeriodPension` · `_varPayForPeriod` · `hppFromYtdTaxable` · `knownYtdLumps` · `applyHppMode` · `readHppState` · `saveHppState` · `restoreHppState` · `calcHPP` · `priorHppToStore` · `commitPriorHppActual` · `premiumStillToEstimate` · `updatePriorHpp`
+- **Exports:** `resolveHppForPeriod` · `_decodeHours` · `savedPeriodPension` · `_varPayForPeriod` · `hppFromYtdTaxable` · `knownYtdLumps` · `applyHppMode` · `readHppState` · `saveHppState` · `restoreHppState` · `calcHPP` · `priorHppToStore` · `commitPriorHppActual` · `premiumStillToEstimate` · `updatePriorHpp`
 
 ### `paycalc-fill-year.js` / `paycalc-year-card.js`
 "Fill these from your calendar" and the "This tax year so far" card in the sidebar.
@@ -828,11 +828,11 @@ The Holiday Pay Premium card (this year's figure from three amount sources, last
 
 ### `paycalc-backpay.js`
 The back-pay card: the lump owed for a pay award backdated to 1 April, computed from the member's hours or entered from the payslip, kept per tax year and opt-in to the take-home. Every rule is `.claude/rules/paycalc.md` → Back-pay (and invariants 1, 5 and 14); the three figure decisions are `paycalc-backpay-state.js`, the award arithmetic `paycalc-backpay-accrual.js`. Tested by `paycalc-backpay.test.mjs`, which drives the real `calcBackPay` against a fake `document`.
-- **Exports:** `paidInPeriodNum` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `_backdatedFromPNum` · `applyBpMode` · `_bpAwardTaxYear` · `prefillBackPay` · `restoreBpState` · `raiseByPercent` · `bpStoryHtml` · `calcBackPay`
+- **Exports:** `_backdatedFromPNum` · `applyBpMode` · `_bpAwardTaxYear` · `prefillBackPay` · `restoreBpState` · `raiseByPercent` · `bpStoryHtml` · `calcBackPay` · `bpState` · `onBackPayChange` · `runCalcBackPay` · `applyBpRisePct` · `refreshBackPayCard` · `syncBackPayForViewedYear`
 
 ### `paycalc-backpay-accrual.js`
 What a pay award owes, period by period — pure, no DOM: one period's arrears, the April fraction of an award's first period (`awardWindowFactor`), and the share of the lump that is not premium pay. A module of its own so the Holiday Pay Premium's Year to Date estimate (`paycalc-hpp.js`) reuses the card's arithmetic without an import cycle. Bound by `.claude/rules/paycalc.md` invariants 1 and 14; tested by `paycalc-backpay.test.mjs`, `paycalc-periods.test.mjs` and `paycalc-hpp.test.mjs`.
-- **Exports:** `paidInPeriodNum` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `awardLumpNonPremium`
+- **Exports:** `paidInPeriodNum` · `awardWindow` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `awardLumpNonPremium`
 
 ### `paycalc-format.js`
 The pay calculator's shared formatters and field helpers: dates in the app's own words, read off the device's calendar; money and hourly rates; minutes; and the hours/minutes field pairs with the "nothing entered" test. Pure, and its only import is `date-format.js`, so every paycalc module can reach it from Node. Tested by `paycalc-format.test.mjs`.
@@ -844,7 +844,7 @@ The pure HTML builders for the pay-result card — the summary rows, the full br
 
 ### `paycalc-form-data.js`
 The per-period form ↔ saved-data round trip: the saved-period schema, form → object for autosave, object → form for a load, and the one rule for what a pension field's text is stored as. A module of its own so a write → read → write test holds it symmetric — `.claude/rules/paycalc.md` invariant 2; the header lists the defects that asymmetry caused. Tested by `paycalc-form-data.test.mjs`.
-- **Exports:** `isDataEmpty` · `emptyPeriodData` · `syncNoSpecialTick` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
+- **Exports:** `emptyPeriodData` · `syncNoSpecialTick` · `pensionToStore` · `readFormData` · `settingFieldsWrite` · `writeFormData`
 
 ### `paycalc-inputs.js`
 The field readers for `paycalc.html`'s hours and figures: the one reader of what an hours box holds (a decimal, a decimal comma or a clock time), the live "= 7h 30m" hint, the Decimal Hours Converter's answer, the Tax Code box's warning, and `wireIosTap` for a control tapped while the iPhone keyboard is up. They need only `document`, so they test in Node against a fake one (`paycalc-inputs.test.mjs`); the event wiring stays in `paycalc-app.js`.
@@ -880,11 +880,11 @@ The pay calculator's storage keys and its one-time data migrations: the per-memb
 
 ### `paycalc-calc.js`
 The pay maths: the rate, threshold, pension and award tables, and the pure engine — gross pay, income tax (with the one tax-code reader), National Insurance, student loans and the take-home — with no DOM, Firebase or browser globals. Every figure, every payroll rule and the steps for the next award or tax year are `.claude/rules/paycalc.md` ("Current rates", "Payroll rules"). Tested by `paycalc.test.mjs`, `paycalc-current-year.test.mjs` and, on the owner's checkout, `npm run test:payslip-local`.
-- **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL`
+- **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL` · `pricePayslip`
 
 ### `paycalc-roster-suggestions.js`
 The roster-to-pay suggestion engine behind the hint bar: one member's recorded changes for a payslip, fetched and kept per payslip, merged with the base roster into the Saturday / Sunday / bank holiday / overtime / RDW / Boxing Day totals the bar pre-fills. No DOM. Its payroll rules are `.claude/rules/paycalc.md` invariants 9 and 11 and "Payroll rules"; tested by `paycalc-roster-suggestions.test.mjs`.
-- **Exports:** `_setOverridesForTest` · `_addBhDateForTest` · `_removeBhDateForTest` · `resetOverrides` · `getOverridesFetchState` · `bhsForYear` · `fetchOverridesForPeriod` · `BARE_TRAINING_DAY_MINS` · `getRosterSuggestion`
+- **Exports:** `_setOverridesForTest` · `_addBhDateForTest` · `_removeBhDateForTest` · `resetOverrides` · `getOverridesFetchState` · `fetchOverridesForPeriod` · `getRosterSuggestion`
 
 ### `firebase-client.js`
 The single Firebase initialisation point: every page takes `db`, `auth` and the SDK calls from here, never from the CDN, so the SDK version appears once (a bump also moves `FIREBASE_SDK_VERSION` in `service-worker.js` — CLAUDE.md → Change impact). It cannot load in Node, so its rules live in the pure modules and factories it binds — `claim-retry.js` for every write, `documents-client.js`, `account-calls.js`, `analytics-client.js` among them. Boot persistence: `AUTH_AND_SESSIONS.md` 8; the persistent cache: `.claude/rules/pwa.md`. Tested by `firebase-client.test.mjs` and `calendar-viewer-parity.test.mjs`.

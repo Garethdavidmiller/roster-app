@@ -48,6 +48,7 @@ const { teamMembers } = await import('./roster-member-data.js');
 mock.module('./roster-data.js', {
     namedExports: {
         teamMembers, APP_VERSION: '13.00',
+        getBankHolidays: () => [],   // No bank holidays (paycalc-periods.js reads them here since bhsForYear moved there, Nov 2026).
         CONFIG: { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },
         formatISO: _realRosterData.formatISO,
         parseSmartFloat: (/** @type {any} */ v) => parseFloat(String(v)),
@@ -56,7 +57,7 @@ mock.module('./roster-data.js', {
     },
 });
 mock.module('./paycalc-roster-suggestions.js', {
-    namedExports: { bhsForYear: () => [], getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
+    namedExports: { getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
 });
 
 const { SK } = await import('./paycalc-migrations.js');

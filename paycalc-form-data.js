@@ -39,10 +39,8 @@ import { hmPair, numVal } from './paycalc-inputs.js';
 import { parseSmartFloatOrNull } from './roster-data.js';
 import { minutesFieldText, HM_PAIRS } from './paycalc-format.js';
 
-// isDataEmpty lives in paycalc-format.js (the zero-import pure home — beside HM_PAIRS, the two of
-// them being the schema's field surface); re-exported here because this module OWNS the schema and
-// is where a reader looks for it. paycalc-hpp re-exports it too for its long-standing importers.
-export { isDataEmpty } from './paycalc-format.js';
+// isDataEmpty — whether a saved payslip counts as entered — reads this schema's fields and lives in
+// paycalc-format.js, the zero-import pure home beside HM_PAIRS; import it from there.
 
 /**
  * The saved-period schema — the shape written to localStorage for one pay period.

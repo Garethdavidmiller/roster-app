@@ -198,7 +198,10 @@ const CAPS = {
     // page's disclosures (paycalc-disclosures.js), the Year to Date card's anchor, note and chip
     // (paycalc-ytd-card.js) and "Check against your payslip" (paycalc-result-headline.js →
     // renderActualCheck) — none closing over coordinator state. 1,483 measured lines + 50, rounded up.
-    'paycalc-app.js':          1550,
+    // 1550 → 1450 (Nov 2026 debt pass), brought DOWN with what left (1,500 measured lines to 1,400):
+    // the payslip pricing (pricePayslip, paycalc-calc.js), the background calendar refresh
+    // (paycalc-roster-hint.js) and the back-pay card's state and re-pricing (paycalc-backpay.js).
+    'paycalc-app.js':          1450,
     // 1727 → 486 (v21.38): the store, the week editor, the Saved Changes list and the shift-type
     // table all moved out. Re-set to its new size plus the usual room — a cap left at 1800 over a
     // 486-line file is the "quietly generous" case this suite's own last check refuses.
@@ -611,7 +614,13 @@ const CAPS = {
     // releases, so the next raise should have to argue for itself. The extraction candidate is
     // `bpStoryHtml` — a pure HTML builder with no coordinator state, and the same shape as the
     // split that produced paycalc-breakdown.js.
-    'paycalc-backpay.js':       949,
+    // 949 → 1000 (Nov 2026 debt pass), a RAISE, said so, paid for by paycalc-app.js's cap falling
+    // 100: the card's own state (bpState) and the wrappers that re-price from it — 77 lines of
+    // wiring that lived in the coordinator only because the state did — moved here, beside the
+    // calcBackPay and prefillBackPay they wrap (892 measured lines to 969). Nothing in it is a rule;
+    // the room is held to 31 lines for the same reason as before, and bpStoryHtml is still the
+    // extraction the next raise should make instead.
+    'paycalc-backpay.js':      1000,
 
     // ── functions/ — capped for the FIRST TIME at v23.54, at their measured sizes ───────────────
     //

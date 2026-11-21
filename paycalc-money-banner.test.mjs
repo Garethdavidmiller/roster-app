@@ -229,8 +229,9 @@ describe('the CALLER passes the added sum, not the available one', () => {
             'the back-pay banner is told about a different sum from the one in the total');
         assert.match(callSite('hppBannerCopy'), /forPeriod:\s*_hppForPeriod\b/,
             'the HPP banner is told about a different sum from the one in the total');
-        // …and whether the payslip ON SCREEN may be in hand, by the app's one rule for that.
-        assert.match(callSite('backPayBannerCopy'), /inHand:\s*!!_curP && payslipMayBeInHand\(_curP\)/,
+        // …and whether the payslip ON SCREEN may be in hand, by the app's one rule for that. (No
+        // `!!_curP &&` in front since Nov 2026: calculate() has returned already when there is none.)
+        assert.match(callSite('backPayBannerCopy'), /inHand:\s*payslipMayBeInHand\(_curP\)/,
             'the back-pay banner is not told whether its payslip has arrived');
     });
 

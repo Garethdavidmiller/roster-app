@@ -23,9 +23,9 @@ mock.module('./ls.js', {
     },
 });
 mock.module('./paycalc-roster-suggestions.js', {
-    namedExports: { bhsForYear: () => [], getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
+    namedExports: { getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
 });
-mock.module('./roster-data.js', { namedExports: { teamMembers: [] } });
+mock.module('./roster-data.js', { namedExports: { teamMembers: [], getBankHolidays: () => [] } });   // No bank holidays (paycalc-periods.js reads them here since bhsForYear moved there, Nov 2026).
 
 /** A fake element: a value, text, a class set, and children a select's `options` can list. */
 function el(value = '') {

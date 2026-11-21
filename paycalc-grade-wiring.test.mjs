@@ -54,6 +54,7 @@ const _realRosterData = await import('./roster-data.js?real');
 mock.module('./roster-data.js', {
     namedExports: {
         teamMembers: _members, APP_VERSION: '13.00',
+        getBankHolidays: () => [],   // No bank holidays (paycalc-periods.js reads them here since bhsForYear moved there, Nov 2026).
         CONFIG: { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },
         formatISO: _realRosterData.formatISO,
         parseSmartFloat: (/** @type {any} */ v) => parseFloat(String(v)),
@@ -63,7 +64,7 @@ mock.module('./roster-data.js', {
     },
 });
 mock.module('./paycalc-roster-suggestions.js', {
-    namedExports: { bhsForYear: () => [], getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
+    namedExports: { getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {} },
 });
 // awardGrade's last resort reads the payslip selector; with none on screen it falls to today's. The
 // premium estimate reads it too, for the tax year on screen, and writes its figures into the card —

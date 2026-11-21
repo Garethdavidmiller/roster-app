@@ -25,36 +25,27 @@ import {
 // matters most: changing hppPaidJan in paycalc-calc.js left the suite fully green. paycalc-calc.js
 // has no imports of its own, so there is no Firebase transitive dep to avoid here.
 import { TAX_YEARS } from './paycalc-calc.js';
+import { CONFIG as PAGE_CONFIG, getPeriods } from './paycalc-periods.js';
 
 const TY_25 = TAX_YEARS.find(t => t.label === '2025/26');
 const TY_26 = TAX_YEARS.find(t => t.label === '2026/27');
 // Fail loudly rather than silently skipping if the table is re-labelled at the April rollover.
 assert.ok(TY_25 && TY_26, 'TAX_YEARS must still carry 2025/26 and 2026/27 — update this fixture');
 
-// ── The period grid, READ from paycalc-periods.js (18 Nov 2026) ─────────────────────────────────
-// paycalc-periods.js pulls in Firebase transitively, so it cannot be imported into a plain Node test
-// — but its CONFIG can be read as text. The grid here used to be a hand-copy of it (anchor, offsets
-// −11…14), and a copy ends where the page's list ends: 2026/27's premium, paid in January 2028, was
-// never looked for, so changing that year's hppPaidJan left this file green. Now the anchor and the
-// offsets are the page's own, built as getPeriods() builds them, and the grid is also run one tax
-// year further (BEYOND), which is where every year on record must find the payslip carrying it.
-const CONFIG_SRC = (() => {
-    const src = readFileSync(new URL('./paycalc-periods.js', import.meta.url), 'utf8');
-    return src.slice(src.indexOf('export const CONFIG = {'));
-})();
-/** A whole-number CONFIG entry, as paycalc-periods.js writes it. @param {string} name */
-const configNumber = (name) => {
-    const m = CONFIG_SRC.match(new RegExp(`\\b${name}:\\s*(-?\\d+)`));
-    assert.ok(m, `paycalc-periods.js CONFIG no longer writes ${name} as a number — re-read this reader`);
-    return Number(m[1]);
-};
-const ANCHOR_ARGS = CONFIG_SRC.match(/\bANCHOR_DATE:\s*new Date\(([\d,\s]+)\)/)?.[1].split(',').map(Number);
-assert.ok(ANCHOR_ARGS && ANCHOR_ARGS.length >= 3,
-    'paycalc-periods.js CONFIG no longer writes ANCHOR_DATE as new Date(y, m, d, …) — re-read this reader');
-const ANCHOR = new Date(...ANCHOR_ARGS);
-const PERIOD_DAYS = configNumber('PERIOD_DAYS');
-const FIRST_OFFSET = configNumber('FIRST_OFFSET');
-const LAST_OFFSET = configNumber('LAST_OFFSET');
+// ── The period grid, the page's OWN (18 Nov 2026; imported since Nov 2026) ──────────────────────
+// The grid here used to be a hand-copy of paycalc-periods.js (anchor, offsets −11…14), and a copy ends
+// where the page's list ends: 2026/27's premium, paid in January 2028, was never looked for, so
+// changing that year's hppPaidJan left this file green. Now the anchor and the offsets are the page's
+// own CONFIG — imported, since bhsForYear left the Firestore-backed suggestion module and that module
+// no longer comes with it — and the grid is also run one tax year further (BEYOND), which is where
+// every year on record must find the payslip carrying it.
+// LAST_OFFSET is the last tax year's last payslip, READ from the table (Nov 2026 debt pass), so a year
+// added to TAX_YEARS is offered without a second edit. Equal values cannot show that it is read rather
+// than restated, so the source is checked too: it fails if the page goes back to writing a figure.
+assert.match(readFileSync(new URL('./paycalc-periods.js', import.meta.url), 'utf8'),
+    /\bLAST_OFFSET:\s*TAX_YEARS\[TAX_YEARS\.length - 1\]\.last\b/,
+    'paycalc-periods.js CONFIG no longer reads LAST_OFFSET from TAX_YEARS');
+const { ANCHOR_DATE: ANCHOR, PERIOD_DAYS, FIRST_OFFSET, LAST_OFFSET } = PAGE_CONFIG;
 /** The page's payslips from offset `first` to `last`, as getPeriods() builds them.
  *  @param {number} first @param {number} last */
 const grid = (first, last) => {
@@ -177,6 +168,9 @@ describe('the two directions are inverses (the v18.84 regression guard)', () => 
         assert.equal(PERIODS.length, LAST_OFFSET - FIRST_OFFSET + 1);
         assert.equal(PERIODS.find(p => p.num === 48)?.payday.getTime(), ANCHOR.getTime());
         for (const ty of TAX_YEARS) assert.equal(periodsInTaxYear(ty, PERIODS).length, 13, ty.label);
+        // …and it IS the page's list, payslip for payslip, not a rebuild that only agrees in shape.
+        assert.deepEqual(PERIODS.map(p => [p.num, p.payday.getTime()]),
+            getPeriods().map((/** @type {any} */ p) => [p.num, p.payday.getTime()]));
     });
 
     test('every tax year on record is paid on the FIRST January payslip after its own thirteen', () => {

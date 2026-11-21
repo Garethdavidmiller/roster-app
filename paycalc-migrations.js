@@ -443,6 +443,12 @@ export function resolveLegacyMigration(memberName, choice) {
 // ── ALL DATA MIGRATIONS ───────────────────────────────────────────────────────
 // Called once at startup before loadSettings(). Order matters: key prefix
 // migration runs first so all subsequent migrations read the new key names.
+
+/** The tax year the pre-per-year Year to Date and premium values belong to: the only year the
+ *  calculator held when those keys were written. Named by its LABEL, never TAX_YEARS[0], so adding
+ *  or retiring a year can never move where legacy figures land (Nov 2026 debt pass). */
+const LEGACY_TAX_YEAR = Object.freeze({ label: '2025/26' });
+
 /**
  * Passed in rather than imported: two of them live in modules that import this one (getPensionDefault
  * in paycalc-settings.js, getLoggedMember in paycalc-grade-setting.js), so importing them would be a cycle.
@@ -459,7 +465,7 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     const legacyYtdPay = lsGet(SK.ytdPay);
     const legacyYtdTax = lsGet(SK.ytdTax);
     if (legacyYtdPay != null || legacyYtdTax != null) {
-        const firstTy = TAX_YEARS[0];
+        const firstTy = LEGACY_TAX_YEAR;
         // Each half deletes only its OWN source, and only once the destination reads back (v21.86).
         // These are the two figures that sharpen a member's tax estimate for the whole year; losing
         // them to a swallowed storage error is silent and only noticed as a wrong take-home.
@@ -474,7 +480,7 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     // Migration: legacy global hppActual (cea_hpp_actual) to per-year key
     const legacyHppActual = lsGet('cea_hpp_actual');
     if (legacyHppActual) {
-        const firstTy = TAX_YEARS[0];
+        const firstTy = LEGACY_TAX_YEAR;
         if (lsGet(hppActualKey(firstTy)) !== null || lsSetVerified(hppActualKey(firstTy), legacyHppActual)) {
             lsDel('cea_hpp_actual');
         }

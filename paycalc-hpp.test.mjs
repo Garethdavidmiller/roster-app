@@ -1,5 +1,5 @@
 /**
- * Unit tests for paycalc-hpp.js: the pure exports (isDataEmpty, _decodeHours, _varPayForPeriod, …)
+ * Unit tests for paycalc-hpp.js: the pure exports (_decodeHours, _varPayForPeriod, …; isDataEmpty, from paycalc-format.js)
  * and, against a fake `document`, the card itself — the prior-year block a member reads on the
  * January payslip, and the amount-source state.
  *
@@ -31,9 +31,8 @@ let _viewPNum          = 48;
 /** The settled rate the settings module would derive (its real rule: AWARD_RATES by grade). */
 let _settledRate = (/** @type {any} */ ty) => awardRatesFor(_grade, ty?.label)?.rate ?? 20.74;
 
-// The real period module, so the grid, the tax years and the in-hand rule are the app's own. It
-// reaches Firebase only through the suggestion module, which is all this stands in for.
-mock.module('./paycalc-roster-suggestions.js', { namedExports: { bhsForYear: () => [] } });
+// The real period module, so the grid, the tax years and the in-hand rule are the app's own. It no
+// longer reaches Firebase (bhsForYear moved into it, Nov 2026), so nothing stands in for anything.
 const _realPeriods = await import('./paycalc-periods.js?real');
 
 mock.module('./paycalc-periods.js', {
@@ -159,7 +158,8 @@ globalThis.document = /** @type {any} */ ({
         : null),
 });
 
-const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
+const { isDataEmpty } = await import('./paycalc-format.js');
+const { _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
         priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState, saveHppState,
         savedPeriodPension, premiumStillToEstimate } = await import('./paycalc-hpp.js');
 const { periodKey, hppEstKey, hppActualKey, hppModeKey } = await import('./paycalc-migrations.js');

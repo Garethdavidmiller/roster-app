@@ -2,13 +2,14 @@
 /**
  * paycalc-backpay-accrual.js — what a pay award owes, period by period. PURE: no DOM, no storage.
  *
- * Owns: the award arithmetic — `_accrueBackPayPeriod` (one period's arrears), `awardWindowFactor`
+ * Owns: the award arithmetic — `awardWindow` (which payslips an award covers), `_accrueBackPayPeriod`
+ *   (one period's arrears), `awardWindowFactor`
  *   (the April fraction of the first period), `_awardBackdateDate` (1 April), `paidInPeriodNum`
  *   (the payslip a decided award lands on) — and `awardLumpNonPremium`, the share of that lump that
  *   is basic and London Allowance rather than premium pay.
- * Does NOT own: the back-pay CARD (paycalc-backpay.js, which re-exports the other four —
- *   `awardLumpNonPremium` is imported straight from here by paycalc-hpp.js), or which
- *   figure sits in which box (paycalc-backpay-state.js).
+ * Does NOT own: the back-pay CARD (paycalc-backpay.js; it, paycalc-hpp.js, paycalc-settings.js
+ *   and the tests all import from here, never through the card), or which figure sits in which box
+ *   (paycalc-backpay-state.js).
  *
  * WHY IT IS A MODULE OF ITS OWN (moved from paycalc-backpay.js, Nov 2026). The Holiday Pay
  * Premium's rough Year to Date estimate has to take the lump's non-premium share OUT of a member's
@@ -17,7 +18,8 @@
  * the card without a cycle. The arithmetic never needed the card; this is the seam.
  */
 
-import { RATE_125, RATE_150, RATE_300, capHours } from './paycalc-calc.js';
+import { RATE_125, RATE_150, RATE_300, capHours, awardFromForYear } from './paycalc-calc.js';
+import { periodsInTaxYear } from './paycalc-hpp-schedule.js';
 import { CONFIG as PERIOD_CONFIG } from './paycalc-periods.js';
 import { allRatesOnRecord } from './paycalc-backpay-state.js';
 
@@ -42,6 +44,30 @@ export function paidInPeriodNum(periods, awardFrom) {
 }
 
 // ── THE AWARD WINDOW ──────────────────────────────────────────────────────────
+
+/**
+ * The payslips an award's back pay covers — the ONE definition (Nov 2026 debt pass; the back-pay
+ * card, `awardGrade` and the Holiday Pay Premium's rough Year to Date figure each wrote it out): the
+ * award tax year's own payslips, from its first, that were paid BEFORE the award was applied (a
+ * decided award's `londonAllowFrom` — on and after it the payslip already carries the new rate; an
+ * undecided award has no date, so the whole year), and none after `capNum`.
+ *
+ * The cap is the CALLER's, and the callers differ on purpose or by history — each passes exactly what
+ * it applied before: the card stops at the payslip before the one the lump is paid in and at today's
+ * (`calcBackPay`); `awardGrade` at today's; the premium's lump split at none, because a decided
+ * award's payslips before its date have all been paid.
+ * @param {Array<{num:number, payday:Date}>} periods  - getPeriods()
+ * @param {{label:string, first:number, last:number}|null|undefined} awardTy - a TAX_YEARS entry
+ * @param {{ capNum?: number, awardFrom?: Date|null }} [opts]
+ *   capNum — the last payslip number that may count (Infinity: no cap); awardFrom — the date the
+ *   award was applied, `awardFromForYear(awardTy.label)` when omitted
+ * @returns {any[]}
+ */
+export function awardWindow(periods, awardTy, { capNum = Infinity, awardFrom = awardFromForYear(awardTy?.label ?? '') } = {}) {
+  if (!awardTy) return [];
+  return periodsInTaxYear(awardTy, periods)
+    .filter(p => p.num <= capNum && !(awardFrom && p.payday >= awardFrom));
+}
 
 /**
  * 1 April of an award tax year — the date Chiltern backdates a pay award TO.

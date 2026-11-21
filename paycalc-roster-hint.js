@@ -3,7 +3,8 @@
  * paycalc-roster-hint.js — Roster-assist hint bar UI for paycalc.html.
  *
  * Owns: updateRosterHint, updateJoinerNotice, toggleRosterDays, fillFromRoster,
- *   fillCategoryFromRoster, _applyRosterSuggestion, clearRosterSuggestedAll,
+ *   fillCategoryFromRoster, refreshFromCalendarInBackground (a period change's display-only
+ *   refresh), _applyRosterSuggestion, clearRosterSuggestedAll,
  *   _restoreRosterSuggested, recordCalendarFigures, snapKey, renderRosterDayList.
  * Does NOT own: period arithmetic (paycalc-periods.js), override cache / suggestion
  *   engine (paycalc-roster-suggestions.js), calculation (paycalc-app.js).
@@ -595,6 +596,43 @@ export function fillCategoryFromRoster(cat, autosave) {
   // Programmatic value changes don't fire the input listeners — refresh the
   // roster card so the tapped row flips from "→ Fill" to "✓ matched".
   updateRosterHint();
+}
+
+/**
+ * The background calendar refresh a period change starts (moved from paycalc-app.js, Nov 2026,
+ * beside the single Fill's own stale-fetch guard below). DISPLAY-ONLY (owner decision; invariant
+ * 11): the suggestion feeds the live £ but is NOT saved, or merely VIEWING a payslip would count it
+ * as "entered" for HPP, the year so far and back pay. Saving needs an explicit act: typing anything
+ * (autosave takes the gold values with it) or the Fill from calendar buttons.
+ * @param {any} p - the payslip the fetch is for
+ * @param {string} memberName
+ * @param {{ calculate: () => void, touchedSinceFetch: () => boolean, loadWasCorrupt: () => boolean }} coordinator
+ *   touchedSinceFetch — the member typed into or cleared an hours field while the fetch was in
+ *   flight; loadWasCorrupt — the payslip's saved blob was unreadable (paycalc-app.js says why).
+ *   Both are read when the fetch ANSWERS, not when it starts.
+ * @returns {Promise<void>}
+ */
+export function refreshFromCalendarInBackground(p, memberName, { calculate, touchedSinceFetch, loadWasCorrupt }) {
+  const fetchedPNum = p.num;
+  return fetchOverridesForPeriod(p, memberName).then(status => {
+    if (status === 'cancelled') return;
+    // The member switched period before the fetch resolved: nothing of the old one's lands here.
+    if (currentPeriodNum() !== fetchedPNum) return;
+    updateRosterHint(); // display-only refresh of the hint bar — always safe
+    // In-flight edits win: a cleared auto-fill would otherwise be silently reinstated. The latest
+    // calendar data still shows in the hint bar above, so they can tap "Fill from calendar".
+    if (touchedSinceFetch()) return;
+    // Never over a CORRUPT period's blob; the hint bar above still refreshed, so "Fill from calendar"
+    // — an explicit action — can replace it.
+    if (loadWasCorrupt()) return;
+    const refreshP = getPeriods().find(/** @param {any} x */ x => x.num === fetchedPNum);
+    if (!refreshP) return;
+    const s = getRosterSuggestion(refreshP, getLoggedMember());
+    // clearZeros on the server's complete answer only: a gold figure the calendar no longer gives is
+    // taken off the screen (never saved — this refresh saves nothing), so a record that moved
+    // category is not counted twice (`_calendarOwns`).
+    if (s) { _applyRosterSuggestion(s, false, { clearZeros: status === 'loaded' }); calculate(); updateRosterHint(); }   // the hint again AFTER the fill
+  });
 }
 
 /** A tap-triggered recorded-changes fetch is in flight — a second tap must not start another fill. */
