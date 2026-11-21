@@ -2946,8 +2946,10 @@ button.nav-panel-link--notices {
 
 /* TWO LINES, then an ellipsis. In a 320px window the name has about 55px beside the bell and Sign out,
    so a one-line ellipsis showed five letters of a long surname. Two lines of 13px at 1.25 are 33px,
-   inside the 44px row the bell and Sign out already set, so the footer does not grow; `anywhere` breaks
-   a long double-barrelled surname rather than letting it run under the bell. */
+   inside the 44px row the bell and Sign out already set, so the footer does not grow. It breaks
+   ANYWHERE in a word (`break-all`, not only `overflow-wrap: anywhere`): measured with the longest name
+   on the roster, `anywhere` alone wrapped at the space and showed the initial on one line and seven
+   letters on the next, where `break-all` fills both lines. A name that fits one line is untouched. */
 .nav-panel-member {
     font-size: var(--type-label);
     line-height: 1.25;
@@ -2959,6 +2961,7 @@ button.nav-panel-link--notices {
     line-clamp: 2;
     overflow: hidden;
     overflow-wrap: anywhere;
+    word-break: break-all;
     min-width: 0;
 }
 
@@ -3005,6 +3008,24 @@ button.nav-panel-link--notices {
 .nav-panel-guides-toggle:focus-visible {
     outline: var(--focus-outline-gold);
     outline-offset: 2px;
+}
+
+/* 44px TARGETS UNDER A FINGER (owner, Nov 2026). Measured at 320/375px: the pills drew 35px, the rows
+   37, the search box 38, the drawer head's About button 32 and the Reference toggle 22. A mouse keeps
+   the drawer as it was — density is a pointer decision (css-tokens.md) — and this block comes AFTER
+   every base rule it overrides, which is the only order in which it wins.
+   · Pills, rows and the box simply grow (about 9px a pill: accepted for the target).
+   · The About button grows inside a head the 44px ✕ already sets, so the head keeps its height.
+   · The Reference toggle (22px: 4px padding round a 14px line) grows by padding and takes the same back
+     as negative margin, so its label stays exactly where it was and only the target reaches out. It
+     reaches UP, 18px into the empty gap under Latest, and only 4px down: the search box starts 8px
+     under the label, and a symmetric 11px would have put 7px of the toggle's target under the box. */
+@media (pointer: coarse) {
+    .nav-panel-brand { min-height: 44px; }
+    .nav-panel-guides-toggle { min-height: 44px; padding-block: 22px 8px; margin-block: -18px -4px; }
+    .nav-panel-pill,
+    .nav-panel-link,
+    .nav-gs-input { min-height: 44px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
