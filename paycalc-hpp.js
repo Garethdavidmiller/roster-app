@@ -187,10 +187,7 @@ function _expectedNonPremiumYtd(ty) {
   // no Taxable Pay figure, and counting its basic would leave the estimate a payslip's basic short.
   const now    = new Date();
   const capNum = srcNum || ([...getPeriods()].reverse().find(/** @param {any} p */ p => p.payday <= now)?.num ?? 0);
-  const covered = getPeriods().filter(/** @param {any} p */ p => {
-    const o = p.num - 48;
-    return o >= ty.first && o <= ty.last && p.num <= capNum;
-  });
+  const covered = periodsInTaxYear(ty, getPeriods()).filter(/** @param {any} p */ p => p.num <= capNum);
   const upTo = covered[covered.length - 1] ?? null;
   const unpriced = covered.find(/** @param {any} p */ p => !isPeriodPriced(p)) ?? null;
   if (unpriced) return { nonPremium: 0, count: covered.length, upTo, unpricedAward: null, unrecordedPremium: null, unpriced };
@@ -449,12 +446,10 @@ function _renderHppManual(ty, mode) {
  *             paidCount: number, skipped: number[], total: number, missingPaid: Date[] }}
  */
 function _hoursEstimate(ty, allPeriods) {
-  const periods = allPeriods.filter(/** @param {any} p */ p => {
-    const o = p.num - 48;
-    // Exclude periods ENTIRELY before a mid-year joiner's start (getProRateFactor 0 — never for a
-    // noProRate return or a member with no startDate), and payslips under a role with no rates.
-    return o >= ty.first && o <= ty.last && getProRateFactor(p) !== 0 && isPeriodPriced(p);
-  });
+  // Exclude periods ENTIRELY before a mid-year joiner's start (getProRateFactor 0 — never for a
+  // noProRate return or a member with no startDate), and payslips under a role with no rates.
+  const periods = periodsInTaxYear(ty, allPeriods)
+    .filter(/** @param {any} p */ p => getProRateFactor(p) !== 0 && isPeriodPriced(p));
 
   let totalVar     = 0;
   let pCount       = 0;
@@ -769,10 +764,7 @@ export function updatePriorHpp(ty) {
   // from your Year to Date pay"), counted as done, and taken to the January payslip — a figure not on
   // record, dressed as one (paycalc.md invariant 1). Nothing is computed; the block asks for theirs.
   if (est === 0 && !hasActual && source === 'hours') {
-    const _priorPeriods = getPeriods().filter(/** @param {any} p */ p => {
-      const o = p.num - 48;
-      return o >= priorTy.first && o <= priorTy.last;
-    });
+    const _priorPeriods = periodsInTaxYear(priorTy, getPeriods());
 
     if (isActualsDev(getLoggedMember())) {
       const _act = readPayslipActuals();

@@ -19,7 +19,7 @@ import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrN
 import { printedStamp, formatClock } from './date-format.js';
 import {
   RATE_125, RATE_150, RATE_300,
-  getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
+  taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
   computeGross, pricePayslip,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
@@ -269,7 +269,7 @@ export function init() {
         todayPeriodBtn.classList.toggle('hidden', pNum === _defaultPeriodNum);
       }
 
-      const ty = getTaxYearForOffset(p.num - 48);
+      const ty = taxYearForPeriod(p);
       const startStr = fdShort(p.start);
       const cutLongStr = fdLong(p.cutoff);
       // The payday is NOT repeated here: the select above already reads "Paid 31 Jul 2026 · P20", so

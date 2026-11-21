@@ -15,6 +15,7 @@ import {
   P_YR, TAX_YEARS, getTaxYearForOffset, readTaxCode,
 } from './paycalc-calc.js';
 import { bhsForYear } from './paycalc-roster-suggestions.js';
+import { periodsInTaxYear } from './paycalc-hpp-schedule.js';
 import { fdLong, fdShort } from './paycalc-format.js';
 import { MONTH_ABB } from './date-format.js';
 
@@ -627,8 +628,7 @@ export function updateTyTabs() {
 export function jumpToTaxYear(tyIndex, onPeriodChange) {
   const ty      = CONFIG.TAX_YEARS[tyIndex];
   if (!ty) return;
-  const periods = getPeriods();
-  const first   = periods.find((/** @type {any} */ p) => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
+  const first   = periodsInTaxYear(ty, getPeriods())[0];
   if (!first) return;
   _setSelectPeriod(document.getElementById('periodSelect'), first.num);
   onPeriodChange();
