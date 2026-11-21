@@ -5,8 +5,8 @@
  *
  * Moved out of nav-panel.js (Nov 2026), where coordinator-ratchet.test.mjs had named it as that file's
  * seam: these are RULES — what the archive holds, for how long, how a legacy record migrates, how a
- * posting date is counted — and the drawer only renders them. nav-panel.js re-exports the two calls
- * the pages make, so every page that archives a notice still imports them from there. The archive is
+ * posting date is counted — and the drawer only renders them. The pages that archive a notice import
+ * the two calls from here (nav-panel.js re-exported them until Nov 2026, which nothing needs now). The archive is
  * this DEVICE's storage, which Safari wipes and an installed app keeps separately, so an empty archive
  * says nothing about whether notices were posted. Imports only `ls.js`, so it loads in Node.
  */

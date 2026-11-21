@@ -15,7 +15,7 @@
  */
 
 import { initSelectSheets } from './select-sheet.js';
-import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
+import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import { printedStamp, formatClock } from './date-format.js';
 import {
   RATE_125, RATE_150, RATE_300,
@@ -25,7 +25,7 @@ import {
 import { resetOverrides } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
 import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
+import { requirePage, navGatesFor } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { paintRoleCard, PAYCALC_SIGN_IN_ABOUT } from './paycalc-role-card.js';
@@ -101,9 +101,7 @@ function _showUnsupportedRole(member) {
     initNavPanel({
         currentPage: 'paycalc',
         memberName:  member?.name || null,
-        isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(member?.name ?? ''),
-        isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(member?.name ?? ''),
-        canOpenOvertime: canOpenOvertime(member?.name ?? ''), canOpenNewlink: canOpenNewlink(member?.name ?? ''),
+        ...navGatesFor(member?.name),   // the pill gates (auth-policy.js), as on every page
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut: () => signOutAndLeave({ to: './' }),
     });
@@ -1390,19 +1388,15 @@ export function init() {
     stampPaycalcPrintLine();
     window.addEventListener('beforeprint', stampPaycalcPrintLine);
 
-    // A LITERAL options object at every initNavPanel call, on purpose: page-contract-parity
-    // brace-matches each call's options to prove a role-gated pill gets its gate from EVERY page, and
-    // a shared config would be invisible to it. The duplication with `_showUnsupportedRole` is the
-    // price of a guard that can still see what it is guarding.
+    // The pill gates are `navGatesFor`'s, spread at every initNavPanel call (page-contract-parity checks
+    // each call; nav-gates.test.mjs checks the answer). `_showUnsupportedRole` draws the other drawer.
     const _paycalcMember = getLoggedMember();
     initNavPanel({
         // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
         authReady: _paycalcAuthSettled,
         currentPage: 'paycalc',
         memberName:  _paycalcMember?.name || null,
-        isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name ?? ''),
-        isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name ?? ''),
-        canOpenOvertime: canOpenOvertime(_paycalcMember?.name ?? ''), canOpenNewlink: canOpenNewlink(_paycalcMember?.name ?? ''),
+        ...navGatesFor(_paycalcMember?.name),   // the pill gates (auth-policy.js), as on every page
         onLogoClick: () => openAboutLightbox?.(),
         // signOutAndLeave replaces, not navigates: the pay page leaves the history, so Back cannot
         // restore it (and its figures) from the bfcache for whoever picks the shared device up next.

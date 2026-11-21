@@ -242,7 +242,7 @@ estimated honestly; each row was checked against the code.
 | # | File | What |
 |---|---|---|
 | 0 | `scripts/app-pages.mjs` | a `GUIDE_PAGES` entry — `page-contract-parity.test.mjs` fails on an undeclared page — then `npm run generate:guide-index` (`guide-index-parity.test.mjs` checks it) |
-| 1 | `nav-panel.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** |
+| 1 | `nav-destinations.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** |
 | 2 | `firestore.rules` | analytics counter id, in **two** places (the `pvCountIds()` list and the per-id int check) |
 | 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways |
 | 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) |

@@ -178,7 +178,7 @@ only that area; a decision that binds more than one area stays in this file.
 |---|---|---|
 | `calendar.md` | the Calendar page — month announcements, the swipe seam, a removed member, the sync chip, the notification strip, Team Week, the day panel, the pay jump | `index.html` · `index.css` · `calendar-*` · `e2e/calendar*.spec.js` |
 | `admin.md` | the Admin page — the pill types, "Recording for", AL on a rest day, Sunday corrections, checked saves, the range picker | `admin.*` · `admin-*` · `al-*` · `e2e/admin.spec.js` |
-| `nav-drawer.md` | the drawer, About and the header logo, sign-out, the bell, App Notices, Android Back, the topmost overlay | `nav-panel.js` · `nav-guide-search.js` · `overlay.js` · `about-lightbox.js` and their tests |
+| `nav-drawer.md` | the drawer, About and the header logo, sign-out, the bell, App Notices, Android Back, the topmost overlay | `nav-panel.js` · `nav-destinations.js` · `nav-guide-search.js` · `overlay.js` · `about-lightbox.js` and their tests |
 | `pwa.md` | the service worker's caching and update lifecycle, the offline fallback, the manifest, Firestore's local cache | `service-worker.js` · `sw-register.js` · `sw-*.test.mjs` · `manifest.json` · `firebase-client.js` · the offline lane |
 | `sessions.md` | one local session, re-establishing Firebase on load, strict write isolation, the claim tiers, `normaliseSurname` | `session.js` · `silent-sign-in.js` · `page-session.js` · `login-overlay.js` · `auth-*` · `claim-retry.js` · `password-force.js` · `own-password.js` · `firebase-client.js` · `firestore.rules` · the functions' auth and identity files |
 | `roster-data.md` | the member fields, `rosterChanges`, the cycles and fixed patterns, `APP_VERSION` | `roster-data.js` · `roster-cycle-data.js` · `roster-member-data.js` · `roster-roles.js` |
@@ -635,4 +635,4 @@ repository — what it is, why it is gitignored, and what `npm run test:payslip-
 
 ## Guide pages (railcard, FIP, guide shell)
 
-The guide pages — one per `NAV_GUIDES` entry in `nav-panel.js` — share `guide-shell.css` (sticky header, back/PDF buttons, print rules, brand palette tokens). Each has its own CSS file. No `shared.css` import. No inline scripts or `onclick` (CSP blocks them). Full design principles, factual accuracy notes, and shell spec in `.claude/rules/guide-pages.md`.
+The guide pages — one per `NAV_GUIDES` entry in `nav-destinations.js` — share `guide-shell.css` (sticky header, back/PDF buttons, print rules, brand palette tokens). Each has its own CSS file. No `shared.css` import. No inline scripts or `onclick` (CSP blocks them). Full design principles, factual accuracy notes, and shell spec in `.claude/rules/guide-pages.md`.

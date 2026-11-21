@@ -1,6 +1,6 @@
 /**
- * Unit tests for nav-panel.js: isNoticeExpired() and the App Notices archive (archiveNotice) — both
- * notice-archive.js's, re-exported here and tested through the import every page uses — and the drawer.
+ * Unit tests for nav-panel.js — the drawer. The App Notices archive's rules are notice-archive.js's, and
+ * are tested in notice-archive.test.mjs (they moved there with the pages' imports, Nov 2026).
  * Run with: node --experimental-test-module-mocks scripts/run-tests.mjs nav-panel.test.mjs
  *
  * nav-panel.js imports browser-only modules (notif.js, overlay.js, ls.js) that
@@ -72,162 +72,16 @@ mock.module('./ls.js', {
         lsDel: (k)    => { store.delete(k); },
     },
 });
+/** Every open counter the drawer fired, as `[id, identity]` — recorded, so a test can say which ones it expects. @type {Array<[string, any]>} */
+const opens = [];
 mock.module('./usage-reporter.js', {
     namedExports: {
         recordUsage: () => {},
-        recordOpen:  () => {},   // v18.20 — drawer doc/guide open counters (no-op under test)
+        recordOpen:  (/** @type {string} */ id, /** @type {any} */ who) => { opens.push([id, who]); },   // the drawer's doc/guide open counters
     },
 });
 
-const { isNoticeExpired, archiveNotice, initNavPanel, resetNavPanel } = await import('./nav-panel.js');
-
-const NOTICES_KEY = 'myb_app_notices';
-const DAY = 86_400_000;
-
-/** Format a Date as the notice "D Mon YYYY" string. */
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-function noticeDate(daysAgo) {
-    const d = new Date(Date.now() - daysAgo * DAY);
-    return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-}
-function readArchive() {
-    return JSON.parse(store.get(NOTICES_KEY) || '[]');
-}
-
-// ── the archive is notice-archive.js's ───────────────────────────────────────
-
-test('the archive calls the pages import from nav-panel.js ARE notice-archive.js\'s', async () => {
-    const archive = await import('./notice-archive.js');
-    assert.equal(archiveNotice, archive.archiveNotice);
-    assert.equal(isNoticeExpired, archive.isNoticeExpired);
-});
-
-// ── isNoticeExpired ───────────────────────────────────────────────────────────
-
-describe('isNoticeExpired', () => {
-    // FROM A FIXED MIDDAY, NOT THE REAL CLOCK (test audit, 7 Nov 2026). `noticeDate` steps back in
-    // whole 24-hour blocks, but the parser dates a notice from LOCAL MIDNIGHT — so across a clock
-    // change a "27-day-old" notice read as more than 28 days old in the last hour of certain evenings
-    // (23:00–23:59 on Sat 28 Nov 2026 in the no-install lane's Los Angeles time, and on Sat 21 Nov on a
-    // London machine), every year. Midday on 15 June has no clock change within 92 days behind it in
-    // any zone these lanes use, and is twelve hours from either midnight.
-    describe('counted in days, from midday on 15 June', () => {
-        beforeEach(() => mock.timers.enable({ apis: ['Date'], now: new Date(2026, 5, 15, 12, 0, 0) }));
-        afterEach(() => mock.timers.reset());
-
-        test('27-day-old notice is not expired (28-day default)', () => {
-            assert.equal(isNoticeExpired(noticeDate(27)), false);
-        });
-        test('notice older than 28 days is expired (default)', () => {
-            assert.equal(isNoticeExpired(noticeDate(29)), true);
-        });
-        test('notice exactly 28 days old is expired (boundary)', () => {
-            assert.equal(isNoticeExpired(noticeDate(28)), true);
-        });
-        test('90-day override keeps an 88-day-old notice live', () => {
-            assert.equal(isNoticeExpired(noticeDate(88), 90), false);
-        });
-        test('90-day override expires a 92-day-old notice', () => {
-            assert.equal(isNoticeExpired(noticeDate(92), 90), true);
-        });
-    });
-    test('unparseable date is treated as not expired (fail-open)', () => {
-        assert.equal(isNoticeExpired('not a date'), false);
-    });
-    test('a LAST DAY with a one-day window is live all that day and gone from the next midnight (v24.86)', () => {
-        // calendar-notices.js ends both October notices with `isNoticeExpired('31 Oct 2026', 1)` —
-        // a date rather than a count from posting, because the clocks go back on 25 October and a
-        // count would end an hour early. This pins the arithmetic that choice leans on.
-        mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 31, 23, 59, 59) });
-        try {
-            assert.equal(isNoticeExpired('31 Oct 2026', 1), false, 'still offered a second before midnight');
-            mock.timers.setTime(new Date(2026, 10, 1, 0, 0, 1).getTime());
-            assert.equal(isNoticeExpired('31 Oct 2026', 1), true, 'gone a second after it');
-        } finally { mock.timers.reset(); }
-    });
-});
-
-// ── archiveNotice ─────────────────────────────────────────────────────────────
-
-describe('archiveNotice', () => {
-    beforeEach(() => store.clear());
-
-    const NEW = { id: 'new', title: 'New', section: 'General', date: '22 Jun 2026', body: 'b' };
-
-    test('legacy record without archivedAt is preserved, not wiped', () => {
-        store.set(NOTICES_KEY, JSON.stringify([
-            { id: 'old', title: 'Old', section: 'General', date: '1 Jan 2026', body: 'x' },
-        ]));
-        archiveNotice(NEW);
-        const ids = readArchive().map(n => n.id);
-        assert.ok(ids.includes('old'), 'legacy entry should survive the migration');
-        assert.ok(ids.includes('new'), 'new entry should be added');
-    });
-
-    test('migrated legacy record gains an archivedAt stamp', () => {
-        store.set(NOTICES_KEY, JSON.stringify([{ id: 'old', title: 'Old', section: 'G', date: '1 Jan 2026', body: 'x' }]));
-        archiveNotice(NEW);
-        const old = readArchive().find(n => n.id === 'old');
-        assert.ok(old.archivedAt, 'migrated record must carry archivedAt');
-        assert.ok(Number.isFinite(new Date(old.archivedAt).getTime()));
-    });
-
-    test('179-day-old archive entry is retained', () => {
-        const ts = new Date(Date.now() - 179 * DAY).toISOString();
-        store.set(NOTICES_KEY, JSON.stringify([{ id: 'old', title: 'O', section: 'G', date: '1 Jan 2026', body: 'x', archivedAt: ts }]));
-        archiveNotice(NEW);
-        assert.ok(readArchive().some(n => n.id === 'old'), '179-day entry should be kept');
-    });
-
-    test('181-day-old archive entry is pruned', () => {
-        const ts = new Date(Date.now() - 181 * DAY).toISOString();
-        store.set(NOTICES_KEY, JSON.stringify([{ id: 'stale', title: 'S', section: 'G', date: '1 Jan 2026', body: 'x', archivedAt: ts }]));
-        archiveNotice(NEW);
-        assert.ok(!readArchive().some(n => n.id === 'stale'), '181-day entry should be removed');
-    });
-
-    test('malformed stored data does not prevent saving a new notice', () => {
-        store.set(NOTICES_KEY, 'not json at all');
-        archiveNotice(NEW);
-        const arr = readArchive();
-        assert.ok(Array.isArray(arr));
-        assert.ok(arr.some(n => n.id === 'new'));
-    });
-
-    test('non-array stored data is treated as empty', () => {
-        store.set(NOTICES_KEY, JSON.stringify({ not: 'an array' }));
-        archiveNotice(NEW);
-        const arr = readArchive();
-        assert.deepEqual(arr.map(n => n.id), ['new']);
-    });
-
-    test('archiving the same id is idempotent (no duplicate)', () => {
-        archiveNotice(NEW);
-        archiveNotice(NEW);
-        assert.equal(readArchive().filter(n => n.id === 'new').length, 1);
-    });
-
-    test('idempotent re-archive still persists migration of legacy entries', () => {
-        store.set(NOTICES_KEY, JSON.stringify([
-            { id: 'old', title: 'Old', section: 'G', date: '1 Jan 2026', body: 'x' }, // legacy, no archivedAt
-            { id: 'new', title: 'New', section: 'G', date: '22 Jun 2026', body: 'b', archivedAt: new Date().toISOString() },
-        ]));
-        archiveNotice(NEW); // 'new' already present → idempotent path
-        const old = readArchive().find(n => n.id === 'old');
-        assert.ok(old, 'legacy entry should survive even on the idempotent path');
-        assert.ok(old.archivedAt, 'legacy entry should be migrated (archivedAt stamped) and persisted');
-    });
-
-    test('archive is capped at 50 entries', () => {
-        const many = Array.from({ length: 60 }, (_, i) => ({
-            id: `n${i}`, title: 't', section: 'G', date: '1 Jan 2026', body: 'x',
-            archivedAt: new Date().toISOString(),
-        }));
-        store.set(NOTICES_KEY, JSON.stringify(many));
-        archiveNotice(NEW);
-        assert.equal(readArchive().length, 50);
-    });
-});
+const { initNavPanel, resetNavPanel } = await import('./nav-panel.js');
 
 // ── initNavPanel DOM guard ────────────────────────────────────────────────────
 
@@ -436,6 +290,8 @@ describe('every way out of the drawer takes its history entry with it', () => {
 /** An element with a working classList, several listeners per event (`once` honoured), and focus. */
 function liveEl(/** @type {string[]} */ classes = []) {
     const cls = new Set(classes);
+    /** @type {Map<string, string>} */
+    const attrs = new Map();
     /** @type {Record<string, Array<{ fn: Function, once: boolean }>>} */
     const listeners = {};
     /** @type {any} */
@@ -458,7 +314,10 @@ function liveEl(/** @type {string[]} */ classes = []) {
         fire: (/** @type {string} */ t, /** @type {any} */ ev = {}) => {
             for (const l of [...(listeners[t] ?? [])]) { if (l.once) el.removeEventListener(t, l.fn); l.fn(ev); }
         },
-        setAttribute() {}, removeAttribute() {}, getAttribute: () => null, hasAttribute: () => false,
+        // Attributes are KEPT, so a test can read what the drawer set (the lock button's `hidden`, below).
+        setAttribute: (/** @type {string} */ k, /** @type {any} */ v) => { attrs.set(k, String(v)); },
+        removeAttribute: (/** @type {string} */ k) => { attrs.delete(k); },
+        getAttribute: (/** @type {string} */ k) => attrs.get(k) ?? null, hasAttribute: (/** @type {string} */ k) => attrs.has(k),
         focus() { /** @type {any} */ (global.document).activeElement = el; },
         remove() {}, appendChild() {}, append() {}, querySelector: () => null, querySelectorAll: () => [],
         cloneNode: () => ({ removeAttribute() {}, setAttribute() {} }), replaceWith() {},
@@ -466,8 +325,9 @@ function liveEl(/** @type {string[]} */ classes = []) {
     return el;
 }
 
-/** Mount the drawer on a page whose elements behave, and return the handles a test drives. */
-function mountLive() {
+/** Mount the drawer on a page whose elements behave, and return the handles a test drives.
+ *  @param {any} [opts] more `initNavPanel` options */
+function mountLive(opts = {}) {
     /** @type {Map<string, any>} */
     const els = new Map([
         ['navComingSoonLightbox', liveEl(['lb-overlay'])],   // the classes the injected markup gives them
@@ -503,7 +363,7 @@ function mountLive() {
     global.history = /** @type {any} */ ({ state: null, pushState(/** @type {any} */ s) { this.state = s; }, back() { page.backs += 1; } });
     global.requestAnimationFrame = /** @type {any} */ ((/** @type {Function} */ fn) => { fn(); return 0; });
     resetNavPanel();   // the module keeps its flags between mounts — start each test from a closed drawer
-    initNavPanel({ currentPage: 'links', memberName: 'A. Test', onSignOut: () => {} });
+    initNavPanel({ currentPage: 'links', memberName: 'A. Test', onSignOut: () => {}, ...opts });
     const $ = (/** @type {string} */ id) => document.getElementById(id);
     /** Fire a key at every document keydown listener, as the browser would; true if one prevented it. */
     const press = (/** @type {string} */ key) => {
@@ -523,9 +383,12 @@ function mountLive() {
     return { $, press, openFromDrawer, page, els };
 }
 
+// The info panel (`#navComingSoonLightbox`) is reached by a document tap the drawer answers in place: here the
+// document gate refusing, which answers at once. (A `comingSoon` link reached it too, until the extension point
+// was removed for want of a user, Nov 2026.)
 const LIGHTBOXES = [
-    { name: 'App Notices', link: '.nav-panel-link--notices',     box: 'navNoticesLightbox',    close: 'navNoticesClose' },
-    { name: 'coming soon', link: '.nav-panel-link--coming-soon', box: 'navComingSoonLightbox', close: 'navComingSoonClose' },
+    { name: 'App Notices', link: '.nav-panel-link--notices',  box: 'navNoticesLightbox',    close: 'navNoticesClose',    opts: {} },
+    { name: 'info panel',  link: '.nav-panel-link--circular', box: 'navComingSoonLightbox', close: 'navComingSoonClose', opts: { canReadDocuments: () => false } },
 ];
 
 describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promises', () => {
@@ -534,7 +397,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
 
     for (const lb of LIGHTBOXES) {
         test(`${lb.name}: Escape closes it, and gives the drawer's history entry back`, () => {
-            const { $, press, openFromDrawer, page } = mountLive();
+            const { $, press, openFromDrawer, page } = mountLive(lb.opts);
             openFromDrawer(lb.link);
             assert.equal($(lb.box).classList.contains('open'), true, 'premise: the lightbox opened');
             press('Escape');
@@ -545,7 +408,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
         test(`${lb.name}: a close whose transitionend never comes still finishes at 500 ms`, () => {
             // iOS suppresses transitionend on a backgrounded tab. Without the fallback the lightbox
             // stays `.visible` over the page with the scroll still locked — the app looks frozen.
-            const { $, openFromDrawer } = mountLive();
+            const { $, openFromDrawer } = mountLive(lb.opts);
             openFromDrawer(lb.link);
             $(lb.close).fire('click');
             mock.timers.tick(499);
@@ -559,7 +422,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
         test(`${lb.name}: a second ✕ tap during the fade closes nothing more`, () => {
             // Two finishers for one lock: with a dialog open beneath, the second unlock released the
             // page behind it. createLightbox has refused a second close since v21.86; these had not.
-            const { $, openFromDrawer, page } = mountLive();
+            const { $, openFromDrawer, page } = mountLive(lb.opts);
             openFromDrawer(lb.link);
             $(lb.close).fire('click');
             $(lb.close).fire('click');                          // the double tap, mid-fade
@@ -573,7 +436,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
         test(`${lb.name}: an overlay opened above it owns the keyboard`, () => {
             // A Huddle viewer opened by a notification tap sits over the archive. One Escape used to
             // close both, and Tab was dragged back into the panel the reader could no longer see.
-            const { $, press, openFromDrawer, els } = mountLive();
+            const { $, press, openFromDrawer, els } = mountLive(lb.opts);
             openFromDrawer(lb.link);
             const viewer = liveEl(['lb-overlay', 'open']);
             els.set('huddleViewer', viewer);
@@ -590,7 +453,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
         // and the echo of its own Cancel. Both LAND on the drawer's entry, which the lightbox shares; it
         // used to take every pop for its own while open — closing underneath, the dialog left standing.
         test(`${lb.name}: a pop that lands on the drawer's entry is the dialog's above it — one that leaves it is its own`, () => {
-            const { $, openFromDrawer, page } = mountLive();
+            const { $, openFromDrawer, page } = mountLive(lb.opts);
             openFromDrawer(lb.link);
             const own = history.state;
             const claims = () => popInterceptors.some(fn => fn());
@@ -678,7 +541,7 @@ describe('a close before the first frame keeps the panel closed', () => {
 
     for (const lb of LIGHTBOXES) {
         test(`${lb.name}: closed before it faded in, it goes at once and stays gone`, () => {
-            const { $, openFromDrawer } = mountLive();
+            const { $, openFromDrawer } = mountLive(lb.opts);
             const frames = holdFrames();
             openFromDrawer(lb.link);
             assert.equal($(lb.box).classList.contains('visible'), true, 'premise: the tap opened the panel');
@@ -696,7 +559,7 @@ describe('a close before the first frame keeps the panel closed', () => {
         });
 
         test(`${lb.name}: a frame nothing closed still fades it in, and its ✕ takes the focus`, () => {
-            const { $, openFromDrawer } = mountLive();
+            const { $, openFromDrawer } = mountLive(lb.opts);
             const frames = holdFrames();
             openFromDrawer(lb.link);
             frames.splice(0).forEach(fn => fn());
@@ -730,7 +593,7 @@ describe('a close before the first frame keeps the panel closed', () => {
 // timeout, tens of seconds. All that time the blank tab sat there and both document links were dead.
 describe('opening the latest Circular stays inside its 8-second budget', () => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/x.pdf?alt=media&token=e2e';
-    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); opens.length = 0; });
     afterEach(() => { mock.timers.reset(); latestCircular = async () => null; signedDocumentUrl = async () => null; });
     const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 
@@ -750,6 +613,9 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
         mock.timers.tick(1); await flush();
         assert.deepEqual(opened, [STORED], 'the blank tab waited past the 8 s budget for a link it does not need');
         assert.equal(link.classList.contains('nav-panel-link--loading'), false, 'and both document links are live again');
+        // Counted once, as the Circular, against the SIGNED-IN name (the open counters' admin exclusion reads it —
+        // usage-reporter.js), and only now that the document has genuinely opened.
+        assert.deepEqual(opens, [['circular', 'A. Test']], 'the open is counted once, against the session');
     });
 
     // AN UPLOADED DOCUMENT WHOSE LINK THE APP REFUSES IS NOT "NONE UPLOADED" (whole-app check, 17 Nov 2026).
@@ -768,6 +634,75 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
             target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
         await flush();
         assert.equal(closed, 1, 'the blank tab is closed');
+        assert.deepEqual(opens, [], 'a document that did not open is not counted');
         assert.equal($('navComingSoonBody').textContent, 'The latest Weekly Retail Circular can’t be opened — please tell the admin.');
+    });
+
+    test('a tap the document gate refuses opens no tab and counts nothing', async () => {
+        const { $ } = mountLive({ canReadDocuments: () => false });
+        let tabs = 0;
+        /** @type {any} */ (global.window).open = () => { tabs++; return null; };
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        assert.equal(tabs, 0, 'refused before the blank tab, which would close a second later');
+        assert.deepEqual(opens, [], 'nothing opened, so nothing is counted');
+    });
+});
+
+// ── LOCK CALENDAR — the staff PIN's way out (calendar-pin e2e drives the journey) ─────────────────────
+// Two halves no unit test held: a `lock()` that REJECTS leaves the drawer open with a retry on the button,
+// because the drawer is the only surface left to report the failure on; and `isViewer` throwing fails
+// CLOSED — the button stays hidden, since "Lock Calendar" shown to a member offers an action that does
+// nothing to their session. Asserted on behaviour; the button's words are not the subject here.
+describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable viewer question hides the button', () => {
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => mock.timers.reset());
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+
+    test('a lock that rejects keeps the drawer open and re-arms the button with a retry line, which reverts', async () => {
+        const { $ } = mountLive({ onSignOut: null, onLockCalendar: { isViewer: () => true, lock: async () => { throw new Error('viewer survived sign-out'); } } });
+        const lock = /** @type {any} */ ($('navLockCalendarBtn'));
+        lock.textContent = 'Lock Calendar';   // as `_inject` draws it
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        assert.equal(lock.hasAttribute('hidden'), false, 'premise: a PIN viewer sees the button');
+        lock.fire('click');
+        assert.equal(lock.disabled, true, 'held while the lock is tried');
+        await flush();
+        assert.equal($('navPanel').classList.contains('open'), true, 'the drawer stays open: it is the only surface left to report on');
+        assert.equal(lock.disabled, false, 'and the button can be pressed again');
+        assert.notEqual(lock.textContent, 'Lock Calendar', 'the button says the lock failed');
+        mock.timers.tick(6000);
+        assert.equal(lock.textContent, 'Lock Calendar', 'the retry line gives way to the label');
+    });
+
+    test('a lock that succeeds without navigating closes the drawer', async () => {
+        let locked = 0;
+        const { $ } = mountLive({ onSignOut: null, onLockCalendar: { isViewer: () => true, lock: async () => { locked++; } } });
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        /** @type {any} */ ($('navLockCalendarBtn')).fire('click');
+        await flush();
+        assert.equal(locked, 1);
+        assert.equal($('navPanel').classList.contains('open'), false, 'a confirmed lock closes the drawer');
+    });
+
+    test('an isViewer that throws keeps the button hidden, and names no viewer in the footer', () => {
+        const { $ } = mountLive({ onSignOut: null, memberName: null, onLockCalendar: { isViewer: () => { throw new Error('access not resolved'); }, lock: async () => {} } });
+        const lock = /** @type {any} */ ($('navLockCalendarBtn'));
+        lock.setAttribute('hidden', '');   // as `_inject` draws it
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        assert.equal(lock.hasAttribute('hidden'), true, 'fail closed: a member must never be offered a lock that does nothing to their session');
+        assert.equal($('navPanelMember').textContent, '', 'and the footer does not call this browser a PIN viewer');
+    });
+
+    test('control: an isViewer that answers yes reveals the button and names the mode', () => {
+        const { $ } = mountLive({ onSignOut: null, memberName: null, onLockCalendar: { isViewer: () => true, lock: async () => {} } });
+        const lock = /** @type {any} */ ($('navLockCalendarBtn'));
+        lock.setAttribute('hidden', '');
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        assert.equal(lock.hasAttribute('hidden'), false);
+        assert.notEqual($('navPanelMember').textContent, '', 'the footer names the PIN mode');
     });
 });

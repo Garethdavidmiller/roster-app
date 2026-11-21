@@ -83,7 +83,7 @@ mock.module('./ls.js', {
         lsSet: (/** @type {string} */ k, /** @type {string} */ v) => { _writes.push([k, v]); _store[k] = v; },
     },
 });
-mock.module('./nav-panel.js', {
+mock.module('./notice-archive.js', {
     namedExports: {
         archiveNotice: (/** @type {any} */ n) => { _archived.push(n); },
         isNoticeExpired: (/** @type {string} */ day, /** @type {number} */ days) => typeof _expired === 'function' ? _expired(day, days) : _expired,
@@ -862,7 +862,7 @@ describe('6 · the timetable notice: a one-off from the start, offered to the en
         // It shipped running 53 days to 13 December, the day the timetable starts; the owner brought
         // it forward to end with the notice that waits behind it. A DATE, not a count from posting —
         // the clocks go back on 25 October, and a count from the 21st would have ended at 23:00 on
-        // the 31st. That `isNoticeExpired(day, 1)` keeps all of that day is pinned in nav-panel.test.mjs.
+        // the 31st. That `isNoticeExpired(day, 1)` keeps all of that day is pinned in notice-archive.test.mjs.
         assert.equal(OCTOBER_LAST_DAY, '31 Oct 2026');
         assert.match(IIFE, /isNoticeExpired\(OCTOBER_LAST_DAY, 1\)/, 'the shared last day, not a count of its own');
         assert.doesNotMatch(IIFE, /isNoticeExpired\(NOTICE_DATE/, 'no second end date beside the shared one');
@@ -1136,9 +1136,10 @@ describe('8 · the timetable notice: from 16 November behind the install and New
         const block = HTML.slice(at, HTML.indexOf('<!-- One-time notice', at));
         assert.match(IIFE, /const NOTICE_DATE\s*=\s*'16 Nov 2026'/);
         assert.match(block, /<div class="notice-date">Posted 16 Nov 2026<\/div>/);
-        const nav = readFileSync(new URL('./nav-panel.js', here), 'utf8');
-        const pill = /\{\s*id:\s*'trains',\s*label:\s*'([^']+)',\s*url:\s*'([^']+)'/.exec(nav);
-        assert.ok(pill, 'the drawer still has a Trains pill');
+        const { NAV_PAGES } = await import('./nav-destinations.js');
+        const trainsPill = NAV_PAGES.find(p => p.id === 'trains');
+        assert.ok(trainsPill, 'the drawer still has a Trains pill');
+        const pill = [null, trainsPill.label, trainsPill.url];   // [, label, url], as the reads below index it
         const cta = /<a href="([^"]+)" id="timetableSoonNoticeGo" class="notice-cta">([^<]+)<\/a>/.exec(block);
         assert.ok(cta, 'the button is still a link');
         assert.equal(cta[1], pill[2], 'the link goes where the pill goes');
@@ -1312,26 +1313,28 @@ describe('9 · every notice key is pre-dismissed by the browser suites\' session
     }
 });
 
-describe('10 · every section a notice archives under has its colour in App Notices (v25.00)', () => {
+describe('10 · every section a notice archives under has its colour in App Notices (v25.00)', async () => {
     // The drawer's App Notices list colours each notice's section chip from `SECTION_MODS`
-    // (nav-panel.js). A section missing there falls back to the neutral grey — which is how both
-    // Trains notices, the first of their section, arrived uncoloured. Read from every page that
-    // archives a notice, so the next page's first notice joins this contract by existing.
+    // (nav-destinations.js). A section missing there falls back to the neutral grey — which is how both
+    // Trains notices, the first of their section, arrived uncoloured. Read from EVERY file that archives
+    // a notice, found by searching the tree for the call, so the next page's first notice joins this
+    // contract by existing rather than by somebody remembering to list its file here.
     const here = new URL('.', import.meta.url);
-    const ARCHIVERS = ['calendar-notices.js', 'paycalc-lightboxes.js', 'links-app.js'];
+    const { readdirSync } = await import('node:fs');
+    const { SECTION_MODS } = await import('./nav-destinations.js');
+    const ARCHIVERS = readdirSync(here).filter(f => f.endsWith('.js') && f !== 'notice-archive.js')
+        .filter(f => /\barchiveNotice\(/.test(readFileSync(new URL(`./${f}`, here), 'utf8')));
     const sections = new Set(ARCHIVERS.flatMap(f =>
         [...readFileSync(new URL(`./${f}`, here), 'utf8').matchAll(/archiveNotice\(\{[^}]*?section:\s*'([^']+)'/gs)].map(m => m[1])));
-    const nav = readFileSync(new URL('./nav-panel.js', here), 'utf8');
-    const mods = /const SECTION_MODS = \{([^}]*)\}/.exec(nav)?.[1] ?? '';
     const css = readFileSync(new URL('./shared.css', here), 'utf8');
-    test('the scan is reading real sections', () => {
+    test('the scan is reading real sections, from the files that archive', () => {
+        for (const f of ['calendar-notices.js', 'paycalc-lightboxes.js', 'links-app.js']) assert.ok(ARCHIVERS.includes(f), `${f} archives a notice: ${ARCHIVERS}`);
         assert.ok(sections.has('Trains') && sections.has('Pay'), [...sections].join(', '));
-        assert.match(mods, /Pay:/);
+        assert.equal(SECTION_MODS.Pay, 'pay');
     });
     test('each one (bar "General", deliberately neutral) has a SECTION_MODS entry and a colour', () => {
         const missing = [...sections].filter(s => s !== 'General').filter(s => {
-            // A one-word section is a bare key (`Pay:`); a two-word one is quoted (`'New link':`, v25.61).
-            const mod = new RegExp(`(?:\\b${s}|'${s}')\\s*:\\s*'([a-z]+)'`).exec(mods)?.[1];
+            const mod = SECTION_MODS[s];
             return !mod || !new RegExp(`\\.notices-item-section--${mod}\\s*\\{[^}]*color:`).test(css);
         });
         assert.deepEqual(missing, [], `App Notices would show ${missing.join(', ')} in the neutral grey`);
@@ -1536,9 +1539,10 @@ describe('11 · the New link notice: only where the page would let them in, afte
         const page = readFileSync(new URL('./newlink.html', here), 'utf8');
         assert.match(page, /<h2><span[^>]*>[^<]*<\/span> The new link: three proposals<\/h2>/, 'the page still heads itself "three proposals"');
         assert.match(text, /the three proposals on the shortlist/);
-        const nav = readFileSync(new URL('./nav-panel.js', here), 'utf8');
-        const pill = /\{\s*id:\s*'newlink',\s*label:\s*'([^']+)',\s*url:\s*'([^']+)'/.exec(nav);
-        assert.ok(pill, 'the drawer still has a New link pill');
+        const { NAV_PAGES } = await import('./nav-destinations.js');
+        const newlinkPill = NAV_PAGES.find(p => p.id === 'newlink');
+        assert.ok(newlinkPill, 'the drawer still has a New link pill');
+        const pill = [null, newlinkPill.label, newlinkPill.url];   // [, label, url], as the reads below index it
         assert.ok(text.includes(`then ${pill[1]}`), `the menu route names the pill as the drawer labels it: ${pill[1]}`);
         assert.ok(block.includes(`href="${pill[2]}"`), `the link goes where the pill goes: ${pill[2]}`);
         assert.ok(block.includes(`<div class="notice-badge notice-badge--newlink">${pill[1]}</div>`), 'the badge is the pill, word for word');

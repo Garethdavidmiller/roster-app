@@ -15,7 +15,7 @@
 import { createLightbox, initCardCollapse, openNoticeIfClear, followLinkOutOf } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
-import { archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { archiveNotice, isNoticeExpired } from './notice-archive.js';
 import { lsGet, lsSet } from './ls.js';
 import { decimalHoursText } from './paycalc-inputs.js';
 import { NOTICE_YTD_KEY, NOTICE_HPP_KEY, hasPendingLegacyMigration, resolveLegacyMigration,

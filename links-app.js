@@ -16,10 +16,11 @@
 import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
 import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry, whenOwnWritesSent } from './firebase-client.js';
-import { initNavPanel, archiveNotice } from './nav-panel.js';
+import { initNavPanel } from './nav-panel.js';
+import { archiveNotice } from './notice-archive.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
+import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
@@ -180,9 +181,7 @@ export function init() {
         authReady: sessionReady,
         currentPage:     'links',
         memberName:      currentUser,
-        isAdmin,
-        isLinksDesigner: true,
-        canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
+        ...navGatesFor(currentUser),   // the pill gates (auth-policy.js); the page gate above already required the designer role
         onLogoClick:     () => openAboutLightbox?.(),
         // Asked BEFORE the drawer releases this device's push record, so a cancel leaves it intact.
         beforeSignOut: askBeforeSignOut(() => dirty),

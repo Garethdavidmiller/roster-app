@@ -37,7 +37,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut, leaveAfterAsking } from './page-session.js';
-import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
+import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, confirmWithOption, createLightbox, registerPopInterceptor, suppressNextPop, whenHistorySettled } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -126,9 +126,7 @@ export function init() {
         authReady: sessionReady,
         currentPage: 'operations',
         memberName:  currentUser,
-        isAdmin:         true,
-        isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
-        canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
+        ...navGatesFor(currentUser),   // the pill gates (auth-policy.js); the page gate above already required the admin role
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   () => signOutAndLeave({ to: './' }), beforeSignOut: askBeforeSignOut(alSheetUnsaved),
     });

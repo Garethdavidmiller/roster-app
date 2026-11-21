@@ -2563,13 +2563,6 @@ button.lightbox-bug-link {
     margin: 0 0 10px;
 }
 
-.nav-panel-group-heading {
-    font-size: var(--type-small);
-    font-weight: 600;
-    color: var(--nav-text-muted);
-    margin: 14px 0 2px;
-}
-
 /* Guides — collapsible submenu. The gold chevron sits directly beside the
    label (not pushed to the far edge) so the word + arrow read as one tappable
    control rather than a heading with a stray marker. */
@@ -2708,10 +2701,9 @@ button.lightbox-bug-link {
     .nav-panel-link:hover { background: var(--nav-raised); }
 }
 
-/* Coming-soon, circular, newsletter, and App-Notices entries are <button>s, not
-   <a>s — reset native button chrome so they sit identically alongside the anchor
+/* The circular, newsletter and App Notices entries are <button>s, not <a>s —
+   reset native button chrome so they sit identically alongside the anchor
    links. */
-button.nav-panel-link--coming-soon,
 button.nav-panel-link--circular,
 button.nav-panel-link--newsletter,
 button.nav-panel-link--notices {

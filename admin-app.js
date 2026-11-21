@@ -20,7 +20,7 @@ import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutA
 import { createDraftSlot, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
+import { requirePage, navGatesFor } from './auth-policy.js';
 import { deleteIfUnchanged, DELETE_REFUSED } from './admin-override-store.js';
 import { PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, isSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded, sendingDays, NOT_ON_ROSTER_LINE, refusedLine } from './admin-overrides.js';
 import { readWeekDraft, applyWeekDraft, unsavedWeekDraft, keptWeekDraft, _syncAlSwap } from './admin-week-row-state.js';
@@ -1320,9 +1320,7 @@ export function init() {
         authReady: sessionReady,
             currentPage: 'admin',
             memberName:  currentUser,
-            isAdmin:         currentIsAdmin,
-            isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
-            canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
+            ...navGatesFor(currentUser),   // the pill gates (auth-policy.js), as on every page
             onLogoClick: () => openAboutLightbox?.(),
             // Unsaved week-grid edits are asked about BEFORE anything is released (page-session.js).
             beforeSignOut: askBeforeSignOut(hasUnsavedChanges),
