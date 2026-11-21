@@ -131,11 +131,17 @@ export function buildRangePicker(prefix, opts = {}) {
     prevBtn.addEventListener('click', () => { moveMonth(-1); render(); });
     nextBtn.addEventListener('click', () => { moveMonth(+1); render(); });
     clearBtn.addEventListener('click', () => {
+        // The ✕ hides itself once nothing is chosen (`updateChips`), and a hidden button that held
+        // focus drops a keyboard user to <body> (Nov 2026). So focus moves to the calendar's one Tab
+        // stop — the day a new start is picked from — and only when it was on the ✕: a press that
+        // did not hold focus has nothing to hand back.
+        const hadFocus = document.activeElement === clearBtn;
         fromISO = toISO = hoverISO = '';
         fromInput.value = toInput.value = '';
         toInput.dispatchEvent(new Event('change'));
         render();
         updateChips();
+        if (hadFocus) /** @type {HTMLElement|null} */ (grid.querySelector('[tabindex="0"]'))?.focus({ preventScroll: true });
     });
 
     /** "Fri 18 Sep" — date-format.js owns the words. @param {string} iso */
