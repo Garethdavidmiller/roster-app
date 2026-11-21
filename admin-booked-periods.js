@@ -99,7 +99,7 @@ export function periodDelete({ overrides, type, memberName, start, end, isRestGa
     const one = sundays.length === 1;
     return { ids, said: `✓ Deleted ${listed} ${noun}${listed !== 1 ? 's' : ''} for ${memberName}`
         + (more > 0 ? `, and ${more} more day${more === 1 ? ' that was' : 's that were'} not counted` : '')
-        + (older.length ? `, and ${older.length === 1 ? 'an older copy' : `${older.length} older copies`} of ${namedDays(olderOn)}` : '')
+        + (older.length ? `, and ${older.length === 1 ? 'an earlier entry' : `${older.length} earlier entries`} for ${namedDays(olderOn)}` : '')
         + (sundays.length ? `. ${namedDays(sundays)}, set as ${one ? 'a rest day' : 'rest days'} for this `
             + `${type === 'annual_leave' ? 'leave' : 'absence'}, ${one ? 'is' : 'are'} back on the roster.` : '') };
 }

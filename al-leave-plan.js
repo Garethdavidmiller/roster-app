@@ -111,7 +111,7 @@ export const ANSWERS = Object.freeze(['swapped', 'free']);
  *  al-leave-plan.test.mjs reads the rules to hold the two together. */
 export const LOG_MAX_DAYS = 4000;
 /** The comparison states where the app holds the sheet's day as leave: the days a log calls in line. */
-export const HELD_STATES = Object.freeze(['match', 'carried', 'other-year', 'free-in-app']);
+export const HELD_STATES = Object.freeze(['match', 'carried', 'other-year', 'free-in-app', 'spare-week']);
 /** What a Save writes on a day: leave added, leave added on a rest day answered "swapped", or a
  *  stored day of leave rewritten with the swap recorded. Only the first two are undone by Undo. */
 export const WRITE_KINDS = Object.freeze(['add', 'add-swapped', 'swap']);

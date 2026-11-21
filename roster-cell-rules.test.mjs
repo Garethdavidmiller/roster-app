@@ -88,6 +88,19 @@ describe('writing a day the app forbids', () => {
         assert.equal(normaliseCellValue('13:30-21:00', 'RD', '2026-12-26').guarded, null);
     });
 
+    test('an Other day on 25 or 26 December is refused under its own reason, times or not (review, 21 Nov 2026)', () => {
+        // Owner, Jul 2026: Boxing Day can never be a training or Other day; nobody works 25 December.
+        for (const date of ['2026-12-25', '2026-12-26', '2030-12-25']) {
+            for (const v of ['TRG', 'MEET', 'TEAM RDW', 'IND 09:00-17:00', 'ASSESS RDW 10:00-14:00']) {
+                const n = normaliseCellValue(v, '06:00-14:00', date);
+                assert.deepEqual([n.value, n.guarded], ['RD', 'christmas-other'], `${v} on ${date}`);
+            }
+        }
+        // CONTROLS: Christmas Eve keeps its Training day, and a worked Boxing Day is not this guard's.
+        assert.deepEqual(normaliseCellValue('TRG', '06:00-14:00', '2026-12-24'), { value: 'TRG', display: 'TRG', guarded: null });
+        assert.equal(normaliseCellValue('13:30-21:00', 'RD', '2026-12-26').guarded, null);
+    });
+
     test('the same value on a MONDAY is untouched — the guard is about Sundays, not about AL', () => {
         assert.equal(normaliseCellValue('AL', '06:00-14:00', MON).value, 'AL');
         assert.equal(normaliseCellValue('TRG', '06:00-14:00', MON).value, 'TRG');

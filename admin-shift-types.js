@@ -24,7 +24,7 @@ import { OTHER_FLAVOURS, parseOtherValue } from './override-utils.js';
 
 /** @type {Record<string, any>} */
 export const TYPES = {
-    spare_shift:  { label: 'Spare shift',      pill: 'Spare',    fixed: true,  fixedValue: 'SPARE' },
+    spare_shift:  { label: 'Spare day',        pill: 'Spare',    fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',            pill: 'Shift',    fixed: false },
     rdw:          { label: 'Rest Day Working', pill: 'RDW',      fixed: false },
     annual_leave: { label: 'Annual Leave',     pill: 'AL',       fixed: true,  fixedValue: 'AL' },

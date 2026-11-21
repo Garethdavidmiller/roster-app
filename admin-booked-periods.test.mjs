@@ -461,7 +461,7 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
             const r = absenceList(overrides);
             assert.deepEqual([...r.ids].sort(), ['newAbsence', 'oldLeave']);
             assert.equal(remaining(left(r.ids)), remaining(overrides), 'nothing left to resurface: the allowance stands');
-            assert.equal(r.said, '✓ Deleted 1 absence day for Q. Example, and an older copy of Tue 13 Oct');
+            assert.equal(r.said, '✓ Deleted 1 absence day for Q. Example, and an earlier entry for Tue 13 Oct');
         });
 
         it('the Recorded Annual Leave dates ✕ takes an older shift under the leave', () => {
@@ -469,7 +469,7 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
             const newerLeave = { ...newerAbsence, id: 'newLeave', type: 'annual_leave', value: 'AL' };
             const r = ask([olderShift, newerLeave], TUE, TUE, 1);
             assert.deepEqual([...r.ids].sort(), ['newLeave', 'oldShift']);
-            assert.equal(r.said, '✓ Deleted 1 AL day for Q. Example, and an older copy of Tue 13 Oct');
+            assert.equal(r.said, '✓ Deleted 1 AL day for Q. Example, and an earlier entry for Tue 13 Oct');
         });
 
         it('only what the deleted record outranks: a newer record and a roster import stay', () => {

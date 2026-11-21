@@ -2910,6 +2910,23 @@ describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
         }
     });
 
+    test('a Training or Meeting day printed there is shown and records nothing (review, 21 Nov 2026)', () => {
+        const worked = { id: 'w1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00' };
+        for (const existing of [[], [worked]]) {
+            const st = states({ [XMAS]: 'TRG', [BOXING]: 'MEET 10:00-14:00' }, existing);
+            for (const d of [XMAS, BOXING]) {
+                const s = st.get(`${m.name}|${d}`);
+                assert.deepEqual([s.state, s.guarded], ['GUARDED', 'christmas-other'], `${d} with ${existing.length} saved`);
+                const html = rs.guardedRowHtml({ key: `${m.name}|${d}`, s, dayName: 'Fri', dateStr: d, badgeHtml: 'Train', esc: (/** @type {string} */ v) => v });
+                assert.ok(html.includes('can’t be on Christmas Day or Boxing Day'), `${d}: says why`);
+            }
+            assert.deepEqual(collectRosterWrites(st), [], 'nothing written, and a worked Boxing Day is left as it is');
+        }
+        // The entry control does not offer Other there, and does on Christmas Eve.
+        const pillOff = (/** @type {string} */ d) => /data-entry-type="other"[^>]*disabled/.test(ec.entryControlHtml(`${m.name}|${d}`, { baseShift: 'RD' }, d));
+        assert.deepEqual([pillOff(XMAS), pillOff(BOXING), pillOff('2026-12-24')], [true, true, false]);
+    });
+
     test('a SPARE printed over an EARLIER IMPORT reads as the rest day the owner chose — an unticked "Clear old" (review, 20 Nov 2026)', () => {
         // A draft's shift, or a pre-v26.38 Spare, left by an earlier upload. Kept GUARDED, it stayed with
         // no control to remove it — stricter than the same sheet printing RD there.

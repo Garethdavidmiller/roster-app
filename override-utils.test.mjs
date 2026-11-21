@@ -13,6 +13,8 @@ import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMem
          LEGACY_OVERRIDE_TYPES, contractEvidence, chunkByWrites,
 } from './override-utils.js';
 import { WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
+import { collectWeekRows } from './admin-week-collect.js';
+import { composeTimedValue } from './clock-input.js';
 
 /** Build a fake Firestore QuerySnapshot from an array of {id, ...data} rows. */
 function fakeSnapshot(rows) {
@@ -1274,7 +1276,7 @@ describe('what may not be recorded on a Sunday', () => {
         // absence are refused outright. So this asserts each type is ANSWERED here at all. Without
         // it, a fifth forbidden type would be blocked by the pills, skipped by the bulk bar and
         // normalised by the import, and then written anyway by the one path that does the writing.
-        const scope = blockAfter(readSrc('./admin-app.js'),
+        const scope = blockAfter(readSrc('./admin-week-collect.js'),
             'Sunday write guard — the list is `SUNDAY_FORBIDDEN_TYPES`', 'const typeMeta');
         for (const t of SUNDAY_FORBIDDEN_TYPES) {
             assert.ok(scope.includes(`type === '${t}'`),
@@ -1291,30 +1293,10 @@ describe('what may not be recorded on a Sunday', () => {
     // plain badge instead of 💼 RDW, and the pay calculator's Sunday-overtime pre-fill does not see
     // it, so the member is paid 1.5× only if they notice and type it in themselves.
     //
-    // The collector cannot be imported: it is a click handler registered inside a 1,600-line
-    // `init()` behind the session guard, the login overlay and the Firestore client. So it is
-    // SLICED OUT OF THE SOURCE and evaluated — the sw-internals.test.mjs / splash-watchdog.test.mjs
-    // pattern. The assertions run against admin-app.js's own text, never a copy of it, and the
-    // extraction throws if the code it names moves.
+    // The collector was a click handler inside admin-app.js's `init()`, so this used to SLICE it out of
+    // the source and evaluate it. Since 21 Nov 2026 it is its own module, `admin-week-collect.js`, and
+    // these tests import the real thing.
     describe('LAYER 6 EXECUTED — the single-row save on a Sunday', () => {
-        const adminSrc = readFileSync(new URL('./admin-app.js', import.meta.url), 'utf8');
-        // `let`, not `const`, since v23.88: the AL projection filters the batch before it is written.
-        const SLICE_START = '        /** @type {any[]} */\n        let toSave = [];';
-        const SLICE_END   = '        if (errors.length)';
-        const _a = adminSrc.indexOf(SLICE_START);
-        const _b = adminSrc.indexOf(SLICE_END, _a);
-        if (_a === -1 || _b === -1) {
-            throw new Error('override-utils.test.mjs: could not slice the week-grid save collector out '
-                + 'of admin-app.js — it has moved or been renamed. Re-anchor rather than deleting these tests.');
-        }
-        const COLLECTOR_SRC = adminSrc.slice(_a, _b);
-
-        /** The real collector, given its collaborators by name. No copy of the logic exists here. */
-        const collect = new Function('weekGrid', 'memberName', 'deps',
-            'const { isSunday, formatDisplay, TYPES, TIME_RE, composeOtherValue } = deps;\n'
-            + COLLECTOR_SRC
-            + '\nreturn { toSave, toDelete, errors };');
-
         /** A week-grid row as the editor stages it — only the fields the collector reads. */
         function makeRow({ date, type, start = '', end = '', flavour = null, rdwTicked = false,
                            baseIsRd = false, existingId = null, prefilled = false }) {
@@ -1341,18 +1323,46 @@ describe('what may not be recorded on a Sunday', () => {
             };
         }
 
-        /** Runs the real collector over `rows` with the app's own helpers wired in. */
+        /** Runs the real collector over `rows`. */
         function save(/** @type {any[]} */ rows, memberName = 'G. Miller') {
-            const weekGrid = { querySelectorAll: () => rows };
-            return collect(weekGrid, memberName, {
-                isSunday, TIME_RE, composeOtherValue, TYPES,
-                // The only stand-in: it formats a date for an error message and decides nothing.
-                formatDisplay: (/** @type {string} */ iso) => iso,
-            });
+            // formatDate is the only stand-in: it formats a date for an error message and decides nothing.
+            return collectWeekRows({ rows, memberName, formatDate: (/** @type {string} */ iso) => iso });
         }
 
         const SUNDAY = '2026-09-06';
         const MONDAY = '2026-09-07';
+
+        // The rest of the collector, now that it can be imported (review, 21 Nov 2026).
+        it('a timed day: both times needed, a real clock, never equal — the same rule as an Other day\'s', () => {
+            const one = (/** @type {string} */ start, /** @type {string} */ end) =>
+                save([makeRow({ date: MONDAY, type: 'shift', start, end })]).errors[0] ?? null;
+            assert.equal(one('07:00', '15:00'), null);
+            assert.equal(one('07:00', ''), `${MONDAY}: fill in the start and end time`);
+            assert.equal(one('7:00', '15:00'), `${MONDAY}: times must be in HH:MM format (e.g. 07:00)`);
+            assert.equal(one('24:00', '15:00'), `${MONDAY}: times must be in HH:MM format (e.g. 07:00)`);
+            assert.equal(one('07:00', '07:00'), `${MONDAY}: start and end times are the same`);
+            assert.deepEqual(composeOtherValue({ flavour: 'TRG', start: '07:00', end: '07:00' }), composeTimedValue({ start: '07:00', end: '07:00' }),
+                'one rule: an Other day refuses equal times in the same words');
+        });
+
+        it('a rest day booked as leave is refused until the swapped-day question is answered, and the answer is returned', () => {
+            const asked = makeRow({ date: MONDAY, type: 'annual_leave' });
+            asked.dataset.alSwapAsk = '1';
+            const r1 = save([asked]);
+            assert.deepEqual([r1.toSave.length, r1.errors.length], [0, 1]);
+            assert.ok(asked.classList.contains('row-error'), 'the refused row is marked');
+            asked.dataset.alSwap = 'yes';
+            const r2 = save([asked]);
+            assert.deepEqual(r2.errors, []);
+            assert.equal(r2.swapAnswers.get(MONDAY), true);
+            assert.equal(r2.toSave[0].swapped, true, 'the write carries the declared swap');
+        });
+
+        it('a saved day unset in the grid is a delete, and an untouched saved day is left alone', () => {
+            const r = save([makeRow({ date: MONDAY, type: '', existingId: 'gone' }),
+                            makeRow({ date: SUNDAY, type: 'rdw', start: '07:00', end: '15:00', existingId: 'kept', prefilled: true })]);
+            assert.deepEqual([r.toDelete, r.toSave], [['gone'], []]);
+        });
 
         it('precondition: the sample dates really are a Sunday and a Monday', () => {
             assert.equal(isSunday(SUNDAY), true);

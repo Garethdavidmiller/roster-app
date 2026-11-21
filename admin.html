@@ -221,7 +221,7 @@
 
             <button type="button" class="btn-save" id="saveBtn" disabled>Save changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then save your changes</p>
-            <div class="feedback" id="formFeedback" role="status" aria-live="polite"></div>
+            <div class="feedback" id="formFeedback" tabindex="-1" role="status" aria-live="polite"></div>
 
         </div>
     </div>
@@ -233,7 +233,7 @@
         <div class="card-header card-header-toggle" id="alToggleHeader">
             <div>
                 <h2><span aria-hidden="true">🏖️</span> Record Annual Leave</h2>
-                <span class="hint">Pick a date range — Sundays never use a leave day, and you may be asked whether a rest day in it was a swapped working day</span>
+                <span class="hint">Pick a date range — Sundays never use a leave day; you may be asked about rest days</span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip al-left-chip" id="alHeaderBalance" hidden><span id="alHeaderYear">—</span>: <strong id="alHeaderRemaining">—</strong> left</span>
@@ -305,7 +305,7 @@
                 <div class="al-leaveyear-title"><span aria-hidden="true">🗓️</span> Which year’s allowance</div>
                 <p class="al-leaveyear-hint">January leave comes out of that year’s allowance. A day can come out of the year before instead, while that year still has days left.</p>
                 <div id="alLeaveYearBody"></div>
-                <div class="feedback" id="alLeaveYearFeedback" role="status" aria-live="polite"></div>
+                <div class="feedback" id="alLeaveYearFeedback" tabindex="-1" role="status" aria-live="polite"></div>
             </div>
 
             <!-- Collapsible: all booked AL dates for the selected member -->
@@ -375,7 +375,7 @@
         <div class="card-header card-header-toggle" id="overridesToggleHeader">
             <div>
                 <h2><span aria-hidden="true">📋</span> Saved Changes</h2>
-                <span class="hint">All recorded changes — edit or remove any row</span>
+                <span class="hint">Saved changes for the member above — edit or remove any row</span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip" id="overridesCountChip"></span>

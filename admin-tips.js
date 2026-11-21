@@ -19,7 +19,7 @@ export const CARD_TIPS = {
                 { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top.', adminOnly: true },
                 { icon: '1️⃣', html: 'Select the <strong>week</strong> at the top, using the arrows or the date picker.', staffOnly: true },
                 // GOLD, the app's word for that colour — a reader compares it with the screen, and admin.css draws it.
-                { icon: '2️⃣', html: 'Choose a type on any day. The row turns <strong>gold</strong>, with a gold edge, to show it is ready to save; select <strong>Save changes</strong> when you have finished.' },
+                { icon: '2️⃣', html: 'Tick a day, then choose its type (a day with a saved change shows its types already). The row turns <strong>gold</strong>, with a gold edge, to show it is ready to save; select <strong>Save changes</strong> when you have finished.' },
                 { icon: '☑️', html: 'A ticked day with no type yet has the gold edge only, and saves nothing until it has one.' },
                 // Three of the six pills are off on a Sunday, and Other offers Spare alone there; Boxing Day has no Other pill
                 // (admin-day-pills.js), so "any day" needs this. admin-day-pills.test.mjs holds these words to the row.
@@ -44,7 +44,7 @@ export const CARD_TIPS = {
                 { icon: '💼', html: '<strong>RDW</strong> — Rest Day Working. Use it when somebody works a full shift on their rest day.' },
                 { icon: '✏️', html: '<strong>Rest Day</strong> — puts a working day back to a rest day.' },
                 // All six flavours and Spare: a flavour left out of this list is one nobody knows exists.
-                { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (on standby, shift not yet known).' },
+                { icon: '🏷️', html: '<strong>Other</strong> — open the pill to choose: training, induction, assessment, team day, union, meeting, or <strong>Spare</strong> (a Spare day: on standby, shift not yet assigned).' },
                 { icon: '⏱️', html: 'On an <strong>Other</strong> day that falls on a rest day, <strong>Rest day (RDW)</strong> is already ticked and cannot be unticked — it is automatic. On a day they were rostered to work, tick it yourself to pay the day as rest-day working. Add times if you know them; leave them blank and it pays as the day underneath, or eight hours on a rest day.' },
             ]},
         ],
@@ -56,7 +56,9 @@ export const CARD_TIPS = {
                 { icon: '🏖️', html: 'Choose the <strong>staff member at the top of the page</strong>, then a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if the member had swapped a working day onto it.', adminOnly: true },
                 { icon: '🏖️', html: 'Select a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if you had swapped a working day onto it.', staffOnly: true },
                 // The preview is a COUNT and a span, not a list of days: never invite a check of what is not on screen.
-                { icon: '👀', html: 'Before you save you are told <strong>how many working days</strong> the range comes to and the dates it spans. Sundays are never in that count; a rest day is in it only where you have said it was a swapped working day. Check the number against what you meant to book.' },
+                { icon: '👀', html: 'Before you save you are told <strong>how many days of leave</strong> the range uses and the dates it spans. Sundays are never in that count; a rest day is in it only where you have said it was a swapped working day. Check the number against what you meant to book.' },
+                // Owner, 21 Nov 2026: a Spare week (CEA and CES) uses at most four days of leave.
+                { icon: '📋', html: 'For a CEA or CES, a whole <strong>Spare week</strong> off uses <strong>4 days</strong>, not 6. A Dispatcher’s Spare days use one each.' },
                 { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
                 { icon: '🗓️', html: 'Leave in <strong>January</strong> comes out of that year’s allowance. When some is booked, a <strong>Which year’s allowance</strong> panel appears under the Record button, and a day can come out of the year before instead, while that year still has days left.' },
             ]},
@@ -66,8 +68,8 @@ export const CARD_TIPS = {
         title: 'Record Absence',
         sections: [
             { heading: 'What to use it for', items: [
-                { icon: '🗓️', html: '<strong>Any kind of absence</strong>, for any number of days.' },
-                { icon: '👨‍👩‍👧', html: 'Sickness, a family or domestic emergency, caring for a relative — it is all the same entry here.' },
+                { icon: '🗓️', html: '<strong>Any kind of absence</strong>, for up to a year at a time.' },
+                { icon: '👨‍👩‍👧', html: 'Being unwell, a family or domestic emergency, caring for a relative — it is all the same entry here.' },
                 { icon: '🪑', html: 'You never say why. Only the dates are saved; the reason is not recorded anywhere in the app.' },
             ]},
             { heading: 'Good to know', items: [

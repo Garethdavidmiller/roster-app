@@ -103,6 +103,9 @@ everywhere else (`AL on a rest day is ASKED about, never defaulted`) just becaus
   base or a hand-made record, and an unreadable cell never offers the spare reading. **Over an earlier
   IMPORT it reads as the rest day the owner chose** — COVERED where that import is a rest day, else an
   UNTICKED "Clear old" row, as a printed rest day's is — so a stale draft shift there can be removed.
+- **An Other day (Training, Meeting and the rest) printed on 25 or 26 December is held the same way**,
+  under `christmas-other` (review, 21 Nov 2026): the two days can never be Other days, times or not,
+  and the entry control does not offer the Other pill on them.
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
 - **A day before the member's `startDate` writes nothing** (`isBeforeMemberStart`): anything but a

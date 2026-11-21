@@ -56,6 +56,11 @@ let txFailOn = null;
 /** Batch commits that fail with this code, the batch then spent as Firestore spends one. @type {{ code: string, times: number }|null} */
 let batchFails = null;
 /** @type {any[]} */ let reads = [];
+/** Everything a fake write batch was handed through `set()`, in order — `committed` turns true when
+ *  that batch's commit succeeds. RECORDED, never applied to `server`: the fake used to discard it
+ *  (`set: () => {}`), which left no test able to assert a batch's payload (CLAUDE.md, "A harness that
+ *  discards is a harness that cannot see"). @type {Array<{ key: string, data: any, committed: boolean }>} */
+let batchSets = [];
 let autoIds = 0;
 
 /** @param {Function} fn */
@@ -120,14 +125,17 @@ mock.module('./firebase-client.js', {
         runTransaction: async (/** @type {any} */ _db, /** @type {Function} */ fn) => runTx(fn),
         writeBatch: () => {
             /** @type {string[]} */ const dels = [];
+            /** @type {Array<{ key: string, data: any, committed: boolean }>} */ const sets = [];
             let spent = false;
-            return { set: () => {}, delete: (/** @type {any} */ ref) => { dels.push(ref.key); },
+            return { set: (/** @type {any} */ ref, /** @type {any} */ data) => { const rec = { key: ref.key, data: { ...data }, committed: false }; sets.push(rec); batchSets.push(rec); },
+                delete: (/** @type {any} */ ref) => { dels.push(ref.key); },
                 commit: async () => {
                     // As Firestore's: a batch commits once, and a commit that FAILED has spent it too.
                     if (spent) throw new Error('A write batch can no longer be used after commit() has been called.');
                     spent = true;
                     if (batchFails && batchFails.times > 0) { batchFails.times--; throw Object.assign(new Error('refused'), { code: batchFails.code }); }
                     for (const k of dels) serverWrite(k, null); if (dels.length) commits.push(dels.map(k => `delete ${k}`));
+                    for (const rec of sets) rec.committed = true;
                 } };
         },
         serverTimestamp: () => SERVER_TS,
@@ -213,7 +221,7 @@ const colleague = (m, date, type = 'shift', value = '06:00-14:00') => () =>
     seed(m, date, manualOverrideId(m.name, date), { type, value, changedBy: 'E. Manager' });
 
 beforeEach(() => {
-    server.clear(); versions.clear(); commits = []; reads = [];
+    server.clear(); versions.clear(); commits = []; reads = []; batchSets = [];
     txRuns = 0; betweenReadAndCommit = null; landsUnanswered = 0; txFails = null; writeFails = null; cached = false;
     txFailOn = null; batchFails = null;
 });

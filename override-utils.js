@@ -3,7 +3,7 @@
 // Shared by calendar-app.js, calendar-team-view.js, and the admin modules.
 // Pure: no DOM, no Firestore — each export's JSDoc carries its own reasoning.
 
-import { isClockTime } from './clock-input.js';   // the entry control's boxes are text (v23.37)
+import { isClockTime, timePairError } from './clock-input.js';   // the entry control's boxes are text (v23.37)
 import { isValidLeaveYear } from './leave-year.js';   // which year's allowance a January leave day is (v25.18)
 export { nextLeaveYear } from './leave-year.js';      // beside its sibling `nextReplacedType`: what a rewrite carries
 
@@ -682,10 +682,8 @@ export function composeOtherValue(f) {
     let time = '';
     if (s || e) {
         if (!s || !e)                             return { error: 'fill in both times, or leave both blank to use the default hours' };
-        if (!isClockTime(s) || !isClockTime(e))   return { error: 'times must be in HH:MM format (e.g. 07:00)' };
-        // Equal start/end would validate as a 0h shift but PAY as 24h (the overnight wrap in the
-        // duration maths) — reject at the only place these times are authored.
-        if (s === e)                              return { error: 'start and end times are the same' };
+        const bad = timePairError(s, e);   // ONE time rule, with a Shift's (clock-input.js)
+        if (bad)                                  return { error: bad };
         time = ` ${s}-${e}`;
     }
     return { value: `${flavour}${rdw}${time}` };

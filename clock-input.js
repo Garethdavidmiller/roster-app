@@ -80,3 +80,26 @@ export function finaliseClockInput(raw) {
     if (d.length === 3 && +d.slice(0, 2) > 23) return `0${d[0]}:${d.slice(1)}`;
     return formatClockInput(raw);
 }
+
+/** What is wrong with a FILLED-IN pair of clock times, or `''` — the ONE rule a Shift's times and an
+ *  Other day's share (`composeTimedValue` here, `composeOtherValue` in override-utils.js; review, 21 Nov
+ *  2026: the week grid's save had its own copy). Equal times are refused because a 0h shift PAYS as
+ *  24h through the overnight wrap in the duration maths. @param {string} s @param {string} e @returns {string} */
+export function timePairError(s, e) {
+    if (!isClockTime(s) || !isClockTime(e)) return 'times must be in HH:MM format (e.g. 07:00)';
+    return s === e ? 'start and end times are the same' : '';
+}
+
+/**
+ * COMPOSE a timed value — a Shift's or an RDW's `HH:MM-HH:MM`. Both times are REQUIRED here; an Other
+ * day's are optional (`composeOtherValue`), which is the one difference between the two writers.
+ * @param {{ start?: string, end?: string }} f
+ * @returns {{ value: string, error?: undefined } | { error: string, value?: undefined }}
+ */
+export function composeTimedValue(f) {
+    const s = ((f && f.start) || '').trim();
+    const e = ((f && f.end)   || '').trim();
+    if (!s || !e) return { error: 'fill in the start and end time' };
+    const bad = timePairError(s, e);
+    return bad ? { error: bad } : { value: `${s}-${e}` };
+}

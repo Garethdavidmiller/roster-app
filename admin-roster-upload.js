@@ -453,7 +453,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // as Admin's delete names them. A refused row removed none.
             const dups = toWrite.reduce((n, w) => n + (w.deleteOnly || !(typeof w.value === 'string' && isZeroLengthRange(w.value)) ? (w.alsoDelete?.length ?? 0) : 0), 0);
             applyFeedback.textContent = `Done — ${applied} change${applied !== 1 ? 's' : ''} applied to the roster.`
-                + (dups ? ` ${dups} older cop${dups === 1 ? 'y' : 'ies'} of the same day${dups === 1 ? '' : 's'} also removed.` : '')
+                + (dups ? ` ${dups} earlier entr${dups === 1 ? 'y' : 'ies'} for the same day${dups === 1 ? '' : 's'} also removed.` : '')
                 + (refused ? ` ${refused} with a start time equal to its finish ${refused === 1 ? 'was' : 'were'} not written.` : '');
             applyFeedback.className   = 'huddle-feedback huddle-feedback--ok';
 

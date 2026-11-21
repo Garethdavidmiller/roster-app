@@ -38,7 +38,7 @@ import { withClearedDays } from './admin-own-write.js';
 import { armConfirm, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 
 /** The receipt's account of a duplicate cleared alongside: said, never silent. @param {number} n */
-const _olderCopies = (n) => n > 0 ? `, and ${n} older cop${n === 1 ? 'y' : 'ies'} of the same day` : '';
+const _olderCopies = (n) => n > 0 ? `, and ${n} earlier entr${n === 1 ? 'y' : 'ies'} for that day` : '';
 /** Newest first, then by name, whichever path last touched the cache. @param {any} a @param {any} b */
 const _newestFirst = (a, b) => (b.date || '').localeCompare(a.date || '')
     || (a.memberName || '').localeCompare(b.memberName || '') || String(a.id).localeCompare(String(b.id));
@@ -260,19 +260,22 @@ async function _handleDelete(e) {
     await _deleteRow(btn, false);
 }
 
-/** One row's delete; `confirmed` when "Save anyway" answered its question (header). @param {HTMLButtonElement} btn @param {boolean} confirmed */
-async function _deleteRow(btn, confirmed) {
+/** One row's delete; `confirmed` when "Save anyway" answered its question (header), carrying what was on
+ *  screen at the FIRST press — so the answer deletes what it was asked about, and a colleague's change
+ *  that arrived while the question was open is still refused (review, 21 Nov 2026).
+ *  @param {HTMLButtonElement} btn @param {boolean} confirmed @param {{ ids: string[], shown: any[] }} [atPress] */
+async function _deleteRow(btn, confirmed, atPress) {
     // Signed out: say so, not "check your connection" — the write would be refused anyway.
     if (!auth.currentUser) { disarmConfirm(btn, '✕'); _sayList("⚠ You've been signed out — please sign in again.", 'error'); return; }
     const deleted = getAllOverrides().find(o => o.id === btn.dataset.id);
     // The row AND any older manual copy of the day, or the older resurfaces — one transaction.
-    const ids = [...withManualDuplicates([btn.dataset.id ?? ''])];
-    const shown = asShown(ids);   // as on screen at the press: what the transaction compares the server with
+    const ids = atPress?.ids ?? [...withManualDuplicates([btn.dataset.id ?? ''])];
+    const shown = atPress?.shown ?? asShown(ids);   // as on screen at the press: what the transaction compares the server with
     const overage = confirmed || !_showALConfirm ? null : _deleteOverage(shown);
     if (overage && _showALConfirm) {
         disarmConfirm(btn, '✕');
         btn.focus?.();   // the control the bar's Cancel goes back to (admin-app.js reads the focused element)
-        _showALConfirm(overage.headline, overage.detail, null, [], () => _deleteRow(btn, true));
+        _showALConfirm(overage.headline, overage.detail, null, [], () => _deleteRow(btn, true, { ids, shown }));
         return;
     }
     // "Save anyway" had focus, and the bar goes: focus follows the delete, as it would from the ✕.
@@ -357,18 +360,20 @@ function _initOverridesTable() {
         });
     }
 
-    /** The ticked rows' delete, as one row's (`_deleteRow`). @param {HTMLButtonElement} bulkDeleteBtn @param {string[]} picked @param {boolean} confirmed */
-    async function _bulkDelete(bulkDeleteBtn, picked, confirmed) {
+    /** The ticked rows' delete, as one row's (`_deleteRow`), "Save anyway" carrying the first press's view.
+     *  @param {HTMLButtonElement} bulkDeleteBtn @param {string[]} picked @param {boolean} confirmed
+     *  @param {{ chunks: string[][], shown: Map<string, any> }} [atPress] */
+    async function _bulkDelete(bulkDeleteBtn, picked, confirmed, atPress) {
         if (!auth.currentUser) {   // as the single delete
             _sayList("⚠ You've been signed out — please sign in again.", 'error');
             return;
         }
-        const chunks = deleteChunks(picked, BULK_DELETE_CHUNK), ids = chunks.flat();   // with their older copies, a day never split
-        const shown = new Map(asShown(ids).map((r, i) => [ids[i], r]));
+        const chunks = atPress?.chunks ?? deleteChunks(picked, BULK_DELETE_CHUNK), ids = chunks.flat();   // with their older copies, a day never split
+        const shown = atPress?.shown ?? new Map(asShown(ids).map((r, i) => [ids[i], r]));
         const overage = confirmed || !_showALConfirm ? null : _deleteOverage([...shown.values()]);
         if (overage && _showALConfirm) {
             bulkDeleteBtn.focus?.();   // what the bar's Cancel goes back to, as for one row
-            _showALConfirm(overage.headline, overage.detail, null, [], () => _bulkDelete(bulkDeleteBtn, picked, true));
+            _showALConfirm(overage.headline, overage.detail, null, [], () => _bulkDelete(bulkDeleteBtn, picked, true, { chunks, shown }));
             return;
         }
 

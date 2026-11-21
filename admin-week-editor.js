@@ -206,7 +206,7 @@ export function buildWeekGridInto(container, dateStr) {
         // (review, 20 Nov 2026) — and says how it goes: its pill is on for that one act.
         const hiddenSpare = existing?.type === 'spare_shift' && isChristmasOrBoxingDay(dateISO);
         const christmasNote = hiddenSpare
-                ? `${xmasDay}: a Spare saved here before Spare turns were refused is not shown on the Calendar — select Other to remove it`
+                ? `${xmasDay}: an old Spare entry is saved here but doesn’t show on the Calendar — select Other to remove it`
             : !xmasDue ? ''
             : xmasShows === 'AL'
                 ? `${xmasDay}: due at work, so on annual leave that is never counted — nothing to record`
@@ -267,7 +267,7 @@ export function buildWeekGridInto(container, dateStr) {
                 <label class="other-rdw-label"><input type="checkbox" class="other-rdw-cb"${isRestShift(baseShift) ? ' checked disabled' : ''}> Rest day (RDW)</label>
                 ${!isRestShift(baseShift) ? '' : `<span class="other-rdw-auto">Ticked and locked because ${xmasDue ? `the station is closed on ${xmasDay}` : 'the base roster has this as a rest day'} — RDW is automatic</span>`}
                 <span class="other-rdw-warn" hidden>Originally rostered ${escapeHtml(rosteredWords(baseShift))} this day — RDW pays it as rest-day working instead</span>
-                <span class="other-opts-hint">Pick a type above, then times (optional — blank pays the default: base shift, or 8h RDW).</span>
+                <span class="other-opts-hint">Pick a type above, then times (optional — leave blank to pay the rostered shift, or eight hours on a rest day).</span>
             </div>`;
 
         container.appendChild(row);
@@ -502,7 +502,16 @@ export function updateSaveBtn() {
     const stagedBar   = document.getElementById('stagedBar');
     const stagedCount = document.getElementById('stagedCount');
     if (stagedBar) {
+        // THE BAR GOING DOES NOT TAKE THE KEYBOARD WITH IT (review, 21 Nov 2026): its Save or Discard
+        // had focus, and hiding it sent focus to <body>. It goes to the receipt when there is one,
+        // else to the week's date button, the control the grid is read from.
+        const leaving = total === 0 && !stagedBar.hidden && !!stagedBar.contains?.(globalThis.document?.activeElement ?? null);
         stagedBar.hidden = total === 0;
+        if (leaving) {
+            const receipt = document.getElementById('formFeedback');
+            /** @type {HTMLElement|null} */ ((receipt?.textContent?.trim() ? receipt : null) ?? document.getElementById('weekNavLabel'))
+                ?.focus({ preventScroll: true });
+        }
         if (stagedCount) {
             const parts = [];
             if (saveCount) parts.push(`${saveCount} day${saveCount > 1 ? 's' : ''}`);

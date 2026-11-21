@@ -55,9 +55,9 @@ import { parseOtherValue, isRestShift, isBeforeMemberStart } from './override-ut
 import { CONFIG, formatISO, parseISODate } from './roster-data.js';
 
 /** Maximum length of a single shift. */
-export const MAX_SHIFT_MINS = 12 * 60;
+const MAX_SHIFT_MINS = 12 * 60;
 /** Minimum rest between the end of one shift and the start of the next. */
-export const MIN_REST_MINS = 12 * 60;
+const MIN_REST_MINS = 12 * 60;
 
 /** @param {string} timeStr @returns {number} */
 export function parseMinutes(timeStr) {

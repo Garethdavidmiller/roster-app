@@ -2387,7 +2387,7 @@ test('operations: "Use new roster" also clears an older manual copy of the day',
         .filter((/** @type {string} */ p) => /\/m[01]$/.test(p)).map((/** @type {string} */ p) => p.slice(-2)).sort()),
         { timeout: 10_000 }).toEqual(['m0', 'm1']);
     // …and the receipt SAYS so, as Admin's delete does — a removal nobody is told about is silent (48-hour review).
-    await expect(page.locator('#rosterApplyFeedback')).toContainText('1 older copy of the same day also removed');
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('1 earlier entry for the same day also removed');
 });
 
 // v25.92: a day a colleague changed between the read and the Save. The review loaded m1 (a manual

@@ -238,6 +238,8 @@ test('admin: a January leave day can be moved to last year\'s allowance, and bac
     await expect(y2026).toHaveAttribute('aria-pressed', 'true');
     await expect(figures).toHaveText('2026: 31 days left · 2027: 32 days left');
     await expect(page.locator('#alLeaveYearFeedback')).toContainText('now comes out of 2026’s allowance');
+    // The panel is redrawn twice around the save; the keyboard's place is the year just chosen (21 Nov 2026).
+    await expect(y2026, 'focus is not dropped to the page when the panel redraws').toBeFocused();
     const moved = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data);
     expect(moved).toMatchObject({ date: DAY, type: 'annual_leave', value: 'AL', leaveYear: 2026, source: 'manual', changedBy: 'G. Miller' });
 
@@ -389,6 +391,28 @@ async function openAdminOnDecember(page) {
     });
     await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
 }
+
+// THE KEYBOARD IS NOT LEFT ON <body> WHEN A BAR GOES FROM UNDER IT (review, 21 Nov 2026). The sticky
+// bar's Save and the unsaved banner's "Discard and continue" both hid the very button that was pressed.
+test('admin: after the sticky bar\'s Save, and after "Discard and continue", focus is somewhere real', async ({ page }) => {
+    await openAdminOnDecember(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.authUser = true; });
+    const absent = () => page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="sick"]:not([disabled])') }).first();
+    await clickInView(absent().locator('.type-pill-btn[data-type="sick"]'));
+    await page.locator('#stagedSaveBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#formFeedback')).toContainText('✓');
+    await expect(page.locator('#formFeedback'), 'the receipt, once the bar has gone').toBeFocused();
+
+    await clickInView(absent().locator('.type-pill-btn[data-type="sick"]'));
+    await page.locator('#nextWeekBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#unsavedBanner')).toBeVisible();
+    await page.locator('#unsavedDiscardBtn').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#unsavedBanner')).toBeHidden();
+    await expect(page.locator('#nextWeekBtn'), 'back to the arrow that asked to leave').toBeFocused();
+});
 
 // THE DIALOG OVER THE DRAWER OWNS THE KEYBOARD (v25.06, whole-app review). The drawer's own keydown
 // handler had no topmost check, so with "Leave this page anyway?" open over it, Tab dragged focus into
@@ -1356,6 +1380,49 @@ test('admin: the over-entitlement question stays up past an earlier success mess
     await expect(bar, 'the question must wait for an answer, not for a timer').toHaveClass(/visible/);
 });
 
+// ONE BAR, FOUR CARDS (review, 21 Nov 2026): picking a range on the Annual Leave card took down the week
+// grid's question unanswered, because every card hid the shared bar on its own routine events. A card
+// now takes down only its own question.
+test('admin: picking a leave range leaves the week grid\'s over-allowance question up', async ({ page }) => {
+    test.setTimeout(45_000);
+    const TAKEN = [];
+    for (const m of ['06', '07']) for (let d = 1; d <= 28; d++) TAKEN.push(`2026-${m}-${String(d).padStart(2, '0')}`);
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = dates.map((date, i) => ({ id: `al-${i}`, memberName: 'G. Miller', date,
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    }, TAKEN);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2026-11-16';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Nov 2026');
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    for (const btn of await page.locator('.day-row .al-swap-btn[data-swap="no"]').all()) {
+        if (await btn.isVisible()) await clickInView(btn);
+    }
+    await clickInView(page.locator('#saveBtn'));
+    const bar = page.locator('#alConfirmBar');
+    await expect(bar).toHaveClass(/visible/);
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpNext').click();
+    const day = page.locator('#alRpGrid .rp-day[data-iso="2026-09-08"]');
+    await day.click();
+    await day.click();
+    await expect(page.locator('#alSaveBtn')).toBeEnabled();
+    await expect(bar, 'the week grid\'s question is still waiting for its answer').toHaveClass(/visible/);
+    // CONTROL: a change to the week itself still withdraws it — its batch is out of date.
+    await clickInView(page.locator('.day-row .pill-correction:not([disabled])').first());
+    await expect(bar).not.toHaveClass(/visible/);
+});
+
 // ONE WRITE AT A TIME, "SAVE ANYWAY" INCLUDED (whole-app check, Nov 2026; routed from admin-2). The bar's
 // Save anyway ran the week's save whatever else was sending: beside an absence booking still writing, two
 // writes to one page at once (the v24.38 duplicate-record race), and the week's save then released the lock
@@ -1501,7 +1568,7 @@ test('admin: a Recorded Absence dates ✕ deletes the older leave copy under the
     await clickInView(del);
     await expect(del).toHaveText('Confirm?');
     await clickInView(del);
-    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 absence day for ${who.name}, and an older copy of ${fmtPeriodDate(day)}`);
+    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 absence day for ${who.name}, and an earlier entry for ${fmtPeriodDate(day)}`);
     const deleted = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).map((/** @type {string} */ p) => p.split('/').pop()));
     expect(deleted.sort(), 'the absence AND the older leave copy, in the one transaction').toEqual(['newer-absence', 'older-leave']);
 });
@@ -1924,6 +1991,7 @@ test('admin: a bulk sweep of all seven days stages six — the Sunday is dropped
         // that question, which is not what this loop is about.
         await page.locator('#stagedDiscardBtn').click();
         await expect(page.locator('#saveBtn')).toBeDisabled();
+        await expect(page.locator('#weekNavLabel'), 'the bar went from under the keyboard, which goes to the week').toBeFocused();
     }
 });
 
@@ -2159,7 +2227,7 @@ test('admin: a Spare saved on Boxing Day before it was refused is removed by sel
     await expect(other, 'the saved Spare is drawn under Other').toHaveAttribute('aria-pressed', 'true');
     await expect(other).toBeEnabled();
     await expect(boxing.locator('.col-pills'), 'the row says the Calendar does not show it, and how it goes')
-        .toContainText('is not shown on the Calendar — select Other to remove it');
+        .toContainText('an old Spare entry is saved here but doesn’t show on the Calendar — select Other to remove it');
     await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]'), 'the pill offers removal, never a new Other day').toBeDisabled();
     await other.click();
     await expect(boxing, 'selecting it again clears the row').not.toHaveAttribute('data-type', /./);
@@ -4047,11 +4115,11 @@ test('admin: the BASE ROSTER column shows the time, not just Early/Late', async 
         .toBe(true);
 });
 
-test('admin: on a phone the bulk-bar pills share the chips\' left edge; the per-row pills stay centred', async ({ page }) => {
+test('admin: on a phone the bulk-bar pills share the chips\' left edge, and so do the per-row pills', async ({ page }) => {
     // Polish round 2. The bulk bar is a 1 → 2 → 3 sequence whose step-1 chips start at the content
     // edge; the step-2 pills were centred, so their first row started ~39px in and a wrapped pill sat
-    // alone mid-card. The per-row pills are CENTRED on phones by a separate decision (`.col-pills`
-    // in admin.css, v22.22) and must not follow — both halves are asserted.
+    // alone mid-card. The per-row pills were centred on phones (v22.22) until the Nov 2026 polish
+    // pass put them on the same left edge (`.col-pills` in admin.css) — both halves are asserted.
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page);
     await page.goto('/admin.html');
@@ -4072,7 +4140,7 @@ test('admin: on a phone the bulk-bar pills share the chips\' left edge; the per-
     await page.locator('.week-panel .day-row .day-cb').first().check();
     const rowPills = page.locator('.week-panel .day-row.selected .col-pills').first();
     await expect(rowPills).toBeVisible();
-    await expect(rowPills, 'the per-row pills stay centred on a phone').toHaveCSS('justify-content', 'center');
+    await expect(rowPills, 'the per-row pills are left-aligned on a phone, as the bulk bar\'s are').toHaveCSS('justify-content', 'flex-start');
 });
 
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
@@ -4731,7 +4799,7 @@ for (const w of [320, 360, 390]) {
             .toBeLessThan(0);
         const warn = page.locator('#alBannerWarn');
         await expect(warn).toBeVisible();
-        await expect(warn).toHaveText(`${Math.abs(remaining)} over limit`);
+        await expect(warn).toHaveText(`${Math.abs(remaining)} over allowance`);
 
         const box = await page.evaluate(() => {
             const card = document.getElementById('book-annual-leave');
@@ -5494,7 +5562,7 @@ test('admin: leave over a worked Boxing Day names the day in lieu it takes back,
     await clickInView(page.locator('#alSaveBtn'));
     const bar = page.locator('#alConfirmBar');
     await expect(bar, 'one day left, and the save takes the day in lieu back: it ends one over').toHaveClass(/visible/);
-    await expect(bar).toContainText('1 day over their 2026 AL entitlement');
+    await expect(bar).toContainText('1 day over their 2026 annual leave allowance');
     // CANCEL PUTS FOCUS BACK ON THE SAVE THAT ASKED (whole-app check, Nov 2026): it was left on a hidden button.
     await page.locator('#alConfirmCancelBtn').click();
     await expect(bar).not.toHaveClass(/visible/);

@@ -206,7 +206,7 @@ describe('the over-entitlement bar', () => {
             ovByDate: NO_OV, swapAnswers: new Map([[SAT, true]]), overrides: oneDayLeft,
         });
         assert.ok(plan.overage, 'two consuming days against one remaining must raise the bar');
-        assert.match(plan.overage.headline, /F\. Fixture will be \d+ days? over their 2026 AL entitlement/);
+        assert.match(plan.overage.headline, /F\. Fixture will be \d+ days? over their 2026 annual leave allowance/);
     });
 
     test('the same booking with that day answered FREE does not warn — it is not being charged', () => {
@@ -532,7 +532,7 @@ describe('planAlDelete — a delete from Saved Changes asks as the week grid doe
     test('deleting the worked Boxing Day at the limit asks, in the week grid\'s words', () => {
         const overage = ask([worked]);
         assert.ok(overage);
-        assert.equal(overage.headline, 'Q. Example will be 1 day over their 2027 AL entitlement');
+        assert.equal(overage.headline, 'Q. Example will be 1 day over their 2027 annual leave allowance');
         assert.equal(overage.detail, '33 days used of 32 allowed in 2027');
         assert.deepEqual(overage, planAlWeekSave({ member: Q, memberName: Q.name, toSave: [], toDelete: ['bx'], overrides }).overage,
             'the planner\'s own answer, not a second copy of it');

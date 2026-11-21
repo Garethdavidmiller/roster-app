@@ -196,8 +196,11 @@ shown that yet.
   should be charged as 4 days AL"; part weeks "1 a day, at most 4"; "count only"). A Spare week is four
   days' work of 35 hours, but the roster marks all seven days Spare, so a whole week off was charged as
   six (Monday to Saturday). Each day still Spare costs one, and a week stops costing at four, in date
-  order (`pastSpareWeekCap`, `al-entitlement.js`); the booking preview applies it across the days being
-  booked (`_capSpareWeeks`, `admin-al-projection.js`) and its Spare line says so. **Count only:** every
+  order (`pastSpareWeekCap`, `al-entitlement.js`); the booking preview asks the same rule of the week as
+  it will stand after the save (`projectAlBooking`, `admin-al-projection.js`) and its Spare line says so.
+  **CEA and CES only** (owner, 21 Nov 2026): a Dispatcher's Spare days cost one each, as before, because
+  the four-day, 35-hour Spare week is the CEA and CES roster's, read off the member's grade on the day
+  (`spareUnderneath`). A week running over New Year counts its December days first. **Count only:** every
   day is still written as leave, so the Calendar shows the whole week off and nothing saved had to
   change. Weighed and not chosen: writing leave on four days and Rest Day on two (weeks already booked
   would still count six), and charging any leave in a Spare week as four. A Spare week a roster upload
