@@ -1,7 +1,7 @@
 // @ts-check
 import { getBaseShift, parseISODate } from './roster-data.js';
 import { resolveEffectiveShift, isChristmasOrBoxingDay } from './override-utils.js';
-import { consumesEntitlement } from './al-entitlement.js';
+import { costsWithoutSpareCap, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 // admin-al-spare-note.js — the one sentence the AL booking preview says about Spare days.
 //
 // ── WHY A MODULE FOR ONE SENTENCE ──────────────────────────────────────────────────────────────
@@ -27,6 +27,11 @@ import { consumesEntitlement } from './al-entitlement.js';
 // of an older instruction about a WEEK — "for shifts over 7h, add RD corrections to reduce to 4 AL
 // days" — which pointed the other way and did not apply to a single day at all. It then sent the
 // reader to their manager to settle a discrepancy the app had invented.
+//
+// ONE EXCEPTION, BY RULE (owner, 21 Nov 2026): a Spare WEEK never costs more than four days, so a
+// booking holding more Spare days than its weeks charge is told the cap and the true figure rather
+// than "each still uses 1 day" — `spareShiftNote`'s `charged`, which the preview reads off the
+// booking's own projection (admin-al.js). Each day up to the fourth is still exactly one day.
 //
 // So the note is INFORMATION, not a warning: it names the day type, says what Spare means, and
 // closes the entitlement question rather than opening it. It carries 📋 — the Spare badge the app
@@ -55,12 +60,25 @@ import { consumesEntitlement } from './al-entitlement.js';
  * @param {number} totalDays  how many days the booking covers, so a one-day booking can say
  *                            "This is…" rather than "1 of these days is…", which has no "these"
  *                            to be one of
+ * @param {number} [charged]  how many of those Spare days the booking actually charges — fewer when
+ *                            a Spare week reaches its four (`projectAlBooking`); omitted, all of them
  * @returns {string} plain text, no markup — the caller decides how to wrap it
  */
-export function spareShiftNote(spareCount, totalDays) {
+export function spareShiftNote(spareCount, totalDays, charged = spareCount) {
     if (!Number.isFinite(spareCount) || spareCount < 1) return '';
 
     const MEANING = 'on standby, with the shift not yet assigned';
+    // A SPARE WEEK USES AT MOST FOUR (owner, 21 Nov 2026): when the booking's Spare days are more
+    // than its weeks charge, the note says the cap and the true figure — never "each still uses 1".
+    if (Number.isFinite(charged) && charged < spareCount) {
+        const cap = `A Spare week uses at most ${SPARE_WEEK_MAX_DAYS} days of annual leave`;
+        if (spareCount === 1) {
+            const subject = totalDays === 1 ? 'This is a Spare day' : '1 of these days is a Spare day';
+            return `📋 ${subject} — ${MEANING}. ${cap}, and this week's are already booked, so it uses none.`;
+        }
+        const uses = charged === 0 ? 'none' : `${charged} day${charged === 1 ? '' : 's'}`;
+        return `📋 ${spareCount} of these days are Spare days — ${MEANING}. ${cap}, so they use ${uses}.`;
+    }
     // The cost sentence is the point of the note and is never omitted or softened: it is the
     // question the old wording left open.
     if (spareCount === 1) {
@@ -83,7 +101,18 @@ export function spareShiftNote(spareCount, totalDays) {
  * @returns {number}
  */
 export function countSpareDays(memberObj, dates, ovByDate) {
-    if (!memberObj) return 0;
-    return dates.filter(d => consumesEntitlement(memberObj, d, ovByDate)
-        && resolveEffectiveShift(ovByDate?.get(d) ?? null, getBaseShift(memberObj, parseISODate(d)), false, isChristmasOrBoxingDay(d)).shift === 'SPARE').length;
+    return spareDaysOf(memberObj, dates, ovByDate).length;
+}
+
+/**
+ * The days `countSpareDays` counts, so the preview can ask how many of them the booking CHARGES. A
+ * day past its week's four is still a Spare day booked, so "would it cost on its own" is the test
+ * here (`costsWithoutSpareCap`), and the cap is the projection's to apply (owner, 21 Nov 2026).
+ * @param {any} memberObj @param {string[]} dates @param {Map<string, any>|null} ovByDate
+ * @returns {string[]}
+ */
+export function spareDaysOf(memberObj, dates, ovByDate) {
+    if (!memberObj) return [];
+    return dates.filter(d => costsWithoutSpareCap(memberObj, d, ovByDate)
+        && resolveEffectiveShift(ovByDate?.get(d) ?? null, getBaseShift(memberObj, parseISODate(d)), false, isChristmasOrBoxingDay(d)).shift === 'SPARE');
 }

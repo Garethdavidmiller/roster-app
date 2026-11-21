@@ -43,7 +43,11 @@ function datesWhere(from, wantRest, n) {
     const d = parseISODate(from);
     while (out.length < n) {
         const iso = formatISO(d);
-        if (!isSunday(iso) && isRestShift(getBaseShift(MEMBER, parseISODate(iso))) === wantRest) out.push(iso);
+        const base = getBaseShift(MEMBER, parseISODate(iso));
+        // A Spare day is left out of "working" here: since 21 Nov 2026 a Spare week costs at most four
+        // days, so a run through one would test that cap rather than what each test here is about.
+        // The cap has its own describe block below.
+        if (!isSunday(iso) && isRestShift(base) === wantRest && base !== 'SPARE') out.push(iso);
         d.setDate(d.getDate() + 1);
     }
     return out;
@@ -1088,5 +1092,47 @@ describe('a Boxing Day worked in the last navigable year', () => {
         assert.equal(allowanceForBoxingDay(m, last), last + 1);
         assert.equal(entitlementFor(m, last + 1, worked), 33);
         assert.equal(entitlementFor(m, last, worked), 32, 'never folded back into the last navigable year');
+    });
+});
+
+// ── A SPARE WEEK COSTS AT MOST FOUR DAYS (owner, 21 Nov 2026) ─────────────────────────────────────
+// A Spare week is four days' work, but the roster marks all of it Spare, so a whole week off was
+// charged as six. "1 a day, at most 4": each Spare day costs a day until the week has cost four.
+describe('a Spare week costs at most four days of leave', () => {
+    // An invented member on the main roster, whose 8–13 Mar 2027 is a Spare week with no bank holiday.
+    const M = { name: 'Spare Week Tester', rosterType: 'main', currentWeek: 1, role: 'CEA' };
+    const WEEK = ['2027-03-08', '2027-03-09', '2027-03-10', '2027-03-11', '2027-03-12', '2027-03-13'];
+    const al = (/** @type {string} */ date, extra = {}) => ({ memberName: M.name, date, type: 'annual_leave', value: 'AL', ...extra });
+    const count = (/** @type {any[]} */ ovs) => countedAlDates({ overrides: ovs, member: M, year: 2027 }).size;
+
+    test('premise: the week is Spare from Monday to Saturday', () => {
+        for (const d of WEEK) assert.equal(getBaseShift(M, parseISODate(d)), 'SPARE', d);
+    });
+
+    test('a whole Spare week off costs four, not six', () => {
+        assert.equal(count(WEEK.map(d => al(d))), 4);
+    });
+
+    test('a part week costs a day a day, up to four', () => {
+        assert.equal(count(WEEK.slice(0, 2).map(d => al(d))), 2);
+        assert.equal(count(WEEK.slice(0, 4).map(d => al(d))), 4);
+        assert.equal(count(WEEK.slice(0, 5).map(d => al(d))), 4);
+    });
+
+    test('the first four in date order cost, and the rest are free', () => {
+        const map = new Map(WEEK.map(d => [d, al(d)]));
+        assert.deepEqual(WEEK.map(d => consumesEntitlement(M, d, map)), [true, true, true, true, false, false]);
+    });
+
+    test('a Spare week a roster upload turned into shifts is charged as shifts', () => {
+        // Leave over a named shift carries `replacedType: 'shift'` — the week is not Spare any more.
+        assert.equal(count(WEEK.map(d => al(d, { replacedType: 'shift' }))), 6);
+    });
+
+    test('a Spare turn saved over a working day counts towards the four', () => {
+        const days = ['2027-03-23', '2027-03-24', '2027-03-25', '2027-03-26', '2027-03-27'];   // Tuesday to Saturday
+        for (const d of days) assert.ok(!isRestShift(getBaseShift(M, parseISODate(d))), `premise: ${d} is a working day`);
+        assert.equal(count(days.map(d => al(d, { replacedType: 'spare_shift' }))), 4);
+        assert.equal(count(days.map(d => al(d))), 5, 'the same days over their shifts cost one each');
     });
 });

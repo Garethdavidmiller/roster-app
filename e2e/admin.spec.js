@@ -8,7 +8,7 @@ import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
-import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG } from '../roster-data.js';
+import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG, isBankHoliday, formatISO } from '../roster-data.js';
 import { fmtPeriodDate, formatDisplay } from '../admin-period-dates.js';
 
 // AN INVENTED MEMBER, SERVED INTO THE ROSTER FILE FOR ONE TEST (as paycalc.spec.js serves its promoted manager).
@@ -2408,7 +2408,9 @@ test('admin: a member whose leave could not be read gets no balance, not a full 
 const REST_SAT_MEMBER = teamMembers.find(m => m.role === 'CEA' && !m.hidden && !m.managerOnly && !m.startDate
     && m.name !== 'G. Miller'
     && isRestShift(getBaseShift(m, parseISODate('2026-12-05')))
-    && ['07', '08', '09', '10', '11'].every(d => !isRestShift(getBaseShift(m, parseISODate(`2026-12-${d}`)))))?.name;
+    // Named shifts, not Spare: a Spare week's fifth day costs nothing since 21 Nov 2026, which is
+    // the next test's subject and would move this one's count.
+    && ['07', '08', '09', '10', '11'].every(d => { const b = getBaseShift(m, parseISODate(`2026-12-${d}`)); return !isRestShift(b) && b !== 'SPARE'; }))?.name;
 // CHRISTMAS LEAVE IS PART OF THESE LISTS (v25.37, owner 5 Nov 2026): a member due at work on 25/26
 // December has a 🎄 row in that year's Recorded Annual Leave, which is a record and not a booking. The
 // tests below are about BOOKINGS, so they count `BOOKED_ROWS`, and pin the clock — the Christmas rows
@@ -2459,6 +2461,45 @@ test('admin: an AL day on a REST day is not listed and does not count', async ({
     // visible in the dates even when the count happens to be right.
     await expect(rows.first().locator('.al-period-dates')).toHaveText('Mon 7 – Fri 11 Dec');
     await expect(rows.first().locator('.al-period-count')).toHaveText('5 days');
+});
+
+// A SPARE WEEK USES AT MOST FOUR (owner, 21 Nov 2026), AND THE LIST STILL SHOWS THE WHOLE WEEK. The
+// first cut listed only what was charged, so a whole Spare week off read "Mon – Thu, 4 days" while the
+// member was off on the Friday and Saturday too. Listed in full, counted as four, and said why.
+test('admin: a whole Spare week off is listed in full and counted as four days', async ({ page }) => {
+    const pick = teamMembers.map(m => {
+        if (m.role !== 'CEA' || m.hidden || m.managerOnly || m.startDate) return null;
+        for (let d = new Date(2026, 10, 9); d < new Date(2026, 11, 19); d.setDate(d.getDate() + 1)) {   // inside 2026's list
+            if (d.getDay() !== 1) continue;
+            const week = Array.from({ length: 6 }, (_, k) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + k));
+            if (week[5].getMonth() !== d.getMonth()) continue;
+            if (week.every(x => getBaseShift(m, x) === 'SPARE' && !isBankHoliday(x))) return { name: m.name, week: week.map(x => formatISO(x)) };
+        }
+        return null;
+    }).find(Boolean);
+    expect(pick, 'no CEA has a whole Spare week inside one month between 9 Nov and 19 Dec 2026').toBeTruthy();
+    const p = /** @type {any} */ (pick);
+    await page.clock.setFixedTime(new Date('2026-11-05T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(([name, week]) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: /** @type {string[]} */ (week).map((date, i) => ({ id: `sw${i}`, memberName: name, date, type: 'annual_leave', value: 'AL', note: '' })),
+        });
+    }, [p.name, p.week]);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await page.locator('#alBookedToggle').click();
+    await expect(page.locator('#alBookedBody')).toBeVisible();
+
+    const rows = page.locator(BOOKED_ROWS);
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first().locator('.al-period-count')).toHaveText('4 days');
+    await expect(rows.first().locator('.al-period-note')).toHaveText('2 Spare days not counted — a Spare week uses at most 4');
+    const dates = (await rows.first().locator('.al-period-dates').textContent()) ?? '';
+    expect(dates, 'the period runs Monday to Saturday — the member is off all week').toMatch(/^Mon \d+ – Sat \d+/);
 });
 
 // ── THE RECORDED-DATES LIST IS PER YEAR (v23.09, owner report) ──────────────────────────────────
@@ -4794,6 +4835,54 @@ test('admin: the AL preview names a Spare day and says it costs one day of leave
     expect(text, 'a one-day booking has no "these" to be one of').not.toMatch(/of these/);
     expect(text, 'the hours claim is wrong and was removed — the app charges whole days')
         .not.toMatch(/hours|more than 1 AL day/i);
+});
+
+// A SPARE WEEK COSTS AT MOST FOUR DAYS (owner, 21 Nov 2026). The rule is unit-tested in
+// al-entitlement.test.mjs and the booking's week pass in admin-al-projection.test.mjs; this drives the
+// real card, because the preview's total and its Spare line read the projection through admin-al.js.
+test('admin: booking a whole Spare week off previews four days, and says why', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    // A Monday-to-Saturday Spare week, found from the roster for the reason the test above gives, with
+    // no bank holiday in it and inside one month, so one page of the picker holds both ends.
+    const pick = await page.evaluate(async () => {
+        const rd = await import('./roster-data.js');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) continue;
+            for (let i = 1; i <= 200; i++) {
+                const mon = new Date(today); mon.setDate(mon.getDate() + i);
+                if (mon.getDay() !== 1) continue;
+                const week = Array.from({ length: 6 }, (_, k) => { const d = new Date(mon); d.setDate(d.getDate() + k); return d; });
+                if (week[5].getMonth() !== mon.getMonth()) continue;
+                if (!week.every(d => rd.getBaseShift(m, d) === 'SPARE' && !rd.isBankHoliday(d))) continue;
+                return { name: m.name, from: iso(week[0]), to: iso(week[5]),
+                    monthsAhead: (mon.getFullYear() - today.getFullYear()) * 12 + (mon.getMonth() - today.getMonth()) };
+            }
+        }
+        return null;
+    });
+    expect(pick, 'no CEA/CES member has a whole Spare week inside one month in the next 200 days').not.toBeNull();
+    const p = /** @type {any} */ (pick);
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    for (let i = 0; i < p.monthsAhead; i++) {
+        await page.locator('#alRpNext').click();
+        await page.waitForTimeout(60);
+    }
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.from}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${p.to}"]`).click();
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('4 days of Annual Leave');
+    await expect(preview).toContainText('2 days recorded at no cost');
+    await expect(preview).toContainText('6 of these days are Spare days');
+    await expect(preview).toContainText('A Spare week uses at most 4 days of annual leave, so they use 4 days.');
+    await expect(preview).not.toContainText('Each still uses 1 day');
 });
 
 // OWNER-REPORTED (v24.44): a Spare week that a roster upload had turned into real shifts was still

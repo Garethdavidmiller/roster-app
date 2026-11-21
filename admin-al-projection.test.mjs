@@ -639,3 +639,39 @@ describe('rangeSundayCorrections — the worked Sundays a range booking sets as 
     });
 });
 
+
+// ── A SPARE WEEK COSTS AT MOST FOUR, ACROSS A WHOLE BOOKING (owner, 21 Nov 2026) ──────────────────
+// Each new day is costed against the leave already SAVED, which cannot see the booking's other new
+// days — so without the week pass a whole new Spare week previewed, warned and saved as six.
+describe('booking a Spare week charges at most four days', () => {
+    const M = { name: 'Spare Week Tester', rosterType: 'main', currentWeek: 1, role: 'CEA' };
+    const WEEK = ['2027-03-08', '2027-03-09', '2027-03-10', '2027-03-11', '2027-03-12', '2027-03-13'];
+    const al = (/** @type {string} */ date) => ({ id: `al-${date}`, memberName: M.name, date, type: 'annual_leave', value: 'AL' });
+
+    test('a whole new Spare week: four charged, two written free', () => {
+        const p = projectAlBooking({ member: M, dates: WEEK, ovByDate: new Map() });
+        assert.deepEqual(p.consuming, WEEK.slice(0, 4));
+        assert.deepEqual(p.freeWritten, WEEK.slice(4));
+        assert.deepEqual(p.writing, WEEK, 'every day is still written — only the count changes');
+    });
+
+    test('days already saved in the week take their share of the four first', () => {
+        const saved = new Map(WEEK.slice(0, 2).map(d => [d, al(d)]));
+        const p = projectAlBooking({ member: M, dates: WEEK.slice(2), ovByDate: saved });
+        assert.deepEqual(p.consuming, WEEK.slice(2, 4), 'two saved, so two more cost');
+        assert.deepEqual(p.freeWritten, WEEK.slice(4));
+    });
+
+    test('the warning counts what the save will charge: a whole week is four days over an allowance of one', () => {
+        // The member has used all but one day of 2027 elsewhere (invented working days in April).
+        const ent = /** @type {number} */ (entitlementFor(M, 2027, []));
+        const others = [];
+        for (let d = new Date(2027, 3, 1); others.length < ent - 1; d.setDate(d.getDate() + 1)) {
+            const iso = formatISO(d), base = getBaseShift(M, new Date(d));
+            if (d.getDay() !== 0 && !isRestShift(base) && base !== 'SPARE' && !isBankHoliday(new Date(d))) others.push(al(iso));
+        }
+        const p = projectAlBooking({ member: M, dates: WEEK, ovByDate: new Map() });
+        const o = projectAlOverage({ member: M, memberName: M.name, overrides: others, consuming: p.consuming });
+        assert.equal(o?.over, 3, `four charged against one left — not six (${o?.detail})`);
+    });
+});

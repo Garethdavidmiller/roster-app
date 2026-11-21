@@ -112,7 +112,9 @@ describe('the Absence card', () => {
         function nextYear(/** @type {number} */ n) {
             /** @type {any[]} */ const ovs = [];
             for (const d = parseISODate('2027-01-04'); ovs.length < n; d.setDate(d.getDate() + 1)) {
-                if (d.getDay() === 0 || d.getDay() === 6 || isBankHoliday(d) || isRestShift(getBaseShift(person, d))) continue;
+                // Not a Spare day: a Spare week costs at most four (21 Nov 2026), which would move the count.
+                const base = getBaseShift(person, d);
+                if (d.getDay() === 0 || d.getDay() === 6 || isBankHoliday(d) || isRestShift(base) || base === 'SPARE') continue;
                 const iso = days(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 1)[0];
                 ovs.push({ id: `z-${iso}`, memberName: person.name, date: iso, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(2026, 11, 1) });
             }

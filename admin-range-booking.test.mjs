@@ -784,8 +784,10 @@ describe("the receipt keeps the member's name on one line", () => {
 // ════════════════════════════════════════════════════════════════════════════════════════════════
 
 const iso10 = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-/** Whether `m` works `date` on the base roster. @param {any} m @param {string} date */
-const works = (m, date) => !isRestShift(getBaseShift(m, parseISODate(date)));
+/** Whether `m` works `date` on the base roster — a named shift, not a Spare day: since 21 Nov 2026 a
+ *  Spare week costs at most four days, so a run through one would test that cap, not these cards.
+ *  @param {any} m @param {string} date */
+const works = (m, date) => { const base = getBaseShift(m, parseISODate(date)); return !isRestShift(base) && base !== 'SPARE'; };
 
 // F. ONE PICTURE OF THE MEMBER: a save decides nothing from records that have not been read. The
 // preview, the allowance check, the answers and the receipt were all decided from the cache as it

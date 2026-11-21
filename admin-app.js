@@ -43,7 +43,7 @@ import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './admin-tips.js';
 import { mergeBookedPeriods, composeOtherValue } from './override-utils.js';
-import { alPosition, consumesEntitlement, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
+import { alPosition, consumesEntitlement, costsWithoutSpareCap, entitlementNote, winningEntriesOfType } from './al-entitlement.js';
 import { christmasLeaveByYear, christmasLeaveDates } from './christmas-leave.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
 import { createBookedPeriods, fadeFeedback, holdFeedback, periodDelete } from './admin-booked-periods.js';
@@ -1238,6 +1238,8 @@ export function init() {
             bodyId:     'alBookedBody',
             // THE SAME RULE THE BANNER USES — the function itself, so the two cannot disagree about a day.
             consumes:   consumesEntitlement,
+            // …but a Spare day past its week's four is LISTED, since the member is off (21 Nov 2026).
+            listed:     costsWithoutSpareCap,
             // CHRISTMAS LEAVE — on record here, never counted (christmas-leave.js); and for any later year shown.
             christmas:  christmasLeaveByYear({ member: teamMembers.find(m => m.name === alMember.value),
                                                overrides: getAllOverrides(), thisYear: new Date().getFullYear() }),
