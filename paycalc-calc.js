@@ -249,8 +249,8 @@ export function isPreAwardPeriod(p, grade, tyLabel) {
  * @returns {number}
  */
 export function getRateForPeriod(p, grade, tyLabel, settledRate) {
-  const a = awardRatesFor(grade, tyLabel);
-  return (a && a.pre != null && isPreAwardPeriod(p, grade, tyLabel)) ? a.pre : settledRate;
+  // isPreAwardPeriod is true only with a recorded `pre` for this grade and year, so it is never null here.
+  return isPreAwardPeriod(p, grade, tyLabel) ? /** @type {number} */ (awardRatesFor(grade, tyLabel)?.pre) : settledRate;
 }
 
 // HPP formula confirmed by Chiltern payroll (Marie Firby): (Gross − Basic) × 4/52

@@ -613,12 +613,12 @@ export function init() {
       // Resolve thresholds for the selected period's tax year
       const _pNum   = currentPeriodNum();
       const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
-      if (!_curP) { renderYtdLine(null); return; }
+      if (!_curP) { renderYtdLine(null); return; }   // from here on there is always a payslip
       syncNoSpecialTick();   // hours on screen, typed or gold, supersede the no-special-rate-hours tick
       const _ty     = taxYearForPeriod(_curP);
       const thresholds = getThresholds(_ty.label);
       const _proRateFactor = getProRateFactor(_curP);
-      const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
+      const LONDON = getLondonAllowanceForPeriod(_curP, _ty) * _proRateFactor;
 
       // The payslip's rate from the one source the rate field and the Settings hint also read
       // (periodRate): its grades' rates weighted by their days, UNROUNDED. The field shows it to the
@@ -762,8 +762,8 @@ export function init() {
       // the payslip straight after the one they came from; any other payslip uses the standard
       // method, or stale figures are silently treated as last-payslip totals and skew the tax.
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
-      if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
-      const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
+      if (!(_ytdSrc && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
+      const periodN = (_curP.num - 48) - _ty.first + 1;
       // The payslip is PRICED by the one pipeline the year so far also uses (pricePayslip): NI and the
       // loans on the pay after pension, then the tax, then the take-home as the summary's rows show it,
       // each to the penny (takeHomePay). Everything above decided its inputs; nothing below re-prices.
@@ -835,11 +835,11 @@ export function init() {
       // this estimate — because a target one path forgets keeps the previous render, and one branch's
       // number then sits under the other's label. `actual` is resolved HERE: the gate is about
       // identity, which belongs with the session, not with the words.
-      const _actualKey = _curP ? formatISO(_curP.payday) : null;
-      const _actual    = _actualKey && isActualsDev(getLoggedMember())
+      const _actualKey = formatISO(_curP.payday);
+      const _actual    = isActualsDev(getLoggedMember())
         ? readPayslipActuals()[_actualKey] : null;
       renderResultHeadline({
-        actual: _actual, net, payday: _curP ? _curP.payday : null,
+        actual: _actual, net, payday: _curP.payday,
         bpThisPeriod: _bpThisPeriod, hppForPeriod: _hppForPeriod,
         bpIsEstimate: _bpIsEstimate, hppIsEstimate: _hppIsEstimate,
       });
@@ -857,7 +857,7 @@ export function init() {
         copy: backPayBannerCopy({
           thisPeriod: _bpThisPeriod, amount: _bpAmount, isEstimate: _bpIsEstimate, fromPayslip: _bpFromPayslip,
           aprilYear: _bpAvailableHere ? _bpAwardTaxYear(_backdatedFromPNum()).label.slice(0, 4) : '',
-          inHand: !!_curP && payslipMayBeInHand(_curP),
+          inHand: payslipMayBeInHand(_curP),
         }),
       });
 
