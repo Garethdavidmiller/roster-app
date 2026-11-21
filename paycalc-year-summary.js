@@ -29,7 +29,8 @@ import {
   periodRate, getEffectiveContr, getProRateFactor, isPeriodPriced,
 } from './paycalc-settings.js';
 import { readSavedPeriod } from './paycalc-migrations.js';
-import { _decodeHours, isDataEmpty, savedPeriodPension } from './paycalc-hpp.js';
+import { _decodeHours, savedPeriodPension } from './paycalc-hpp.js';
+import { isDataEmpty } from './paycalc-format.js';
 
 /**
  * Sum the year's entered payslips into a so-far + projected view.

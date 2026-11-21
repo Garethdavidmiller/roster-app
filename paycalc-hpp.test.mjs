@@ -1,5 +1,5 @@
 /**
- * Unit tests for paycalc-hpp.js: the pure exports (isDataEmpty, _decodeHours, _varPayForPeriod, …)
+ * Unit tests for paycalc-hpp.js: the pure exports (_decodeHours, _varPayForPeriod, …; isDataEmpty, from paycalc-format.js)
  * and, against a fake `document`, the card itself — the prior-year block a member reads on the
  * January payslip, and the amount-source state.
  *
@@ -159,7 +159,8 @@ globalThis.document = /** @type {any} */ ({
         : null),
 });
 
-const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
+const { isDataEmpty } = await import('./paycalc-format.js');
+const { _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps,
         priorHppToStore, updatePriorHpp, calcHPP, readHppState, restoreHppState, saveHppState,
         savedPeriodPension, premiumStillToEstimate } = await import('./paycalc-hpp.js');
 const { periodKey, hppEstKey, hppActualKey, hppModeKey } = await import('./paycalc-migrations.js');

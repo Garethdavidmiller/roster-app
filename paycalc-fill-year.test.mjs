@@ -19,7 +19,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { fillablePeriods, fillYearFromCalendar, fillYearReceipt } from './paycalc-fill-year.js';
-import { emptyPeriodData, isDataEmpty } from './paycalc-form-data.js';
+import { emptyPeriodData } from './paycalc-form-data.js';
+import { isDataEmpty } from './paycalc-format.js';
 import { HM_PAIRS } from './paycalc-format.js';
 
 const NOW = new Date(2026, 8, 1);

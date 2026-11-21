@@ -199,7 +199,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
 
 // ── SUGGESTION ENGINE ─────────────────────────────────────────────────────────
 /** A bare Training day from the pattern, on a bank holiday: the contracted day (owner, 7 Nov 2026). */
-export const BARE_TRAINING_DAY_MINS = 7 * 60;
+const BARE_TRAINING_DAY_MINS = 7 * 60;
 /** How the day list names those 7 hours — a default the member checks, never a record. */
 const BARE_DAY_LABEL = `${BARE_TRAINING_DAY_MINS / 60}h default — adjust to actual`;
 

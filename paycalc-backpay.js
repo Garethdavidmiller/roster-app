@@ -21,12 +21,11 @@ import {
 } from './paycalc-calc.js';
 import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
 import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod, awardWindow } from './paycalc-backpay-accrual.js';
-export { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
 import { awardGrade, getEffectiveContr, getProRateFactor, settledRate } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { bpKey, readSavedPeriod } from './paycalc-migrations.js';
-import { _decodeHours, isDataEmpty } from './paycalc-hpp.js';
-import { fd, fdShort, fdLong, fdList, fmt } from './paycalc-format.js';
+import { _decodeHours } from './paycalc-hpp.js';
+import { fd, fdShort, fdLong, fdList, fmt, isDataEmpty } from './paycalc-format.js';
 import { numVal } from './paycalc-inputs.js';
 import { readBpFields, bpFieldWrites, resolveAuthoritativeRates, allRatesOnRecord, resolvePaidInPeriod, blobFitsGrade } from './paycalc-backpay-state.js';
 

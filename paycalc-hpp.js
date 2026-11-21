@@ -5,7 +5,6 @@
  * Owns: _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp, what a confirmed
  *   prior-year premium is stored as (priorHppToStore, commitPriorHppActual), and whether a year's
  *   premium is still the member's to estimate (premiumStillToEstimate — the January notice's reader).
- *   It re-exports isDataEmpty, which lives in paycalc-format.js.
  * Does NOT own: period arithmetic (paycalc-periods.js), settings (paycalc-settings.js),
  *   calculation engine (paycalc-app.js), back-pay (paycalc-backpay.js).
  * Edit here for: HPP maths, prior-year HPP section, variable-pay formula.
@@ -29,8 +28,7 @@ import { resolveAuthoritativeRates } from './paycalc-backpay-state.js';
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
 // isDataEmpty (no hours or special flags entered) lives in paycalc-format.js — the fill-year module
-// needs it without this import chain — and is re-exported for the coordinator and paycalc-backpay.js.
-export { isDataEmpty } from './paycalc-format.js';
+// needs it without this import chain — and every caller imports it from there.
 import { isDataEmpty } from './paycalc-format.js';
 
 /**

@@ -51,7 +51,7 @@ import {
   fillCategoryFromRoster, fillFromRoster, refreshFromCalendarInBackground,
   clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, HM_PAIRS, recordCalendarFigures,
 } from './paycalc-roster-hint.js';
-import { isDataEmpty, calcHPP, commitPriorHppActual, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
+import { calcHPP, commitPriorHppActual, resolveHppForPeriod, applyHppMode, restoreHppState, saveHppState } from './paycalc-hpp.js';
 import {
   _bpAwardTaxYear, _backdatedFromPNum, applyBpMode, bpState, onBackPayChange,
   runCalcBackPay, applyBpRisePct, refreshBackPayCard, syncBackPayForViewedYear,
@@ -66,7 +66,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fdShort, fdLong, fmt, minutesFieldText } from './paycalc-format.js';
+import { fdShort, fdLong, fmt, minutesFieldText, isDataEmpty } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap, commitFocusedField, paintTaxCodeWarning, hoursTextToHM } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite, syncNoSpecialTick } from './paycalc-form-data.js';

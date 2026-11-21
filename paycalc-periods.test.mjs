@@ -112,8 +112,8 @@ const {
     settingsKey, getContr, getEffectiveContr, getProRateFactor,
 } = await import('./paycalc-settings.js');
 
-const { _bpAwardTaxYear, raiseByPercent, _accrueBackPayPeriod, paidInPeriodNum, bpStoryHtml,
-        awardWindowFactor, _awardBackdateDate } = await import('./paycalc-backpay.js');
+const { _bpAwardTaxYear, raiseByPercent, bpStoryHtml } = await import('./paycalc-backpay.js');
+const { _accrueBackPayPeriod, paidInPeriodNum, awardWindowFactor, _awardBackdateDate } = await import('./paycalc-backpay-accrual.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

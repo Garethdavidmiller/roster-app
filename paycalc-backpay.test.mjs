@@ -184,9 +184,9 @@ const { SK, periodKey, bpKey } = await import('./paycalc-migrations.js');
 const { getPeriods, CONFIG: PERIOD_CONFIG, payslipPeriodNum } = await import('./paycalc-periods.js');
 const { awardRatesFor, awardFromForYear } = await import('./paycalc-calc.js');
 const { resolveAuthoritativeRates } = await import('./paycalc-backpay-state.js');
-const { calcBackPay, prefillBackPay, restoreBpState, raiseByPercent, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
-    await import('./paycalc-backpay.js');
-const { awardWindow } = await import('./paycalc-backpay-accrual.js');
+const { calcBackPay, prefillBackPay, restoreBpState, raiseByPercent } = await import('./paycalc-backpay.js');
+const { _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum, awardWindow } =
+    await import('./paycalc-backpay-accrual.js');
 const { getEffectiveContr, getProRateFactor } = await import('./paycalc-settings.js');
 const { _decodeHours } = await import('./paycalc-hpp.js');
 const { fd } = await import('./paycalc-format.js');

@@ -7,9 +7,9 @@
  *   (the April fraction of the first period), `_awardBackdateDate` (1 April), `paidInPeriodNum`
  *   (the payslip a decided award lands on) — and `awardLumpNonPremium`, the share of that lump that
  *   is basic and London Allowance rather than premium pay.
- * Does NOT own: the back-pay CARD (paycalc-backpay.js, which re-exports the other four —
- *   `awardLumpNonPremium` is imported straight from here by paycalc-hpp.js), or which
- *   figure sits in which box (paycalc-backpay-state.js).
+ * Does NOT own: the back-pay CARD (paycalc-backpay.js; it, paycalc-hpp.js, paycalc-settings.js
+ *   and the tests all import from here, never through the card), or which figure sits in which box
+ *   (paycalc-backpay-state.js).
  *
  * WHY IT IS A MODULE OF ITS OWN (moved from paycalc-backpay.js, Nov 2026). The Holiday Pay
  * Premium's rough Year to Date estimate has to take the lump's non-premium share OUT of a member's
