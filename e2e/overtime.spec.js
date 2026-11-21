@@ -3896,7 +3896,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         page.on('popup', (p) => popups.push(p));
         await page.locator('#navMenuBtn').click();
         await page.locator('#navPanel .nav-panel-link--circular').click();
-        await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+        await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN on the Calendar, to open this');
         expect(await reads(), 'no read is issued').toBe(before);
         expect(popups.length, 'and no blank tab is opened for it').toBe(0);
     });

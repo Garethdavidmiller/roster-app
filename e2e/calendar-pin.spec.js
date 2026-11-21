@@ -218,7 +218,7 @@ test('locked: a Daily Huddle tap says what to do, and issues NO read', async ({ 
     const before = await docReads(page);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
     await expect(page.locator('#huddleViewer')).toHaveClass(/open/);
     expect(await docReads(page), 'the tap itself issued nothing').toBe(before);
     // ABSOLUTE, not a delta: the first cut compared before/after the tap, and a listener attached
@@ -236,7 +236,7 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
     // PROMPTLY, not eventually: the viewer waits for the access decision before calling itself
     // locked, and the lock card being up means that decision is made. Left to the default timeout this
     // also passed on the viewer's own 8s fallback, i.e. with the decision never wired to it at all.
-    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+    await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
     const before = await docReads(page);
     // The message sits over the PIN card, so the reader closes it to type — and the held tap has to
     // survive that close, or a notification tap could never be finished by a PIN.
@@ -259,7 +259,7 @@ test('locked: a Circular deep link is FINISHED by a sign-in too — in place, as
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
     await page.goto('/index.html#circular');
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+    await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
     await page.locator('#docViewerClose').click();
     await expect(page.locator('#docViewer')).toBeHidden();
     await markThisPage(page);
@@ -280,7 +280,7 @@ test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page })
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
     await markThisPage(page);
@@ -306,7 +306,7 @@ test('locked: the Newsletter check asks nothing, and the menu offers what this d
     expect(await docReads(page), 'the locked Calendar asked for the Newsletter').toBe(0);
     expect(await page.evaluate((k) => localStorage.getItem(k), NEWSLETTER_LATEST_KEY)).toBe(isoDaysAgo(3));
     await row.click();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN on the Calendar, to open this');
 });
 
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
@@ -318,7 +318,7 @@ test('locked: the drawer refuses a Circular tap without opening a tab', async ({
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--circular').click();
     await expect(page.locator('#navComingSoonLightbox')).toBeVisible();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN on the Calendar, to open this');
     await expect(page.locator('#navComingSoonLightbox')).toContainText('Weekly Retail Circular');
     expect(await docReads(page)).toBe(before);
     expect(popups.length, 'no blank tab is opened for a read that will not happen').toBe(0);
@@ -674,7 +674,7 @@ test('a re-lock by a MONTH read shuts the documents too — a Huddle tap behind 
     const before = await docReads(page);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
     expect(await docReads(page), 'a re-locked Calendar read or listened for a document').toBe(before);
 
     // The PIN opens both again: the grid, and the Huddle the tap was for — on ONE new listener.
@@ -715,7 +715,7 @@ for (const [label, named] of /** @type {[string, boolean][]} */ ([['with a name 
         await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
         const before = await docReads(page);
         await page.evaluate(() => { window.location.hash = '#circular'; });
-        await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+        await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
         expect(await docReads(page), 'a re-locked Calendar read a document').toBe(before);
 
         // The PIN brings back both: the read the lock held, and a Calendar this page had not yet drawn.

@@ -238,7 +238,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // back off the history instead (the hashchange handler below).
     // ── A TAP THE LOCK HELD SURVIVES A RELOAD (whole-app review, 10 Nov 2026) ─────────────────────
     // Both sign-ins on a locked Calendar ended in `window.location.reload()` until v26.40, and the hash
-    // had been consumed long before — so a member who answered "Enter the staff PIN, or sign in, to
+    // had been consumed long before — so a member who answered "Sign in, or enter the staff PIN, to
     // read the Daily Huddle" by signing in got the Calendar and no Huddle. A sign-in now grants in
     // place on a page not yet granted, and finishes the tap as the PIN does; one that still reloads
     // (`finishSignIn`'s fallback) needs the tap the lock is holding written down as the page unloads
@@ -519,9 +519,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         ++_bodySeq;
         _disarmOnClose = false;
         body.innerHTML = '<div class="huddle-open-prompt">'
-            + '<p>Enter the staff PIN, or sign in, to read the Daily Huddle.</p>'
+            + '<p>Sign in, or enter the staff PIN, to read the Daily Huddle.</p>'
             + '</div>';
-        say('Enter the staff PIN, or sign in, to read the Daily Huddle.');
+        say('Sign in, or enter the staff PIN, to read the Daily Huddle.');
         openViewer();
         close?.focus();
     }

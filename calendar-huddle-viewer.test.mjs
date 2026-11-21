@@ -173,7 +173,7 @@ function tapHuddle() {
 }
 
 const flush = async (n = 8) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
-const LOCKED = 'Enter the staff PIN, or sign in, to read the Daily Huddle.';
+const LOCKED = 'Sign in, or enter the staff PIN, to read the Daily Huddle.';
 const READY  = 'The latest Huddle is ready.';
 /** A PDF Huddle: no `htmlContent`, so the viewer draws its "Open Huddle" prompt (no sanitiser needed). */
 const huddle = (/** @type {string} */ n) => ({ storageUrl: `https://firebasestorage.googleapis.com/v0/b/x/o/${n}.pdf`, storagePath: `huddles/${n}.pdf`, fileType: 'pdf' });

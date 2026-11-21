@@ -110,10 +110,10 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     const bodyEl   = /** @type {HTMLElement} */ (document.getElementById('docViewerBody'));
     const closeBtn = /** @type {HTMLElement} */ (document.getElementById('docViewerClose'));
     // ── THE OUTCOME IS SPOKEN (whole-app review, 10 Nov 2026) ─────────────────────────────────────────
-    // "Loading…" became "No … uploaded yet" or "Enter the staff PIN…" with no focus move and no live
-    // region, so a screen-reader user heard the dialog open and then nothing. Every message now goes
-    // into ONE status line that stays in the body (index.html), so the change itself is announced;
-    // a button follows it in the body, where focus already takes the reader.
+    // "Loading…" became "No … uploaded yet" or "Sign in, or enter the staff PIN…" with no focus move
+    // and no live region, so a screen-reader user heard the dialog open and then nothing. Every
+    // message now goes into ONE status line that stays in the body (index.html), so the change itself
+    // is announced; a button follows it in the body, where focus already takes the reader.
     const statusEl = /** @type {HTMLElement} */ (document.getElementById('docViewerStatus'));
 
     // Discards a superseded fetch: two rapid notification taps (#circular then #newsletter) each set
@@ -139,7 +139,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     let _decided = false;
     let _waitingSeq = -1;
     /** @param {{ label: string }} d */
-    const lockedText = (d) => `Enter the staff PIN, or sign in, to read the ${d.label}.`;
+    const lockedText = (d) => `Sign in, or enter the staff PIN, to read the ${d.label}.`;
 
     const lb = createLightbox({
         overlay, content, closeBtn,

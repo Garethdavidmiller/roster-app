@@ -104,7 +104,7 @@ export function renderFurtherChanges(change, until) {
  * Trains, which the PIN keeps. Worded as a way to OPEN the page, never as signing in (18).
  */
 export const SIGN_IN_ABOUT = Object.freeze({
-    lines: Object.freeze(['Visiting or agency staff, or at a station computer? The staff PIN opens this page too: enter it on the roster, then choose Trains from its menu.']),
+    lines: Object.freeze(['Visiting or agency staff, at a station computer, or not set up in the app yet? The staff PIN opens this page too: enter it on the roster, then choose Trains from its menu.']),
     link: Object.freeze({ href: `./${PIN_FIRST_HASH}`, label: 'Use the staff PIN instead →' }),
 });
 

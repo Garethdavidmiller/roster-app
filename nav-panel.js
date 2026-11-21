@@ -403,7 +403,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // THE DOCUMENT GATE (calendar-doc-access.js): refused HERE, before the blank tab is opened —
         // a tab that closes a second later reads as a fault. The message names the fix.
         if (!canReadDocuments()) {
-            _docFailureFallback(triggerEl, 'Enter the staff PIN on the Calendar, or sign in, to open this.');
+            _docFailureFallback(triggerEl, 'Sign in, or enter the staff PIN on the Calendar, to open this.');
             return;
         }
         _docFetching = true;

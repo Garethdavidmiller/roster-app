@@ -217,21 +217,27 @@ export function isCompletePin(pin) {
     return typeof pin === 'string' && pin.length === PIN_LENGTH && /^\d+$/.test(pin);
 }
 
+/** The words for an unlock the app's side could not complete — a server failure, or a sign-in that
+ *  failed after the PIN was accepted (`classifyUnlockFailure`). */
+const UNLOCK_FAILED_TELL_ADMIN = 'Calendar couldn’t be unlocked. Try again shortly — if it keeps happening, tell the admin.';
+
 /**
  * Turn an unlock failure into the state the UI shows.
  *
- * Every branch returns a `message` written for a staff member standing at a shared PC, and a
- * `retryable` flag. The distinction that matters is **"you typed the wrong thing"** versus
- * **"the app could not ask"** — conflating them (which one generic "couldn't unlock" would do)
- * sends somebody hunting for a PIN that was right all along.
+ * Every branch returns a `message` written for a staff member standing at a shared PC. Every failure
+ * is one they can retry — pressing the button again IS the retry — so there is no flag to say so
+ * (a `retryable: true` on every branch, which nothing read, went in Nov 2026). The distinction that
+ * matters is **"you typed the wrong thing"** versus **"the app could not ask"** — conflating them
+ * (which one generic "couldn't unlock" would do) sends somebody hunting for a PIN that was right all
+ * along. `kind` carries it, and only `'rejected'` counts towards the card's wrong-PIN delay.
  *
  * Deliberately says nothing about rate-limit internals: how many attempts remain, when the window
  * opened, or what the threshold is. That is a choice about the MESSAGE, not a secret — the endpoint
  * sends `Retry-After` with every 429 (functions/index.js), so an automated caller can pace itself
- * either way — and a member standing at the panel needs only "try again shortly".
+ * either way — and a member standing at the panel needs only what happened and what to do instead.
  *
  * @param {{ status?: number|null, code?: string|null, offline?: boolean }} info
- * @returns {{ kind: 'rejected'|'throttled'|'offline'|'network'|'auth'|'server', message: string, retryable: boolean }}
+ * @returns {{ kind: 'rejected'|'throttled'|'offline'|'network'|'auth'|'server', message: string }}
  */
 export function classifyUnlockFailure({ status = null, code = null, offline = false } = {}) {
     // Offline is checked FIRST and beats any status, because a browser that is genuinely offline can
@@ -240,29 +246,35 @@ export function classifyUnlockFailure({ status = null, code = null, offline = fa
     // "Online ONCE" (until 17 Nov 2026) read as a one-time step. It is every unlock: the PIN is checked
     // by the server each time, and a browser closed and reopened asks for it again.
     if (offline) {
-        return { kind: 'offline', retryable: true,
+        return { kind: 'offline',
                  message: 'You need to be online to unlock the Calendar. Reconnect and try again.' };
     }
+    // The server's own limit (functions/calendar-viewer-auth.js), kept per source AND across all
+    // sources, so it can pause the PIN for somebody who typed nothing wrong. "Too many attempts. Try
+    // again shortly." (until Nov 2026) said neither why nor that a member's own password still works:
+    // signing in is not behind this limit.
     if (status === 429) {
-        return { kind: 'throttled', retryable: true,
-                 message: 'Too many attempts. Try again shortly.' };
+        return { kind: 'throttled',
+                 message: 'The staff PIN is paused after too many wrong entries. Try again in a few minutes, or sign in instead.' };
     }
     if (status === 401 || status === 403) {
-        return { kind: 'rejected', retryable: true,
+        return { kind: 'rejected',
                  message: 'PIN not recognised. Try again.' };
     }
     // A custom-token sign-in that fails after the server said yes. The PIN was RIGHT, so saying
     // "not recognised" would send the member to look for a different code that does not exist.
+    // The SAME words as a server failure, and on purpose: a code here is the app's side failing
+    // after a correct PIN (a token without its claim, a sign-out that would not take, the SDK
+    // refusing the token), so once is a blip to retry and a repeat is something only the admin can
+    // look into. The member needs that second half either way.
     if (code) {
-        return { kind: 'auth', retryable: true,
-                 message: 'Calendar couldn\'t be unlocked. Try again in a moment.' };
+        return { kind: 'auth', message: UNLOCK_FAILED_TELL_ADMIN };
     }
     if (status === null) {
-        return { kind: 'network', retryable: true,
-                 message: 'Calendar couldn\'t be unlocked. Check the connection and try again.' };
+        return { kind: 'network',
+                 message: 'Calendar couldn’t be unlocked. Check the connection and try again.' };
     }
-    return { kind: 'server', retryable: true,
-             message: 'Calendar couldn\'t be unlocked. Try again shortly.' };
+    return { kind: 'server', message: UNLOCK_FAILED_TELL_ADMIN };
 }
 
 /**
