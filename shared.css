@@ -2753,7 +2753,9 @@ button.nav-panel-link--notices {
     align-items: center;
     gap: 10px;
     border-radius: var(--radius-panel);
-    padding: 40px 40px 32px;
+    /* `--space-5` at the sides, as the one-time notices on the same sheet: 40px left a 300px sheet a
+       220px measure. The ✕ (y 14–58) clears the centred content, whose first line starts at 40px. */
+    padding: 40px var(--space-5) 32px;
     width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
 }
@@ -2768,7 +2770,7 @@ button.nav-panel-link--notices {
     align-items: stretch;
     gap: 10px;
     border-radius: var(--radius-panel);
-    padding: 40px 40px 32px;
+    padding: 40px var(--space-5) 32px;   /* the sides as #navComingSoonContent's, above */
     width: min(var(--modal-compact), var(--modal-cap));
     max-height: 80vh;
     max-height: 80dvh;
@@ -2799,10 +2801,12 @@ button.nav-panel-link--notices {
 /* `display: flex` beats the UA's `[hidden]`, so an EMPTY archive's list stayed: a 0px box taking the gap
    twice, still read out as an empty group (whole-app review, Nov 2026). */
 .nav-notices-list[hidden] { display: none; }
+/* The on-navy rungs, not literals: the raised fill and hairline the drawer's own chips use, and the
+   app's discrete-card corner (`--radius`). Each a step firmer than the 7%/10% it replaced. */
 .notices-item {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
+    background: var(--on-navy-raised);
+    border: 1px solid var(--on-navy-hairline);
+    border-radius: var(--radius);
     padding: 10px 12px;
     display: flex;
     flex-direction: column;
@@ -2833,7 +2837,7 @@ button.nav-panel-link--notices {
 .notices-item-section--newlink  { color: var(--on-navy-newlink); }
 .notices-item-date {
     font-size: var(--type-badge);
-    color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */
+    color: var(--on-navy-muted);   /* 0.70; it was 0.35 (2.79:1), then a 0.65 literal, to clear WCAG AA */
     white-space: nowrap;
 }
 .notices-item-title {
