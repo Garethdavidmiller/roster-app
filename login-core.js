@@ -66,7 +66,7 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // the house wording rule (an account matter → "the admin").
         if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.' };
         const code = getAuthError();
-        if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — please wait a few minutes and try again.' };
+        if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — wait a few minutes and try again.' };
         // A browser that could not sign an account OUT is transient to the session (it keeps the 60-day
         // session — session.js) but it is no network fault: the card says what the 'other' line says.
         if (isTransient(code) && !/-shed-failed$/.test(String(code))) return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };

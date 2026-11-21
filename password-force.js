@@ -193,7 +193,7 @@ function _mount() {
                     <input type="password" id="pwfNew" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-describedby="pwfNewHint">
                     <button type="button" id="pwfToggle" class="login-pw-toggle" aria-label="Show password">Show</button>
                 </div>
-                <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters. Anything you'll remember — it replaces your surname everywhere you sign in.</div>
+                <div class="login-hint" id="pwfNewHint">At least ${MIN_PASSWORD_LENGTH} characters, and not your surname — even with numbers added. It replaces your surname everywhere you sign in.</div>
             </div>
             <div class="login-field">
                 <label for="pwfConfirm">Confirm new password</label>

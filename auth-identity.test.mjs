@@ -211,10 +211,24 @@ describe('validateNewPassword', () => {
         assert.match(String(validateNewPassword('G. Miller', 'longenough1', 'longenough2')), /don’t match/);
     });
 
+    // An EMPTY Confirm box is not a mismatch (review, Nov 2026): "don’t match" had a member who had not
+    // typed it twice yet looking for a difference. Blank after trimming counts as empty; a short new
+    // password still gets the length line first.
+    test('an empty Confirm box asks for the password again, rather than calling it a mismatch', () => {
+        const ask = 'Type your new password again in the second box to confirm it.';
+        assert.equal(validateNewPassword('G. Miller', 'longenough1', ''), ask);
+        assert.equal(validateNewPassword('G. Miller', 'longenough1', '   '), ask);
+        assert.match(String(validateNewPassword('G. Miller', 'short', '')), /at least/);
+    });
+
     // The rule that keeps the migration flag honest.
     test('blocks the surname back, however it is cased or punctuated', () => {
-        assert.match(String(validateNewPassword('G. Miller', 'Miller!!', 'Miller!!')), /other than your surname/);
-        assert.match(String(validateNewPassword('G. Miller', 'm i l l e r', 'm i l l e r')), /other than your surname/);
+        const refusal = 'Your new password can’t be your surname, even with numbers or symbols added.';
+        assert.equal(validateNewPassword('G. Miller', 'Miller!!', 'Miller!!'), refusal);
+        assert.equal(validateNewPassword('G. Miller', 'm i l l e r', 'm i l l e r'), refusal);
+        // The case the old sentence ("Choose something other than your surname") read as untrue for:
+        // digits added are still the surname, because the rule compares letters only.
+        assert.equal(validateNewPassword('G. Miller', 'Miller2026!', 'Miller2026!'), refusal);
     });
 
     test('a surname-CONTAINING password is fine — only an exact match is blocked', () => {
@@ -251,7 +265,7 @@ describe('newPasswordProblemField — the caret follows the refusal', () => {
     const cases = [
         ['short', ''],                // too short, Confirm empty — the reported case
         ['short', 'short'],           // too short and matching
-        ['longenough1', ''],          // long enough, Confirm empty — a mismatch
+        ['longenough1', ''],          // long enough, Confirm empty — asked to type it again, in Confirm
         ['longenough1', 'longenough2'],
         ['springer', 'springer'],     // matching, refused as the surname
         ['Springer!!', 'Springer!!'],
@@ -265,7 +279,7 @@ describe('newPasswordProblemField — the caret follows the refusal', () => {
         test(`"${next}" / "${confirm}"`, () => {
             const message = validateNewPassword(NAME, next, confirm);
             assert.ok(message, 'fixture check: every case is refused');
-            const expected = /match/.test(message) ? 'confirm' : 'new';
+            const expected = /match|confirm it/.test(message) ? 'confirm' : 'new';
             assert.equal(newPasswordProblemField(next, confirm), expected, message);
         });
     }
