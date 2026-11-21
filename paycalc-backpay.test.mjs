@@ -186,6 +186,7 @@ const { awardRatesFor, awardFromForYear } = await import('./paycalc-calc.js');
 const { resolveAuthoritativeRates } = await import('./paycalc-backpay-state.js');
 const { calcBackPay, prefillBackPay, restoreBpState, raiseByPercent, _accrueBackPayPeriod, awardWindowFactor, _awardBackdateDate, paidInPeriodNum } =
     await import('./paycalc-backpay.js');
+const { awardWindow } = await import('./paycalc-backpay-accrual.js');
 const { getEffectiveContr, getProRateFactor } = await import('./paycalc-settings.js');
 const { _decodeHours } = await import('./paycalc-hpp.js');
 const { fd } = await import('./paycalc-format.js');
@@ -328,14 +329,15 @@ describe('the lump a member is actually shown', () => {
 // ── THE WINDOW ──────────────────────────────────────────────────────────────────────────────────
 
 // THE LOWER END OF THE WINDOW IS HELD BY ONE LINE, AND IT IS NOT THE ONE THAT LOOKS LIKE IT.
-// Three statements appear to bound the window from below — `if (p.num < fromPNum)`, the
-// tax-year fence `getTaxYearForOffset(p.num - 48) !== awardTy`, and `awardWindowFactor`. Deleting
-// EITHER of the first two leaves every case here green, and deleting both together does too.
-// `awardWindowFactor` returns 0 for a period whose cut-off falls before the backdate, so a March
-// payslip accrues £0 and is never rowed. The two guards are cheap and correct and worth keeping —
-// they stop the loop rather than pricing it to nothing — but the money property is the factor's, and
-// that is the line the first case below pins. Recorded rather than hidden behind cases invented to
-// make each guard look protected.
+// Two things appear to bound the window from below — the tax-year fence inside `awardWindow`
+// (`periodsInTaxYear`, which also starts it at the year's first payslip) and `awardWindowFactor`.
+// Through the card, removing the fence leaves every case here green: `awardWindowFactor` returns 0
+// for a period whose cut-off falls before the backdate, so a March payslip accrues £0 and is never
+// rowed. The fence is cheap and correct and worth keeping — it stops the loop rather than pricing
+// it to nothing, and `awardGrade` and the premium's lump split have no factor behind it — so it is
+// pinned on `awardWindow` itself, below; the money property is the factor's, and that is the line
+// the first case here pins. Recorded rather than hidden behind cases invented to make each guard
+// look protected.
 describe('which payslips the window contains', () => {
     test('the FIRST payslip of the award year is a fraction of the others', () => {
         // Invariant 14 (VAL-PAY-001). A period is 28 days of shifts and the award backdates to
@@ -383,8 +385,8 @@ describe('which payslips the window contains', () => {
         //
         //   · `_capPNum = Math.min(bpPNum - 1, todaysPeriodNum())` — the paid-in payslip is excluded
         //     because in the month the lump lands you are already paid at the new rate.
-        //   · `if (_awardFrom && p.payday >= _awardFrom) return` — a payslip already paid at the new
-        //     rate owes no arrears.
+        //   · `awardWindow`'s award-date test (`p.payday >= awardFrom`) — a payslip already paid at
+        //     the new rate owes no arrears.
         //
         // A decided award DERIVES its paid-in payslip as the first payday on or after the award date,
         // so `bpPNum - 1` and "before the award date" name the same last payslip, always. Deleting
@@ -407,12 +409,12 @@ describe('which payslips the window contains', () => {
 
     test('a payslip from the PREVIOUS tax year never joins this award', () => {
         // Without a fence a March payslip — belonging to last year's award — would accrue this year's
-        // rise as well as its own. THREE things keep it out, and each is redundant with the others for
-        // an earlier year: the window's lower bound (`p.num < fromPNum`), the tax-year fence
-        // (`getTaxYearForOffset(p.num - 48) !== awardTy`), and `awardWindowFactor`, which is 0 for a
-        // period wholly before 1 April. Deleting any one, or both loop fences together, leaves this file
-        // green (test audit, 7 Nov 2026), and that is recorded rather than papered over. What this holds
-        // is the property they jointly deliver, which is what a member would feel.
+        // rise as well as its own. TWO things keep it out, and each is redundant with the other for
+        // an earlier year: the tax-year fence in `awardWindow`, and `awardWindowFactor`, which is 0 for
+        // a period wholly before 1 April. Deleting either leaves this file's card cases green (test
+        // audit, 7 Nov 2026), and that is recorded rather than papered over; the fence is pinned on
+        // its own in "the award window" below. What this holds is the property they jointly deliver,
+        // which is what a member would feel.
         const march = PERIODS.filter(/** @param {any} p */ p => p.num < YEAR_PERIODS[0].num);
         assert.ok(march.length > 0, 'the grid holds no earlier periods — this case proves nothing');
         calcBackPay();
@@ -437,6 +439,35 @@ describe('which payslips the window contains', () => {
         _ls.set(periodKey(WINDOW[2].num), JSON.stringify({ otH: 20, otM: 0, sunH: 12, sunM: 0 }));
         const after = calcBackPay().bpAmount;
         assert.ok(after > before + 5, `saved premium hours moved the lump by only £${(after - before).toFixed(2)}`);
+    });
+});
+
+// ── THE AWARD WINDOW, ONE DEFINITION (Nov 2026 debt pass) ───────────────────────────────────────
+// calcBackPay, awardGrade and the premium's lump split each wrote the window out; awardWindow is it
+// now, and each caller passes the cap it applied before. These pin the function on its own, because
+// through the card two of its three edges are redundant with something else (the cases above).
+describe('the award window', () => {
+    const LAST_YEAR = PERIODS.filter(/** @param {any} p */ p => p.num < YEAR_PERIODS[0].num);
+
+    test('is the award year\'s payslips paid before the award date, and nothing else', () => {
+        assert.deepEqual(awardWindow(PERIODS, TY), WINDOW);
+        assert.ok(LAST_YEAR.length > 0 && YEAR_PERIODS.some(/** @param {any} p */ p => p.payday >= AWARD_FROM),
+            'premise: the grid holds payslips either side of the window');
+    });
+
+    test('an award with no date yet covers its whole year', () => {
+        assert.deepEqual(awardWindow(PERIODS, TY, { awardFrom: null }), YEAR_PERIODS);
+    });
+
+    test('stops at the cap it is given, and only then', () => {
+        const cap = WINDOW[2].num;
+        assert.deepEqual(awardWindow(PERIODS, TY, { capNum: cap }), WINDOW.slice(0, 3));
+        assert.deepEqual(awardWindow(PERIODS, TY, { capNum: Infinity }), WINDOW, 'Infinity is no cap');
+        assert.deepEqual(awardWindow(PERIODS, TY, { capNum: 0 }), [], 'a cap of 0 is a cap: callers that mean none pass Infinity');
+    });
+
+    test('no tax year, no window', () => {
+        assert.deepEqual(awardWindow(PERIODS, null), []);
     });
 });
 

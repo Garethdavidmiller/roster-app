@@ -20,7 +20,7 @@ import {
   getTaxYearForOffset, taxYearForPeriod, awardRatesFor, awardFromForYear,
 } from './paycalc-calc.js';
 import { getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum, _setSelectPeriod, buildBackPayPeriodSelect, payslipMayBeInHand } from './paycalc-periods.js';
-import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
+import { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod, awardWindow } from './paycalc-backpay-accrual.js';
 export { paidInPeriodNum, _awardBackdateDate, awardWindowFactor, _accrueBackPayPeriod } from './paycalc-backpay-accrual.js';
 import { awardGrade, getEffectiveContr, getProRateFactor, settledRate } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -738,16 +738,13 @@ export function calcBackPay() {
   // The window's payslips, and those the member was employed for: none of them means they joined
   // after the period the award covers, which is its own state, not "nothing … yet" (paycalc-2-17).
   let _inWindow = 0, _employedInWindow = 0;
-  periods.forEach(/** @param {any} p */ p => {
+  // The window (awardWindow, the one definition): the award tax year's payslips from its first
+  // (fromPNum, _backdatedFromPNum) — never a following year's, so a "paid in" period there cannot
+  // apply 2025/26's rate diff to 2026/27 work — none paid on or after the award date (they owe no
+  // arrears; without this a historic award viewed at a late period double-counts), up to the cap.
+  // A cap of 0 has always meant none here (`_capPNum &&`), hence `|| Infinity`.
+  awardWindow(periods, awardTy, { capNum: _capPNum || Infinity, awardFrom: _awardFrom }).forEach(/** @param {any} p */ p => {
     try {
-      if (p.num < fromPNum) return;   // fromPNum is always the award year's first period (_backdatedFromPNum)
-      if (_capPNum && p.num > _capPNum) return;
-      // Skip periods outside the award tax year (e.g. when "paid in" period is
-      // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
-      if (awardTy && getTaxYearForOffset(p.num - 48) !== awardTy) return;
-      // Skip periods already paid at the new rate (a settled award's mid-year application date) — they
-      // owe no arrears. Without this the accrual would double-count a historic award viewed at a late period.
-      if (_awardFrom && p.payday >= _awardFrom) return;
       _inWindow++;
       if (getProRateFactor(p) > 0) _employedInWindow++;
       const parsed = readSavedPeriod(p.num);

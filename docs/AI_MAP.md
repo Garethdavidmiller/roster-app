@@ -832,7 +832,7 @@ The back-pay card: the lump owed for a pay award backdated to 1 April, computed 
 
 ### `paycalc-backpay-accrual.js`
 What a pay award owes, period by period — pure, no DOM: one period's arrears, the April fraction of an award's first period (`awardWindowFactor`), and the share of the lump that is not premium pay. A module of its own so the Holiday Pay Premium's Year to Date estimate (`paycalc-hpp.js`) reuses the card's arithmetic without an import cycle. Bound by `.claude/rules/paycalc.md` invariants 1 and 14; tested by `paycalc-backpay.test.mjs`, `paycalc-periods.test.mjs` and `paycalc-hpp.test.mjs`.
-- **Exports:** `paidInPeriodNum` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `awardLumpNonPremium`
+- **Exports:** `paidInPeriodNum` · `awardWindow` · `_awardBackdateDate` · `awardWindowFactor` · `_accrueBackPayPeriod` · `awardLumpNonPremium`
 
 ### `paycalc-format.js`
 The pay calculator's shared formatters and field helpers: dates in the app's own words, read off the device's calendar; money and hourly rates; minutes; and the hours/minutes field pairs with the "nothing entered" test. Pure, and its only import is `date-format.js`, so every paycalc module can reach it from Node. Tested by `paycalc-format.test.mjs`.

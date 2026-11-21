@@ -23,7 +23,7 @@ import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPa
 import { formatISO, parseSmartFloat, parseSmartFloatOrNull } from './roster-data.js';
 import { fmt, fdList, fdLong } from './paycalc-format.js';
 import { hppPayslipForTaxYear, hppPaidInTaxYear, periodsInTaxYear } from './paycalc-hpp-schedule.js';
-import { paidInPeriodNum, _awardBackdateDate, awardLumpNonPremium } from './paycalc-backpay-accrual.js';
+import { paidInPeriodNum, _awardBackdateDate, awardLumpNonPremium, awardWindow } from './paycalc-backpay-accrual.js';
 import { resolveAuthoritativeRates } from './paycalc-backpay-state.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
@@ -253,7 +253,7 @@ function _awardLumpInYear(ty, grade) {
   const carrier = periods.find(/** @param {any} p */ p => p.num === carrierNum);
   if (!carrier) return null;
   const nonPremium = awardLumpNonPremium({
-    window: periodsInTaxYear(ty, periods).filter(p => p.payday < from),
+    window: awardWindow(periods, ty, { awardFrom: from }),   // the award's own window, no cap (awardWindow)
     auth: resolveAuthoritativeRates(ty, awardRatesFor(grade, ty.label)),
     backdate: _awardBackdateDate(ty),
     effContr: getEffectiveContr, proRateFactor: getProRateFactor,
