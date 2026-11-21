@@ -836,6 +836,9 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
     // The Work Email card starts OPEN and the tips overlay starts hidden.
     await expect(page.locator('#tipsLightbox')).toBeHidden();
     await expect(page.locator('#contactBody')).toHaveClass(/\bopen\b/);
+    // …and the summary strip above it has its final size, so the ? is not moved under the press (the
+    // race behind the contrast test's one failure, below).
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', /^(todo|all-set|error)$/);
 
     await page.locator('.btn-card-tips[data-card="work-email"]').click();
 
@@ -899,6 +902,12 @@ test('settings (signed in): a card whose wiring throws takes nothing else down w
 test('settings: the Tips panel\'s ✕ clears the text contrast floor on its panel', async ({ page }) => {
     await seedSession(page);
     await page.goto('/settings.html');
+    // Wait for the summary strip ABOVE the Work Email card to settle (failed once in 472 runs, Nov 2026:
+    // the click landed and the panel never opened). The strip reads "Checking your settings…" with no
+    // list until the LAST card has reported, then grows by one line per to-do in one go — which moves
+    // this ? button down at about the moment a click straight after load is aimed at it, so the press
+    // could land on the card header instead. `data-tone` leaving 'checking' is that last answer.
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', /^(todo|all-set|error)$/);
     await page.locator('.btn-card-tips[data-card="work-email"]').click();
     await expect(page.locator('#tipsLightbox')).toBeVisible();
     const ratio = await page.evaluate(() => {
