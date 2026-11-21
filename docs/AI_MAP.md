@@ -156,7 +156,7 @@ Keyboard navigation and the hover tooltip for the month grid: a roving tabindex 
 
 ### `calendar-access.js`
 The Calendar's access gate: it decides at boot, shows the right card, exchanges the staff PIN for a session-only viewer identity, and re-locks. It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–10, 17–20; running the PIN: OPERATIONS_REFERENCE.md → "Staff PIN access for the Calendar". Tested by `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
+- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
 The three cards that can stand where the Calendar goes — the member sign-in card (the front door), the staff-PIN card and the member's come-back card — with their wiring and the unlock backoff. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the four things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
