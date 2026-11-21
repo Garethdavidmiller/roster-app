@@ -508,9 +508,10 @@ test('paycalc: the loan\'s every-payslip line shows only once a loan is chosen',
 test('paycalc: with Year to Date figures in use, a payslip gap names the payslip they count from (v24.89)', async ({ page }) => {
     /*
      * On 22 Oct a first entry is stamped with the 25 Sep payslip — the latest PAID one — while a
-     * member holding the 23 Oct payslip copies from that: its pay is then counted twice (£193.40 out,
-     * the 48-hour review). The card names its payslip; this is the line a member chasing the gap
-     * reads, and it is only as good as the calculator handing it the anchor actually used.
+     * member may hold the 23 Oct payslip already. The card names its payslip; this is the line a
+     * member chasing a gap reads, and it is only as good as the calculator handing it the anchor
+     * actually used. (Figures COPIED from 23 Oct but stamped 25 Sep no longer fit the code, so they
+     * are not used at all — 21 Nov 2026; these are 25 Sep's own, £2,845.20 being what 1257L takes.)
      */
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));   // the 23 Oct payslip is in hand
@@ -521,7 +522,7 @@ test('paycalc: with Year to Date figures in use, a payslip gap names the payslip
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
         localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '56');   // paid 25 Sep — the first-entry stamp that day
         localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '21000');
-        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '2800');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '2845.20');
     });
     await page.goto('/paycalc.html?payday=2026-10-23');
     await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
@@ -2403,7 +2404,9 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
     await seedSession(page);
     await seedMember(page);
     // Source = P32 (paid 23 Oct 2026, internal p.num 57). Anchored payslip = 58; 59 and 60 are not.
-    const SRC = 57, YTD_PAY = '30000', YTD_TAX = '4200';
+    // Figures must FIT the code to be used (15 and 21 Nov 2026): £8,263.60 is what 1257L takes on
+    // £40,000 by the 23 Oct payslip — a year into the higher rate, so the figures visibly move the £.
+    const SRC = 57, YTD_PAY = '40000', YTD_TAX = '8263.60';
     await page.addInitScript(([src, pay, tax]) => {
         localStorage.setItem('myb_pc_ns_migrated', '1');
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
@@ -2449,7 +2452,7 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
     for (const pNum of [SRC + 2, SRC + 3]) {
         await page.locator('#periodSelect').selectOption(String(pNum));
         await expect(page.locator('#ytdStatusChip')).toHaveText('not in use');
-        await expect(page.locator('#ytdUptoNote')).toContainText("this payslip's tax is worked out from this payslip alone");
+        await expect(page.locator('#ytdUptoNote')).toContainText("This payslip's tax is worked out from this payslip alone");
         const other = await netWithAndWithoutFigures();
         expect(other.withFigures,
             `p${pNum} is not the payslip these totals came from, so they must not reach the estimate`)
@@ -2464,6 +2467,9 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
 // A Tax Paid typed one digit short (348 for 3,480) asked for nearly a year's tax at once. Bounded by the
 // pay alone, the tax took all of it and NI came off on top: a negative take-home (whole-app review,
 // Nov 2026). This pins calculate() handing NI and loans to computeTax, and the summary saying why.
+// From the year's second payslip a Tax Paid far UNDER the code is not used at all (owner, 21 Nov 2026):
+// it is the payslip priced on its own, and the line says which two figures disagree. The pay bound
+// behind "ask for more tax than this payslip pays" is unit-tested on the year's first payslip.
 test('paycalc: a mistyped Tax Paid never makes the take-home negative, and the summary says to check it', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2026-11-07T09:00:00Z'));
@@ -2480,7 +2486,8 @@ test('paycalc: a mistyped Tax Paid never makes the take-home negative, and the s
     await page.goto('/paycalc.html');
     await expect(page.locator('#pensionAmt')).toBeVisible();
     await page.locator('#periodSelect').selectOption('58');
-    await expect(page.locator('#summary')).toContainText('ask for more tax than this payslip pays');
+    await expect(page.locator('#summary')).toContainText("Your Year to Date figures don't fit tax code 1257L");
+    await expect(page.locator('#summary')).toContainText('Check the code on that payslip matches Your Settings');
     const net = await page.locator('#netDisplay').textContent();
     expect(poundsOf(net), `the take-home reads ${net}`).toBeGreaterThanOrEqual(0);
     expect(net ?? '', 'no minus sign on the take-home').not.toMatch(/[−-]/);
