@@ -68,7 +68,7 @@ import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 const ADMIN_SIGN_IN_ABOUT = Object.freeze({
     lines: Object.freeze([
         'Record your annual leave, absences and shift changes, so they show on the Calendar.',
-        "It keeps them under your own name, so you sign in as yourself — the staff PIN doesn't open it.",
+        "It keeps them under your own name, so you sign in as yourself — the staff PIN doesn’t open it.",
     ]),
     footnote: 'On a shared screen, sign out from the menu when you finish.',
 });

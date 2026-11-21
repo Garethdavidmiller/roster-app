@@ -2906,10 +2906,10 @@ test('paycalc: a Dispatcher is told the calculator does not cover their pay, and
     // Written FOR a Dispatcher (v25.50, paycalc-role-card.js): their pay is not covered YET, and the
     // condition for adding it is the rates — "we haven't got them" is the truth, and it tells a
     // Dispatcher this is a gap rather than a decision. No date: the condition is information.
-    await expect(page.locator('#unsupportedGradeTitle')).toHaveText("The Pay Calculator doesn't cover Dispatcher pay yet");
+    await expect(page.locator('#unsupportedGradeTitle')).toHaveText("The Pay Calculator doesn’t cover Dispatcher pay yet");
     await expect(card).toContainText('once Dispatcher rates are confirmed');
     // ...it says what the calculator DOES, naming the grades it serves in full...
-    await expect(page.locator('#unsupportedGradeWhat')).toContainText("Customer Experience Ambassador's or Supervisor's (CEA or CES)");
+    await expect(page.locator('#unsupportedGradeWhat')).toContainText("Customer Experience Ambassador’s or Supervisor’s (CEA or CES)");
     // ...and links the guide, which is the only "what is this for" left on a refusal: the page's own
     // guide link is hidden with the calculator.
     await expect(card.locator('a[href="./paycalc-guide.html"]')).toBeVisible();
@@ -3083,7 +3083,7 @@ test('paycalc: the sign-in card says what the calculator is, who it is for, and 
     const about = page.locator('#loginAbout');
     await expect(about).toBeVisible();
     await expect(about).toContainText('Customer Experience Ambassadors and Supervisors (CEA and CES)');
-    await expect(about).toContainText("the staff PIN doesn't open it");
+    await expect(about).toContainText("the staff PIN doesn’t open it");
     await expect(about.locator('a.login-about-link')).toHaveAttribute('href', './paycalc-guide.html');
     await expect(page.locator('#loginFootnote')).toContainText('shared screen');
     // The words DESCRIBE the dialog, so a screen reader announces them with the card.

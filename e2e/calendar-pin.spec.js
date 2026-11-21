@@ -1184,7 +1184,7 @@ test('a visitor who never held the PIN is told nothing about it, and the way bac
 test("Admin's sign-in card says what Admin is for, and that the PIN does not open it — in Pay's words", async ({ page }) => {
     // The clause is shared on purpose: a station reaches both pages from one menu (admin-app.js →
     // ADMIN_SIGN_IN_ABOUT). If one card is reworded, this asks for the other to follow.
-    const clause = "so you sign in as yourself — the staff PIN doesn't open it.";
+    const clause = "so you sign in as yourself — the staff PIN doesn’t open it.";
     for (const url of ['/admin.html', '/paycalc.html']) {
         await page.goto(url);
         await expect(page.locator('#loginAbout'), url).toContainText(clause);

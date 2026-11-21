@@ -39,7 +39,7 @@ export const PAYCALC_GUIDE_URL = './paycalc-guide.html';
 /** What the calculator does — one sentence, naming both grades in full on first sight (CLAUDE.md →
  *  "Plain English that TEACHES"). Third person: its reader is somebody it does NOT serve. */
 const WHAT_IT_DOES =
-    "It works out a Customer Experience Ambassador's or Supervisor's (CEA or CES) take-home pay from " +
+    "It works out a Customer Experience Ambassador’s or Supervisor’s (CEA or CES) take-home pay from " +
     'the hours they work — Saturdays, Sundays, bank holidays, rest days worked and overtime — after ' +
     'tax, National Insurance and pension.';
 
@@ -52,14 +52,14 @@ const WHAT_IT_DOES =
 export function unsupportedRoleCopy(role) {
     if (!role) {
         return {
-            title: "Your name isn't on the current roster",
+            title: "Your name isn’t on the current roster",
             what: null,
-            why: "The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else's on this device. Ask the admin to check your name.",
+            why: "The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else’s on this device. Ask the admin to check your name.",
         };
     }
     if (role === 'Dispatcher') {
         return {
-            title: "The Pay Calculator doesn't cover Dispatcher pay yet",
+            title: "The Pay Calculator doesn’t cover Dispatcher pay yet",
             what: WHAT_IT_DOES,
             why: 'Dispatcher pay will be added once Dispatcher rates are confirmed. Until then any figure it gave you would be guessed — one that looks right and isn\'t.',
         };
@@ -72,9 +72,9 @@ export function unsupportedRoleCopy(role) {
         };
     }
     return {
-        title: "The Pay Calculator isn't available for your role yet",
+        title: "The Pay Calculator isn’t available for your role yet",
         what: WHAT_IT_DOES,
-        why: "It only has confirmed rates for CEA and CES pay, and guessing others would give you a figure that looks right and isn't. If you'd like yours added, ask the admin.",
+        why: "It only has confirmed rates for CEA and CES pay, and guessing others would give you a figure that looks right and isn’t. If you’d like yours added, ask the admin.",
     };
 }
 
@@ -110,7 +110,7 @@ export const PAYCALC_SIGN_IN_ABOUT = Object.freeze({
         'Works out your take-home pay from the hours you work, for Customer Experience Ambassadors and Supervisors (CEA and CES).',
         // "you sign in", the verb, and not "your sign-in", the noun: at the card's width the
         // hyphenated noun broke across two lines as "sign-" / "in".
-        "It keeps your figures under your own name, so you sign in as yourself — the staff PIN doesn't open it.",
+        "It keeps your figures under your own name, so you sign in as yourself — the staff PIN doesn’t open it.",
     ]),
     link: Object.freeze({ href: PAYCALC_GUIDE_URL, label: 'Read the Pay Calculator Guide →' }),
     footnote: 'On a shared screen, use your own phone instead — your figures stay in the browser you type them into.',
