@@ -24,6 +24,7 @@ import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, g
 import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange } from './admin-al-projection.js';
 import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 import { isRestShift } from './override-utils.js';
+import { planAlWeekSave } from './admin-al-week-save.js';
 
 // An INVENTED member on fixed pattern 1, the Mon–Fri 12:00–19:00 line: every weekend is a rest day and every weekday is
 // worked, which makes "working day" and "rest day" unambiguous without any override at all.
@@ -676,5 +677,67 @@ describe('booking a Spare week charges at most four days', () => {
         const p = projectAlBooking({ member: M, dates: WEEK, ovByDate: new Map() });
         const o = projectAlOverage({ member: M, memberName: M.name, overrides: others, consuming: p.consuming });
         assert.equal(o?.over, 3, `four charged against one left — not six (${o?.detail})`);
+    });
+
+    /** Invented weekday leave in 2027 until `n` days are counted, never on a Spare, rest day or bank holiday. */
+    const fillTo = (/** @type {any[]} */ ovs, /** @type {number} */ n) => {
+        for (let d = new Date(2027, 4, 1); countedAlDates({ overrides: ovs, member: M, year: 2027 }).size < n; d.setDate(d.getDate() + 1)) {
+            const base = getBaseShift(M, new Date(d));
+            if (d.getDay() !== 0 && !isRestShift(base) && base !== 'SPARE' && !isBankHoliday(new Date(d))) ovs.push(al(formatISO(d)));
+        }
+        return ovs;
+    };
+
+    test('a Spare week over New Year: the December days take the four, and January\'s cost nothing', () => {
+        const NY = ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'];
+        let member = null;
+        for (let w = 1; w <= 20 && !member; w++) {
+            const m = { ...M, currentWeek: w };
+            if (NY.every(d => getBaseShift(m, new Date(`${d}T12:00:00`)) === 'SPARE')) member = m;
+        }
+        assert.ok(member, 'premise: some week of the cycle is Spare over New Year 2026/27');
+        const saved = NY.map(d => ({ ...al(d), memberName: member.name }));
+        assert.equal(countedAlDates({ overrides: saved, member, year: 2026 }).size, 4);
+        assert.equal(countedAlDates({ overrides: saved, member, year: 2027 }).size, 0,
+            'January\'s two are the week\'s fifth and sixth, even though the year counted alone has only them');
+        const p = projectAlBooking({ member, dates: NY, ovByDate: new Map() });
+        assert.deepEqual(p.freeWritten, NY.slice(4));
+    });
+
+    test('leave over an absence: the absent day is still a Spare day, so the week costs four, not five', () => {
+        const absent = { id: 's1', memberName: M.name, date: WEEK[0], type: 'sick', value: 'SICK' };
+        const p = projectAlBooking({ member: M, dates: WEEK, ovByDate: new Map([[WEEK[0], absent]]) });
+        assert.equal(p.consuming.length, 4);
+        assert.equal(p.charged, 4);
+    });
+
+    test('booking the rest of a week whose end is already saved: charged 2, and no false warning at the allowance', () => {
+        const ovs = fillTo([al(WEEK[4]), al(WEEK[5])], 30);
+        const p = projectAlBooking({ member: M, dates: WEEK, ovByDate: new Map(ovs.map(o => [o.date, o])) });
+        assert.equal(p.charged, 2, 'four after, two before — the saved Friday and Saturday become the free ones');
+        const after = overridesAfterSave(ovs, { memberName: M.name, writes: p.writes });
+        assert.equal(countedAlDates({ overrides: after, member: M, year: 2027 }).size, 32);
+        assert.equal(projectAlOverage({ member: M, memberName: M.name, overrides: ovs, consuming: p.consuming, after }), null,
+            'exactly at the allowance, so nothing over it');
+    });
+
+    test('the week grid re-saving one day of a full Spare week at the allowance warns of nothing', () => {
+        const ovs = fillTo(WEEK.map(al), 32);
+        const plan = planAlWeekSave({ member: M, memberName: M.name, overrides: ovs, ovByDate: new Map(ovs.map(o => [o.date, o])),
+            toSave: [{ memberName: M.name, date: WEEK[0], type: 'annual_leave', value: 'AL', existingId: `al-${WEEK[0]}` }] });
+        assert.equal(plan.overage, null);
+    });
+
+    test('a Dispatcher\'s Spare days are not capped: each costs one (owner, 21 Nov 2026)', () => {
+        let disp = null;
+        for (let w = 1; w <= 10 && !disp; w++) {
+            const m = { name: 'Dispatch Tester', rosterType: 'dispatcher', currentWeek: w, role: 'Dispatcher' };
+            if (WEEK.filter(d => getBaseShift(m, new Date(`${d}T12:00:00`)) === 'SPARE').length > 4) disp = m;
+        }
+        assert.ok(disp, 'premise: a Dispatcher week with more than four Spare days');
+        const spare = WEEK.filter(d => getBaseShift(disp, new Date(`${d}T12:00:00`)) === 'SPARE');
+        const p = projectAlBooking({ member: disp, dates: spare, ovByDate: new Map() });
+        assert.deepEqual(p.consuming, spare);
+        assert.deepEqual(p.freeWritten, []);
     });
 });
