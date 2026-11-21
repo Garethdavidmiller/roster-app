@@ -7,7 +7,8 @@
  * Does NOT own: AL/sick save logic, week grid, or any other admin section.
  */
 
-import { CONFIG, DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, DAY_NAMES, MONTH_NAMES, formatISO, parseISODate, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { formatWeekdayDate } from './date-format.js';
 
 /**
  * Returns an array of ISO date strings from fromVal to toVal inclusive,
@@ -137,10 +138,9 @@ export function buildRangePicker(prefix, opts = {}) {
         updateChips();
     });
 
-    /** @param {any} iso */
+    /** "Fri 18 Sep" — date-format.js owns the words. @param {string} iso */
     function fmt(iso) {
-        const d = parseISODate(iso);
-        return `${DAY_NAMES[d.getDay()].slice(0,3)} ${d.getDate()} ${MONTH_ABB[d.getMonth()]}`;
+        return formatWeekdayDate(parseISODate(iso));
     }
 
     function updateChips() {
