@@ -150,7 +150,6 @@ export function init() {
     (function() {
         const about = initAboutLightbox({
             appLabel: 'Marylebone Roster — Admin',
-            bugLinkId: 'adminBugReportLink',
             getUserName: () => currentUser || 'Unknown',
         });
         if (about) openAboutLightbox = about.open;

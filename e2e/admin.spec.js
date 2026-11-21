@@ -540,10 +540,10 @@ test('admin: with staged edits, the About panel\'s links ask before leaving — 
     await expect(about).toBeVisible();
 
     // Report a bug: no question. The mail app is kept shut and the tap is recorded as having arrived.
-    await page.locator('#adminBugReportLink').evaluate((el) => el.addEventListener('click', (e) => {
+    await page.locator('#bugReportLink').evaluate((el) => el.addEventListener('click', (e) => {
         e.preventDefault(); /** @type {any} */ (window).__bugTapped = true;
     }));
-    await page.locator('#adminBugReportLink').click();
+    await page.locator('#bugReportLink').click();
     expect(await page.evaluate(() => /** @type {any} */ (window).__bugTapped), 'the tap reached the link').toBe(true);
     await expect(page.locator('.dialog-overlay'), 'mail leaves the page where it is').toHaveCount(0);
 

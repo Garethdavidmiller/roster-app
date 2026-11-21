@@ -715,7 +715,6 @@ export function init() {
     (function () {
         const about = initAboutLightbox({
             appLabel: 'Marylebone Roster — Operations',
-            bugLinkId: 'opsBugReportLink',
             getUserName: () => currentUser,
         });
         if (about) openAboutLightbox = about.open;
