@@ -1356,6 +1356,49 @@ test('admin: the over-entitlement question stays up past an earlier success mess
     await expect(bar, 'the question must wait for an answer, not for a timer').toHaveClass(/visible/);
 });
 
+// ONE BAR, FOUR CARDS (review, 21 Nov 2026): picking a range on the Annual Leave card took down the week
+// grid's question unanswered, because every card hid the shared bar on its own routine events. A card
+// now takes down only its own question.
+test('admin: picking a leave range leaves the week grid\'s over-allowance question up', async ({ page }) => {
+    test.setTimeout(45_000);
+    const TAKEN = [];
+    for (const m of ['06', '07']) for (let d = 1; d <= 28; d++) TAKEN.push(`2026-${m}-${String(d).padStart(2, '0')}`);
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = dates.map((date, i) => ({ id: `al-${i}`, memberName: 'G. Miller', date,
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    }, TAKEN);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2026-11-16';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Nov 2026');
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    for (const btn of await page.locator('.day-row .al-swap-btn[data-swap="no"]').all()) {
+        if (await btn.isVisible()) await clickInView(btn);
+    }
+    await clickInView(page.locator('#saveBtn'));
+    const bar = page.locator('#alConfirmBar');
+    await expect(bar).toHaveClass(/visible/);
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alRpNext').click();
+    const day = page.locator('#alRpGrid .rp-day[data-iso="2026-09-08"]');
+    await day.click();
+    await day.click();
+    await expect(page.locator('#alSaveBtn')).toBeEnabled();
+    await expect(bar, 'the week grid\'s question is still waiting for its answer').toHaveClass(/visible/);
+    // CONTROL: a change to the week itself still withdraws it — its batch is out of date.
+    await clickInView(page.locator('.day-row .pill-correction:not([disabled])').first());
+    await expect(bar).not.toHaveClass(/visible/);
+});
+
 // ONE WRITE AT A TIME, "SAVE ANYWAY" INCLUDED (whole-app check, Nov 2026; routed from admin-2). The bar's
 // Save anyway ran the week's save whatever else was sending: beside an absence booking still writing, two
 // writes to one page at once (the v24.38 duplicate-record race), and the week's save then released the lock

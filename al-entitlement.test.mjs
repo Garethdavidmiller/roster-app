@@ -613,6 +613,12 @@ describe('isWorkingDate without an override map', () => {
         assert.equal(isWorkingDate(MEMBER, WORKED[0], new Map([[WORKED[0], { value: 'RD' }]])), false,
             'a map that is given is still read');
     });
+
+    test('an old Spare turn saved on 25 or 26 December is not a working day (review, 21 Nov 2026)', () => {
+        const spare = (/** @type {string} */ d) => new Map([[d, { date: d, type: 'spare_shift', value: 'SPARE' }]]);
+        for (const d of ['2025-12-25', '2026-12-26']) assert.equal(isWorkingDate(MEMBER, d, spare(d)), false, d);
+        assert.equal(isWorkingDate(MEMBER, '2026-12-24', spare('2026-12-24')), true, 'CONTROL: Christmas Eve\'s Spare turn is work');
+    });
 });
 
 // ── NO ALLOWANCE FOR A YEAR BEFORE THE MEMBER JOINED (whole-app review, 10 Nov 2026) ────────────

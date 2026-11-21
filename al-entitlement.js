@@ -61,7 +61,7 @@
  * pure, which is what lets the boundary (a day that is today) be tested at all.
  */
 
-import { getBaseShift, isSunday, parseISODate, formatISO } from './roster-data.js';
+import { getBaseShift, isSunday, isChristmasRD, parseISODate, formatISO } from './roster-data.js';
 import { getALEntitlement, dispatcherBaseAL, allowanceRole } from './al-contract.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 import { leaveYearOf, offeredJanuaries } from './leave-year.js';
@@ -513,6 +513,8 @@ export function winningEntriesOfType(overrides, memberName, type) {
 export function isWorkingDate(memberObj, dateStr, ovByDate = null) {
     if (isSunday(dateStr)) return false;
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(dateStr) : null;
-    if (ov) return !isRestShift(ov.value);
+    // A Spare turn saved on 25 or 26 December before v26.38 is not work: the two days can never be
+    // spare days, in any year (owner, 19 Nov 2026), so it is the rest day underneath (review, 21 Nov 2026).
+    if (ov) return !isRestShift(ov.value) && !(ov.value === 'SPARE' && isChristmasRD(parseISODate(dateStr)));
     return !isRestShift(getBaseShift(memberObj, parseISODate(dateStr)));
 }

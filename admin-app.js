@@ -268,7 +268,7 @@ export function init() {
         userMadeChanges = true;
         // A new edit invalidates a showing over-limit bar: its batch predates the edit, and "Save anyway"
         // would write it and discard the newer edit. Save again recollects and re-checks.
-        hideALConfirm();
+        hideALConfirm('week');
     }
 
     // Warn browser/OS before closing or navigating away — and ask in the page before a drawer link
@@ -297,7 +297,7 @@ export function init() {
             _bannerReturnFocus = null;
             userMadeChanges = false;
             // …and disarm the over-limit bar, or "Save anyway" writes the batch just discarded.
-            hideALConfirm();
+            hideALConfirm('week');
             if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; fn(); }
         });
         keepBtn.addEventListener('click', () => {
@@ -725,7 +725,7 @@ export function init() {
     document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
         userMadeChanges = false;
         // "Save anyway" after a discard must not write the batch back.
-        hideALConfirm();
+        hideALConfirm('week');
         renderWeekGrid();
     });
 
@@ -938,7 +938,7 @@ export function init() {
     /** Clears the week editor feedback area. */
     function hideFeedback() {
         formFeedback.className = 'feedback';
-        hideALConfirm();
+        hideALConfirm('week');
     }
 
     // ---- AL over-limit confirm bar ----
@@ -948,6 +948,12 @@ export function init() {
     /** @type {string[]} */ let _alPendingKept    = [];   // …of those, the ones that still hold leave
     /** @type {HTMLElement|null} */ let _alOpener = null;
     /** @type {(() => void)|null} */ let _alResume = null;   // a range card's own "Save anyway" (the Absence card's, admin-sick.js)
+    // WHOSE QUESTION THE BAR IS ASKING (review, 21 Nov 2026). Four cards share one bar — the week grid,
+    // Annual Leave, Absence and Saved Changes — and each took it down on its own routine events, so
+    // editing an AL range dismissed the week grid's question unanswered, and the week's Save the AL
+    // card's. A card now takes down only its OWN question; a member change, Cancel and Save anyway
+    // still clear whatever is showing, because each of those ends the question for everybody.
+    /** @type {'week'|'al'|'sick'|'saved'|null} */ let _alOwner = null;
     const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
     const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
     const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
@@ -963,8 +969,11 @@ export function init() {
      * @param {any[]|null}  pendingSave  toSave batch to resume, or null for AL booking path
      * @param {string[]}    pendingDelete  IDs to delete in the same batch
      * @param {(() => void)|null} [resume] what "Save anyway" runs for a range card other than AL's
+     * @param {'week'|'al'|'sick'|'saved'} [owner] the card asking; by default the week grid when it
+     *        hands a batch, else the AL card
      */
-    function showALConfirm(msg, sub, pendingSave, pendingDelete = [], resume = null) {
+    function showALConfirm(msg, sub, pendingSave, pendingDelete = [], resume = null, owner) {
+        _alOwner = owner ?? (pendingSave ? 'week' : 'al');
         clearTimeout(_feedbackTimer);   // an earlier success line's fade must not take the question down (Oct 2026)
         _alPendingSave   = pendingSave;
         _alPendingDelete = pendingDelete;
@@ -977,8 +986,11 @@ export function init() {
         alConfirmBar.classList.add('visible');
         alConfirmSaveBtn.focus();
     }
-    /** Hides the AL over-entitlement confirmation bar and clears pending save state. */
-    function hideALConfirm() {
+    /** Hides the AL over-entitlement confirmation bar and clears pending save state — or, given a card,
+     *  only when the question showing is that card's (`_alOwner`). @param {'week'|'al'|'sick'|'saved'} [onlyFor] */
+    function hideALConfirm(onlyFor) {
+        if (onlyFor && _alOwner && onlyFor !== _alOwner) return;
+        _alOwner = null;
         alConfirmBar.classList.remove('visible');
         _alPendingSave   = null;
         _alPendingDelete = [];
@@ -1039,7 +1051,7 @@ export function init() {
         updateALBanner, updateALBookedBox, updateSickBookedBox,
         // ONLY the AL picker feeds this: the Absence card has no per-year figure (admin-sick.js).
         setALPickerYear: (/** @type {number} */ y) => { alPickerViewYear = y; },
-        getCurrentUser: () => currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
+        getCurrentUser: () => currentUser, showALConfirm, hideALConfirm: () => hideALConfirm('al'), showInChangeAShift,
         showSuccess,
     })?.updateAlPreview ?? null;
 
@@ -1050,7 +1062,9 @@ export function init() {
         sickMember,
         syncSickMemberDisplay, populateMemberDropdown, lastMember,
         updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser: () => currentUser, showInChangeAShift,
-        showSuccess, showALConfirm, hideALConfirm,   // an absence can take back a day in lieu (admin-sick.js)
+        showSuccess,   // an absence can take back a day in lieu (admin-sick.js): the bar, as the Absence card's
+        showALConfirm: (/** @type {string} */ m, /** @type {string} */ sub, /** @type {any} */ p, /** @type {any[]} */ d, /** @type {any} */ r) => showALConfirm(m, sub, p, d, r, 'sick'),
+        hideALConfirm: () => hideALConfirm('sick'),
     })?.updateSickPreview ?? null;
 
 
@@ -1345,7 +1359,8 @@ export function init() {
             },
             markChanged,
             onEditRow: handleEdit,
-            showALConfirm,   // a Saved Changes delete that lowers an allowance asks first (admin-saved-changes.js)
+            // a Saved Changes delete that lowers an allowance asks first (admin-saved-changes.js)
+            showALConfirm: (/** @type {string} */ m, /** @type {string} */ sub, /** @type {any} */ p, /** @type {any[]} */ d, /** @type {any} */ r) => showALConfirm(m, sub, p, d, r, 'saved'),
         });
         // Each kept row carries the whole record its row was DRAWN from (readWeekDraft), checked on Restore.
         keepDraftWhenHidden(hasUnsavedChanges, {
