@@ -19,7 +19,7 @@ import { calcProRateFactor, computeTax, getThresholds } from './paycalc-calc.js'
 const _ls             = new Map();
 let   _session        = null;
 const _teamMembersData = [];        // mutated per-test; same reference used by mock
-let   _bhDatesForYear = {};         // year → Date[] — controls bhsForYear mock
+let   _bhDatesForYear = {};         // year → Date[] — controls the getBankHolidays mock bhsForYear reads
 
 mock.module('./firebase-client.js', {
     namedExports: {
@@ -76,6 +76,8 @@ const { gradeForRole: _realGradeForRole } = await import('./roster-data.js?real'
 mock.module('./roster-data.js', {
     namedExports: {
         gradeForRole:    _realGradeForRole,
+        // The REAL bhsForYear (paycalc-periods.js, Nov 2026) over these dates: Boxing Day dropped.
+        getBankHolidays: /** @param {number} y */ y => _bhDatesForYear[y] || [],
         teamMembers:     _teamMembersData,
         APP_VERSION:     '13.00',
         CONFIG:          { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },
@@ -92,7 +94,6 @@ mock.module('./roster-data.js', {
 
 mock.module('./paycalc-roster-suggestions.js', {
     namedExports: {
-        bhsForYear:            /** @param {number} y */ y => _bhDatesForYear[y] || [],
         getRosterSuggestion:   async () => ({}),
         fetchOverridesForPeriod: async () => {},
     },

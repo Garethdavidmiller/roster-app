@@ -31,9 +31,8 @@ let _viewPNum          = 48;
 /** The settled rate the settings module would derive (its real rule: AWARD_RATES by grade). */
 let _settledRate = (/** @type {any} */ ty) => awardRatesFor(_grade, ty?.label)?.rate ?? 20.74;
 
-// The real period module, so the grid, the tax years and the in-hand rule are the app's own. It
-// reaches Firebase only through the suggestion module, which is all this stands in for.
-mock.module('./paycalc-roster-suggestions.js', { namedExports: { bhsForYear: () => [] } });
+// The real period module, so the grid, the tax years and the in-hand rule are the app's own. It no
+// longer reaches Firebase (bhsForYear moved into it, Nov 2026), so nothing stands in for anything.
 const _realPeriods = await import('./paycalc-periods.js?real');
 
 mock.module('./paycalc-periods.js', {

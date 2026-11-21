@@ -2,7 +2,7 @@
 /**
  * paycalc-periods.js — Period arithmetic and select UI for paycalc.html.
  *
- * Owns: CONFIG (period anchor + tax years), getPeriods cache, hasBankHoliday /
+ * Owns: CONFIG (period anchor + tax years), getPeriods cache, bhsForYear / hasBankHoliday /
  *   hasBoxingDay, CONDITIONAL_ROWS, period select DOM helpers, tax-year tab sync,
  *   period navigation (prev / next / jump).
  * Does NOT own: grade/settings persistence (paycalc-settings.js), calculation
@@ -14,7 +14,7 @@
 import {
   P_YR, TAX_YEARS, getTaxYearForOffset, readTaxCode,
 } from './paycalc-calc.js';
-import { bhsForYear } from './paycalc-roster-suggestions.js';
+import { getBankHolidays } from './roster-data.js';
 import { periodsInTaxYear } from './paycalc-hpp-schedule.js';
 import { fdLong, fdShort } from './paycalc-format.js';
 import { MONTH_ABB } from './date-format.js';
@@ -189,9 +189,25 @@ export function hasBoxingDay(/** @type {any} */ p) {
 }
 
 // ── BANK HOLIDAY DETECTION ────────────────────────────────────────────────────
-// bhsForYear is exported from paycalc-roster-suggestions.js — one definition
-// shared with the suggestion engine. Boxing Day (26 Dec) excluded; handled
-// separately by hasBoxingDay() at 3× rate.
+/** @type {WeakMap<Date[], Date[]>} */
+const _bhsByList = new WeakMap();
+/**
+ * The year's bank holidays the pay calculator prices as bank holidays: every one but Boxing Day
+ * (26 Dec), which is priced on its own at 3× (hasBoxingDay). One definition, shared with the
+ * suggestion engine (paycalc-roster-suggestions.js); it lived there until Nov 2026, which made this
+ * pure module load Firestore. Hot in the 28-day period scan and in hasBankHoliday() during recalc,
+ * so the filtered list is kept per list getBankHolidays returns (which is itself kept per year).
+ * @param {number} year @returns {Date[]}
+ */
+export function bhsForYear(year) {
+  const all = /** @type {Date[]} */ (getBankHolidays(year));   // kept per year by roster-data.js
+  let bhs = _bhsByList.get(all);
+  if (!bhs) {
+    bhs = all.filter((/** @type {Date} */ d) => !(d.getMonth() === 11 && d.getDate() === 26));
+    _bhsByList.set(all, bhs);
+  }
+  return bhs;
+}
 
 /** True if any bank holiday (excluding Boxing Day) falls within this period. */
 export function hasBankHoliday(/** @type {any} */ p) {

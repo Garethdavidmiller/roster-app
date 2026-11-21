@@ -52,7 +52,6 @@ let _sessionName = 'G. Miller';
 mock.module('./session.js', { namedExports: { getSession: () => ({ name: _sessionName }) } });
 mock.module('./paycalc-roster-suggestions.js', {
     namedExports: {
-        bhsForYear: () => [],
         getOverridesFetchState: (/** @type {any} */ p) => (p && _stateByNum.has(p.num) ? _stateByNum.get(p.num) : _fetchState),
         // Every period's calendar says 5h overtime, tagged with the period so a cross-write is visible —
         // unless a test hands in a suggestion of its own (the rendered-badge tests below).

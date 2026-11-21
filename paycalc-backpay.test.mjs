@@ -85,6 +85,7 @@ mock.module('./ls.js', { namedExports: {
 const { gradeForRole: _realGradeForRole } = await import('./roster-data.js?real');
 mock.module('./roster-data.js', { namedExports: {
     teamMembers: _members, APP_VERSION: '13.00', gradeForRole: _realGradeForRole,
+    getBankHolidays: () => [],   // No bank holidays (paycalc-periods.js reads them here since bhsForYear moved there, Nov 2026).
     CONFIG: { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },
     formatISO: (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
     // The REAL smart-float semantics: a £ string with separators parses, garbage is 0. A stub that
@@ -100,7 +101,7 @@ mock.module('./roster-data.js', { namedExports: {
     },
 } });
 mock.module('./paycalc-roster-suggestions.js', { namedExports: {
-    bhsForYear: () => [], getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {},
+    getRosterSuggestion: async () => ({}), fetchOverridesForPeriod: async () => {},
 } });
 
 // ── a fake document ─────────────────────────────────────────────────────────────────────────────
