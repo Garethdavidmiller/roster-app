@@ -4047,11 +4047,11 @@ test('admin: the BASE ROSTER column shows the time, not just Early/Late', async 
         .toBe(true);
 });
 
-test('admin: on a phone the bulk-bar pills share the chips\' left edge; the per-row pills stay centred', async ({ page }) => {
+test('admin: on a phone the bulk-bar pills share the chips\' left edge, and so do the per-row pills', async ({ page }) => {
     // Polish round 2. The bulk bar is a 1 → 2 → 3 sequence whose step-1 chips start at the content
     // edge; the step-2 pills were centred, so their first row started ~39px in and a wrapped pill sat
-    // alone mid-card. The per-row pills are CENTRED on phones by a separate decision (`.col-pills`
-    // in admin.css, v22.22) and must not follow — both halves are asserted.
+    // alone mid-card. The per-row pills were centred on phones (v22.22) until the Nov 2026 polish
+    // pass put them on the same left edge (`.col-pills` in admin.css) — both halves are asserted.
     await page.setViewportSize({ width: 390, height: 844 });
     await seedSession(page);
     await page.goto('/admin.html');
@@ -4072,7 +4072,7 @@ test('admin: on a phone the bulk-bar pills share the chips\' left edge; the per-
     await page.locator('.week-panel .day-row .day-cb').first().check();
     const rowPills = page.locator('.week-panel .day-row.selected .col-pills').first();
     await expect(rowPills).toBeVisible();
-    await expect(rowPills, 'the per-row pills stay centred on a phone').toHaveCSS('justify-content', 'center');
+    await expect(rowPills, 'the per-row pills are left-aligned on a phone, as the bulk bar\'s are').toHaveCSS('justify-content', 'flex-start');
 });
 
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
