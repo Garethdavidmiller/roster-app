@@ -2960,8 +2960,9 @@ button.nav-panel-link--notices {
     -webkit-line-clamp: 2;
     line-clamp: 2;
     overflow: hidden;
+    /* At a hyphen or space first, and inside a word only when one alone is too long: breaking anywhere
+       read "R. Forrester-B / lackstock" where this reads "R. Forrester- / Blackstock" (21 Nov 2026). */
     overflow-wrap: anywhere;
-    word-break: break-all;
     min-width: 0;
 }
 
