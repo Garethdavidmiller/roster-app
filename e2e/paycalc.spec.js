@@ -5026,13 +5026,14 @@ test('paycalc: on a desktop the take-home bar has an edge, and its label sits be
     expect(g.edgeColour).toBe(g.hairline);
 });
 
-// PAY11 — six period-band controls and notes at --type-micro (10px), read at arm's length on a laptop.
-// A density call, so a fine pointer gets the small step and a coarse one keeps the phone's.
-test('paycalc: the period band\'s small print is the small step on a desktop with a mouse', async ({ page }, info) => {
+// PAY11 — six period-band controls and notes were --type-micro (10px), read at arm's length on a laptop,
+// and first bumped for a mouse only. A phone at arm's length reads them no better, so they are the
+// small step on every pointer (polish pass, Nov 2026).
+test('paycalc: the period band\'s small print is the small step on every device', async ({ page }) => {
     await openReturning(page);
     const sizes = await page.evaluate(() => ['#saveStatus', '#clearBtn', '#rosterViewLink', '.period-hint', '#rosterDaysToggle', '#periodBadge']
         .map(sel => getComputedStyle(/** @type {Element} */ (document.querySelector(sel))).fontSize));
-    expect(sizes).toEqual(Array(6).fill(isTouchProject(info) ? '10px' : '12px'));
+    expect(sizes).toEqual(Array(6).fill('12px'));
 });
 
 // PAY12 — "tap" in words a mouse and a keyboard read. Swept on the page a desktop first visit meets,

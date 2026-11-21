@@ -108,7 +108,7 @@
       .nav-pill-today:hover { background: var(--accent-gold-dark); }
     }
     /* Left-aligned, like every line in the stack around it: a centred one read as an accident. */
-    .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); }
+    .period-hint   { margin: 4px 0 0; font-size: var(--type-small); color: var(--text-faint); }
     /* A deep link to a payslip the calculator does not carry — a STATUS line in the navy info voice
        of .rate-step-note, never an error colour: nothing is wrong. */
     .period-link-note {
@@ -123,6 +123,8 @@
     .pm-sub        { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .pm-sub-text   { font-size: var(--type-small); color: var(--text-mid); flex: 1; min-width: 0; }
     .period-badge { font-size: var(--type-micro); font-weight: 800; background: var(--accent-gold); color: var(--primary-blue); padding: 3px 10px; border-radius: var(--radius-pill); white-space: nowrap; }
+    /* The period band's small print is the small step at every width; the HPP due badge keeps 10px. */
+    .pm-sub .period-badge { font-size: var(--type-small); }
 
     /* Save indicator row */
     .save-row {
@@ -130,13 +132,13 @@
       width: 100%; min-height: 20px;
     }
     .save-status {
-      font-size: var(--type-micro); color: var(--text-faint);
+      font-size: var(--type-small); color: var(--text-faint);
       transition: color var(--dur-slower);
     }
     .save-status.saved   { color: var(--success-text); }
     .save-status.corrupt { color: var(--warning-amber); font-weight: 600; }
     .clear-btn {
-      font-size: var(--type-micro); font-weight: 600; color: var(--text-light);
+      font-size: var(--type-small); font-weight: 600; color: var(--text-light);
       background: none; border: none; cursor: pointer;
       padding: 2px 0; touch-action: manipulation;
       text-decoration: underline; text-underline-offset: 2px;
@@ -149,10 +151,11 @@
        vertically (each sits on its own line, ≥24px from the next control) and only a little sideways,
        so it never reaches a neighbour and the layout does not move. Coarse pointers only. */
     @media (pointer: coarse) {
-      .clear-btn, .roster-days-toggle, .disclaimer-toggle, .actuals-import-link { position: relative; }
-      .clear-btn::after, .roster-days-toggle::after, .disclaimer-toggle::after, .actuals-import-link::after {
+      .clear-btn, .roster-days-toggle, .disclaimer-toggle, .actuals-import-link, .roster-view-link, .guide-footer-link a { position: relative; }
+      .clear-btn::after, .roster-days-toggle::after, .disclaimer-toggle::after, .actuals-import-link::after, .roster-view-link::after, .guide-footer-link a::after {
         content: ''; position: absolute; inset: -10px -6px;
       }
+      .roster-view-link::after { inset: -4px -6px -10px; }   /* 4px up: 2px clear of Clear's region (375/800px) */
     }
 
     /* Desktop column wrappers. Below 1024px <main> is plain block flow, so neither moves anything:
@@ -180,7 +183,7 @@
       padding: 18px 16px 16px; text-align: center;
     }
     .net-label {
-      font-size: var(--type-micro); font-weight: 700; color: rgba(255,255,255,0.68);
+      font-size: var(--type-micro); font-weight: 700; color: var(--on-navy-muted);
       text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
     }
     .net-amount {
@@ -188,8 +191,10 @@
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum' 1;
     }
+    /* On-navy colours are the shared tokens; the 0.85–0.92 near-white emphasis has none between
+       `--on-navy-muted` and white (the Calendar shares the tier), so it stays literal for now. */
     .net-period { font-size: var(--type-medium); font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
-    .net-hint   { font-size: var(--type-label); color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
+    .net-hint   { font-size: var(--type-label); color: var(--on-navy-muted); margin-top: 5px; letter-spacing: 0.1px; }
     .net-unpriced { font-size: var(--type-label); color: rgba(255,255,255,0.88); margin: 10px auto 0; max-width: 34em; line-height: 1.45; }
     /* Provenance chips: quiet on-navy labels naming what is inside the £ (the drawer's translucent
        chip language). Gold = money ADDED to the total (back pay, HPP); neutral = how it was worked
@@ -199,8 +204,8 @@
     .prov-chip {
       display: inline-flex; align-items: center; gap: 5px;
       font-size: var(--type-small); font-weight: 600; line-height: 1.2;
-      color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.16); border-radius: var(--radius-pill);
+      color: rgba(255,255,255,0.85); background: var(--on-navy-raised);
+      border: 1px solid var(--on-navy-raised-strong); border-radius: var(--radius-pill);
       padding: 4px 10px;
     }
     .prov-chip--add {
@@ -330,7 +335,7 @@
       width: 100%; padding: 10px 16px;
       background: var(--bg-faint); border: none; border-top: 1px solid var(--border-light);
       font-family: inherit; font-size: var(--type-small); font-weight: 600; color: var(--text-light);
-      display: flex; align-items: center; justify-content: center; gap: 6px;
+      display: flex; align-items: center; justify-content: center; gap: 0.25em;   /* a space, as "Show days ▼" */
       cursor: pointer; touch-action: manipulation; transition: background var(--dur-med);
     }
     .bd-btn:active { background: var(--border-light); }
@@ -390,8 +395,8 @@
   /* One width at every size, the Tips' own (css-tokens.md has three, and no fourth); a see-through
      glass sheet, so the glass family's corner. */
   #helpLightboxContent {
-    background: rgba(255,255,255,0.09);
-    border: 1px solid rgba(255,255,255,0.15);
+    background: var(--on-navy-raised);
+    border: 1px solid var(--on-navy-raised-strong);
     border-radius: var(--radius-panel);
     padding: 28px 24px 24px;
     width: min(var(--modal-standard), var(--modal-cap));
@@ -406,10 +411,10 @@
     list-style: none; padding: 0; margin: 0;
   }
   .help-lightbox-list li {
-    color: rgba(255,255,255,0.72);
+    color: var(--on-navy-muted);
     font-size: var(--type-label); line-height: 1.6;
     padding: 7px 0 7px 18px;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    border-bottom: 1px solid var(--on-navy-hairline);
     position: relative;
   }
   .help-lightbox-list li:last-child { border-bottom: none; padding-bottom: 0; }
@@ -418,7 +423,7 @@
     color: var(--accent-gold); font-weight: 800; font-size: var(--type-medium); line-height: 1.3;
   }
   .help-lightbox-list strong { color: rgba(255,255,255,0.92); font-weight: 700; }
-  #helpLightboxClose { color: rgba(255,255,255,0.45); }
+  #helpLightboxClose { color: var(--on-navy-faint); }
   #helpLightboxClose:active { color: white; }
   @media (hover: hover) and (pointer: fine) {
     #helpLightboxClose:hover { color: white; }
@@ -431,8 +436,7 @@
       display: flex; align-items: center; gap: 6px; justify-content: center;
       width: 100%; margin-top: 4px; padding: 10px 0;
       background: none; border: 1.5px dashed var(--border-mid);
-      /* --radius-button, not --radius-sm (v26.24): it is a button, and it sits under fields and buttons
-         at 12px — at 8px it was the one corner in the card a few pixels off (css-tokens.md → Corners). */
+      /* A button, under fields and buttons: their corner (css-tokens.md → Corners). */
       border-radius: var(--radius-button); color: var(--text-mid);
       font-size: var(--type-small); font-weight: 700; cursor: pointer;
       touch-action: manipulation; font-family: inherit;
@@ -746,11 +750,12 @@
     .check-actual-line.check-near { color: var(--warning-amber); font-weight: 600; }
 
     /* First-run banner */
+    /* Settings' "things to finish" gold wash: a 4px left stripe bent round the 18px corner. */
     .setup-banner {
-      background: var(--surface); border-radius: var(--radius-lg);
+      background: color-mix(in oklch, var(--accent-gold) 16%, white); border-radius: var(--radius-lg);
+      border: 1px solid color-mix(in oklch, var(--accent-gold) 45%, white);
       box-shadow: var(--shadow-1); margin-bottom: 16px;
       padding: 14px 16px;
-      border-left: 4px solid var(--accent-gold);
     }
     .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
     .setup-banner p  { font-size: var(--type-label); color: var(--text-mid); line-height: 1.5; }
@@ -805,14 +810,14 @@
        note at the foot of the page for everyone else. No navy stripe on a note that sits ON navy (it
        showed only as a white edge inside every other card's), so its 3px went to the padding. */
     .privacy-note-standalone {
-      background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+      background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
       padding: 9px 12px 9px 18px; margin-bottom: 16px;
       font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
     }
 
     /* Disclaimer */
     .disclaimer {
-      background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+      background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
       padding: 11px 14px 11px 17px; font-size: var(--type-small); color: var(--text-light);
       line-height: 1.6; margin-bottom: 16px;
     }
@@ -835,8 +840,7 @@
     .hpp-toggle-arrow { font-size: var(--type-micro); }   /* glyph-swapped, so never rotated (.show-more-arrow) */
     /* `position: relative` — a containing block, as `.bd-body`'s is. */
     .hpp-note-body { position: relative; max-height: 0; overflow: hidden; transition: max-height var(--dur-slower) var(--ease-standard); }
-    /* 448px at the 14px it is set in (it was 400): about 216px of text at default size grew to 829px at
-       twice the size, faster than the text, because a narrow column wraps more lines. */
+    /* In em, so it grows with the text (a narrow column wraps more lines at twice the size). */
     .hpp-note-body.open { max-height: 32em; }
 
     /* Actual HPP badge */
@@ -929,7 +933,7 @@
       font-size: var(--type-medium); color: var(--text-dark); line-height: 1.35;
       /* A soft resting box, so the navy-outlined choice carries the emphasis; 2px in both states,
          so choosing never reflows. */
-      border: 2px solid var(--border-light); border-radius: var(--radius-sm);
+      border: 2px solid var(--border-light); border-radius: var(--radius-field);   /* the fields' and buttons' corner beside them */
       padding: 10px 12px; background-color: white;
       transition: border-color var(--dur-fast) var(--ease-standard),
                   background-color var(--dur-fast) var(--ease-standard),
@@ -1164,7 +1168,7 @@
          ticked: its teaching line and the unticked row are for the screen. */
       .lb-overlay,
       #iconLightbox, #helpLightbox, .setup-banner, .period-controls, .save-row,
-      #saveSettingsBtn, #actualsImportBtn,
+      #saveSettingsBtn, #actualsImportBtn, .settings-save-feedback,
       .bd-btn, .show-more-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,
       #payTransferCard,
@@ -1236,7 +1240,8 @@
         min-width: 0 !important;
       }
       .hhmm-lbl { font-size: var(--type-micro) !important; color: var(--text-light) !important; }
-      .stepper { display: flex !important; align-items: center !important; }
+      /* A plain figure, as every other value on paper — not an empty pill round one number. */
+      .stepper { display: flex !important; align-items: center !important; border: none !important; background: transparent !important; }
       .stepper-val { font-weight: 700 !important; font-size: var(--type-label) !important; }
       .disclaimer {
         box-shadow: none !important; font-size: var(--type-micro) !important;
@@ -1401,6 +1406,8 @@
   @media (hover: hover) and (pointer: fine) {
     .ty-tab:not(.active):hover { background: var(--bg-faint); border-color: var(--primary-blue); }
   }
+  /* Admin's 44px under a thumb (they drew 31–40px); AFTER every base rule it raises, or it loses. */
+  @media (pointer: coarse) { .nav-pill, .ty-tab { min-height: 44px; } .nav-pill-today, .stepper button { width: 44px; height: 44px; } }
 
   /* ── SL SKIP + OTHER ADJ FIELDS ── */
   .toggle-row {
@@ -1408,12 +1415,10 @@
     padding: 10px 0; border-top: 1px solid var(--border-light);
   }
   .toggle-row label, .toggle-row-text { font-size: var(--type-body); color: var(--text-mid); cursor: pointer; margin: 0; font-weight: 400; }
-  /* THE ROW IS THE LABEL for the three money-deciding ticks (pension membership, a postgraduate
-     loan, a skipped student-loan deduction) — so the whole 43px row is the tap target, not the 22px
-     box. The label used to be a SIBLING of the box, which left the box itself the only target the
-     tap-target ratchet in e2e/pages.spec.js could credit (the checkbox recipe's own rule: "the ROW is
-     the touch target, the box is what you see"). `.field > label` is the uppercase eyebrow rule, and
-     a `label.toggle-row` directly inside a `.field` would otherwise inherit all of it. */
+  /* THE ROW IS THE LABEL for the three money-deciding ticks (pension membership, a postgraduate loan, a
+     skipped student-loan deduction): the whole 43px row is the tap target e2e/pages.spec.js credits, not
+     the 22px box ("the ROW is the touch target, the box is what you see"). `.field > label` is the
+     uppercase eyebrow rule, which a `label.toggle-row` directly inside a `.field` would otherwise inherit. */
   .field > label.toggle-row {
     display: flex; font-size: inherit; font-weight: 400; color: inherit;
     text-transform: none; letter-spacing: 0; margin-bottom: 0; cursor: pointer;
@@ -1497,7 +1502,7 @@
   /* ── GUIDE FOOTER LINK ── */
   .guide-footer-link { text-align: center; margin-bottom: 12px; }
   .guide-footer-link a {
-    font-size: var(--type-small); color: rgba(255,255,255,0.55);
+    font-size: var(--type-small); color: var(--on-navy-faint);
     text-decoration: none; font-weight: 600;
     transition: color var(--dur-med);
   }
@@ -1551,9 +1556,8 @@
      minimum (its longest word) stands: below that it takes the row's next line, never a 0px column. */
   .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
   .roster-cat-arrow { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); flex-shrink: 0; }
-  /* The → or ✓ sits at the row's right edge, centred, out of the wrapping flow: as the last flex item
-     it was the one thing to wrap, alone, to the start of a line of its own. The row's 29px of right
-     padding is the 11px glyph and its 8px gap, so a one-line row draws exactly as before. */
+  /* The → or ✓ sits at the row's right edge, out of the wrapping flow (as the last flex item it wrapped
+     alone onto a line of its own); the row's 29px right padding is the 11px glyph and its 8px gap. */
   .roster-row > :is(.roster-cat-arrow, .roster-cat-match) { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
   .roster-row:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
   .roster-row--matched { background: var(--row-matched-bg); }
@@ -1581,11 +1585,9 @@
     line-height: 1.45; margin: 0 0 8px;
   }
   .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  /* A primary-button family member: --radius-button, the shared press scale and the token ring — and,
-     since v26.24, the family's --type-button. It was --type-small (12px) below 1024px, the one main
-     button on any page smaller than Save beside it, though it is the obvious first action on the page.
-     Its longer label, "Replace with calendar values", fits one line from 360px; at 320px it takes two,
-     balanced, and the button grows rather than clipping (e2e/paycalc.spec.js measures both). */
+  /* A primary-button family member — the obvious first action on the page: --radius-button, the press,
+     the token ring and --type-button. "Replace with calendar values" fits one line from 360px; at 320px
+     it takes two, balanced, and the button grows rather than clipping (e2e/paycalc.spec.js measures both). */
   .fill-roster-btn {
     padding: 10px 16px; background: var(--primary-blue); color: white;
     border: none; border-radius: var(--radius-button); min-height: 44px;
@@ -1617,7 +1619,7 @@
   }
   .roster-days-toggle {
     background: none; border: none; padding: 0;
-    font-family: inherit; font-size: var(--type-micro); font-weight: 700;
+    font-family: inherit; font-size: var(--type-small); font-weight: 700;
     color: var(--primary-blue); cursor: pointer; touch-action: manipulation;
     text-decoration: underline; text-underline-offset: 2px;
   }
@@ -1634,7 +1636,7 @@
     font-size: var(--type-micro); padding: 3px 0;
   }
   .roster-day-date  { width: 68px; flex-shrink: 0; font-weight: 600; color: var(--text-dark); }
-  .roster-day-shift { font-family: ui-monospace, 'Roboto Mono', monospace; color: var(--text-dark); flex: 1; }
+  .roster-day-shift { font-family: inherit; font-variant-numeric: tabular-nums; color: var(--text-dark); flex: 1; }
   .roster-day-chip  { font-size: var(--type-micro); font-weight: 700; padding: 1px 6px; border-radius: var(--radius-pill); white-space: nowrap; flex-shrink: 0; }
   .roster-day-chip--sat { background: var(--primary-blue); color: white; }
   .roster-day-chip--sun { background: var(--blue-sky); color: white; }
@@ -1645,12 +1647,9 @@
   .roster-day-chip--ot    { background: var(--chip-ot-bg);      color: white; }
   .roster-view-link {
     display: block; margin-top: 8px;
-    font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
+    font-size: var(--type-small); color: var(--primary-blue); text-decoration: none;
   }
   @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }
-  /* The period band's 10px small print at a size a desk reads (desktop audit). A density call, so
-     gated on the pointer too (css-tokens.md), and after every base rule it overrides. */
-  @media (min-width: 1024px) and (pointer: fine) { #saveStatus, #clearBtn, #rosterViewLink, .period-hint, #rosterDaysToggle, #periodBadge { font-size: var(--type-small); } }
   /* THE GOLD "FROM YOUR CALENDAR" FILL, and a specificity trap it fell into once: the base
      `.hhmm-field input:not([type="checkbox"]):not([type="radio"])` rule is (0,3,1), so at (0,2,1)
      this silently lost — the class stayed on and every suggested field painted plain `--field-bg`.
@@ -1765,7 +1764,7 @@
     border-color: var(--primary-blue); box-shadow: var(--focus-ring);
     outline: var(--focus-outline); outline-offset: 2px; background-color: white;
   }
-  .actuals-textarea { width: 100%; font-family: ui-monospace, monospace; font-size: var(--type-medium); box-sizing: border-box;
+  .actuals-textarea { width: 100%; font-family: inherit; font-size: var(--type-medium); box-sizing: border-box;
     resize: none; field-sizing: content; min-height: 6lh; max-height: 40vh; overflow: auto; }
   .actuals-status { font-size: var(--type-small); min-height: 18px; margin: 6px 0; }
 
@@ -1818,7 +1817,7 @@
 .pt-paste {
     width: 100%;
     box-sizing: border-box;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: inherit;    /* Inter, as Admin's paste box: a system monospace was Consolas on the station PC */
     font-size: var(--type-small);
     background-color: var(--field-bg);
     color: var(--text-dark);
@@ -1841,7 +1840,7 @@
     outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring);
 }
 /* iOS force-zooms a page whose focused field is under 16px, and this one is a TEXTAREA you paste a
-   long blob into — the worst place to have the viewport jump. 12px monospace is deliberate on
+   long blob into — the worst place to have the viewport jump. 12px is deliberate on
    desktop (it fits more of the backup on screen), so the bump is scoped to coarse pointers, and
    declared straight after the base rule on purpose: before it, at equal specificity, it would
    silently lose (as links.css's once did). The cross-page scan in e2e/pages.spec.js measures it. */
@@ -1872,12 +1871,13 @@ body.role-unsupported .disclaimer { display: none; }
 /* ── A PAYSLIP THIS CALCULATOR CANNOT PRICE ────────────────────────────────────────────────────
    Set on <body> by renderUnpricedPayslip (paycalc-result-headline.js) while the payslip on screen
    has a day under a role with no confirmed rates. Everything a figure would have fed goes: the
-   rows, the breakdown, the banners and the sticky £. !important because the two banners carry an
+   rows, the breakdown, the banners, the sticky £ and the notes about a figure (#ytdJanHppHint,
+   #pensionWarn). !important because the two banners carry an
    inline `display` that paintBanner writes, and that run does not happen for this payslip. The
    year-so-far card goes too, because the run that would rewrite it for this tax year is skipped. */
 body.payslip-unpriced :is(#provChips, #netYtdNudge, #netHint, #payBreakBar, #payBreakLegend, #summary,
   #bpActiveBanner, #hppActiveBanner, #resultRateNotice, #checkActualWrap, #bdBtn, #bdBody,
-  #stickyTotal, #ytdYearSoFar) { display: none !important; }
+  #stickyTotal, #ytdYearSoFar, #ytdJanHppHint, #pensionWarn) { display: none !important; }
 
 /* ── Fill-the-year control + receipt — lives in the year-so-far block ─────────────────────── */
 .yearso-fill { margin: 8px 0 2px; }
