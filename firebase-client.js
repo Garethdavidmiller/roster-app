@@ -159,6 +159,8 @@ function _setMemberPersistence() {
 // where a second local copy of that predicate would be a second place a bypass could be introduced.
 // calendar-access-core.js imports only the pure auth-identity.js — no cycle (import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
+// The one restore bound (8s), shared with session.js and login-core.js — silent-sign-in.js says why it lives there.
+import { AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
 
 /** Resolve the FIRST auth emission (the persisted-user restore), bounded at 8s; null on timeout.
  *  The app's one such subscription: session.js's `restoreFirstAuthUser` awaits it via `currentUserAfterBoot`.
@@ -187,7 +189,7 @@ function _firstAuthUserAtBoot() {
             detach();
             resolve(u || null);
         };
-        timer = setTimeout(() => finish(null), 8000);
+        timer = setTimeout(() => finish(null), AUTH_RESTORE_TIMEOUT_MS);
         try { unsub = onAuthStateChanged(auth, (/** @type {any} */ u) => finish(u)); }
         catch { finish(null); }
         if (detachEarly) detach();
@@ -275,7 +277,7 @@ export const authReady = authBootstrap.then(b => b.persistence);
  *        is there. Callers with a deadline of their own pass their remaining budget.
  * @returns {Promise<any>} the signed-in user, or null
  */
-export async function currentUserAfterBoot(timeoutMs = 8000) {
+export async function currentUserAfterBoot(timeoutMs = AUTH_RESTORE_TIMEOUT_MS) {
     if (auth.currentUser) return auth.currentUser;          // already known — no wait at all
     let timer;
     try {

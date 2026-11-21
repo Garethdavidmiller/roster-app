@@ -16,6 +16,8 @@ import { isCredentialRejection } from './auth-identity.js';
 // Every page that loads the card statically already loads password-force.js statically, and the
 // Calendar loads the card on demand, so the import adds nothing to any page's start-up.
 import { withTimeout } from './password-force.js';
+// The one "how long may Firebase take" bound (8s, the login freeze's budget) — pure, so no SDK import here.
+import { AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
 
 /**
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
@@ -44,7 +46,7 @@ import { withTimeout } from './password-force.js';
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = AUTH_RESTORE_TIMEOUT_MS }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);

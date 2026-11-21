@@ -25,7 +25,11 @@
  *
  * The flag is set only on a wrong-password-class rejection of the SURNAME candidate — never on
  * `auth/user-not-found`, where the account simply doesn't exist yet and a later provisioning would
- * make the surname valid (`remembersRefusal`). It is cleared the moment any sign-in SUCCEEDS with the
+ * make the surname valid (`remembersRefusal`). The reset probe in front of the sign-in is a sign-in
+ * too, and its refusal sets the flag without the SDK being asked (session.js): it cannot tell "no
+ * account" apart unless email-enumeration protection is off, and a device it wrongly flags costs no
+ * more than the rule below, because provisioning stamps a reset the old session predates anyway
+ * (AUTH_AND_SESSIONS 23). It is cleared the moment any sign-in SUCCEEDS with the
  * surname (the admin break-glass reset returns an account to the default, and the member's next typed
  * surname both signs them in and re-arms the silent recovery). A stale flag therefore costs exactly
  * one typed sign-in, ever. Typed passwords are NEVER gated by it — it suppresses only the implicit,
@@ -44,6 +48,16 @@
  */
 
 import { isCredentialRejection } from './auth-identity.js';
+
+/** How long anything waits for Firebase Auth to restore or sign in before it stops waiting: 8s, the
+ *  sign-in budget the login freeze settled on. ONE number for "how long is Firebase allowed to take",
+ *  rather than a different guess per call site — the boot restore (`currentUserAfterBoot` and the first
+ *  emission's own bound, firebase-client.js), `restoreFirstAuthUser` (session.js, which re-exports it)
+ *  and a typed sign-in's deadline (`runNamedSignIn`, login-core.js). It lives HERE because this module
+ *  is pure and imports only auth-identity.js, so all three can import it without a cycle and without
+ *  pulling the Firebase SDK into login-core.js's Node tests. (password-force.js's `SAVE_TIMEOUT_MS`
+ *  matches it, and is its own constant.) */
+export const AUTH_RESTORE_TIMEOUT_MS = 8000;
 
 /** The memory's storage key, per member: localStorage `myb_auth_nodefault_<name>`, holding WHEN the
  *  surname was last refused or asked about. @param {string} name @returns {string} */

@@ -343,7 +343,7 @@ Whether arriving on THIS page ended the shared staff PIN, who is waiting to hear
 
 ### `silent-sign-in.js`
 The rules of the sign-in nobody typed — what a page load may try for a member whose local session has no Firebase identity behind it, the six-hourly reset recheck (`AUTH_AND_SESSIONS.md` 23), and when a session began. Pure; `session.js` reads and writes the memory. Tested by `session.test.mjs`.
-- **Exports:** `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
+- **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
 
 ### `auth-state-core.js`
 The pure identity state machine (AUTH_ARCHITECTURE.md Track 1, Phase 1): who the user is, never what a page decides (that is `auth-policy.js`). Tested by `auth-state-core.test.mjs`.
