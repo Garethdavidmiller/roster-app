@@ -378,7 +378,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      * @param {HTMLElement} triggerEl @param {string} [msg]
      */
     function _docFailureFallback(triggerEl, msg) {
-        if (!_panelOpen) return;
+        // …and only THIS drawer: a slow read that answers after `resetNavPanel` rebuilt the drawer belongs
+        // to one no longer on the page, and closing "the open drawer" then closed the new one's state
+        // under it — Escape stopped working (review, 21 Nov 2026). A rebuild removes the old element.
+        if (!_panelOpen || panel.isConnected === false) return;
         _closePanelVisualOnly();
         _openComingSoon(triggerEl, msg);
     }
@@ -403,7 +406,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // THE DOCUMENT GATE (calendar-doc-access.js): refused HERE, before the blank tab is opened —
         // a tab that closes a second later reads as a fault. The message names the fix.
         if (!canReadDocuments()) {
-            _docFailureFallback(triggerEl, 'Enter the staff PIN on the Calendar, or sign in, to open this.');
+            // The viewers' own words (calendar-doc-viewer.js), naming the document; "on the Calendar" only
+            // where the PIN card is somewhere else (review, 21 Nov 2026).
+            _docFailureFallback(triggerEl, `Enter the staff PIN${_onCalendarPage() ? '' : ' on the Calendar'}, or sign in, to read the ${triggerEl.dataset.csTitle}.`);
             return;
         }
         _docFetching = true;
@@ -452,15 +457,17 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                     // A SEPARATE tab — this page stays, so close with a real history.back() to CONSUME
                     // the drawer's entry (a dead same-URL entry would swallow the next Back)…
                     newTab.location.href = openUrl;
-                    // …but ONLY if the drawer is still the open surface (as _docFailureFallback).
-                    if (_panelOpen) closePanel();
+                    // …but ONLY if the drawer is still the open surface, and still this one (as _docFailureFallback).
+                    if (_panelOpen && panel.isConnected !== false) closePanel();
                 } else {
                     // NO TAB CAME BACK — a popup blocker, or a home-screen app on iOS (iOS audit B5).
                     // Navigating THIS page to the storage url left an installed app on a bare PDF with
                     // no way back, so hand over to the Calendar's in-app viewer (calendar-doc-viewer.js,
                     // the notification tap's route). On the Calendar that is a hash change after the
                     // drawer's Back echo; elsewhere a navigation, and the drawer's entry goes with the page.
-                    if (_panelOpen && _onCalendarPage()) {
+                    if (panel.isConnected === false) {
+                        // The drawer the tap came from has been rebuilt: nothing of it is left to hand over from.
+                    } else if (_panelOpen && _onCalendarPage()) {
                         closePanel();
                         // The hash alone, never `./#…` (24-hour review) — see `_onCalendarPage`.
                         whenHistorySettled(() => { location.hash = docId; });
@@ -483,8 +490,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // AN ACCESS REFUSAL IS NOT A CONNECTION FAULT (`isAccessFailure`, claim-retry.js). The
             // Calendar answers earlier at the gate above; this is for the pages with no gate.
             _docFailureFallback(triggerEl, isAccessFailure(err)
-                ? 'Couldn\'t open — you may have been signed out. Please sign in again.'
-                : 'Couldn\'t connect — check your signal and try again.');
+                // Not "you may have been signed out" alone: a staff-PIN viewer on Trains never signed in.
+                ? 'Couldn’t open — your sign-in or staff PIN may have ended. Sign in again, or enter the staff PIN on the Calendar.'
+                : 'Couldn’t connect — check your signal and try again.');
         }).finally(() => {
             triggerEl.classList.remove('nav-panel-link--loading');
             triggerEl.removeAttribute('aria-busy');
@@ -594,7 +602,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         }
     });
 
-    // Lock Calendar (viewer mode only). Both the button and the footer label are refreshed on every
+    // End staff PIN (viewer mode only). Both the button and the footer label are refreshed on every
     // drawer open — see _refreshLock, called from openPanel beside _refreshBell.
     const lockBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('navLockCalendarBtn'));
     lockBtn?.addEventListener('click', async () => {
@@ -603,15 +611,16 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!lockBtn) return;
         const label = lockBtn.textContent;
         lockBtn.disabled = true;
-        lockBtn.textContent = 'Locking…';
+        lockBtn.textContent = 'Ending…';
         try {
             await onLockCalendar?.lock?.();
             closePanelForNavigation();      // only reached if `lock()` did not navigate away
         } catch (err) {
-            console.warn('[nav] Lock Calendar failed:', err);
-            lockBtn.textContent = "Couldn't lock — try again";
+            console.warn('[nav] End staff PIN failed:', err);
+            const failed = 'Couldn’t end it — try again';
+            lockBtn.textContent = failed;
             lockBtn.disabled = false;
-            setTimeout(() => { if (lockBtn.textContent === "Couldn't lock — try again") lockBtn.textContent = label; }, 6000);
+            setTimeout(() => { if (lockBtn.textContent === failed) lockBtn.textContent = label; }, 6000);
         }
     });
 
@@ -619,7 +628,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _refreshLock() {
         if (!onLockCalendar) return;
         // Fail CLOSED on a thrown thunk — hiding a button costs a walk to the browser menu, whereas
-        // showing "Lock Calendar" to a signed-in member offers them an action that does nothing to
+        // showing "End staff PIN" to a signed-in member offers them an action that does nothing to
         // their session and reads as though it did.
         let viewer;
         try { viewer = onLockCalendar.isViewer() === true; } catch { viewer = false; }
@@ -695,10 +704,16 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             });
     });
 
-    // Notification toggle — an in-panel action, so the panel stays open.
+    // Notification toggle — an in-panel action, so the panel stays open (a BLOCKED bell is the exception:
+    // its tap explains itself in the info panel, below).
     const bell      = /** @type {HTMLButtonElement|null} */ (document.getElementById('navNotifBell'));
     const bellIcon  = document.getElementById('navNotifIcon');
     let _bellBusy   = false;
+    // A REFRESH ANSWERS ONLY IF NOTHING NEWER HAS STARTED (review, 21 Nov 2026). Each open starts a
+    // refresh it does not wait for; a tap while that refresh was still reading repainted the bell, when
+    // it answered, with the state it read BEFORE the tap — 🔕 "off" on a device just subscribed. Every
+    // refresh and every tap takes the next number, and a refresh paints only while its number is current.
+    let _bellGen    = 0;
 
     /** Apply a state string to the toggle glyph and accessible name.
      * @param {any} state */
@@ -708,13 +723,18 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // While the real state is still resolving (up to ~8s for swReady), a neutral "working" glyph —
         // never 🔔, which only ever means genuinely on. Compact icon: the aria-label carries the state.
         if (bellIcon)  bellIcon.textContent  = state === 'loading' ? '🔄' : on ? '🔔' : '🔕';
-        bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         bell.dataset.notifState = state;
+        // A TOGGLE SAYS ITS STATE ONCE (review, 21 Nov 2026): `aria-pressed` is the state, so the name
+        // stays "Notifications" — the name used to say it too ("on — tap to turn off, toggle button,
+        // pressed"). Checking and blocked are not on/off, so they drop `aria-pressed` and say what
+        // they are; a blocked bell's tap explains how to allow them, and its name says so.
+        const toggle = state !== 'loading' && state !== 'denied';
+        if (toggle) bell.setAttribute('aria-pressed', on ? 'true' : 'false');
+        else bell.removeAttribute('aria-pressed');
         bell.setAttribute('aria-label',
-            state === 'loading' ? 'Notifications — checking status'
-          : on        ? 'Notifications on — tap to turn off'
-          : state === 'denied' ? 'Notifications blocked in browser settings'
-          : 'Notifications off — tap to turn on');
+            state === 'loading' ? 'Notifications — checking…'
+          : state === 'denied' ? 'Notifications blocked — how to allow them'
+          : 'Notifications');
     }
 
     /**
@@ -724,12 +744,16 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      */
     async function _refreshBell() {
         if (!bell) return;
+        const gen = ++_bellGen;
         // NOT WHILE THE ACCOUNT BEHIND THE SESSION IS GONE: a tap then subscribed, the rules refused
         // the save and the bell flipped back to off unexplained. After the boot restore, so one in progress keeps it.
-        bell.hidden = !(await currentUserAfterBoot(3000));
+        const user = await currentUserAfterBoot(3000);
+        if (gen !== _bellGen) return;
+        bell.hidden = !user;
         // A restore still running at 3s is not an account gone (48-hour review): bring it back when it lands.
         if (bell.hidden) { void currentUserAfterBoot().then(u => { if (u) void _refreshBell(); }); return; }
-        _paintBell(await peekNotifState());
+        const state = await peekNotifState();
+        if (gen === _bellGen) _paintBell(state);
     }
 
     bell?.addEventListener('click', async () => {
@@ -743,6 +767,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (state === 'denied') { _closePanelVisualOnly(); _openComingSoon(bell, blockedBellText(currentPage)); return; }
         if (state === 'loading') return;
         _bellBusy = true;
+        _bellGen++;   // a refresh still reading from before this tap must not paint over it
         bell.dataset.notifState = 'loading';
         _paintBell('loading');   // repaint NOW — otherwise the old 🔔/"On" glyph shows through a slow toggle (up to 8s)
         bell.disabled = true;
@@ -1068,20 +1093,21 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
     // iOS-must-be-standalone rule). A COMPACT icon button next to Sign out (owner decision: a labelled
     // full-width row has been tried and reverted twice): settings.html's Notifications card is the
     // canonical surface. Signed-in only — `onSignOut` as well as notifSupported(): the footer also
-    // carries a PIN viewer's Lock Calendar button, and a viewer's subscription write the rules DENY.
+    // carries a PIN viewer's End staff PIN button, and a viewer's subscription write the rules DENY.
     // A control that cannot succeed must not be offered.
     const bellHtml = (onSignOut && notifSupported()) ? `
                     <button class="nav-panel-bell" id="navNotifBell" type="button"
-                            aria-pressed="false" aria-label="Checking notification status…"
+                            aria-label="Notifications — checking…"
                             data-notif-state="loading" data-cs-title="Notifications blocked" data-cs-icon="🔕">
                         <span id="navNotifIcon" aria-hidden="true">🔄</span>
                     </button>` : '';
-    // "Lock Calendar" — shown ONLY while the Calendar is open through the shared staff PIN.
+    // "End staff PIN" (owner, 21 Nov 2026; it read "Lock Calendar", but it ends the PIN for the documents
+    // and Trains too, and shows on Trains) — shown ONLY while this browser is on the shared staff PIN.
     // Rendered hidden and revealed on drawer open, because access resolves after this markup is
     // built. It sits where Sign out sits for a member, which is the same idea in the same place:
     // the thing you press before you walk away.
     const lockHtml = onLockCalendar ? `
-                    <button class="nav-panel-signout nav-panel-lock" id="navLockCalendarBtn" type="button" hidden>Lock Calendar</button>` : '';
+                    <button class="nav-panel-signout nav-panel-lock" id="navLockCalendarBtn" type="button" hidden>End staff PIN</button>` : '';
     // The footer exists for a member (name + bell + sign out) OR for a viewer (the lock button).
     // Rendered `hidden` for a lock-only footer and revealed by `_refreshLock` once access resolves —
     // otherwise a LOCKED visitor got an empty footer bar with a blank member name.
@@ -1148,7 +1174,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
                              them counting, ?from= and the history dance with no second copy. -->
                         <input id="navGuideSearchInput" class="nav-gs-input" type="search"
                                enterkeyhint="search" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="none"
-                               placeholder="Search the guides…" aria-label="Search the staff guides">
+                               placeholder="Search the guides…" aria-label="Search all the guides">
                         <div class="nav-gs-status" id="navGuideSearchStatus" role="status"></div>
                         <ul class="nav-panel-links nav-panel-guides-list" id="navGuideSearchResults" hidden></ul>
                     </div>
@@ -1173,8 +1199,8 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
             <div class="lb-content" id="navNoticesContent">
                 <button type="button" id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-title">📣 App Notices</div>
-                <div id="navNoticesList" class="nav-notices-list" tabindex="0" role="group" aria-label="Notices you’ve read on this device"></div>
-                <div id="navNoticesEmpty" class="nav-notices-empty" hidden>Notices you’ve read on this device appear here.</div>
+                <div id="navNoticesList" class="nav-notices-list" tabindex="0" role="group" aria-label="Notices shown on this device"></div>
+                <div id="navNoticesEmpty" class="nav-notices-empty" hidden>Notices shown on this device appear here.</div>
             </div>
         </div>`;
 

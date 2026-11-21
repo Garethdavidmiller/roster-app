@@ -2234,7 +2234,7 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await expect(page.locator('.dialog-overlay'), 'the closed dialog has left the page').toHaveCount(0);
 
         await page.locator('#navPanelBrand').click();   // the drawer is still open: its head opens About
-        await page.locator('#iconLightbox').getByRole('link', { name: 'View staff roster' }).click();
+        await page.locator('#iconLightbox').getByRole('link', { name: 'Calendar', exact: true }).click();
         await expect(question).toBeVisible();
         await page.getByRole('button', { name: 'Cancel' }).click();
         await expect(question).toBeHidden();
@@ -3896,7 +3896,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         page.on('popup', (p) => popups.push(p));
         await page.locator('#navMenuBtn').click();
         await page.locator('#navPanel .nav-panel-link--circular').click();
-        await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+        await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to read the Weekly Retail Circular.');
         expect(await reads(), 'no read is issued').toBe(before);
         expect(popups.length, 'and no blank tab is opened for it').toBe(0);
     });

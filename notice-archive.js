@@ -101,6 +101,15 @@ export function archiveNotice({ id, title, section, date, body }) {
 export function readArchivedNotices() {
     try {
         const p = JSON.parse(lsGet(NOTICES_KEY) || '[]');
-        return Array.isArray(p) ? p.filter(n => n && typeof n === 'object') : [];
+        const now = Date.now(), expiryMs = ARCHIVE_EXPIRY_DAYS * 86_400_000;
+        // ONE AGE LIMIT FOR READING AND WRITING (review, 21 Nov 2026): the write prunes, but a device that
+        // archived nothing new went on listing a notice from 300 days ago. A record with no `archivedAt`
+        // is a legacy one the next write stamps with today (above), so it is kept here too.
+        const fresh = (/** @type {any} */ n) => {
+            if (!n.archivedAt) return true;
+            const t = new Date(n.archivedAt).getTime();
+            return !Number.isFinite(t) || (now - t) < expiryMs;
+        };
+        return Array.isArray(p) ? p.filter(n => n && typeof n === 'object' && fresh(n)) : [];
     } catch (_) { return []; }
 }

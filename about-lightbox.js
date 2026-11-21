@@ -120,7 +120,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
     // Bug link opens the mail app — must not bubble to the backdrop close check.
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 
-    // A PAGE LINK REPLACES THE PANEL'S HISTORY ENTRY (18 Nov 2026) — "View staff roster", a guide, Admin,
+    // A PAGE LINK REPLACES THE PANEL'S HISTORY ENTRY (18 Nov 2026) — "Calendar" (it read "View staff roster" until 21 Nov 2026), a guide, Admin,
     // Operations: followed as plain links, the page they opened sat on top of the panel's own entry, and one
     // Back from it landed on a step of this page that nothing answered (`followLinkOutOf`, overlay.js, says
     // why). On the PANEL, so every page's links are covered. The unsaved-work question still comes first: it

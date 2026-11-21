@@ -719,7 +719,7 @@ describe('followLinkOutOf — the link\'s page takes the lightbox\'s history ent
     });
 
     test('an echo still on its way (the unsaved-work question just closed) is waited for, then the entry is replaced', async () => {
-        const { mod, lb, overlay } = await openOne({ page: 'https://example.test/settings.html' });   // About's "View staff roster"
+        const { mod, lb, overlay } = await openOne({ page: 'https://example.test/settings.html' });   // About's "Calendar" link
         global.history.back = () => { backCount++; };        // the dialog's echo is left to the test
         const dialog = () => {};
         mod._pushOverlayState(dialog);

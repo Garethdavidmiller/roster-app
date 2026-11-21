@@ -982,7 +982,7 @@ test('App Notices: an empty archive shows its message, with no empty list left i
     expect(m.hidden, 'premise: nav-panel.js hides the list of an empty archive').toBe(true);
     expect(m.boxes, 'the hidden list is still laid out').toBe(0);
     expect(Math.round(m.under), 'the message sits one gap under the heading, not two').toBe(m.gap);
-    await expect(page.getByRole('group', { name: /Notices you.ve read on this device/ }),
+    await expect(page.getByRole('group', { name: /Notices shown on this device/ }),
         'an empty group is still offered to a screen reader').toHaveCount(0);
 });
 

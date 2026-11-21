@@ -33,6 +33,14 @@ describe('readArchivedNotices — what the App Notices panel lists', () => {
         assert.deepEqual(readArchivedNotices(), []);
     });
 
+    test('a notice archived more than 180 days ago is not listed, though nothing has been written since (review, 21 Nov 2026)', () => {
+        const ago = (/** @type {number} */ days) => new Date(Date.now() - days * 86_400_000).toISOString();
+        store.set(KEY, JSON.stringify([{ ...notice('recent'), archivedAt: ago(10) }, { ...notice('old'), archivedAt: ago(300) },
+                                       { ...notice('legacy') }]));
+        assert.deepEqual(readArchivedNotices().map(n => n.id), ['recent', 'legacy'],
+            'the 300-day-old one goes; a legacy record with no date is kept, as the next write stamps it');
+    });
+
     test('unreadable storage reads as empty rather than throwing into the panel', () => {
         store.set(KEY, 'not json at all');
         assert.deepEqual(readArchivedNotices(), []);

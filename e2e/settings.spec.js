@@ -1187,12 +1187,12 @@ test('settings: a blocked notification\'s route never starts a line with an arro
 });
 
 // ── THE ABOUT PANEL'S PAGE LINKS LEAVE NO DEAD STEP IN BACK (18 Nov 2026) ───────────────────────────────────────
-// "View staff roster" was a plain link inside the open panel, which holds a history entry with this page's address:
+// "Calendar" (then "View staff roster") was a plain link inside the open panel, which holds a history entry with this page's address:
 // the Calendar stacked on top of it, and Back from there came back to that entry — Settings again, with the next Back
 // doing nothing. The panel's page links now REPLACE its entry, on every page that has one (about-lightbox.js, through
 // overlay.js `followLinkOutOf`). Playwright runs with the back/forward cache off, so Back reloads here, as a phone
 // does whenever the page holds a database connection.
-test('settings: the About panel\'s "View staff roster" — one Back returns to Settings, and the next leaves it', async ({ page }) => {
+test('settings: the About panel\'s "Calendar" link — one Back returns to Settings, and the next leaves it', async ({ page }) => {
     await page.goto('/railcard-guide.html');                   // where the member came from
     await openSettings(page, { configured: true, noPush: true });
     await page.locator('#navMenuBtn').click();
@@ -1201,7 +1201,7 @@ test('settings: the About panel\'s "View staff roster" — one Back returns to S
     await expect(about).toHaveClass(/\bopen\b/);
     await expect.poll(() => page.evaluate(() => history.state?.mybOverlay ?? null),
         { message: 'premise: the panel holds its own Back entry' }).toBe(true);
-    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await about.getByRole('link', { name: 'Calendar', exact: true }).click();
     await expect(page.locator('.calendar-day').first(), 'the link opened the Calendar').toBeVisible({ timeout: 15_000 });
     await page.goBack();
     await expect(page).toHaveURL(/\/settings\.html$/);

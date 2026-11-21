@@ -151,7 +151,10 @@ export function initGuideSearch({ guides }) {
         if (!active) {
             results.hidden = true;
             results.textContent = '';
-            list.hidden = false;
+            // The static list FOLLOWS THE FOLD (review, 21 Nov 2026): clearing a query under a folded
+            // Reference — the drawer reopening clears it — showed every guide beneath a heading that
+            // still said folded. The fold hides the search zone, so its state is read from there.
+            list.hidden = !!zone?.hidden;
             status.textContent = '';
             syncSearchMode();
             return;
@@ -167,7 +170,7 @@ export function initGuideSearch({ guides }) {
         // A live region, so the count reaches a screen reader without moving focus. Wording leads
         // with the number, never a glyph (status-glyph-parity).
         status.textContent = hits.length === 0
-            ? 'No matches in the guides'
+            ? 'No matches in the guides — try a different word'
             : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`;
         syncSearchMode();
     }

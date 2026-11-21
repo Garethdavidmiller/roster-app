@@ -29,7 +29,7 @@
  * Who is signed in is read from the SAVED SESSION, never from the name chosen in the picker: on the
  * station PC the picker is whichever row was chosen last, and the drawer's identity is also the
  * usage counters' admin exclusion (usage-reporter.js has the reasoning). A PIN viewer has no session,
- * so the drawer has no name, no Sign out and no admin pills — "Lock Calendar" is theirs instead.
+ * so the drawer has no name, no Sign out and no admin pills — "End staff PIN" is theirs instead.
  */
 
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
@@ -47,7 +47,7 @@ import { canOpenOvertime, canOpenNewlink } from './auth-policy.js';   // pill ga
  * @property {() => void} onSignOut     the page's sign-out (`signOutAndLeave`)
  * @property {() => boolean} isViewer   the shared staff PIN is open — read when the drawer OPENS,
  *                                      because access resolves after the drawer is built
- * @property {() => void|Promise<void>} lock   "Lock Calendar"
+ * @property {() => void|Promise<void>} lock   "End staff PIN"
  * @property {() => boolean} canReadDocuments  may the drawer's two document links read? (v23.17)
  */
 
@@ -72,7 +72,7 @@ export function calendarDrawerOptions(session, deps) {
         onLogoClick: deps.onLogoClick,
         // No session, no Sign out: the drawer then renders no member footer at all.
         onSignOut: name ? () => deps.onSignOut() : null,
-        // "Lock Calendar" — PIN viewers only, and the drawer is the right home for it: it is a
+        // "End staff PIN" — PIN viewers only, and the drawer is the right home for it: it is a
         // leaving-the-desk action, not a Calendar control, and in the header every member would have a
         // button they can never use. `isViewer` is a thunk read when the drawer opens.
         onLockCalendar: { isViewer: deps.isViewer, lock: deps.lock },
