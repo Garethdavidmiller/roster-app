@@ -2321,6 +2321,10 @@ button.lightbox-bug-link {
     width: min(260px, 72vw);
     background: var(--nav-surface);
     color: var(--nav-text);
+    /* The drawer's own text size, not the page's: it inherited the BODY's, 16px on the Calendar and
+       14px everywhere else, so anything sized by inheritance — the line box the Reference toggle sits
+       in — drew 1px lower on the Calendar than on every other page. */
+    font-size: var(--type-body);
     z-index: calc(var(--z-drawer) + 1);
     transform: translateX(-100%);
     /* visibility:hidden removes the off-screen drawer's links/buttons from the
@@ -2387,7 +2391,7 @@ button.lightbox-bug-link {
 .nav-panel-icon {
     width: 32px;
     height: 32px;
-    border-radius: 7px;
+    border-radius: var(--radius-sm);   /* 25% of the icon, the About panel's 64px logo's ratio near enough */
     flex-shrink: 0;
 }
 
@@ -2397,14 +2401,16 @@ button.lightbox-bug-link {
     min-width: 0;
 }
 
+/* The app's name WRAPS rather than ellipses: in a 320px window the drawer is 230px and the name had
+   102px, so it read "Marylebone …". Two balanced lines ("Marylebone / Roster") cost the head about 4px
+   there; from 360px, and on a desktop, it fits one line and nothing moves. */
 .nav-panel-title {
     font-size: var(--type-body);
     font-weight: 700;
     letter-spacing: -0.2px;
     line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
 }
 
 .nav-panel-version {
@@ -2415,17 +2421,20 @@ button.lightbox-bug-link {
     margin-top: 1px;
 }
 
+/* The same ✕ as the navy sheets' `.lb-close` — a 22px glyph that brightens to white under a mouse —
+   so the drawer and the panels it opens close with one mark. It keeps its own resting colour: the
+   sheets' 50% white is a literal, and the drawer's ✕ has always rested brighter, at its muted text. */
 .nav-panel-close {
     background: none;
     border: none;
-    color: white;
-    font-size: var(--type-large);
+    color: var(--nav-text-muted);
+    font-size: 22px;
     cursor: pointer;
     padding: 4px 8px;
-    opacity: 0.75;
     line-height: 1;
     touch-action: manipulation;
-    border-radius: 4px;
+    transition: color var(--dur-med) var(--ease-standard);
+    border-radius: var(--radius-sm);
     flex-shrink: 0;
     font-family: inherit;
     min-width: 44px;
@@ -2436,7 +2445,7 @@ button.lightbox-bug-link {
 }
 .nav-panel-close:active { opacity: 0.4; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-close:hover { opacity: 1; }
+    .nav-panel-close:hover { color: var(--nav-text); }
 }
 
 /* Scrollable body */
