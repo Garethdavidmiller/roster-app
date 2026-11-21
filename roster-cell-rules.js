@@ -78,8 +78,8 @@ export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFI
  *  · CHRISTMAS DAY AND BOXING DAY ARE NEVER SPARE DAYS (owner, 19 Nov 2026), even in a spare week.
  *    A SPARE printed on either is rewritten to `RD` and reported as `christmas-spare`, and the review
  *    treats that like a Sunday training day: shown, and nothing written (`computeCellStates`).
- *  · NOR ARE THEY EVER OTHER DAYS (owner, Jul 2026: Sundays and Boxing Day can never be training or
- *    Other days; nobody works 25 December). A Training, Meeting or other Other-family value printed on
+ *  · NOR ARE THEY EVER OTHER DAYS (owner, 21 Nov 2026: "There cannot be training or meeting on
+ *    December 25th or 26th"; Boxing Day already in Jul 2026). A Training, Meeting or other Other-family value printed on
  *    either is rewritten to `RD` and reported as `christmas-other`, handled exactly as `christmas-spare`
  *    (review, 21 Nov 2026 — it used to be recorded). Times or not: an Other day is not a value the two
  *    days may hold, and turning it into worked hours is a judgement the review leaves to the admin.

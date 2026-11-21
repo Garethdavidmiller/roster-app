@@ -17,6 +17,10 @@ underneath; Sunday-blocked — confirmed by Gareth Jul 2026).
 **Both Meeting and Union also carry `hideBaseTime`:** their calendar hours slot shows the badge with
 NO time unless a time is actually entered (they are attend-an-event days). Training / Induction /
 Assessment / Team Day still show the base shift time — they run DURING your shift. (Gareth Jul 2026.)
+**No Other day on 25 or 26 December**, any flavour, times or not (Gareth: Boxing Day Jul 2026;
+"There cannot be training or meeting on December 25th or 26th", 21 Nov 2026). The week grid turns
+the Other pill off on both days, its Save refuses one (`checkDayRules`), and the roster import holds
+one for review without writing it (`christmas-other`).
 
 | Decision | Answer |
 |---|---|

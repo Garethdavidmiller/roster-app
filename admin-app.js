@@ -529,8 +529,8 @@ export function init() {
         const { toDelete, errors, swapAnswers } = collected;
 
         if (errors.length)                    return showError("Can't save — " + errors.join(' · '));
-        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day on Boxing Day;
-        // a Spare turn on Christmas Day or Boxing Day.
+        // DAYS THAT TAKE NO CHANGE (admin-shift-rules.js): before the start date; an Other day or a Spare
+        // turn on Christmas Day or Boxing Day.
         // Here, after the collector (admin-week-collect.js): it reads the member, which the collector does not.
         const dayRules = checkDayRules({ toSave, member: teamMembers.find(m => m.name === memberName), formatDate: formatDisplay });
         dayRules.failedDates.forEach(d => weekGrid.querySelector(`.day-row[data-date="${d}"]`)?.classList.add('row-error'));
