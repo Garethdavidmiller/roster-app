@@ -20,7 +20,7 @@ import { printedStamp, formatClock } from './date-format.js';
 import {
   RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, taxYearForPeriod, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, takeHomePay,
+  computeGross, pricePayslip,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, lsAvailable, requestPersistentStorage } from './ls.js';
@@ -743,11 +743,6 @@ export function init() {
           : periodDefaultPension(_curP);
       const pensionWarn = document.getElementById('pensionWarn');
       if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
-      const sacGross   = Math.max(0, grossWithBp - pension);
-
-      // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases), BEFORE the
-      // tax: neither depends on it, and the cumulative tax is bounded by what they leave (computeTax).
-      const ni = computeNI(sacGross, thresholds.ni);
 
       // Plan 5 is not repayable before 2026/27 — disable the option on a 2025/26 period so it can't be
       // newly picked. thresholds.sl has no plan5 key for 2025/26 (paycalc-calc.js), so availability
@@ -777,10 +772,7 @@ export function init() {
       const slPaidOff       = !!(_slPaidOffFromP && _pNum >= _slPaidOffFromP);
       // One undergraduate plan AND a Postgraduate Loan can be repaid together — HMRC deducts each
       // independently (9% above the plan threshold; 6% above the £21,000 PGL threshold). The TOTAL feeds
-      // net + the break bar; the summary shows a separate line per active loan.
-      const slUnder = slPaidOff ? 0 : computeSL(sacGross, plan, thresholds.sl, slSkip);
-      const slPost  = (pgLoan && !slPaidOff) ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
-      const sl = slUnder + slPost;
+      // net + the break bar; the summary shows a separate line per active loan (pricePayslip, below).
 
       // Income tax — cumulative PAYE when the Year to Date figures are given (W1/M1/X excluded). A
       // blank or unparseable box passes NULL, never 0: computeTax needs BOTH figures, and "Taxable Pay
@@ -795,15 +787,20 @@ export function init() {
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
       if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
       const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
-      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown, payLimited: taxPayLimited, ytdMisfit: taxYtdMisfit } = computeTax(
-        sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
-        { ytdPay: ytdP, ytdTax: ytdT, periodN, otherDeductions: ni + sl },
-      );
+      // The payslip is PRICED by the one pipeline the year so far also uses (pricePayslip): NI and the
+      // loans on the pay after pension, then the tax, then the take-home as the summary's rows show it,
+      // each to the penny (takeHomePay). Everything above decided its inputs; nothing below re-prices.
+      const {
+        sacGross, ni, slUnder, slPost, sl, afterPension: _shownAfterPension, net,
+        tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown,
+        payLimited: taxPayLimited, ytdMisfit: taxYtdMisfit,
+      } = pricePayslip({
+        gross: grossWithBp, pension, plan, pgLoan, slSkip, slPaidOff, thresholds,
+        taxCode: /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value,
+        taxOptions: { ytdPay: ytdP, ytdTax: ytdT, periodN },
+      });
       paintTaxCodeWarning({ code: taxCodeUsed, recognised: taxCodeKnown });   // a code priced on 1257L says so
       updateYtdNote(_ty, _curP, _ytdSrc, usingCumulative, taxCodeUsed, !!taxYtdMisfit);   // "in use" is what computeTax did
-
-      // The take-home is the summary's rows subtracted, each to the penny as shown (takeHomePay).
-      const { afterPension: _shownAfterPension, net } = takeHomePay({ gross: grossWithBp, pension, tax, ni, sl });
 
       // The loan rows of the summary, which never leave a £0 unexplained — buildLoanLines says how.
       const _slPaidOffP = slPaidOff ? getPeriods().find(/** @param {any} x */ x => x.num === _slPaidOffFromP) : null;

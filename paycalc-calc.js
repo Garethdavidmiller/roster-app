@@ -727,3 +727,45 @@ export function computeSL(sacGross, plan, slByYear, skip = false) {
   const threshold = Math.floor(slPlan.t * 100) / 100;   // penny-floored periodic threshold
   return Math.floor(Math.max(0, sacGross - threshold) * slPlan.r);
 }
+
+/**
+ * Price ONE payslip from its gross: the pension off the top (salary sacrifice), then National
+ * Insurance and the student loans on what is left, then income tax, then the take-home as the
+ * summary rows show it. The ONE pricing pipeline (Nov 2026 debt pass): `calculate()` in
+ * paycalc-app.js and `computeYearSoFar` in paycalc-year-summary.js each hand-rolled this sequence,
+ * held together only by a third copy in a test, so a deduction rule changed in one could silently
+ * leave the year so far disagreeing with the payslips it sums.
+ *
+ * It decides NOTHING about its inputs: which gross (lumps folded in or not), which pension (the box,
+ * the saved figure, the opt-out spell, the period default), whether the loans have stopped, and
+ * whether the Year to Date figures may be used at all (`calculate()`'s source + 1 anchoring) all
+ * belong to the caller. NI and the loans come BEFORE the tax because neither depends on it and the
+ * cumulative tax is bounded by what they leave (`otherDeductions`, computeTax).
+ *
+ * @param {object} i
+ * @param {number} i.gross        - the payslip's gross BEFORE the pension, any opt-in lumps included
+ * @param {number} i.pension      - the pension deducted, already resolved and floored by the caller
+ * @param {string} i.taxCode      - the Tax Code box's text (computeTax reads it through readTaxCode)
+ * @param {{ tax: any, scottishTax: any, ni: any, sl: any }} i.thresholds - getThresholds() for its year
+ * @param {string} i.plan         - the undergraduate plan, 'none' for none
+ * @param {boolean} i.pgLoan      - a Postgraduate Loan as well
+ * @param {boolean} [i.slSkip]    - this payslip's "not deducted this period" tick
+ * @param {boolean} [i.slPaidOff] - deductions have stopped from an earlier payslip (both loans)
+ * @param {{ ytdPay?: number|null, ytdTax?: number|null, periodN?: number|null }} [i.taxOptions] -
+ *   handed to computeTax as they are (the Year to Date figures and period number); its
+ *   `otherDeductions` is this payslip's NI + loans, set here
+ * @returns {ReturnType<typeof computeTax> & { sacGross: number, ni: number, slUnder: number,
+ *   slPost: number, sl: number, afterPension: number, net: number }}
+ *   sacGross — the UNROUNDED pay after pension the deductions are worked out on; afterPension and
+ *   net — the summary's rows, to the penny (takeHomePay).
+ */
+export function pricePayslip({ gross, pension, taxCode, thresholds, plan, pgLoan, slSkip = false, slPaidOff = false, taxOptions = {} }) {
+  const sacGross = Math.max(0, gross - pension);
+  const ni       = computeNI(sacGross, thresholds.ni);
+  const slUnder  = slPaidOff ? 0 : computeSL(sacGross, plan, thresholds.sl, slSkip);
+  const slPost   = (pgLoan && !slPaidOff) ? computeSL(sacGross, 'postgrad', thresholds.sl, slSkip) : 0;
+  const sl       = slUnder + slPost;
+  const taxed    = computeTax(sacGross, taxCode, thresholds, { ...taxOptions, otherDeductions: ni + sl });
+  const { afterPension, net } = takeHomePay({ gross, pension, tax: taxed.tax, ni, sl });
+  return { ...taxed, sacGross, ni, slUnder, slPost, sl, afterPension, net };
+}

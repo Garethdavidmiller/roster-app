@@ -10,7 +10,7 @@ import {
   awardFromForYear, isPreAwardPeriod,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod, PENSION_STEPS,
-  takeHomePay, readTaxCode,
+  readTaxCode, pricePayslip,
 } from './paycalc-calc.js';
 // ── THE REAL PAYSLIP FIXTURE IS OPTIONAL, AND ITS ABSENCE IS LOUD (v23.71) ──────────────────────
 //
@@ -578,67 +578,72 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
     return new Function(...names, `${body}\nreturn { ${results.join(', ')} };`)(...names.map(n => inputs[n]));
   }
 
+  // calculate() prices through pricePayslip (paycalc-calc.js), the pipeline the year so far shares
+  // (Nov 2026 debt pass). The statement that CALLS it is run as written, with the real engine, so
+  // both halves are under test: the arguments calculate() hands over (a loan or a stop dropped at
+  // the call fails here) and the pipeline's own lines (the Postgraduate leg zeroed fails here too).
+  const T26_ = getThresholds('2026/27');
+  const priceLine = (/** @type {Record<string, any>} */ over) => runAppLines('sacGross', 'sacGross', {
+    pricePayslip, thresholds: T26_, grossWithBp: 3000, pension: 0,
+    plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false,
+    ytdP: null, ytdT: null, periodN: null,
+    document: { getElementById: (/** @type {string} */ id) => (id === 'taxCode' ? { value: '1257L' } : null) },
+    ...over,
+  }, ['sacGross', 'ni', 'slUnder', 'slPost', 'sl', '_shownAfterPension', 'net', 'tax', 'usingCumulative']);
+
   // A £3,000.00 payslip in 2026/27, figures worked from the published SL3 tables:
   //   Plan 2:   £29,385 ÷ 13 = £2,260.38 (penny-floored) → (3,000 − 2,260.38) × 9% = £66.57 → £66
   //   Postgrad: £21,000 ÷ 13 = £1,615.38 (penny-floored) → (3,000 − 1,615.38) × 6% = £83.08 → £83
-  // Tax and NI are inputs to these lines, not computed by them; round figures keep the sum readable.
-  const SAC = 3000, TAX = 400, NI = 160;
-  // The loan lines, then the take-home line on what they made: since the tax was moved after the
-  // loans (it is bounded by what they leave), the two are no longer one run of statements.
-  const loans = (/** @type {Record<string, any>} */ over) => {
-    const r = runAppLines('slUnder', 'sl', {
-      computeSL, sacGross: SAC, thresholds: getThresholds('2026/27'),
-      plan: 'none', pgLoan: false, slSkip: false, slPaidOff: false, ...over,
-    }, ['slUnder', 'slPost', 'sl']);
-    return { ...r, net: runAppLines('net', 'net', { takeHomePay, grossWithBp: SAC, pension: 0, tax: TAX, ni: NI, sl: r.sl }, ['net']).net };
-  };
+  // Tax and NI on the £3,000 are the engine's own (computeTax and computeNI, each tested below); the
+  // loans are what these cases are about, so the take-home is checked as short of exactly them.
+  const SAC = 3000, TAX = computeTax(SAC, '1257L', T26_).tax, NI = computeNI(SAC, T26_.ni);
+  const takeHome = (/** @type {number} */ sl) => Number((SAC - TAX - NI - sl).toFixed(2));
+  const loans = (/** @type {Record<string, any>} */ over) => priceLine({ grossWithBp: SAC, ...over });
 
   test('a plan AND a Postgraduate Loan: both come off take-home', () => {
     const r = loans({ plan: 'plan2', pgLoan: true });
     assert.equal(r.slUnder, 66, 'the Plan 2 deduction');
     assert.equal(r.slPost, 83, 'the Postgraduate Loan deduction');
     assert.equal(r.sl, 149);
-    assert.equal(r.net, 3000 - 400 - 160 - 149, 'take-home is short of both');
+    assert.equal(r.net, takeHome(149), 'take-home is short of both');
   });
 
   test('a Postgraduate Loan on its own still deducts', () => {
     const r = loans({ pgLoan: true });
     assert.equal(r.slPost, 83);
-    assert.equal(r.net, 3000 - 400 - 160 - 83);
+    assert.equal(r.net, takeHome(83));
   });
 
   test('the stop-deducting payslip and "not deducted this period" stop the Postgraduate Loan too', () => {
     // One control in Settings covers both loans (.claude/rules/paycalc.md → Deductions STOP).
     assert.equal(loans({ plan: 'plan2', pgLoan: true, slPaidOff: true }).sl, 0, 'from the cutover payslip');
     assert.equal(loans({ plan: 'plan2', pgLoan: true, slSkip: true }).sl, 0, 'a skipped payslip');
-    assert.equal(loans({}).net, 3000 - 400 - 160, 'no loan → nothing comes off');
+    assert.equal(loans({}).net, takeHome(0), 'no loan → nothing comes off');
   });
 
   test('a pension bigger than the pay floors the take-home base at £0, never below', () => {
     // The test this replaces (under "salary sacrifice") computed `Math.max(0, 100 - 200)` itself, so it
     // tested nothing, and deleting the clamp in calculate() left every lane green. Below £0 every
     // deduction is £0, so the take-home would have been the negative base: money that is not there.
-    const base = (/** @type {number} */ grossWithBp, /** @type {number} */ pension) =>
-      runAppLines('sacGross', 'sacGross', { grossWithBp, pension }, ['sacGross']).sacGross;
-    assert.equal(base(100, 200), 0, 'pension over pay');
-    approx(base(3203.76, 151.86), 3051.90, 'an ordinary payslip is untouched');
+    const base = (/** @type {number} */ grossWithBp, /** @type {number} */ pension) => priceLine({ grossWithBp, pension });
+    assert.equal(base(100, 200).sacGross, 0, 'pension over pay');
+    assert.equal(base(100, 200).net, 0, 'and nothing to take home, never a negative sum');
+    approx(base(3203.76, 151.86).sacGross, 3051.90, 'an ordinary payslip is untouched');
   });
 
   // THE ROWS A MEMBER ADDS UP COME TO THE FIGURE UNDER THEM (whole-app review, Nov 2026). Nothing was
   // rounded until shown, so "£3,178.66 − £442.20 − £176.85" sat over a take-home of £2,559.60 — on a
   // quarter of ordinary payslips. NI and tax are now whole pennies by their statutory rules, and the
-  // take-home is the shown rows subtracted (`takeHomePay`, at calculate()'s own line).
+  // take-home is the shown rows subtracted (`takeHomePay`, inside pricePayslip, at calculate()'s call).
   test('the summary\'s rows add up to the take-home, to the penny, across a year of shapes', () => {
     const pounds = (/** @type {string} */ s) => Number(s.replace(/[£,−]/g, ''));
     let checked = 0;
     for (const rate of [21.49, 20.74, 22.60]) for (let ot = 0; ot <= 24 * 60; ot += 7) for (const sat of [0, 440, 940]) {
       const { gross } = computeGross({ effContr: 140, rate, satHrs: sat / 60, bhHrs: 0, bhOtHrs: 0, oHrs: ot / 60,
         rHrs: 0, sHrs: (ot % 37) / 60, bHrs: 0, peerDays: 0, otherAdj: 0, london: 286.10 });
-      const pension = 151.86, sacGross = Math.max(0, gross - pension);
-      const tax = computeTax(sacGross, '1257L', T26).tax, ni = computeNI(sacGross, T26.ni), sl = computeSL(sacGross, 'plan2', T26.sl);
-      // calculate()'s own line, run as written: what it shows as pay after pension, and the take-home.
-      const { _shownAfterPension: afterPension, net } = runAppLines('net', 'net',
-        { takeHomePay, grossWithBp: gross, pension, tax, ni, sl }, ['net', '_shownAfterPension']);
+      const pension = 151.86;
+      // calculate()'s own call, run as written: the rows it shows, and the take-home under them.
+      const { _shownAfterPension: afterPension, net, tax, ni, sl } = priceLine({ grossWithBp: gross, pension, plan: 'plan2' });
       const at = `rate ${rate}, overtime ${ot}m, Saturday ${sat}m`;
       // In whole pennies, absolute (strict equality tells −0 from 0, which is no difference here).
       assert.equal(Math.abs(Math.round((pounds(fmt(gross)) - pounds(fmt(pension)) - pounds(fmt(afterPension))) * 100)), 0, `total − pension, ${at}`);
@@ -647,6 +652,22 @@ describe("calculate()'s own lines — both loans, and the floor under the take-h
       checked++;
     }
     assert.ok(checked > 600, `premise: a broad grid (${checked})`);
+  });
+
+  // The Year to Date figures reach the tax through the same call: calculate() decides WHETHER they
+  // may be used (only on the payslip after their source — the lines before it), pricePayslip hands
+  // them to computeTax as they are, with this payslip's NI and loans as what bounds the tax.
+  test('the Year to Date figures and period number reach computeTax through the pricing call', () => {
+    const ytdPay = 7 * 3000, periodN = 8, ytdTax = dueBy('1257L', T26_, ytdPay, periodN - 1);
+    const r = runAppLines('sacGross', 'sacGross', {
+      pricePayslip, thresholds: T26_, grossWithBp: 3000, pension: 151.86,
+      plan: 'plan2', pgLoan: true, slSkip: false, slPaidOff: false, ytdP: ytdPay, ytdT: ytdTax, periodN,
+      document: { getElementById: () => ({ value: '1257L' }) },
+    }, ['sacGross', 'ni', 'sl', 'tax', 'usingCumulative']);
+    const direct = computeTax(r.sacGross, '1257L', T26_, { ytdPay, ytdTax, periodN, otherDeductions: r.ni + r.sl });
+    assert.equal(r.usingCumulative, true, 'figures that fit, on a later payslip: the cumulative method');
+    assert.equal(r.tax, direct.tax);
+    assert.equal(priceLine({ pension: 151.86 }).usingCumulative, false, 'no figures: the payslip on its own');
   });
 
   // THE STOP MUST OUTLIVE ITS PAYSLIP'S PLACE IN THE LIST (whole-app review, Nov 2026). A select set
