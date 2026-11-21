@@ -80,7 +80,7 @@ export function headlineLabels({ hasActual, payday, bpThisPeriod = 0, hppForPeri
             stickyWords: when ? `Paid ${when}, Actual take-home` : 'Actual take-home',
             // The button changes JOB, not just wording: with an actual on screen the panel below is
             // a comparison against the estimate rather than a breakdown of the figure above.
-            bdBtnHtml: 'Compare with estimate &nbsp;<span class="bd-arrow">▼</span>',
+            bdBtnHtml: 'Compare with estimate <span class="bd-arrow">▼</span>',
         };
     }
 
@@ -100,7 +100,7 @@ export function headlineLabels({ hasActual, payday, bpThisPeriod = 0, hppForPeri
             : `<span class="s-desc">💷 ${suffix ? `Estimated take-home (${suffix})` : 'Estimated take-home'}</span>`,
         stickyWords: when ? `Paid ${when}, Estimated take-home`
             : suffix ? `Estimated take-home (${suffix})` : 'Estimated take-home',
-        bdBtnHtml: 'Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>',
+        bdBtnHtml: 'Full pay breakdown <span class="bd-arrow">▼</span>',
     };
 }
 
