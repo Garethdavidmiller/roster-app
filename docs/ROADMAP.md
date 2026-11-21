@@ -157,8 +157,8 @@ bar, and it should be taken with the E3 measurement criteria **pre-registered** 
 requires the thresholds to be written down before telemetry starts, precisely so they cannot be
 chosen after seeing the numbers.
 
-This gates more than itself: **C5 cannot complete without it**, because a member who only ever reads
-the roster never signs in and is therefore never compelled to set a password.
+This gates more than itself: **C5 cannot complete without it**, because a member who only ever opens
+the roster with the staff PIN never signs in and is therefore never compelled to set a password.
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
 **Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree

@@ -575,7 +575,7 @@ Not a collection, so only the facts the collections lean on are here, each point
   its own, staggered by each member's own expiry. It shows only for a `named` identity — never a
   staff-PIN session nor a soft-failed Pay Calculator one, where `updatePassword` cannot succeed and
   the block would be unsatisfiable — and fails open on any failure it cannot recover from. A member
-  who only ever views the roster never signs in and is never compelled: accepted (reaching them means
+  who only ever views the roster with the staff PIN never signs in and is never compelled: accepted (reaching them means
   Track E). **It is the ONLY post-login overlay.** If a second one is ever added, read the note above
   `_show` in `password-force.js` first — anything that must happen when an overlay OPENS has to fire
   before the await, never after it.

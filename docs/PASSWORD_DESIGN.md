@@ -25,8 +25,9 @@ credential work — recovery codes, step-up, passkeys, SSO — is `CREDENTIAL_LI
 - **Phase 2 compels at NEXT SIGN-IN and nobody is signed out to accelerate it** (owner, 25 Jul 2026 —
   "force everyone, but only on the next log in"). Sessions cap at 60 days, so coverage completes itself
   inside 60 days and staggers by each member's own expiry rather than landing on everyone at once.
-- **C5 cannot converge on Phase 2 alone.** A member who only ever reads the roster signs in nowhere,
-  so is never compelled — reaching them is Track E (or C6's second route, not adopted —
+- **C5 cannot converge on Phase 2 alone.** A member who only ever opens the roster with the staff PIN
+  signs in nowhere, so is never compelled (since v23.19 the Calendar's front door is a sign-in, and
+  since v23.21 the Calendar runs the forced overlay, so a member who signs in there IS compelled) — reaching them is Track E (or C6's second route, not adopted —
   `CREDENTIAL_LIFECYCLE.md` §7). Retiring the surname default is therefore gated on a decision in a
   different track, which is easy to miss when reading "≥90% migrated".
 
@@ -144,7 +145,7 @@ session, login screen skipped) — with **no password available**:
   abandoned: a flagged device still asks every six hours (`RESET_RECHECK_MS`, `session.js`), and the
   asking is itself a surname sign-in through the reset check (`probeResetAtMs`), so a reset that put
   the surname back is found, and a refusal is noted again. Without the first, a reset's sign-out of
-  other devices (§5 — every reset revokes) would be undone by the very next load.
+  every device (§5 — every reset revokes) would be undone by the very next load.
 - **Firebase session evicted, member migrated:** they **cannot be silently re-authenticated —
   ever.** The named session fails → the login overlay is shown again. **Honest UX cost:** migrated
   members are occasionally asked to sign in again. Inherent to real passwords, not a bug. (On paycalc —
@@ -173,9 +174,12 @@ pattern `password-force.js` follows.
 ## 4. Set-your-own-password
 
 - **Settings card** ("Set / change your password"): current password → new password ×2 →
-  reauthenticate → `updatePassword` — through `reauthenticateWithPassword` and `changeOwnPassword` in
-  `firebase-client.js`, which call the SDK's `updatePassword`, `reauthenticateWithCredential` and
-  `EmailAuthProvider` themselves (it imports them; it does not re-export them).
+  reauthenticate → `updatePassword` — through `reauthenticateWithPassword` and `changeOwnPassword`,
+  built by `buildPasswordClient` in `own-password.js` with every Firebase handle injected (`auth`,
+  `reauthenticateWithCredential`, `EmailAuthProvider`, `updatePassword`), and re-exported by
+  `firebase-client.js`, which supplies those handles (it does not re-export the SDK functions
+  themselves). Both refuse before anything is sent unless the signed-in account is the page member's
+  own (`myb/account-mismatch`).
 - **Shared helper `credentialCandidatesFor(name, typed)`** — the §3.2 gate+padding logic written
   ONCE, used by both sign-in and the reauth step (an un-migrated "C. Reen" typing "reen" must
   reauth via the padded "reenre" exactly as sign-in does).
@@ -340,7 +344,7 @@ READ; read the December card for the one after.
 |---|----------|--------|
 | 1 | Phase 1 = **nudge** (banner); force arrives in Phase 2 | ✅ Confirmed + shipped v18.63 |
 | 2 | Password rules: **≥8 chars, surname hard-block, trim whitespace, confirm field** | ✅ Confirmed + shipped v18.63 |
-| 3 | Revoke other devices: **yes on every reset** (the `revoke` flag was retired 10 Nov 2026) | ✅ Confirmed + shipped v18.63 |
+| 3 | Revoke every device's session: **yes on every reset** (the `revoke` flag was retired 10 Nov 2026) | ✅ Confirmed + shipped v18.63 |
 | 4 | Reset button: **admin-only** (not managers) | ✅ Confirmed + shipped v18.63 |
 | 5 | Go/no-go on building Phase 0+1 | ✅ Given — Phase 0+1 built v18.63 |
 | 6 | Phase 2 compels **everyone, at their next sign-in**, with no forced sign-out (owner, 25 Jul 2026) | ✅ Shipped v18.92 — §11 |

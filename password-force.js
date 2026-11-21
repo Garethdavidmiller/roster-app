@@ -13,9 +13,10 @@
  * Blocking a member is the whole point — a dismissible prompt is the Phase-1 nudge, which produced
  * roughly one migration a day. Three properties keep a block from becoming a lockout:
  *
- *  1. **The roster is not behind this on a sub-page**: a member stopped here can still open the
- *     Calendar and see their own shifts, losing only AL booking and the pay calculator. On the
- *     Calendar itself, property 3 is what keeps the overlay from being a lockout (see below).
+ *  1. **The roster is not behind this on a sub-page**: the sign-in's marker is consumed here, so a
+ *     member stopped on a sub-page can still open the Calendar and see their own shifts, losing only
+ *     AL recording and the pay calculator. The Calendar runs this overlay too (v23.21, below), and
+ *     there property 3 is what keeps it from being a lockout.
  *  2. **It fails open BEFORE showing.** A slow/failed `getPasswordStatus`, a non-`named` identity, or
  *     a missing login marker means it simply doesn't appear and tries again at the next sign-in.
  *  3. **It fails open AFTER showing too.** This is the part a "mandatory overlay" gets wrong: once
