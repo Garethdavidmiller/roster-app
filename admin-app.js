@@ -489,7 +489,7 @@ export function init() {
         banner.classList.toggle('al-banner-low',     remaining > 0 && remaining <= 5);
 
         warnEl.hidden      = remaining > 0;
-        warnEl.textContent = remaining === 0 ? 'Limit reached' : `${Math.abs(remaining)} over limit`;
+        warnEl.textContent = remaining === 0 ? 'Allowance used up' : `${Math.abs(remaining)} over allowance`;
 
         // Show remaining balance on the collapsed card header so staff see it at a glance
         const headerBalEl = document.getElementById('alHeaderBalance');
@@ -514,7 +514,7 @@ export function init() {
         try {
         hideFeedback();
         const memberName = fieldMember.value;
-        if (!memberName) return showError('No member selected.');
+        if (!memberName) return showError('Select a staff member at the top first.');
 
         // Clear any previous row-level errors
         weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
@@ -1244,7 +1244,7 @@ export function init() {
         const savedHint = document.querySelector('#overridesToggleHeader .hint');
         // NO AL hint here: admin.html's own is audience-neutral. One sentence, one home (al-copy-parity).
         if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
-        if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
+        if (savedHint) savedHint.textContent = 'Your saved changes — ✎ to edit, ✕ to delete';
 
         // Nothing auto-opens: every card ships collapsed for everyone. An auto-open must never be a
         // SECOND writer of a collapse state. DECISIONS.md → "Admin task navigator".

@@ -652,7 +652,7 @@ What ONE week-grid save does about the annual leave in it — the batch to write
 - **Exports:** `planAlWeekSave` · `planAlDelete`
 
 ### `admin-al-spare-note.js`
-The one sentence the Annual Leave booking preview says about Spare days, and the count of days that are still Spare and cost a day. A day is a day (owner decision): nothing may suggest a Spare day costs more (header). Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
+The one sentence the Annual Leave booking preview says about Spare days, and the days that are still Spare and cost a day. A day is a day (owner decision): a Spare day costs one, and a CEA's or CES's Spare week at most four, which the note then says (header). Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
 - **Exports:** `spareShiftNote` · `countSpareDays` · `spareDaysOf`
 
 ### `admin-period-dates.js`

@@ -148,8 +148,8 @@ describe('the position a manager reads', () => {
     });
 
     test('remaining subtracts BOTH, and goes negative rather than clamping', () => {
-        // An over-booked member is a real state the banner renders as "N over limit". Clamping at
-        // zero would hide it behind a calm "Limit reached".
+        // An over-booked member is a real state the banner renders as "N over allowance". Clamping at
+        // zero would hide it behind a calm "Allowance used up".
         const p = alPosition({ overrides: WORKED.map(al), member: MEMBER, year: 2026, todayStr: WORKED[0] });
         assert.equal(p.remaining, p.entitlement - p.taken - p.booked);
 

@@ -298,7 +298,7 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
  * Where a member stands on annual leave for a year.
  *
  * `taken + booked` is the number of days consumed; `remaining` is the entitlement less that total,
- * and may be NEGATIVE — an over-booked member is a real state the banner renders as "N over limit",
+ * and may be NEGATIVE — an over-booked member is a real state the banner renders as "N over allowance",
  * so it is reported rather than clamped at zero.
  *
  * @param {object} args

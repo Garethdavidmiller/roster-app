@@ -208,7 +208,7 @@ export function projectAnnualLeaveOverage({ name, year, existingALDates, newALDa
     const over = projectedTotal - entitlement;
     return {
         over, projectedTotal,
-        headline: `${name} will be ${over} day${over !== 1 ? 's' : ''} over their ${year} AL entitlement`,
+        headline: `${name} will be ${over} day${over !== 1 ? 's' : ''} over their ${year} annual leave allowance`,
         detail:   `${projectedTotal} days used of ${entitlement} allowed in ${year}`,
     };
 }

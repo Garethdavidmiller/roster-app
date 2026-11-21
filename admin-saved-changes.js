@@ -38,7 +38,7 @@ import { withClearedDays } from './admin-own-write.js';
 import { armConfirm, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 
 /** The receipt's account of a duplicate cleared alongside: said, never silent. @param {number} n */
-const _olderCopies = (n) => n > 0 ? `, and ${n} older cop${n === 1 ? 'y' : 'ies'} of the same day` : '';
+const _olderCopies = (n) => n > 0 ? `, and ${n} earlier entr${n === 1 ? 'y' : 'ies'} for that day` : '';
 /** Newest first, then by name, whichever path last touched the cache. @param {any} a @param {any} b */
 const _newestFirst = (a, b) => (b.date || '').localeCompare(a.date || '')
     || (a.memberName || '').localeCompare(b.memberName || '') || String(a.id).localeCompare(String(b.id));

@@ -125,8 +125,8 @@ export function appWords(day, year) {
     }
 }
 
-/** A figure in words, as the Admin banner says it: "3 left", "0 left", "1 over limit". @param {number} n */
-const leftWords = n => (n < 0 ? `${-n} over limit` : `${n} left`);
+/** A figure in words, as the Admin banner says it: "3 left", "0 left", "1 over allowance". @param {number} n */
+const leftWords = n => (n < 0 ? `${-n} over allowance` : `${n} left`);
 
 /** The per-person figures line. @param {import('./al-leave-compare.js').PersonComparison} p */
 export function figuresLine(p) {

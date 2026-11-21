@@ -135,9 +135,9 @@ test('the figures line shows both sides, the corrected figure only when it diffe
     assert.equal(figuresLine(person({ sheet: null })), 'Sheet: no totals row · App: 12 left');
     assert.equal(figuresLine(person({ app: { entitlement: null, taken: 0, booked: 0, remaining: null, note: null } })),
         'Sheet: 12 left · App: no allowance on record');
-    // "N over limit" is the Admin banner's own phrase (admin-app.js); "-1 left" was the first cut.
+    // "N over allowance" is the Admin banner's own phrase (admin-app.js); "-1 left" was the first cut.
     assert.equal(figuresLine(person({ sheet: { ...person().sheet, remaining: -2, corrected: -2 }, app: { ...person().app, remaining: -1 } })),
-        'Sheet: 2 over limit · App: 1 over limit');
+        'Sheet: 2 over allowance · App: 1 over allowance');
     assert.equal(figuresLine(person({ sheet: { ...person().sheet, remaining: 0, corrected: 0 } })), 'Sheet: 0 left · App: 12 left');
 });
 
@@ -188,9 +188,9 @@ test('the other notes: undated days, a gap nothing explains, a second row', () =
         ['The sheet says 12 left and the app 11 left, and nothing on the sheet shows why.']);
     // Overdrawn on either side, in the Admin banner's words: never a bare minus (review, 15 Nov 2026).
     assert.deepEqual(personNotes(person({ counts: { figures: 1 }, sheet: { ...person().sheet, remaining: -2, corrected: -2 }, app: { ...person().app, remaining: 1 } }), 2026),
-        ['The sheet says 2 over limit and the app 1 left, and nothing on the sheet shows why.']);
+        ['The sheet says 2 over allowance and the app 1 left, and nothing on the sheet shows why.']);
     assert.match(personNotes(person({ days: [day({ foundIn: 'grid-misspelt', kind: 'leave' })], sheet: { ...person().sheet, remaining: 0, corrected: -1 } }), 2026)[0],
-        /^Corrected, the sheet says 1 over limit, not 0 left: /);
+        /^Corrected, the sheet says 1 over allowance, not 0 left: /);
     for (const line of personNotes(person({ counts: { figures: 1 }, days: [day({ foundIn: 'grid-misspelt', kind: 'leave' })],
         sheet: { ...person().sheet, remaining: -1, corrected: -2 }, app: { ...person().app, remaining: -3 } }), 2026)) assert.doesNotMatch(line, /-\d/, line);
     assert.deepEqual(personNotes(person({ otherRows: 1 }), 2026), ['The sheet lists them on 2 rows; this uses the one with their days.']);

@@ -167,7 +167,7 @@ describe('projectAlOverage — the warning the manager did not get', () => {
             member: fixedCea, memberName: 'F. Fixture', overrides: existing, consuming: p.consuming,
         });
         assert.ok(overage, 'two consuming days against one remaining must raise the confirmation');
-        assert.match(overage.headline, /F\. Fixture will be \d+ days? over their 2026 AL entitlement/);
+        assert.match(overage.headline, /F\. Fixture will be \d+ days? over their 2026 annual leave allowance/);
     });
 
     test('and WITHOUT the answer the projection is one day, so the same booking does not warn', () => {
@@ -217,14 +217,14 @@ describe('projectAlOverage — the warning the manager did not get', () => {
         const full = [...existing, { id: 'x31', memberName: 'F. Fixture', type: 'annual_leave', date: '2026-04-15', value: 'AL' }];
         const over = projectAlOverage({ member: fixedCea, memberName: 'F. Fixture', overrides: [...full, moved], consuming: [JAN] });
         assert.ok(over, 'charged to 2026, which the moved day has put one over');
-        assert.match(over.headline, /2026 AL entitlement/);
+        assert.match(over.headline, /2026 annual leave allowance/);
         // The bucket itself: a save that OVERWRITES the moved day re-accounts it (`exclude`), so it
         // is out of the existing count and in this save's — and only charging it to 2026 finds 2026
         // one over. Charged to 2027, the year of its date, the save would pass with no warning.
         const resaved = projectAlOverage({ member: fixedCea, memberName: 'The member', overrides: [...full, moved],
             consuming: [JAN], exclude: new Set([JAN]) });
         assert.ok(resaved, 'the re-saved January day was not charged to 2026, the year it was moved to');
-        assert.match(resaved.headline, /1 day over their 2026 AL entitlement/);
+        assert.match(resaved.headline, /1 day over their 2026 annual leave allowance/);
     });
 });
 

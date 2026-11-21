@@ -665,7 +665,7 @@ describe('6. deleting a day takes its older duplicate with it, from both Saved C
         for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
         for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // deletes
         assert.deepEqual([..._deleted].sort(), ['new-rd', 'old-al']);
-        assert.match(el('listFeedback').textContent, /1 older copy of the same day/);
+        assert.match(el('listFeedback').textContent, /1 earlier entry for that day/);
     });
 
     test('the row ✕ on the STALE copy deletes only that copy, and claims no older one (v24.53)', async () => {
@@ -675,14 +675,14 @@ describe('6. deleting a day takes its older duplicate with it, from both Saved C
         for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
         for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // deletes
         assert.deepEqual([..._deleted], ['old-al'], 'the newer record is what the day shows — it stays');
-        assert.doesNotMatch(el('listFeedback').textContent, /older cop/);
+        assert.doesNotMatch(el('listFeedback').textContent, /earlier entr/);
     });
 
     test('Delete selected does the same for every picked row', async () => {
         _rows = DUPES();
         await bulkDelete(['new-rd']);
         assert.deepEqual([..._deleted].sort(), ['new-rd', 'old-al'], 'the import is not a duplicate and stays');
-        assert.match(el('listFeedback').textContent, /Deleted 1 saved change, and 1 older copy/);
+        assert.match(el('listFeedback').textContent, /Deleted 1 saved change, and 1 earlier entry/);
     });
 });
 
@@ -1065,7 +1065,7 @@ describe('16. the week grid follows the page\'s own delete, and a cleared change
 // its bar in its words, and delete only on "Save anyway". Invented member: the planner is the mock above.
 describe('17. a delete that would leave somebody over their allowance raises the bar first', () => {
     const worked = { id: 'bx', memberName: 'Q. Example', date: '2026-12-26', type: 'rdw', value: '06:00-14:00', source: 'manual' };
-    const OVER = { headline: 'Q. Example will be 1 day over their 2027 AL entitlement', detail: '33 days used of 32 allowed in 2027' };
+    const OVER = { headline: 'Q. Example will be 1 day over their 2027 annual leave allowance', detail: '33 days used of 32 allowed in 2027' };
 
     test('the ✕ asks the planner about the row as SHOWN, raises its bar, and deletes nothing until "Save anyway"', async () => {
         _rows = [worked];

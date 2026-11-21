@@ -1568,7 +1568,7 @@ test('admin: a Recorded Absence dates ✕ deletes the older leave copy under the
     await clickInView(del);
     await expect(del).toHaveText('Confirm?');
     await clickInView(del);
-    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 absence day for ${who.name}, and an older copy of ${fmtPeriodDate(day)}`);
+    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 absence day for ${who.name}, and an earlier entry for ${fmtPeriodDate(day)}`);
     const deleted = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).map((/** @type {string} */ p) => p.split('/').pop()));
     expect(deleted.sort(), 'the absence AND the older leave copy, in the one transaction').toEqual(['newer-absence', 'older-leave']);
 });
@@ -2227,7 +2227,7 @@ test('admin: a Spare saved on Boxing Day before it was refused is removed by sel
     await expect(other, 'the saved Spare is drawn under Other').toHaveAttribute('aria-pressed', 'true');
     await expect(other).toBeEnabled();
     await expect(boxing.locator('.col-pills'), 'the row says the Calendar does not show it, and how it goes')
-        .toContainText('is not shown on the Calendar — select Other to remove it');
+        .toContainText('an old Spare entry is saved here but doesn’t show on the Calendar — select Other to remove it');
     await expect(boxing.locator('.other-flavour-btn[data-flavour="TRG"]'), 'the pill offers removal, never a new Other day').toBeDisabled();
     await other.click();
     await expect(boxing, 'selecting it again clears the row').not.toHaveAttribute('data-type', /./);
@@ -4799,7 +4799,7 @@ for (const w of [320, 360, 390]) {
             .toBeLessThan(0);
         const warn = page.locator('#alBannerWarn');
         await expect(warn).toBeVisible();
-        await expect(warn).toHaveText(`${Math.abs(remaining)} over limit`);
+        await expect(warn).toHaveText(`${Math.abs(remaining)} over allowance`);
 
         const box = await page.evaluate(() => {
             const card = document.getElementById('book-annual-leave');
@@ -5562,7 +5562,7 @@ test('admin: leave over a worked Boxing Day names the day in lieu it takes back,
     await clickInView(page.locator('#alSaveBtn'));
     const bar = page.locator('#alConfirmBar');
     await expect(bar, 'one day left, and the save takes the day in lieu back: it ends one over').toHaveClass(/visible/);
-    await expect(bar).toContainText('1 day over their 2026 AL entitlement');
+    await expect(bar).toContainText('1 day over their 2026 annual leave allowance');
     // CANCEL PUTS FOCUS BACK ON THE SAVE THAT ASKED (whole-app check, Nov 2026): it was left on a hidden button.
     await page.locator('#alConfirmCancelBtn').click();
     await expect(bar).not.toHaveClass(/visible/);

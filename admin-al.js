@@ -188,9 +188,11 @@ export function initALSection({
             if (parts.length) restNote = ` <em>(+ ${parts.join(', ')})</em>`;
         }
         const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
-        // Wording, and why a Spare day costs exactly one: admin-al-spare-note.js's header.
+        // Wording, and why a Spare day costs one and a Spare week at most four: admin-al-spare-note.js's header.
+        // Upright, not italic (review, 21 Nov 2026): it is information to read, and a whole italic
+        // sentence on a phone is the hardest line on the card to read.
         const noteText  = isSpareRole ? spareShiftNote(spareDays.length, dates.length, spareCharged) : '';
-        const spareNote = noteText ? `<br><em>${esc(noteText)}</em>` : '';
+        const spareNote = noteText ? `<br>${esc(noteText)}` : '';
         return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }
 
