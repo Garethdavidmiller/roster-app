@@ -1094,6 +1094,25 @@ describe('17. a delete that would leave somebody over their allowance raises the
         assert.match(el('listFeedback').textContent, /^✓ Deleted 2 saved changes/);
     });
 
+    // The answer is to the question ASKED: what was on screen at the first press, so a colleague's
+    // change that reached this page while the bar was open is compared against, and refused, rather
+    // than silently becoming what "Save anyway" deletes (review, 21 Nov 2026).
+    test('"Save anyway" compares the server with the row as it was ASKED about, from both controls', async () => {
+        const later = { ...worked, value: '07:00-15:00' };
+        _rows = [worked]; _overage = OVER;
+        await rowDelete('bx');
+        _rows = [later];   // a colleague's change arrives while the bar is open
+        await _bars[0].resume();
+        assert.deepEqual(_handed, [[worked]], 'the row ✕ compared what it asked about');
+
+        _handed = []; _bars.length = 0;
+        _rows = [worked];
+        await bulkDelete(['bx']);
+        _rows = [later];
+        await _bars[0].resume();
+        assert.deepEqual(_handed, [[worked]], 'Delete selected compared what it asked about');
+    });
+
     test('CONTROL: a delete the planner finds no question in goes ahead as before, with no bar', async () => {
         _rows = [worked];
         await rowDelete('bx');

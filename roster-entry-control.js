@@ -47,7 +47,7 @@
  * admin types, because a re-render would destroy the field they are typing into.
  */
 
-import { escapeHtml as esc, isSunday } from './roster-data.js';
+import { escapeHtml as esc, isSunday, isChristmasRD, parseISODate } from './roster-data.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { manualCellValue, isForbiddenOnSunday, composeOtherValue, isRestShift, OTHER_FLAVOURS } from './override-utils.js';
 import { normaliseCellValue, isZeroLengthRange } from './roster-cell-rules.js';
@@ -95,8 +95,11 @@ const HINT_REST_AS_BASE = '\u2713 A rest day on the base roster too \u2014 nothi
 export function entryControlHtml(key, s, date) {
     const d = s.draft || { type: null, from: '', to: '' };
     const sun = isSunday(date);
+    // 25 and 26 December can never be Other days (owner, Jul 2026), so the pill is not offered —
+    // the guard (`christmas-other`) would refuse what it entered anyway (review, 21 Nov 2026).
+    const xmas = isChristmasRD(parseISODate(date));
     const pills = PILL_TYPES.map(t => {
-        const off = sun && isForbiddenOnSunday(t);
+        const off = (sun && isForbiddenOnSunday(t)) || (xmas && t === 'other');
         return `<button type="button" class="roster-entry-pill${d.type === t ? ' is-on' : ''}"
             data-key="${esc(key)}" data-entry-type="${t}" aria-pressed="${d.type === t}"
             ${off ? 'disabled' : ''}>${esc(TYPES[t].pill)}</button>`;
