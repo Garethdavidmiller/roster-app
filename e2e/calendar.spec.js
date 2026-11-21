@@ -4428,7 +4428,7 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--newsletter').click();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Couldn’t connect', { timeout: 10_000 });
     await expect(page.locator('#navComingSoonLightbox')).not.toContainText('has been uploaded yet');
 });
 

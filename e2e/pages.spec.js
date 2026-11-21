@@ -1144,7 +1144,7 @@ test('drawer: a REFUSED document read blames the session, not the signal', async
     // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
     await page.locator('.nav-panel-link--circular').waitFor();
     await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
-    await expect(page.locator('#navComingSoonBody')).toHaveText(/signed out/i, { timeout: 12_000 });
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/sign-in or staff PIN may have ended/i, { timeout: 12_000 });
     await expect(page.locator('#navComingSoonBody')).not.toHaveText(/signal/i);
 });
 
