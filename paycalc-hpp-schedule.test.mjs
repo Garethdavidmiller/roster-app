@@ -54,7 +54,12 @@ assert.ok(ANCHOR_ARGS && ANCHOR_ARGS.length >= 3,
 const ANCHOR = new Date(...ANCHOR_ARGS);
 const PERIOD_DAYS = configNumber('PERIOD_DAYS');
 const FIRST_OFFSET = configNumber('FIRST_OFFSET');
-const LAST_OFFSET = configNumber('LAST_OFFSET');
+// LAST_OFFSET is not a number in the source: it is the last tax year's last payslip, read from the
+// table (Nov 2026 debt pass), so a year added to TAX_YEARS is offered without a second edit. This
+// reader follows it there — and fails if the page goes back to writing its own figure.
+assert.match(CONFIG_SRC, /\bLAST_OFFSET:\s*TAX_YEARS\[TAX_YEARS\.length - 1\]\.last\b/,
+    'paycalc-periods.js CONFIG no longer reads LAST_OFFSET from TAX_YEARS — re-read this reader');
+const LAST_OFFSET = TAX_YEARS[TAX_YEARS.length - 1].last;
 /** The page's payslips from offset `first` to `last`, as getPeriods() builds them.
  *  @param {number} first @param {number} last */
 const grid = (first, last) => {

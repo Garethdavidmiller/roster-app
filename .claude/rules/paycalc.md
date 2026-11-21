@@ -97,6 +97,23 @@ empty while no award is pending). When its payslip lands: bump `GRADES.rate`, se
 `londonAllow`/`londonAllowPre`/`londonAllowFrom` on `TAX_YEARS`, drop `rateUnconfirmed`, and add the
 `PENSION_STEPS` step from the award payslip.
 
+**The tax year rollover — 2027/28, live before Sun 7 Mar 2027** (its first payslip's shifts start
+then; MAINTENANCE_CALENDAR.md carries the date). By hand, all in `paycalc-calc.js`, and the test that
+catches each miss:
+1. **A `TAX_YEARS` row**: `first` = the last year's `last` + 1, `last` = `first` + 12, `hppPaidJan` the
+   January after it ends, `londonAllow` the current figure, NO `rateUnconfirmed`, no award fields. The
+   period selector follows it (`LAST_OFFSET` reads the last row). **Nothing fails if the row is never
+   added** — the calendar row is the only reminder. A wrong `first`/`last` or `hppPaidJan`:
+   `paycalc-hpp-schedule.test.mjs` (13 payslips a year, no overlap, the first January after).
+2. **The four threshold tables** (`TAX_BY_YEAR`, `NI_BY_YEAR`, `SL_BY_YEAR`, `SCOTTISH_TAX_BY_YEAR`),
+   read from GOV.UK's employer tables, never copied forward: `paycalc-current-year.test.mjs` →
+   "every configured tax year has an entry in all four tables"; and its `CURRENT` must move to the
+   new year ("CURRENT is the newest tax year"), with the Scottish and loan literals re-read there.
+3. **Not at the rollover:** `AWARD_RATES`, `GRADES`, `PENSION_STEPS` and `PENDING_AWARD_PCT` move with
+   the AWARD (above); until then the year prices at the current settled rate. The legacy-migration
+   year is a fixed label (`paycalc-migrations.js`), and a payslip outside the table reads as its
+   NEAREST year (`getTaxYearForOffset`), so neither moves with the table.
+
 **Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours,
 London Allowance and the pension default; all later periods use standard amounts automatically.
 **HPP is NOT pro-rated by any factor, and must not be** (owner-confirmed Jul 2026; invariant 7): it

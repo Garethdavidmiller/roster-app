@@ -304,9 +304,16 @@ describe('getTaxYearForOffset', () => {
     assert.equal(getTaxYearForOffset(14).label, '2026/27');
   });
 
-  test('offset out of range falls back to 2025/26', () => {
-    assert.equal(getTaxYearForOffset(-99).label, '2025/26');
-    assert.equal(getTaxYearForOffset(99).label, '2025/26');
+  // Outside the table, the NEAREST year (Nov 2026 debt pass). This pinned "2025/26 either side",
+  // with no reason given and none still holding: the period grid is the table's own range, so no
+  // payslip the page offers reaches the fallback — and a payslip past the end (a rollover not yet
+  // done) priced as 2025/26 would take that year's rates, award and window, two years back.
+  test('offset before the table → its first year; after it → its last year', () => {
+    assert.equal(getTaxYearForOffset(-99).label, TAX_YEARS[0].label);
+    assert.equal(getTaxYearForOffset(TAX_YEARS[0].first - 1).label, TAX_YEARS[0].label);
+    const last = TAX_YEARS[TAX_YEARS.length - 1];
+    assert.equal(getTaxYearForOffset(last.last + 1).label, last.label);
+    assert.equal(getTaxYearForOffset(99).label, last.label);
   });
 });
 

@@ -20,13 +20,17 @@ import { MONTH_ABB } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
-// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js,
-//     and raise LAST_OFFSET to the new year's last payslip. That is ALL that moves here:
+// ⚠️  TAX YEAR ROLLOVER: add the new year to TAX_YEARS and the threshold tables in paycalc-calc.js.
+//     NOTHING here moves by hand (.claude/rules/paycalc.md → "The tax year rollover"):
+//   · LAST_OFFSET is the last tax year's last payslip, READ from TAX_YEARS (Nov 2026 debt pass —
+//     it was a literal restating the table, so a new year could be added and never offered).
 //   · ANCHOR_DATE never moves. Every payslip a member saves is keyed by its number, `48 + offset`
 //     (getPeriods), so a new anchor would silently re-date every saved entry.
-//   · FIRST_OFFSET never rises in passing. The pension opt-out, the student-loan stop and the Year
-//     to Date source are stored as payslip numbers, and dropping a year from the list leaves those
-//     naming a payslip no list offers — retiring a year needs its own decision and a migration.
+//   · FIRST_OFFSET never rises in passing, which is why it is a literal and NOT read from
+//     TAX_YEARS[0]: the pension opt-out, the student-loan stop and the Year to Date source are stored
+//     as payslip numbers, and dropping a year from the list leaves those naming a payslip no list
+//     offers — retiring a year needs its own decision and a migration, not a side effect of an edit
+//     to the table.
 //
 // NB: `num` below is an INTERNAL, monotonic offset id (37…62), NOT the number printed on the
 // payslip. The payslip counts weeks-into-the-tax-year (×4 per period, resetting each April):
@@ -37,7 +41,7 @@ export const CONFIG = {
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
   FIRST_OFFSET:   -11,   // internal num 37 — first period of 2025/26 (~11 Apr 2025; printed "Period 4")
-  LAST_OFFSET:     14,   // internal num 62 — last period of 2026/27 (payday 12 Mar 2027; printed "Period 52")
+  LAST_OFFSET:    TAX_YEARS[TAX_YEARS.length - 1].last,   // today 14: internal num 62, the last of 2026/27 (payday 12 Mar 2027; printed "Period 52")
   TAX_YEARS,             // imported from paycalc-calc.js
 };
 

@@ -316,12 +316,18 @@ export function calcBandedTax(taxable, bands, scale = 1) {
 }
 
 /**
- * Return the TAX_YEARS entry whose offset range contains the given period offset.
- * Falls back to the first entry if not found.
+ * Return the TAX_YEARS entry whose offset range contains the given period offset — or, outside the
+ * table, the NEAREST year: the first before its range, the last after it (Nov 2026 debt pass). It
+ * fell back to the first year either side, so a payslip past the table's end (the 2027/28 rollover
+ * not yet done) read as 2025/26 — its rates, its award, its window. No payslip the page offers is
+ * outside the table (the period grid is the table's own range), so this changes no figure today;
+ * it stops a missed rollover reaching two years back.
  * @param {number} offset - Period number relative to P48 anchor.
  */
 export function getTaxYearForOffset(offset) {
-  return TAX_YEARS.find(ty => offset >= ty.first && offset <= ty.last) || TAX_YEARS[0];
+  const found = TAX_YEARS.find(ty => offset >= ty.first && offset <= ty.last);
+  if (found) return found;
+  return offset > TAX_YEARS[TAX_YEARS.length - 1].last ? TAX_YEARS[TAX_YEARS.length - 1] : TAX_YEARS[0];
 }
 
 /**
