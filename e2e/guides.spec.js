@@ -388,6 +388,32 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+// A query with no WORDS — only punctuation, or an emoji — matches every card, so it is not a filter (Nov 2026).
+// It counted as one while the box held anything: the ✕ showed, the count read "Showing 32 of 32 cards", and
+// ⤓ PDF printed only the cards and the key rules, for a search that had hidden nothing.
+test('fip: a query of only punctuation or an emoji filters nothing, and the PDF prints the whole guide', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => { window.print = () => {}; });
+    const search = page.locator('#countrySearch');
+    const totalCards = await page.locator('[id^="country-"]').count();
+    for (const q of ['-', '/', '&', '🇫🇷']) {
+        await search.fill(q);
+        await expect(page.locator('[id^="country-"]:visible'), `"${q}": every card still shows`).toHaveCount(totalCards);
+        await expect(page.locator('#countryClear'), `"${q}": no ✕ for a search that filtered nothing`).toBeHidden();
+        await expect(page.locator('#countryCount'), `"${q}": no "Showing all of all"`).toBeHidden();
+        await expect(page.locator('#countryNoMatch'), `"${q}": nor a no-match`).toBeHidden();
+        await expect(page.locator('.btn-print'), `"${q}": the PDF names the whole guide`).toHaveAttribute('aria-label', /whole FIP guide/);
+        await page.locator('.btn-print').click();
+        expect(await page.evaluate(() => document.body.hasAttribute('data-print-filtered')),
+            `"${q}": the PDF prints the whole guide, not the cards alone`).toBe(false);
+        await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+    }
+    // …and a word typed after the punctuation filters as it always did.
+    await search.fill('- spain');
+    await expect(page.locator('#country-no')).toBeHidden();
+    await expect(page.locator('#countryClear')).toBeVisible();
+});
+
 // Whole-app review, Oct 2026: the finder only lower-cased, so an operator typed on a UK keyboard
 // ("obb" for ÖBB, "krakow" for Kraków) found nothing, and "cie" matched inside "Société".
 test('fip: the country finder folds accents and matches the start of a word', async ({ page }) => {

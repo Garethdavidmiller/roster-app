@@ -48,8 +48,6 @@ var countryCards = Array.prototype.slice.call(document.querySelectorAll('[id^="c
 // A–Z jump chips, kept in lockstep with their target card's visibility.
 var jumpChips = Array.prototype.slice.call(document.querySelectorAll('.country-jump a[href^="#country-"]'));
 
-function norm(/** @type {string} */ s) { return (s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
-
 /**
  * The WORDS of a text, accents folded — the way the drawer's cross-guide search reads it
  * (guide-search.js `tokeniseText`). The finder lower-cased and nothing else, so "obb", "mav" and
@@ -98,10 +96,14 @@ function describePrintScope(shown) {
 describePrintScope(null);
 
 /** Filter the country cards + jump chips to the query (matched against each card's full text, so an
- *  operator/train name like "ÖBB" or "Railjet" finds its country too). Empty query resets. */
+ *  operator/train name like "ÖBB" or "Railjet" finds its country too). A query with no words resets. */
 function applyCountryFilter(/** @type {string} */ raw) {
-    var q = norm(raw);
     var terms = foldWords(raw);
+    // FILTERING MEANS A WORD WAS TYPED, not that the box holds something. A query of only punctuation or
+    // an emoji ("-", "/", "&", a flag) has no words, so it matches every card — and while it counted as
+    // a filter it showed the ✕, "Showing 32 of 32 cards", and turned ⤓ PDF into a print of the cards
+    // alone, all for a search that had filtered nothing. filterShowsCards (print) asks the same question.
+    var q = terms.length > 0;
     var shown = 0;
     countryCards.forEach(function (card, i) {
         // Every typed word must START a word of the card — accents folded on both sides.
@@ -234,7 +236,8 @@ var _fipPrepared = false;
 // restore. A search that matches nothing still prints the whole guide without countries: there are no
 // cards to print, and the key rules alone would be a sheet with nothing it is about.
 function filterShowsCards() {
-    return !!(searchInput && searchInput.value.trim())
+    // A query with no WORDS filters nothing (applyCountryFilter), so it prints the whole guide.
+    return !!searchInput && foldWords(searchInput.value).length > 0
         && countryCards.some(function (c) { return !c.hidden; });
 }
 function expandAllForPrint() {
