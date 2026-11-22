@@ -735,8 +735,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
    each control's own rule, so this wins on source order (css-tokens.md → the 16px rule, on source order). */
 @media (pointer: coarse) {
     /* Flex centres the words in the taller chip; a flex row drops the space after the flag, so the gap puts
-       back its width (a space in Inter is about a quarter of an em). */
-    .cf-popular a, .country-jump a { display: inline-flex; align-items: center; gap: 0.25em; min-height: 44px; }
+       back its width (a space in Inter is about a quarter of an em). `:not([hidden])`, because an author
+       `display` outranks the browser's own [hidden] rule, and the finder hides the A–Z chip of every
+       country it hides (the `.cf-clear[hidden]` note above). */
+    .cf-popular a:not([hidden]), .country-jump a:not([hidden]) { display: inline-flex; align-items: center; gap: 0.25em; min-height: 44px; }
     .btn-print-country { min-height: 44px; }   /* a <button> centres its words in its own height */
     .cf-clear::after { content: ""; position: absolute; inset: -7px; }
 }
