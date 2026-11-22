@@ -305,10 +305,12 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
             return words ? `<span class="tr-days">${esc(words)}</span>` : '';
         };
         const small = (/** @type {string|undefined} */ txt) => txt ? `<span class="tr-days">${esc(txt)}</span>` : '';
-        const days = s.now ? daysLabel(s.days) : '';
+        // A train's days go under its time: today's, or — for a December train listed only on the days nothing
+        // else carries it (`stationTrains`) — December's.
+        const days = daysLabel(s.days);
         const nowT = s.nowAt ?? s.now, decT = s.decAt ?? s.dec;
-        return `<tr class="tr-row tr-row--${chip}"><td>${nowT ? esc(nowT) : none}${days ? small(days) : ''}${nowT ? end(s.nowTo) : ''}${!leaving && s.nowIn ? small(`in ${s.nowIn}`) : ''}</td>`
-            + `<td>${decT ? esc(decT) : none}${decT ? end(s.decTo) : ''}${!leaving && s.decIn ? small(`in ${s.decIn}`) : ''}</td>`
+        return `<tr class="tr-row tr-row--${chip}"><td>${nowT ? esc(nowT) : none}${s.now && days ? small(days) : ''}${nowT ? end(s.nowTo) : ''}${!leaving && s.nowIn ? small(`in ${s.nowIn}`) : ''}</td>`
+            + `<td>${decT ? esc(decT) : none}${!s.now && days ? small(days) : ''}${decT ? end(s.decTo) : ''}${!leaving && s.decIn ? small(`in ${s.decIn}`) : ''}</td>`
             + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(s, stations, dir, { started, withTime: false, here: view.crs }) + (quiet ? ' · may be leaf fall' : ''))}</span></td></tr>`;
     }).join('');
     // Never "0 stay the same": Amersham coming back read "38 change, 0 stay the same" (v24.83).

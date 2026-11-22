@@ -551,12 +551,16 @@ export function holidaysWithin(from, until) {
 }
 
 /**
- * A current train's weekday exception, in words. '' when it runs every day of its kind.
+ * A train's weekday exception, in words. '' when it runs every day of its kind. A list of weekdays
+ * (trains-weekdays.js, `daysCode`) reads as one: "Mon, Tue, Thu and Fri only".
  * @param {string} days
  * @returns {string}
  */
 export function daysLabel(days) {
-    return { MFO: 'Mon and Fri only', MFX: 'Tue to Thu only', WO: 'Wed only' }[days] ?? '';
+    const code = /** @type {Record<string, string>} */ ({ MFO: 'Mon and Fri only', MFX: 'Tue to Thu only', WO: 'Wed only' })[days];
+    if (code || !/^(?:(?:Mon|Tue|Wed|Thu|Fri) ?)+$/.test(days ?? '')) return code ?? '';
+    const list = days.split(' ');
+    return `${list.length < 2 ? list[0] : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`} only`;
 }
 
 /**
