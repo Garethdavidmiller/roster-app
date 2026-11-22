@@ -91,7 +91,7 @@ export function isDocxFile(f) {
  *   dateId: string, fileId: string, fileLabelId: string, uploadBtnId: string, feedbackId: string,
  *   uploadFn: (date: string, file: File, user: string, ...extra: any[]) => Promise<any>,
  *   currentUser: string|null,
- *   successMsg: (date: string, iso: string) => string,  // the date as app copy spells it (10 Nov 2026), then the ISO one
+ *   successMsg: (date: string, iso: string) => string,  // the date as app copy spells it (10 November 2026), then the ISO one
  *   btnLabel: string,
  *   logPrefix: string,
  *   maxDateOffsetDays?: number,               // date input cap = today + this (default 0). Huddle: 1.
@@ -254,7 +254,7 @@ export function initDocUploadCard(cfg) {
       // Through the page's write gate (header): refused before it starts while an earlier write is
       // unconfirmed, and counted as unconfirmed itself if the account goes before it is.
       await runGatedWrite(() => cfg.uploadFn(date, file, cfg.currentUser || '', ...extraArgs));
-      // The date in app copy's own spelling ("10 Nov 2026", the one the date field shows), never
+      // The date in app copy's own spelling ("10 November 2026" — a date with its year is in full), never
       // the ISO key it was filed under (whole-app review, 10 Nov 2026).
       const shown = formatDayMonthYear(parseISODate(date));
       const newer = await _newerThan(date, newestP);
