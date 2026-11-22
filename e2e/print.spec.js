@@ -389,6 +389,32 @@ test('About: the Print button\'s emoji stays hidden from a screen reader, in bot
     }
 });
 
+// PRINT WAITS FOR THE CLOSE, NOT A CLOCK (lightbox review R1-11, 22 Nov 2026). About's Print waited a fixed 500 ms
+// for the panel's fade, so under reduced motion — where the close finishes at once — it still kept the reader waiting
+// half a second. It waits on `close()`'s promise now: the fade and the Back echo, and no longer than they take. And it
+// still prints only once the panel has gone, so the panel is never on the paper.
+test('About: under reduced motion Print prints as soon as the panel has gone @print', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__printed = null;
+        window.print = () => {
+            const lb = /** @type {HTMLElement} */ (document.getElementById('iconLightbox'));
+            w.__printed = { after: performance.now() - w.__tapped, panelUp: lb.classList.contains('visible') };
+        };
+    });
+    await seedMemberSession(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/\bopen\b/);
+    await page.locator('#lightboxPrintBtn').evaluate(b => { /** @type {any} */ (window).__tapped = performance.now(); /** @type {HTMLElement} */ (b).click(); });
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__printed)).not.toBeNull();
+    const printed = await page.evaluate(() => /** @type {any} */ (window).__printed);
+    expect(printed.panelUp, 'it printed with the panel still on the page').toBe(false);
+    expect(printed.after, `it waited ${Math.round(printed.after)} ms for a close that had already finished`).toBeLessThan(400);
+});
+
 // ── THE PRINT BUTTON PRINTS WHAT IS ON SCREEN (v23.27) ──────────────────────────────────────────
 // The prepare used to un-hide every card the finder had filtered out, so a traveller looking at one
 // country got the whole guide — 25 pages, at a station, before a trip. Opening a collapsed card is

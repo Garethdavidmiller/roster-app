@@ -319,6 +319,9 @@ test('locked: the drawer refuses a Circular tap without opening a tab', async ({
     await page.locator('#navPanel .nav-panel-link--circular').click();
     await expect(page.locator('#navComingSoonLightbox')).toBeVisible();
     await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular.');
+    // READ OUT, not only shown (lightbox review R1-7): focus goes to the ✕, so a screen reader heard the panel's name
+    // and "Close, button", never why the tap was refused. The message is the dialog's description.
+    await expect(page.locator('#navComingSoonLightbox')).toHaveAccessibleDescription(/Sign in, or enter the staff PIN, to read the Weekly Retail Circular/);
     expect(await docReads(page)).toBe(before);
     expect(popups.length, 'no blank tab is opened for a read that will not happen').toBe(0);
 });

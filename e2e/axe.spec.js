@@ -1130,7 +1130,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     //
     // A state a test can only reach by luck is a state nothing covers. Force all three.
     for (const [cls, text] of [
-        ['lightbox-status',                "Couldn't check for an update"],
+        ['lightbox-status',                'Couldn’t check for an update'],
         ['lightbox-status up-to-date',     '✓ Up to date'],
         ['lightbox-status needs-update',   '↻ Update ready — it will apply next time you reopen the app'],
     ]) {

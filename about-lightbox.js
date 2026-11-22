@@ -20,7 +20,7 @@
  */
 
 import { APP_VERSION, CONFIG } from './roster-data.js';
-import { createLightbox, confirmDialog, whenHistorySettled, followLinkOutOf } from './overlay.js';
+import { createLightbox, confirmDialog, followLinkOutOf } from './overlay.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { setStatus } from './status-text.js';
 import { hasPendingUpdate } from './sw-register.js';
@@ -72,7 +72,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName,
             // The CHECK itself failed (registration lookup rejected) — we don't actually know the app
             // is current, so don't show a green "Up to date" tick. A resolved-but-null registration
             // (no waiting worker) is the normal "no update" case and is handled in .then above.
-            .catch(() => { statusEl.textContent = 'Couldn\'t check for an update'; statusEl.className = 'lightbox-status'; });
+            .catch(() => { statusEl.textContent = 'Couldn’t check for an update'; statusEl.className = 'lightbox-status'; });
     }
 
     /** Rebuild the bug-report mailto with current user/date/browser details. */
@@ -117,9 +117,6 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName,
         },
     });
 
-    // Bug link opens the mail app — must not bubble to the backdrop close check.
-    if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
-
     // A PAGE LINK REPLACES THE PANEL'S HISTORY ENTRY (18 Nov 2026) — "Calendar" (it read "View staff roster" until 21 Nov 2026), a guide, Admin,
     // Operations: followed as plain links, the page they opened sat on top of the panel's own entry, and one
     // Back from it landed on a step of this page that nothing answered (`followLinkOutOf`, overlay.js, says
@@ -128,22 +125,22 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName,
     // a new tab and an external `_blank` link are left to the browser.
     content?.addEventListener('click', e => { followLinkOutOf(lb, /** @type {MouseEvent} */ (e)); });
 
-    // Optional print button — close first so the lightbox doesn't appear in the
-    // output, then print after the exit transition. The 500 ms delay matches the
-    // dismissOverlay fallback that fires when transitionend doesn't (iOS backgrounded tab,
-    // prefers-reduced-motion) — no need to wire a second transitionend listener here.
+    // Optional print button — close first so the lightbox doesn't appear in the output, then print
+    // once the close has LANDED: `lb.close()` resolves when the fade (or its fallback, or the
+    // reduced-motion finish) AND the Back echo are both done (lightbox review R1-11, 22 Nov 2026).
+    // A fixed 500 ms timer did that job before the promise existed, and made reduced-motion users
+    // wait half a second for a close that had finished at once.
     // Through the print guard (v24.61): in a home-screen app on iOS 27 `window.print()` does nothing,
     // so the tap explains and offers Safari instead — on every page that has this button.
     const printBtn = document.getElementById('lightboxPrintBtn');
     if (printBtn) printBtn.addEventListener('click', () => {
         if (printQueued) return;
         printQueued = true;
-        lb.close();
-        // `whenHistorySettled`: the close above pops the lightbox's history entry, and the dialog the
-        // explain path opens pushes its own — if the Back echo has not landed yet it would consume the
+        // Landed, not merely started: the close pops the lightbox's history entry, and the dialog the
+        // explain path opens pushes its own — had the Back echo not landed yet it would consume the
         // dialog's entry and the next hardware Back would leave the page (24-hour review). The print
         // path touches no history and is unaffected.
-        setTimeout(() => whenHistorySettled(() => printOrExplain({ print: printFn ?? (() => window.print()), explain: () => explainNoPrint(confirmDialog) })), 500);
+        lb.close().then(() => printOrExplain({ print: printFn ?? (() => window.print()), explain: () => explainNoPrint(confirmDialog) }));
     });
 
     return lb;
