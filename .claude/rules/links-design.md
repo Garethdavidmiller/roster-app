@@ -115,6 +115,12 @@ list.
   as a member, never merely `request.auth != null`, which an anonymous session satisfies. Reads are
   deliberately NOT gated on `linksDesigner`: a designer whose token predates the claim has to be able
   to LOAD the page for the write self-heal to get its chance. `linkTargetSets` reads the same way.
+- **"Last saved by" and "deleted by" are the writer's, at the server's time** (owner, 22 Nov 2026).
+  The rules refuse a write that changes either stamp pair unless it carries the writer's own name and
+  `serverTimestamp()`, or leaves the pair as it was. The store trusts `updatedBy` when a baseline is
+  unknown, and the bin moves read `updatedAt`, so a chosen pair could sign a colleague's name or
+  backdate a design into the bin. Every client writer already complies; keep it so — a new write path
+  stamps `currentUser` and `serverTimestamp()`, or neither (`firestore.rules`, `linkStampIsWriters`).
 
 ## Deletion — a permanent bin
 

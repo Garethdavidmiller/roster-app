@@ -275,6 +275,36 @@ service cloud.firestore {
         (request.auth.token.linksDesigner == true || request.auth.token.admin == true);
     }
 
+    // ── A LINK DESIGN'S "SAVED BY" AND "DELETED BY" ARE THE WRITER'S, AT THE SERVER'S TIME ────────
+    // (22 Nov 2026.) The pairs were shape-checked only, so a designer's client could save under a
+    // colleague's name — which the store's fallback conflict check TRUSTS (`updatedBy` decides
+    // whether a save is "ours") — or backdate `updatedAt`, which the old-length move and "Keep only
+    // the shortlist" read as "saved before …" and bin. A pair is accepted when the writer stamped
+    // it now as themselves, or when the write leaves it exactly as it was: a soft delete carries
+    // the saver's pair through untouched, and a save carries an earlier deleter's (none, after a
+    // restore). The admin may stamp without a bound name (a break-glass token), never another time.
+    // Every client writer already complies (`serverTimestamp()` and the session's own name), so
+    // this tightens nothing the app does; the one-off legacy migration was changed to stamp now.
+    function linkStampIsWriters(by, at) {
+      return (by == memberName() || request.auth.token.get('admin', false) == true)
+        && at == request.time;
+    }
+    function linkSaveStampOk() {
+      let d = request.resource.data;
+      return linkStampIsWriters(d.updatedBy, d.updatedAt)
+        || (resource != null
+            && d.updatedBy == resource.data.get('updatedBy', null)
+            && d.updatedAt == resource.data.get('updatedAt', null));
+    }
+    function linkBinStampOk() {
+      let d = request.resource.data;
+      return (!('deletedBy' in d) && !('deletedAt' in d))
+        || linkStampIsWriters(d.get('deletedBy', null), d.get('deletedAt', null))
+        || (resource != null
+            && d.get('deletedBy', null) == resource.data.get('deletedBy', null)
+            && d.get('deletedAt', null) == resource.data.get('deletedAt', null));
+    }
+
     // ── A DOCUMENT'S STORED LINK MOVES ONLY WITH ITS FILE (13 Nov 2026) ─────────────────────────
     // Huddles, circulars and newsletters. The admin's upload writes its record with `setDoc`, and when
     // the acknowledgement of a write that HAD committed is lost, the SDK sends the same write again on
@@ -719,7 +749,8 @@ service cloud.firestore {
         (!('revision' in request.resource.data) ||
           (request.resource.data.revision is int && request.resource.data.revision >= 1)) &&
         (!('deletedBy' in request.resource.data) ||
-          (request.resource.data.deletedBy is string && request.resource.data.deletedBy.size() <= 100));
+          (request.resource.data.deletedBy is string && request.resource.data.deletedBy.size() <= 100)) &&
+        linkSaveStampOk() && linkBinStampOk();
     }
 
     match /linkTargetSets/{document=**} {

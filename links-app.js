@@ -2501,11 +2501,13 @@ export function init() {
                 // Through the SHARED mapping (v19.94): it once skipped `normalisePatterns` and the
                 // `window` field, persisting legacy unpadded times for good. History: git log.
                 const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });
+                // Stamped as the person migrating, now: the rules accept only the writer's own name
+                // at the server's time (22 Nov 2026), so copying the legacy pair would be refused.
                 const { id: migratedId, baseline: migratedBase } = await store.create(docPayload(migrated, {
-                    updatedBy: legacyData.updatedBy ?? currentUser,
-                    updatedAt: legacyData.updatedAt ?? serverTimestamp(),
+                    updatedBy: currentUser,
+                    updatedAt: serverTimestamp(),
                 }));   // its revision too, or the first save met revision 1 holding none: a false conflict
-                named.push({ ...migrated, id: migratedId, updatedBy: legacyData.updatedBy || currentUser, revision: migratedBase.loadedRevision });
+                named.push({ ...migrated, id: migratedId, updatedBy: currentUser, revision: migratedBase.loadedRevision });
             }
 
             // Sort by name — getDocs returns (random) auto-ID order, which shuffles the picker.
