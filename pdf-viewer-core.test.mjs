@@ -8,7 +8,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     ZOOM_STEPS, MAX_DEVICE_PIXEL_RATIO, MAX_CANVAS_PIXELS, MAX_FIT_WIDTH, zoomAfter, zoomLabel, pageLayout,
-    canOpenOutside, isPlainClick, classifyFailure, FAILURE_TEXT, PAGE_FAILURE_TEXT, pageLabel, pagesLabel,
+    canOpenOutside, isPlainClick, classifyFailure, FAILURE_TEXT, failureAction, PAGE_FAILURE_TEXT, pageLabel, pagesLabel,
 } from './pdf-viewer-core.js';
 
 const A4 = { pageWidth: 594.96, pageHeight: 841.92 };      // the proposal sheets, the rules, the shortlist
@@ -156,6 +156,12 @@ describe('failures', () => {
     test('anything else is the admin\'s', () => {
         assert.equal(classifyFailure({ status: 500 }), 'broken');
         assert.equal(classifyFailure({}), 'broken', 'a file PDF.js could not read');
+    });
+    test('a file that has gone reloads the page; the other two try the file again (lightbox review R5-11)', () => {
+        assert.deepEqual(failureAction('gone'), { label: 'Reload the page', reload: true },
+            'Try again fetched the same missing address again, under words that said to reload the page');
+        assert.deepEqual(failureAction('connection'), { label: 'Try again', reload: false });
+        assert.deepEqual(failureAction('broken'), { label: 'Try again', reload: false });
     });
     test('each says what to do, calmly, and an app fault goes to the admin (CLAUDE.md wording)', () => {
         assert.match(FAILURE_TEXT.connection, /connection.*try again/i);

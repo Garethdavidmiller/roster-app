@@ -317,12 +317,15 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // A RETRY CONTROL, not just text (v19.08). "please try again" with nothing to press is a
             // dead end — and for a screen-reader user it is the only thing that ever replaces
             // "Loading…", so it has to be actionable.
-            showMessage("Couldn't load this document.", 'doc-viewer-empty');
+            showMessage('Couldn’t load this document.', 'doc-viewer-empty');
             const againBtn = document.createElement('button');
             againBtn.type = 'button';
             againBtn.className = 'doc-open-btn';
             againBtn.textContent = '↻ Try again';
-            againBtn.addEventListener('click', () => openDoc(key));
+            // FOCUS TO THE PANEL FIRST (lightbox review R1-6): the retry's "Loading…" removes this
+            // button, and focus on a removed node falls to the page for the whole wait. The panel
+            // (`tabindex="-1"`, createLightbox) keeps it in the dialog until the result takes it.
+            againBtn.addEventListener('click', () => { content?.focus({ preventScroll: true }); openDoc(key); });
             bodyEl.appendChild(againBtn);
             againBtn.focus();
         }

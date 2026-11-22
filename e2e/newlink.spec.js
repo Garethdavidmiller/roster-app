@@ -580,7 +580,7 @@ test.describe('new link', () => {
     });
 
     test('a file that does not arrive says why and offers Try again — which works once it can', async ({ page }) => {
-        let fail = /** @type {'gone'|'offline'|null} */ ('gone');
+        let fail = /** @type {'gone'|'offline'|null} */ ('offline');
         await servePack(page, async (route) => {
             const cors = { 'access-control-allow-origin': '*' };   // GitHub Pages sends it on every answer, a 404 included
             if (fail === 'gone') return route.fulfill({ status: 404, body: 'Not Found', headers: cors });
@@ -593,19 +593,44 @@ test.describe('new link', () => {
         const file = PACK[PACK.length - 1];
         await page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`).click();
         const status = page.locator('#pdfViewerStatus');
-        await expect(status).toHaveText('This file is no longer in the pack. Reload the page to see the current files.');
-        await expect(page.locator('#pdfViewerRetry')).toBeVisible();
+        const retry = page.locator('#pdfViewerRetry');
+        await expect(status).toHaveText('This file needs a connection. Check your signal, then try again.');
+        await expect(retry).toHaveText('Try again');
         await expect(page.locator('#pdfViewerZoomIn')).toBeDisabled();
 
-        fail = 'offline';
-        await page.locator('#pdfViewerRetry').click();
-        await expect(status).toHaveText('This file needs a connection. Check your signal, then try again.');
+        fail = 'gone';
+        await retry.click();
+        await expect(status).toHaveText('This file is no longer in the pack. Reload the page to see the current files.');
 
+        fail = 'offline';
+        await page.locator('#pdfViewerClose').click();
+        await page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`).click();
+        await expect(status).toHaveText('This file needs a connection. Check your signal, then try again.');
         fail = null;
-        await page.locator('#pdfViewerRetry').click();
+        // FROM THE KEYBOARD (lightbox review R1-6): the retry hides the button that has focus, and focus fell to the
+        // page for the wait and stayed there. It goes to the pages box, the viewer's own Tab stop, and stays in the viewer.
+        await retry.focus();
+        await page.keyboard.press('Enter');
         await expect(page.locator('#pdfViewerSheet .pdf-viewer-page')).toHaveCount(file.pages, { timeout: 20_000 });
         await expect(status).toHaveText('');
-        await expect(page.locator('#pdfViewerRetry')).toBeHidden();
+        await expect(retry).toBeHidden();
+        await expect(page.locator('#pdfViewerPages'), 'focus fell out of the viewer when Try again hid itself').toBeFocused();
+    });
+
+    // A FILE THAT HAS GONE IS NOT TRIED AGAIN (lightbox review R5-11, 22 Nov 2026). Its address answers 404 every time, so
+    // "Try again" fetched the missing file again while the words above it said to reload the page. The button reloads it.
+    test('a file gone from the pack offers to reload the page, and does', async ({ page }) => {
+        await servePack(page, async (route) => route.fulfill({ status: 404, body: 'Not Found', headers: { 'access-control-allow-origin': '*' } }));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        await page.evaluate(() => { /** @type {any} */ (window).__beforeReload = true; });
+        const file = PACK[PACK.length - 1];
+        await page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`).click();
+        await expect(page.locator('#pdfViewerStatus')).toHaveText('This file is no longer in the pack. Reload the page to see the current files.');
+        const retry = page.locator('#pdfViewerRetry');
+        await expect(retry).toHaveText('Reload the page');
+        await Promise.all([page.waitForEvent('load'), retry.click()]);
+        expect(await page.evaluate(() => /** @type {any} */ (window).__beforeReload), 'the button fetched the missing file again instead').toBeUndefined();
     });
 
     // A PAGE THAT CANNOT BE DRAWN SAYS SO, AND CAN BE TRIED AGAIN (external review, 10 Nov 2026). The file can open and one

@@ -4402,7 +4402,7 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     });
     await page.evaluate(() => { location.hash = '#circular'; });
     const body = page.locator('#docViewerBody');
-    await expect(body).toContainText("Couldn't load this document.", { timeout: 10_000 });
+    await expect(body).toContainText('Couldn’t load this document.', { timeout: 10_000 });
     await expect(body).not.toContainText('has been uploaded yet');
     await page.keyboard.press('Escape');
     await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);

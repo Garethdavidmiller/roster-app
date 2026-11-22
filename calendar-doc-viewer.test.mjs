@@ -417,6 +417,21 @@ describe('doc viewer — the open must always reach a terminal state', () => {
         assert.equal(calls, 2, 'pressing it must actually re-read the document');
     });
 
+    test('pressing Try again moves focus to the panel BEFORE the button goes (lightbox review R1-6)', async (t) => {
+        // The retry's "Loading…" removes the button that has focus, and focus on a removed node falls to the
+        // page: a screen-reader user sat on <body> for the whole wait. The panel takes it first.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _circularImpl = () => Promise.reject(new Error('offline'));
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        const btn = _els.docViewerBody._children.find(c => /Try again/.test(c.textContent));
+        /** @type {string[]} */ const order = [];
+        _els.docViewerContent.focus = () => { order.push(btn._parent ? 'panel focused, button still there' : 'panel focused after the button went'); };
+        btn._fire('click');
+        assert.deepEqual(order, ['panel focused, button still there'], 'focus fell to the page as the button was removed');
+    });
+
     test('the failure state offers a retry CONTROL, not just text', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _circularImpl = () => Promise.reject(new Error('offline'));
