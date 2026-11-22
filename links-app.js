@@ -75,21 +75,12 @@ import {
 } from './links-deletion.js';
 
 
-/**
- * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init()
- * called by links-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks
- * inline module scripts). This replaces the former top-level `throw`s (which
- * aborted module evaluation on the login/forbidden gate) with explicit early
- * `return`s, and lets a test import this module WITHOUT auto-running it. Body
- * unchanged otherwise — same statements, same order, one indent level in.
- */
+// The body is an exported init(), called by links-boot.js (CSP blocks an inline module script), so the
+// access gate can RETURN early instead of throwing, and an in-place sign-in can run it again.
 
-// Read-through to the CURRENT init pass's `dirty` flag (v16.23). The SW registration now runs at
-// the top of init() (so a signed-out visit still registers/updates the SW — the operations v16.21
-// fix, applied here too), but `dirty` is declared inside the authorised body, and with in-place
-// sign-in init() runs TWICE (login pass registers; authorised pass is a no-op via sw-register's
-// once-guard). A direct closure would read the login pass's forever-false `dirty` and reload
-// without the unsaved-changes confirm — this indirection always reads the latest pass's flag.
+// The CURRENT init pass's `dirty`: with an in-place sign-in init() runs twice and the service worker is
+// registered on the first, whose own `dirty` stays false for ever — a direct closure would reload
+// without the unsaved-changes question.
 let _isDirty = () => false;
 
 export function init() {
@@ -2665,8 +2656,8 @@ export function init() {
     // one. Someone who does not know the first is afraid to touch anything; someone who does not know
     // the second can take a clean panel into a meeting as an approval.
     //
-    // So the two ideas are split. The ANNOUNCEMENT is over and is not replayed — it stays in the App
-    // Notices archive, written once, on the first close. The ORIENTATION never expires until that
+    // So the two ideas are split. The ANNOUNCEMENT is over and is not replayed — it is written to the App
+    // Notices archive once, on the first close, and listed there for 180 days (since v26.46). The ORIENTATION never expires until that
     // device has actually seen it, and `#linksHowBtn` in the About panel reopens it whenever anyone wants
     // it, which is also what stops this being a pop-up nobody can get back to.
     //

@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * links-compare.js — Compare mode for links.html: view two saved designs side by side with a
- * gold-outline diff on differing cells. Extracted from links-app.js (v17.71, extraction programme).
+ * links-compare.js — Compare mode for links.html: view two designs — saved ones or the built-in
+ * shortlisted proposals — side by side with a gold-outline diff on differing cells. Extracted from links-app.js (v17.71, extraction programme).
  *
  * This module is the SINGLE SOURCE OF TRUTH for the two compare state vars (`compareMode` +
  * `compareDesignId`) — links-app.js no longer stores them. The coordinator only ever ASKS this
