@@ -931,6 +931,25 @@ test('settings: on a desktop the cards are 16px apart, as on Admin and Operation
     expect(gap).toBe(16);
 });
 
+// A token minted before the member's `name` claim is refused until it refreshes. Operations' reads of
+// these collections refresh it once and retry (withClaimRetry); Settings' did not, and both cards read
+// "Couldn't check" for a member whose email and password were both in order (settings review, Nov 2026).
+test('settings: a stale token refused on each account read is refreshed once, and both cards still answer', async ({ page }) => {
+    await page.addInitScript(() => {
+        const e = /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true, authUserEmail: 'g.miller@myb-roster.local' };
+        const data = { workEmail: 'g.miller@chilternrailways.co.uk', passwordSetAt: { toMillis: () => Date.parse('2026-08-01') } };
+        let reads = 0;   // the first read of EACH document is refused, as a stale token's is
+        Object.defineProperty(e, 'getDocData', { configurable: true, get() {
+            if (++reads <= 2) throw Object.assign(new Error('e2e: stale token'), { code: 'permission-denied' });
+            return data;
+        } });
+    });
+    await openSettings(page, { noPush: true });
+    await expect(page.locator('#contactStatusChip')).toHaveText('✓ Saved');
+    await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+    await expect(page.locator('#settingsSummaryLine')).toHaveText('✓ You’re all set');
+});
+
 test('settings: login overlay renders with JS-populated grade options', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/settings.html');

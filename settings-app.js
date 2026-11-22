@@ -10,7 +10,7 @@
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom, teamMembers } from './roster-data.js';
 import { payCalculatorPrices } from './pay-audience.js';
 import { formatDayMonthYear } from './date-format.js';
-import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword } from './firebase-client.js';
+import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated, validateNewPassword, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -126,8 +126,9 @@ const CARD_TIPS = {
 /**
  * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
  * settings-boot.js (a 2-line bootstrap — CSP `script-src 'self'` blocks inline module scripts).
- * Wrapping it means a test can `import { init }` WITHOUT the coordinator auto-running (the last
- * of the five write coordinators to get this seam, v17.09).
+ * The seam (v17.09) would let a test `import { init }` without the coordinator auto-running, but no
+ * test does: the page is driven in a browser (e2e/settings.spec.js), and its rules live in the
+ * Node-tested modules it calls (settings-status.js, own-password.js, paycalc-inventory.js).
  */
 export function init() {
     reloadIfRestoredForSomeoneElse();
@@ -509,7 +510,10 @@ export function init() {
 
         // Load existing email; show a loading message while waiting.
         setFeedback('Checking for a saved email…', '');
-        sessionReady.then(() => getStaffContact(currentUser)).then(data => {
+        // Through the claim retry, as Operations reads the same collection (settings review, Nov 2026): a
+        // token minted before this member's `name` claim existed is refused until it refreshes, which read
+        // here as "Couldn’t check" for a member whose email is saved.
+        sessionReady.then(() => withClaimRetry(() => getStaffContact(/** @type {string} */ (currentUser)))).then(data => {
             // A fast type-and-save can beat this slow initial load: once the user has SAVED, the load's
             // stale result must not wipe the "✓ Saved" feedback or re-hide the Remove button — bail
             // entirely (the saved state on screen is newer than this read) (v16.69 review fix).
@@ -740,7 +744,7 @@ export function init() {
                 // Gate the owner-only read on the Firebase session (like initContactCard) — a cold-load
                 // read before auth.currentUser exists is rejected by the rules and would blank the chip.
                 await sessionReady;
-                const st = await getPasswordStatus(member);
+                const st = await withClaimRetry(() => getPasswordStatus(member));   // a stale token, refreshed once (the work email's reason)
                 if (mine !== _statusRead) return;   // a newer read was asked for: its answer is the one
                 // isPasswordMigrated (auth-identity.js) is the single, unit-tested source (§6).
                 paint(isPasswordMigrated(st) || _writeConfirmed);
