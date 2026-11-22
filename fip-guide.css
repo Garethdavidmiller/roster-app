@@ -1,27 +1,17 @@
 /* MYB Roster — FIP Travel Guide page styles. Linked by fip-guide.html after guide-shell.css. */
 
 :root {
-    /* --navy / --navy-dark / --gold defined in guide-shell.css */
-    --text:       #1a1a2e;
-    --mid:        #555;
-    --light:      #666666;
-    --border:     #dde1e8;
-    --bg:         #f4f5f8;
-    --white:      #fff;
-    --green-bg:   #e8f5e9;
-    --green-text: #2e7d32;
-    --red-bg:     #ffebee;
-    --red-text:   #c62828;
+    /* The palette — greys, grounds, the green/amber/red families — is guide-shell.css's, one set for every
+       guide (Nov 2026: this page's copy had drifted, --light #666666 and --red-bdr #f5c0c0). This page's own: */
+    --green-text: var(--green);   /* this page's names for the shell's status colours */
+    --red-text:   var(--red);
     /* THE NOTES TAKE THE GUIDE FAMILY'S TINTS (v25.84): the amber of the Railcard and Rangers guides' notes
        and banner, the blue of the document guides' info boxes. The yellow box was ringed in a dark gold,
        the heaviest edge on any guide, and the blue was a second, brighter blue. */
-    --amber:      #b45000;   /* = railcard/rangers --amber */
-    --amber-bg:   #fff8e1;   /* = railcard/rangers --amber-bg */
     --yellow-bg:  var(--amber-bg);
     --yellow-bdr: color-mix(in srgb, var(--amber) 30%, transparent);   /* the Rangers note's edge, before v25.84 */
     --blue-bg:    var(--info-bg);   /* guide-shell.css: the document guides' info blue */
     --blue-text:  #1565c0;
-    --red-bdr:    #f5c0c0;
     --blue-bdr:   #d6e2f7;   /* = guide-doc.css --info-border */
     /* The finder is the app's field (css-tokens.md → "Corners — a field and the button under it share one"). */
     --field-bg:     #f0f3f7;   /* = the app's --surface-sunken */
@@ -69,8 +59,8 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 .card {
     background: var(--white);
     border-radius: 12px;
-    /* Layered shadow (v18.79) — tight contact line + soft ambient, matching the app's card depth */
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 12px rgba(0,30,60,0.07);
+    /* guide-shell.css's --shadow-card, the guides' one card lift (it was a 12px blur here, 10px elsewhere) */
+    box-shadow: var(--shadow-card);
     margin-bottom: 10px;
 }
 .card-pad { padding: 14px 16px; }
@@ -154,17 +144,8 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 .fip-unresolved { background: var(--red-bg); border: 1px solid var(--red-bdr); border-left: 4px solid var(--red-text); }
 .fip-unresolved strong:first-child { color: var(--red-text); }
 
-/* The banner a page with a provisional claim carries above its chip bar (the Rangers and Railcard
-   shape, in this page's tokens). Amber, not red: nothing on the page is wrong. 728 = the 760px column
-   less its 16px sides, so its words start where the header's ← and the chips do. */
-.source-banner {
-    background: var(--yellow-bg);
-    border-bottom: 2px solid var(--amber);
-    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
-}
-.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
-.source-banner .draft-title { font-weight: 800; color: var(--amber); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
-.source-banner p { font-size: 13px; color: var(--text); margin-top: 0; margin-bottom: 0; }   /* never `margin: 0` — it undoes the centring above */
+/* The banner a page with a provisional claim carries above its chip bar is guide-shell.css's — the
+   Railcard and Rangers guides' own, one recipe for the three. */
 
 /* ── Eurostar pricing (v18.83) ───────────────
    Compact fare table: one row per route, price right-aligned, the shared standard-class
@@ -279,7 +260,7 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 details {
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 12px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     margin-bottom: 8px;
     overflow: hidden;
 }
@@ -311,6 +292,11 @@ summary .chevron {
     margin-left: 8px;
 }
 details[open] > summary .chevron { transform: rotate(180deg); }
+/* A reader who asked for less motion gets the turn without the swing (Nov 2026). The chevron flips at once;
+   the shell's chips already move nothing but colour. */
+@media (prefers-reduced-motion: reduce) {
+    summary .chevron { transition: none; }
+}
 details[open] > summary { border-bottom: 1px solid var(--border); }
 /* The ring is drawn INSIDE the row: the card's `overflow: hidden` clips anything outside it, which
    left the browser's own ring a hairline with its corners cut off. While ringed, the row takes the
@@ -491,8 +477,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 /* TWO CLEAR BUTTONS, ONE FIELD. `type="search"` makes WebKit and Chromium draw their own cancel
    glyph at the right edge — exactly where `.cf-clear` below already sits, in the app's own style
    — so a reader typing a country name saw the platform's ✕ overlapping ours, at a different size,
-   in a different grey, doing the same job. Ours stays because it is reachable, sized to the 30px
-   touch target the guides use, and can say what it does; the UA's is drawn and cannot be told
+   in a different grey, doing the same job. Ours stays because it is reachable (a 30px circle, with
+   a 44px hit area under a finger — the touch block below), and can say what it does; the UA's is drawn and cannot be told
    anything. `type="search"` itself is kept for the keyboard's Search key on iOS. */
 .cf-input { -webkit-appearance: none; appearance: none; }
 .cf-input::-webkit-search-cancel-button,
@@ -532,10 +518,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .cf-popular a:hover, .country-jump a:hover { border-color: var(--navy); box-shadow: 0 1px 4px rgba(0, 30, 60, 0.12); }
 }
 .cf-popular a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+/* "No country card matches" IS A STATUS, NOT A NOTE (Nov 2026). It sat after the 35 country chips, ~350px
+   under the field — behind a phone's keyboard while the reader was still typing — and in the amber of the
+   "compare public fares" advice box below it, so it read as part of that advice. It now answers straight
+   under the field, in the info blue of the page's other "here is where you are" boxes (full outline, as
+   this page's notes have — an edge here marks an unresolved source). */
 .cf-nomatch {
     font-size: 13px; color: var(--text);
-    background: var(--yellow-bg); border: 1px solid var(--yellow-bdr);
-    border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+    background: var(--blue-bg); border: 1px solid var(--blue-bdr);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0 0;
 }
 
 /* ── Country jump list ───────────────────── */
@@ -587,10 +578,27 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     /* .chip-bar print-hide is in guide-shell.css (shared) */
     .country-finder,
     .country-jump,
-    .btn-primary,
-    .btn-secondary,
+    .cf-nomatch,
     .btn-print-country,
     .btn-text-link { display: none !important; }
+
+    /* THE CONTACTS PRINT AS LINES OF TEXT (Nov 2026). Hiding the buttons left "Book, order & apply" on paper
+       as a heading and two labels with nothing under them. A button is no use on a sheet, but what it holds
+       is — so each prints as a navy line with no fill or edge: the call button carries its number in its
+       words, the booking site its address, and the two RST forms print theirs after them. The ↗ text links
+       stay off: their addresses are the same sites again. */
+    .btn-primary, .btn-secondary {
+        background: none; border: 0; border-radius: 0;
+        padding: 0; margin: 0 0 4px;
+        width: auto; text-align: left;
+        color: var(--navy); font-size: 13px; font-weight: 700; text-decoration: none;
+        break-inside: avoid;
+    }
+    .btn-primary[href*="raildeliverygroup.com"]::after,
+    .btn-secondary[href*="raildeliverygroup.com"]::after {
+        content: " — " attr(href);
+        font-weight: 400; font-size: 11px; color: var(--mid); overflow-wrap: anywhere;
+    }
 
     /* ── PRINT THIS COUNTRY (v24.06) ──────────────────────────────────────────────────────
        The print review, item 1 (ROADMAP_HISTORY). One country's card instead of the 25-sheet book, because that is
@@ -694,7 +702,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     margin-top: 20px;
     line-height: 1.6;
 }
-.foot-disclaimer-link { color: inherit; }
+/* Its link is the shell's one link, navy (Nov 2026): grey, it read as part of the grey sentence. */
 
 /* ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────
    The control itself; the @media print block above takes it off the paper, since
@@ -717,6 +725,23 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .btn-print-country:hover { border-color: var(--navy); }
 }
 .btn-print-country:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+/* ── 44px UNDER A FINGER (Nov 2026) ───────────────────────────────────────────────────────────────
+   Measured on a touch phone: the "Popular from Marylebone" chips 33px tall, the A–Z country chips 37px,
+   the finder's ✕ 30×30 and "Print this country" 36px — every one under the 44px target, on the page's
+   most-tapped controls. The chips and the button GROW to 44px: they wrap in rows only 5px apart, so an
+   invisible hit area would overlap the row below. The ✕ cannot grow without crowding the field, so it
+   keeps its 30px circle and takes an invisible 44px square round it. Coarse pointers only, and AFTER
+   each control's own rule, so this wins on source order (css-tokens.md → the 16px rule, on source order). */
+@media (pointer: coarse) {
+    /* Flex centres the words in the taller chip; a flex row drops the space after the flag, so the gap puts
+       back its width (a space in Inter is about a quarter of an em). `:not([hidden])`, because an author
+       `display` outranks the browser's own [hidden] rule, and the finder hides the A–Z chip of every
+       country it hides (the `.cf-clear[hidden]` note above). */
+    .cf-popular a:not([hidden]), .country-jump a:not([hidden]) { display: inline-flex; align-items: center; gap: 0.25em; min-height: 44px; }
+    .btn-print-country { min-height: 44px; }   /* a <button> centres its words in its own height */
+    .cf-clear::after { content: ""; position: absolute; inset: -7px; }
+}
 
 /* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
    guide-shell.css → "THE GUIDES' THREE TEXT SIZES". This page was the closest to the scale already —

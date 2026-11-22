@@ -7,9 +7,10 @@
    This is NOT the app's shared.css (nav panel, lightbox, login). The guides
    stay independent of the app shell; they share only this small chrome file.
 
-   Base palette tokens are defined here so all five pages stay in sync with
-   the brand. Page-specific tokens (status colours, secondary navy tints) stay
-   in each page's own :root and override freely — this file is linked first.
+   The palette is defined here — the brand mirrors and the guides' one set of
+   greys, grounds and status colours — so the five pages cannot drift apart.
+   A token only one page uses stays in that page's own :root, which may also
+   override a shared one (this file is linked first).
 
    Linked BEFORE each page's external CSS file, so any page-specific override
    in that file still wins on equal specificity.
@@ -49,6 +50,31 @@
                                 guide-colour-parity.test.mjs does, against every guide field fill (bug and regression check, 13 Nov 2026) */
     --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
     --rule:      #d6dce5;   /* the section headings' hairline (v25.84) — it shows on both guide grounds */
+
+    /* THE GUIDES' ONE PALETTE (owner, Nov 2026). The Railcard, Rangers and FIP guides each declared these in
+       their own :root, and the copies had drifted (FIP's --light was #666666 to the others' #6b6b6b, its
+       --red-bdr #f5c0c0 to the Rangers' #f3bcbc) on pages read minutes apart. One set now, at the Railcard's
+       values; a page declares only what is its own. The two DOCUMENT guides keep their own greys
+       (guide-doc.css restates --text/--mid/--light/--border for their denser two-column sheets) and call
+       their card fill --card-fill, so --bg means the page ground on every guide. */
+    --text:      #1a1a2e;
+    --mid:       #555;
+    --light:     #6b6b6b;
+    --border:    #dde1e8;
+    --bg:        #f4f5f8;   /* the card guides' page ground — and the chip bar's, which sits on it */
+    --navy-bg:   #eef1f6;   /* the navy-tinted panels: the Railcard's Marylebone panel, the Rangers quick answer */
+    --green:     #2e7d32;
+    --green-bg:  #e8f5e9;
+    --green-bdr: #b7dfba;
+    --amber:     #b45000;
+    --amber-bg:  #fff8e1;
+    --amber-bdr: #e8c98a;
+    --red:       #c62828;
+    --red-bg:    #ffebee;
+    --red-bdr:   #f3bcbc;
+    /* A guide card's lift: a tight contact line and a soft ambient, the app's card depth. It was typed out on
+       nine rules across three stylesheets, one of them with a 12px blur where the rest had 10px. */
+    --shadow-card: 0 1px 2px rgba(0, 30, 60, 0.05), 0 3px 10px rgba(0, 30, 60, 0.07);
 
     /* THE GUIDES' THREE TEXT SIZES (v26.24, owner, 16 Nov 2026) — the app's own body, label and small
        steps (shared.css `--type-body` / `--type-label` / `--type-small`), under the same names because
@@ -124,11 +150,17 @@ h2::after  { content: ""; flex: 1 0 24px; border-top: 1px solid var(--rule); }
    A link in the text reads as the app's do (css-tokens.md → "A link in prose"): navy at 600, its
    underline a soft tint of the link's own colour, gold under a mouse. The document guides and FIP each
    kept a copy of this; the Railcard guide turned its links amber under a mouse; the Rangers guide had
-   none. A link with a colour of its own (the Railcard's amber callouts) keeps a tint of THAT colour. */
+   none. No page recolours it — the Railcard's amber callouts and FIP's grey disclaimer did, and lost
+   it (Nov 2026); the underline is tinted from currentColor, so it follows the link's navy. */
 a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
 @media (hover: hover) and (pointer: fine) {
     a:hover { text-decoration-color: var(--gold); }
 }
+/* …and one keyboard ring (Nov 2026). A plain link in the text showed the browser's own ring — a blue or
+   black halo by engine — where every classed control on the guides draws the navy 2px one. At ZERO
+   specificity, so a control with a ring of its own (`.chip`, `.btn-back` on the navy header, the FIP
+   chips and buttons) still draws that one. */
+:where(a:focus-visible) { outline: 2px solid var(--navy); outline-offset: 2px; border-radius: 2px; }
 
 /* ── Full-bleed sticky page header ──────────────────────────────────────────
    Back arrow (left) · title + subtitle · ⤓ PDF button (right). */
@@ -233,6 +265,23 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
    off the navy button, so the strip's own blue is what separates the two. */
 .print-unavailable-open:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 
+/* ── The source banner (Railcard, Rangers and FIP) ──────────────────────────────────────────────
+   The amber strip a page with a provisional claim carries between its header and its chip bar,
+   outside <main> so it cannot be scrolled past before the first card, and so it prints. Amber, not
+   red: nothing on the page is WRONG, and a red banner would teach staff to disregard the page rather
+   than to check it. It was three copies of one recipe; each page keeps only its print treatment.
+   Each side takes its own safe-area inset. 728 = the 760px column less its 16px sides, so the words
+   start where the header's ←, the chips and the text do. Its paragraphs keep the reset's zero
+   block margins — never `margin: 0`, which would undo the centring. */
+.source-banner {
+    background: var(--amber-bg);
+    border-bottom: 2px solid var(--amber);
+    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+}
+.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
+.draft-title { font-weight: 800; color: var(--amber); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
+.source-banner p { font-size: 13px; color: var(--text); }
+
 /* ── Footer back link (shared, polish round 2) ──────────────────────────────────────────────────
    The last thing on the railcard, rangers and FIP guides: "← Back to calendar", pointing at `./`
    like the header arrow (`.claude/rules/guide-pages.md` → the back buttons). It was three
@@ -281,10 +330,9 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
    Sticky quick-nav on all five guides (the two document guides since v25.80; guide-doc.css
    repaints its ground). Unified here from the two byte-identical per-page copies; the fip
    variant is the canonical one, so railcard now also gets the `.chip[aria-current]`
-   active-chip highlight it previously lacked. --bg/--border/--navy resolve from each guide
-   page's own :root at the use-site; --white is the shell's own (v23.13 — the two document
-   guides define no --white, and css-var-parity.test.mjs reads a token this file names as this
-   file's to supply). Border-radius stays a 99px literal — guides don't import the app token system. */
+   active-chip highlight it previously lacked. Every token it reads is this file's own; the
+   document guides override --border with their own grey, and guide-doc.css repaints the bar
+   on their ground. Border-radius stays a 99px literal — guides don't import the app token system. */
 .chip-bar {
     position: sticky;
     top: 54px;   /* refined by the page's JS to the measured header height */

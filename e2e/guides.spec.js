@@ -6,8 +6,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, isTouchProject, scaleText, seedMemberSession } from './helpers.js';
-import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
+import { collectFatalErrors, isTouchProject, openGuideLink, scaleText, seedMemberSession, seedSession } from './helpers.js';
+import { GUIDE_PAGES, cardGuides } from '../scripts/app-pages.mjs';
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
@@ -388,6 +388,32 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
 });
 
+// A query with no WORDS — only punctuation, or an emoji — matches every card, so it is not a filter (Nov 2026).
+// It counted as one while the box held anything: the ✕ showed, the count read "Showing 32 of 32 cards", and
+// ⤓ PDF printed only the cards and the key rules, for a search that had hidden nothing.
+test('fip: a query of only punctuation or an emoji filters nothing, and the PDF prints the whole guide', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => { window.print = () => {}; });
+    const search = page.locator('#countrySearch');
+    const totalCards = await page.locator('[id^="country-"]').count();
+    for (const q of ['-', '/', '&', '🇫🇷']) {
+        await search.fill(q);
+        await expect(page.locator('[id^="country-"]:visible'), `"${q}": every card still shows`).toHaveCount(totalCards);
+        await expect(page.locator('#countryClear'), `"${q}": no ✕ for a search that filtered nothing`).toBeHidden();
+        await expect(page.locator('#countryCount'), `"${q}": no "Showing all of all"`).toBeHidden();
+        await expect(page.locator('#countryNoMatch'), `"${q}": nor a no-match`).toBeHidden();
+        await expect(page.locator('.btn-print'), `"${q}": the PDF names the whole guide`).toHaveAttribute('aria-label', /whole FIP guide/);
+        await page.locator('.btn-print').click();
+        expect(await page.evaluate(() => document.body.hasAttribute('data-print-filtered')),
+            `"${q}": the PDF prints the whole guide, not the cards alone`).toBe(false);
+        await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+    }
+    // …and a word typed after the punctuation filters as it always did.
+    await search.fill('- spain');
+    await expect(page.locator('#country-no')).toBeHidden();
+    await expect(page.locator('#countryClear')).toBeVisible();
+});
+
 // Whole-app review, Oct 2026: the finder only lower-cased, so an operator typed on a UK keyboard
 // ("obb" for ÖBB, "krakow" for Kraków) found nothing, and "cie" matched inside "Société".
 test('fip: the country finder folds accents and matches the start of a word', async ({ page }) => {
@@ -615,48 +641,53 @@ test('guides: a chip near the end of a page stays lit after its jump, though its
         .toHaveAttribute('aria-current', 'true');
 });
 
-// …AND THE SHARED SCRIPT JUDGES A JUMP WHEN IT ENDS, NOT WHEN 1.5 s HAVE PASSED (17 Nov 2026). The FIP guide's
-// test below proves it for that page's own script; this proves it for guide-chips.js, which the other four guides
-// share. Its 1.5 s timer used to judge every jump, so one that outlasted it — CI's Safari engine drew a tall window
-// that slowly — was judged in flight, as though the reader had stopped it, and its chip let go. A slow machine
-// cannot be ordered up, so the timer is made to fire mid-jump instead: the page's clock is paused, the chip tapped,
-// and 1.6 s of the page's time passed at once while the real scroll is still moving. Where scrollend exists the
-// timer is now only a net, so nothing is judged until the jump ends.
-test('guides: a jump is judged when it ends, not when 1.5 s of the page\'s time have passed', async ({ page }) => {
-    await page.clock.install();   // runs with real time until paused below
-    await page.setViewportSize({ width: 375, height: 800 });
-    await page.goto('/paycalc-guide.html');
-    await page.waitForFunction(() => document.fonts.status === 'loaded');
-    const room = await page.evaluate(() => {
-        const doc = document.documentElement.scrollHeight;
-        const top = /** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top + scrollY;
-        return { doc, below: Math.ceil(doc - top),
-            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+// …AND THE SHARED SCRIPT JUDGES A JUMP WHEN IT ENDS, NOT WHEN 1.5 s HAVE PASSED (17 Nov 2026). Its 1.5 s timer used
+// to judge every jump, so one that outlasted it — CI's Safari engine drew a tall window that slowly — was judged in
+// flight, as though the reader had stopped it, and its chip let go. A slow machine cannot be ordered up, so the timer
+// is made to fire mid-jump instead: the page's clock is paused, the chip tapped, and 1.6 s of the page's time passed
+// at once while the real scroll is still moving. Where scrollend exists the timer is now only a net, so nothing is
+// judged until the jump ends. Run on a document guide and on the FIP guide, which loads its own page script beside
+// guide-chips.js (it carried a copy of the bar of its own until Nov 2026, and the slow jump was first seen there).
+for (const { file, id, width } of [
+    { file: 'paycalc-guide.html', id: 'pg-pay-rise-back-pay', width: 375 },
+    { file: 'fip-guide.html', id: 'sec-ferries', width: 1280 },
+]) {
+    test(`guides: a jump is judged when it ends, not when 1.5 s of the page's time have passed (${file})`, async ({ page }) => {
+        await page.clock.install();   // runs with real time until paused below
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(`/${file}`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        const room = await page.evaluate((sec) => {
+            const doc = document.documentElement.scrollHeight;
+            const top = /** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top + scrollY;
+            return { doc, below: Math.ceil(doc - top),
+                bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+        }, id);
+        const height = room.below + room.bar + 200;
+        expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+        await page.setViewportSize({ width, height });
+        await settleFrames(page);
+        await page.evaluate(() => {
+            /** @type {any} */ (window).__ended = false;
+            addEventListener('scrollend', () => { /** @type {any} */ (window).__ended = true; }, { once: true });
+        });
+        const chip = page.locator(`.chip-bar .chip[data-target="${id}"]`);
+        await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 100);
+        await chip.click();
+        await page.clock.runFor(1600);   // the old 1.5 s timer would fire here, with the jump still moving
+        expect(await page.evaluate(() => /** @type {any} */ (window).__ended), 'premise: the jump was still moving at 1.6 s of page time').toBe(false);
+        await page.clock.resume();
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__ended), { message: 'the jump never ended', timeout: 10_000 }).toBe(true);
+        const geo = await page.evaluate((sec) => ({
+            bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+            top: Math.round(/** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+        }), id);
+        expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+        expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
+        await expect(chip, 'judged in flight, the chip let go and the last one was lit').toHaveAttribute('aria-current', 'true');
     });
-    const height = room.below + room.bar + 200;
-    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
-    await page.setViewportSize({ width: 375, height });
-    await settleFrames(page);
-    await page.evaluate(() => {
-        /** @type {any} */ (window).__ended = false;
-        addEventListener('scrollend', () => { /** @type {any} */ (window).__ended = true; }, { once: true });
-    });
-    const backPay = page.locator('.chip-bar .chip[data-target="pg-pay-rise-back-pay"]');
-    await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 100);
-    await backPay.click();
-    await page.clock.runFor(1600);   // the old 1.5 s timer would fire here, with the jump still moving
-    expect(await page.evaluate(() => /** @type {any} */ (window).__ended), 'premise: the jump was still moving at 1.6 s of page time').toBe(false);
-    await page.clock.resume();
-    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__ended), { message: 'the jump never ended', timeout: 10_000 }).toBe(true);
-    const geo = await page.evaluate(() => ({
-        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
-        top: Math.round(/** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top),
-        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
-    }));
-    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
-    expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
-    await expect(backPay, 'judged in flight, the chip let go and the last one was lit').toHaveAttribute('aria-current', 'true');
-});
+}
 
 // THE CHOSEN CHIP IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy, the app's
 // colour for a button that DOES something; the guides take their own gold accent instead (guide-shell.css). Read
@@ -976,7 +1007,7 @@ test('guides: a chip bar too long for the desktop column wraps; one that fits, o
         const tops = new Set([...bar.querySelectorAll('.chip')].map(c => Math.round(c.getBoundingClientRect().top)));
         return { rows: tops.size, hidden: bar.scrollWidth > bar.clientWidth + 1 };
     });
-    for (const guide of ['staff-guide', 'paycalc-guide']) {
+    for (const guide of GUIDE_PAGES.filter(p => p.documentStyle).map(p => p.file.replace(/\.html$/, ''))) {
         for (const [width, height] of [[1280, 800], [683, 768], [1366, 560], [1024, 480]]) {
             await page.setViewportSize({ width, height });
             await page.goto(`/${guide}.html`);
@@ -1146,7 +1177,7 @@ test('guides: every phone number a guide shows is a link that dials it', async (
 // headless Chromium and WebKit never do, so a wait for the request timed out on the three guides with no <img>
 // of the same file — the Staff and Pay Calculator guides passed only because their header logo is one
 // (10 Nov 2026). What a browser falls back from is a page that names no icon, or names one that is not there.
-for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'fip-guide', 'rangers-guide']) {
+for (const guide of GUIDE_PAGES.map(p => p.file.replace(/\.html$/, ''))) {
     test(`${guide}: names the app's own tab icon, so the browser never falls back to /favicon.ico`, async ({ page }) => {
         await page.goto(`/${guide}.html`);
         const icon = page.locator('link[rel="icon"][href$="icon-192.png"]');
@@ -1255,9 +1286,8 @@ test('fip: the booking table stacks with labelled cells on a phone', async ({ pa
 // The three chip-bar guides centre a 760px column but the chip bar is full-bleed, so the chips used
 // to start at the window edge (x=12 at 1280) while the text started at x=276.
 test('guides: from 800px the section chips start where the content column\'s text does', async ({ page }) => {
-    const pages = { 'fip-guide': '.content', 'railcard-guide': '.content', 'rangers-guide': 'main',
-                    'staff-guide': '.page', 'paycalc-guide': '.page' };
-    for (const [guide, column] of Object.entries(pages)) {
+    for (const { file, column } of GUIDE_PAGES) {
+        const guide = file.replace(/\.html$/, '');
         for (const width of [1280, 800]) {
             await page.setViewportSize({ width, height: 900 });
             await page.goto(`/${guide}.html`);
@@ -1286,9 +1316,8 @@ test('guides: from 800px the section chips start where the content column\'s tex
 // take the column's edges, as the chips do; a phone keeps its 16px gutter. The amber source banner
 // between them (railcard, rangers) sat 16px left of both, and takes the same edges.
 test('guides: from 800px the header\'s ← and ⤓ PDF sit on the content column\'s edges', async ({ page }) => {
-    const pages = { 'fip-guide': '.content', 'railcard-guide': '.content', 'rangers-guide': 'main',
-                    'staff-guide': '.page', 'paycalc-guide': '.page' };
-    for (const [guide, column] of Object.entries(pages)) {
+    for (const { file, column } of GUIDE_PAGES) {
+        const guide = file.replace(/\.html$/, '');
         for (const width of [1920, 1366, 800]) {
             await page.setViewportSize({ width, height: 900 });
             await page.goto(`/${guide}.html`);
@@ -1347,7 +1376,7 @@ test('guides: a paragraph keeps a reading measure on a desktop, and a phone is u
         }
         return most;
     });
-    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of cardGuides().map(p => p.file.replace(/\.html$/, ''))) {
         await page.setViewportSize({ width: 1366, height: 900 });
         await page.goto(`/${guide}.html`);
         await page.evaluate(() => document.fonts.ready);
@@ -1796,7 +1825,7 @@ test('rangers: a status badge keeps to one line at the ordinary size, and wraps 
 // shell's, read off the rendered arrow under a real mouse.
 test('guides: the ← answers a mouse with one hover on every guide, never a page\'s link colour', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
-    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of GUIDE_PAGES.map(p => p.file.replace(/\.html$/, ''))) {
         await page.goto(`/${guide}.html`);
         const gold = await page.evaluate(() => {
             const probe = document.createElement('span');
@@ -1854,7 +1883,7 @@ test('fip: the "What you get" cards stack on a phone and pair on a wider screen'
 // its disclaimer. One shared recipe now (guide-shell.css), one wording, the last thing on the page.
 test('guides: the footer back link is one control with one wording on every guide', async ({ page }) => {
     const seen = [];
-    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of cardGuides().map(p => p.file.replace(/\.html$/, ''))) {
         await page.goto(`/${guide}.html`);
         const links = page.locator('main a').filter({ hasText: /Back to (calendar|roster)/ });
         await expect(links, `${guide}: exactly one footer back link`).toHaveCount(1);
@@ -1885,13 +1914,88 @@ test('guides: the footer back link is one control with one wording on every guid
     expect(new Set(seen).size, `one recipe, got: ${seen.join(' | ')}`).toBe(1);
 });
 
+// THE FOOTER LINK GOES WHERE THE ARROW GOES (owner, Nov 2026). It ignored `?from=` while the header's ← obeyed
+// it, so a guide opened from Admin offered "← Back to calendar" at its foot and Admin at its head. It now names
+// the page the arrow names; a missing, the calendar's or a crafted `from` leaves it as authored.
+test('guides: the footer back link follows ?from= as the header arrow does', async ({ page }) => {
+    for (const guide of cardGuides().map(p => p.file.replace(/\.html$/, ''))) {
+        const link = page.locator('main a.guide-back-link');
+        for (const [from, text, href] of [
+            ['admin.html', '← Back to Admin', './admin.html'],
+            ['paycalc.html', '← Back to Pay Calculator', './paycalc.html'],
+            ['index.html', '← Back to calendar', './'],
+            ['https://evil.example/x', '← Back to calendar', './'],
+            ['', '← Back to calendar', './'],
+        ]) {
+            await page.goto(`/${guide}.html${from ? `?from=${encodeURIComponent(from)}` : ''}`);
+            await expect(link, `${guide} from "${from}": the footer's words`).toHaveText(text);
+            await expect(link, `${guide} from "${from}": the footer's destination`).toHaveAttribute('href', href);
+            await expect(page.locator('.page-header .btn-back'), `${guide} from "${from}": the arrow agrees`).toHaveAttribute('href', href);
+            // One name for each destination: the arrow's spoken label is the footer's words.
+            await expect(page.locator('.page-header .btn-back'), `${guide} from "${from}": the arrow's label agrees`)
+                .toHaveAttribute('aria-label', text.replace(/^← /, ''));
+        }
+    }
+});
+
+// GOING BACK IS GOING BACK (Nov 2026). The drawer opens a guide by REPLACING its own history entry, so a ← that
+// LINKED to Admin left Admin, guide, Admin in the history, and the phone's Back from Admin landed on the guide
+// again. Where the page before is the one the arrow names, both back links now step back to it instead. Where
+// that is not certain — no page before, or a reader who has moved within the guide since — they follow the link.
+test('guides: the back links step back to the page that opened the guide, not forward to a copy of it', async ({ page }) => {
+    await seedSession(page);
+    for (const control of ['.page-header .btn-back', 'main a.guide-back-link']) {
+        await page.goto('/admin.html');
+        const opened = await page.evaluate(() => history.length);
+        await (await openGuideLink(page, 'Railcard Guide')).click();
+        await page.waitForURL(/railcard-guide\.html\?from=admin\.html/, { timeout: 4000 });
+        await expect(page.locator('.page-header .btn-back')).toHaveAttribute('href', './admin.html');
+        const onGuide = await page.evaluate(() => history.length);
+        expect(onGuide, `premise: the drawer replaced its own entry with the guide (${control})`).toBeLessThanOrEqual(opened + 1);
+        await page.locator(control).click();
+        await page.waitForURL(/\/admin\.html/, { timeout: 4000 });
+        expect(await page.evaluate(() => history.length), `${control}: no new Admin was pushed on top of the guide`).toBe(onGuide);
+        // …so the phone's Back from here does not land on the guide again.
+        await page.goBack().catch(() => null);
+        expect(page.url(), `${control}: Back from Admin went to the guide again`).not.toMatch(/railcard-guide/);
+    }
+});
+
+test('guides: with no page before, another page before, or after a move within the guide, the back links follow their link', async ({ page }) => {
+    // A direct visit: nothing to step back to, so the arrow navigates to Admin as a link does.
+    await page.goto('/railcard-guide.html?from=admin.html');
+    const before = await page.evaluate(() => history.length);
+    await page.locator('.page-header .btn-back').click();
+    await page.waitForURL(/\/admin\.html/, { timeout: 4000 });
+    expect(await page.evaluate(() => history.length), 'the link was followed').toBe(before + 1);
+
+    // The page before is not the one the arrow names: a step back would land on the wrong page.
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.evaluate(() => { location.href = './railcard-guide.html?from=paycalc.html'; });
+    await page.waitForURL(/railcard-guide\.html\?from=paycalc\.html/, { timeout: 4000 });
+    await page.locator('.page-header .btn-back').click();
+    await page.waitForURL(/\/paycalc\.html/, { timeout: 4000 });
+
+    // Opened from Admin, then a country link: one step back would only go back a country.
+    await page.goto('/admin.html');
+    await (await openGuideLink(page, 'FIP Travel Guide')).click();
+    await page.waitForURL(/fip-guide\.html\?from=admin\.html/, { timeout: 4000 });
+    await page.locator('.country-jump a[href="#country-fr"]').click();
+    await expect(page).toHaveURL(/#country-fr$/);
+    const moved = await page.evaluate(() => history.length);
+    await page.locator('main a.guide-back-link').click();
+    await page.waitForURL(/\/admin\.html/, { timeout: 4000 });
+    expect(await page.evaluate(() => history.length), 'the link was followed, not one step back').toBe(moved + 1);
+});
+
 // ONE UNDER A MOUSE TOO (whole-app review, Nov 2026). The recipe above was one at rest and three when
 // hovered, because each page's own `a:hover` reached the link: amber words on Railcard, a gold underline
 // on FIP, nothing at all on Rangers. Read off the rendered link, at rest and under a real mouse.
 test('guides: the footer back link answers a mouse the same way on every guide', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'a hover is a fine pointer\'s');
     const seen = [];
-    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of cardGuides().map(p => p.file.replace(/\.html$/, ''))) {
         await page.goto(`/${guide}.html`);
         const link = page.locator('main a.guide-back-link');
         await link.scrollIntoViewIfNeeded();
@@ -1914,7 +2018,7 @@ test('guides: the footer back link answers a mouse the same way on every guide',
 // app: its own icon, its own storage, signed out. page-contract-parity reads the markup; this follows
 // the link the browser follows, to the manifest it would install, and checks where that app starts.
 test('guides: added to the Home Screen, every guide installs the app, under the app\'s name', async ({ page }) => {
-    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of GUIDE_PAGES.map(p => p.file.replace(/\.html$/, ''))) {
         await page.goto(`/${guide}.html`);
         const seen = await page.evaluate(async () => {
             const link = /** @type {HTMLLinkElement|null} */ (document.querySelector('link[rel="manifest"]'));
@@ -2008,7 +2112,8 @@ test('guides: each side of the page takes its own safe-area inset', async ({ pag
     test.skip(browserName !== 'chromium', 'safe-area emulation is a Chromium DevTools call');
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: 0, left: 0, bottom: 0, right: 44 } });
-    for (const [guide, column] of [['rangers-guide', 'main'], ['railcard-guide', '.content'], ['fip-guide', '.content']]) {
+    for (const { file, column } of cardGuides()) {
+        const guide = file.replace(/\.html$/, '');
         await page.goto(`/${guide}.html`);
         const [col, banner] = await page.evaluate((column) => [column, '.source-banner'].map(sel => {
             const el = document.querySelector(sel);
@@ -2430,14 +2535,7 @@ test('fip: a chip near the end of the page stays lit after its jump, though its 
     const height = await heightToStrand(page, 'sec-ferries');
     await page.setViewportSize({ width: 1280, height });
     const ferries = page.locator('.chip-bar .chip[data-target="sec-ferries"]');
-    await page.evaluate(() => {
-        /** @type {any} */ (window).__jumpEnded = new Promise(done => {
-            addEventListener('scrollend', () => done('scrollend'), { once: true });
-            setTimeout(() => done('no scrollend in 10 s'), 10000);
-        });
-    });
-    await ferries.click();
-    expect(await page.evaluate(() => /** @type {any} */ (window).__jumpEnded), 'premise: the jump ended').toBe('scrollend');
+    expect(await jumpTo(page, ferries), 'premise: the jump ended').toBe('scrollend');
     const geo = await stranded(page, 'sec-ferries');
     expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
     expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
@@ -2454,8 +2552,10 @@ test('fip: a link to a card near the end lights its own section\'s chip, through
     await page.goto('/fip-guide.html#ferry-superfast');
     await page.waitForFunction(() => document.fonts.status === 'loaded');
     await settleFrames(page);
-    await page.waitForTimeout(400);
-    expect((await stranded(page, 'ferry-superfast')).bottom, 'premise: the page bottomed out under the linked card').toBe(true);
+    // Polled, not slept for: the landing ends when the page has loaded and measured, which takes as long as the
+    // engine takes, and a premise read once after a fixed wait failed on a slow one for reasons of its own.
+    await expect.poll(async () => (await stranded(page, 'ferry-superfast')).bottom,
+        { message: 'premise: the page bottomed out under the linked card' }).toBe(true);
     await expect(page.locator('.chip-bar .chip[data-target="sec-ferries"]'), 'the section the link named, not the last one')
         .toHaveAttribute('aria-current', 'true');
     await expect(page.locator('.chip-bar .chip[aria-current]')).toHaveCount(1);

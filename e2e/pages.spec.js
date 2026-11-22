@@ -12,7 +12,7 @@ import { test, expect, forcePasswordSet } from './fixtures.js';
 import { seedSession, seedMember, seedMemberSession, isTouchProject, scaleText, tooWide, waitForPageSettled, signInThroughOverlay,
     openRosterReview, stubUsageReads, stubPerfReads, clickInView } from './helpers.js';
 import { teamMembers, CONFIG } from '../roster-data.js';
-import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
+import { APP_PAGES as APP_PAGES_LIST, GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 test('a card title\'s emoji sits inside its title, on its first line, and a wrapped title hangs from it', async ({ page }) => {
     // The emoji is every card title's FIRST element (card-header-parity.test.mjs), and shared.css
@@ -1356,7 +1356,7 @@ test('every control on every page and guide is set in Inter, not the browser\'s 
         .map(({ el, face }) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''} → ${face.split(',')[0]}`));
     /** @type {string[]} */
     const wrong = [];
-    const GUIDES = ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide'].map(g => `/${g}.html`);
+    const GUIDES = GUIDE_PAGES.map(p => p.url);
     for (const url of [...APP_URLS, ...GUIDES]) {
         await page.goto(url);
         if (APP_URLS.includes(url)) await waitForPageSettled(page);

@@ -5,30 +5,11 @@
    same people at the same gateline, often minutes apart, so the colour stripe (green = any time,
    amber = a morning bar), the ⊘ token, the card/row rhythm and the amber Chiltern callout all mean
    here exactly what they mean there. A second vocabulary for the same job would make both slower to
-   read. Where a value is repeated from that file it is repeated on purpose — the guides are
-   deliberately independent stylesheets (see .claude/rules/guide-pages.md), which is why
-   guide-colour-parity.test.mjs polices the shared tokens rather than the page-level ones. */
+   read. The colours themselves are one set, guide-shell.css's, so the two pages cannot drift apart
+   (they did once: FIP's copy of the same tokens had moved). */
 
 :root {
-    /* --navy / --gold / --font-sans defined in guide-shell.css */
-    --text:     #1a1a2e;
-    --mid:      #555;
-    --light:    #6b6b6b;
-    --border:   #dde1e8;
-    --bg:       #f4f5f8;
-    --white:    #fff;
-    --green:    #2e7d32;
-    --amber:    #b45000;
-    --amber-bg: #fff8e1;
-    --red:      #c62828;
-    --navy-bg:  #eef1f6;
-    /* The validity badges' fills and edges, and the unresolved callout's wash: values the badge rules
-       used to type out, named here so every colour on the page is a token (css-hex-parity.test.mjs). */
-    --green-bg:   #e8f5e9;   /* = railcard/FIP --green-bg */
-    --green-bdr:  #b7dfba;
-    --red-bg:     #ffebee;   /* = railcard/FIP --red-bg */
-    --red-bdr:    #f3bcbc;
-    --amber-bdr:  #e8c98a;
+    /* The palette — the greys, grounds, status colours and the badges' edges — is guide-shell.css's. This page's own: */
     --red-note:   #fdecea;   /* .rr-unresolved — a breath warmer than --red-bg */
 }
 
@@ -51,28 +32,8 @@ main {
              max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 
-/* ── The source banner ───────────────────────────────────────────────────────
-   Sits ABOVE the chip bar and outside <main> so it cannot be scrolled past before the first card,
-   and so it prints. Amber, not red: nothing here is WRONG, and a red banner would teach staff to
-   disregard the page rather than to check it — the opposite of what it is for. Remove only when the
-   last `.rr-card--draft` / `.rr-card--conflict` goes. Renamed from `.draft-banner` at v20.10, when
-   the page stopped being uniformly draft: it now summarises a mix of states. */
-.source-banner {
-    background: var(--amber-bg);
-    border-bottom: 2px solid var(--amber);
-    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
-}
-/* 728 = the 760px column less its 16px sides, so the banner's words start where the header's ←, the
-   chips and the text do (desktop audit, Nov 2026); it was 16px left of all three. */
-.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
-.draft-title {
-    font-weight: 800;
-    color: var(--amber);
-    font-size: 13px;
-    letter-spacing: 0.2px;
-    margin-bottom: 4px;
-}
-.source-banner p { font-size: 13px; color: var(--text); }
+/* The source banner is guide-shell.css's (one recipe for the three guides that carry one). It summarises
+   the page's mix of states; remove it only when the last `.rr-card--draft` / `.rr-card--conflict` goes. */
 
 /* Its look is guide-shell.css's — one heading on all five guides (v25.84). It was grey words with no gold
    here, the one guide without the accent. Only the spacing is this page's, and it is now the Railcard's. */
@@ -108,7 +69,7 @@ h2.section:first-of-type { margin-top: 4px; }
     padding: 8px 10px;
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     font-size: 12px;
     color: var(--mid);
 }
@@ -181,7 +142,7 @@ h2.section:first-of-type { margin-top: 4px; }
     background: var(--white);
     border-left: 4px solid var(--border);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     padding: 12px 14px;
     margin-bottom: 10px;
 }
@@ -345,7 +306,7 @@ h2.section:first-of-type { margin-top: 4px; }
     background: var(--white);
     border-left: 4px solid var(--red);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     padding: 10px 14px;
 }
 /* Wraps since v20.10, for the same reason `.rr-top` does: the status pill is much longer than the
@@ -374,8 +335,11 @@ h2.section:first-of-type { margin-top: 4px; }
 .gotcha-title { font-weight: 800; color: var(--amber); margin-bottom: 6px; }
 .gotcha p { font-size: 13px; margin-bottom: 6px; }
 .gotcha p:last-child { margin-bottom: 0; }
+/* Inter, with its figures set to one width so a date lines up like a ticket's (owner, Nov 2026): a
+   system monospace is Consolas on the station PC, a second typeface on a one-typeface app. */
 .gotcha code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
     background: rgb(0 0 0 / 0.06);
     padding: 1px 5px;
     border-radius: 3px;
@@ -389,7 +353,7 @@ h2.section:first-of-type { margin-top: 4px; }
     align-items: start;
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     padding: 10px 12px;
     font-size: 13px;
 }
@@ -411,7 +375,7 @@ h2.section:first-of-type { margin-top: 4px; }
     margin-bottom: 10px;   /* a card's own gap: with an outline it could touch the card under it, with a shadow it merges into it */
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     padding: 12px 14px;
 }
 .rr-notes h3 { margin-bottom: 8px; }   /* its size and colour on screen: guide-shell.css → "ONE sub-heading" */
@@ -470,6 +434,10 @@ h2.section:first-of-type { margin-top: 4px; }
        tint on paper would read as confirmed. The pill carries it instead, which is text. */
     .rr-card--draft, .rr-card--conflict { background: #fff; }
     h2.section { break-after: avoid; }
+    /* …and nor is a section's one-line introduction (Nov 2026): "Valid at Marylebone" and "Valid on Chiltern
+       — but not at Marylebone" printed their heading and the note under it alone at the foot of a sheet,
+       their cards overleaf. The note goes with the first card, so the heading goes with both. */
+    h2.section + .rr-notes { break-after: avoid; }
     .rr-notes h3 { font-size: 13px; font-weight: 800; color: var(--navy); }   /* paper keeps its sub-heading; screen: guide-shell.css */
     /* A shadow is a screen's edge; on paper the stripe is the card's, as on the Railcard guide's print. */
     .rr-card, .rr-no-item, .check-item, .rr-notes, .key { box-shadow: none; }

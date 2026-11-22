@@ -48,7 +48,18 @@
  * @property {string} authBarrier  what its coordinator waits on before any write — see
  *                                 page-contract-parity's "each after-auth writer runs INSIDE its page's auth barrier"
  */
-/** @typedef {{ file: string, kind: 'guide', url: string }} GuidePage */
+/**
+ * @typedef {object} GuidePage
+ * @property {string} file           the served HTML file
+ * @property {'guide'} kind
+ * @property {string} url            how a browser test reaches it
+ * @property {boolean} documentStyle one of the two DOCUMENT guides (Staff, Pay Calculator): guide-doc.css,
+ *                                   two columns from 641px, their own printed banner. The other three are
+ *                                   the CARD guides, which end with the footer back link (`.guide-back-link`)
+ *                                   and hold their prose to a reading measure on a desktop.
+ * @property {string} column         the selector of the element whose padding is the content column's
+ *                                   text edge, which the header and chip bar line up with from 800px
+ */
 /** @typedef {{ file: string, kind: 'redirect', to: string }} RedirectPage */
 
 /** @param {string} file @param {string} id @param {Partial<AppPage>} [more] @returns {AppPage} */
@@ -76,9 +87,16 @@ export const APP_PAGES = Object.freeze([
 /** The printable guides — no shared.css, no drawer, no auth, no analytics id. In the drawer's order,
  *  which the guide search index is built in (scripts/guide-index-lib.mjs reads this list).
  *  @type {ReadonlyArray<GuidePage>} */
-export const GUIDE_PAGES = Object.freeze(
-    ['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'rangers-guide.html', 'fip-guide.html']
-        .map(file => /** @type {GuidePage} */ ({ file, kind: 'guide', url: `/${file}` })));
+export const GUIDE_PAGES = Object.freeze(/** @type {Array<[string, boolean, string]>} */ ([
+    ['staff-guide.html',    true,  '.page'],
+    ['paycalc-guide.html',  true,  '.page'],
+    ['railcard-guide.html', false, '.content'],
+    ['rangers-guide.html',  false, 'main'],
+    ['fip-guide.html',      false, '.content'],
+]).map(([file, documentStyle, column]) => /** @type {GuidePage} */ ({ file, kind: 'guide', url: `/${file}`, documentStyle, column })));
+
+/** The three card guides (not document-style), in GUIDE_PAGES order. @returns {GuidePage[]} */
+export const cardGuides = () => GUIDE_PAGES.filter(p => !p.documentStyle);
 
 /**
  * Pages that are nothing but a redirect to a renamed one, written into the HTML because the GitHub

@@ -1820,7 +1820,7 @@ test('nav: each guide records its OWN open id', async ({ page }) => {
         ['Pay Calculator Guide', 'guide-paycalc'],
         ['Railcard Guide',       'guide-railcard'],
         ['FIP Travel Guide',     'guide-fip'],
-        ['Rangers & Rovers',     'guide-rangers'],
+        ['Rangers & Rovers Guide', 'guide-rangers'],
     ]) {
         await page.goto('/');
         // Two taps since v20.06 — the guides live in the collapsed Reference section. Driven through

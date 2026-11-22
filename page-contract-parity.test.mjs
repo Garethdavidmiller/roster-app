@@ -191,7 +191,11 @@ test('no test or script writes out a whole family of pages again', () => {
         const code = read(`./${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
         for (const lit of code.match(/\[[^[\]]*\]/g) || []) {
             for (const [name, members] of Object.entries(families)) {
-                if (members.every(m => lit.includes(`'${m}'`) || lit.includes(`'/${m}'`))) offenders.push(`${f}: ${name}`);
+                // …or written without its `.html` (Nov 2026): the browser suites spelt the five guides out
+                // as `'staff-guide'` and the rest, which went past this check four times in one file.
+                const named = (/** @type {string} */ m) => lit.includes(`'${m}'`) || lit.includes(`'/${m}'`)
+                    || lit.includes(`'${m.replace(/\.html$/, '')}'`);
+                if (members.every(named)) offenders.push(`${f}: ${name}`);
             }
         }
     }
@@ -217,16 +221,46 @@ test('every app page has at least one visual-regression baseline', () => {
         'no committed Overtime baseline — the spec references one that does not exist on disk');
 });
 
+test('every guide has a visual-regression baseline too', () => {
+    // The guide visits in e2e/visual.spec.js are written out one by one, deliberately: each has its own
+    // width, its own ready selector and a committed baseline named after it. So the list is checked from
+    // here rather than replaced by a loop.
+    const suite = read('./e2e/visual.spec.js');
+    const missing = GUIDE_PAGES.map(p => p.file).filter(f => !suite.includes(`goto('/${f}')`));
+    assert.deepEqual(missing, [], 'guides with no baseline in e2e/visual.spec.js');
+});
+
+test('each guide\'s declared shape is true of its page, and the guide suites read the list (Nov 2026)', () => {
+    // scripts/app-pages.mjs now says which guides are DOCUMENT-style and where each one's content column
+    // is, so the browser suites loop over it instead of spelling the guides out. A field nobody checks is
+    // a list that can be wrong without failing, so each is read against the page here.
+    for (const { file, documentStyle, column } of GUIDE_PAGES) {
+        const html = read(`./${file}`);
+        assert.equal(html.includes('href="./guide-doc.css"'), documentStyle,
+            `${file}: declared ${documentStyle ? '' : 'not '}document-style, and ${documentStyle ? 'does not load' : 'loads'} guide-doc.css`);
+        assert.equal((html.match(/class="guide-back-link"/g) || []).length, documentStyle ? 0 : 1,
+            `${file}: a card guide ends with ONE footer back link, a document guide with none`);
+        const present = column === 'main' ? /<main\b/.test(html)
+            : new RegExp(`class="(?:[^"]*\\s)?${column.slice(1)}(?:\\s[^"]*)?"`).test(html);
+        assert.ok(/^(main|\.[a-z-]+)$/.test(column) && present, `${file}: its content column ${column} is not on the page`);
+    }
+    for (const suite of ['./guide-sources.test.mjs', './e2e/guides.spec.js', './e2e/print.spec.js']) {
+        assert.ok(readsThePageList(read(suite), 'GUIDE_PAGES').imports,
+            `${suite} no longer takes its guides from scripts/app-pages.mjs (GUIDE_PAGES)`);
+    }
+});
+
 test('every app page carries the noindex meta', () => {
     // Staff-only app. This meta is the only de-index signal the headerless mirror gets.
     const missing = APP_PAGES.filter(p => !/name="robots"[^>]*noindex/.test(read(`./${p}`)));
     assert.deepEqual(missing, [], 'pages without a robots noindex meta');
 });
 
-test('every app page opts out of algorithmic dark mode', () => {
+test('every app page and every guide opts out of algorithmic dark mode', () => {
     // The app has no dark theme; a force-dark browser inverts the off-white cards and leaves the
-    // navy, which is a real staff report rather than a hypothetical.
-    const missing = APP_PAGES.filter(p => !/name="color-scheme"[^>]*only light/.test(read(`./${p}`)));
+    // navy, which is a real staff report rather than a hypothetical. The guides have none either, and
+    // their navy header and gold chips are exactly what a forced inversion turns to mud.
+    const missing = [...APP_PAGES, ...GUIDES].filter(p => !/name="color-scheme"[^>]*only light/.test(read(`./${p}`)));
     assert.deepEqual(missing, [], 'pages without `color-scheme: only light`');
 });
 
@@ -755,29 +789,34 @@ test('every app page can be returned to from a guide', () => {
         + 'will notice is wrong.');
 });
 
-test('every guide has a chip bar, driven by exactly one script, whose chips all lead somewhere (v25.80)', () => {
+test('every guide has a chip bar, driven by the one shared script, whose chips all lead somewhere (v25.80)', () => {
     /**
      * Since v25.80 all five guides carry the "Jump to section" bar, and nothing else measures a guide's
      * sticky stack: guide-back.js's header-only measurement went with the last guide that had no bar.
      * So a guide without a bar, or with a bar and no script, lands every search result under its
-     * header. One script per bar, too: the FIP guide's own script carries the same blocks woven into
-     * its finder, and a page loading it AND the shared one would bind every chip twice — two scrolls,
-     * two focus moves, two observers writing the margins.
+     * header. ONE script drives every bar, guide-chips.js, loaded once: twice would bind every chip
+     * twice — two scrolls, two focus moves, two observers writing the margins.
+     *
+     * The FIP guide also loads its own page script, AFTER the shared one (Nov 2026). That script used
+     * to carry its own copy of the bar, held to this one by four exact strings; it now carries none,
+     * and the second half of this check keeps it so — a copy that came back would bind every chip
+     * twice on that page.
      *
      * And a chip whose target id is missing is not an error anywhere: the script quietly leaves it out
      * of the scrollspy and its click does nothing, so a mistyped id ships as a dead button.
      */
-    const OWN_SCRIPT = { 'fip-guide.html': './fip-guide.js' };
+    const PAGE_SCRIPT = { 'fip-guide.html': './fip-guide.js' };
     for (const { file } of GUIDE_PAGES) {
         const html = read(`./${file}`);
         const bar = html.match(/<nav class="chip-bar" aria-label="Jump to section">([\s\S]*?)<\/nav>/);
         assert.ok(bar, `${file} has no "Jump to section" chip bar`);
 
-        const scripts = ['./guide-chips.js', ...Object.values(OWN_SCRIPT)]
-            .filter(src => html.includes(`<script src="${src}" defer></script>`));
-        const expected = OWN_SCRIPT[/** @type {keyof typeof OWN_SCRIPT} */ (file)] ?? './guide-chips.js';
-        assert.deepEqual(scripts, [expected],
-            `${file} must load exactly one chip-bar script, ${expected}; it loads ${JSON.stringify(scripts)}`);
+        const own = PAGE_SCRIPT[/** @type {keyof typeof PAGE_SCRIPT} */ (file)];
+        const expected = own ? ['./guide-chips.js', own] : ['./guide-chips.js'];
+        const scripts = [...html.matchAll(/<script src="(\.\/[^"]+)" defer><\/script>/g)].map(m => m[1])
+            .filter(src => src !== './guide-back.js');
+        assert.deepEqual(scripts, expected,
+            `${file} must load ${expected.join(' and then ')}, once each; it loads ${JSON.stringify(scripts)}`);
 
         const targets = [...bar[1].matchAll(/<button class="chip" type="button" data-target="([^"]+)">/g)].map(m => m[1]);
         const chips = (bar[1].match(/<button\b/g) || []).length;
@@ -786,28 +825,40 @@ test('every guide has a chip bar, driven by exactly one script, whose chips all 
         const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
         const dead = targets.filter(id => !main.includes(`id="${id}"`));
         assert.deepEqual(dead, [], `${file}: these chips lead to no id inside <main>, so tapping them does nothing`);
+
+        // THE HEADER'S TWO CONTROLS ARE SCRIPTS TOO (Nov 2026). Removing either tag from a guide left
+        // every non-browser suite green: without guide-back.js the ← ignores `?from=` and drops a reader
+        // opened from Admin on the calendar; without guide-print.js the ⤓ PDF button does nothing at
+        // all — not even the iOS 27 explanation. And guide-print.js binds `.btn-print`, so the button
+        // must carry that class and its id.
+        for (const tag of ['<script src="./guide-back.js" defer></script>', '<script type="module" src="./guide-print.js"></script>']) {
+            assert.equal(html.split(tag).length - 1, 1, `${file} must load ${tag} exactly once`);
+        }
+        const pdf = html.match(/<button\b[^>]*\bid="savePdfBtn"[^>]*>/);
+        assert.ok(pdf, `${file} has no #savePdfBtn`);
+        assert.match(pdf[0], /\bclass="[^"]*\bbtn-print\b[^"]*"/, `${file}: #savePdfBtn is not a .btn-print, so guide-print.js never hears it`);
     }
 });
 
-test('the two chip-bar scripts judge a tap\'s jump the same way: when it ends (Nov 2026)', () => {
+test('the chip bar is written once: the FIP guide\'s script keeps no copy, and the shared one keeps no globals (Nov 2026)', () => {
     /**
-     * fip-guide.js mirrors guide-chips.js's chip hold (.claude/rules/guide-pages.md). Only the FIP copy has a
-     * browser test that a slow jump keeps its chip (e2e/guides.spec.js, in Safari's engine, which draws a tall
-     * window slowly), so the shared copy is held to it here: a jump is judged at scrollend where the browser has
-     * it, the timer is the judge only where it does not, and a jump with nowhere to go stands at once. Both used
-     * to run a 1.5 s timer everywhere, which judged a long jump in flight and let its chip go.
+     * This replaced a test that held two copies of the bar together by four exact strings, which a
+     * change of one copy's arrival tolerance from `<= 2` to `<= 2000` passed. There is one copy now,
+     * and what the browser does with it is e2e/guides.spec.js's to prove — "a jump is judged when it
+     * ends…" runs on more than one guide, the FIP guide among them.
+     *
+     * Two things keep it one. fip-guide.js must not grow the bar back: the calls only the bar makes are
+     * named here. And guide-chips.js keeps its names off `window`: a classic script's top-level `var`
+     * and `function` are globals shared with every other classic script, and the FIP guide loads two.
      */
-    const LINES = [
-        "var jumpCeilingMs = 'onscrollend' in window ? 5000 : 1500;",
-        'var settled = reduceMotion || jumpArrived(target);',
-        'spyTimer = setTimeout(resumeSpy, jumpCeilingMs);',
-        'if (settled) jumpTop = heldTop();',
-    ];
-    for (const file of ['./guide-chips.js', './fip-guide.js']) {
-        const src = read(file);
-        for (const line of LINES) assert.ok(src.includes(line), `${file} no longer has: ${line}`);
-        assert.doesNotMatch(src, /setTimeout\(resumeSpy,\s*\d/, `${file} judges a jump at a fixed time again`);
+    const fip = read('./fip-guide.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const bar of ["'.chip-bar'", "'scrollend'", 'scrollMarginTop', 'ResizeObserver']) {
+        assert.ok(!fip.includes(bar), `fip-guide.js uses ${bar} again — the chip bar is guide-chips.js's alone`);
     }
+    const chips = read('./guide-chips.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const topLevel = chips.split('\n').filter(l => /^\S/.test(l));
+    assert.deepEqual(topLevel, ['(function () {', '}());'],
+        'guide-chips.js has code outside its wrapping function, so its names are globals the FIP guide\'s script shares');
 });
 
 test('a legacy redirect page is a redirect, and points somewhere real', () => {

@@ -1,20 +1,7 @@
 /* MYB Roster — Railcard Guide page styles. Linked by railcard-guide.html after guide-shell.css. */
 
 :root {
-    /* --navy / --gold defined in guide-shell.css */
-    --text:     #1a1a2e;
-    --mid:      #555;
-    --light:    #6b6b6b;
-    --border:   #dde1e8;
-    --bg:       #f4f5f8;
-    --white:    #fff;
-    --green:    #2e7d32;
-    --green-bg: #e8f5e9;
-    --amber:    #b45000;
-    --amber-bg: #fff8e1;
-    --red:      #c62828;
-    --red-bg:   #ffebee;
-    --navy-bg:  #eef1f6;
+    /* The palette is guide-shell.css's, one set for every guide (Nov 2026). This page's own: */
     --navy-tag-bg: #e2e7f0;  /* light-navy fill: the Chiltern-sourced pill, the follows-the-ticket cutoff */
 }
 
@@ -69,8 +56,7 @@ body {
 .rc {
     background: var(--white);
     border-radius: 12px;
-    /* Layered shadow (v18.79) — a tight contact line + soft ambient, matching the app's card depth */
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);   /* guide-shell.css: the guides' one card lift */
     border-left: 4px solid var(--green);
     padding: 11px 13px 10px;
     margin-bottom: 8px;
@@ -155,7 +141,7 @@ body {
     line-height: 1.45;
 }
 .rc-chiltern .ct-label { color: var(--amber); font-weight: 700; margin-right: 4px; }
-.rc-chiltern a { color: var(--amber); font-weight: 600; }
+/* A link in the note is the shell's one link, navy: amber on this page means a morning rule (Nov 2026). */
 
 /* ── Three-layer time-rule breakdown (high-risk cards only) ── */
 /* Teaches: a shown morning time is a LOCAL shortcut, not a fixed national rule. */
@@ -180,12 +166,15 @@ body {
     border: 1px solid var(--border);
     border-radius: 4px;
     overflow: hidden;
+    container-type: inline-size;   /* the rows below ask THIS box how wide it is for its text */
 }
 /* The label column in `em`, so it grows with the text: fixed at 84px, MARYLEBONE (73px at the
-   default 10px) ran 3px into its sentence at 1.3× text. 7.3em of the row's 11.5px is the old 84px. */
+   default 10px) ran 3px into its sentence at 1.3× text. 7.3em of the row's 11.5px is the old 84px.
+   `minmax(0, 1fr)` and `overflow-wrap: anywhere` are the backstop: a bare `1fr` cannot shrink below its
+   longest word, and the box's `overflow: hidden` then CUT that word ("authoritativ…"). */
 .rc-layer {
     display: grid;
-    grid-template-columns: 7.3em 1fr;
+    grid-template-columns: 7.3em minmax(0, 1fr);
     gap: 8px;
     padding: 6px 9px;
     font-size: 11.5px;
@@ -193,7 +182,18 @@ body {
     background: var(--white);
     border-bottom: 1px solid var(--border);
 }
+.rc-layer > * { min-width: 0; overflow-wrap: anywhere; }
 .rc-layer:last-child { border-bottom: none; }
+/* A NARROW BOX STACKS ITS LABEL ABOVE ITS VALUE (Nov 2026). At 320px under 1.5× text the label column
+   took a third of the row and the sentence beside it ran a word to a line, the Senior card's "authoritative"
+   cut off at the box's edge. Asked of the BOX, in em (css-tokens.md → "Larger text: ask the box"): an em
+   here is the box's own font size, so the one threshold answers for width and text size together. The
+   box measures 18.3em on a 320px phone at the ordinary size, so nothing moves there (measured); it stacks
+   at 320px from about 1.15× text, and at 360–390px from 1.32–1.46×. 360px at 1.3× (16.26em) keeps its two
+   columns, where e2e/guides.spec.js reads each row's label against its value. */
+@container (max-width: 16em) {
+    .rc-layer { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+}
 .rc-layer-lbl {
     font-size: 10px;
     font-weight: 700;
@@ -210,7 +210,7 @@ body {
 .gotchas {
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 .gotcha {
@@ -244,7 +244,7 @@ body {
 div.check {
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
 }
 .check-item {
@@ -273,7 +273,6 @@ div.check {
     color: var(--mid);
     line-height: 1.5;
     margin-bottom: 6px;
-    padding: 0 2px;
 }
 
 /* ── Photo-check table ───────────────────── */
@@ -303,7 +302,7 @@ div.check {
 .digital {
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 10px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     padding: 12px 14px;
 }
 .digital p { font-size: 12px; color: var(--mid); line-height: 1.5; }
@@ -311,13 +310,14 @@ div.check {
 .digital strong { color: var(--text); font-weight: 700; }
 
 /* ── Footer ──────────────────────────────── */
+/* Left-aligned, as the Rangers guide's is (Nov 2026): centred, its four or five lines each started at a
+   different x (css-tokens.md → "Prose is left-aligned once it passes ~2 lines"). */
 .foot {
     margin-top: 22px;
     padding-top: 12px;
     border-top: 1px solid var(--border);
     font-size: 11px;
     color: var(--light);
-    text-align: center;
     line-height: 1.5;
 }
 .foot strong { color: var(--mid); }
@@ -330,11 +330,11 @@ div.check {
    The 760px column held this page's 12–13px notes at 120–140 characters a line. The app's own rule
    for prose on a desktop (css-tokens.md → "Reading measure") is a ~64–72ch cap from 1024px, and the
    guides keep it too: a paragraph or a note stops at 64ch. Boxed callouts and the card rows keep the
-   column — a box is bounded and short, a row is data. The footer is centred, so its words are held
-   to the measure by its padding and its rule still spans the column. Screen only: print is as was. */
+   column — a box is bounded and short, a row is data. The footer's words take the measure from its
+   padding, so its rule still spans the column (the Rangers guide's rule). Screen only: print is as was. */
 @media screen and (min-width: 1024px) {
     main p, .qc-note, .check-item > div, .gotcha-text { max-width: 64ch; }
-    .foot { padding-inline: max(0px, calc((100% - 64ch) / 2)); }
+    .foot { padding-right: max(0px, calc(100% - 64ch)); }
 }
 
 /* ── Print (shell handles .page-header + button hiding) ───────── */
@@ -370,17 +370,7 @@ div.check {
    have to mean the same thing on both or neither is trustworthy.
    ═══════════════════════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Source banner + evidence pills (shape shared with the Rangers guide) ─────────────────────── */
-.source-banner {
-    background: var(--amber-bg);
-    border-bottom: 2px solid var(--amber);
-    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));   /* each side its own inset */
-}
-/* 728 = the 760px column less its 16px sides, so the banner's words start where the header's ←, the
-   chips and the text do (desktop audit, Nov 2026); it was 16px left of all three. */
-.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
-.draft-title { font-weight: 800; color: var(--amber); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
-.source-banner p { font-size: 13px; color: var(--text); }
+/* ── Evidence pills (shape shared with the Rangers guide; the source banner is guide-shell.css's) ── */
 
 .pill {
     display: inline-block;
@@ -570,6 +560,10 @@ div.check {
     .qc-intro { font-size: calc(var(--type-body) * var(--qc-scale, 1)); color: var(--text); }
     .qc-head  { font-size: calc(var(--type-body) * var(--qc-scale, 1)); }
     .qc-note  { font-size: calc(var(--type-label) * var(--qc-scale, 1)); }
+    /* Reading text is in the text colour, not the grey (guide-pages.md → "Three text sizes"): these four sat
+       in --mid beside siblings in --text — the split panels' words under their navy heads, the digital
+       note, the quick check's notes and the photo-check note (Nov 2026). */
+    .split-half p, .digital p, .qc-note, .check-note { color: var(--text); }
     /* The first line sits --guide-top under the chips, as on every guide (it was 14px here). */
     .content { padding-top: var(--guide-top); }
     .content > h2.section:first-child { margin-top: 0; }

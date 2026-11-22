@@ -146,8 +146,9 @@ const NEUTRAL_RGB = /^(0\s*[, ]\s*0\s*[, ]\s*0|255\s*[, ]\s*255\s*[, ]\s*255)(\s
  *  guides' joined on 17 Nov 2026, when the guide sheets came under this file: every one is the navy
  *  card shadow (`rgba(0, 30, 60, …)`), the same tint the app sheets' baselines hold. */
 const RGB_BASELINE = /** @type {Record<string, number>} */ ({ 'index.css': 8, 'links.css': 6, 'shared.css': 3,
-    'fip-guide.css': 5, 'guide-doc.css': 2, 'guide-shell.css': 2, 'paycalc-guide.css': 1, 'railcard-guide.css': 8,
-    'rangers-guide.css': 10, 'staff-guide.css': 5 });
+    // Railcard 8 → 0, Rangers 10 → 0 and FIP 5 → 1 (Nov 2026): the card shadow is guide-shell.css's
+    // `--shadow-card` token now, a definition (exemption 1).
+    'fip-guide.css': 1, 'guide-doc.css': 2, 'guide-shell.css': 2, 'paycalc-guide.css': 1, 'staff-guide.css': 5 });
 
 /** Blank out comments, keeping every byte and newline so offsets and line numbers still hold. */
 const blankComments = (/** @type {string} */ src) =>
@@ -383,16 +384,16 @@ describe('colours come from tokens, not from literals typed into a rule', () => 
     test('the extractor and each exemption are demonstrably working', () => {
         assert.ok(SHEETS.length >= 14, `expected the app and guide stylesheets, found ${SHEETS.length}`);
         assert.ok(GUIDE_SHEETS.length >= 7, `expected the guide stylesheets among them, found ${GUIDE_SHEETS.join(', ')}`);
-        // A guide palette is token definitions, and exemption 1 is what lets it pass: on screen,
-        // rangers-guide.css holds hex only in its :root (its print block keeps paper greys, exemption 4),
-        // so the extractor must see literals there and every one must be a definition.
+        // A guide palette is token definitions, and exemption 1 is what lets it pass: guide-shell.css holds
+        // the guides' one palette (Nov 2026 — it was rangers-guide.css's own copy this read), with hex only
+        // in its :root, so the extractor must see literals there and every one must be a definition.
         // A fresh copy of HEX: `matchAll` starts where the shared regex's lastIndex was left, and an
         // `assert.match` in an earlier test leaves it part-way through another file.
-        const rangers = blankComments(readFileSync('rangers-guide.css', 'utf8'));
-        const rangersPrint = printRegions(rangers);
-        const onScreen = [...rangers.matchAll(new RegExp(HEX.source, 'g'))].filter(m => !rangersPrint.some(([s, e]) => (m.index ?? 0) >= s && (m.index ?? 0) < e));
-        assert.ok(onScreen.length > 10 && onScreen.every(m => declarationAt(rangers, m.index ?? 0).trim().startsWith('--')),
-            'rangers-guide.css: its on-screen colours should all be token definitions — the guide sheets are not being read as this file thinks');
+        const palette = blankComments(readFileSync('guide-shell.css', 'utf8'));
+        const palettePrint = printRegions(palette);
+        const onScreen = [...palette.matchAll(new RegExp(HEX.source, 'g'))].filter(m => !palettePrint.some(([s, e]) => (m.index ?? 0) >= s && (m.index ?? 0) < e));
+        assert.ok(onScreen.length > 10 && onScreen.every(m => declarationAt(palette, m.index ?? 0).trim().startsWith('--')),
+            'guide-shell.css: its on-screen colours should all be token definitions — the guide sheets are not being read as this file thinks');
         assert.ok(MODULES.length >= 40, `expected the root modules, found ${MODULES.length}`);
 
         const shared = blankComments(readFileSync('shared.css', 'utf8'));
