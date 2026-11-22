@@ -1931,6 +1931,9 @@ test('guides: the footer back link follows ?from= as the header arrow does', asy
             await expect(link, `${guide} from "${from}": the footer's words`).toHaveText(text);
             await expect(link, `${guide} from "${from}": the footer's destination`).toHaveAttribute('href', href);
             await expect(page.locator('.page-header .btn-back'), `${guide} from "${from}": the arrow agrees`).toHaveAttribute('href', href);
+            // One name for each destination: the arrow's spoken label is the footer's words.
+            await expect(page.locator('.page-header .btn-back'), `${guide} from "${from}": the arrow's label agrees`)
+                .toHaveAttribute('aria-label', text.replace(/^← /, ''));
         }
     }
 });

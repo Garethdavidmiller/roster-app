@@ -47,11 +47,11 @@
 (function () {
     'use strict';
 
-    /** The app pages that can open a guide from the nav drawer → the arrow's label for each. `footer`
-     *  is the footer link's wording where it differs: the calendar keeps the one the guides author.
-     *  @type {Record<string, { href: string, label: string, footer?: string }>} */
+    /** The app pages that can open a guide from the nav drawer → the label the arrow and the footer
+     *  link both carry. The Calendar is "calendar" in both, as the app names it everywhere else.
+     *  @type {Record<string, { href: string, label: string }>} */
     var DESTINATIONS = {
-        'index.html':      { href: './',                label: 'Back to roster', footer: 'Back to calendar' },
+        'index.html':      { href: './',                label: 'Back to calendar' },
         'admin.html':      { href: './admin.html',      label: 'Back to Admin' },
         'paycalc.html':    { href: './paycalc.html',    label: 'Back to Pay Calculator' },
         'operations.html': { href: './operations.html', label: 'Back to Operations' },
@@ -80,7 +80,7 @@
     var footer = document.querySelector('.guide-back-link');
     if (footer) {
         footer.setAttribute('href', dest.href);
-        footer.textContent = '← ' + (dest.footer || dest.label);
+        footer.textContent = '← ' + dest.label;
     }
 
     /** A page's path with any trailing `index.html` dropped: `/` and `/index.html` are one page. @param {string} p */
