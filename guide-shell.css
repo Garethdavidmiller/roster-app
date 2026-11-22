@@ -150,11 +150,17 @@ h2::after  { content: ""; flex: 1 0 24px; border-top: 1px solid var(--rule); }
    A link in the text reads as the app's do (css-tokens.md → "A link in prose"): navy at 600, its
    underline a soft tint of the link's own colour, gold under a mouse. The document guides and FIP each
    kept a copy of this; the Railcard guide turned its links amber under a mouse; the Rangers guide had
-   none. A link with a colour of its own (the Railcard's amber callouts) keeps a tint of THAT colour. */
+   none. No page recolours it — the Railcard's amber callouts and FIP's grey disclaimer did, and lost
+   it (Nov 2026); the underline is tinted from currentColor, so it follows the link's navy. */
 a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
 @media (hover: hover) and (pointer: fine) {
     a:hover { text-decoration-color: var(--gold); }
 }
+/* …and one keyboard ring (Nov 2026). A plain link in the text showed the browser's own ring — a blue or
+   black halo by engine — where every classed control on the guides draws the navy 2px one. At ZERO
+   specificity, so a control with a ring of its own (`.chip`, `.btn-back` on the navy header, the FIP
+   chips and buttons) still draws that one. */
+:where(a:focus-visible) { outline: 2px solid var(--navy); outline-offset: 2px; border-radius: 2px; }
 
 /* ── Full-bleed sticky page header ──────────────────────────────────────────
    Back arrow (left) · title + subtitle · ⤓ PDF button (right). */
