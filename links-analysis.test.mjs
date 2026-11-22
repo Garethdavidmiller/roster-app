@@ -1117,3 +1117,19 @@ test('a stored cell with markup in it is counted as unreadable, and none of it r
     assert.match(words, /1 worked cell could not be read as a time/, 'the unreadable cell is said, never dropped in silence');
 });
 
+
+// ── A LONE SPARE DAY IS A WORKED DAY OF UNKNOWN TIME (Nov 2026, review bug 3) ───────────────────
+// Run through the real renderers, not only `weeklyHours`: the row and the strip are where a figure
+// counted as zero hours went on wearing its tick.
+test('a lone SPARE day marks the hours row and the strip partial, and says why', () => {
+    const patterns = fullPatterns();
+    patterns['3'].sat = 'SPARE';
+    resetDom();
+    const a = initLinksAnalysis({ getDesign: () => ({ patterns }) });
+    a.renderDesignChecks();
+    const text = els.checksContent.innerHTML;
+    assert.match(text, /Hours a week<\/strong> — [^<]*<strong>\(partial\)<\/strong>/, 'the hours row does not say it is partial');
+    assert.match(text, /1 spare day on a working week has no time yet/, 'the row does not say why it is partial');
+    a.renderSummary();
+    assert.match(els.linksSummary.innerHTML, /a week \(partial\)/, 'the strip does not say the figure is partial');
+});

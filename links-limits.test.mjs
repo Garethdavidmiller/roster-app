@@ -453,6 +453,22 @@ describe('the contracted-days ceiling — 219 a year, at the link\'s own length'
         }
     });
 
+    // Nov 2026 (review, bug 3): a single SPARE day on a working week — a worked day whose time is
+    // not set yet — counted as NO day here while the run checks counted it as worked, so a design
+    // over the ceiling read "within the 219". Built from the 218.6 link, so one day more crosses it.
+    test('a lone SPARE day on a working week is a worked day, so it can cross the ceiling', () => {
+        const p = linkOf(89);
+        const working = Object.keys(p).find(k => p[k].mon === 'RD' || p[k].tue === 'RD' || p[k].sat === 'RD');
+        const day = /** @type {string} */ (['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].find(d => p[String(working)][d] === 'RD'));
+        p[String(working)][day] = 'SPARE';
+        assert.equal(contractedDaysPerYear(p, ROTATING_LINES).toFixed(1), contractedDaysPerYear(linkOf(90), ROTATING_LINES).toFixed(1),
+            'a lone spare day counts exactly as one more duty');
+        assert.equal(ceiling(p)?.status, 'breach', 'and the design is over the 219, not within it');
+        // …but a SUNDAY spare is overtime, as a Sunday duty is, and never a contracted day.
+        const q = linkOf(89); q[String(working)].sun = 'SPARE';
+        assert.equal(contractedDaysPerYear(q, ROTATING_LINES).toFixed(1), '218.6');
+    });
+
     test('one duty more is 220.6 — a breach, reported as a measurement, never a verdict', () => {
         const c = ceiling(linkOf(90));
         assert.equal(c?.status, 'breach');
@@ -464,7 +480,7 @@ describe('the contracted-days ceiling — 219 a year, at the link\'s own length'
         const c = /** @type {any} */ (ceiling(linkOf(89)));
         assert.match(c.basis, /chiltern|company|policy|agreement/i, 'whose limit');
         assert.match(c.basis, /\b20\d{2}\b/, 'something dated');
-        assert.match(c.basis, /outstanding|not confirmed/i, 'the citation is disclosed as outstanding');
+        assert.match(c.basis, /outstanding|not confirmed|no company policy document yet/i, 'the citation is disclosed as outstanding');
         assert.doesNotMatch(c.basis, /\bowner\b|\bTBC\b/i);
         assert.match(c.title, /219/);
     });

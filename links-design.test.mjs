@@ -838,6 +838,27 @@ describe('weeklyHours', () => {
         assert.equal(wh.coverLines, 4, 'premise: the main cycle has four spare weeks');
     });
 
+    // Nov 2026 (review, bug 3): a lone SPARE day on a working week was skipped as if it were rest —
+    // no hours, and the average kept its tick — while the run checks counted it as a worked day.
+    // It is a worked day of unknown time, so the figure is a floor and must say so.
+    test('a lone SPARE day on a working week makes the figure PARTIAL, never zero hours', () => {
+        const six = rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
+            thu: '09:00-16:00', fri: '09:00-16:00' });
+        const exact = weeklyHours({ 1: six }, 1);
+        assert.equal(exact.complete, true, 'premise: five timed days is a complete figure');
+        assert.equal(exact.loneSpareDays, 0);
+        const wh = weeklyHours({ 1: { ...six, sat: 'SPARE' } }, 1);
+        assert.equal(wh.loneSpareDays, 1);
+        assert.equal(wh.complete, false, 'a day with no time cannot be measured, so the figure is partial');
+        assert.equal(wh.exSunday, 35, 'and the timed days are still counted');
+        // A whole cover week is not "lone" — it is the contracted week, and complete.
+        const cover = weeklyHours({ 1: SPARE }, 1);
+        assert.equal(cover.loneSpareDays, 0);
+        assert.equal(cover.complete, true);
+        // A Sunday SPARE is not contracted, so it leaves the Mon–Sat figure exact.
+        assert.equal(weeklyHours({ 1: { ...six, sun: 'SPARE' } }, 1).complete, true);
+    });
+
     test('SUNDAYS ARE EXCLUDED — counting them would flatter every design', () => {
         // One line: 5 × 7h Mon–Fri = 35 exactly, plus a 7h Sunday on top. Ex-Sunday must stay 35;
         // an implementation that folds Sunday in reports 42 and calls an over-run a healthy week.

@@ -657,6 +657,11 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                           : '') +
                       `</div>`
                     : '') +
+                // A lone SPARE day on a working week is a worked day with no time yet (Nov 2026), so
+                // the figure is a floor — said here, beside the "(partial)" it causes.
+                (wh.loneSpareDays
+                    ? `<div class="check-sub">${wh.loneSpareDays} spare day${wh.loneSpareDays === 1 ? '' : 's'} on a working week ${wh.loneSpareDays === 1 ? 'has' : 'have'} no time yet and added no hours — the real figure is higher, and this figure is partial.</div>`
+                    : '') +
                 `</div></div>`
             );
         }

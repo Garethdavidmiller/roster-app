@@ -520,17 +520,24 @@ export function hmFromHours(hours) {
  * @returns {{exSunday: number|null, all: number|null, sundayHours: number, totalHours: number,
  *            exSundayHours: number, workingLines: number, coverLines: number, lines: number,
  *            duties: number, sundayDuties: number, unreadable: number, unreadableLines: number,
- *            complete: boolean, target: number}}
+ *            loneSpareDays: number, complete: boolean, target: number}}
  */
 export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
     let totalMin = 0, sundayMin = 0, duties = 0, sundayDuties = 0, unreadable = 0;
-    let workingLines = 0, coverLines = 0, unreadableLines = 0;
+    let workingLines = 0, coverLines = 0, unreadableLines = 0, loneSpareDays = 0;
 
     for (let w = 1; w <= rotatingLines; w++) {
         const row = /** @type {Record<string, any>} */ (patterns)?.[String(w)] || {};
+        const cover = isCoverWeek(row);
         let lineIsTimed = false, lineHasWork = false;
         for (const d of DAYS) {
             const s = row[d];
+            // A LONE SPARE DAY — Monday to Saturday, on a week that is not a whole cover week — is a
+            // worked day whose time nobody has set (Nov 2026). Skipped as rest, it added no hours and
+            // the figure still wore the tick; the contracted-days ceiling counted it as no day while
+            // the run checks counted it as worked. It is counted here, and it makes the figure
+            // INCOMPLETE — the same `complete: false` an unreadable line gives — never zero hours.
+            if (s === 'SPARE' && !cover && d !== 'sun') { loneSpareDays++; continue; }
             if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
             lineHasWork = true;
             const m = dutyMinutes(s);
@@ -542,7 +549,7 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
             duties++; totalMin += m;
             if (d === 'sun') { sundayDuties++; sundayMin += m; }
         }
-        if (isCoverWeek(row)) coverLines++;
+        if (cover) coverLines++;
         else if (lineIsTimed) workingLines++;
         // ── A WHOLE LINE NOBODY COULD READ (v20.08, external review P2) ──────────────────────────
         // A line with worked cells but NOT ONE readable time contributes zero minutes AND drops out
@@ -556,28 +563,8 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
         else if (lineHasWork) unreadableLines++;
     }
 
-    // ── THE AVERAGE IS OVER THE WHOLE ROTATION, AND A COVER WEEK IS A PAID WEEK (v20.98) ────────
-    //
-    // Owner, Aug 2026: 35 hours a week averaged across all the lines, and a spare week counts as a
-    // full contracted week. Individual weeks vary — 22h here, 42h there — and only the average is
-    // the contract.
-    //
-    // Until v20.98 this divided ex-Sunday duty by the WORKING lines and left cover weeks out of
-    // both halves. The reasoning recorded against that was sound as far as it went — dividing by all
-    // the lines charges the average with weeks of zero and reports a week nobody works — but the
-    // conclusion was wrong: the answer is not to exclude a cover week, it is to stop treating it as
-    // zero. A spare week is a person's paid, contracted week; they carry no stored TIMES, which is a
-    // fact about how the design is written down, not about whether the week is worked.
-    //
-    // The two definitions agree on the REQUIREMENT and disagree on the READING, which is why this
-    // was invisible: (D + 35s)/L = 35 is exactly D = 35 x working, so a design that satisfies one
-    // satisfies the other. They diverge on everything that does NOT hit the target — a short design
-    // read the old way looked worse than it is, because the cover weeks that are being paid for were
-    // simply not in the sum.
-    //
-    // An UNFILLED line — no duties, not marked spare — is 0 hours over 1 line, and now drags the
-    // average down instead of being skipped. That is correct: it is a week somebody works with
-    // nothing in it, the design is not finished, and "Lines not yet designed" says so directly.
+    // The average is over the WHOLE rotation and a cover week is a paid week — the argument is the
+    // function's header, stated once (it was stated here a second time until Nov 2026).
     const coverMin = coverLines * CONTRACTED_HOURS_PER_WEEK * 60;
     const exSundayMin = totalMin - sundayMin;
     const hrs = (/** @type {number} */ m) => Math.round((m / 60) * 100) / 100;
@@ -589,10 +576,11 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
         all:      measured ? hrs((totalMin + coverMin) / measured) : null,
         totalHours: hrs(totalMin), exSundayHours: hrs(exSundayMin), sundayHours: hrs(sundayMin),
         workingLines, coverLines, lines: rotatingLines,
-        duties, sundayDuties, unreadable, unreadableLines,
-        // The figure covers only the lines it could measure. `false` is what lets the renderer show
-        // a number without endorsing it — see the note beside `unreadableLines` above.
-        complete: unreadableLines === 0,
+        duties, sundayDuties, unreadable, unreadableLines, loneSpareDays,
+        // The figure covers only the lines and days it could measure. `false` is what lets the
+        // renderer show a number without endorsing it — see the notes beside `unreadableLines` and
+        // `loneSpareDays` above.
+        complete: unreadableLines === 0 && loneSpareDays === 0,
         target: CONTRACTED_HOURS_PER_WEEK,
     };
 }
