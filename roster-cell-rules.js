@@ -93,8 +93,9 @@ export const stripUnknown     = /** @param {any} v */ v => v.slice(UNKNOWN_PREFI
  * the alternative and is the pattern this module exists to prevent: two copies of a rule, one of
  * which eventually stops agreeing. Returning it is one authority, still pure.
  *
- * Sunday wins when both could apply, because it runs first and leaves nothing for the rest-day
- * guard to act on — so the reported guard is always the one that actually moved the value.
+ * Sunday wins over the rest-day guard when both could apply, because it runs first and leaves nothing
+ * for the rest-day guard to act on — so the reported guard is always the one that actually moved the
+ * value. The two Christmas guards win over Sunday: on a Sunday 25 or 26 December they are the reason.
  */
 export function normaliseCellValue(rawShift, baseShift, date) {
     const parsedValue = isRdwEncoded(rawShift) ? stripRdw(rawShift) : rawShift;
@@ -103,7 +104,11 @@ export function normaliseCellValue(rawShift, baseShift, date) {
     // A spare day on 25 or 26 December is refused whatever the weekday — Sunday's guard lets a Spare
     // turn through, so this runs after it (owner, 19 Nov 2026; christmas-leave.js, rule 1).
     const christmasSpare = sundaySafe0 === 'SPARE' && isChristmasRD(parseISODate(date));
-    const christmasOther = isOtherValue(sundaySafe0) && isChristmasRD(parseISODate(date));
+    // An Other day is judged from what the roster PRINTED, before the Sunday guard runs: on a Sunday
+    // 25 or 26 December (Boxing Day 2027, Christmas Day 2033) that guard has already turned a timed
+    // Training day into plain hours, and asking it afterwards recorded worked hours on a day that
+    // cannot be an Other day (review, 22 Nov 2026). The Christmas reason wins over the Sunday one.
+    const christmasOther = isOtherValue(parsedValue) && isChristmasRD(parseISODate(date));
     const sundaySafe  = (christmasSpare || christmasOther) ? 'RD' : sundaySafe0;
     const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
     const restSafe = ((normRest(sundaySafe) === 'SICK' || normRest(sundaySafe) === 'AL') && normRest(baseShift) === 'RD')

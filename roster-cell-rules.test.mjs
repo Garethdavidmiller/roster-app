@@ -101,6 +101,25 @@ describe('writing a day the app forbids', () => {
         assert.equal(normaliseCellValue('13:30-21:00', 'RD', '2026-12-26').guarded, null);
     });
 
+    test('…and on a SUNDAY 25 or 26 December too — the Sunday guard must not turn it into worked hours first (review, 22 Nov 2026)', () => {
+        // Boxing Day 2027 and Christmas Day 2033 are Sundays. The Sunday guard turns a TIMED Other day
+        // into Sunday work at its times, and the Christmas guard used to ask only after it had: a
+        // Training day printed with times there was recorded as worked hours, guarded by nothing.
+        for (const date of ['2027-12-26', '2033-12-25']) {
+            for (const base of ['RD', '06:00-14:00']) {
+                for (const v of ['TRG', 'MEET', 'TRG 09:00-17:00', 'MEET 10:00-14:00', 'MEET RDW 10:00-14:00', 'RDW|TRG 09:00-17:00']) {
+                    const n = normaliseCellValue(v, base, date);
+                    assert.deepEqual(n, { value: 'RD', display: 'RD', guarded: 'christmas-other' }, `${v} on ${date}, base ${base}`);
+                }
+            }
+        }
+        // CONTROLS: an ordinary Sunday keeps both Sunday answers — timed is Sunday work, bare is refused.
+        assert.deepEqual(normaliseCellValue('TRG 09:00-17:00', 'RD', '2027-12-19'), { value: '09:00-17:00', display: '09:00-17:00', guarded: null });
+        assert.equal(normaliseCellValue('TRG', 'RD', '2027-12-19').guarded, 'sunday-other');
+        // …and a plain worked Sunday Boxing Day is still not this guard's.
+        assert.equal(normaliseCellValue('13:30-21:00', 'RD', '2027-12-26').guarded, null);
+    });
+
     test('the same value on a MONDAY is untouched — the guard is about Sundays, not about AL', () => {
         assert.equal(normaliseCellValue('AL', '06:00-14:00', MON).value, 'AL');
         assert.equal(normaliseCellValue('TRG', '06:00-14:00', MON).value, 'TRG');
