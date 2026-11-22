@@ -320,7 +320,7 @@ export function createDesignLibrary(ctx) {
         try {
             if (!await confirmDialog({
                 title: 'Remove for good',
-                message: `Permanently remove "${d.name}"?\n\nThis one can't be undone.`,
+                message: `Permanently remove “${d.name}”?\n\nThis cannot be undone.`,
                 confirmLabel: 'Remove for good',
                 danger: true,
             })) return;

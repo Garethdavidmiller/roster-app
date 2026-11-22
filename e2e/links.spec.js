@@ -4670,7 +4670,7 @@ test('links review: a design found deleted on save leaves the list, and the copy
     await dialog.locator('.dialog-btn-confirm').click();              // "Save mine as new"
     // Straight to the name — not "goes back to its last save" about a design that is in the bin.
     const next = page.locator('.dialog-overlay.visible');
-    await expect(next).toContainText('Name for the duplicate');
+    await expect(next).toContainText('Name for the copy');
     await expect(next).not.toContainText('last save');
 });
 
@@ -5081,7 +5081,7 @@ test('links: "Save mine as new" after a colleague\'s save asks nothing more, kee
     // Straight to the name: the "goes back to its last save. Duplicate anyway?" question was a third one,
     // about the choice just made (the path from a deleted design never asked it).
     const next = page.locator('.dialog-overlay.visible');
-    await expect(next).toContainText('Name for the duplicate');
+    await expect(next).toContainText('Name for the copy');
     await expect(next).not.toContainText('last save');
     await next.locator('.dialog-btn-confirm').click();
     await expect(activeDesignName(page)).toHaveText('Morning heavy copy');

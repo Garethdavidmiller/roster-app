@@ -222,6 +222,9 @@ export function initLinksCompare(deps) {
             // numbers beside them, and would be wrong by twenty lines.
             `${_filterActive() ? ' — the figures here and the cover row below still cover all '
                 + `${TOTAL_POS} lines` : ''}</p>` +
+            // THE KEY: which side is which. Every row reads `A → B`, and the strip sits above both columns, so
+            // without it a reader had to work out from the headers below which figure was the open design's.
+            `<p class="compare-an-note compare-sum-key">${escapeHtml(a.name || COMPARE_ACTIVE_FALLBACK)} → ${escapeHtml(b.name || 'Design B')}</p>` +
             `<ul class="compare-sum-list">` +
             row('Hours a week (excl. Sunday)', hrs(ha), hrs(hb)) +
             row('Full weekends off', ca.weekendsOff, cb.weekendsOff) +

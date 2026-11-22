@@ -676,3 +676,10 @@ test('analysis: a figure that moved without changing the finding is behind its o
     assert.match(html, /<details class="compare-an-more"><summary>\d+ more moved a figure without changing the finding/);
     assert.match(html, /FF11[\s\S]*?clear \(9\) → clear \(10\)/);   // 24-line fixtures at 26 lines, and v25.03 — see above
 });
+
+test('the strip says which side is which: the open design → the compared one', () => {
+    resetDom();
+    const c = initLinksCompare(makeDeps().deps);
+    c.toggleCompareMode(); c.selectCompareDesign('b'); c.renderCompare();
+    assert.match(els.compareSummary.innerHTML, /<p class="compare-an-note compare-sum-key">A → B<\/p><ul class="compare-sum-list">/);
+});

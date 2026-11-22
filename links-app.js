@@ -689,7 +689,7 @@ export function init() {
             // a name and were only then asked whether to abandon your changes — the decision that might
             // cancel the whole action came last.
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
-            const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. "Option A"):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
+            const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. “Option A”):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
             if (!name) return;
             if (_designNameRejected(name)) return;
             making = name;
@@ -732,11 +732,11 @@ export function init() {
             // save. Full reasoning: `.claude/rules/links-design.md`. Asked before the name prompt, per
             // `createDesign`: the decision that might cancel the action must not come last.
             if (dirty && !chosen && !await confirmDialog({
-                message: 'Your unsaved changes will go into the copy, and "' + (design.name || 'this design')
-                       + '" will go back to its last save. Duplicate anyway?',
-                confirmLabel: 'Duplicate',
+                title: 'Save a copy as…',
+                message: `Your unsaved changes will go into the copy, and “${design.name || 'this design'}” will go back to its last save. Save the copy anyway?`,
+                confirmLabel: 'Save copy',
             })) return;
-            const name = (await promptDialog({ title: 'Duplicate design', message: 'Name for the duplicate:', defaultValue: proposeCopyName(design.name || 'Design', designs), maxLength: MAX_DESIGN_NAME, confirmLabel: 'Duplicate' }))?.trim();
+            const name = (await promptDialog({ title: 'Save a copy as…', message: 'Name for the copy:', defaultValue: proposeCopyName(design.name || 'Design', designs), maxLength: MAX_DESIGN_NAME, confirmLabel: 'Save copy' }))?.trim();
             if (!name) return;
             if (_designNameRejected(name)) return;
             if (!design) return;   // the dialogs await; the page is the same one, but the type checker cannot know that
@@ -758,7 +758,7 @@ export function init() {
             _openMade(d, { act, before, queued: !!queued, made: `The copy “${name}”`, settled });
         } catch (err) {
             console.error('[Links] Duplicate design failed:', err);
-            _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t duplicate the design — check your connection and try again.');
+            _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t save the copy — check your connection and try again.');
         } finally {
             making = null;
         }
@@ -873,7 +873,7 @@ export function init() {
         if (id === activeDesignId && dirty) {
             if (!await confirmDialog({
                 title: 'Delete design',
-                message: `"${d.name}" has unsaved changes.\n\nRecently deleted keeps the last saved version, so those changes would be lost.\n\nSaving first means the deleted copy has everything — restoring it brings back what is on screen now.`,
+                message: `“${d.name}” has unsaved changes.\n\nRecently deleted keeps the last saved version, so those changes would be lost.\n\nSaving first means the deleted copy has everything — restoring it brings back what is on screen now.`,
                 confirmLabel: 'Save, then delete',
                 danger: true,
             })) return;
@@ -884,7 +884,7 @@ export function init() {
             // this dialog described is no longer the one that would happen, so stop and say so
             // rather than deleting against a state nobody agreed to.
             if (dirty || activeDesignId !== id) {
-                _designActionStatus(`Couldn’t save "${d.name}", so nothing was deleted.`);
+                _designActionStatus(`Couldn’t save “${d.name}”, so nothing was deleted.`);
                 return;
             }
         } else if (!await confirmDialog({
@@ -892,7 +892,7 @@ export function init() {
             // States what actually happens (v19.96). It promised "the next 30 days" while nothing
             // has expired a design since v19.86 — an under-promise, but the bin's own intro says
             // the opposite two taps later, and a designer who believes a deadline may hurry.
-            message: `Delete "${d.name}"?\n\nIt moves to Recently deleted, where it stays until someone restores it or removes it for good.`,
+            message: `Delete “${d.name}”?\n\nIt moves to Recently deleted, where it stays until someone restores it or removes it for good.`,
             confirmLabel: 'Delete',
             danger: true,
         })) return;
@@ -1159,7 +1159,7 @@ export function init() {
                 const custom = /** @type {HTMLElement} */ (c).dataset.shift === '__custom__';
                 let shift = /** @type {HTMLElement} */ (c).dataset.shift;
                 if (custom) {
-                    const typed = await askCustomShift('Enter a shift time, e.g. 06:00-14:00 (start between 04:00 and 20:59):');
+                    const typed = await askCustomShift('Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.');
                     if (!typed) return;
                     shift = typed;
                 }
@@ -1526,7 +1526,7 @@ export function init() {
             onPick: async value => {
                 let newVal = value;
                 if (newVal === '__custom__') {
-                    const typed = await askCustomShift('Type the shift as start–end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)', current.includes('-') ? current : '');
+                    const typed = await askCustomShift('Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.', current.includes('-') ? current : '');
                     if (!typed) return;   // cancelled or refused: the cell was never taken apart, so nothing to restore
                     newVal = typed;
                 }
@@ -2289,7 +2289,7 @@ export function init() {
                 lsSet(WELCOME_KEY, '1');
                 archiveNotice({
                     id:      'links-workspace-2026',
-                    title:   'Links Workspace',
+                    title:   'Links workspace',
                     section: 'Links',
                     date:    NOTICE_DATE,
                     body:    'Changes in the Links workspace only affect the link-design document, never the live roster. The Design checks report which ORR fatigue factors a pattern features — they do not pass or fail a design. Designs are shared, and a deleted one stays in Recently deleted until someone removes it for good.',
