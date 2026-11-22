@@ -174,7 +174,7 @@ describe('too harsh — it must not refuse or alarm where there is nothing wrong
 
     test('every line spare is its own message, not a shortfall', () => {
         const a = assessTargetHours([], { spareLines: ROTATING_LINES, totalLines: ROTATING_LINES });
-        assert.equal(targetHoursLines(a).note, 'every line is a spare week');
+        assert.equal(targetHoursLines(a).note, 'every line is a cover week');
     });
 });
 

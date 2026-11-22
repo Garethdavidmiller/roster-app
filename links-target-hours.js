@@ -126,7 +126,7 @@ export function targetHoursLines(a) {
     if (a.empty) {
         return {
             value: '—', tone: 'none',
-            note: a.empty === 'no-working-lines' ? 'every line is a spare week'
+            note: a.empty === 'no-working-lines' ? 'every line is a cover week'
                 : a.empty === 'all-unreadable'   ? `no shift times could be read — check the ${a.unreadable} time${a.unreadable === 1 ? '' : 's'} in the table`
                 : a.empty === 'no-hours'         ? 'no Mon–Sat hours in these targets yet'
                 :                                  'add a shift to see this',

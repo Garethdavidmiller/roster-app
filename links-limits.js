@@ -299,7 +299,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
             // PERMITS, not what a given week produces, and a reader who takes it for the latter
             // will read a pass as a guarantee about something it never measured.
             + (hasSpare
-                ? ` A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, placed by the roster clerk, and its Sunday can be worked as overtime on top, so this is the worst case the link allows.`
+                ? ` A cover week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, placed by the roster clerk, and its Sunday can be worked as overtime on top, so this is the worst case the link allows.`
                 : ''),
     });
 

@@ -869,13 +869,13 @@ test('links: the duties a cover week works are stated from SPARE_WORKED_DAYS, no
     }, PROPOSALS[0].patterns);
     await page.goto('/links.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
-    await expect(page.locator('.gen-spare-row .gen-td-note').first()).toHaveText('whole lines; 3 days worked Mon–Sat');
+    await expect(page.locator('.gen-spare-row .gen-td-note').first()).toHaveText('whole lines marked SP; 3 days worked Mon–Sat');
     await expect(page.locator('#objMaxRun + .gen-obj-text .gen-obj-hint')).toHaveText(
         'Consecutive working days, counted across the line boundary. A cover week counts as up to 4 — 3 duties and its Sunday');
     const checks = page.locator('#checksContent');
-    // Each sentence by its own words: three rows open "A spare week is N duties on Monday to Saturday".
-    await expect(checks).toContainText('A spare week is 3 duties on Monday to Saturday, which can fall on any of them');   // Longest run
-    await expect(checks).toContainText('A spare week is 3 duties on Monday to Saturday, placed by the roster clerk');     // the run limit
+    // Each sentence by its own words: three rows open "A cover week is N duties on Monday to Saturday".
+    await expect(checks).toContainText('A cover week is 3 duties on Monday to Saturday, which can fall on any of them');   // Longest run
+    await expect(checks).toContainText('A cover week is 3 duties on Monday to Saturday, placed by the roster clerk');     // the run limit
     await expect(checks).toContainText('A cover week counts as the 3 duties it works');     // Shift balance
     await expect(checks).toContainText('its 3 duties on Monday to Saturday');               // the 55-hour row
     await expect(checks).toContainText('a cover week counts 3 days');                       // the contracted-days row

@@ -614,7 +614,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
         status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 13,
         detail: `Longest run between two-day breaks is ${ff11} shifts. A two-day break is two rest days together, always more than 48 hours off. A single rest day does not reset this count, even when the shifts either side leave 48 hours, so it can only overstate a run.`
             + (seq.some(x => x.shift === 'SPARE')
-                ? ` A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, and its Sunday can be worked as overtime on top; its rest days need not fall together — so in the worst case it adds ${SPARE_WORKED_DAYS + 1} shifts and no break.`
+                ? ` A cover week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, and its Sunday can be worked as overtime on top; its rest days need not fall together — so in the worst case it adds ${SPARE_WORKED_DAYS + 1} shifts and no break.`
                 : '') });
 
     // ── Cumulative ───────────────────────────────────────────────────────────
