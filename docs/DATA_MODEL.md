@@ -147,7 +147,7 @@ resetAt        Firestore server timestamp — the last time this member's accoun
 ```
 "Migrated" (has set their own password) = `passwordSetAt` present AND `passwordSetAt >= resetAt` (a later admin reset re-flags the account as surname-default). No password material is ever stored — only these two timestamps, which drive the Operations **Account status** table and the Settings status chip/nudge.
 Read: owner or admin. Create/update (client): only the owner, only the `passwordSetAt` key, and it must equal `request.time` (so a client can only stamp "I just set my password now" on its own doc). `resetAt` is un-writable by any client (only the Admin SDK sets it). Delete: denied for everyone.
-Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` (called from `settings-app.js` after a successful password change), `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` and `setupRosterAuth` Cloud Functions (write `resetAt`).
+Written/read by: `savePasswordSetAt` / `getPasswordStatus` (owner) in `firebase-client.js` — the stamp is called by `changeOwnPassword` (`own-password.js`) once the password itself has changed, from Settings' card and the forced change (`password-force.js`) alike, and the status is read by both — `getAllPasswordStatus` (admin, reads all) called from `operations-app.js` (Account status card), and the `resetMemberPassword` and `setupRosterAuth` Cloud Functions (write `resetAt`).
 
 **resetRequests** (PASSWORD_DESIGN.md, the request queue)
 ```

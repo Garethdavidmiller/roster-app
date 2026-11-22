@@ -1995,6 +1995,9 @@ test('operations: a reset whose server never answers is not reported as a failur
     await expect(row.locator('.btn-acct-reset')).not.toHaveText('Retry');
 });
 
+// A date with its year is written with the month IN FULL (owner, 22 Nov 2026 — date-format.js).
+const FULL_MONTH = '(?:January|February|March|April|May|June|July|August|September|October|November|December)';
+
 // The upload receipts printed the date input's raw value — "Circular uploaded for 2026-11-10" — where
 // app copy writes a date in words (CLAUDE.md; Nov 2026 review, cal-docs-18).
 for (const [card, file, words] of [['circularUpload', 'circularFileInput', 'Circular uploaded for'],
@@ -2007,7 +2010,7 @@ for (const [card, file, words] of [['circularUpload', 'circularFileInput', 'Circ
         await page.locator(`#${card === 'circularUpload' ? 'circular' : 'newsletter'}UploadBtn`).click();
         const feedback = page.locator(`#${card === 'circularUpload' ? 'circular' : 'newsletter'}Feedback`);
         await expect(feedback).toContainText(words);
-        await expect(feedback).toHaveText(new RegExp(`${words} \\d{1,2} [A-Z][a-z]{2} \\d{4} —`));
+        await expect(feedback).toHaveText(new RegExp(`${words} \\d{1,2} ${FULL_MONTH} \\d{4} —`));
         await expect(feedback).not.toHaveText(/\d{4}-\d{2}-\d{2}/);
     });
 }
@@ -2068,7 +2071,7 @@ for (const [prefix, collection, noun] of /** @type {const} */ ([
         await page.setInputFiles(`#${prefix}FileInput`, { name: 'doc.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
         await page.locator(`#${prefix}UploadBtn`).click();
         await expect(page.locator(`#${prefix}Feedback`)).toHaveText(new RegExp(
-            `^${noun} uploaded for \\d{1,2} [A-Z][a-z]{2} \\d{4} — but staff are shown the newest one, dated \\d{1,2} [A-Z][a-z]{2} \\d{4}, so they won’t see this one\\.$`));
+            `^${noun} uploaded for \\d{1,2} ${FULL_MONTH} \\d{4} — but staff are shown the newest one, dated \\d{1,2} ${FULL_MONTH} \\d{4}, so they won’t see this one\\.$`));
     });
 }
 
@@ -2099,7 +2102,7 @@ for (const [label, issue, told] of /** @type {[string, () => string, string][]} 
         await page.locator('#newsletterUploadBtn').click();
         const toldPattern = told.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         await expect(page.locator('#newsletterFeedback')).toHaveText(
-            new RegExp(`^Newsletter uploaded for \\d{1,2} [A-Z][a-z]{2} \\d{4} — ${toldPattern}$`));
+            new RegExp(`^Newsletter uploaded for \\d{1,2} ${FULL_MONTH} \\d{4} — ${toldPattern}$`));
     });
 }
 

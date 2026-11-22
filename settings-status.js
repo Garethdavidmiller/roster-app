@@ -77,8 +77,8 @@ export const CARD_ORDER = ['password', 'work-email', 'install', 'notifications']
  *  @type {Record<string, string>} */
 const TODO_LABEL = {
     'password':      'Set your own password',
-    'work-email':    'Add your work email',
-    'install':       'Add the app to your Home Screen',
+    'work-email':    'Save your work email',   // the button's own word
+    'install':       'Add the roster to your Home Screen',
     'notifications': 'Turn on notifications',
 };
 
@@ -117,13 +117,20 @@ export function shouldOpen(state) {
  * the address most staff still use. It is a to-do there too (review decision, 10 November 2026), and
  * the steps start at the main address instead (`from: 'main-address'`).
  *
+ * ── THE CHIP IS DECIDED HERE TOO (settings review, Nov 2026) ─────────────────────────────────
+ *
+ * The card gained the status chip its siblings wear, and the chip's colour is its STATE
+ * (settings-app.js → reportSetting), so it is amber exactly when the summary lists the to-do and
+ * neutral on an offer. Its words come with the state, from here, so no second rule can disagree.
+ *
  * @param {{ ios: boolean, installed: boolean, onMirror: boolean }} device
- * @returns {{ state: CardState, from: null|'here'|'main-address' }} `from` is where the steps start,
- *   null when there are no steps to show.
+ * @returns {{ state: CardState, from: null|'here'|'main-address', chip: string }} `from` is where the
+ *   steps start, null when there are no steps to show; `chip` is the card header's words.
  */
 export function installNeed({ ios, installed, onMirror }) {
-    if (!ios || installed) return { state: 'n/a', from: null };
-    return { state: 'action', from: onMirror ? 'main-address' : 'here' };
+    if (installed) return { state: 'n/a', from: null, chip: 'Installed' };
+    if (!ios) return { state: 'n/a', from: null, chip: 'Not installed' };
+    return { state: 'action', from: onMirror ? 'main-address' : 'here', chip: 'Not installed' };
 }
 
 /** Where each to-do LEADS: the card that fixes it, by its element id in settings.html (desktop audit,
@@ -172,7 +179,7 @@ export function summarise(states) {
     // fine, it has told us nothing. Saying "all set" over the top of that is the same lie as saying
     // it over silence, arriving one step later.
     if (CARD_ORDER.some(id => at(id) === 'error')) {
-        return { tone: 'error', headline: 'Some settings could not be checked', ...none };
+        return { tone: 'error', headline: 'Some settings couldn’t be checked — check your connection, then reopen Settings.', ...none };
     }
 
     return { tone: 'all-set', headline: '✓ You’re all set', ...none };

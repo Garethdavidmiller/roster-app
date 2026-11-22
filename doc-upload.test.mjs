@@ -210,7 +210,7 @@ describe('one upload at a time, per card (cal-docs-4, whole-app review 10 Nov 20
         await u.release();
         await second;
         assert.equal(document.querySelector('[data-uploading]'), null, 'and stops seeing one when it has answered');
-        assert.equal(u.els.feedback.textContent, 'Huddle uploaded for 10 Nov 2026 — staff will see it on the main app');
+        assert.equal(u.els.feedback.textContent, 'Huddle uploaded for 10 November 2026 — staff will see it on the main app');
     });
 });
 
@@ -225,7 +225,7 @@ describe('what the admin is told is what the engine decided (cal-docs-12, cal-do
             successMsg: (/** @type {string} */ date) => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular` });
         await pick(els, pdf('circular.pdf'));
         await els.btn.fire('click');
-        assert.equal(els.feedback.textContent, 'Circular uploaded for 10 Nov 2026 — staff can open it from ☰ → Weekly Retail Circular');
+        assert.equal(els.feedback.textContent, 'Circular uploaded for 10 November 2026 — staff can open it from ☰ → Weekly Retail Circular');
         assert.ok(e.store.get('circulars/2026-11-10'), 'and it was filed under the ISO key, as before');
     });
 
@@ -294,7 +294,7 @@ describe('a receipt says whether staff will be shown the upload', () => {
         const els = await uploadWithNewest(async () => ({ date: '2026-11-14', storageUrl: 'x' }));
         await els.btn.fire('click');
         assert.equal(els.feedback.textContent,
-            'Circular uploaded for 10 Nov 2026 — but staff are shown the newest one, dated 14 Nov 2026, so they won’t see this one.');
+            'Circular uploaded for 10 November 2026 — but staff are shown the newest one, dated 14 November 2026, so they won’t see this one.');
     });
 
     for (const [what, newest] of /** @type {Array<[string, any]>} */ ([
@@ -306,14 +306,14 @@ describe('a receipt says whether staff will be shown the upload', () => {
         test(`${what}: the card's own receipt`, async () => {
             const els = await uploadWithNewest(async () => newest);
             await els.btn.fire('click');
-            assert.equal(els.feedback.textContent, CIRCULAR('10 Nov 2026'));
+            assert.equal(els.feedback.textContent, CIRCULAR('10 November 2026'));
         });
     }
 
     test('a read that fails costs only the check — the card\'s own receipt, and the upload is not reported as failed', async () => {
         const els = await uploadWithNewest(async () => { throw new Error('offline'); });
         await els.btn.fire('click');
-        assert.equal(els.feedback.textContent, CIRCULAR('10 Nov 2026'));
+        assert.equal(els.feedback.textContent, CIRCULAR('10 November 2026'));
         assert.match(els.feedback.className, /--ok/);
     });
 
@@ -325,7 +325,7 @@ describe('a receipt says whether staff will be shown the upload', () => {
         assert.equal(els.feedback.textContent, '', 'premise: still waiting on the read');
         t.mock.timers.tick(3000);
         await done;
-        assert.equal(els.feedback.textContent, CIRCULAR('10 Nov 2026'));
+        assert.equal(els.feedback.textContent, CIRCULAR('10 November 2026'));
     });
 
     // …AND WHAT THE NEWSLETTER'S ☰ BUTTON IS TOLD (18 Nov 2026). The card told it the upload's OWN date, so on a device
@@ -339,7 +339,7 @@ describe('a receipt says whether staff will be shown the upload', () => {
         els.date.value = '2026-09-01';                           // an old issue, filed for the record —
         await els.date.fire('input');                            // picked, or the card re-defaults it to today
         await els.btn.fire('click');
-        assert.match(els.feedback.textContent, /dated 14 Nov 2026, so they won’t see this one/, 'premise: the receipt read the newer issue');
+        assert.match(els.feedback.textContent, /dated 14 November 2026, so they won’t see this one/, 'premise: the receipt read the newer issue');
         assert.equal(recency.newsletterInMenu(new Date(2026, 10, 10)), true,
             'told only the old issue, the device hid the ☰ button for a current one');
     });

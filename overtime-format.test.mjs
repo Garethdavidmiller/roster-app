@@ -487,21 +487,24 @@ describe('dates and deadlines', () => {
         // The WORD is part of the label as of v24.06, not supplied by the template — see
         // roster-data.js → printedStamp. The four other printable surfaces used to supply their
         // own, and three of them worded it differently.
-        assert.equal(printedLabel(ms), 'Printed Tue 8 Sep 2026 · 14:07');
+        assert.equal(printedLabel(ms), 'Printed Tue 8 September 2026 · 14:07');
         assert.equal(deadlineLabel(ms), 'Tue 8 Sep · 14:07');
         // Same words, a year apart — which is exactly what the deadline line may not distinguish
         // and the printed line must.
-        assert.equal(printedLabel(Date.parse('2027-09-07T13:07:00Z')), 'Printed Tue 7 Sep 2027 · 14:07');
+        assert.equal(printedLabel(Date.parse('2027-09-07T13:07:00Z')), 'Printed Tue 7 September 2027 · 14:07');
     });
 
-    test('a printed sheet is in LONDON time and abbreviates September like everything else', () => {
-        // 12:00Z in December is 12:00 GMT. The September spelling is now structural rather than
-        // trimmed — both lines compose from MONTH_ABB — and the repo-wide guard that nothing
-        // anywhere reaches for ICU's is `month-vocabulary-parity.test.mjs`. This pair stays because
-        // it pins the two lines that must abbreviate IDENTICALLY, which that guard does not say.
-        assert.equal(printedLabel(Date.parse('2026-12-22T12:00:00Z')), 'Printed Tue 22 Dec 2026 · 12:00');
-        assert.ok(!printedLabel(Date.parse('2026-09-08T13:07:00Z')).includes('Sept'));
-        assert.ok(!deadlineLabel(Date.parse('2026-09-08T13:07:00Z')).includes('Sept'));
+    test('a printed sheet is in LONDON time, and neither line spells September ICU\'s way', () => {
+        // 12:00Z in December is 12:00 GMT. The September spelling is structural rather than trimmed —
+        // the deadline composes from MONTH_ABB, and the printed line, which carries its year, from
+        // MONTH_NAMES in full (owner, 22 Nov 2026) — and the repo-wide guard that nothing anywhere
+        // reaches for ICU's is `month-vocabulary-parity.test.mjs`. A WORD test, not a substring one:
+        // "September" contains "Sept", which is how this pair learnt the difference.
+        assert.equal(printedLabel(Date.parse('2026-12-22T12:00:00Z')), 'Printed Tue 22 December 2026 · 12:00');
+        assert.match(printedLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSeptember\b/);
+        assert.doesNotMatch(printedLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSept\b/);
+        assert.doesNotMatch(deadlineLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSept\b/);
+        assert.match(deadlineLabel(Date.parse('2026-09-08T13:07:00Z')), /\bSep\b/);
     });
 
     test('a missing print stamp renders as nothing rather than as 1970', () => {

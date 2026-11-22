@@ -81,7 +81,7 @@ gone, and that no card outgrows its cap.
 | The recorded-DATES list on Admin, and which year of it is shown | `admin-booked-periods.js` (imports only `leave-year.js`; tested by `admin-booked-periods.test.mjs`) |
 | Sick Days Recording section | `admin-sick.js` |
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
-| Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
+| Push notifications card (all staff, settings page) — its wiring / its words | `notif-card.js` → `initNotificationsCard` / `notif-card-core.js` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-week-collect.js` (what a Save asks to write) · `admin-overrides.js` (save logic) |
 | An Admin save or delete must not overwrite a colleague's newer edit — the checked commit, and what counts as changed | `admin-override-store.js` · `override-compare.js` · `admin-week-row-state.js` (what each row showed) · `admin-own-write.js` (the page's OWN write is not a colleague's: the rows it touched follow it) · the weekly roster import's Save: `roster-import-save.js` (`saveRosterWrites`) |
@@ -326,7 +326,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - `functions/reset-request.js` — the public endpoint, which resets nothing and pushes to the admin's devices only; its bounds are argued in its header.
 
 ### `password-force.js`
-The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run after a confirmed sign-in for a member still on the surname default, gated by a one-shot marker and failing open before and after showing. Also the two deadline helpers the Settings Password card shares. Every coordinator that mounts the sign-in runs it (`page-contract-parity.test.mjs`). Tested by `password-force.test.mjs`.
+The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run after a confirmed sign-in for a member still on the surname default, gated by a one-shot marker and failing open before and after showing. It re-exports the two deadline helpers, now `own-password.js`'s, for the sign-in card. Every coordinator that mounts the sign-in runs it (`page-contract-parity.test.mjs`). Tested by `password-force.test.mjs`.
 - **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `initPasswordForce`
 
 ### `session.js`
@@ -750,11 +750,19 @@ The app's own single-date picker, replacing the native date popup the app cannot
 
 ### `date-format.js`
 ONE spelling of a date in words, everywhere the app writes one: the name tables (re-exported by `roster-data.js`), the composers, the "Printed …" stamp and the London zone shim, because `Intl`'s short month spells September "Sept". Pure, and imports nothing. Tested by `date-format.test.mjs`; `month-vocabulary-parity.test.mjs` fails on a new local fix.
-- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
+- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `MONTH_NAMES` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
 
 ### `huddle.js`
-Two cards: the Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform), and the Notifications card on Settings (all staff), through `notif.js`. Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names).
-- **Exports:** `initHuddleUpload` · `initHuddleNotifications`
+The Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform). Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names). The Settings Notifications card left it for `notif-card.js` (22 Nov 2026).
+- **Exports:** `initHuddleUpload`
+
+### `notif-card.js`
+The Settings Notifications card's wiring, through `notif.js`: when it reads (on open; on coming back to the page, a back/forward-cache restore, a permission change and `myb:notif-changed`), the once-per-open re-registration when the session is ready, and Enable (which waits for the session, and gives the button back if the browser's question never settles) and Disable. The words are `notif-card-core.js`'s. Tested by `notif-card.test.mjs`; the page by `e2e/settings.spec.js`.
+- **Exports:** `initNotificationsCard`
+
+### `notif-card-core.js`
+What the Settings Notifications card says, for every device and state (`notifCardWords`): the chip and state it reports to the summary, its status line, which button, the platform's own route back from blocked, and whether the card lists what it sends. Also the client copy of the timetable change's date (pinned to `functions/documents.js`), the installed app's label read from the page, and the list's separators. Pure. Tested by `notif-card-core.test.mjs`.
+- **Exports:** `TIMETABLE_CHANGE` · `TIMETABLE_SEND_HOUR` · `timetableListed` · `homeScreenLabel` · `punctuateKinds` · `STILL_ASKING_LINE` · `ENABLE_FAILED_LINE` · `notifCardWords`
 
 ### `doc-upload.js`
 The shared skeleton of the three Operations document upload cards: the Weekly Retail Circular and the Marylebone Newsletter (`operations-doc-uploads.js`) and the Daily Huddle (`huddle.js`). Pick → validate → optional transform → upload → receipt, one upload at a time per card, a date cap recomputed whenever it is read, and a write gated like any other (AUTH_AND_SESSIONS 22). `MAX_UPLOAD_BYTES` is one of three declarations of the size limit. Tested by `doc-upload.test.mjs` and `upload-cap-parity.test.mjs`.
@@ -884,8 +892,8 @@ WHEN a member was in the pension scheme, as a timeline of changes rather than a 
 - **Exports:** `parsePensionTimeline` · `serialisePensionTimeline` · `isOptedOutAt` · `withPensionChange` · `withOptOutStartAt` · `withRejoinAt` · `optOutStartsAt` · `migrateLegacyOptOut`
 
 ### `paycalc-inventory.js`
-What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
-- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines`
+What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list, Settings' Pay Calculator Data line and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
+- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines` · `inventorySummary`
 
 ### `paycalc-transfer.js`
 The pay-data backup format and its import rules. Pay data lives only in this browser's `localStorage` — per address, and kept off the server by decision — so this is how it moves to the other address or a new phone. Pure, because the import decides whether a member's whole pay history is overwritten: key selection, the validation ladder (`validateBackup`, the trust boundary), re-keying and the all-or-nothing replace. The DOM half is `paycalc-transfer-card.js`. Bound by `.claude/rules/paycalc.md` invariant 10; tested by `paycalc-transfer.test.mjs`, key shape by `paycalc-key-parity.test.mjs`.
@@ -1030,7 +1038,7 @@ The App Notices archive's rules: what a seen one-time notice leaves behind on th
 
 ### `notif.js`
 The Web Push module: the client's one copy of the VAPID public key — it must match `functions/index.js`, and a mismatch is silent and permanent (CLAUDE.md → Change impact) — and the subscription lifecycle: the state the bell and the Settings card show, enable and disable, and `releaseDevicePush` at a sign-out. Which reads have side effects and why a deliberate Off is not a lapse are its header and each export's JSDoc. Tested by `notif.test.mjs`; the server side, a rotated endpoint and the fingerprint migration are `.claude/rules/notifications.md`.
-- **Exports:** `notifOffByChoice` · `isIOS` · `notifSupported` · `getNotifState` · `peekNotifState` · `enableNotifications` · `disableNotifications` · `releaseDevicePush`
+- **Exports:** `notifOffByChoice` · `isIOS` · `isStandalonePWA` · `onPagesMirror` · `notifSupported` · `getNotifState` · `peekNotifState` · `enableNotifications` · `disableNotifications` · `releaseDevicePush`
 
 ### `print-guard.js`
 Can `window.print()` do anything here, and what to say when it cannot: in a home-screen web app on iPhone or iPad it silently does nothing. Pure and import-free, so the guides and the app pages share one rule and one wording; every print control goes through `printOrExplain`. The WebKit reference, and why no iOS version is read, are its header. Tested by `print-guard.test.mjs`; the entry points by `e2e/print.spec.js`.
@@ -1117,8 +1125,8 @@ The Firestore I/O behind the admin's two read-outs of the app itself — the cli
 - **Exports:** `buildAnalyticsClient`
 
 ### `own-password.js`
-Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both. The properties an edit can break — the candidate ladder that stops on a transient failure, a changed password never reported as unchanged, and nothing sent unless the signed-in account is the page member's own — are its header. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
-- **Exports:** `buildPasswordClient`
+Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both. The properties an edit can break — the candidate ladder that stops on a transient failure, a changed password never reported as unchanged, and nothing sent unless the signed-in account is the page member's own — are its header. It also holds the save sequence both password surfaces run (`runPasswordSave`: re-auth, then a separately timed, counted write that may answer "pending") and the one `SAVE_TIMEOUT_MS`. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`, the sequence by `password-force.test.mjs`.
+- **Exports:** `buildPasswordClient` · `SAVE_TIMEOUT_MS` · `withTimeout` · `settleOrTimeout` · `runPasswordSave`
 
 ### `account-calls.js`
 The browser's side of three ACCOUNT endpoints — the admin's Reset, the provisioning audit (which also carries the staff PIN lockout) and the locked-out member's reset request. A factory with `auth` injected, so it makes no import cycle; `firebase-client.js` builds it once and re-exports the three. Its one rule: a deadline above each endpoint's own, and a WRITE that times out says it may still have happened. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.

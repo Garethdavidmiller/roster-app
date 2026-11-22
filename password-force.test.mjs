@@ -1,5 +1,6 @@
 /**
- * Unit tests for the PURE gate in password-force.js — `shouldForcePasswordSet`.
+ * Unit tests for the PURE gate in password-force.js — `shouldForcePasswordSet` — and for the save sequence and
+ * deadline helpers it shares with Settings (`runPasswordSave`, `withTimeout`, `settleOrTimeout`, own-password.js).
  *
  * Run: node scripts/run-tests.mjs password-force.test.mjs   (no mocks — the gate takes plain values)
  *
@@ -22,6 +23,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { withTimeout, settleOrTimeout, runPasswordSave, SAVE_TIMEOUT_MS } from './own-password.js';
 
 // Extract the real function from source and evaluate it standalone. Throws loudly if it is renamed
 // or reshaped, so this can never silently drift into testing nothing.
@@ -73,8 +75,12 @@ describe('shouldForcePasswordSet', () => {
 // Extracted the same way (source read + eval) so these assertions run against the real code. This
 // helper is why a dead-air connection no longer strands the mandatory overlay on "Saving…", and
 // since v18.95 the Settings Password card depends on it too, so it is worth pinning down.
-const twMatch = /export function withTimeout\(([\s\S]*?)\n}/.exec(SRC);
-assert.ok(twMatch, 'withTimeout not found in password-force.js — has it been renamed?');
+// Both helpers moved to own-password.js with the save sequence (settings review, Nov 2026), which loads
+// in plain Node, so they are IMPORTED now rather than extracted — and password-force.js must still
+// re-export them, because the sign-in card imports `withTimeout` from there.
+test('password-force.js still re-exports the two deadline helpers the sign-in card reads', () => {
+    assert.match(SRC, /export \{ withTimeout, settleOrTimeout \}/);
+});
 /**
  * Run `fn` with setTimeout/clearTimeout spied (the extracted helpers resolve both from globalThis
  * at call time), and report which timers were armed and which were cleared.
@@ -93,7 +99,6 @@ async function spyTimers(fn) {
     }
     return { handles, cleared: cleared.filter(h => handles.includes(h)) };
 }
-const withTimeout = new Function(`return function withTimeout(${twMatch[1]}\n}`)();
 
 describe('withTimeout', () => {
     test('passes a value through when the promise settles in time', async () => {
@@ -129,9 +134,6 @@ describe('withTimeout', () => {
 // believes their old password still works — during a COMPULSORY migration, which is a lockout.
 // The old withTimeout tests proved a hang becomes myb/timeout; none covered a promise that settles
 // AFTER the deadline, which is precisely the dangerous case.
-const soMatch = /export function settleOrTimeout\(([\s\S]*?)\n}/.exec(SRC);
-assert.ok(soMatch, 'settleOrTimeout not found in password-force.js — has it been renamed?');
-const settleOrTimeout = new Function(`return function settleOrTimeout(${soMatch[1]}\n}`)();
 
 /** A promise that settles when we say so. */
 function deferred() {
@@ -203,5 +205,89 @@ describe('settleOrTimeout', () => {
         const { cleared, handles } = await spyTimers(() => settleOrTimeout(Promise.resolve(1), 60_000));
         assert.equal(handles.length, 1, 'expected exactly one deadline timer');
         assert.deepEqual(cleared, handles, 'the deadline timer must be cleared once the promise settles');
+    });
+});
+
+// ── runPasswordSave — the ONE save sequence behind both password surfaces (settings review, Nov 2026) ──
+// Settings' card and the forced change each wrote it out, with the deadline declared twice. What a
+// caller relies on: the stage a failure came from, a slow write reported as PENDING (never failed),
+// the re-auth skipped when the forced change has no current password, and the write COUNTED while it
+// runs — Settings did not count it, so neither the update reload nor a sign-out could see it.
+describe('runPasswordSave', () => {
+    /** A recording harness: what was called, with what, and how often `track` was handed a promise. */
+    function harness({ reauth = async () => {}, change = async () => ({ stamp: Promise.resolve(true) }) } = {}) {
+        /** @type {any[]} */ const calls = [];
+        /** @type {Promise<any>[]} */ const tracked = [];
+        return {
+            calls, tracked,
+            deps: {
+                reauthenticate: (/** @type {string} */ m, /** @type {string} */ t) => { calls.push(['reauth', m, t]); return reauth(); },
+                change: (/** @type {string} */ m, /** @type {string} */ n) => { calls.push(['change', m, n]); return change(); },
+                track: /** @type {any} */ ((/** @type {Promise<any>} */ p) => { tracked.push(p); return p; }),
+            },
+        };
+    }
+
+    test('re-authenticates with the typed password, then changes it, and reports ok with the change\'s value', async () => {
+        const h = harness();
+        const r = await runPasswordSave({ member: 'G. Miller', current: 'miller', next: 'new-pass-9', ...h.deps });
+        assert.equal(r.status, 'ok');
+        assert.deepEqual(h.calls, [['reauth', 'G. Miller', 'miller'], ['change', 'G. Miller', 'new-pass-9']]);
+        assert.ok(/** @type {any} */ (r).value?.stamp, 'the stamp handle reaches the caller');
+    });
+
+    test('the WRITE is counted while it runs — the promise the change returned, not a copy', async () => {
+        /** @type {any} */ let release;
+        const change = () => new Promise(r => { release = r; });
+        const h = harness({ change });
+        const p = runPasswordSave({ member: 'G. Miller', current: 'miller', next: 'new-pass-9', ...h.deps, ms: 1000 });
+        await new Promise(r => setImmediate(r));
+        assert.equal(h.tracked.length, 1, 'the change was never handed to `track`, so writesInFlight cannot see it');
+        release({ stamp: Promise.resolve(true) });
+        assert.equal((await p).status, 'ok');
+    });
+
+    test('no current password (the forced change straight after a sign-in) skips the re-auth', async () => {
+        const h = harness();
+        const r = await runPasswordSave({ member: 'G. Miller', current: null, next: 'new-pass-9', ...h.deps });
+        assert.equal(r.status, 'ok');
+        assert.deepEqual(h.calls.map(c => c[0]), ['change']);
+    });
+
+    test('a refused re-auth is a failure of the FIRST stage, and nothing is changed', async () => {
+        const err = Object.assign(new Error('no'), { code: 'auth/invalid-credential' });
+        const h = harness({ reauth: async () => { throw err; } });
+        const r = /** @type {any} */ (await runPasswordSave({ member: 'G. Miller', current: 'wrong', next: 'new-pass-9', ...h.deps }));
+        assert.deepEqual([r.status, r.error, r.reauthed], ['failed', err, false]);
+        assert.deepEqual(h.calls.map(c => c[0]), ['reauth'], 'the password was changed behind a refused re-auth');
+    });
+
+    test('a write refused AFTER the re-auth says so — it must never read as a wrong current password', async () => {
+        const err = Object.assign(new Error('no'), { code: 'auth/internal-error' });
+        const h = harness({ change: async () => { throw err; } });
+        const r = /** @type {any} */ (await runPasswordSave({ member: 'G. Miller', current: 'miller', next: 'new-pass-9', ...h.deps }));
+        assert.deepEqual([r.status, r.error, r.reauthed], ['failed', err, true]);
+    });
+
+    test('a re-auth that HANGS becomes a timed-out failure — it changed nothing, so that is true', async () => {
+        const h = harness({ reauth: () => new Promise(() => {}) });
+        const r = /** @type {any} */ (await runPasswordSave({ member: 'G. Miller', current: 'miller', next: 'new-pass-9', ...h.deps, ms: 20 }));
+        assert.deepEqual([r.status, r.error?.code, r.reauthed], ['failed', 'myb/timeout', false]);
+    });
+
+    test('a write that passes its deadline is PENDING, and its late outcome is handed back', async () => {
+        /** @type {any} */ let release;
+        const h = harness({ change: () => new Promise(r => { release = r; }) });
+        const r = /** @type {any} */ (await runPasswordSave({ member: 'G. Miller', current: 'miller', next: 'new-pass-9', ...h.deps, ms: 20 }));
+        assert.equal(r.status, 'pending', 'a slow write was reported as failed — the member would retry a password that has changed');
+        release({ stamp: Promise.resolve(true) });
+        assert.equal((await r.settled).status, 'ok');
+    });
+
+    test('one deadline for both surfaces, and it is the sign-in\'s 8 seconds', () => {
+        assert.equal(SAVE_TIMEOUT_MS, 8000);
+        for (const f of ['password-force.js', 'settings-app.js']) {
+            assert.doesNotMatch(readFileSync(new URL(`./${f}`, import.meta.url), 'utf8'), /SAVE_TIMEOUT_MS\s*=/, `${f} declares its own deadline again`);
+        }
     });
 });

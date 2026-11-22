@@ -11,7 +11,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
+import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, workEmailFrom, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -434,9 +434,9 @@ export function init() {
             input.select();
 
             saveBtn.addEventListener('click', async () => {
-                const rawVal = input.value.trim();
-                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@' + CONFIG.WORK_EMAIL_DOMAIN;
-                const email = input.value.trim();
+                // The one completion rule Settings uses too (`workEmailFrom`, roster-data.js).
+                const email = workEmailFrom(input.value);
+                if (email) input.value = email;
                 if (!isValidEmail(email)) {
                     errorEl.textContent = 'Please enter a valid email address'; input.focus(); return;
                 }

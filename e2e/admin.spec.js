@@ -2080,7 +2080,7 @@ test('admin: All 7 → Absent → Apply stages only the working days, and names 
     expect(staged).toEqual({ '2027-01-10': '', '2027-01-11': 'sick', '2027-01-12': 'sick', '2027-01-13': '',
         '2027-01-14': '', '2027-01-15': 'sick', '2027-01-16': 'sick' });
     await expect(page.locator('#formFeedback')).toContainText('Set 4 days — Sunday skipped (not a contracted day); '
-        + '13 Jan 2027 and 14 Jan 2027 skipped: rest days on the base roster, so nothing is recorded.');
+        + '13 January 2027 and 14 January 2027 skipped: rest days on the base roster, so nothing is recorded.');
     // STAGED, NOT SAVED (whole-app check, Nov 2026): never the save's own toast, which covered the Unsaved bar.
     expect(await page.locator('#saveToast').getAttribute('class') ?? '', 'read at once: a toast fades by itself').not.toMatch(/\bvisible\b/);
     await expect(page.locator('#stagedBar')).toBeVisible();
@@ -2179,7 +2179,7 @@ test('admin: Boxing Day takes no Other day — the chips say why, and Save refus
         r.querySelector('.other-flavour-btn[data-flavour="TRG"]')?.classList.add('active');
     });
     await page.locator('#saveBtn').click();
-    await expect(page.locator('#formFeedback')).toContainText('26 Dec 2026: an "Other" day cannot be recorded on Boxing Day');
+    await expect(page.locator('#formFeedback')).toContainText('26 December 2026: an "Other" day cannot be recorded on Boxing Day');
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 
@@ -2245,14 +2245,14 @@ test('admin: a Spare turn can be recorded on a Sunday, never on Christmas Day or
         r.querySelector('.other-flavour-btn[data-flavour="SPARE"]')?.classList.add('active');
     });
     await page.locator('#saveBtn').click();
-    await expect(page.locator('#formFeedback')).toContainText('25 Dec 2026: a Spare turn cannot be recorded on Christmas Day');
+    await expect(page.locator('#formFeedback')).toContainText('25 December 2026: a Spare turn cannot be recorded on Christmas Day');
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
     await xmas.evaluate((r) => {   // …and a Training day by the same route (owner, 21 Nov 2026)
         r.querySelector('.other-flavour-btn[data-flavour="SPARE"]')?.classList.remove('active');
         r.querySelector('.other-flavour-btn[data-flavour="TRG"]')?.classList.add('active');
     });
     await page.locator('#saveBtn').click();
-    await expect(page.locator('#formFeedback')).toContainText('25 Dec 2026: an "Other" day cannot be recorded on Christmas Day');
+    await expect(page.locator('#formFeedback')).toContainText('25 December 2026: an "Other" day cannot be recorded on Christmas Day');
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 
@@ -2293,18 +2293,18 @@ test('admin: a day before the start date takes no change — the pills say why, 
     for (const t of ['annual_leave', 'shift', 'rdw', 'sick', 'correction', 'other']) {
         await expect(mon.locator(`.type-pill-btn[data-type="${t}"]`), `${t} before the start date`).toBeDisabled();
     }
-    await expect(mon.locator('.col-pills')).toContainText('Before the start date (3 Jun 2026)');
+    await expect(mon.locator('.col-pills')).toContainText('Before the start date (3 June 2026)');
     await expect(page.locator('.day-row[data-date="2026-06-03"] .type-pill-btn[data-type="shift"]'), 'the start date itself is a working day').toBeEnabled();
 
     await page.locator('#bulkSelMonFri').click();
     await page.locator('#bulkTypePills .pill-correction').click();
     await page.locator('#bulkApplyBtn').click();
-    await expect(page.locator('#formFeedback')).toContainText('Set 3 days — 1 Jun 2026 and 2 Jun 2026 skipped: before the start date, so nothing is recorded.');
+    await expect(page.locator('#formFeedback')).toContainText('Set 3 days — 1 June 2026 and 2 June 2026 skipped: before the start date, so nothing is recorded.');
     await expect(mon).not.toHaveAttribute('data-type', /./);
 
     await mon.evaluate((r) => { /** @type {HTMLElement} */ (r).dataset.type = 'correction'; });   // reaching Save another way
     await page.locator('#saveBtn').click();
-    await expect(page.locator('#formFeedback')).toContainText('1 Jun 2026: before the start date, so a change here would never show on the Calendar');
+    await expect(page.locator('#formFeedback')).toContainText('1 June 2026: before the start date, so a change here would never show on the Calendar');
     expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchWrites || []).length), 'nothing written').toBe(0);
 });
 

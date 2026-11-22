@@ -320,7 +320,7 @@ export const moreDaysWords = n => (n === 1
 /** A line under "On the sheet, not compared". @param {{ name: string, reason: string }} n */
 export const notComparedWords = n => `${n.name} — ${reasonWords(n.reason)}`;
 
-/** "6 Nov 2026" from an ISO instant or a server stamp. @param {any} at */
+/** "6 November 2026" from an ISO instant or a server stamp. @param {any} at */
 const dateOf = at => {
     // The London day, as the clerks and the admin both live it (al-leave-file.js → londonDayOf).
     // An invalid Date would throw in toISOString: it reads as no date, never as a fault.
