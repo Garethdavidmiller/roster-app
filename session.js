@@ -895,6 +895,14 @@ export async function holdsStaffPin(budgetMs = ACCESS_DECISION_BUDGET_MS, onLate
     return held;
 }
 
+/**
+ * Is the staff PIN this browser's Firebase user RIGHT NOW? Read as it is asked — a Lock, a sign-in in
+ * another tab or the viewer's expiry changes it — so a page the PIN opened can gate what it reads on it
+ * (Trains' drawer documents, as the Calendar gates them on its access state; review, 22 Nov 2026).
+ * @returns {boolean}
+ */
+export function staffPinIsCurrent() { return isViewerUser(auth.currentUser); }
+
 /** `holdsStaffPin`'s late answer: `fn` once, for a viewer that restores with its claim and no member.
  *  Never once a sign-in or sign-out has BEGUN since it was armed (review, 11 Nov 2026): a typed sign-in
  *  saves its session only when it succeeds, so `getSession()` alone let a restore landing under it

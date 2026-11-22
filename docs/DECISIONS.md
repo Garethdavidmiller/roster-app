@@ -174,12 +174,14 @@ shown that yet.
   moving the time pay lands.** It is the same rule everywhere a payslip is "paid" or "current", so the
   whole-app check left it alone.
 
-- **Notifications after a sign-out are re-saved by the Calendar alone** (owner, 10 Nov 2026) ·
-  **Trigger to revisit: a member who signed in on another page reporting missed notifications.**
-  Signing out removes the device's push record, and the next signed-in Calendar load saves it again.
-  A sign-in on any other page does not, so the bell can read "on" with no record until the Calendar
-  opens, and the app opens on the Calendar. Re-saving on every signed-in page would cost a call on
-  every load (`getNotifState()` after `ensureFirebaseSession`).
+- **Notifications after a sign-out are re-saved by the Calendar and Settings alone** (owner, 10 Nov
+  2026; Settings joined 22 Nov 2026, `notif-card.js`) · **Trigger to revisit: a member who signed in
+  on another page reporting missed notifications.** Signing out removes the device's push record, and
+  the next signed-in Calendar load saves it again, as does Settings each time it opens signed in (so
+  its Notifications card's "✓ On" has a record behind it). A sign-in on any other page does not, so
+  the drawer's bell can read "on" with no record until one of those two opens, and the app opens on
+  the Calendar. Re-saving on every signed-in page would cost a call on every load (`getNotifState()`
+  after `ensureFirebaseSession`).
 
 - **A back-pay lump typed from the payslip carries no "fill in your hours" line** (owner, 10 Nov 2026
   — the July line, narrowed) · **Trigger to revisit: none expected.** Hours cannot change a figure

@@ -53,6 +53,13 @@ let _huddleData  = null;
 let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error' | 'locked'
 /** Whether `_huddleData` was answered by this device's cache alone (the listener passes it). */
 let _huddleFromCache = false;
+/** Set when a waiting tap's deadline passed with no word from the server; cleared by the server's next
+ *  answer. While set, a cached Huddle is shown at once, labelled a saved copy — see `_mustWaitForServer`. */
+let _serverWaitExpired = false;
+/** The file a Huddle record names. Its STORAGE PATH, never its url: Operations → Document links →
+ *  Replace gives the same file a new url, and that is not a new Huddle (whole-app review, 22 Nov 2026).
+ *  The url stands in only for a record with no path. @param {any} h */
+const _fileOf = (h) => h?.storagePath ?? h?.storageUrl;
 
 /** How long a tap waits on the Huddle's first answer before it is told it could not be loaded. A
  *  late answer still replaces the message while it is on screen, so the bound costs nothing. */
@@ -62,8 +69,9 @@ const ANSWER_DEADLINE_MS = 8000;
  *  lives with this tab and no other; `myb_held_huddle_tap` is read and written only here. */
 const HELD_TAP_KEY = 'myb_held_huddle_tap';
 /** How old that record may be when the next load reads it. It carries a tap across a RELOAD — a
- *  sign-in on a Calendar granted before reloads the page (calendar-access.js → `finishSignIn`) — not
- *  into a visit nobody would connect with the tap. */
+ *  sign-in on a Calendar granted before reloads the page (calendar-access.js → `finishSignIn`), and so
+ *  does a staff PIN unlock on a page a member's grant built (`unlockCalendar`) — not into a visit
+ *  nobody would connect with the tap. */
 const HELD_TAP_CARRY_MS = 60_000;
 
 /**
@@ -218,8 +226,8 @@ function _tabbableWideTables(root) {
  *   while it is open and is torn down when it shuts; a `#huddle` tap while shut shows a message
  *   rather than doing nothing, and is FINISHED when access arrives — a notification tap that landed
  *   on the PIN card opens the Huddle once the PIN is entered, or once the member signs in — in place,
- *   or across the reload a sign-in still makes on a page granted before (the held tap is carried
- *   across it). Defaults to always-open, which
+ *   or across the reload a sign-in still makes on a page granted before, or a PIN unlock makes on a
+ *   page a member was granted on (the held tap is carried across either). Defaults to always-open, which
  *   is what every page other than the Calendar means.
  */
 export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
@@ -277,8 +285,8 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     let _viewerOpen = false;  // true from the openViewer call; false from closeViewer call
     /** A close still fading out: its finisher, completed by a re-open (see openViewer). @type {(() => void)|null} */
     let _pendingFinish = null;
-    /** @type {any} */
-    let _sanitisedUrl  = null;
+    /** The file whose sanitised html `_sanitisedHtml` holds (`_fileOf`). @type {any} */
+    let _sanitisedFile = null;
     /** @type {any} */
     let _sanitisedHtml = null;
 
@@ -369,22 +377,36 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
      * Offline, the listener answers from this device's cache, and the viewer showed whatever Huddle it
      * last saved under "📋 Daily Huddle" with nothing to say so. The Calendar's month grid answers the
      * same situation with "Saved copy — couldn't check for changes" (CALENDAR_DATA.md 18); this says
-     * it in the same words and the same pill. ONLY while the device also says it is OFFLINE: a cached
-     * answer on a working connection is usually just the first of two, and the SDK raises no second one
-     * when the server merely agrees (QueryListener.shouldRaiseEvent — a sync-state change alone is
-     * withheld unless includeMetadataChanges is set), so "couldn't check" there would be untrue.
+     * it in the same words and the same pill. Only once checking has actually failed: while the device
+     * says it is OFFLINE, or once a tap has waited out its deadline with no word from the server
+     * (`_serverWaitExpired`). A cached answer on a working connection is otherwise the first of two —
+     * and a waiting tap does not show it at all (`_mustWaitForServer`).
      * @returns {HTMLElement|null}
      */
     function _savedCopyNote() {
-        if (!_huddleFromCache || navigator.onLine !== false) return null;
+        if (!_huddleFromCache || (navigator.onLine !== false && !_serverWaitExpired)) return null;
         const note = document.createElement('div');
         note.className = 'calendar-stale-note';
         const words = document.createElement('span');
         words.setAttribute('role', 'status');
         words.textContent = 'Saved copy — couldn’t check for changes';
         note.appendChild(words);
+        _savedNote = note;
         return note;
     }
+    /** The saved-copy label on screen, if any — taken down when the server answers. @type {HTMLElement|null} */
+    let _savedNote = null;
+
+    /**
+     * MUST A WAITING TAP WAIT FOR THE SERVER? (whole-app review, 22 Nov 2026.) A notification says a NEW
+     * Huddle has arrived, and the local cache cannot hold it yet: its first answer is yesterday's. The
+     * viewer opened on it, unlabelled, under "The latest Huddle is ready." — and a tap on Open before the
+     * server answered opened yesterday's file. So while the device is online a tap waits for the server's
+     * answer (the listener raises one even when the server merely agrees — documents-client.js), within
+     * the tap's deadline; past it, the cached Huddle is shown, labelled a saved copy. Offline there is no
+     * server to wait for, and the labelled copy is shown at once.
+     */
+    const _mustWaitForServer = () => _huddleFromCache && navigator.onLine !== false && !_serverWaitExpired;
 
     /**
      * Wire an "open the file" button. It works from the moment it is drawn and reads whatever url has
@@ -399,7 +421,11 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             // Resolved AT THE TAP: a url minted when the prompt appeared can have lapsed by now,
             // and resolveDocumentOpenUrl passes a near-expiry one over for the stored url.
             // Defence-in-depth as before: only a recognised Firebase Storage HTTPS url is opened.
-            const open = resolveDocumentOpenUrl({ signed, stored: huddle.storageUrl, fileType: huddle.fileType, storagePath: huddle.storagePath });
+            // The SAME FILE's latest record, if one has come since: Document links → Replace changes
+            // the url and not the file, so it does not redraw the viewer (`_fileOf`) — and the url this
+            // button was drawn with no longer opens anything.
+            const rec = _fileOf(_huddleData) === _fileOf(huddle) ? _huddleData : huddle;
+            const open = resolveDocumentOpenUrl({ signed, stored: rec.storageUrl, fileType: rec.fileType, storagePath: rec.storagePath });
             if (open) {
                 window.open(open.url, '_blank', 'noopener');
             } else {
@@ -468,13 +494,13 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         _wireOpenFile(btn, huddle, seq).catch(e => console.error('[Huddle] open-file link failed:', e));
     }
 
-    // Render a DOCX-converted huddle inline — memoises sanitised HTML per storageUrl
+    // Render a DOCX-converted huddle inline — memoises sanitised HTML per FILE (`_fileOf`)
     // so DOMPurify doesn't re-parse the same document on every reopen.
     /** @param {any} huddle */
     async function showInlineHuddle(huddle) {
         const seq = ++_bodySeq;
         try {
-            if (huddle.storageUrl !== _sanitisedUrl) {
+            if (_fileOf(huddle) !== _sanitisedFile) {
                 _inlineSeq = seq;
                 const html = await sanitiseHtml(huddle.htmlContent);
                 // OVERTAKEN WHILE IT WAITED — a newer Huddle, a close, or a lock — or the gate shut by
@@ -482,7 +508,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
                 if (seq !== _bodySeq || !docAccess.has()) return;
                 _inlineSeq = -1;
                 _sanitisedHtml = html;
-                _sanitisedUrl  = huddle.storageUrl;
+                _sanitisedFile = _fileOf(huddle);
             }
             body.innerHTML = _sanitisedHtml;
             wrapTables(body);
@@ -594,6 +620,13 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         if (_deadline) clearTimeout(_deadline);
         _deadline = setTimeout(() => {
             _deadline = null;
+            _serverWaitExpired = true;   // a tap waited, and the server said nothing — until it does
+            // Only this device's cache has answered, and the tap was held for the server: show what it
+            // holds now, labelled a saved copy (`_savedCopyNote`), in place of whatever the wait showed.
+            if (_huddleState === 'ready' && _huddleData && _huddleFromCache) {
+                if (_awaitingTap()) _triggerAutoOpen(_huddleData);
+                return;
+            }
             if (_huddleState !== 'loading' && _huddleState !== 'error') return;   // answered, or locked
             _huddleState = 'error';
             if (!_awaitingTap()) return;
@@ -666,9 +699,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             _openCountPending = true;   // a fresh user gesture — arm one open count (v18.22)
             // Locked: say so, and keep `_autoOpen` armed so the grant that follows finishes the tap.
             if (!docAccess.has()) { showLockedMessage(); return; }
-            if (_huddleState === 'ready' && _huddleData) _triggerAutoOpen(_huddleData);
+            if (_huddleState === 'ready' && _huddleData && !_mustWaitForServer()) _triggerAutoOpen(_huddleData);
             else if (_huddleState === 'none' || _huddleState === 'error') showStateMessage(_huddleState);
-            else showLoading();   // no answer yet: say so, and bound the wait
+            else showLoading();   // no answer yet, or the cache's alone: say so, and bound the wait
         });
     });
 
@@ -714,7 +747,13 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         _unsubHuddle = subscribeToLatestHuddle(
             /** @param {any} huddle @param {boolean} [fromCache] */ (huddle, fromCache) => {
                 if (!docAccess.has()) return;   // a snapshot that outlived a lock delivers nothing
-                const prevUrl = _huddleData?.storageUrl;
+                const prevFile = _fileOf(_huddleData);
+                if (!fromCache) {
+                    // The server has answered: the wait is over, and a label saying it could not be
+                    // asked comes down (a different Huddle is redrawn below anyway).
+                    _serverWaitExpired = false;
+                    _savedNote?.remove(); _savedNote = null;
+                }
                 if (!huddle) {
                     // ONLY THE SERVER CAN SAY "NONE" (48-hour review). An empty answer from the local
                     // cache alone means this device could not ask — the SDK raises one when offline —
@@ -731,12 +770,16 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
                     _huddleData  = huddle;
                     _huddleFromCache = !!fromCache;
                     _huddleState = 'ready';
+                    // A tap still waiting does not open on the cache's answer while the server can be
+                    // asked (`_mustWaitForServer`): the deadline, still running, shows it labelled if the
+                    // server never answers.
+                    if (_autoOpen && !_autoOpened && _mustWaitForServer()) { if (!_deadline) _armDeadline(); return; }
                     _clearDeadline();
                     if (_autoOpen && !_autoOpened) {
                         _triggerAutoOpen(huddle);
                     } else if (_autoOpen && _autoOpened
                                && (_viewerOpen || _inlineWaiting())
-                               && huddle.storageUrl !== prevUrl) {
+                               && _fileOf(huddle) !== prevFile) {
                         // Viewer is open showing a stale huddle — Firestore delivered a fresher one
                         // (race: notification tap beat the WebSocket reconnect). OR the stale one is
                         // still being sanitised for its first showing, and has not opened the viewer
@@ -767,7 +810,8 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         const showing = _viewerOpen || _inlineWaiting();   // read before the bump below ends a render's wait
         ++_bodySeq;  // …and a render still waiting on the sanitiser must not draw after this
         if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
-        _huddleData = null; _huddleFromCache = false; _sanitisedHtml = null; _sanitisedUrl = null;
+        _huddleData = null; _huddleFromCache = false; _sanitisedHtml = null; _sanitisedFile = null;
+        _serverWaitExpired = false; _savedNote = null;   // the next grant's tap waits for its own answer
         _huddleState = 'locked';
         _clearDeadline();
         if (showing) {

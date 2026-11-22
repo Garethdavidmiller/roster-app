@@ -41,7 +41,7 @@ export function initDocumentUploadCards({ currentUser }) {
         isAccepted: f => isPdfFile(f) || isDocxFile(f),
         rejectTypeMsg: 'Please choose a PDF or Word (.docx) file',
         sigMismatchMsg: "That file isn't a valid PDF or Word document — please choose the original file",
-        // The date arrives in words ("6 Nov 2026"): formatted again here, it read "uploaded for —" (10 Nov 2026).
+        // The date arrives in words ("6 November 2026"): formatted again here, it read "uploaded for —" (10 Nov 2026).
         successMsg: (date, iso) => `Newsletter uploaded for ${date} — ${NEWSLETTER_CARD.told(iso)}`,
         btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter', onUploaded: noteNewsletterUploaded,   // this device's ☰ button at once
         whereToCheck: NEWSLETTER_CARD.whereToCheck,   // where a sign-out mid-upload is told to look

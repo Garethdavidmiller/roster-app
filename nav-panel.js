@@ -44,7 +44,7 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { newsletterInMenu } from './newsletter-recency.js';
+import { newsletterInMenu, recordLatestNewsletter } from './newsletter-recency.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap, pinCloseButton } from './overlay.js';
 import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
@@ -193,15 +193,18 @@ export function resetNavPanel() {
  *   onLockCalendar (the Calendar and Trains) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
- *   canReadDocuments (the Calendar, and Overtime for a visitor with no named session) — a THUNK: may
- *   the drawer's two document links read?
+ *   canReadDocuments — a THUNK: may the drawer's two document links read? The Calendar, Overtime, Pay
+ *   and Trains pass their own. With none it is "is there a named session?" — `memberName` — and never
+ *   "yes" (review, 22 Nov 2026): a drawer wired for nobody read the documents anyway, and offline the
+ *   device's cache answers without asking a rule (calendar-doc-access.js), so the link opened what an
+ *   earlier visitor's session had left behind.
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
  *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
  *   onLogoClick — opens the page's About lightbox when the drawer logo is tapped (a sub-page's
  *   header logo goes back to the calendar, so About lives here).
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, onLogoClick = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, onLogoClick = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => !!memberName } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion: the SIGNED-IN name, never a selected
     // member (on the station PC that is whichever row was picked last). Never stored — only compared
     // against CONFIG.ADMIN_NAMES; usage-reporter.js has the reasoning.
@@ -368,6 +371,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             new Promise(r => setTimeout(() => r(null), DOC_FETCH_BUDGET_MS)),
         ]);
         Promise.race([authOrSoon.then(() => fetchFn()), timed]).then(/** @param {any} data */ async data => {
+            // The issue just read is the latest the ☰ menu should offer (newsletter-recency.js): kept, as
+            // the Calendar's own check and its viewer keep it (review, 22 Nov 2026).
+            if (docId === 'newsletter') recordLatestNewsletter(data?.date ?? null);
             const url = data?.storageUrl;
             const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {
@@ -419,11 +425,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             }
         }).catch((/** @type {any} */ err) => {
             if (newTab) newTab.close();
-            // AN ACCESS REFUSAL IS NOT A CONNECTION FAULT (`isAccessFailure`, claim-retry.js). The
-            // Calendar answers earlier at the gate above; this is for the pages with no gate.
+            // AN ACCESS REFUSAL IS NOT A CONNECTION FAULT (`isAccessFailure`, claim-retry.js). The gate
+            // above answers a page that knows it has no access; this is the SERVER refusing one that
+            // thought it had. "On the Calendar" only off it, as the gate's own message (review, 22 Nov 2026).
             _docFailureFallback(triggerEl, isAccessFailure(err)
                 // Not "you may have been signed out" alone: a staff-PIN viewer on Trains never signed in.
-                ? 'Couldn’t open — your sign-in or staff PIN may have ended. Sign in again, or enter the staff PIN on the Calendar.'
+                ? `Couldn’t open — your sign-in or staff PIN may have ended. Sign in again, or enter the staff PIN${_onCalendarPage() ? '' : ' on the Calendar'}.`
                 : 'Couldn’t connect — check your signal and try again.');
         }).finally(() => {
             triggerEl.classList.remove('nav-panel-link--loading');
