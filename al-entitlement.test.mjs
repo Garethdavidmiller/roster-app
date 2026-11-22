@@ -1130,15 +1130,85 @@ describe('a Spare week costs at most four days of leave', () => {
         assert.deepEqual(WEEK.map(d => consumesEntitlement(M, d, map)), [true, true, true, true, false, false]);
     });
 
-    test('a Spare week a roster upload turned into shifts is charged as shifts', () => {
-        // Leave over a named shift carries `replacedType: 'shift'` — the week is not Spare any more.
-        assert.equal(count(WEEK.map(d => al(d, { replacedType: 'shift' }))), 6);
+    // THE CAP FOLLOWS THE WEEK AS ROSTERED (owner, 22 Nov 2026). It used to count only the days still
+    // Spare, so the same whole week off cost 4, then 5 with one day a roster upload had assigned, then 6.
+    test('a Spare week costs four however many of its days a roster upload assigned (owner, 22 Nov 2026)', () => {
+        // Leave over a named shift carries `replacedType: 'shift'`; the week is still a Spare week.
+        for (let k = 0; k <= WEEK.length; k++) {
+            const ovs = WEEK.map((d, i) => al(d, i < k ? { replacedType: 'shift' } : {}));
+            assert.equal(count(ovs), 4, `${k} of the six assigned`);
+        }
+        // …and assigned or not, the first four in date order are the ones that cost.
+        const mixed = new Map(WEEK.map((d, i) => [d, al(d, i % 2 ? { replacedType: 'shift' } : {})]));
+        assert.deepEqual(WEEK.map(d => consumesEntitlement(M, d, mixed)), [true, true, true, true, false, false]);
     });
 
-    test('a Spare turn saved over a working day counts towards the four', () => {
+    test('an assigned day the roster upload made a REST day still costs nothing, and takes none of the four', () => {
+        // Leave over a correction to a rest day costs nothing on its own, so it is not one of the four.
+        const ovs = WEEK.map((d, i) => al(d, i === 0 ? { replacedType: 'correction' } : {}));
+        assert.equal(count(ovs), 4);
+        assert.deepEqual(WEEK.map(d => consumesEntitlement(M, d, new Map(ovs.map(o => [o.date, o])))),
+            [false, true, true, true, true, false]);
+    });
+
+    test('a Spare turn saved over a day the base roster has at work is not a Spare week, so costs a day each', () => {
+        // The base line decides the week (owner, 22 Nov 2026), not the record's type.
         const days = ['2027-03-23', '2027-03-24', '2027-03-25', '2027-03-26', '2027-03-27'];   // Tuesday to Saturday
-        for (const d of days) assert.ok(!isRestShift(getBaseShift(M, parseISODate(d))), `premise: ${d} is a working day`);
-        assert.equal(count(days.map(d => al(d, { replacedType: 'spare_shift' }))), 4);
+        for (const d of days) assert.ok(!isRestShift(getBaseShift(M, parseISODate(d))) && getBaseShift(M, parseISODate(d)) !== 'SPARE',
+            `premise: ${d} is a rostered shift`);
+        assert.equal(count(days.map(d => al(d, { replacedType: 'spare_shift' }))), 5);
         assert.equal(count(days.map(d => al(d))), 5, 'the same days over their shifts cost one each');
+    });
+
+    test('a CES Spare week is capped the same way, assigned days included', () => {
+        let ces = null;
+        for (let w = 1; w <= 10 && !ces; w++) {
+            const m = { name: 'Spare CES Tester', rosterType: 'ces', currentWeek: w, role: 'CES' };
+            if (WEEK.every(d => getBaseShift(m, parseISODate(d)) === 'SPARE')) ces = m;
+        }
+        assert.ok(ces, 'premise: a CES week that is Spare Monday to Saturday');
+        const ovs = WEEK.map((d, i) => ({ ...al(d, i < 2 ? { replacedType: 'shift' } : {}), memberName: ces.name }));
+        assert.equal(countedAlDates({ overrides: ovs, member: ces, year: 2027 }).size, 4);
+    });
+
+    test('a Dispatcher is not capped, assigned or not (owner, 21 Nov 2026)', () => {
+        let disp = null;
+        for (let w = 1; w <= 10 && !disp; w++) {
+            const m = { name: 'Dispatch Tester', rosterType: 'dispatcher', currentWeek: w, role: 'Dispatcher' };
+            if (WEEK.filter(d => getBaseShift(m, parseISODate(d)) === 'SPARE').length > 4) disp = m;
+        }
+        assert.ok(disp, 'premise: a Dispatcher week with more than four Spare days');
+        const spare = WEEK.filter(d => getBaseShift(disp, parseISODate(d)) === 'SPARE');
+        for (const extra of [{}, { replacedType: 'shift' }]) {
+            const ovs = spare.map(d => ({ ...al(d, extra), memberName: disp.name }));
+            assert.equal(countedAlDates({ overrides: ovs, member: disp, year: 2027 }).size, spare.length, JSON.stringify(extra));
+        }
+    });
+
+    describe('a Spare week over New Year (review, 22 Nov 2026)', () => {
+        const NY = ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'];
+        /** @type {any} */ let ny = null;
+        for (let w = 1; w <= 20 && !ny; w++) {
+            const m = { ...M, name: 'NY Tester', currentWeek: w };
+            if (NY.every(d => getBaseShift(m, parseISODate(d)) === 'SPARE')) ny = m;
+        }
+        const leave = (/** @type {number} */ k = 0) => NY.map((d, i) => ({ ...al(d, i < k ? { replacedType: 'shift' } : {}), memberName: ny.name }));
+
+        test('the December days take the four, assigned or not, and January holds none', () => {
+            assert.ok(ny, 'premise: some week of the cycle is Spare over New Year 2026/27');
+            for (const k of [0, 1, 3]) {
+                assert.equal(countedAlDates({ overrides: leave(k), member: ny, year: 2026 }).size, 4, `${k} assigned`);
+                assert.equal(countedAlDates({ overrides: leave(k), member: ny, year: 2027 }).size, 0, `${k} assigned`);
+            }
+        });
+
+        test('so the leave-year panel offers no January day to move: they cost nothing in either year', () => {
+            // `leaveYearChoices` read January's records alone, so the cap could not see the December half.
+            assert.deepEqual(leaveYearChoices({ overrides: leave(), member: ny, todayStr: '2026-11-22' }), []);
+            // CONTROL: with December not booked, 1 and 2 January cost and are offered.
+            const january = leave().filter(o => o.date.startsWith('2027-'));
+            const ch = leaveYearChoices({ overrides: january, member: ny, todayStr: '2026-11-22' });
+            assert.deepEqual(ch.map(c => c.days.map(x => x.date)), [['2027-01-01', '2027-01-02']]);
+        });
     });
 });

@@ -330,6 +330,19 @@ describe('every state is reached, for the reason the header gives', () => {
     });
 });
 
+describe('a Spare week a roster upload partly assigned (owner, 22 Nov 2026)', () => {
+    test('its days past the four are the comparison’s own state, assigned or not — the cap follows the week as rostered', () => {
+        const SPARE_CEA = { name: 'Spare Tester', rosterType: 'main', currentWeek: 1, role: 'CEA' };
+        const week = ['2026-02-09', '2026-02-10', '2026-02-11', '2026-02-12', '2026-02-13', '2026-02-14'];
+        // The Friday and Saturday were given named shifts by the upload, then booked off: their leave
+        // records `replacedType: 'shift'`. The old rule charged them as shifts, a week of six.
+        const recs = week.map((d, i) => AL(SPARE_CEA, d, i >= 4 ? { replacedType: 'shift' } : {}));
+        const res = compare(SPARE_CEA, week.map(d => leave(SPARE_CEA, d)), recs, { sheet: { used: 6 } });
+        assert.deepEqual(week.map(d => stateOf(res, d)), ['match', 'match', 'match', 'match', 'spare-week', 'spare-week']);
+        assert.equal(res.figuresGap, -2, 'the app charges four, as for a week still Spare');
+    });
+});
+
 describe('the no-record branch IS the Admin leave card’s own answer (projectAlBooking)', () => {
     test('date for date across eight months of two patterns and a joiner, with nothing recorded', () => {
         for (const m of [CEA, CES, JOINER]) {

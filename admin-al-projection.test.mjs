@@ -728,6 +728,38 @@ describe('booking a Spare week charges at most four days', () => {
         assert.equal(plan.overage, null);
     });
 
+    // THE BALANCE IS THE WHOLE WEEK, NOT THE DAYS BOOKED (review, 22 Nov 2026). Booking the Monday of a
+    // week whose Wednesday to Saturday are saved charges the Monday and frees the Saturday: `consuming`
+    // says Monday and `charged` says nothing moved. Without the pass over the rest of the week the
+    // booking touches (`touched`), `charged` read the Monday alone and said 1.
+    test('one day of a week whose other four are saved: charged nothing, and the day is said free on balance', () => {
+        const saved = new Map(WEEK.slice(2).map(d => [d, al(d)]));
+        const p = projectAlBooking({ member: M, dates: [WEEK[0]], ovByDate: saved });
+        assert.deepEqual(p.consuming, [WEEK[0]], 'premise: the Monday is the week\'s first, so it is one of the four');
+        assert.deepEqual(p.alreadyBooked, [], 'a new day, not one already booked');
+        assert.equal(p.charged, 0, 'the Saturday stops costing, so the balance does not move');
+        assert.equal(p.capFreed, 1, 'and the preview, the Spare line and the receipt say the Monday is at no cost');
+        // The balance agrees: four counted before the save, four after.
+        const ovs = [...saved.values()];
+        const after = overridesAfterSave(ovs, { memberName: M.name, writes: p.writes });
+        assert.equal(countedAlDates({ overrides: after, member: M, year: 2027 }).size,
+            countedAlDates({ overrides: ovs, member: M, year: 2027 }).size + p.charged);
+    });
+
+    test('a booking that charges every new day frees nothing', () => {
+        assert.equal(projectAlBooking({ member: M, dates: WEEK, ovByDate: new Map() }).capFreed, 0);
+        const saved = new Map(WEEK.slice(0, 2).map(d => [d, al(d)]));
+        assert.equal(projectAlBooking({ member: M, dates: WEEK.slice(2), ovByDate: saved }).capFreed, 0);
+    });
+
+    test('a Spare week a roster upload partly assigned still charges four for the whole week (owner, 22 Nov 2026)', () => {
+        // The Friday and Saturday the upload gave named shifts — past the four, so they are the days the
+        // old rule charged as shifts, a week of six. Leave over them records `replacedType: 'shift'`.
+        const assigned = new Map(WEEK.slice(4).map(d => [d, { id: `s-${d}`, memberName: M.name, date: d, type: 'shift', value: '06:00-14:00', source: 'roster_import' }]));
+        const p = projectAlBooking({ member: M, dates: WEEK, ovByDate: assigned });
+        assert.deepEqual([p.consuming, p.freeWritten, p.charged], [WEEK.slice(0, 4), WEEK.slice(4), 4]);
+    });
+
     test('a Dispatcher\'s Spare days are not capped: each costs one (owner, 21 Nov 2026)', () => {
         let disp = null;
         for (let w = 1; w <= 10 && !disp; w++) {

@@ -5011,6 +5011,62 @@ test('admin: booking a whole Spare week off previews four days, and says why', a
     await expect(preview).not.toContainText('Each still uses 1 day');
 });
 
+// ONE DAY OF A SPARE WEEK WHOSE FOUR ARE ALREADY BOOKED (review, 22 Nov 2026). The Monday is the week's
+// first, so it takes one of the four and the Saturday stops costing: the balance does not move. The
+// headline said "No days" while the Spare line said "It still uses 1 day", and the receipt said
+// "Recorded 0 days" of a day it had written. All three now say the day is recorded at no cost, and why.
+test('admin: booking one day of a Spare week whose four are booked says it costs nothing, and why', async ({ page }) => {
+    // Found from the roster, as the test above finds its week, and in Node so the saved leave can be
+    // seeded before the page first loads — the receipt needs the session that load establishes.
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pick = teamMembers.map(m => {
+        if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) return null;
+        for (let i = 1; i <= 200; i++) {
+            const mon = new Date(today); mon.setDate(mon.getDate() + i);
+            if (mon.getDay() !== 1) continue;
+            const week = Array.from({ length: 6 }, (_, k) => { const d = new Date(mon); d.setDate(d.getDate() + k); return d; });
+            if (week[5].getMonth() !== mon.getMonth()) continue;
+            if (!week.every(d => getBaseShift(m, d) === 'SPARE' && !isBankHoliday(d))) continue;
+            return { name: m.name, week: week.map(d => formatISO(d)),
+                monthsAhead: (mon.getFullYear() - today.getFullYear()) * 12 + (mon.getMonth() - today.getMonth()) };
+        }
+        return null;
+    }).find(Boolean);
+    expect(pick, 'no CEA/CES member has a whole Spare week inside one month in the next 200 days').toBeTruthy();
+    const p = /** @type {any} */ (pick);
+    // Wednesday to Saturday already booked: four days, the week's whole cost.
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(({ name, week }) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            authUser: true,   // a write needs the signed-in Firebase user, as every save test here
+            docs: week.slice(2).map((/** @type {string} */ date, /** @type {number} */ i) =>
+                ({ id: `sw${i}`, memberName: name, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' })),
+        });
+    }, { name: p.name, week: p.week });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
+    const monday = page.locator(`#alRpGrid .rp-day[data-iso="${p.week[0]}"]`);
+    await monday.click();
+    await monday.click();
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('No days of Annual Leave');
+    await expect(preview).toContainText('1 day recorded at no cost');
+    await expect(preview).toContainText('This is a Spare day');
+    await expect(preview).toContainText('this week\'s 4 are already booked, so it uses none.');
+    await expect(preview).not.toContainText('It still uses 1 day');
+
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect(page.locator('#alFeedback')).toContainText(
+        `Recorded 1 day of Annual Leave for ${p.name} at no cost — this Spare week’s 4 days were already booked`, { timeout: 10000 });
+    await expect(page.locator('#alFeedback')).not.toContainText('Recorded 0 days');
+});
+
 // OWNER-REPORTED (v24.44): a Spare week that a roster upload had turned into real shifts was still
 // called Spare when one of those days was booked off — "the shift not yet assigned", about a day
 // whose shift had been. The note read the BASE roster; it must read what the Calendar shows.

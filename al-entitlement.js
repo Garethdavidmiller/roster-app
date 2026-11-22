@@ -139,22 +139,32 @@ export function lowersAllowance(member, date, ovByDate, written = { type: 'annua
  */
 export function consumesEntitlement(member, date, ovByDate = null) {
     if (!costsWithoutSpareCap(member, date, ovByDate)) return false;
-    // …AND A SPARE WEEK NEVER COSTS MORE THAN FOUR (owner, 21 Nov 2026): `pastSpareWeekCap`.
+    // …AND A SPARE WEEK NEVER COSTS MORE THAN FOUR (owner, 21 Nov 2026), its days as rostered
+    // (owner, 22 Nov 2026): `pastSpareWeekCap`.
     return !pastSpareWeekCap(member, date, ovByDate);
 }
 
 /**
  * The most leave in one Spare week costs (owner, 21 Nov 2026). A Spare week is four days' work of
  * 35 hours, but the roster marks all of it Spare, so a whole week off was charged as six days, Monday
- * to Saturday. Each Spare day still costs one day; the week stops costing at four.
+ * to Saturday. Each day still costs one day; the week stops costing at four.
+ *
+ * THE CAP FOLLOWS THE WEEK AS ROSTERED (owner, 22 Nov 2026): a week the BASE roster makes Spare costs
+ * at most four however many of its days a roster upload has since given named shifts
+ * (`rosteredSpareDay`). It used to count only the days still Spare, so the same week off cost four,
+ * five with one day assigned, and six with two.
  */
 export const SPARE_WEEK_MAX_DAYS = 4;
 
 /**
  * Is the work underneath `date` still a SPARE turn — on standby, the shift not yet assigned? Read
  * as `consumesEntitlement` reads what was underneath: a record's own evidence first (leave or an
- * absence carries what it replaced, `contractEvidence`), else the base roster. A Spare week a roster
- * upload has since turned into named shifts is not Spare any more, and is charged as shifts are.
+ * absence carries what it replaced, `contractEvidence`), else the base roster. A Spare day a roster
+ * upload has since given a named shift is not Spare any more.
+ *
+ * This is what the booking preview CALLS the day (admin-al-spare-note.js: "on standby, with the shift
+ * not yet assigned" is untrue of an assigned day). It is NOT what the week's cap counts: that is the
+ * week as rostered, assigned days included (`rosteredSpareDay`, owner 22 Nov 2026).
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
  * @returns {boolean}
  */
@@ -173,6 +183,31 @@ export function spareUnderneath(member, date, ovByDate) {
 }
 
 /**
+ * Is `date` a day of a SPARE WEEK as the base roster has it — the days the week's cap of four counts
+ * (owner, 22 Nov 2026: the cap follows the week as rostered, not how many of its days were assigned)?
+ *
+ * WHY THE BASE ROSTER, NOT THE RECORD. A roster upload that assigns a Spare day writes a `shift`, and
+ * leave over it keeps only `replacedType: 'shift'` — the same evidence a swapped-in working day leaves,
+ * so the record cannot tell an assigned Spare day from any other shift. The base line can: a week is a
+ * Spare week because the member's line for that week says Spare (`weeklyRoster` week 1, a CES week 4),
+ * which stays true whatever was assigned. Read a DAY at a time, so a line Spare only Monday to Thursday
+ * (a CES week 5) caps those days, a mid-week `rosterChanges` move is honoured (`getBaseShift`), and
+ * 25 and 26 December, which the base makes rest days, are not in it. A Spare turn saved over a day the
+ * base roster has at work is therefore NOT a Spare week, and costs a day as that work does.
+ *
+ * CEA AND CES ONLY, BY THE GRADE HELD ON THE DAY (owner, 21 Nov 2026). Their Spare week is four days'
+ * work of 35 hours, which is what the cap is for; a Dispatcher's Spare days each cost one day.
+ * @param {any} member @param {string} date
+ * @returns {boolean}
+ */
+function rosteredSpareDay(member, date) {
+    const d = parseISODate(date);
+    const role = roleOn(member, d);
+    if (role !== 'CEA' && role !== 'CES') return false;
+    return getBaseShift(member, d) === 'SPARE';
+}
+
+/**
  * The Monday to Saturday of the week holding `date`, as ISO dates. A roster week runs Sunday to
  * Saturday and a Sunday never costs a day, so the days that can cost are the same either way.
  * @param {string} date @returns {string[]}
@@ -184,20 +219,21 @@ export function spareWeekDays(date) {
 }
 
 /**
- * Has this Spare week already spent its four days BEFORE `date`? The first four Spare days with leave
- * in a week cost a day each, in date order, and any after them cost nothing — so a whole week costs
- * four and a part week costs a day a day (owner, 21 Nov 2026: "1 a day, at most 4"). Only leave over a
- * day that is still Spare counts (`spareUnderneath`), and only a day that would cost on its own.
+ * Has this Spare week already spent its four days BEFORE `date`? The first four days with leave in a
+ * week cost a day each, in date order, and any after them cost nothing — so a whole week costs four
+ * and a part week costs a day a day (owner, 21 Nov 2026: "1 a day, at most 4"). Every day of the week
+ * as rostered counts, a day since given a named shift included (`rosteredSpareDay`, owner 22 Nov 2026),
+ * and only a day that would cost on its own.
  * @param {any} member @param {string} date @param {Map<string, any>|null|undefined} ovByDate
  * @returns {boolean}
  */
 function pastSpareWeekCap(member, date, ovByDate) {
-    if (!spareUnderneath(member, date, ovByDate)) return false;
+    if (!rosteredSpareDay(member, date)) return false;
     let before = 0;
     for (const day of spareWeekDays(date)) {
         if (day >= date) break;
         const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(day) : null;
-        if (ov?.type === 'annual_leave' && spareUnderneath(member, day, ovByDate) && costsWithoutSpareCap(member, day, ovByDate)) before++;
+        if (ov?.type === 'annual_leave' && rosteredSpareDay(member, day) && costsWithoutSpareCap(member, day, ovByDate)) before++;
     }
     return before >= SPARE_WEEK_MAX_DAYS;
 }
@@ -359,8 +395,12 @@ export function leaveYearChoices({ overrides, member, todayStr }) {
         const prefix = `${january}-01-`;
         const inJanuary = winners.filter(o => o.date.startsWith(prefix));
         // The winners are all annual leave, so this map is exactly what `consumesEntitlement` reads
-        // for these dates: what the leave replaced, if anything (`replacedType`).
-        const byDate = new Map(inJanuary.map(o => [o.date, o]));
+        // for these dates: what the leave replaced, if anything (`replacedType`). It holds EVERY winning
+        // leave day, not January's alone (review, 22 Nov 2026): a Spare week running over New Year spends
+        // its four in date order from the December days, so a January-only map charged 1 and 2 January
+        // as if the week began on New Year's Day, and offered to move days that cost nothing — the
+        // mistake `countedAlDates` already corrects by reading the December before.
+        const byDate = new Map(winners.map(o => [o.date, o]));
         const days = inJanuary
             .filter(o => consumesEntitlement(member, o.date, byDate))
             .map(o => ({ date: o.date, from: leaveYearOf(o) }));
