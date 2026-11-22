@@ -3294,6 +3294,33 @@ test('links: a design saved against a LONGER rotation says so', async ({ page })
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 });
 
+// …AND BUILDING OVER ONE KEEPS THOSE LINES (Nov 2026). The notice says the surplus is "still stored and saved with
+// the design", and a Build replaced the patterns with the rotation's own, so the next Save dropped them for good.
+test('links: building over a design saved against a longer rotation keeps its surplus lines', async ({ page }) => {
+    await seedContractTargets(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((lines) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= lines + 2; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        w.__E2E.docs = [{ id: 'd1', name: 'Longer', patterns: pat, updatedAt: Date.now(), updatedBy: 'S. Silva' }];
+    }, ROTATING_LINES);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksOverLengthNotice')).toBeVisible();
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#genStatus')).toContainText('Link built', { timeout: 10_000 });
+    await expect(page.locator('#linksOverLengthNotice'), 'the surplus is still held').toBeVisible();
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    const saved = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data.patterns);
+    expect(Object.keys(saved).length, 'every line it held is written back').toBe(ROTATING_LINES + 2);
+    expect(saved[String(ROTATING_LINES + 2)]).toEqual({ sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' });
+});
+
 test('links: a design at the current length shows no such notice', async ({ page }) => {
     // The mirror image, and the one that matters more day to day: a permanently-visible caution on
     // every normal design would be read past within a week, which is the cry-wolf failure the

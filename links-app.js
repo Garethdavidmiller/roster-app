@@ -57,7 +57,7 @@ import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
 import { createTargetPanel, customShiftRefusal } from './links-generator-targets.js';
 import { assessTargetHours } from './links-target-hours.js';
-import { overCapacityLine, refusalLine, buildConfirm, createBuildCounter, builtStatusLine } from './links-build-press.js';
+import { overCapacityLine, refusalLine, buildConfirm, withSurplusLines, createBuildCounter, builtStatusLine } from './links-build-press.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
@@ -1793,7 +1793,8 @@ export function init() {
                 activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
                 activation++;   // a DIFFERENT design now: a first save in flight must not stamp its id on it (Oct 2026)
             } else {
-                design = { ...design, patterns: _final };
+                // Lines past the rotation an older, longer design holds are kept, as its notice promises (rule 6).
+                design = { ...design, patterns: withSurplusLines(_final, design.patterns, TOTAL_POS) };
             }
 
             dirty = true;
