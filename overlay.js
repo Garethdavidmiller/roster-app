@@ -149,11 +149,16 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
     // appeared and leaking a phantom history entry.
     let _done = false;
     /** @type {any} */ let _t;
+    // THE OVERLAY'S OWN FADE, NOT A CHILD'S (lightbox review R1-4, 22 Nov 2026). `transitionend`
+    // BUBBLES: a dialog button's press easing back (`.dialog-btn`, `.notice-cta`, 120 ms) reached
+    // this listener and finished the 200 ms fade early, so the card vanished instead of fading.
+    /** @param {Event} e */
+    const onEnd = (e) => { if (e.target === el) finishOnce(); };
     const finishOnce = () => {
         if (_done) return;
         _done = true;
         clearTimeout(_t);
-        el.removeEventListener('transitionend', finishOnce);
+        el.removeEventListener('transitionend', onEnd);
         el.classList.remove('visible');
         unlockBodyScroll();
         afterClose?.();
@@ -166,7 +171,7 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
     // for one left half a second of an invisible layer over the page, swallowing every tap.
     if (!fadedIn || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finishOnce(); return null; }
     _t = setTimeout(finishOnce, 500);
-    el.addEventListener('transitionend', finishOnce);
+    el.addEventListener('transitionend', onEnd);
     // Return the idempotent finisher so a caller re-opening DURING the fade can complete this close
     // synchronously first (removes .visible + unlocks scroll exactly once) and then re-open cleanly,
     // instead of the re-open being silently dropped by a `.visible`-still-set guard.
@@ -709,9 +714,14 @@ function _openDialog(o) {
         overlay.className = 'lb-overlay dialog-overlay';
         overlay.setAttribute('role', o.withInput ? 'dialog' : 'alertdialog');
         overlay.setAttribute('aria-modal', 'true');
-        if (o.title) overlay.setAttribute('aria-labelledby', titleId);
-        else overlay.setAttribute('aria-label', o.message);
-        overlay.setAttribute('aria-describedby', msgId);
+        // Named by the title and described by the message; with NO title the message is the name alone.
+        // Naming AND describing by the same sentence read it out twice (lightbox review R1-8, 22 Nov 2026).
+        if (o.title) {
+            overlay.setAttribute('aria-labelledby', titleId);
+            overlay.setAttribute('aria-describedby', msgId);
+        } else {
+            overlay.setAttribute('aria-labelledby', msgId);
+        }
 
         const content = document.createElement('div');
         content.className = 'lb-content dialog-lb-content';
@@ -829,8 +839,11 @@ function _openDialog(o) {
             // No `closeBtn`: Cancel is wired below, because it is an ANSWER, and createLightbox's close
             // control would resolve it as a dismissal. The backdrop, Escape and Back stay its own.
             // The prompt's field; else the option, the one choice the dialog asks for — so Space ticks it, and Tab
-            // reaches Cancel and the confirm button; else the confirm button, as a plain confirm always has.
-            initialFocus: () => input ?? box ?? confirmBtn,
+            // reaches Cancel and the confirm button; else the confirm button, as a plain confirm always has —
+            // EXCEPT a destructive one, which opens on Cancel (lightbox review R1-2 / R5-1, 22 Nov 2026): on the
+            // red button one stray Enter or Space removed the thing. Admin's own unsaved-work banner already
+            // focused "Keep editing". A danger REPORT (no Cancel) still focuses its one answer.
+            initialFocus: () => input ?? box ?? (o.danger && o.cancelLabel !== null ? cancelBtn : confirmBtn),
             // Resolve when the close has LANDED, not as it starts. Callers chain dialogs
             // (`if (!await confirmDialog(…)) return; await promptDialog(…)`), and a resolve here in
             // onClose let the next dialog push its Back entry while this close's history.back() was

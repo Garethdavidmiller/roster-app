@@ -73,7 +73,7 @@ function makeEl({ tagName = 'DIV', classes = [], attrs = {} } = {}) {
     const classList = new Set(classes);
     const _attrs    = { ...attrs };
     const listeners = {};
-    return {
+    const el = {
         tagName,
         classList: {
             add:      (...cls) => cls.forEach(c => classList.add(c)),
@@ -99,8 +99,11 @@ function makeEl({ tagName = 'DIV', classes = [], attrs = {} } = {}) {
         removeEventListener: (type, fn) => {
             listeners[type] = (listeners[type] || []).filter(f => f !== fn);
         },
-        _trigger: (type, evt = {}) => (listeners[type] || []).slice().forEach(fn => fn(evt)),
+        // An event is the element's OWN unless the test says otherwise (`{ target: child }`), as a browser's is:
+        // dismissOverlay finishes only on the overlay's own `transitionend`, never a bubbled child's.
+        _trigger: (type, evt = { target: el }) => (listeners[type] || []).slice().forEach(fn => fn(evt)),
     };
+    return el;
 }
 
 // ── lockBodyScroll / unlockBodyScroll ─────────────────────────────────────────
@@ -643,6 +646,27 @@ describe('createLightbox — a fade that never reports its end still finishes', 
             assert.equal(overlay.classList.contains('visible'), false, 'the overlay never left the screen');
             assert.equal(_bodyClasses.has('lb-open'), false, 'the page behind stayed locked');
         } finally { mock.timers.reset(); }
+    });
+});
+
+// ── A CHILD'S TRANSITION IS NOT THE OVERLAY'S FADE (lightbox review R1-4, 22 Nov 2026) ───────────
+// `transitionend` bubbles. A dialog button's press easing back (`.dialog-btn`, 120 ms) reached the
+// overlay's listener and finished its 200 ms fade early: the card vanished instead of fading out.
+describe('createLightbox — only the overlay\'s own transitionend finishes the close', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    test('a transitionend bubbling up from a button inside leaves the fade running', () => {
+        const overlay = makeEl({});
+        const button  = makeEl({ tagName: 'BUTTON' });
+        const lb = createLightbox({ overlay, content: makeEl({}), closeBtn: null });
+        lb.open();
+        lb.close();
+        overlay._trigger('transitionend', { target: button });
+        assert.equal(overlay.classList.contains('visible'), true, 'a child\'s transition ended the overlay\'s fade');
+        assert.equal(_bodyClasses.has('lb-open'), true, 'and released the page under a card still on screen');
+        overlay._trigger('transitionend', { target: overlay });
+        assert.equal(overlay.classList.contains('visible'), false, 'the overlay\'s own fade still finishes it');
+        assert.equal(_bodyClasses.has('lb-open'), false);
     });
 });
 

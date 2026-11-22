@@ -295,7 +295,8 @@ test.describe('confirmDialog: asked over a higher layer, it paints on top of it'
             });
         });
         const dialog = page.locator('.dialog-overlay.open');
-        await expect(dialog.locator('.dialog-btn-confirm'), 'the question holds the keyboard').toBeFocused();
+        // A destructive question opens on its SAFE answer (lightbox review R1-2): Cancel holds the keyboard.
+        await expect(dialog.locator('.dialog-btn-cancel'), 'the question holds the keyboard, on its safe answer').toBeFocused();
         await expect.poll(() => dialog.locator('.dialog-lb-content').evaluate(el => getComputedStyle(el).transform),
             { timeout: 5000 }).toBe('matrix(1, 0, 0, 1, 0, 0)');   // the open's scale has landed
         return dialog.locator('.dialog-btn-confirm').evaluate(b => {

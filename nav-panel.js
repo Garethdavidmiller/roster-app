@@ -756,14 +756,19 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             return;
         }
         const t = setTimeout(done, 500);
+        // The panel's OWN fade only — `transitionend` bubbles, and a child's (a pressed button easing
+        // back) finished this close early (lightbox review R1-4). Not `{ once: true }`: a child's event
+        // would spend it, and `done` removes the listener itself.
+        /** @param {Event} e */
+        const onEnd = (e) => { if (e.target === el) done(); };
         function done() {
             clearTimeout(t);
-            el.removeEventListener('transitionend', done);
+            el.removeEventListener('transitionend', onEnd);
             el.classList.remove('visible');
             unlockBodyScroll();
             burger.focus();
         }
-        el.addEventListener('transitionend', done, { once: true });
+        el.addEventListener('transitionend', onEnd);
     }
     /** Another overlay open over a drawer lightbox (a dialog, a viewer a notification tap opened) owns the keyboard — `_isTopOverlay`'s rule, read from the DOM because these share the drawer's history entry (test audit, 7 Nov 2026). */
     const _overlayAbove = (/** @type {Element|null} */ own) => Array.from(document.querySelectorAll('.lb-overlay.open')).some(el => el !== own);

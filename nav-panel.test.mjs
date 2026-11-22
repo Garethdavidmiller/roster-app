@@ -419,6 +419,32 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
             assert.equal(document.activeElement, $('navMenuBtn'), 'focus was not handed back to the burger');
         });
 
+        test(`${lb.name}: a child's transitionend does not finish the fade; the panel's own does`, () => {
+            // transitionend BUBBLES (lightbox review R1-4): the ✕'s press easing back reached the panel's
+            // listener and finished its fade early, so the panel vanished instead of fading out.
+            const { $, openFromDrawer } = mountLive();
+            openFromDrawer(lb.link);
+            $(lb.close).fire('click');
+            $(lb.box).fire('transitionend', { target: $(lb.close) });
+            assert.equal($(lb.box).classList.contains('visible'), true, 'a child\'s transition ended the panel\'s fade');
+            assert.equal(scrollUnlocks, 0, 'and released the page under a panel still on screen');
+            $(lb.box).fire('transitionend', { target: $(lb.box) });
+            assert.equal($(lb.box).classList.contains('visible'), false, 'the panel\'s own fade still finishes it');
+            assert.equal(scrollUnlocks, 1);
+        });
+
+        test(`${lb.name}: under reduced motion the close finishes at once`, () => {
+            // shared.css turns the fade off, so no transitionend comes: waiting for the 500 ms fallback left
+            // an invisible layer over the page swallowing every tap, with the scroll still locked (R1-10).
+            const { $, openFromDrawer } = mountLive();
+            /** @type {any} */ (global.window).matchMedia = (/** @type {string} */ q) => ({ matches: q.includes('reduced-motion') });
+            openFromDrawer(lb.link);
+            $(lb.close).fire('click');
+            assert.equal($(lb.box).classList.contains('visible'), false, 'a reduced-motion close waited for a fade that never runs');
+            assert.equal(scrollUnlocks, 1, 'the page behind stayed locked');
+            assert.equal(document.activeElement, $('navMenuBtn'), 'focus was not handed back to the burger');
+        });
+
         test(`${lb.name}: a second ✕ tap during the fade closes nothing more`, () => {
             // Two finishers for one lock: with a dialog open beneath, the second unlock released the
             // page behind it. createLightbox has refused a second close since v21.86; these had not.
@@ -427,7 +453,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
             $(lb.close).fire('click');
             $(lb.close).fire('click');                          // the double tap, mid-fade
             $(lb.box).fire('click', { target: $(lb.box) });     // …and a backdrop tap for good measure
-            $(lb.box).fire('transitionend');
+            $(lb.box).fire('transitionend', { target: $(lb.box) });
             mock.timers.tick(500);
             assert.equal(scrollUnlocks, 1, 'one open, one unlock');
             assert.equal(page.backs, 1, 'one history entry popped');
