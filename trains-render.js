@@ -17,10 +17,10 @@
 
 import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, routeKey, LINES, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin,
-    JOURNEY_PLANNER_URL } from './trains-change.js';
+    JOURNEY_PLANNER_URL, minsWords, monthWords } from './trains-change.js';
 import { pairColumns, lineOf, orderStations, stopChanges, parseStops } from './trains-stations.js';
 import { aRealDay, weekdayGroups, weekdayWords, WEEKDAYS, runsOn } from './trains-weekdays.js';
-import { minutesWords, hourNote, hourWords } from './trains-verdict.js';
+import { minutesWords, hourNote, hourWords, andList } from './trains-verdict.js';
 import { CHANGE_DATE } from './trains-data.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
 
@@ -158,7 +158,7 @@ export function renderHeadlines(items, { showAll, partial }) {
         ? '<p class="card-explainer tr-note">The biggest changes only. A train a few minutes earlier or later is on its station’s card — choose a change above, or use Stations.</p>'
         : '';
     const note = partial
-        ? '<p class="card-explainer tr-note">More stations appear here once Chiltern publishes where December’s trains stop.</p>'
+        ? `<p class="card-explainer tr-note">More stations appear here once Chiltern publishes where ${monthWords(CHANGE_DATE)}’s trains stop.</p>`
         : '';
     return list + more + small + note;
 }
@@ -223,7 +223,7 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     const label = ending ? `<p class="tr-sub">${esc(leaving ? `Trains that end at ${name}` : `Trains that start at ${name}`)}</p>` : '';
     const throughNote = ending && ending.through > 0
         ? `<p class="card-explainer tr-note">${ending.through === 1 ? 'One other train a day calls' : `${ending.through} other trains a day call`} at ${esc(name)}`
-            + `${leaving ? ` and ${ending.through === 1 ? 'runs' : 'run'} on past it` : ' on the way in'}. Those cannot be compared until Chiltern publishes where December’s trains stop.</p>`
+            + `${leaving ? ` and ${ending.through === 1 ? 'runs' : 'run'} on past it` : ' on the way in'}. Those cannot be compared until Chiltern publishes where ${monthWords(CHANGE_DATE)}’s trains stop.</p>`
         : '';
     const cell = (/** @type {string|number|null|undefined} */ v) => (v === null || v === undefined || v === '') ? none : esc(String(v));
     // WHERE THE WEEKDAYS DISAGREE (trains-stations.js → `dayScope`): the figures are the real day's, and a
@@ -260,7 +260,7 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     const minutesNote = '<p class="card-explainer tr-note">'
         + (leaving ? 'Times are when trains leave Marylebone.' : `Times are when trains leave ${esc(name)}; the small time under each is when it gets into Marylebone.`)
         + ` Daytime means ${DAYTIME}.`
-        + (dec && dec.total && dec.fastest === null && now.fastest !== null ? ' December journey times arrive with Chiltern’s published timetable.' : '') + '</p>';
+        + (dec && dec.total && dec.fastest === null && now.fastest !== null ? ` ${monthWords(CHANGE_DATE)} journey times arrive with Chiltern’s published timetable.` : '') + '</p>';
     // Today's Amersham-line book is Chiltern's leaf-fall timetable and December's is not (trains-data.js,
     // LEAF_FALL): a few minutes' difference coming back may be the season, not the new timetable.
     const leafNote = leafFall && !leaving
@@ -411,7 +411,7 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
         }).join('') + '</tr>';
     }).join('');
     const unknown = mode === 'dec' && grid.columns.some(c => !c.known)
-        ? '<p class="card-explainer tr-note">December’s stops are not published yet, so for now each December column shows only where that train ends.</p>'
+        ? `<p class="card-explainer tr-note">${monthWords(CHANGE_DATE)}’s stops are not published yet, so for now each ${monthWords(CHANGE_DATE)} column shows only where that train ends.</p>`
         : '';
     const anySome = grid.columns.some(c => c.some.length);
     const compared = mode === 'dec' && grid.columns.some(c => c.known);
@@ -504,7 +504,6 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
     const named = (/** @type {{ station: string, via: string }} */ r, /** @type {string|undefined} */ to) =>
         to && to !== r.station ? stations[to] ?? to : routeName(stations, r.station, r.via);
     /** "A, B and C" — or, with `word`, "A, B or C". */
-    const andList = (/** @type {string[]} */ ws, word = 'and') => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} ${word} ${ws[ws.length - 1]}`;
     const stopsWords = (/** @type {TrainRow|undefined} */ n, /** @type {TrainRow|undefined} */ d) => {
         // Across Aylesbury's two routes the route is the story. Asked of the ROUTE a train takes, not of
         // its row's code: one run on to Aylesbury Vale Parkway carries no code (onward stops have none)
@@ -523,7 +522,7 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
     // time — the 21:02 to Stourbridge gets there 6 minutes later — which the station cards say and
     // the lookup answered "No change" (v24.89, the 48-hour review).
     const arrives = (/** @type {TrainRow|undefined} */ r) => r ? parseStops(r).find(x => x.crs === r[1])?.time : undefined;
-    const mins = (/** @type {number} */ m) => `${m} min${m === 1 ? '' : 's'}`;
+    const mins = minsWords;
     const lc = (/** @type {string} */ s) => s.charAt(0).toLowerCase() + s.slice(1);
     const pairs = compareRoutes(nowRows, decRows).flatMap(r => r.trains.map(t => ({ r, t })));
     const exact = pairs.filter(({ t }) => started
@@ -656,7 +655,7 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
  */
 export function renderLastTrains(rows, { stations, labels, bands = [], started = false }) {
     if (!rows.length) return '<p class="card-explainer tr-lead">No trains.</p>';
-    const mins = (/** @type {number} */ m) => `${Math.abs(m)} min${Math.abs(m) === 1 ? '' : 's'}`;
+    const mins = minsWords;
     const what = (/** @type {typeof rows[number]} */ r) => r.kind === 'new' ? '<span class="tr-chip tr-chip--new">New</span>'
         : r.kind === 'gone' ? '<span class="tr-chip tr-chip--gone">No train</span>'
         : r.kind === 'later' || r.kind === 'earlier' ? `<span class="tr-chip tr-chip--moved">${mins(/** @type {number} */ (r.shift))} ${r.kind}</span>` : '';
