@@ -30,20 +30,20 @@ export const COLUMNS = deepFreeze(["Today", "Balanced V6", "Level Crossing", "Mi
 
 /** What has changed since colleagues were first shown Short Run — drafts, for the owner to correct. */
 export const CHANGES = deepFreeze([
-    "The shortlist is new: Balanced\u00a0V6, Level\u00a0Crossing and Middle\u00a0Ground. Short\u00a0Run is no longer on it.",
+    "The shortlist is new: Balanced\u00a0V6, Level\u00a0Crossing and Middle\u00a0Ground. Short\u00a0Run, the proposal shown to colleagues first, is no longer on it.",
     "All three keep closing weeks apart: a week of closing shifts is never followed by another, not counting cover weeks. On Short\u00a0Run three closing weeks fall together.",
     "All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. On Short\u00a0Run four weeks off take 15 days’ leave, and 14 days buy 28 at most.",
-    "Level\u00a0Crossing and Middle\u00a0Ground keep the same shift every weekday, with no mix of earlies and lates, in 18 of their 21 weeks of set shifts, as Short\u00a0Run does. Balanced\u00a0V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.",
+    "Level\u00a0Crossing and Middle\u00a0Ground keep the same shift every weekday, with no mix of earlies and lates, in 18 of their 21 weeks of set shifts, as Short\u00a0Run does. Balanced\u00a0V6 does in 7 of its 21, so its shift times change more within a week. Its runs of earlies, or of lates, are 3 weeks at most, or 5 if a cover week falls badly.",
     "All three keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has none.",
-    "On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10."
+    "On all three, the two Saturday ticket-office lates finish at 22:30, not 22:00 as today, to cash up after the office shuts at 22:10."
 ]);
 
 /** What all three proposals give everyone, against today. */
 export const GAINS = deepFreeze([
     "The same 35-hour week, so the same basic pay.",
     "12\u00a0to\u00a014 full weekends off a year, Saturday and Sunday (today\u00a010).",
-    "At most 5 days at work in a row, not counting cover weeks (today\u00a07). If a cover week falls badly, Balanced\u00a0V6 can mean 10 days in a row, one more than today’s worst.",
-    "Every closing shift 15 minutes to an hour shorter.",
+    "At most 5 days at work in a row, not counting cover weeks (today\u00a07). If a cover week falls badly, 6\u00a0to\u00a010 (today\u00a09): 10 on Balanced\u00a0V6.",
+    "Every closing shift (the one that works until the station closes) 15 minutes to an hour shorter than today’s.",
     "At least 14h\u00a020m off between shifts, not counting cover weeks (today\u00a012h\u00a030m).",
     "No avoidable fatigue warnings, not counting cover weeks (today\u00a04)."
 ]);
@@ -54,7 +54,7 @@ export const COSTS = deepFreeze([
     "Longer runs of earlies, or of lates: 3\u00a0to\u00a05 weeks in a row at most, or 5\u00a0to\u00a07 if a cover week falls badly (today\u00a02, or 3).",
     "Two more Saturdays at work a year (28, today\u00a026).",
     "Fewer earlies that finish before 14:00: 12\u00a0to\u00a020\u00a0a\u00a0year (today\u00a026).",
-    "Six or eight new shift times to learn."
+    "New shift times to learn: 8 on Balanced\u00a0V6, 6 on the other two (today has 18 shift times in all)."
 ]);
 
 /**
@@ -65,27 +65,30 @@ export const DIFFERS = deepFreeze([
     {
         "design": "Balanced V6",
         "better": [
-            "The shortest runs of earlies, or of lates: 3 weeks in a row at most, or 5 if a cover week falls badly.",
-            "The most breaks of three or four rest days: about 6\u00a0a\u00a0year.",
-            "Five people on duty when the station opens on a Saturday, where the other two have four."
+            "The shortest runs of earlies, or of lates: 3 weeks in a row at most, or 5 if a cover week falls badly (today\u00a02, or 3).",
+            "The most breaks of three or four rest days: about 6\u00a0a\u00a0year (today\u00a013).",
+            "Five people on duty when the station opens on a Saturday, where the other two have four, as today.",
+            "The fewest Sunday overtime shifts lost to your longest break: 1 in the 30 days off that 14 days’ leave buys, where the other two lose 2 (today\u00a02)."
         ],
         "worse": [
-            "The fewest weeks with the same shift every weekday and no mix of earlies and lates: 14\u00a0a\u00a0year, and the only one with weeks that mix the two.",
-            "The biggest change of start time from one week to the next: 4h\u00a008m on average.",
+            "The fewest weeks with the same shift every weekday and no mix of earlies and lates: 7 of its 21 weeks of set shifts, or 14\u00a0a\u00a0year (the other two 36, today\u00a018). The only one with weeks that mix the two.",
+            "The biggest change of start time from one week to the next: 4h\u00a008m on average (today\u00a04h\u00a000m).",
             "The most single rest days (a day off on its own): 22\u00a0a\u00a0year (today\u00a010).",
-            "The fewest full weekends off: 12\u00a0a\u00a0year.",
-            "If a cover week falls badly, the most avoidable fatigue warnings (4) and the most days at work in a row (10)."
+            "The fewest full weekends off: 12\u00a0a\u00a0year (today\u00a010).",
+            "If a cover week falls badly, the most avoidable fatigue warnings (4, today\u00a05) and the most days at work in a row (10, today\u00a09).",
+            "On weekdays, the number of staff on duty through the day matches how busy the trains are less closely than on the other two, though more closely than today."
         ]
     },
     {
         "design": "Level Crossing",
         "better": [
-            "However a cover week falls: no avoidable fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (6 at most).",
-            "The smallest change of start time from one week to the next: 1h\u00a034m on average.",
+            "However a cover week falls: no avoidable fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (6 at most, today\u00a09).",
+            "The smallest change of start time from one week to the next: 1h\u00a034m on average (today\u00a04h\u00a000m).",
             "The fewest single rest days (a day off on its own): 10\u00a0a\u00a0year, as today.",
-            "The most 06:20 starts, when the station opens: 58\u00a0a\u00a0year, for those who like them."
+            "The most 06:20 starts, when the station opens: 58\u00a0a\u00a0year (today\u00a062), for those who like them.",
+            "Five people on duty when the station opens on a weekday, where the other two have four, as today."
         ],
-        "worse": ["The fewest breaks of three or four rest days: about 2\u00a0a\u00a0year."]
+        "worse": ["The fewest breaks of three or four rest days: about 2\u00a0a\u00a0year (today\u00a013)."]
     },
     {
         "design": "Middle Ground",
@@ -94,15 +97,15 @@ export const DIFFERS = deepFreeze([
             "On Saturdays, the number of staff on duty through the day best matches how busy the trains are."
         ],
         "worse": [
-            "The fewest earlies finishing before 14:00: 12\u00a0a\u00a0year.",
-            "Four people on duty when the station opens, every day, where the other two have more on some days.",
+            "The fewest earlies finishing before 14:00: 12\u00a0a\u00a0year (today\u00a026).",
+            "Four people on duty when the station opens, every day, where the other two have five on one day of the week (today four, and three on a Sunday).",
             "The least pay for working your share of Sundays: about £350\u00a0a\u00a0year less than today, before tax."
         ]
     }
 ]);
 
 /** The rule the points above follow, and what their number does not mean — said beneath them on the page. */
-export const DIFFER_RULE = "Only clear differences are listed: where one is more than 5% better, or worse, than both of the others. The number of points is not a score: one point may matter more to you than several.";
+export const DIFFER_RULE = "The main differences are listed. Each is clear: more than 5% better, or worse, than both of the others. The number of points is not a score: one point may matter more to you than several.";
 
 /** @type {ReadonlyArray<Persona>} What each proposal means for six ways of working the roster — the sheet's bands. */
 export const PERSONAS = deepFreeze([
@@ -150,7 +153,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Earlies finishing at 13:35 or 13:45, a year",
+                "label": "Earlies finishing before 14:00 (at 13:35 or 13:45), a year",
                 "cells": [
                     { "text": "26", "best": false },
                     { "text": "20", "best": true },
@@ -318,7 +321,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🏖️",
         "chip": "Save leave",
         "who": "…save your leave for long breaks",
-        "gist": "All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. Each has fewer three- and four-day breaks than today; Balanced\u00a0V6 has the most of the three, for 22 single rest days (a day off on its own) a year where today has 10.",
+        "gist": "All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. Each has fewer three- and four-day breaks than today; Balanced\u00a0V6 has the most of the three, and also 22 single rest days (a day off on its own) a year where today has 10.",
         "rows": [
             {
                 "label": "Leave for four full weeks off, Sunday to Saturday",
@@ -354,11 +357,11 @@ export const PERSONAS = deepFreeze([
 /** How the figures are worked out. */
 export const NOTES = deepFreeze([
     "Every figure is worked out from the rotas by the app’s own tooling. None is typed in.",
-    "One person, over a year, not counting cover weeks. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
-    "Pounds are before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.",
-    "A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
-    "Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.",
-    "“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail. Two that every link has are left out: starts before 07:00 and a weekly rotation."
+    "Each figure is for one person over a year, and leaves out cover weeks unless it says “up to” or “if a cover week falls badly”. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.",
+    "Pounds are before tax, at the CEA rate of £21.49 an hour. The Sunday figure is rounded to £50, the others to £10. To estimate your own payslip, use the Pay Calculator.",
+    "A swap means swapping your early for a colleague’s late on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.",
+    "Bold green marks the best of the three for that person. The swap rows are not marked: which proposal suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a proposal pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another. Nor are the runs of earlies or lates, or the finishes at 23:00 or later: some prefer more of them, some fewer.",
+    "“Up to” is the worst place a cover week’s four shifts could fall, with its Sunday worked as overtime too. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail. They leave out the two that every link has: starts before 07:00, and shifts that change from one week to the next."
 ]);
 
 /** @type {ReadonlyArray<PackFile>} The pack's colleague files. */

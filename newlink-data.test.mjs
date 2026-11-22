@@ -20,7 +20,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
-import { PROPOSALS } from './links-proposals.js';
+import { PROPOSALS, proposalDisplayName } from './links-proposals.js';
 import { assessFatigue } from './links-fatigue.js';
 import { ROTATING_LINES } from './links-design.js';
 
@@ -46,7 +46,7 @@ test('newlink-data.js is exactly what the generator writes from the pack today',
 test('its columns are today and the built-in proposals, A to Z', () => {
     // This page presents the three evenly, which means alphabetically, so its columns are sorted rather than copied
     // from the app's list — which is A to Z too since 5 Nov 2026, and was not for the two days before.
-    const names = PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, ''));
+    const names = PROPOSALS.map(proposalDisplayName);
     assert.deepEqual([...COLUMNS], ['Today', ...[...names].sort((a, b) => a.localeCompare(b, 'en-GB'))]);
 });
 
@@ -152,7 +152,7 @@ test('Links\' Design checks count what this page counts, for the same rotas (17 
     const nb = (/** @type {string} */ s) => s.replace(/\u00a0/g, ' ');
     let stated = 0;
     for (const d of DIFFERS) {
-        const p = PROPOSALS.find(x => x.name.replace(/ — Dec 2026$/, '') === d.design);
+        const p = PROPOSALS.find(x => proposalDisplayName(x) === d.design);
         assert.ok(p, `${d.design} is a built-in proposal`);
         const fat = assessFatigue(p.patterns, ROTATING_LINES);
         const row55 = fat.results.find(r => r.title.includes('55 hours'));

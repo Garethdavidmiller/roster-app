@@ -36,10 +36,12 @@ mock.module('./firebase-client.js', {
             listeners.push(l);
             return () => { l.detached = true; };
         },
-        resolveDocumentOpenUrl: () => ({ url: 'https://firebasestorage.googleapis.com/v0/b/x/o/huddle.pdf' }),
+        resolveDocumentOpenUrl: (/** @type {any} */ a) => resolveOpen(a),
         fetchSignedDocumentUrl: async () => null,
     },
 });
+/** Which url an Open tap resolves to — a fixed one unless a test needs the record's own. @type {(a: any) => any} */
+let resolveOpen = () => ({ url: 'https://firebasestorage.googleapis.com/v0/b/x/o/huddle.pdf' });
 /** What the viewer asked of the history: each `history.back()` and each echo it claimed as its own. */
 /** @type {string[]} */ let historyCalls = [];
 /** The pop interceptors the viewer registered — a tap's `popstate` must be claimed, not read as Back. */
@@ -93,8 +95,11 @@ const freshViewer = () => import(`./calendar-huddle-viewer.js?case=${++_instance
 /** @type {Record<string, Function[]>} */ let winListeners;
 /** A stand-in sessionStorage, for the tap carried across a reload (cal-docs-1). */
 /** @type {Map<string, string>} */ let tabStore;
-/** Every url the page handed to window.open. */
+/** Every url the page handed to window.open, and every call's arguments whole. */
 /** @type {string[]} */ let windowOpens;
+/** @type {any[][]} */ let windowOpenArgs;
+/** The "📄 Open Huddle" button — one element the viewer re-wires on each draw; its LAST listener is the one on screen. */
+/** @type {any} */ let openFileBtn;
 
 function el() {
     const classes = new Set();
@@ -109,7 +114,9 @@ function el() {
         style: {}, tabIndex: -1, scrollWidth: 0, clientWidth: 0, textContent: '', id: '', className: '', type: '',
         classList: { add: (/** @type {string} */ c) => classes.add(c), remove: (/** @type {string} */ c) => classes.delete(c), contains: (/** @type {string} */ c) => classes.has(c) },
         addEventListener(/** @type {string} */ t, /** @type {Function} */ fn) { (this._listeners[t] ||= []).push(fn); },
-        prepend(/** @type {any} */ n) { this._prepended.unshift(n); },
+        prepend(/** @type {any} */ n) { n._parent = this; this._prepended.unshift(n); },
+        /** @type {any} */ _parent: null,
+        remove() { const p = this._parent; if (p) p._prepended = p._prepended.filter((/** @type {any} */ x) => x !== this); this._parent = null; },
         append(/** @type {any[]} */ ...parts) { this._kids.push(...parts); },
         appendChild(/** @type {any} */ c) { this._kids.push(c); return c; },
         setAttribute(/** @type {string} */ k, /** @type {string} */ v) { this._attrs[k] = String(v); },
@@ -123,9 +130,9 @@ const textOf = (n) => (typeof n === 'string' ? n : `${n.textContent}${(n._kids ?
 const shown = () => [...body._prepended.map(textOf), body.innerHTML].join(' | ');
 
 function setupDOM() {
-    viewer = el(); body = el(); closeBtn = el(); statusLine = el();
-    const nodes = /** @type {Record<string, any>} */ ({ huddleViewer: viewer, huddleViewerBody: body, huddleViewerClose: closeBtn, huddleViewerStatus: statusLine });
-    docListeners = {}; hashListeners = []; winListeners = {}; tabStore = new Map(); windowOpens = [];
+    viewer = el(); body = el(); closeBtn = el(); statusLine = el(); openFileBtn = el();
+    const nodes = /** @type {Record<string, any>} */ ({ huddleViewer: viewer, huddleViewerBody: body, huddleViewerClose: closeBtn, huddleViewerStatus: statusLine, huddleOpenFileBtn: openFileBtn });
+    docListeners = {}; hashListeners = []; winListeners = {}; tabStore = new Map(); windowOpens = []; windowOpenArgs = [];
     /** @type {any} */ (globalThis).document = {
         getElementById: (/** @type {string} */ id) => nodes[id] ?? null,
         createElement: () => el(),
@@ -140,7 +147,7 @@ function setupDOM() {
             if (t === 'hashchange') hashListeners.push(fn);
             else (winListeners[t] ||= []).push(fn);
         },
-        open(/** @type {string} */ url) { windowOpens.push(url); return null; },
+        open(/** @type {any[]} */ ...a) { windowOpens.push(a[0]); windowOpenArgs.push(a); return null; },
     };
     /** @type {any} */ (globalThis).sessionStorage = {
         getItem: (/** @type {string} */ k) => (tabStore.has(k) ? tabStore.get(k) : null),
@@ -181,6 +188,7 @@ const huddle = (/** @type {string} */ n) => ({ storageUrl: `https://firebasestor
 beforeEach(() => {
     listeners = []; historyCalls = []; interceptors = []; pendingFinishes = []; fadeCloses = false;
     opens = []; sanitizeOptions = [];
+    resolveOpen = () => ({ url: 'https://firebasestorage.googleapis.com/v0/b/x/o/huddle.pdf' });
     setupDOM();
 });
 
@@ -322,7 +330,8 @@ describe('cal-docs-2 · a render that waited for the sanitiser draws only if it 
         initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
         await settle();
         listeners[0].onData(docx('YESTERDAY'), true);            // the local cache answers first…
-        listeners[0].onData(docx('TODAY'), false);               // …and the server while that render waits
+        t.mock.timers.tick(8000);                                // …the server does not, so the saved copy is drawn…
+        listeners[0].onData(docx('TODAY'), false);               // …and the server answers while that render waits
         await sanitised(2);
         assert.match(body.innerHTML, /HUDDLE-TODAY/, 'the OLDER Huddle was drawn as the latest');
         assert.ok(viewer.classList.contains('visible'));
@@ -336,7 +345,8 @@ describe('cal-docs-2 · a render that waited for the sanitiser draws only if it 
         const gate = makeGate(true);
         initHuddleViewer({ authReady: Promise.resolve(), docAccess: gate });
         await settle();
-        listeners[0].onData(docx('CACHED'), true);               // the render starts and waits
+        listeners[0].onData(docx('CACHED'), true);               // only the cache answers…
+        t.mock.timers.tick(8000);                                // …so the deadline draws it, and the render waits
         gate.set(false);                                         // access lost meanwhile
         await sanitised(1);
         assert.doesNotMatch(shown(), /HUDDLE-CACHED/, 'the Huddle was drawn on a locked Calendar');
@@ -607,7 +617,7 @@ describe('cal-docs-14 · a Huddle this device could not check is labelled a save
         });
     }
 
-    test('online, the same cached answer is not labelled — the server agreeing raises no second answer to clear it', async (t) => {
+    test('online, a tap on a cached answer waits for the server, and its agreeing is shown unlabelled', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         setOnline(true);
         const { initHuddleViewer } = await freshViewer();
@@ -616,7 +626,30 @@ describe('cal-docs-14 · a Huddle this device could not check is labelled a save
         listeners[0].onData(huddle('monday'), true);
         tapHuddle();
         await settle();
-        assert.doesNotMatch(shown(), SAVED);
+        assert.match(body.innerHTML, /Loading…/, 'the cached answer was shown as the latest while the server could still be asked');
+        listeners[0].onData(huddle('monday'), false);           // the server agrees (raised: includeMetadataChanges)
+        await settle();
+        assert.ok(body.innerHTML.includes(READY));
+        assert.doesNotMatch(shown(), SAVED, 'a Huddle the server has just confirmed was labelled a saved copy');
+    });
+
+    test('online, a server that never answers: at the deadline the saved copy, labelled — and the label goes when it answers', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        setOnline(true);
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('monday'), true);
+        tapHuddle();
+        await settle();
+        t.mock.timers.tick(8000);
+        await settle();
+        assert.ok(body.innerHTML.includes(READY), 'the tap was left on "Loading…" with a saved copy in hand');
+        assert.match(shown(), SAVED, 'a copy this device could not check was shown as if it were current');
+        listeners[0].onData(huddle('monday'), false);           // the signal comes back: the server agrees
+        await settle();
+        assert.doesNotMatch(shown(), SAVED, 'the label outlived the server confirming that very Huddle');
+        assert.ok(body.innerHTML.includes(READY));
     });
 
     test('a server answer is never labelled, whatever the device says', async (t) => {
@@ -743,5 +776,183 @@ describe('a close before the first frame keeps the viewer closed', () => {
         await settle();
         frames.forEach(fn => fn());
         assert.ok(viewer.classList.contains('open'), 'an open viewer never faded in');
+    });
+});
+
+// ── A NOTIFICATION TAP OPENS THE NEW HUDDLE, NOT YESTERDAY'S (review, 22 Nov 2026) ─────────────────────
+// A notification says a new Huddle has arrived, and on a cold start the local cache — which cannot hold it
+// yet — answers first. The viewer opened on that answer under "The latest Huddle is ready.", unlabelled,
+// and an Open tap before the server answered opened yesterday's file. Online, a waiting tap now waits for
+// the server within its deadline; past it the cached Huddle is shown, labelled a saved copy.
+describe('a waiting tap opens on the server\'s answer, not on the cache\'s', () => {
+    const real = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    /** @param {boolean} onLine */
+    const setOnline = (onLine) => Object.defineProperty(globalThis, 'navigator', { value: { onLine }, configurable: true });
+    afterEach(() => { if (real) Object.defineProperty(globalThis, 'navigator', real); });
+    const SAVED = /Saved copy — couldn’t check for changes/;
+    /** Press the Open button on screen (its newest wiring) and say which url it opened. */
+    const pressOpen = () => { openFileBtn._listeners.click.at(-1)(); return windowOpens.at(-1); };
+
+    test('a COLD tap, online: the cached Huddle is not shown, and the server\'s new one is — and that is what Open opens', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        setOnline(true);
+        resolveOpen = (a) => ({ url: a.stored });
+        window.location.hash = '#huddle';
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('YESTERDAY'), true);          // the cache answers first; the server has not
+        await settle();
+        assert.equal(viewer.classList.contains('visible'), false,
+            'yesterday\'s Huddle was opened as "the latest" before the server had answered');
+        listeners[0].onData(huddle('TODAY'), false);             // the server: the Huddle the notification was for
+        await settle();
+        assert.ok(viewer.classList.contains('visible') && body.innerHTML.includes(READY));
+        assert.match(pressOpen(), /TODAY\.pdf$/, 'Open opened a Huddle other than the one the notification announced');
+        assert.doesNotMatch(shown(), SAVED);
+        assert.equal(opens.length, 1, 'one tap, one open counted');
+    });
+
+    test('a COLD tap whose server never answers is shown the saved copy at the deadline, labelled', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        setOnline(true);
+        window.location.hash = '#huddle';
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('YESTERDAY'), true);
+        t.mock.timers.tick(7999);
+        await settle();
+        assert.equal(viewer.classList.contains('visible'), false, 'premise: still waiting inside the deadline');
+        t.mock.timers.tick(1);
+        await settle();
+        assert.ok(viewer.classList.contains('visible') && body.innerHTML.includes(READY), 'the tap was never answered');
+        assert.match(shown(), SAVED, 'a Huddle nobody could check was shown unlabelled');
+    });
+
+    test('once a wait has run out, the next tap is answered at once — still labelled, until the server speaks', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        setOnline(true);
+        window.location.hash = '#huddle';
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('YESTERDAY'), true);
+        t.mock.timers.tick(8000);
+        await settle();
+        closeTap();
+        tapHuddle();
+        await settle();
+        assert.ok(body.innerHTML.includes(READY), 'a second eight-second wait for a server already known not to answer');
+        assert.match(shown(), SAVED);
+    });
+
+    test('offline there is no server to wait for: the labelled copy at once, as before', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        setOnline(false);
+        window.location.hash = '#huddle';
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('YESTERDAY'), true);
+        await settle();
+        assert.ok(viewer.classList.contains('visible'), 'an offline tap was held for a server it cannot reach');
+        assert.match(shown(), SAVED);
+    });
+
+    test('the documents client asks the SDK for metadata changes, so the server merely agreeing is an answer', async () => {
+        const { buildDocumentClient } = await import('./documents-client.js');
+        /** @type {any[]} */ let args = [];
+        const client = buildDocumentClient(/** @type {any} */ ({
+            db: {}, collections: { huddles: 'h', circulars: 'c', newsletters: 'n' },
+            fs: { collection: () => ({}), query: () => ({}), orderBy: () => ({}), limit: () => ({}),
+                  onSnapshot: (/** @type {any[]} */ ...a) => { args = a; return () => {}; } },
+            getStorageSdk: async () => ({}), uploadBytesWithClaimRetry: async () => {}, utils: {},
+            resolveUploadCommit: () => 'retry', pruneOldDocs: async () => {},
+        }));
+        /** @type {any[][]} */ const got = [];
+        client.subscribeToLatestHuddle((/** @type {any[]} */ ...a) => got.push(a), () => {});
+        assert.deepEqual(args[1], { includeMetadataChanges: true },
+            'without it the SDK raises nothing when the server agrees with the cache, and a waiting tap waits out its deadline');
+        const row = { storageUrl: 'https://x', storagePath: 'huddles/x.pdf' };
+        args[2]({ empty: false, docs: [{ id: 'x', data: () => row }], metadata: { fromCache: false } });
+        assert.deepEqual(got, [[row, false]], 'the server\'s answer reaches the viewer marked as the server\'s');
+    });
+});
+
+// ── DOCUMENT LINKS → REPLACE IS NOT A NEW HUDDLE (review, 22 Nov 2026) ─────────────────────────────────────
+// Replace gives the same file a new url. The viewer compared urls, so an open Huddle was drawn again under
+// its reader — scrolled to the top, focus back on ✕. It compares the file's path now; and the Open button
+// drawn before the Replace opens the NEW url, because the old one no longer opens anything.
+describe('a new link to the same file does not redraw the Huddle', () => {
+    test('an inline Huddle: not re-sanitised, not redrawn', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(docx('MON'), false);
+        tapHuddle();
+        await sanitised(1);
+        body.innerHTML += '<!-- scrolled -->';                   // what a redraw would wipe
+        listeners[0].onData({ ...docx('MON'), storageUrl: 'https://firebasestorage.googleapis.com/v0/b/x/o/MON.docx?token=new' }, false);
+        await settle();
+        assert.match(body.innerHTML, /scrolled/, 'a new key for the same file redrew the open Huddle under its reader');
+        assert.equal(sanitizeOptions.length, 1, 'the same file was sanitised again');
+    });
+
+    test('a PDF Huddle: the Open button drawn before the Replace opens the new link', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        resolveOpen = (a) => ({ url: a.stored });
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('MON'), false);
+        tapHuddle();
+        await settle();
+        const wired = openFileBtn._listeners.click.length;
+        const replaced = { ...huddle('MON'), storageUrl: 'https://firebasestorage.googleapis.com/v0/b/x/o/MON.pdf?token=new' };
+        listeners[0].onData(replaced, false);
+        await settle();
+        assert.equal(openFileBtn._listeners.click.length, wired, 'the Replace redrew the prompt');
+        openFileBtn._listeners.click.at(-1)();
+        assert.equal(windowOpens.at(-1), replaced.storageUrl, 'the button opened the link the Replace has just retired');
+    });
+
+    test('a DIFFERENT file is still a new Huddle, and is drawn', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(docx('MON'), false);
+        tapHuddle();
+        await sanitised(1);
+        listeners[0].onData(docx('TUE'), false);
+        await sanitised(2);
+        assert.match(body.innerHTML, /HUDDLE-TUE/);
+    });
+});
+
+describe('the file opens in a tab of its own, with no way back to this page', () => {
+    test('the Open button passes noopener', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        const { initHuddleViewer } = await freshViewer();
+        initHuddleViewer({ authReady: Promise.resolve(), docAccess: makeGate(true) });
+        await settle();
+        listeners[0].onData(huddle('MON'), false);
+        tapHuddle();
+        await settle();
+        openFileBtn._listeners.click.at(-1)();
+        assert.deepEqual(windowOpenArgs.at(-1)?.slice(1), ['_blank', 'noopener'],
+            'the opened file could reach back into this page through window.opener');
+    });
+});
+
+describe('a long unbroken line in a Word Huddle does not drag the plan sideways', () => {
+    test('the body breaks it; the table cells keep break-word, which does not crush a column', () => {
+        const css = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
+        const rule = css.match(/#huddleViewerBody\s*\{([^}]*)\}/)?.[1] ?? '';
+        assert.match(rule, /overflow-wrap:\s*anywhere/, 'a pasted link or row of dashes widened the viewer and it scrolled sideways');
+        const cells = css.match(/#huddleViewerBody td, #huddleViewerBody th\s*\{([^}]*)\}/)?.[1] ?? '';
+        assert.match(cells, /overflow-wrap:\s*break-word/, 'the cells inherited `anywhere`, which crushes a column to nothing');
     });
 });

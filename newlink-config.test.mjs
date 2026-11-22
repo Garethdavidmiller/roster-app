@@ -189,3 +189,12 @@ test('the timetable date here is the Trains page\'s own — one date, two copies
         'the New link page and the Trains page disagree about when the new timetable starts — change both, together');
 });
 
+
+test('once a design is chosen, the Calendar no longer tells anyone "Nothing is decided yet" (the 22 Nov 2026 review)', () => {
+    // The notice's words are fixed text the Calendar cannot work out for itself — it may not import this file
+    // (newlink-boundary.test.mjs) — so the one line that decides the page is held to them here.
+    const notice = readFileSync(new URL('./calendar-notices.js', import.meta.url), 'utf8') + readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+    const says = /Nothing is decided yet/.test(notice);
+    if (CHOSEN === null) assert.ok(says, 'premise: while nothing is chosen the notice says so — if it has been retired, this test can go with it');
+    else assert.ok(!says, `CHOSEN is ${CHOSEN}, but the Calendar's New link notice still says "Nothing is decided yet": reword or retire it (/new-notice)`);
+});

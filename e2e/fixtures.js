@@ -557,7 +557,12 @@ export class FieldPath {}                               // literal field path (u
 // open-file button could not be reached at all otherwise, and its v24.19 defect (a button that did
 // nothing until a network call returned) lived exactly there.
 // huddleEmpty delivers an EMPTY snapshot (no Huddle uploaded); huddleError fails the listener.
-export const onSnapshot = (_q, onNext, onError) => {
+// The SDK's optional second argument (its listen options, e.g. includeMetadataChanges) is skipped as
+// the real one skips it: the Huddle listener passes one since 22 Nov 2026, and read as the callback it
+// silently stopped every snapshot this stub delivers.
+export const onSnapshot = (_q, ...args) => {
+  if (args[0] && typeof args[0] === 'object') args.shift();
+  const [onNext, onError] = args;
   const e2e = globalThis.__E2E || (globalThis.__E2E = {});
   e2e.snapshotSubs = (e2e.snapshotSubs || 0) + 1;
   if (e2e.huddleError && typeof onError === 'function') {

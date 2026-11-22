@@ -6,8 +6,9 @@
  * Owns: the access gate, the session wiring, and which view is on screen — the kind of colleague chosen in "What it means
  * if you…" and the proposal whose weeks are drawn. Every word of HTML is `newlink-render.js`; every figure is the
  * generated `newlink-data.js` (from the pack's own tooling, docs/links-26/tooling/newlink-data.mjs); every decision —
- * the phase, the closing date, the audience — is `newlink-config.js`. Nothing here reads the network: once opened, the
- * page works offline. Only the pack's files need a connection, and they open in the app's PDF viewer (pdf-viewer.js).
+ * the phase, the closing date, the audience — is `newlink-config.js`. The proposals' content needs no network: once
+ * opened, it reads offline. The page still signs in (and reads the account's password status), and records its usage,
+ * timing and errors, as every page does. Only the pack's files need a connection, and they open in the app's PDF viewer (pdf-viewer.js).
  *
  * ── WHY THE PAGE EXISTS ────────────────────────────────────────────────────────────────────────
  *
@@ -41,7 +42,7 @@ import { formatISO, escapeHtml } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, onReturnToPage } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard, onReturnToPage } from './page-session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -56,7 +57,7 @@ import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { CLOSES, STARTS, TIMETABLE_STARTS, PACK_BASE, HAVE_YOUR_SAY, CHOSEN, CONTACT } from './newlink-config.js';
 import { renderStatus, statusPhase, statusHint, renderList, renderCommon, renderDiffers, renderPersonas, renderPersonaChips,
-    renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou, aToZ } from './newlink-render.js';
+    renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, aToZ, glanceFile, personaStatus, weeksStatus, weeksTitle } from './newlink-render.js';
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
 const CARDS = ['nlChanges', 'nlCommon', 'nlDiffer', 'nlMeans', 'nlWeeks', 'nlSay', 'nlPack', 'nlHow'];
@@ -92,10 +93,11 @@ export function init() {
         // No session in onSuccess: reload into a fresh sign-in. Belt and braces — a session that
         // failed to save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first,
         // and Private Browsing has not refused storage since iOS 11), so only a session lost in
-        // between (another tab signing out, site data cleared) lands here.
+        // between (another tab signing out, site data cleared) lands here. The page is now theirs (`rebaseRestoreGuard`,
+        // as Trains and Pay), so Back from the Calendar does not reload it for "somebody else" and lose the reader's place.
         initLoginOverlay({
             pageLabel: 'New link', about: ABOUT,
-            onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
+            onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } rebaseRestoreGuard(); init(); } catch { window.location.reload(); } },
         });
         return;
     }
@@ -112,8 +114,9 @@ function start(member, admitted) {
     dismissLoginOverlay();
     const established = ensureNamedSession(member);
     resolveSession(established);
-    guardNamedSession({ page: 'newlink', pageLabel: 'New link', member, established,
-        signIn: () => initLoginOverlay({ pageLabel: 'New link', about: ABOUT, onSuccess: () => window.location.reload() }) });
+    // The standard lost-session card (page-session.js), carrying this page's `about`: it arrives with the member's name
+    // chosen and says why they are being asked. A page's own `signIn` would replace it whole, and lose both.
+    guardNamedSession({ page: 'newlink', pageLabel: 'New link', member, established, about: ABOUT });
 
     /** @type {(() => void)|null} */
     let openAboutLightbox = null;
@@ -188,10 +191,9 @@ function renderStatic() {
     drawStatus();
     setHTML('nlChangesList', renderList(CHANGES));
     setHTML('nlCommonList', renderCommon({ gains: GAINS, costs: COSTS }));
-    // the one-page comparison, found by its file rather than its place in the list: the card offers it only while the pack has it
-    const glance = PACK.find(f => f.path.endsWith('at-a-glance.pdf')) ?? null;
-    setHTML('nlDifferList', renderDiffers({ differs: DIFFERS, rule: DIFFER_RULE, glance, base: PACK_BASE }));
-    setHTML('nlWeeksKey', renderWeeksKey());
+    setHTML('nlDifferList', renderDiffers({ differs: DIFFERS, rule: DIFFER_RULE, glance: glanceFile(PACK), base: PACK_BASE }));
+    setText('nlWeeksTitle', weeksTitle(PROPOSALS));
+    setHTML('nlWeeksKey', renderWeeksKey(PROPOSALS));
     setHTML('nlSayList', renderList(HAVE_YOUR_SAY));
     setHTML('nlPackList', renderPack(PACK, PACK_BASE));
     setHTML('nlHowList', renderList(NOTES));
@@ -235,6 +237,8 @@ function drawStatus() {
     setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS, timetable: TIMETABLE_STARTS, today, chosen: CHOSEN, contact: CONTACT }));
     const { phase } = statusPhase({ proposals: PROPOSALS, chosen: CHOSEN, starts: STARTS, today });
     setText('nlStatusHint', statusHint(phase));   // words, not `hidden`: `.card-header .hint` is display:block, which outranks it
+    // While 'open' the card stays, past the closing date too, until the decision (owner, 22 Nov 2026: "Keep until decided" —
+    // renderStatus says why only its "by" line goes)
     el('nlSayCard')?.toggleAttribute('hidden', phase !== 'open');
 }
 
@@ -257,6 +261,7 @@ function wireChoices(cards) {
     };
     drawPersonas();
     drawWeeks();
+    followStuckTabs();
 
     // Delegated, and the pressed button keeps focus across the redraw: the chips are rebuilt, so the handler puts focus
     // back on the new copy of the one that was pressed rather than dropping it to <body>. What changed is said in ONE
@@ -265,10 +270,10 @@ function wireChoices(cards) {
         const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-persona]'));
         if (!b) return;
         const id = /** @type {string} */ (b.dataset.persona);
-        persona = persona === id ? null : id;   // pressing the chosen one again goes back to the six one-line answers
+        persona = persona === id ? null : id;   // pressing the chosen one again goes back to the six short answers
         drawPersonas();
         /** @type {HTMLElement|null} */ (el('nlPersonaChips')?.querySelector(`[data-persona="${id}"]`) ?? null)?.focus();
-        setText('nlPersonaStatus', personaStatus(persona));
+        setText('nlPersonaStatus', personaStatus(PERSONAS, persona));
     });
     // "Back to the six short answers", at the foot of a chosen answer: focus returns to the tile that was chosen, so the
     // reader lands on the tiles, above the six answers they asked for.
@@ -278,14 +283,14 @@ function wireChoices(cards) {
         persona = null;
         drawPersonas();
         /** @type {HTMLElement|null} */ (el('nlPersonaChips')?.querySelector(`[data-persona="${was}"]`) ?? null)?.focus();
-        setText('nlPersonaStatus', personaStatus(null));
+        setText('nlPersonaStatus', personaStatus(PERSONAS, null));
     });
     /** Show one proposal's weeks, and say so in one line. @param {string} id */
     const showWeeks = (id) => {
         design = id;
         drawWeeks();
         const p = PROPOSALS.find(x => x.id === design);
-        if (p) setText('nlWeeksStatus', `Showing ${designName(p)}’s ${Object.keys(p.patterns).length} weeks, below.`);
+        if (p) setText('nlWeeksStatus', weeksStatus(p));
     };
     /** The chosen proposal's tab — or, on a wide screen, where the three stand side by side and there are no tabs, its weeks. */
     const focusChosenWeeks = () => {
@@ -321,12 +326,36 @@ function wireChoices(cards) {
     });
 }
 
-/** The one line a screen reader hears when the choice of colleague changes. @param {string|null} persona */
-function personaStatus(persona) {
-    if (!persona) return 'Showing the six one-line answers, below.';
-    if (persona === 'all') return 'Showing all six, with their figures, below.';
-    const p = PERSONAS.find(x => x.id === persona);
-    return p ? `Showing ${ifYou(p.who).replace(/^If/, 'what it means if')}, with its figures, below.` : '';
+/**
+ * The days of the week under the stuck tabs (newlink-render.js → renderWeeksTabs). Once the chosen grid's own headings have
+ * scrolled up under the tabs, the row shows, each day laid over its own column as the browser drew it — so it lines up at
+ * any text size, and follows the grid when the grid itself is scrolled sideways. Read on a frame, from scroll and resize:
+ * nothing here stores a position, so a redraw of the tabs or the grid can never leave it stale.
+ */
+function followStuckTabs() {
+    let queued = false;
+    const place = () => {
+        queued = false;
+        const tabs = el('nlWeeksTabs'), days = tabs?.querySelector('.nl-tabs-days');
+        const grid = /** @type {HTMLTableElement|null} */ (el('nlWeeksPanel')?.querySelector('.nl-weeks-one.is-chosen .nl-weeks') ?? null);
+        if (!tabs || !(days instanceof HTMLElement) || !grid || !tabs.getClientRects().length) { tabs?.classList.remove('is-stuck'); return; }
+        const head = grid.tHead?.getBoundingClientRect(), body = grid.tBodies[0]?.getBoundingClientRect(), under = tabs.getBoundingClientRect().bottom;
+        const stuck = !!head && !!body && head.bottom <= under && body.bottom > under + 24;
+        tabs.classList.toggle('is-stuck', stuck);
+        if (!stuck) return;
+        const left = days.getBoundingClientRect().left;
+        const ths = /** @type {HTMLElement[]} */ ([...(grid.tHead?.rows[0]?.cells ?? [])]).slice(1);
+        days.querySelectorAll('span').forEach((s, i) => {
+            const r = ths[i]?.getBoundingClientRect();
+            if (r) Object.assign(/** @type {HTMLElement} */ (s).style, { left: `${r.left - left}px`, width: `${r.width}px` });
+        });
+    };
+    const queue = () => { if (!queued) { queued = true; requestAnimationFrame(place); } };
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', queue, { passive: true });
+    // the grid's own sideways scroll (large text): a scroll event does not bubble, so it is caught on the way down
+    el('nlWeeksPanel')?.addEventListener('scroll', queue, { passive: true, capture: true });
+    el('nlWeeksTabs')?.addEventListener('click', queue);
 }
 
 /** @param {string} id */

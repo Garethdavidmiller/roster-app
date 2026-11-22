@@ -28,7 +28,8 @@
  * `monthCells` helper is unit-testable in Node — see date-picker.test.mjs.
  */
 
-import { DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, parseISODate } from './roster-data.js';
+import { DAY_NAMES, MONTH_NAMES, formatISO, parseISODate } from './roster-data.js';
+import { formatWeekdayDate } from './date-format.js';
 import { createLightbox } from './overlay.js';
 
 /**
@@ -55,13 +56,19 @@ export function monthCells(year, month, weekStart = 1) {
 }
 
 /**
- * Compact display label for a chosen date, e.g. "Fri 17 Jul 2026".
+ * The trigger's words for a chosen date: "Fri 17 July 2026".
+ *
+ * THE MONTH IN FULL, FROM THE SHARED COMPOSER (owner, 22 Nov 2026: a date with its year is written in
+ * full, everywhere). This built "Fri 17 Jul 2026" from its own copy of the tables, so an upload card
+ * read "Tue 10 Nov 2026" in the field above a receipt reading "10 November 2026". `formatWeekdayDate`
+ * with the year is the one spelling (date-format.js). The longest, "Wed 30 September 2026", is about
+ * 200px at 14px: the Operations rows let the field take a line of its own where it does not fit beside
+ * its button, rather than run under it (operations.css → `.huddle-row`).
  * @param {string} iso YYYY-MM-DD
  * @returns {string}
  */
 function formatLabel(iso) {
-    const d = parseISODate(iso);
-    return `${DAY_NAMES[d.getDay()].slice(0, 3)} ${d.getDate()} ${MONTH_ABB[d.getMonth()]} ${d.getFullYear()}`;
+    return formatWeekdayDate(parseISODate(iso), true);
 }
 
 /** The one overlay every field on a page shares. Built on first use, never at import.

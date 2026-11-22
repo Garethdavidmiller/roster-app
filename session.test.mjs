@@ -2348,6 +2348,23 @@ describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that adm
     });
 });
 
+// Trains' drawer gates its documents on this (review, 22 Nov 2026): the page the PIN opened may read
+// them while the PIN is still this browser's user, and not a moment after a Lock or another tab's sign-in.
+const { staffPinIsCurrent } = await import('./session.js');
+describe('staffPinIsCurrent — asked as it is read, never remembered', () => {
+    afterEach(() => { mockAuth.currentUser = null; });
+    test('the PIN current: yes; a member, nobody, or an anonymous user with the PIN\'s uid: no', () => {
+        mockAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
+        assert.equal(staffPinIsCurrent(), true);
+        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
+        assert.equal(staffPinIsCurrent(), false, 'a member is not the staff PIN');
+        mockAuth.currentUser = null;
+        assert.equal(staffPinIsCurrent(), false, 'after a Lock nothing is current, and nothing may be read');
+        mockAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: true };
+        assert.equal(staffPinIsCurrent(), false);
+    });
+});
+
 const { terminalAuthEvent } = await import('./session.js');
 describe('terminalAuthEvent — a stalled start-up is TRANSIENT, not a sign-out (v24.61, iOS audit B1)', () => {
     test('a named identity is NAMED', () => {

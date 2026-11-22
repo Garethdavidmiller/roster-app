@@ -141,6 +141,55 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FE
     return res;
 }
 
+/**
+ * A file's bytes, bounded by how long it goes WITHOUT PROGRESS rather than by the whole download (the New link review,
+ * 22 Nov 2026). `fetchWithTimeout`'s one deadline covers headers to last byte, which is right for a Cloud Function's small
+ * answer and wrong for a 1.4 MB proposal sheet: below about 260 kbit/s the whole file could never arrive inside 45 seconds,
+ * and "Try again" started again from nothing. Here the clock restarts every time data arrives, so a slow line that is still
+ * delivering is never cut off, while one that has stopped is, after `stallMs` of silence — the infinite wait this module
+ * exists to end, ended the same way: the same codes, so `isFetchTimeout` and `isFetchAborted` read it as they read the rest.
+ * A response that is not ok is returned as `{ ok: false, status }` without its body. A platform with no streaming body
+ * reads it whole, under the same clock started once.
+ * @param {string} url @param {{ signal?: AbortSignal|null }} [options]
+ * @param {number} [stallMs] how long without a byte before the read is given up
+ * @returns {Promise<{ ok: true, status: number, bytes: Uint8Array } | { ok: false, status: number }>}
+ */
+export async function fetchBytesWhileArriving(url, { signal = null } = {}, stallMs = DEFAULT_FETCH_TIMEOUT_MS) {
+    if (signal && signal.aborted) throw abortedError();
+    const ctrl = new AbortController();
+    let timedOut = false;
+    /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+    const arm = () => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; try { ctrl.abort(); } catch { /* noop */ } }, stallMs); };
+    const onCallerAbort = () => { try { ctrl.abort(); } catch { /* noop */ } };
+    if (signal) signal.addEventListener('abort', onCallerAbort);
+    const classify = (/** @type {any} */ err) => timedOut ? timeoutError(stallMs) : (signal && signal.aborted) ? abortedError() : err;
+    arm();
+    try {
+        const res = await fetch(url, { signal: ctrl.signal });
+        if (!res.ok) { try { res.body?.cancel(); } catch { /* noop */ } return { ok: false, status: res.status }; }
+        const reader = res.body && typeof res.body.getReader === 'function' ? res.body.getReader() : null;
+        if (!reader) return { ok: true, status: res.status, bytes: new Uint8Array(await res.arrayBuffer()) };
+        /** @type {Uint8Array[]} */ const parts = [];
+        let size = 0;
+        for (;;) {
+            arm();   // THE CLOCK RESTARTS ON EVERY ARRIVAL
+            const { done, value } = await reader.read();
+            if (done) break;
+            parts.push(value);
+            size += value.byteLength;
+        }
+        const bytes = new Uint8Array(size);
+        let at = 0;
+        for (const part of parts) { bytes.set(part, at); at += part.byteLength; }
+        return { ok: true, status: res.status, bytes };
+    } catch (err) {
+        throw classify(err);
+    } finally {
+        clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', onCallerAbort);
+    }
+}
+
 /** @param {number} timeoutMs @returns {Error} our bound's error, tagged so `isFetchTimeout` spots it. */
 function timeoutError(timeoutMs) {
     const e = new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);

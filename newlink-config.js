@@ -79,6 +79,10 @@ export const CONTACT_ROLE = 'the RMT rep';
  * "For discussion, not a decision", no "Have your say". A name that is not one of the three is refused (the page goes on as
  * though nothing were chosen) and newlink-config.test.mjs fails on it. Still null when the link's start (STARTS) comes, the
  * page stops inviting views anyway and says only that CONTACT will confirm the outcome — it never names a design itself.
+ * THE CALENDAR'S NOTICE GOES WITH IT (the 22 Nov 2026 review): its words, in index.html and in calendar-notices.js's archived
+ * copy, say "Nothing is decided yet" as fixed text — the Calendar may not import this file (newlink-boundary.test.mjs), so
+ * it cannot follow this line by itself. Setting a name here means rewording or retiring that notice in the same commit
+ * (/new-notice); newlink-config.test.mjs fails until it is done.
  * @type {string|null}
  */
 export const CHOSEN = null;

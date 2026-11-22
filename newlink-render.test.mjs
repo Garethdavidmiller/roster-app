@@ -14,26 +14,49 @@ import { readFileSync } from 'node:fs';
 import {
     closesWords, dutyKind, designName, ifYou, renderStatus, renderList, renderCommon, renderDiffers, renderFigures,
     renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, fileRow, figuresKey,
-    statusPhase, statusHint,
+    statusPhase, statusHint, glanceFile, personaStatus, weeksStatus, weeksTitle, aToZ,
 } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, DIFFERS, DIFFER_RULE, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { HAVE_YOUR_SAY, CONTACT } from './newlink-config.js';
 
 const count = (/** @type {string} */ s, /** @type {RegExp} */ re) => (s.match(re) || []).length;
-/** The one-page comparison, as newlink-app.js finds it for "Where they differ". */
-const GLANCE = PACK.find(f => f.path.endsWith('at-a-glance.pdf')) ?? null;
+/** The one-page comparison, as newlink-app.js finds it for "Where they differ" — its own helper, not a copy of it. */
+const GLANCE = glanceFile(PACK);
 
-test('the weeks card\'s title names the proposals\' own length — a typed number, so it is pinned to the rotas', () => {
+test('the weeks card\'s title is counted from the proposals, never typed (the 22 Nov 2026 review)', () => {
     const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8');
-    const n = Number(/<\/span> The (\d+) weeks<\/h2>/.exec(html)?.[1]);
-    assert.ok(n > 0, 'the weeks card\'s title carries a number of weeks');
-    for (const p of PROPOSALS) assert.equal(Object.keys(p.patterns).length, n, `${designName(p)} has ${n} weeks, as the title says`);
+    assert.doesNotMatch(html, /The \d+ weeks/, 'no number of weeks is written into the markup');
+    assert.match(html, /<span id="nlWeeksTitle">The weeks<\/span>/, 'the title the coordinator stamps');
+    const n = Object.keys(PROPOSALS[0].patterns).length;
+    assert.equal(weeksTitle(PROPOSALS), `The ${n} weeks`);
+    const longer = { ...PROPOSALS[0], patterns: { ...PROPOSALS[0].patterns, [n + 1]: PROPOSALS[0].patterns[1] } };
+    assert.equal(weeksTitle([longer, ...PROPOSALS.slice(1)]), 'The weeks', 'three lengths: no number rather than a wrong one');
+});
+
+test('the comparison is found by its file, and is null once the pack no longer has it', () => {
+    assert.ok(GLANCE && GLANCE.path.endsWith('at-a-glance.pdf'));
+    assert.equal(glanceFile(PACK.filter(f => f !== GLANCE)), null);
+});
+
+test('the screen-reader lines for the two choices: one name for the six short answers, and a proposal\'s counted weeks', () => {
+    assert.equal(personaStatus(PERSONAS, null), 'Showing the six short answers, below.');
+    assert.match(renderPersonas(PERSONAS, COLUMNS, PERSONAS[0].id), /Back to the six short answers/, 'the button names them the same way');
+    assert.equal(personaStatus(PERSONAS, 'all'), 'Showing all six, with their figures, below.');
+    assert.equal(personaStatus(PERSONAS, 'earlies'), 'Showing what it means if you prefer earlies, with its figures, below.');
+    assert.equal(personaStatus(PERSONAS, 'nobody'), '');
+    for (const p of PROPOSALS) assert.equal(weeksStatus(p), `Showing ${designName(p)}’s ${Object.keys(p.patterns).length} weeks, below.`);
+});
+
+test('the pack lists the three A to Z whatever order the data gives (rule 1)', () => {
+    const reversed = [...PACK].reverse();
+    const heads = [...renderPack(reversed, 'https://x/').matchAll(/<h3 class="nl-sub">([^<]+)<\/h3>/g)].map(m => m[1]);
+    assert.deepEqual(heads, [...aToZ(PROPOSALS).map(designName), 'For all three']);
 });
 
 test('the closing date: words for a real day, "a date to be agreed" for anything else', () => {
     assert.equal(closesWords(null), 'a date to be agreed');
-    assert.equal(closesWords('2026-11-20'), 'Friday 20 November');
+    assert.equal(closesWords('2026-11-20'), 'Friday 20 November 2026', 'with its year, as every dated line in the app');
     assert.equal(closesWords('20 November'), 'a date to be agreed');
     // the rollover trap: new Date reads 31 February as 3 March and says nothing
     assert.equal(closesWords('2026-02-31'), 'a date to be agreed');
@@ -45,6 +68,11 @@ test('a duty\'s kind follows the pack\'s line: an early starts before 11:00', ()
     assert.equal(dutyKind('10:59-19:00'), 'early');
     assert.equal(dutyKind('11:00-19:00'), 'late');
     assert.equal(dutyKind('15:45-23:55'), 'late');
+    // the app's own classes (CLAUDE.md → Shift types): a night is never drawn as a late (the 22 Nov 2026 review)
+    assert.equal(dutyKind('20:59-05:00'), 'late');
+    assert.equal(dutyKind('21:00-05:00'), 'night');
+    assert.equal(dutyKind('03:59-12:00'), 'night');
+    assert.equal(dutyKind('04:00-12:00'), 'early');
     assert.equal(dutyKind('RD'), 'rest');
     assert.equal(dutyKind('SPARE'), 'cover');
     assert.equal(dutyKind('TRG'), 'unknown');
@@ -151,7 +179,7 @@ test('the improvements review stays applied (2 Nov 2026)', () => {
     // what a proposal IS, counted from the rotas, at the top — before any card says "cover week"
     const weeks = Object.keys(PROPOSALS[0].patterns).length;
     const cover = Object.values(PROPOSALS[0].patterns).filter(r => Object.values(r).every(v => v === 'SPARE')).length;
-    assert.match(status, new RegExp(`Each is ${weeks} weeks long: ${weeks - cover} weeks of set shifts, and ${cover} <strong>cover weeks</strong>`));
+    assert.match(status, new RegExp(`Each proposal is ${weeks} weeks long: ${weeks - cover} weeks of set shifts, and\\s+${cover} <strong>cover weeks</strong>`));
     // "Have your say" is a way to its card
     assert.match(status, /<button type="button" class="nl-inline" data-open-card="nlSay">Have your say<\/button>/);
     // the headings are nouns the lines complete; "gives up" turned the costs upside down
@@ -293,7 +321,7 @@ test('the status says when the new link starts, apart from the timetable, and wh
 // have said the link "starts on" it and that the timetable "comes first, in December".
 test('"Have your say by" goes once the closing date has passed, and not before (owner, 9 Nov 2026)', () => {
     const at = (/** @type {string|null} */ today, /** @type {string|null} */ closes = '2026-11-27') => renderStatus({ proposals: PROPOSALS, closes, today });
-    const SAY = /<button type="button" class="nl-inline" data-open-card="nlSay">Have your say<\/button> by <strong>Friday 27 November<\/strong>\./;
+    const SAY = /<button type="button" class="nl-inline" data-open-card="nlSay">Have your say<\/button> by <strong>Friday 27 November 2026<\/strong>\./;
     assert.match(at('2026-11-20'), SAY, 'a week before');
     assert.match(at('2026-11-27'), SAY, 'the closing day is the last day for views, so the line still stands on it');
     for (const today of ['2026-11-28', '2027-03-01']) {
@@ -413,4 +441,30 @@ test('the status card\'s hint says "for discussion" only while the page is open'
     const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
     assert.match(html, /<span class="hint" id="nlStatusHint"><\/span>/);
     assert.doesNotMatch(html, /For discussion/);
+});
+
+test('the weeks key explains a night only where a proposal has one, and names the printed sheets\' "line" and "SP"', () => {
+    assert.doesNotMatch(renderWeeksKey(PROPOSALS), /Night/, 'none of the three has a night');
+    assert.match(renderWeeksKey(PROPOSALS), /Late — starts at 11:00 or after/);
+    const withNight = { ...PROPOSALS[0], patterns: { ...PROPOSALS[0].patterns, 2: { ...PROPOSALS[0].patterns[2], mon: '21:30-05:30' } } };
+    const key = renderWeeksKey([withNight]);
+    assert.match(key, /nl-d--night[\s\S]*Night — starts at 21:00 or after, or before 04:00/);
+    assert.match(key, /Late — starts from 11:00 to 20:59/, 'the late line no longer claims every start from 11:00');
+    assert.match(renderWeeks(withNight), /<td class="nl-d nl-d--night">/, 'the cell is drawn as a night');
+    assert.match(renderWeeksKey(), /called a <strong>line<\/strong>[\s\S]*marked <strong>SP<\/strong>/);
+});
+
+test('the status card keeps "Have your say" past the closing date while nothing is decided — only its "by" goes (owner, 22 Nov 2026)', () => {
+    const open = (today) => renderStatus({ proposals: PROPOSALS, closes: '2026-12-04', starts: '2027-01', today });
+    assert.match(open('2026-12-04'), /Have your say<\/button> by <strong>Friday 4 December 2026<\/strong>/, 'on the closing day itself');
+    assert.doesNotMatch(open('2026-12-05'), /Have your say/, 'the day after: no "by" a day that has gone');
+    assert.equal(statusPhase({ proposals: PROPOSALS, starts: '2027-01', today: '2026-12-05' }).phase, 'open',
+        'and the page is still open, so the coordinator keeps the Have your say card (newlink-app.js drawStatus)');
+});
+
+test('a cover week falling badly includes its Sunday, and a link is explained, where the phrase is first met', () => {
+    const html = renderStatus({ proposals: PROPOSALS, closes: null });
+    assert.match(html, /A <strong>link<\/strong> is the set of weeks everyone works through in turn/);
+    assert.match(html, /those four shifts land in the worst place, and its\s+Sunday is worked as overtime too/);
+    assert.match(NOTES.join(' '), /with its Sunday worked as overtime too/);
 });

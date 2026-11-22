@@ -22,6 +22,7 @@
  */
 import { escapeHtml as esc } from './roster-data.js';
 import { proposalDisplayName } from './links-proposals.js';
+import { formatDayMonthYear } from './date-format.js';
 
 /** @typedef {import('./newlink-data.js').Persona} Persona */
 /** @typedef {import('./newlink-data.js').Row} Row */
@@ -47,17 +48,25 @@ export const designName = proposalDisplayName;
 export const aToZ = (proposals) => [...proposals].sort((a, b) => designName(a).localeCompare(designName(b), 'en-GB'));
 
 /**
- * The closing date in words — or "a date to be agreed" while there is none (owner: "Not set yet").
- * A malformed date reads as not set, never as "Invalid Date" — nor as the day it rolls over to: `new Date` turns
- * 31 February into 3 March without complaint, so the parts must come back as they went in.
+ * A 'YYYY-MM-DD' day as a local-noon Date, or null. A malformed date is null, never "Invalid Date" — nor the day it rolls
+ * over to: `new Date` turns 31 February into 3 March without complaint, so the parts must come back as they went in.
+ * @param {string|null|undefined} iso
+ */
+function parseIsoDay(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '');
+    if (!m) return null;
+    const d = new Date(+m[1], +m[2] - 1, +m[3], 12);
+    return d.getFullYear() === +m[1] && d.getMonth() === +m[2] - 1 && d.getDate() === +m[3] ? d : null;
+}
+
+/**
+ * The closing date in words, with its year ("Monday 30 November 2026", as a date with its year is written everywhere in
+ * the app) — or "a date to be agreed" while there is none (owner: "Not set yet"), or one that cannot be read.
  * @param {string|null} closes 'YYYY-MM-DD'
  */
 export function closesWords(closes) {
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(closes ?? '');
-    if (!m) return 'a date to be agreed';
-    const d = new Date(+m[1], +m[2] - 1, +m[3], 12);
-    if (d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) return 'a date to be agreed';
-    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    const d = parseIsoDay(closes);
+    return d ? `${d.toLocaleDateString('en-GB', { weekday: 'long' })} ${formatDayMonthYear(d)}` : 'a date to be agreed';
 }
 
 /**
@@ -72,11 +81,8 @@ export function startsWords(starts) {
         if (+month[2] < 1 || +month[2] > 12) return null;
         return `in ${new Date(+month[1], +month[2] - 1, 1, 12).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`;
     }
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(starts ?? '');
-    if (!m) return null;
-    const d = new Date(+m[1], +m[2] - 1, +m[3], 12);
-    if (d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) return null;
-    return `on ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+    const d = parseIsoDay(starts);
+    return d ? `on ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}` : null;
 }
 
 /**
@@ -164,6 +170,9 @@ export function renderStatus({ proposals, closes, starts = null, timetable = nul
     // is the last day for views, so the line shows on it and goes from the day after; with no date set — or one that cannot
     // be read, which closesWords words the same way — it reads "a date to be agreed" and never goes while the page is open.
     // Outside 'open' views are not asked for at all, and the coordinator takes the Have your say card away with the line.
+    // THE CARD OUTLIVES THE DATE (owner, 22 Nov 2026: "Keep until decided"): once the closing date has passed, this line drops
+    // its "by", but the Have your say card stays until a design is chosen, or the start comes with none — views are still
+    // heard until the decision. Pinned by newlink-render.test.mjs and e2e/newlink.spec.js.
     const passed = closesWords(closes) !== closesWords(null) && !!today && today > /** @type {string} */ (closes);
     const say = passed || phase !== 'open' ? '' : ` <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.`;
     return `<p class="nl-callout">${lead}</p>
@@ -186,10 +195,15 @@ function weeksShape(proposals) {
     const [{ weeks, cover }] = shapes;
     if (!cover || !shapes.every(s => s.weeks === weeks && s.cover === cover)) return '';
     // "IF A COVER WEEK FALLS BADLY" IS SAID HERE, ONCE (owner, 12 Nov 2026: "It should be for dummies"): every card below uses
-    // the phrase, and a reader meeting it cold could not know it means the four shifts landing in the worst place
-    return `<p class="nl-lead">Each is ${weeks} weeks long: ${weeks - cover} weeks of set shifts, and ${cover} <strong>cover weeks</strong>
-        kept free to cover leave and absence. A cover week has four shifts between Monday and Saturday, set nearer the time;
-        “if a cover week falls badly” means those shifts land in the worst place.</p>`;
+    // the phrase, and a reader meeting it cold could not know it means the four shifts landing in the worst place — with the
+    // cover week's Sunday worked as overtime too, as RULES.md §3 counts every worst case (the 22 Nov review: Balanced V6's 10
+    // days in a row needs that Sunday). AND WHAT A LINK IS (the same review): the page's own title uses the word, and a
+    // newcomer may not know it — said as the Links workspace says it, "the rota everyone works through in turn"
+    return `<p class="nl-lead">A <strong>link</strong> is the set of weeks everyone works through in turn: one week each, then on to
+        the next, and from the last back to the first. Each proposal is ${weeks} weeks long: ${weeks - cover} weeks of set shifts, and
+        ${cover} <strong>cover weeks</strong> kept free to cover leave and absence. A cover week has four shifts between Monday and
+        Saturday, set nearer the time; “if a cover week falls badly” means those four shifts land in the worst place, and its
+        Sunday is worked as overtime too.</p>`;
 }
 
 /** A plain bulleted list of sentences. @param {ReadonlyArray<string>} items @param {string} [cls] */
@@ -210,8 +224,8 @@ export function renderCommon({ gains, costs }) {
         <section class="nl-side nl-side--cost" aria-labelledby="nlCostsH"><h3 class="nl-side-h" id="nlCostsH"><span aria-hidden="true">➖</span> What it costs everyone</h3>${renderList(costs)}</section>
     </div>
     <p class="nl-note"><strong>Fatigue warnings</strong> come from the Office of Rail and Road’s good-practice list of tiring
-        patterns, and are never a pass or a fail. The counts here are the avoidable ones: two that every link has are left
-        out, starts before 07:00 and a weekly rotation.</p>`;
+        patterns, and are never a pass or a fail. The counts here are the avoidable ones. They leave out the two that every
+        link has: starts before 07:00, and shifts that change from one week to the next.</p>`;
 }
 
 /**
@@ -336,17 +350,22 @@ export function renderPersonaChips(personas, chosen) {
 }
 
 /**
- * What kind of duty a roster cell is. An early starts before 11:00 and a late at 11:00 or after — the pack's own line,
- * so the colours here agree with every figure on the page.
+ * What kind of duty a roster cell is, by its start: the app's own classes (CLAUDE.md → Shift types) — Early 04:00–10:59,
+ * Late 11:00–20:59, Night 21:00–03:59 — so a proposal's cell is coloured as the Calendar and Links colour the same shift.
+ * The pack's line between an early and a late is the same 11:00, so the colours agree with every figure on the page. None
+ * of the three has a night today (the latest start is 15:45); a design that had one would draw it as a night, not a late
+ * (the 22 Nov review), and the key would say so (`renderWeeksKey`).
  * @param {string} s  'HH:MM-HH:MM', 'RD' or 'SPARE'
- * @returns {'early'|'late'|'rest'|'cover'|'unknown'}
+ * @returns {'early'|'late'|'night'|'rest'|'cover'|'unknown'}
  */
 export function dutyKind(s) {
     if (s === 'RD') return 'rest';
     if (s === 'SPARE') return 'cover';
     const m = /^(\d\d):(\d\d)-\d\d:\d\d$/.exec(s);
     if (!m) return 'unknown';
-    return +m[1] * 60 + +m[2] < 11 * 60 ? 'early' : 'late';
+    const start = +m[1] * 60 + +m[2];
+    if (start < 4 * 60 || start >= 21 * 60) return 'night';
+    return start < 11 * 60 ? 'early' : 'late';
 }
 
 /**
@@ -363,7 +382,7 @@ export function renderWeeks(p) {
         if (DAYS.every(d => row[d] === 'SPARE')) return `<tr class="nl-wk-cover">${lead}<td colspan="7" class="nl-d nl-d--cover">Cover week</td></tr>`;
         return `<tr>${lead}${DAYS.map(d => {
             const s = row[d], kind = dutyKind(s);
-            if (kind === 'early' || kind === 'late') {
+            if (kind === 'early' || kind === 'late' || kind === 'night') {
                 const [from, to] = s.split('-');
                 return `<td class="nl-d nl-d--${kind}"><span>${from}</span><span class="visually-hidden"> to </span><span>${to}</span></td>`;
             }
@@ -393,22 +412,36 @@ export function renderAllWeeks(proposals, chosen) {
 /**
  * The key ABOVE the weeks: what each colour and word means, before 26 rows of it (it sat beneath them, a thousand pixels
  * from the tabs on a phone — the review, 2 Nov 2026). Sunday is said here too: the grids show Sunday shifts, and that
- * they are overtime was written only in the notes, which open folded.
+ * they are overtime was written only in the notes, which open folded. A Night swatch only where a proposal has a night,
+ * so the key never explains a colour the grids do not use. And the printed sheets' own words (the 22 Nov review): the sheet
+ * this page sends a reader to heads its weeks "LINE" and marks a cover week "SP".
+ * @param {ReadonlyArray<Proposal>} [proposals]
  */
-export function renderWeeksKey() {
+export function renderWeeksKey(proposals = []) {
+    const night = proposals.some(p => Object.values(p.patterns).some(r => DAYS.some(d => dutyKind(r[d]) === 'night')));
+    const late = night ? 'Late — starts from 11:00 to 20:59' : 'Late — starts at 11:00 or after';
     return `<ul class="nl-key">
         <li><span class="nl-swatch nl-d--early" aria-hidden="true"></span>Early — starts before 11:00</li>
-        <li><span class="nl-swatch nl-d--late" aria-hidden="true"></span>Late — starts at 11:00 or after</li>
+        <li><span class="nl-swatch nl-d--late" aria-hidden="true"></span>${late}</li>
+        ${night ? '<li><span class="nl-swatch nl-d--night" aria-hidden="true"></span>Night — starts at 21:00 or after, or before 04:00</li>' : ''}
         <li><span class="nl-swatch nl-d--rest" aria-hidden="true"></span>RD — rest day</li>
         <li><span class="nl-swatch nl-d--cover" aria-hidden="true"></span>Cover week — four shifts between Monday and Saturday, to cover leave and absence</li>
     </ul>
     <p class="nl-note">Sunday shifts are overtime. The weeks are numbered, not dated: who starts on which week is decided later.
-        The code beside each name matches its printed proposal sheet.</p>`;
+        The code beside each name matches its printed proposal sheet. On the printed sheets a week is called a <strong>line</strong>,
+        and a cover week is marked <strong>SP</strong>.</p>`;
 }
 
-/** The three equal tabs that choose which proposal's weeks are drawn, A to Z. @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id */
+/**
+ * The three equal tabs that choose which proposal's weeks are drawn, A to Z — and beneath them the days of the week, for
+ * when the tabs have stuck and the grid's own headings have scrolled away (the 22 Nov 2026 review: halfway down 26 rows a
+ * time could not be tied to a day). The row is decorative (`aria-hidden`: every cell is already tied to its day by the
+ * table) and hidden until newlink-app.js marks the tabs stuck, which also lays each day over its own column.
+ * @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id
+ */
 export function renderWeeksTabs(proposals, chosen) {
-    return aToZ(proposals).map(p => `<button type="button" class="nl-tab" data-design="${esc(p.id)}" aria-pressed="${p.id === chosen}">${esc(designName(p))}</button>`).join('');
+    return aToZ(proposals).map(p => `<button type="button" class="nl-tab" data-design="${esc(p.id)}" aria-pressed="${p.id === chosen}">${esc(designName(p))}</button>`).join('')
+        + `<div class="nl-tabs-days" aria-hidden="true">${DAYS.map(d => `<span data-day="${d}">${DAY_SHORT[d]}</span>`).join('')}</div>`;
 }
 
 /**
@@ -432,9 +465,43 @@ export function fileRow(f, base) {
  */
 export function renderPack(pack, base) {
     const link = (/** @type {PackFile} */ f) => fileRow(f, base);
-    const designs = [...new Set(pack.filter(f => f.design).map(f => /** @type {string} */ (f.design)))];
+    // A TO Z HERE TOO (rule 1; the 22 Nov review): the generator writes the pack A to Z and asserts it, but `aToZ` promises every
+    // list of the three on the page — this one took the data's order on trust
+    const designs = aToZ([...new Set(pack.filter(f => f.design).map(f => /** @type {string} */ (f.design)))].map(name => ({ name }))).map(d => d.name);
     const groups = designs.map(d => `<h3 class="nl-sub">${esc(d)}</h3><ul class="nl-files">${pack.filter(f => f.design === d).map(link).join('')}</ul>`);
     const common = pack.filter(f => !f.design);
     if (common.length) groups.push(`<h3 class="nl-sub">For all three</h3><ul class="nl-files">${common.map(link).join('')}</ul>`);
     return groups.join('') + '<p class="nl-note">The files open on this page, and need a connection.</p>';
+}
+
+/**
+ * The one-page comparison in the pack, found by its file rather than its place in the list — "Where they differ" offers it
+ * only while the pack has it. Null when it has gone.
+ * @param {ReadonlyArray<PackFile>} pack
+ */
+export const glanceFile = (pack) => pack.find(f => f.path.endsWith('at-a-glance.pdf')) ?? null;
+
+/**
+ * The one line a screen reader hears when the choice of colleague changes (a polite live region: newlink-app.js). "The six
+ * short answers" is the way back's own name (`renderPersonas`), so the button and the line agree.
+ * @param {ReadonlyArray<Persona>} personas @param {string|null} chosen  a persona id, 'all', or null
+ */
+export function personaStatus(personas, chosen) {
+    if (!chosen) return 'Showing the six short answers, below.';
+    if (chosen === 'all') return 'Showing all six, with their figures, below.';
+    const p = personas.find(x => x.id === chosen);
+    return p ? `Showing ${ifYou(p.who).replace(/^If/, 'what it means if')}, with its figures, below.` : '';
+}
+
+/** The one line a screen reader hears when a proposal's weeks are shown. @param {Proposal} p */
+export const weeksStatus = (p) => `Showing ${designName(p)}’s ${Object.keys(p.patterns).length} weeks, below.`;
+
+/**
+ * The weeks card's title, counted from the proposals ("The 26 weeks"), as every other count on the page is — or plain
+ * "The weeks" while the three are not the same length.
+ * @param {ReadonlyArray<Proposal>} proposals
+ */
+export function weeksTitle(proposals) {
+    const n = new Set(proposals.map(p => Object.keys(p.patterns).length));
+    return n.size === 1 ? `The ${[...n][0]} weeks` : 'The weeks';
 }

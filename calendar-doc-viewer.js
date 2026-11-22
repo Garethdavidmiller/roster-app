@@ -22,6 +22,7 @@ import { createLightbox, registerPopInterceptor, suppressNextPop, whenHistorySet
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { recordOpen } from './usage-reporter.js';
 import { getSession } from './session.js';
+import { recordLatestNewsletter } from './newsletter-recency.js';
 
 /**
  * Per-document config. The emoji matches each feature's in-app icon (nav drawer /
@@ -71,6 +72,20 @@ function _takeHeldDoc() {
 }
 
 /**
+ * WHAT A NEWSLETTER READ SAID IS KEPT (review, 22 Nov 2026), even by a read a newer tap has superseded:
+ * the ☰ menu's Newsletter row follows the latest issue's date (newsletter-recency.js), which the
+ * Calendar asks once a load — and before access, on a page a notification opened on the PIN card, it
+ * asks nothing. An issue read here then stayed out of the menu until the next load. Only a read that
+ * ANSWERED is kept (a null is the server's "none"); one that failed changes nothing.
+ * @param {string} key
+ * @returns {(doc: any) => any} passes the document through
+ */
+const _keepLatest = (key) => (doc) => {
+    if (key === 'newsletter') recordLatestNewsletter(doc?.date ?? null);
+    return doc;
+};
+
+/**
  * `p`, or `ms` from now, whichever comes first. The losing timer is CLEARED once `p` settles (test
  * audit, 7 Nov 2026): left armed, every open kept a 2s timer, and every page load an 8s one, alive for
  * nothing — and held the test runner open as long. The clear is a side branch attached AFTER the race,
@@ -92,7 +107,8 @@ function _orAfter(p, ms) {
  *   what to do and issues NO read, cached or live; the tap is remembered and finished when access
  *   arrives, so a notification deep link that landed on the PIN card still opens the document once
  *   the PIN is in — or once the member signs in, in place, or across the reload a sign-in still makes
- *   on a page granted before (calendar-access.js → `finishSignIn`), which carries it.
+ *   on a page granted before (calendar-access.js → `finishSignIn`) or a PIN unlock makes on a page a
+ *   member was granted on (`unlockCalendar`), either of which carries it.
  *   Defaults to always-open. authReady — resolves once a Firebase session exists.
  *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
  *   accessDecided — settles once the Calendar has decided access, granted or locked. This viewer
@@ -260,7 +276,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             /** @type {any} */ let doc;
             try {
                 doc = await Promise.race([
-                    authOrSoon.then(() => (seq === _openSeq ? d.fetch() : null)),
+                    authOrSoon.then(() => (seq === _openSeq ? d.fetch().then(_keepLatest(key)) : null)),
                     new Promise((_, reject) => {
                         fetchTimer = setTimeout(() => reject(new Error('doc-fetch-timeout')), DOC_FETCH_TIMEOUT_MS);
                     }),

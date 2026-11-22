@@ -265,6 +265,15 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
      * the screen-reader announcement (`announceTeamWeek`) passes `MONTH_NAMES` and keeps saying
      * "July" — a spoken "Jul" would be a regression bought for a column it does not sit in.
      *
+     * STILL SHORT AFTER "A DATE WITH ITS YEAR IS WRITTEN IN FULL" (owner, 22 Nov 2026), and named as
+     * the deliberate short helper that rule asks for (date-format.js → `formatDayMonthYear`). Every
+     * week 2026–2030 was re-measured in the real label with full months that day: at 320px the
+     * centre column is 161px, and the full form took two lines for 158 weeks of 261 (the short form:
+     * 47) and THREE for every week across New Year; at 412px under 1.5× text, three lines for 52
+     * weeks; at 320px under 1.5×, "September" alone is wider than the column and the label ran over
+     * both arrows. The short form never needs a third line at the default size. This is the WEEK
+     * between two arrows; the day panel and the print sheet are where a date is read to keep.
+     *
      * ACROSS NEW YEAR, BOTH YEARS (18 Nov 2026). The one week a year that starts in December and ends in
      * January read "27 Dec–2 Jan 2027", which puts 27 December in 2027. It is the longest label, and
      * may take two lines on a narrow phone at a large text size — once a year, and a wrapped label

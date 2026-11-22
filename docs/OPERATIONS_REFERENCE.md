@@ -1671,7 +1671,7 @@ means changing the role in the same commit**, and closing the page again means `
 
 **Letting somebody outside the audience in is one line**: add their name, spelt as the roster spells it, to
 `CONFIG.NEWLINK_PREVIEW` in `roster-data.js`, then bump and release (S. Silva has been on it since the preview).
-It is page access only — the page reads nothing from the server and shows only public files — so there is no
+It is page access only — the proposals need nothing from the server and the page shows only public files (it signs in, reads the account's password status and records usage, timing and errors, as every page does) — so there is no
 claim to set, no `npm run generate:roster-members` and no Set up accounts. `newlink-config.test.mjs` refuses a
 name that is not an active member of the roster.
 

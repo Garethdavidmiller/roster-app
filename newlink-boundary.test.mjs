@@ -41,6 +41,10 @@ const ROSTER_PAGES = {
     'calendar-app.js': ['calendar-renderer.js', 'calendar-team-view.js', 'calendar-al-lightbox.js'],   // the month, Team Week, the day panel
     'paycalc-app.js': ['paycalc-roster-suggestions.js'],                                                 // the calculator's "from your calendar"
     'admin-app.js': ['admin-week-editor.js'],                                                            // Change a Shift
+    // and the two other pages that read a member's roster (the 22 Nov 2026 review: neither reaches a proposal today, but an
+    // import added there would have passed this file unseen)
+    'overtime-app.js': ['overtime-roster.js'],                                                           // the roster context beside each week
+    'operations-app.js': ['operations-al-sheet.js'],                                                     // the leave sheet read against the roster
 };
 
 for (const [page, surfaces] of Object.entries(ROSTER_PAGES)) {

@@ -18,6 +18,10 @@ import assert from 'node:assert/strict';
 import { resolveDocumentOpenUrl as realResolveDocumentOpenUrl } from './storage-utils.js';
 
 let _circularImpl = () => Promise.resolve(null);
+let _newsletterImpl = () => Promise.resolve(null);
+/** Every date the viewer handed the ☰ menu's Newsletter memory (newsletter-recency.js). */
+const _recorded = [];
+mock.module('./newsletter-recency.js', { namedExports: { recordLatestNewsletter: (d) => { _recorded.push(d); } } });
 
 // The stub must honour onClose — that callback is what invalidates an in-flight open (v19.13),
 // so a stub that swallows it would make the close tests below pass against broken code.
@@ -48,7 +52,7 @@ let _safeLink = true;
 mock.module('./firebase-client.js', {
     namedExports: {
         getLatestCircular:   (...a) => _circularImpl(...a),
-        getLatestNewsletter: () => Promise.resolve(null),
+        getLatestNewsletter: (...a) => _newsletterImpl(...a),
         isSafeStorageUrl:    () => _safeLink,
         officeViewerUrl:     (u) => u,
         fetchSignedDocumentUrl: (...a) => _signedImpl(...a),
@@ -123,6 +127,7 @@ const bodyText = () => _els.docViewerBody._children.map(c => c.textContent).filt
 
 beforeEach(() => {
     _circularImpl = () => Promise.resolve(null); _signedImpl = () => Promise.resolve(null);
+    _newsletterImpl = () => Promise.resolve(null); _recorded.length = 0;
     _historyCalls = []; _interceptors = []; _lbOpens = 0; _safeLink = true;
     setupDOM();
 });
@@ -544,6 +549,17 @@ describe('doc viewer — which URL the member actually opens (v24.19)', () => {
         assert.equal(await openedUrl(), SIGNED);
     });
 
+    test('the file opens with noopener: the tab it opens cannot reach back into this page', async () => {
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        let args = null;
+        global.window.open = (...a) => { args = a; return null; };
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        _els.docViewerBody._children.find(c => /Open/.test(c.textContent))._fire('click');
+        assert.deepEqual(args?.slice(1), ['_blank', 'noopener'], 'the opened document could script this page through window.opener');
+    });
+
     test('the url is minted BEFORE the click, so the gesture is not spent', async () => {
         // The constraint that shaped this design. `window.open` without a user gesture is
         // pop-up-blocked and drops the PWA out of standalone, so the fetch must have finished by
@@ -699,5 +715,36 @@ describe('cal-docs-16 · the dialog is named for its document, and its outcome i
         assert.doesNotMatch(dialog, /aria-label="/, 'an aria-label would name it "Document" again, whichever was open');
         assert.match(html, /<div id="docViewerBody"[^>]*><p id="docViewerStatus"[^>]*role="status"/,
             'the status line is the body\'s first child, so its words sit where the messages always were');
+    });
+});
+
+// ── THE ☰ MENU LEARNS OF A NEWSLETTER THE VIEWER READ (review, 22 Nov 2026) ─────────────────────────────
+// The menu's Newsletter row follows the latest issue's date, which the Calendar asks once a load — and asks
+// nothing before access, so a page a Newsletter notification opened on the PIN card left the row hidden
+// after the PIN had opened the very issue it was hiding.
+describe('a Newsletter read here is kept for the ☰ menu', () => {
+    test('the issue read is recorded; the server\'s "none" is recorded as none', async () => {
+        _newsletterImpl = () => Promise.resolve({ date: '2026-11-20', storageUrl: 'https://x/n.pdf', fileType: 'pdf' });
+        global.window.location.hash = '#newsletter';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        assert.deepEqual(_recorded, ['2026-11-20'], 'the issue on screen stayed out of the menu until the next load');
+        _newsletterImpl = () => Promise.resolve(null);
+        global.window.location.hash = '#newsletter';
+        _winListeners.hashchange.forEach(fn => fn());
+        await flush();
+        assert.deepEqual(_recorded, ['2026-11-20', null]);
+    });
+
+    test('a failed read changes nothing, and a Circular is not a Newsletter', async () => {
+        _newsletterImpl = () => Promise.reject(Object.assign(new Error('offline'), { code: 'documents/cache-only-empty' }));
+        _circularImpl = () => Promise.resolve({ date: '2026-11-20', storageUrl: 'https://x/c.pdf', fileType: 'pdf' });
+        global.window.location.hash = '#newsletter';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        global.window.location.hash = '#circular';
+        _winListeners.hashchange.forEach(fn => fn());
+        await flush();
+        assert.deepEqual(_recorded, [], 'a read that could not answer said something about the newsletter');
     });
 });

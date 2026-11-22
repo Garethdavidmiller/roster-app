@@ -166,6 +166,8 @@ describe('failures', () => {
     test('each says what to do, calmly, and an app fault goes to the admin (CLAUDE.md wording)', () => {
         assert.match(FAILURE_TEXT.connection, /connection.*try again/i);
         assert.match(FAILURE_TEXT.gone, /Reload the page/);
+        // never that the file HAS GONE: a 404 is as often the GitHub Pages copy not yet carrying a new file (22 Nov 2026)
+        assert.doesNotMatch(FAILURE_TEXT.gone, /no longer|removed|gone/i);
         assert.match(FAILURE_TEXT.broken, /tell the admin/);
         for (const text of Object.values(FAILURE_TEXT)) assert.doesNotMatch(text, /!/, 'no exclamation marks');
     });
