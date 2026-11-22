@@ -87,12 +87,11 @@ let _isDirty = () => false;
 
 export function init() {
     reloadIfRestoredForSomeoneElse();
-    // Register the SW before the access gate — a signed-out visit early-returns below and would
-    // otherwise never register/update the SW for that load (v16.23; matches operations/settings).
+    // Before the access gate: a signed-out visit returns below and would otherwise never update the SW.
     registerServiceWorker({
         isBusy: () => _isDirty() || hasUnconfirmedWrite(),   // a notification tap asks first
         async beforeReload() {   // sw-register ignores the return, so the async dialog below is safe
-            // A write of UNKNOWN outcome holds the update outright: the reader was told to reload (v25.21, AUTH_AND_SESSIONS 22).
+            // A write of UNKNOWN outcome holds the update outright (AUTH_AND_SESSIONS 22).
             if (hasUnconfirmedWrite()) return;
             if (!_isDirty() || await confirmDialog({
                 title: 'Update available',
@@ -103,75 +102,46 @@ export function init() {
             }
         },
     });
-    // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
-    // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
-    // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.
-    reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
-    // ============================================
-    // SESSION — guard access to LINKS_DESIGNERS only
-    // ============================================
+    // An expired session's lingering identity is torn down, so a deep link cannot keep an old credential live.
+    reconcileExpiredIdentity().catch(() => {});   // it logs its own failures
+
+    // ── SESSION: Links designers only ──
     const currentSession  = getSession();
     const currentUser     = currentSession?.name ?? null;
     const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
 
-    // Page-access decision via the Phase-3 policy (auth-policy.js → AUTH_ARCHITECTURE.md Phase 5).
-    // The "local-derived" snapshot maps the localStorage session to an identity status — present →
-    // 'named' (optimistic fast render from local), absent → 'signedOut' — and requirePage applies the
-    // Links policy (designer-only). Behaviour is identical to the prior two-gate form; this routes the
-    // same decision (the LINKS_DESIGNERS membership test now lives in rolesFor) through the shared
-    // authz layer instead of an inline CONFIG.LINKS_DESIGNERS check.
+    // The local session decides the first render (auth-policy.js); the named session confirms it below.
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
     if (_access.decision === 'login') {
-        // Not signed in → show the shared in-place sign-in (no redirect). On success, re-invoke init()
-        // in place (the authorised body below never ran on this pass, so re-entering runs it exactly
-        // once with the just-saved session — no reload, no double-wiring). Do NOT resolveSession(false)
-        // here, or the one-shot sessionReady is poisoned before the in-place pass can resolve it true.
-        // (AUTH_ARCHITECTURE.md Phase 9.)
-        // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
-        // path is never less robust than the reload path (the overlay is already torn down by then).
-        // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
-        // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+        // The in-place sign-in runs init() again, once, with the new session. Never resolveSession(false) here: the
+        // one-shot sessionReady would be spent before that pass. A reload if init() throws, or if the session did
+        // not save (iOS private mode) — re-entering then would soft-lock.
         const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
         initLoginOverlay({ pageLabel: 'Links', onSuccess });
         return;
     }
     if (_access.decision === 'forbidden') {
-        // Signed in but NOT a Links designer — access control, not a login divert.
         window.location.replace('./admin.html');
         return;
     }
-    // _access.decision === 'allow' → proceed (signed-in designer).
-    // In-place sign-in: remove the still-mounted overlay if we re-entered via onSuccess. No-op on a
-    // normal already-signed-in load (no overlay present).
-    dismissLoginOverlay();
+    dismissLoginOverlay();   // re-entered from the in-place sign-in
 
-    // B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
-    // the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
-    // `requirePage(getAuthSnapshot(), 'links')` returns 'login' exactly when the designer's OWN named
-    // session could not be confirmed.
+    // The designer's OWN named session, re-established on every load, or every write fails.
     const _linksAuth = ensureNamedSession(currentUser);
     resolveSession(_linksAuth);
     // An own session that cannot be confirmed signs in again now; one revoked LATER does too
     // (page-session.js — the same follow-up every named page runs).
     guardNamedSession({ page: 'links', pageLabel: 'Links', member: currentUser, established: _linksAuth });
 
-    // ============================================
-    // PAGE INIT
-    // ============================================
-    document.body.classList.add('auth-ready');
-    // The page's content is on screen from this line: `.container` is `display:none` until
-    // `auth-ready`, so everything before it was a blank page (v20.80). See markPageReady.
+    document.body.classList.add('auth-ready');   // the page is on screen from here
     markPageReady();
 
     /** @type {any} */ let openAboutLightbox = null;
-    /** The About panel's CLOSE, exposed for the same reason as its open: the panel is built inside
-     *  its own IIFE, and "How this workspace works" — a row INSIDE that panel — has to dismiss it
-     *  before opening the orientation lightbox, from a block further down the file. */
+    /** The About panel's close: "How this workspace works", a row inside it, dismisses it first. */
     /** @type {any} */ let closeAboutLightbox = null;
 
     initNavPanel({
-        // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
-        authReady: sessionReady,
+        authReady: sessionReady,   // the drawer's documents read once the session is in (AUTH_PLAN.md → E1)
         currentPage:     'links',
         memberName:      currentUser,
         ...navGatesFor(currentUser),   // the pill gates (auth-policy.js); the page gate above already required the designer role
@@ -181,94 +151,58 @@ export function init() {
         onSignOut:     () => signOutAndLeave({ to: './' }),
     });
 
-    // ============================================
-    // CONSTANTS
-    // ============================================
-    // ONE declaration of the rotation length, imported from links-design.js (v19.38). The grid
-    // height and the generator's output are necessarily the same number — every line rotates.
-    const TOTAL_POS = ROTATING_LINES;
-
-    /** Firestore collection holding all named design documents. */
+    const TOTAL_POS = ROTATING_LINES;   // the one declaration is links-design.js's: every line rotates
     const DESIGNS_COL = collection(db, COLLECTIONS.linkDesigns);
-
-    /** localStorage key remembering the last active design across visits. */
-    const ACTIVE_KEY = 'myb_links_active_design';
+    const ACTIVE_KEY = 'myb_links_active_design';   // the design open last visit
 
     // The shift times offered — the MAIN roster's, and for the cell sheet the default table's too (links-today.js).
     const { early: EARLY_SHIFTS, earlyOptions: EARLY_OPTIONS, lateOptions: LATE_OPTIONS } = shiftOptionLists();
 
-    // ============================================
-    // STATE
-    // ============================================
-    /**
-     * The currently active design. `id` is null for a freshly generated (not-yet-saved) design.
-     * @type {{ id: string|null, name: string, patterns: Object, window?: any } | null}
-     */
+    // ── STATE ──
+    /** The working copy; `id` null while unsaved. @type {{ id: string|null, name: string, patterns: Object, window?: any } | null} */
     let design = null;
     let dirty  = false;
-    _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
+    _isDirty = () => dirty;   // this pass's flag, for the service worker's reload
     // Unsaved work kept for a page that goes without asking — offered only with a grid it can restore WHOLE.
     const draftSlot = createDraftSlot({ page: 'links', by: currentUser ?? '', usable: (d) => !!d.patterns && typeof d.patterns === 'object' && Object.keys(d.patterns).length > 0 });
-    /** Designs with a save in flight — by id, or 'unsaved' for ANY first save (never the design object:
-     *  a window edit or a generator apply replaces it mid-save, re-enabling Save for a second create —
-     *  whole-app review). PER DESIGN, so a write that cannot finish never locks the others (Sep 2026). */
+    /** Designs with a save in flight — by id, or 'unsaved' for ANY first save. Never the design object: a window
+     *  edit or a build replaces it mid-save, re-enabling Save for a second create. PER DESIGN, so a write that
+     *  cannot finish never locks the others. */
     const savingKeys = new Set();
     const savingHere = () => savingKeys.has(activeDesignId ?? 'unsaved');
-    /** Bumped whenever another design becomes the working copy, so a save that lands after a
-     *  switch knows the page no longer shows what it saved (see `saveChanges`). */
+    /** Moves whenever the working copy is replaced, so a write that lands later knows the page has moved on. */
     let activation = 0;
-    /** True until the read of the designs has answered, either way (links-app-1). The page is on screen
-     *  from `auth-ready` and that read lands later, REPLACING the working copy when it does — so until
-     *  then nothing that would make or open a design is offered: the masthead's two buttons are
-     *  disabled, the empty state says it is loading, and Build the link says to wait. */
+    /** True until the designs' read has answered (links-app-1): it REPLACES the working copy when it lands, so
+     *  until then nothing that would make or open a design is offered. */
     let listLoading = true;
-    /** The loading state's words, read once from the markup, which is WRITTEN as the loading state (the
-     *  page is on screen before the coordinator renders anything) — one copy, so a retry says what the
-     *  first load said. */
+    /** The loading state's words, read from the markup (written as the loading state), so a retry says the same. */
     const LOADING_COPY = {
         title: document.querySelector('#linksEmptyState .links-empty-title')?.textContent ?? '',
         msg:   document.getElementById('linksEmptyMsg')?.innerHTML ?? '',
     };
     let loadFailed      = false;
-    // The concurrency baseline. `loadedRevision` is the exact identity (v22.18) and moves only to
-    // a revision this page committed or read; `loadedUpdatedAt` is the fallback for a design nobody
-    // has saved since. Why a revision at all: links-concurrency.js, `conflictOf` path 0.
+    // The concurrency baseline: `loadedRevision` moves only to a revision this page committed or read;
+    // `loadedUpdatedAt` (millis) is the fallback; `baselineUnknown` says a read-back failed, so the next save
+    // asks rather than reading "no document" as safe (invariant 5; links-concurrency.js).
     /** @type {number|null} */ let loadedRevision = null;
-    /** @type {any} */ let loadedUpdatedAt = null;   // millis
-    // True when a post-save updatedAt read-back FAILED: the baseline is unknown, not "no doc".
-    // The overwrite-confirm guard then falls back to comparing updatedBy — without this, one
-    // dropped read-back silently disabled the guard and the next save clobbered a co-designer's
-    // version with no prompt (v16.69 review fix).
+    /** @type {any} */ let loadedUpdatedAt = null;
     let baselineUnknown = false;
 
-    // Paint-mode brush: string = armed shift, null = no brush
-    /** @type {any} */ let brush = null;
-
-    // Multi-design state
+    /** @type {any} */ let brush = null;   // the armed paint shift, or null
     /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, savedAt?:Date, updatedBy:string, revision?:number|null}>} */
     let designs         = [];
-    /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
-    /** The built-in proposal whose unsaved working copy is open (links-proposals.js), or null. A
-     *  proposal is opened with NO activeDesignId, so no write path can ever address it. */
+    /** @type {any} */ let activeDesignId  = null;   // null while unsaved
+    /** The proposal whose unsaved copy is open, or null — opened with NO activeDesignId, so no write can address it. */
     /** @type {string|null} */ let activeProposalId = null;
     let binnedOnLoad = 0;
     const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: proposalDisplayName(p), ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
-    /** The import panel and the Recently deleted bin (links-design-library.js), built once the store
-     *  exists. Null until then, so anything that renders before it reads an empty bin. @type {any} */
+    /** The import panel, the bin and Keep only the shortlist (links-design-library.js), once the store exists. @type {any} */
     let library = null;
-    /** The bin, newest first — owned by the library. */
-    const _bin = () => library ? library.binList() : [];
-
+    const _bin = () => library ? library.binList() : [];   // newest first, the library's
 
     /**
-     * The staffed-window editor on the Coverage card (v19.54).
-     *
-     * Edits mark the design DIRTY like any cell edit — the window is part of the proposal, not a
-     * view preference — so it saves with everything else and travels with the design.
-     *
-     * An invalid pair (finish at or before start, or a cleared field) is REFUSED rather than
-     * silently coerced: coercing would hand the designer a window they did not choose and then
-     * print it on the sheet as though they had.
+     * The staffed-window editor on the Coverage card. An edit marks the design DIRTY — the window is part of the
+     * proposal — and an invalid pair is REFUSED, never coerced: a coerced window prints as one the designer chose.
      */
     function initWindowEditor() {
         const box = /** @type {HTMLElement|null} */ (document.getElementById('windowEditor'));
@@ -282,13 +216,9 @@ export function init() {
         const status = document.getElementById('winStatus');
         const moved  = /** @type {HTMLElement|null} */ (document.getElementById('winMoved'));
         const reset  = document.getElementById('winReset');
-        // The boxes are a numeric keypad on a phone, and that keypad has no colon (v24.61, iOS audit):
-        // "0730" typed there was reverted as not a time. Shape it as it is typed, as the admin week
-        // grid does; `commit` below still canonicalises and validates what is finally there.
-        // AND COMMIT ON BLUR AS WELL AS CHANGE (24-hour review of v24.61). Setting `.value` from the
-        // `input` handler resets WebKit's change-detection baseline — the week grid measured this
-        // (admin-week-editor.js) — so on an iPhone `change` could never fire when focus left, and the
-        // shaped time sat in the box without ever reaching the design. `commit` is idempotent.
+        // A phone's numeric keypad has no colon, so a time is shaped as it is typed; and it commits on BLUR as well as
+        // change, because setting `.value` from `input` resets WebKit's change baseline (admin-week-editor.js) and
+        // `change` never fired on an iPhone. `commit` is idempotent.
         for (const row of /** @type {const} */ (['monSat', 'sun'])) {
             for (const el of [els[row].start, els[row].end]) {
                 el?.addEventListener('input', () => { el.value = formatClockInput(el.value); });
@@ -305,8 +235,7 @@ export function init() {
                 if (els[row].start) els[row].start.value = w[row].start;
                 if (els[row].end)   els[row].end.value   = w[row].end;
             }
-            // The moved flag sits in the EYEBROW row beside the "Staffed window" label, where it
-            // qualifies the fields it describes. `.win-status` below is for a REFUSAL only.
+            // The moved flag sits beside the "Staffed window" label; `.win-status` is for a refusal only.
             if (moved) moved.hidden = isDefaultWindow(w);
             if (status) status.textContent = '';
         }
@@ -314,16 +243,10 @@ export function init() {
         /** @param {'monSat'|'sun'} row */
         function commit(row) {
             if (!design) return;
-            // Pad what was typed — "6:20" and "06:20" are the same instruction, and the stored
-            // value must be the one canonical form the rest of the workspace reads.
             const typed = [els[row].start, els[row].end].map(el => finaliseClockInput(el?.value ?? ''));   // "240" left as typed is 02:40
             const refused = windowEditRefusal(typed[0], typed[1]);   // the reason that applies, or null
             if (refused) {
-                // Put the stored value back so the field never sits showing something that is not
-                // in force, and say why — a silently reverted input reads as the app losing input.
-                // ORDER MATTERS: paint() rewrites `status` from the stored window, so the message
-                // has to be written AFTER it or it is wiped in the same tick and the field appears
-                // to revert for no reason at all.
+                // Put the stored value back and say why — AFTER paint(), which clears the status line.
                 paint();
                 if (status) status.textContent = refused;
                 return;
@@ -356,38 +279,21 @@ export function init() {
     }
 
     /** @type {() => void} */ let paintWindowEditor = () => {};
-    /**
-     * Render the whole Coverage CARD — the heat map AND the staffed-window editor above it.
-     *
-     * ONE call, because they are one card and every call site would otherwise have to remember
-     * both. It did not: the generator (the only way to create a design) refreshed the chart via
-     * renderGrid but never painted the editor, so the very first design a designer made had no
-     * visible window control until they reloaded.
-     */
-    // The Coverage CARD is chart + window editor + the sticky summary strip in the grid card above
-    // it — one call, because as separate calls every site had to remember all three, and the
-    // generator (the only way to create a design) already proved that does not happen (v19.55).
+    // The Coverage CARD — heat map, window editor and the summary strip — is ONE call: as three, the first build
+    // painted the chart and not the editor (v19.55).
     function renderCoverageCard() { renderCoverageChart(); paintWindowEditor(); renderSummary(); }
     const { renderCoverageChart, renderDesignChecks, renderSummary } = initLinksAnalysis({
         getDesign: () => design,
         getBaseline: () => currentLinkBaseline(),   // today's link, measured once (links-today.js)
-        // A thunk, not a value: `compare` is the single source of truth for compare mode and is
-        // declared further down. Reading it lazily also means the strip cannot go stale — every
-        // path that toggles compare already re-renders the grid, and the grid renders this.
+        // A thunk: `compare` owns compare mode and is declared below.
         isComparing: () => compare.isCompareMode(),
     });
     paintWindowEditor = initWindowEditor();
 
-    // ============================================
-    // HELPERS
-    // ============================================
-
     /**
-     * Shared HTML options for any shift dropdown.
-     * @param {string|null} currentVal — currently selected value
-     * @param {boolean} includeRdSpare — true for cell-edit dropdowns, false for generator time selects
-     * CEAs do not work night shifts — night times are never offered here.
-     * normaliseCustomShift() also rejects starts between 21:00 and 03:59.
+     * The options of any shift list: the cell sheet's (`includeRdSpare`) or the generator's time selects. CEAs work
+     * no nights, so no night time is offered; `normaliseCustomShift` refuses one typed.
+     * @param {string|null} currentVal @param {boolean} includeRdSpare
      */
     function buildShiftOptions(currentVal, includeRdSpare = false) {
         const opt = (/** @type {any} */ val, /** @type {any} */ label) => {
@@ -409,36 +315,26 @@ export function init() {
                 `<optgroup label="Late${includeRdSpare ? ' (starting 11:00 or after)' : ''}">`,
                 ...LATE_OPTIONS.map(s => opt(s, s)), '</optgroup>',
             ] : []),
-            // 'Custom…' — the brush chip's label: on a phone this select is 16px (the iOS-zoom
-            // rule) in a deliberately narrow column, so the longer text cut itself mid-word.
+            // The paint chip's own label: longer text cut itself mid-word in the phone's narrow 16px column.
             opt('__custom__', 'Custom…'),
         ].join('');
     }
 
-    // Compare mode — extracted to links-compare.js (v17.71). It OWNS compareMode/compareDesignId
-    // (single source of truth); the coordinator only reads them (compare.isCompareMode/getCompareId)
-    // or resets them (compare.resetCompare). Placed after emptyPattern/isUnfilledPattern (const
-    // arrows) so those injected deps exist; the render deps are hoisted function declarations.
+    // Compare mode OWNS its state (links-compare.js); the coordinator only asks for it or resets it.
     const compare = initLinksCompare({
         getDesigns: () => [...designs, ...PROPOSAL_ENTRIES], getActiveDesignId: () => activeDesignId ?? activeProposalId, getDesign: () => design,
         renderDesignPicker, renderGrid, renderBrushBar, dearmBrush,
     });
 
-    // ============================================
-    // DESIGN MANAGEMENT
-    // ============================================
-
+    // ── DESIGN MANAGEMENT ──
     /** @type {ReturnType<typeof createDesignHeader>|null} the masthead (links-design-header.js) */
     let header = null;
     /** Both Save buttons — the masthead's and the sticky row's. One label, one state. */
     const _saveBtns = () => /** @type {HTMLButtonElement[]} */ (['linksSaveBtnTop', 'linksSaveBtn'].map(id => document.getElementById(id)).filter(Boolean));
-    /** The designs whose last write is only in THIS BROWSER's queue — a new design, a copy or a save made
-     *  offline, or one the server did not answer (links-app-4). The masthead's pill says "Saved in this
-     *  browser" for the open one, where "Saved" read as everybody having it. A save the server confirms
-     *  takes a design off it again; a reload starts from what the server holds. @type {Set<string>} */
+    /** The designs whose last write is only in THIS BROWSER's queue (links-app-4): the masthead's pill says "Saved in
+     *  this browser" for the open one, where "Saved" read as everybody having it. @type {Set<string>} */
     const queuedIds = new Set();
-    /** The SAVES only this browser's queue holds until the server answers, whose copies are kept meanwhile — a second
-     *  tab's queue dies with the page (v26.03). The rules are links-queued-saves.js's. */
+    /** The SAVES only this browser holds, whose copies are kept until the server answers (links-queued-saves.js). */
     const queuedSaves = createQueuedSaves();
     const _headerState = () => ({
         designs, activeId: activeDesignId, design, dirty, currentUser, saving: savingHere(),
@@ -450,8 +346,6 @@ export function init() {
     function initDesignPicker() {
         const $ = (/** @type {string} */ id) => document.getElementById(id);
         const onRename = () => { if (activeDesignId) renameDesign(activeDesignId); };
-        // One action per opening of either sheet, however fast the double tap, is the masthead's rule
-        // (links-design-header.js `closeThen`; links-app-11) — not repeated here.
         header = createDesignHeader({
             pickList: $('designPickList'), pickerSub: $('designPickerSub'), pickerButton: /** @type {HTMLButtonElement|null} */ ($('designPickerBtn')),
             faceName: $('designFaceName'), eyebrow: $('designEyebrow'), count: $('designCount'),
@@ -460,19 +354,14 @@ export function init() {
             status: $('designStatus'), statusLong: $('designStatusLong'), statusShort: $('designStatusShort'),
             saveButtons: _saveBtns(),
             renameButtons: /** @type {HTMLButtonElement[]} */ ([$('designRenameBtn')].filter(Boolean)),
-            // Disabled state ONLY (v23.33) — click is wired via `sheetActions`; listing it in
-            // `renameButtons` would fire it twice. Same split as `deleteButton`.
+            // Disabled state only: its click is a `sheetActions` row, and in `renameButtons` it would fire twice.
             renameMenuButton: /** @type {HTMLButtonElement|null} */ ($('designRenameMenuBtn')),
             deleteButton: /** @type {HTMLButtonElement|null} */ ($('designDeleteBtn')),
             sheetAvatar: $('designSheetAvatar'), sheetName: $('designSheetName'), sheetSub: $('designSheetSub'),
         }, { onSelect: selectDesign, onRename }, {
             moreButton: /** @type {HTMLButtonElement|null} */ ($('designMoreBtn')),
-            // First focus on the first row that can be USED (links-app-17). It was always Save a copy as…,
-            // which is disabled on a design not yet saved and on a proposal — and focusing a disabled
-            // button does nothing, so the sheet opened with focus left behind it. A function, so it is
-            // asked when the sheet opens, after the rows' states and the hidden rows are settled. (The
-            // header's SheetCfg types this as an element; createLightbox takes either.)
-            // (The overlay and `create: createLightbox` share a line: overlay-parity.test.mjs reads them together.)
+            // First focus on the first row that can be USED, asked as the sheet opens (links-app-17): a disabled row
+            // takes no focus. (The overlay and `create` share a line: overlay-parity.test.mjs reads them together.)
             sheet:  { overlay: $('designMoreLb'),   create: createLightbox, content: $('designMoreContent'), closeBtn: $('designMoreClose'),
                       initialFocus: /** @type {any} */ (() => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('#designMoreContent .dm-menu-btn')])
                           .find(b => !b.disabled && b.offsetParent !== null) ?? null) },
@@ -486,8 +375,7 @@ export function init() {
             const nameBtn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.design-chip-name'));
             if (nameBtn) compare.selectCompareDesign(nameBtn.dataset.id);
         });
-        // The empty state's two actions (v19.66): blank → the same `createDesign`; the primary one
-        // only SCROLLS — a Generate fired from an empty card builds a design nobody chose.
+        // The empty state's actions. The primary one only SCROLLS: a build fired from an empty card makes a design nobody chose.
         $('linksEmptyNew')?.addEventListener('click',    createDesign);
         $('linksEmptyProposals')?.addEventListener('click', () => $('designPickerBtn')?.click());
         $('linksEmptyGenerate')?.addEventListener('click', () => {
@@ -506,8 +394,7 @@ export function init() {
         const dupBtn         = /** @type {HTMLButtonElement|null} */ (document.getElementById('dupDesignBtn'));
         if (!wrap) return;
 
-        wrap.style.display = '';   // ALWAYS shown (v19.43): the empty state points at the sheet
-        // Recently-deleted row: present only when the bin has something in it.
+        wrap.style.display = '';   // always shown: the empty state points at its sheet
         const binBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('designBinBtn'));
         if (binBtn) {
             binBtn.style.display = _bin().length > 0 ? '' : 'none';
@@ -516,26 +403,14 @@ export function init() {
         }
 
         header?.render(_headerState());
-        // Until the designs are in, the picker and ··· More are shut (links-app-1, `listLoading`): the
-        // load replaces the working copy when it lands. The face's `disabled` is otherwise the
-        // masthead's own decision, so it is overridden only while loading; both start disabled in
-        // the markup, because nothing renders the masthead before the load does.
+        // Shut until the designs are in (`listLoading`); otherwise the face's `disabled` is the masthead's decision.
         const moreBtn   = /** @type {HTMLButtonElement|null} */ (document.getElementById('designMoreBtn'));
         const pickerBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('designPickerBtn'));
         if (moreBtn) moreBtn.disabled = listLoading;
         if (pickerBtn && listLoading) pickerBtn.disabled = true;
 
-        // Print-only masthead. It named the design and nothing else, which left a printed sheet
-        // with no way to tell WHICH version of that design you were holding (v19.45) — and the
-        // save row that carries "last saved by X at HH:MM" is hidden in print, so the provenance
-        // existed on screen and was dropped on paper. A link design is circulated for comment and
-        // revised repeatedly; an undated copy is the one thing it must not be.
-        _renderPrintMasthead();
-
-        // Duplicate button state
+        _renderPrintMasthead();   // which version of the design a printed sheet is — the save row is hidden on paper
         if (dupBtn) dupBtn.disabled = !activeDesignId;
-
-        // Compare button state (compare state is owned by links-compare.js)
         const cmpMode = compare.isCompareMode();
         const cmpId   = compare.getCompareId();
         if (compareBtn) {
@@ -546,7 +421,6 @@ export function init() {
             if (lbl) lbl.textContent = cmpMode ? 'Stop comparing' : 'Compare with…';
         }
 
-        // Compare picker row
         if (comparePickerRow) comparePickerRow.style.display = cmpMode ? '' : 'none';
         if (cmpMode && compareChipsEl) {
             compareChipsEl.innerHTML = [...designs, ...PROPOSAL_ENTRIES]
@@ -561,22 +435,18 @@ export function init() {
     }
 
 
-    /** Surface a design create/rename/duplicate outcome (or a client-side validation error) on the
-     *  shared save-status line, so a rules rejection is never silent. `''` is the neutral voice: a write
-     *  under way, or one queued in this browser — neither a success nor a failure.
-     *  On the line ON SCREEN: with no design open the save row is hidden, so the empty state has its own (17 Nov 2026).
+    /** A design action's outcome on the status line ON SCREEN — the save row's, or the empty state's while no design is
+     *  open — so a refusal is never silent. `''` is the neutral voice: under way, or queued in this browser.
      *  @param {string} msg @param {'ok'|'err'|''} [kind] @param {boolean} [onSaveRow]  a LOAD's outcome: the design it opens shows it */
     function _designActionStatus(msg, kind = 'err', onSaveRow = !!design) {
         const status = document.getElementById(onSaveRow ? 'linksSaveStatus' : 'linksEmptyStatus');
         if (status) { status.textContent = msg; status.className = (onSaveRow ? 'links-save-status' : 'links-save-status links-empty-status') + (kind ? ' ' + kind : ''); }
     }
 
-    /** What a write QUEUED in this browser says — a save, a new design or a copy alike (links-app-4): it is
-     *  in the device's own queue, not on the server, so it never says "✓ Saved" (iPhone audit, Nov 2026:
-     *  "when you're back online" promised an upload a closed page cannot make). */
+    /** What a write QUEUED in this browser says: never "✓ Saved", and never "when you're back online", which promised an
+     *  upload a closed page cannot make (iPhone audit, Nov 2026). */
     const QUEUED_SAVE = 'Saved in this browser — it uploads the next time Links is open here with a connection';
-    /** What an open design says when the server REFUSED the save queued in this browser (store rule 6). The work is
-     *  on screen and kept, and saving again is the way on; a refusal that repeats is the admin's to look at. */
+    /** What an open design says when the server REFUSED the save queued in this browser (store rule 6). */
     const REFUSED_SAVE = 'Not saved — the server refused the save made in this browser. Your changes are still here; if saving fails again, contact the admin.';
 
     /** What the kept draft holds while nothing on the page is unsaved: the newest unconfirmed save, or nothing. A clean
@@ -639,22 +509,17 @@ export function init() {
         _designActionStatus(refusedMakeLine(name, open));
     }
 
-    /** The open design's CONTENT, as one comparable string — so a write that lands late can tell whether
-     *  anything was edited while it was in flight (links-app-3). The name is left out: a rename is saved
-     *  as it is made, so a page renamed meanwhile has nothing unsaved to lose. */
+    /** The open design's CONTENT, so a write that lands late can tell whether anything was edited meanwhile (links-app-3).
+     *  Not the name: a rename is saved as it is made. */
     const _contentKey = () => JSON.stringify(design ? [design.patterns, normaliseWindow(design.window)] : null);
 
-    /** The design New blank design or Save a copy as… is making, from the press until it lands: null when
-     *  none, '' while its questions are open, its name while the write is in flight (links-app-3). One at
-     *  a time — a second press passed the duplicate-name check before the first was in the list. */
+    /** The design New blank design or Save a copy as… is making: null, '' while asking, its name in flight. One at a time —
+     *  a second press passed the duplicate-name check before the first was in the list (links-app-3). */
     let making = /** @type {string|null} */ (null);
 
     /**
-     * A design New blank design or Save a copy as… made has LANDED (links-app-3). It joins the list either
-     * way, and it OPENS only if the page is where the press left it: the same design open, and nothing
-     * edited since. Opening it regardless replaced whatever had been done in the meantime and cleared
-     * `dirty` over it, unasked — on a phone whose signal was up but not answering, that was every edit
-     * between the press and the reply.
+     * A design New blank design or Save a copy as… made has LANDED (links-app-3). It joins the list, and OPENS only if
+     * the page is where the press left it — opened regardless, it replaced every edit made while the server was slow.
      * @param {any} d the entry, already in `designs`
      * @param {{ act: number, before: string, queued: boolean, made: string, settled?: Promise<string> }} o  `made` names it in a sentence
      */
@@ -672,8 +537,7 @@ export function init() {
             + `It was not opened, because ${why}.`, queued ? '' : 'ok');
     }
 
-    /** Decide a typed design name — length AND the ambiguous-duplicate rule (links-design-naming.js).
-     *  Returns true (and shows why) when the name may not be used. @param {string} name @param {string|null} [exceptId] */
+    /** True, and says why, when a typed design name may not be used. @param {string} name @param {string|null} [exceptId] */
     function _designNameRejected(name, exceptId = null) {
         const v = checkDesignName(name, { designs, proposalNames: PROPOSAL_NAMES, exceptId });   // a proposal's name too (links-design-6)
         if (!v.ok) _designActionStatus(v.message || 'That name cannot be used.');
@@ -685,9 +549,7 @@ export function init() {
         if (making !== null) { if (making) _designActionStatus(`“${making}” is still being created — try again once it is in the list.`, ''); return; }
         making = '';
         try {
-            // Ask about unsaved work FIRST (v19.38). This used to run after the name prompt, so you typed
-            // a name and were only then asked whether to abandon your changes — the decision that might
-            // cancel the whole action came last.
+            // Unsaved work is asked about FIRST: the decision that might cancel the action must not come last.
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
             const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. “Option A”):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
             if (!name) return;
@@ -695,10 +557,7 @@ export function init() {
             making = name;
             _designActionStatus(`Creating “${name}”…`, '');
             const act = activation, before = _contentKey();
-            // A blank design starts on the app default window — docPayload normalises it. The
-            // store arms the baseline from the server, so the FIRST content-save is guarded;
-            // without that a new design carried updatedAt:null, the guard read it as "nothing to
-            // compare", and a concurrent edit was clobbered silently.
+            // On the default window; the store arms its baseline from the server, so its FIRST save is guarded too.
             const { id: newId, updatedAt: createdTs, baseline: newBase, queued, settled } = await store.create(
                 docPayload({ name, patterns: {}, window: null },
                            { updatedBy: currentUser, updatedAt: serverTimestamp() }));
@@ -714,11 +573,7 @@ export function init() {
         }
     }
 
-    // IMPORT and the RECENTLY DELETED bin are links-design-library.js (v24.51) — wired below, after the store.
-
-    /** Duplicate the current design as a new named design.
-     * Copies the LIVE in-memory patterns, so unsaved edits are included —
-     * "duplicate what I'm looking at", not "duplicate the last save".
+    /** Save a copy as…: the LIVE patterns and window, unsaved edits included — "copy what I'm looking at".
      * @param {boolean} [chosen] the designer has just pressed "Save mine as new" (a save that met a deletion or someone else's
      *   version): "goes back to its last save" would ask again about a choice made, or about an original not there. */
     async function duplicateDesign(chosen = false) {
@@ -726,11 +581,8 @@ export function init() {
         if (making !== null) { if (making) _designActionStatus(`“${making}” is still being created — try again once it is in the list.`, ''); return; }
         making = '';
         try {
-            // The fifth path that can lose the working copy to start asking (v22.62; import the sixth).
-            // Its wording is deliberately NOT the others' "changes will be lost" — the copy is taken
-            // from the LIVE patterns, so the work goes INTO it and the original reverts to its last
-            // save. Full reasoning: `.claude/rules/links-design.md`. Asked before the name prompt, per
-            // `createDesign`: the decision that might cancel the action must not come last.
+            // Deliberately NOT "changes will be lost": the work goes INTO the copy and the original reverts to its last
+            // save (links-design.md → Every way of losing unsaved work). Asked before the name, as `createDesign` asks.
             if (dirty && !chosen && !await confirmDialog({
                 title: 'Save a copy as…',
                 message: `Your unsaved changes will go into the copy, and “${design.name || 'this design'}” will go back to its last save. Save the copy anyway?`,
@@ -742,9 +594,7 @@ export function init() {
             if (!design) return;   // the dialogs await; the page is the same one, but the type checker cannot know that
             making = name;
             const patterns = deepCopyPatterns(design.patterns);
-            // A duplicate inherits the window it was designed to. Copying the patterns alone would
-            // silently re-base the copy on the standard hours, which is the one thing a designer
-            // duplicating a moved-boundary proposal is least likely to notice.
+            // The window too: patterns alone re-base the copy on the standard hours, unnoticed.
             const window = normaliseWindow(design.window);
             _designActionStatus(`Saving a copy as “${name}”…`, '');
             const act = activation, before = _contentKey();
@@ -754,7 +604,6 @@ export function init() {
             const d = restoredEntryFrom({ id: dupId, name, patterns, window }, { updatedAt: dupTs, updatedBy: currentUser, revision: dupBase.loadedRevision });
             designs.push(d);
             _sortDesigns();
-            // The copy holds the design as it was at the press; opening it over later edits would drop them.
             _openMade(d, { act, before, queued: !!queued, made: `The copy “${name}”`, settled });
         } catch (err) {
             console.error('[Links] Duplicate design failed:', err);
@@ -764,16 +613,12 @@ export function init() {
         }
     }
 
-    /** Keep `designs` in the list's one order (`byDesignName`, links-design-load.js), so an in-session create,
-     *  duplicate or rename lands where a fresh load would put it (v16.19). */
+    /** The list's one order (`byDesignName`), so a create, copy or rename lands where a load would put it. */
     function _sortDesigns() {
         designs.sort(byDesignName);
     }
 
-    /**
-     * Rename an existing design.
-     * @param {any} id
-     */
+    /** @param {any} id */
     async function renameDesign(id) {
         const d = designs.find(x => x.id === id);
         if (!d) return;
@@ -781,18 +626,9 @@ export function init() {
         if (!name || name === d.name) return;
         if (_designNameRejected(name, d.id)) return;
         try {
-            // Bump updatedAt/updatedBy too (was name-only): otherwise a rename was invisible to the
-            // concurrency guard — a co-editor's loadedUpdatedAt stayed unchanged, so their next save
-            // wrote their stale cached name and silently REVERTED the rename with no prompt (v16.19).
-            //
-            // BUT advance our local baseline ONLY when nobody else saved since we loaded (v16.23).
-            // Pre-read the doc BEFORE the rename write: if its updatedAt already differs from our
-            // baseline, a co-editor's save landed in between — blindly advancing the baseline to
-            // OUR rename's timestamp made the next saveChanges skip the "X saved a different
-            // version" confirm and silently overwrite their patterns with our stale copy. On
-            // mismatch (or an offline pre-read) the baseline stays put, so the next save prompts.
-            // The transaction, the baseline decision and the offline fallback are the store's
-            // (v21.87). What stays here is the naming of a thing on screen.
+            // A rename moves the revision, or a co-editor's next save would silently revert it (v16.19); the baseline here
+            // moves only when nobody else saved since (`baselineFresh`, decided in the store's transaction), or the next
+            // save would skip "Someone else saved" over their work (v16.23).
             const _preBaseline = (id === activeDesignId) ? loadedUpdatedAt : (d.updatedAt?.toMillis?.() ?? null);
             const _preRevision = (id === activeDesignId) ? loadedRevision : (d.revision ?? null);
             const { baselineFresh, updatedAt: renamedAt, revision: renamedRev } = await store.rename(
@@ -802,8 +638,7 @@ export function init() {
             if (baselineFresh) {
                 d.updatedBy = currentUser;
                 if (renamedAt) { d.updatedAt = renamedAt; delete d.savedAt; }   // server time wins (see recordSave)
-                // The rename COMMITTED a revision it knows, so the entry and the baseline both move
-                // to that rather than to whatever a read-back happened to see (v22.18).
+                // To the revision the rename COMMITTED, never one a read-back happened to see (v22.18).
                 if (typeof renamedRev === 'number') d.revision = renamedRev;
                 if (id === activeDesignId) {
                     loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
@@ -813,16 +648,12 @@ export function init() {
             }
             _sortDesigns();
             renderDesignPicker();
-            // The rename write succeeded — clear any stale "couldn't rename" error a PRIOR failed attempt
-            // left on the shared save-status line (createDesign/duplicate clear it via _activateDesign;
-            // rename doesn't reactivate, so it must clear its own). No positive text — a rename is quiet.
+            // A rename is quiet, and clears a failed attempt's line: nothing reopens the design to clear it.
             const _renameStatus = document.getElementById('linksSaveStatus');
             if (_renameStatus) { _renameStatus.textContent = ''; _renameStatus.className = 'links-save-status'; }
         } catch (err) {
-            // NO LONGER A LIVE DESIGN (links-design-5): binned, or removed for good, by somebody else while
-            // it sat in this list. "Check your connection and try again" was a dead end — no retry can
-            // rename it. It leaves the live list, into Recently deleted when it is there, exactly as a save
-            // that finds it deleted does (`dropDeleted`), and the line says what happened instead.
+            // Binned or removed by somebody else (links-design-5): no retry can rename it, so it leaves the list, as a
+            // save that finds it deleted does, and the line says what happened.
             if (/** @type {any} */ (err)?.code === 'deleted-elsewhere') {
                 const binned = /** @type {any} */ (err).deletedData ?? null;
                 designs = designs.filter(x => x.id !== id);
@@ -837,11 +668,8 @@ export function init() {
     }
 
     /**
-     * Delete a design — a SOFT delete since v19.41: it moves to "Recently deleted", where it can be
-     * restored, instead of being destroyed on the spot. It stays there until a designer removes it
-     * for good; nothing expires it (automatic expiry was removed at v24.10 — see `links-deletion.js`).
-     * The last saved design can be deleted too (links-app-23): the first shortlisted proposal opens
-     * in its place, as it does when Keep only the shortlist empties the list.
+     * A SOFT delete: the design moves to Recently deleted, where it stays until somebody restores it or removes it
+     * for good (links-deletion.js). The last saved design may go too: the first shortlisted proposal opens in its place.
      * @param {any} id
      */
     async function deleteDesign(id) {
@@ -851,25 +679,13 @@ export function init() {
         deleting.add(id);
         try { await _deleteDesign(id, d); } finally { deleting.delete(id); }
     }
-    /** Designs with a delete under way, from the press until it lands — one at a time per design, or a
-     *  second press filed the same design in Recently deleted twice. @type {Set<string>} */
+    /** Designs with a delete under way: one at a time, or a second press binned it twice. @type {Set<string>} */
     const deleting = new Set();
     /** @param {string} id @param {any} d its entry in `designs` */
     async function _deleteDesign(id, d) {
-        // ── UNSAVED WORK IS NOT IN THE BIN (v22.56, external review) ────────────────────────
-        // Recently deleted holds the last SAVED version. Deleting the design you are editing
-        // therefore threw away every change since that save — silently, because the dialog spoke
-        // only about the document. Every other path that can lose the working copy already asks:
-        // New design, switching design, signing out and leaving the page. Delete was the one that
-        // did not, and it is the only one of the five with no undo.
-        //
-        // The fix SAVES rather than warns. Told the truth, a designer's answer is almost always
-        // "keep my work", and saving first puts everything in the bin — so restoring returns what
-        // was on screen instead of a version from some earlier point. The review proposed a third
-        // "delete without saving" button; that needs a three-action dialog, and `confirmDialog`
-        // lives in shared `overlay.js`, which every lightbox on all seven pages is built from. Not
-        // a change to make for a convenience on one path used by three people — and discarding is
-        // still available by cancelling and switching away, which already offers it.
+        // UNSAVED WORK IS NOT IN THE BIN, which holds the last SAVED version (v22.56). So it SAVES first rather than
+        // warns: restoring then brings back what was on screen. No "delete without saving" button — that needs a
+        // three-action dialog in the shared overlay.js, and cancelling then switching away already discards.
         if (id === activeDesignId && dirty) {
             if (!await confirmDialog({
                 title: 'Delete design',
@@ -878,28 +694,21 @@ export function init() {
                 danger: true,
             })) return;
             await saveChanges();
-            // `saveChanges` clears `dirty` only when the write actually landed, and it can end
-            // somewhere else entirely — a declined overwrite, a design deleted by somebody else, a
-            // fork into a duplicate that becomes the active design. Any of those means the delete
-            // this dialog described is no longer the one that would happen, so stop and say so
-            // rather than deleting against a state nobody agreed to.
+            // The save can end elsewhere — declined, deleted by somebody else, forked into a copy — and then this is
+            // not the delete the dialog described.
             if (dirty || activeDesignId !== id) {
                 _designActionStatus(`Couldn’t save “${d.name}”, so nothing was deleted.`);
                 return;
             }
         } else if (!await confirmDialog({
             title: 'Delete design',
-            // States what actually happens (v19.96). It promised "the next 30 days" while nothing
-            // has expired a design since v19.86 — an under-promise, but the bin's own intro says
-            // the opposite two taps later, and a designer who believes a deadline may hurry.
+            // No countdown: the bin is permanent, and a deadline in copy is a promise (links-deletion.js).
             message: `Delete “${d.name}”?\n\nIt moves to Recently deleted, where it stays until someone restores it or removes it for good.`,
             confirmLabel: 'Delete',
             danger: true,
         })) return;
         try {
-            // Said while it is under way, and checked again when it lands (whole-app fix, Nov 2026): a
-            // signal that is up but not answering holds the write, the designer carries on, and the
-            // landing used to open the next design over whatever they had done meanwhile.
+            // Said while under way, and checked again when it lands: the designer carries on meanwhile.
             _designActionStatus(`Deleting “${d.name}”…`, '');
             const before = _contentKey();
             const { status: found, deletedData } = await store.softDelete(id, currentUser);
@@ -907,40 +716,28 @@ export function init() {
             // A save of it only this browser holds is not unsaved work any more: kept, it came back as "your unsaved changes".
             queuedIds.delete(id); queuedSaves.acked(id);
             if (!dirty) _keepUnconfirmedOrForget();
-            // The bin row is what the delete FOUND (whole-app fix, Nov 2026). Binned by somebody else
-            // already, the row is THEIR delete, read from the server, never one signed as ours; removed
-            // for good, there is no row at all. Our own delete's deletedAt is null until the server
-            // resolves it — deliberately kept as null rather than stamped with a client clock, so the
-            // row reads "Deleted by X" until the real time is known instead of an invented figure.
+            // The bin row is what the delete FOUND: binned already, THEIR delete; removed for good, none. Our own has
+            // `deletedAt` null until the server resolves it, never a client clock's invented time.
             if (found === 'already-deleted') library.upsertBin(binEntryFromDoc(id, deletedData));
             else if (found !== 'gone') library.addToBin(binEntryFrom(d, currentUser));
             const outcome = deleteOutcomeLine(found, d.name, deletedData);
             const wasOpen = id === activeDesignId;
-            // With no saved design left, the first shortlisted proposal opens, as after Keep only the
-            // shortlist (links-app-23): the picker always holds the proposals, so nothing is left empty.
             const newActive = wasOpen && _contentKey() === before ? (designs[0] ?? PROPOSAL_ENTRIES[0] ?? null) : null;
-            // Exit compare mode if the compare target was deleted, the delete drops below the 2
-            // designs compare needs, OR the newly-promoted active design IS the current compare
-            // target — otherwise a design would be compared against ITSELF (every cell "identical",
-            // its compare chip filtered out) until the user manually toggles compare off. Deleting
-            // the ACTIVE design while comparing also used to leave a <2-design self-compare soft-lock.
-            // Nothing opening in its place ends it only when the design was open (edited meanwhile): on another design, the
-            // comparison is the designer's own and holds the deleted one only as `cmpId` (whole-app check, Nov 2026).
+            // Compare ends if the deleted design was compared, fewer than two are left, the next design IS the compared
+            // one (a design compared with itself), or the open design went with nothing in its place. A comparison on
+            // ANOTHER design is the designer's own, and stays (whole-app check, Nov 2026).
             const cmpId = compare.getCompareId();
             if (id === cmpId || designs.length + PROPOSAL_ENTRIES.length < 2 || (newActive && newActive.id === cmpId) || (wasOpen && !newActive)) {
                 compare.resetCompare();
             }
             if (newActive) {
                 _activateDesign(newActive);
-                // Our own delete needs no line once the next design is open; one that found the design
-                // already deleted, or gone, is news — and so is the LAST design going, which leaves a
-                // read-only proposal where it was: the line says where the design went.
+                // Our own delete needs no line; one that found it already gone is news, and so is a proposal in its place.
                 if (found !== 'deleted') _designActionStatus(outcome, '');
                 else if (isProposalId(newActive.id)) _designActionStatus(`${outcome} No saved design is left, so a shortlisted proposal is open.`, 'ok');
                 return;
             }
-            // Edited while its own delete was in flight: the design is in the bin, and the edits are kept
-            // as an unsaved NEW design rather than thrown away with it.
+            // Edited while its delete was in flight: the edits stay, as an unsaved NEW design.
             if (wasOpen && design) _openAsNew(design.patterns, design.window);
             _renderAll();
             _designActionStatus(wasOpen
@@ -948,17 +745,11 @@ export function init() {
                 : outcome, wasOpen || found !== 'deleted' ? '' : 'ok');
         } catch (err) {
             console.error('[Links] Delete failed:', err);
-            // Was console-only: a rules rejection or a dropped connection looked like the button
-            // simply doing nothing. Every other design action surfaces here (v19.41).
             _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t delete the design — check your connection and try again.');
         }
     }
 
-    /**
-     * Switch the active design. Warns if dirty. A double tap on a picker row asks once: the masthead runs
-     * one action per opening (links-design-header.js `closeThen`; links-app-11).
-     * @param {any} id
-     */
+    /** Switch design, asking first if dirty. @param {any} id */
     async function selectDesign(id) {
         if (id === activeDesignId || (id === activeProposalId && !activeDesignId)) return;
         // Not while its save is in flight, and before anything is asked: its entry still holds the version from BEFORE
@@ -969,7 +760,6 @@ export function init() {
         if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
         const d = designs.find(x => x.id === id) ?? PROPOSAL_ENTRIES.find(x => x.id === id);
         if (!d) { renderDesignPicker(); return; }
-        // If selecting the current compare target, exit compare mode first
         if (id === compare.getCompareId()) compare.resetCompare();
         _activateDesign(d);
     }
@@ -1005,9 +795,9 @@ export function init() {
         dearmBrush();
         _renderAll();
         updateLastSaved(d.updatedBy, lastSaveTime(d));
-        refreshGenTargetsForDesign();   // targets are per design (v19.38)
-        // ITS LAST SAVE WAS REFUSED (store rule 6, v26.03): the entry holds what that save wrote, which the server does
-        // not have, so it opens unsaved, on the baseline from before the save, and says so.
+        refreshGenTargetsForDesign();   // targets are per design
+        // ITS LAST SAVE WAS REFUSED (store rule 6): the entry holds what the server does not, so it opens unsaved, on the
+        // baseline from before that save.
         const refused = queuedSaves.get(activeDesignId);
         if (refused?.failed) {
             ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = refused.baseline);
@@ -1037,11 +827,9 @@ export function init() {
     const _draftStillUnsaved = (kept) => stillUnsaved(kept, [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === kept.scope.design));
 
     /**
-     * Make the working copy a NEW, unsaved design holding `patterns` and `window` — no id, and no name
-     * until its first save. For work whose design is not in the list: a kept draft of a design never
-     * saved or since deleted, and an open design edited while its own delete was in flight. Nothing on
-     * the page may go on describing the design it came from: its "Last saved by" line and its remembered
-     * generator table both stayed behind on the draft's path (links-app-9). The caller renders.
+     * The working copy as a NEW unsaved design: work whose design is not in the list (a draft of one never saved or
+     * since deleted, edits made while its delete was in flight). Nothing may go on describing the design it came from —
+     * its "Last saved by" and its generator table both stayed behind once (links-app-9). The caller renders.
      * @param {any} patterns @param {any} window
      */
     function _openAsNew(patterns, window) {
@@ -1051,11 +839,7 @@ export function init() {
         refreshGenTargetsForDesign();
     }
 
-    // COMPARE MODE was extracted to links-compare.js (v17.71); wired via `compare` above.
-
-    // ============================================
-    // PAINT BRUSH
-    // ============================================
+    // ── PAINT BRUSH ──
 
     /** @param {any} shift */
     function armBrush(shift) {
@@ -1076,32 +860,15 @@ export function init() {
     }
 
     /**
-     * The times the brush bar offers: THE ONES THIS DESIGN IS ACTUALLY MADE OF (v21.14).
-     *
-     * It offered the ROSTER's times from v12.09 to v21.13, and that stopped being useful the moment
-     * a new design started from the designed default rather than the roster seed (v21.00). Measured
-     * on the shipped default at v21.13: the bar carried 18 chips, the design on screen was built
-     * from 19 times, and the OVERLAP WAS ZERO. Every chip painted a shift the design does not
-     * contain, and not one of the design's own times could be painted at all — on a bar whose card
-     * header says "use the Paint bar to fill cells quickly". Four default retunes widened that gap
-     * one release at a time, and nothing failed, because a bar full of plausible chips looks
-     * exactly like a bar that works.
-     *
-     * Deriving it from the design fixes it by construction and keeps fixing it: an imported
-     * proposal paints in its own times, a roster-seeded design paints in the roster's, and a design
-     * nobody has touched paints in the default's. It also answers the vertical-space objection the
-     * old comment raised — 19 chips against 18 is not a taller page, and every one of them is now a
-     * shift somewhere in the grid.
-     *
-     * The armed brush is unioned in so a chip can never vanish from under a designer mid-paint:
-     * painting away the last cell of a time would otherwise leave the brush armed with nothing
-     * highlighted. An empty design falls back to the default table, so the bar is never bare.
+     * The paint chips: the times THIS DESIGN is made of (v21.14). A fixed list painted shifts the design did not contain
+     * and could not paint the ones it did — measured once, an overlap of zero — and still looked as if it worked. The
+     * armed brush is unioned in, so a chip cannot vanish mid-paint, and an empty design falls back to the default table.
      */
     function brushTimes() {
         const out = new Set();
         for (const row of Object.values(design?.patterns || {})) {
             for (const s of Object.values(/** @type {any} */ (row) || {})) {
-                if (s && s !== 'RD' && s !== 'OFF' && s !== 'SPARE' && normaliseCustomShift(s)) out.add(s);   // never a night or past-midnight duty (whole-app review)
+                if (s && s !== 'RD' && s !== 'OFF' && s !== 'SPARE' && normaliseCustomShift(s)) out.add(s);   // never a night or past-midnight duty
             }
         }
         if (!out.size) for (const t of DEFAULT_SHIFT_TIMES) out.add(t);
@@ -1129,13 +896,8 @@ export function init() {
         const { early: barEarly, late: barLate } = brushTimes();
         _lastBrushSig = barEarly.join(',') + '|' + barLate.join(',');
 
-        // The chip shows BOTH times, on two lines, exactly as the grid cell it paints does
-        // (v19.43). It used to show the start only — and the roster has five distinct shifts
-        // starting 06:20, three starting 08:00, and so on, so the bar rendered as seven pairs of
-        // visually IDENTICAL chips that paint different shifts. The start time also went into the
-        // title and aria-label, so nothing anywhere disambiguated them: the only way to tell which
-        // 06:20 you had armed was to paint a cell and read the result. Its name is `cellName`'s:
-        // "06:20 to 14:20" put a word between the two times a voice user reads off the chip.
+        // A chip shows BOTH times, as the cell it paints does: several shifts share a start, and start-only chips were
+        // identical pairs painting different shifts (v19.43). Its name is `cellName`'s, what it shows first.
         const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '', /** @type {any} */ spokenLabel = null) => {
             const say = spokenLabel ?? label;
             return `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
@@ -1150,8 +912,7 @@ export function init() {
             ...barLate.map(s  => chip(s, shiftLabel(s), 'late',  '', cellName(s))),
             `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false">Custom…</button>`,
         ].join('');
-        // Re-apply the armed state: the chips above are brand-new elements, so a rebuild during a
-        // paint session would otherwise leave the brush armed with nothing highlighted.
+        // The chips are new elements: re-light the armed one, or the brush stays armed with nothing lit.
         if (brush) armBrush(brush);
 
         bar.querySelectorAll('.brush-chip').forEach(c => {
@@ -1159,16 +920,14 @@ export function init() {
                 const custom = /** @type {HTMLElement} */ (c).dataset.shift === '__custom__';
                 let shift = /** @type {HTMLElement} */ (c).dataset.shift;
                 if (custom) {
-                    const typed = await askCustomShift('Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.');
+                    const typed = await askCustomShift(CUSTOM_SHIFT_PROMPT);
                     if (!typed) return;
                     shift = typed;
                 }
                 if (brush === shift) dearmBrush();
                 else armBrush(shift);
-                // A Custom… time is usually not on the bar yet, so arming it lit NOTHING, and the next cell
-                // tapped was painted rather than opened (links-app-6) — the hazard the re-arm above exists
-                // for. The bar is drawn again (`brushTimes` unions the armed time in), and focus goes to its
-                // chip, because the Custom… button it was on has just been replaced.
+                // A Custom… time is usually not on the bar, so arming it lit nothing (links-app-6): the bar is drawn again
+                // with it, and focus goes to its chip, the Custom… button having been replaced.
                 if (custom) {
                     renderBrushBar();
                     /** @type {HTMLElement|null} */ (bar.querySelector(`.brush-chip[data-shift="${CSS.escape(brush ?? '__custom__')}"]`))?.focus();
@@ -1177,13 +936,11 @@ export function init() {
         });
     }
 
+    /** What Custom… asks, from the paint bar and the cell sheet alike. */
+    const CUSTOM_SHIFT_PROMPT = 'Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.';
     /**
-     * Ask for a Custom… shift time, for the paint bar and the cell sheet alike. The tidy time, or null.
-     *
-     * A REFUSED time says so (links-app-7). The prompt used to close on "1400-2230" exactly as it does on
-     * Cancel, so a designer could not tell a refusal from a slip — and on a phone keyboard the colon is a
-     * layer away. The window editor on this page holds the same standard: "a silently reverted input
-     * reads as the app losing input". The words are `customShiftRefusal`'s, which the generator's Custom… shares.
+     * A Custom… shift time for the paint bar and the cell sheet: the tidy time, or null. A REFUSED time says so, in
+     * `customShiftRefusal`'s words (links-app-7): closing as a Cancel does, it read as the app losing input.
      * @param {string} message @param {string} [defaultValue]
      */
     async function askCustomShift(message, defaultValue = '') {
@@ -1194,21 +951,10 @@ export function init() {
         return typed;
     }
 
-    // ============================================
-    // GRID RENDERING
-    // ============================================
+    // ── GRID ──
 
-    /**
-     * Open the generator card programmatically, chevron and ARIA included.
-     *
-     * ONE implementation, because the two call sites had already drifted (found in the v19.70
-     * regression pass). `initCardCollapse` only syncs `aria-expanded` on a real click, so anything
-     * that opens the card in code has to do it by hand — the auto-expand in `renderGrid` did, and
-     * the v19.66 empty-state button did not. Collapse the generator, then press "Go to
-     * Auto-generate": the body opened while the chevron still pointed collapsed and a screen reader
-     * was told `aria-expanded="false"` over an open card. Harmless on the default path only because
-     * `renderGrid` has usually opened it already — which is exactly how the gap stayed invisible.
-     */
+    /** Open the Build a link card in code, chevron and ARIA included: `initCardCollapse` syncs `aria-expanded` only on a
+     *  real click, and one of two call sites once left it "false" over an open card (v19.70). */
     function _openGenerator() {
         const body    = document.getElementById('generatorBody');
         const chevron = document.getElementById('generatorChevron');
@@ -1219,12 +965,7 @@ export function init() {
         }
     }
 
-    /**
-     * The grid card's header hint describes the GRID, which is not on screen in the empty state
-     * (v19.66) — it told you to tap a shift cell and use the Paint bar when neither existed. Both
-     * strings live here rather than in two render branches so they cannot drift apart.
-     * @param {boolean} hasDesign
-     */
+    /** The grid card's hint, which must not describe a grid that is not on screen (v19.66). @param {boolean} hasDesign */
     function _setGridHint(hasDesign) {
         const el = document.getElementById('linksGridHint');
         if (el) el.textContent = hasDesign
@@ -1233,23 +974,10 @@ export function init() {
     }
 
     /**
-     * A design holding MORE lines than the rotation is now — and why it cannot be silent (v19.98).
-     *
-     * The rotation went 28 → 22 (v19.98) and then 22 → 24 (v20.01), and every design saved at an
-     * older length is still in Firestore.
-     * Nothing about opening one LOOKS wrong: the grid loops `1..TOTAL_POS`, so lines 23–28 simply
-     * are not drawn; every analysis (`toSequence`, coverage, the checks, the fatigue factors) reads
-     * the same range and therefore reports on the CURRENT length; and `workingCopy` DEEP COPIES the whole
-     * patterns object, so the next save writes all 28 back. The result is a design that is assessed
-     * as one thing and stored as another, indefinitely, with no symptom.
-     *
-     * Which half to fix was the decision. Dropping the surplus on load would destroy six lines of
-     * somebody's work on a page visit — the same class of failure as the v19.84 stale hard-delete —
-     * and dropping it on SAVE would do it at the moment the designer is least expecting it. So the
-     * data is left exactly as it is and the fact is put on screen: the rows are dormant, the panels
-     * below describe the current length, and deleting the design is the designer's call to make deliberately.
-     *
-     * Deliberately not a `confirm()`: it is a statement about the design, not a decision to take now.
+     * A design holding MORE lines than the rotation (v19.98). Nothing about opening one looks wrong — the grid and every
+     * panel read the rotation's lines, and the next save writes the rest back — so it is assessed as one thing and stored
+     * as another. The data is left alone (dropped on load or on save, it is somebody's work gone) and the fact is said.
+     * A statement, not a `confirm()`: there is no decision to take now.
      */
     function _renderOverLengthNotice() {
         const el = document.getElementById('linksOverLengthNotice');
@@ -1271,18 +999,10 @@ export function init() {
         const saveRow    = document.getElementById('linksSaveRow');
 
         if (!design) {
-            // renderGrid early-returns here, so renderCoverageCard — and with it renderSummary —
-            // never runs on this path. The save row is hidden below, so a stale strip would not be
-            // VISIBLE; it would still be wrong, and the next design to load would flash it. This is
-            // the one place the summary needs asking for by name.
-            renderSummary();
-            // The empty state has a TITLE and ACTIONS as well as this sentence (v19.66), and FOUR
-            // states, of which only the last two may offer to make a design. While the list is still
-            // LOADING, whatever was made would be replaced when it landed (links-app-1). A load
-            // FAILURE — or a cached answer that cannot tell "none" from "never read here"
-            // (links-app-5) — is not "you have not made one yet": offering "No designs yet" to
-            // someone whose designs exist but did not load would be a lie, and inviting them to
-            // generate a new one is how a connection blip turns into a duplicate design.
+            renderSummary();   // hidden with the save row, but a stale strip would flash on the next design
+            // FOUR states, and only the last two may offer to make a design: while LOADING it would be replaced when the
+            // list lands (links-app-1), and after a FAILURE — or a cached answer that cannot tell "none" from "never read
+            // here" (links-app-5) — "No designs yet" would be a lie, and a new design a duplicate.
             const state = listLoading ? 'loading' : loadFailed ? 'failed' : binnedOnLoad && _bin().length ? 'binned' : 'empty';
             const offers = state === 'binned' || state === 'empty';
             const emptyMsg   = document.getElementById('linksEmptyMsg');
@@ -1292,12 +1012,11 @@ export function init() {
             if (emptyTitle) emptyTitle.textContent = state === 'loading' ? LOADING_COPY.title : state === 'failed' ? 'Couldn’t load your designs' : state === 'binned' ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = state === 'loading' ? LOADING_COPY.msg
                 : state === 'failed' ? `Check your connection and try again. Nothing has been lost — saved designs are kept on the server.`
-                // No month: the new link starts in January 2027, not December, and the day is not set
-                // (owner, 8 Nov 2026 — newlink-config.js → STARTS). What is true whenever it is read is the length.
+                // No month: the day the new link starts is not set (owner, 8 Nov 2026); the length is true whenever read.
                 : state === 'binned' ? `The link is now ${TOTAL_POS} lines, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
                 : `Build a rotating pattern from staffing targets with the Build a link card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) emptyActs.style.display = offers ? '' : 'none';
-            // An installed app has no reload button, so "refresh the page" was advice with nothing to press.
+            // An installed app has no reload button.
             if (retry) retry.style.display = state === 'failed' ? '' : 'none';
             _setGridHint(false);
             _renderOverLengthNotice();   // `design` is null here, so this hides it
@@ -1307,9 +1026,6 @@ export function init() {
             if (tbody)      tbody.innerHTML          = '';
             if (tfoot)      tfoot.innerHTML          = '';
             document.body.classList.remove('links-compare-on');
-            // Auto-expand the generator so the user sees it without having to discover it.
-            // Shares `_openGenerator` with the empty state's button — see the note there for why
-            // the ARIA sync has to be explicit, and what happened when only one site did it.
             if (offers) _openGenerator();
             renderBrushBar();
             renderCoverageCard();
@@ -1322,9 +1038,7 @@ export function init() {
         const emptyStatus = document.getElementById('linksEmptyStatus'); if (emptyStatus) emptyStatus.textContent = '';   // done with
         _setGridHint(true);
 
-        // In compare mode the main grid is hidden on SCREEN ONLY (body class +
-        // screen-scoped CSS) but stays fully rendered — print must always output
-        // the active design, and an inline display:none would leak into print.
+        // In compare mode the grid is hidden on SCREEN only (body class): print always outputs the open design.
         if (wrapper) wrapper.style.display = '';
         document.body.classList.toggle('links-compare-on', compare.isCompareMode());
 
@@ -1353,29 +1067,19 @@ export function init() {
         renderCoverageCard();
     }
 
-    // The grid's input — clicks, the keyboard's one Tab stop and arrows, mouse strokes — delegated to
-    // the body once (links-grid-input.js). A cell's MEANING stays here: paint it, or open the sheet.
+    // The grid's input is links-grid-input.js's; what a cell MEANS — paint it, or open the sheet — is here.
     const grid = createGridInput(document.getElementById('linksGridBodyRows'), {
         lines: TOTAL_POS, days: DAYS, ready: () => !!design, armed: () => brush !== null,
         paint: (pos, day) => applyShift(pos, day, brush), edit: openCellEdit,
     });
     trackPaintBarHeight(document.getElementById('brushBar'), document.getElementById('linksGridTable'));
 
-    /**
-     * Apply a shift value to a cell, update state and re-render coverage.
-     * @param {any} pos
-     * @param {any} day
-     * @param {any} shift
-     */
+    /** Paint one cell and repaint what reads it. @param {any} pos @param {any} day @param {any} shift */
     function applyShift(pos, day, shift) {
         if (!design) return;
         const pats = /** @type {Record<string, any>} */ (design.patterns);
         if (!pats[pos]) pats[pos] = emptyPattern();
-        // Painting a cell with the value it ALREADY holds is not a change (v19.38). It used to set
-        // the dirty flag anyway, so one stray tap in paint mode armed the unsaved-changes guard —
-        // the beforeunload prompt, the "changes will be lost" confirm on every design switch and on
-        // sign-out — for an edit that did not happen. Found by an e2e that painted RD onto a rest
-        // day and saw Save light up.
+        // The value it already holds is not a change, or a stray tap arms every unsaved-work question (v19.38).
         if (pats[pos][day] === shift) return;
         pats[pos][day] = shift;
         dirty = true;
@@ -1389,19 +1093,14 @@ export function init() {
         if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(pats[pos]));
 
         const cov = calcCoverage(design.patterns);
-        // Only the EDITED row's totals are rewritten, never the whole tbody: a full re-render here
-        // would tear out the cell the designer is working in — this runs from the paint brush as
-        // well as from a committed dropdown, and the brush leaves the pointer over the cell.
+        // Only the EDITED row's totals: a whole-grid render would tear out the cell under the pointer.
         const totals = lineTotals(design.patterns, TOTAL_POS);
         if (tr) {
             tr.querySelectorAll('.tot-cell').forEach(el => el.remove());
             tr.insertAdjacentHTML('beforeend', _totalCells(totals.rows[Number(pos) - 1]));
         }
         renderFooter(cov, totals);
-        // The bar is derived from the design (v21.14), so a paint that introduces a time — or
-        // removes the last cell of one — changes what it should offer. Guarded on the SIGNATURE
-        // rather than run unconditionally: `applyShift` fires once per cell during a drag-paint,
-        // and rebuilding the chips on every one of those is work for nothing.
+        // The bar is the design's times, so it is redrawn only when they change: a drag paints cell by cell.
         const sig = _brushSig();
         if (sig !== _lastBrushSig) renderBrushBar();
         renderCoverageCard();
@@ -1409,24 +1108,13 @@ export function init() {
     }
 
     /**
-     * The three right-hand cells for ONE line (v21.09).
-     *
-     * A COVER week shows the contracted week rather than a zero — the app's settled position since
-     * v20.98, that a spare week is somebody's paid week carrying no stored times — but muted and
-     * titled, because it is a convention rather than a reading of the row. Its DAYS are a dash:
-     * unknown, not none, since the design does not record which days a cover week works.
-     *
-     * An unfilled line is a dash in all three. A grid of empty rows reading "0h 00m" is noise, and the row
-     * already carries `row-unfilled`; a dash says the same thing without competing with the figures
-     * on the lines that have been designed.
-     *
+     * One line's three totals (v21.09). A COVER week shows the contracted week, muted, because it is a convention and
+     * not a reading; its days are a dash — unknown, not none. An unfilled line is dashes, not "0h 00m" noise.
      * @param {{exSundayMinutes: number, allMinutes: number, days: number|null, assumed: boolean,
      *          unreadable: number, loneSpare?: number, unfilled: boolean}|undefined} t
      */
     function _totalCells(t) {
-        // The explanation ADDS to the figure (links-app-15). An author's name for a cell takes the place
-        // of its content, so a name holding the reason alone hid the total itself from a screen reader —
-        // a cover week read "Cover week — counted as the contracted week…" and never "35h 00m".
+        // The reason ADDS to the figure (links-app-15): a cell's name replaces its content, and the total went unread.
         const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ why = '') =>
             `<td class="tot-cell${extra}"${why ? ` aria-label="${escapeHtml(`${text === '—' ? 'Not known' : text}. ${why}`)}"` : ''}>${escapeHtml(text)}</td>`;
         if (!t || t.unfilled) return cell('—') + cell('—') + cell('—');
@@ -1439,9 +1127,7 @@ export function init() {
         // A floor — an unreadable duty, or a lone spare day with no times (lineTotals) — is orange and ends in "+".
         const floor = t.unreadable + (t.loneSpare ?? 0);
         const flag = floor ? ' tot-uncertain' : '';
-        // A line with no Sunday duty has the same figure in both hour columns, and repeated over
-        // twenty rows that identical pair is what the eye has to read past to find the lines that
-        // DO work a Sunday. Muting the repeat leaves those standing out on their own.
+        // A line with no Sunday duty has the same figure twice; muting the repeat lets the Sunday lines stand out.
         const same = !floor && t.allMinutes === t.exSundayMinutes ? ' tot-same' : '';
         const why  = floor ? [
             t.unreadable ? `${t.unreadable} duty time${t.unreadable === 1 ? '' : 's'} on this line could not be read` : '',
@@ -1460,11 +1146,8 @@ export function init() {
         const tfoot = document.getElementById('linksCoverageFoot');
         if (!tfoot || !design || !cov) return;
         const cells = coverCellsHtml(cov);
-        // THE HOURS AVERAGES ARE NOT RECOMPUTED HERE. They come from `weeklyHours`, the same call
-        // the Design-checks row and the summary strip read, so the page cannot state a design's
-        // hours two ways four seconds apart. Only the DAYS average is this feature's own, and it
-        // uses a different divisor — working lines, not the whole rotation — because a cover week
-        // does not record which days it works. Both divisors are printed for that reason.
+        // The hours averages are `weeklyHours`', as the checks row and the strip read them; only the DAYS average is the
+        // footer's own, over the WORKING lines (invariant 7), so both divisors are printed.
         const wh  = weeklyHours(design.patterns, TOTAL_POS);
         const avg = (/** @type {number|null} */ v, /** @type {string} */ text, /** @type {string} */ note) =>
             `<td class="tot-cell tot-avg">` +
@@ -1472,7 +1155,6 @@ export function init() {
                 : `<span class="tot-avg-num">${escapeHtml(text)}</span>`) +
             `<span class="tot-avg-note">${escapeHtml(note)}</span></td>`;
         const lineWord = (/** @type {number} */ n, /** @type {string} */ w) => `over ${n} ${w}${n === 1 ? '' : 's'}`;
-        // "(partial)" as the checks row and the strip say it, when a whole line had no readable time.
         const avgCells = totals
             ? avg(wh.exSunday, hoursFigure(wh).text, lineWord(TOTAL_POS, 'line'))
             + avg(wh.all, hoursFigure(wh, 'all').text, lineWord(TOTAL_POS, 'line'))
@@ -1481,29 +1163,10 @@ export function init() {
         tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}${avgCells}</tr>`;
     }
 
-    // ============================================
-    // INLINE CELL EDITING (dropdown mode)
-    // ============================================
-
     /**
-     * Open the app's own dropdown over one grid cell.
-     *
-     * IT USED TO SWAP THE CELL FOR A NATIVE `<select>` (v23.38 replaced it). The cell's button was
-     * destroyed, a select built in its place, focused on the next frame, and restored on blur —
-     * which meant the popup a designer actually chose from was the OS's, in the one card on this
-     * page where the app draws every other pixel itself: the grid, the paint chips, the compare
-     * diff and the heat map. On Android it arrived as a full-bleed Material sheet over a 24-line
-     * rotation grid.
-     *
-     * The button now stays put and the sheet opens over it, which also removes the three pieces of
-     * machinery that existed only to manage a control living in a cell — the `committed` flag, the
-     * blur-cancels guard, and the `requestAnimationFrame` focus. There is nothing to cancel: a
-     * dismissed sheet has changed nothing, and the cell was never taken apart.
-     *
-     * The options still come from `buildShiftOptions`, parsed by the sheet's own `readGroups` off a
-     * detached `<select>` rather than rebuilt in the sheet's shape. One producer, so the brush
-     * chips and this list cannot drift apart, and its `<optgroup>` labels become the sheet's
-     * headings for free.
+     * The app's own sheet over one cell — never a native `<select>`, whose popup the OS draws (v23.38). The button stays
+     * put, so a dismissed sheet has changed nothing. The options are `buildShiftOptions`', read off a detached select by
+     * the sheet's `readGroups`: one producer, its `<optgroup>`s the sheet's headings.
      * @param {any} btn
      */
     function openCellEdit(btn) {
@@ -1518,7 +1181,6 @@ export function init() {
 
         openOptionSheet({
             title: `Line ${pos} · ${dayLabel}`,
-            // The title names the CELL, not the list, so the search box is named here (shared-ui-5).
             searchLabel: 'Search shift times',
             groups: readGroups(holder),
             current,
@@ -1526,22 +1188,18 @@ export function init() {
             onPick: async value => {
                 let newVal = value;
                 if (newVal === '__custom__') {
-                    const typed = await askCustomShift('Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.', current.includes('-') ? current : '');
-                    if (!typed) return;   // cancelled or refused: the cell was never taken apart, so nothing to restore
+                    const typed = await askCustomShift(CUSTOM_SHIFT_PROMPT, current.includes('-') ? current : '');
+                    if (!typed) return;   // cancelled or refused: the cell was never taken apart
                     newVal = typed;
                 }
-                // No `newVal === current` check here: `applyShift` has owned "is this actually a
-                // change" since v19.38, where a duplicate of that decision armed the
-                // unsaved-changes guard for an edit that did not happen. One owner.
+                // `applyShift` alone decides whether this is a change (v19.38).
                 applyShift(pos, day, newVal);
             },
         });
     }
 
     /**
-     * Repaint a cell's button IN PLACE (desktop audit, Nov 2026). It was replaced by a new one, and
-     * focus — on the button Enter had just pressed, or the one the sheet's close had handed it back
-     * to — fell to `<body>` after every keyboard edit. Its tabindex and data stay as they are.
+     * Repaint a cell's button IN PLACE: replaced, it dropped focus to `<body>` after every keyboard edit.
      * @param {HTMLElement} btn @param {any} pos @param {any} day @param {any} shift
      */
     function repaintCellBtn(btn, pos, day, shift) {
@@ -1550,12 +1208,7 @@ export function init() {
         btn.textContent = shiftLabel(shift);
     }
 
-    // COVERAGE HEAT MAP + DESIGN QUALITY CHECKS were extracted to links-analysis.js (v17.70);
-    // `renderCoverageChart` / `renderDesignChecks` are wired via initLinksAnalysis above.
-
-    // ============================================
-    // AUTO-GENERATOR
-    // ============================================
+    // ── BUILD THE LINK ──
 
     const targets = createTargetPanel({
         getActiveDesignId: () => activeDesignId,
@@ -1598,9 +1251,8 @@ export function init() {
 
             const _hasWork = !!design && Object.values(/** @type {Record<string, any>} */ (design.patterns || {}))
                 .some(p => DAYS.some(d => { const v = p?.[d]; return v && v !== 'RD' && v !== 'OFF'; }));
-            // Captured BEFORE the confirm, which settles only after its close fade and Back echo: the button's
-            // position (the dialog locks the body's scroll), and whether the build opens a NEW design — what the
-            // question SAID. A copy's first save landing meanwhile made the proposal a saved design (48-hour review).
+            // Read BEFORE the confirm: the button's position (the dialog locks the scroll), and whether the build opens a
+            // NEW design, as the question said — a copy's first save landing meanwhile made a proposal a saved design.
             const _btnEl = document.getElementById('genApplyBtn');
             const _btnViewTop = _btnEl?.getBoundingClientRect().top;
             const _asNew = !design || !!activeProposalId;
@@ -1643,8 +1295,7 @@ export function init() {
             const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
 
             if (_asNew || !design) {
-                // A proposal is not yours to overwrite: a NEW unsaved design, named on its first save (header rule 3).
-                // A DIFFERENT design now: a first save in flight must not stamp its id on it (Oct 2026).
+                // A proposal is not yours to overwrite: a NEW unsaved design, named on its first save.
                 _setWorkingCopy(null, { copy: { id: null, name: '', patterns: _final, window: design?.window } });
             } else {
                 // Lines past the rotation an older, longer design holds are kept, as its notice promises (rule 6).
@@ -1687,13 +1338,11 @@ export function init() {
         });
     })();
 
-    // ============================================
-    // SAVE / LOAD
-    // ============================================
+    // ── SAVE / LOAD ──
 
+    /** Both Save buttons, label and state, are the masthead's; a dirty design's old status line goes. */
     function updateSaveBtn() {
         const status = document.getElementById('linksSaveStatus');
-        // Both Save buttons — label AND state — are the masthead's (links-design-header.js).
         header?.render(_headerState());
         if (status && dirty) status.textContent = '';
     }
@@ -1706,23 +1355,16 @@ export function init() {
         if (!design) { el.textContent = ''; return; }
         const entry = designs.find(x => x.id === activeDesignId);
         const when  = lastSaveTime(entry);
-        // The provenance line describes the SAVED document; the grid prints the LIVE in-memory
-        // patterns. With unsaved edits those are two different designs, so a sheet showing your
-        // changes would carry someone else's "Last saved by" — and this sheet goes to the assessing
-        // manager. Say so on the paper rather than refusing to print: printing a work in progress is
-        // a perfectly reasonable thing to want (v19.62).
+        // The provenance is the SAVED document's and the grid the LIVE one's, so unsaved edits are SAID on the paper: the
+        // sheet goes to the assessing manager under somebody's name (v19.62).
         const unsaved = dirty ? ' · includes unsaved changes' : '';
         const saved = activeProposalId ? `Shortlisted proposal ${proposalById(activeProposalId)?.ref ?? ''}, built into the app${unsaved}` : entry?.updatedBy
             ? `Last saved by ${entry.updatedBy}${when ? ` · ${formatDayMonthYear(when)}` : ''}${unsaved}`
             : `Not saved yet${unsaved}`;
-        // The TIME matters more here than anywhere: a design is edited and reprinted repeatedly
-        // on the way to a proposal, and the assessing manager may be holding two of them. See
-        // roster-data.js → "the provenance line every printable surface closes on".
+        // The time too: a design is reprinted repeatedly, and the manager may hold two of them.
         const printedNow = new Date();
         const printed = printedStamp(printedNow, formatClock(printedNow));
-        // The printed sheet states the window it was designed to (v19.54). A circulated sheet is
-        // read away from the app, so without this a proposal built to a moved Sunday finish is
-        // indistinguishable from one built to the standard hours.
+        // And the window it was designed to: read away from the app, a moved window is otherwise invisible (v19.54).
         const win = formatWindow(design.window);
         const moved = isDefaultWindow(design.window) ? '' : ' (moved)';
         el.innerHTML =
@@ -1748,9 +1390,7 @@ export function init() {
         const el = document.getElementById('linksLastSaved');
         if (!el) return;
         const label = lastSavedLabel(updatedBy, savedTime);
-        // The WHEN is one unbreakable phrase (Sep 2026 polish). The meta column is squeezed by the
-        // summary chips beside it, and at 1280 the line broke inside the date — "· 24 / Jun at
-        // 16:40". Only the part after the separator is held together; the name side still wraps.
+        // The WHEN is one unbreakable phrase: squeezed by the chips, the line broke inside the date.
         const cut = label.indexOf(' · ');
         if (cut < 0) { el.textContent = label; return; }
         const when = document.createElement('span');
@@ -1763,8 +1403,7 @@ export function init() {
         const btns   = _saveBtns();
         const status = document.getElementById('linksSaveStatus');
         if (!design || savingHere()) return;
-        // THE FIRST SAVE IS WHERE A DESIGN GETS ITS NAME (v23.30; links-design-header.js rule 3).
-        // Asked BEFORE the "Saving…" state, because a cancel here is a decision and not a failure.
+        // A design gets its name at its FIRST save (header rule 3), asked before "Saving…": a cancel is not a failure.
         if (!activeDesignId) {
             const name = (await promptDialog({
                 title: 'Name this design',
@@ -1776,26 +1415,21 @@ export function init() {
             if (_designNameRejected(name)) return;
             design.name = name;
         }
-        // WHAT THIS SAVE IS FOR, fixed before the first await. The page moves on while a write is
-        // in flight — more edits, another design opened — and a result applied to whatever is on
-        // screen when it lands recorded edits that were never written as "✓ Saved", and stamped
-        // this design's id and baseline onto a different one. `written` is filled INSIDE the write
-        // (a transaction may run it twice), so it is always the payload that actually went.
+        // WHAT THIS SAVE IS FOR, fixed before the first await: the page moves on while it is in flight, and a result
+        // applied to what is on screen then called unwritten edits saved and put this id on another design. `written`
+        // is filled INSIDE the write (a transaction may run it twice), so it is the payload that went.
         const dsn = design, savingId = activeDesignId, act = activation;
         const here = () => act === activation;
-        // Which save this is, and the baseline its edits were made against — what a kept copy of it is restored onto
-        // if the server never hears of it (store rule 6, v26.03).
+        // Which save this is, and the baseline a kept copy of it is restored onto if the server never hears of it.
         const seq = queuedSaves.next(), before = { loadedRevision, loadedUpdatedAt, baselineUnknown };
         /** @type {any} */ let written = null;
         const buildDoc = () => {
             written = { patterns: deepCopyPatterns(dsn.patterns), window: normaliseWindow(dsn.window) };
             return docPayload({ ...dsn, ...written }, { updatedBy: currentUser, updatedAt: serverTimestamp() });
         };
-        /** A write landed: record it, and clear `dirty` only if nothing was edited since it was built. */
-        // `queued`: offline, the write sits in this device's Firestore queue and uploads on reconnect — so
-        // `dirty` clears (a re-save would queue a duplicate, and a leave-page warning would lie), but the
-        // words must not claim the server has it, and its copy is KEPT until the server answers (`settled`,
-        // store rule 6): in a second tab that queue is memory only, and the page can go before the signal comes.
+        /** A write landed: record it, and clear `dirty` only if nothing was edited since it was built. A QUEUED one clears
+         *  `dirty` too — a re-save would queue a duplicate — but never says the server has it, and its copy is kept until
+         *  the server answers (store rule 6): a second tab's queue dies with the page. */
         const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt, queued = false, /** @type {Promise<string>|undefined} */ settled = undefined) => {
             const entry = designs.find(x => x.id === id);
             recordSave(entry, written, currentUser, updatedAt, base.loadedRevision);
@@ -1811,7 +1445,6 @@ export function init() {
             dirty = !same;
             if (same) _keepUnconfirmedOrForget();   // saved: no unsaved copy — but one only queued is kept until it lands
             updateSaveBtn();
-            // Queued is IN THIS BROWSER (iPhone audit, Nov 2026): "when you're back online" promised what a closed page cannot do.
             const [said, lead] = queued ? [QUEUED_SAVE, 'Saved in this browser'] : ['✓ Saved', '✓ Saved'];
             if (status) { setStatus(status, same ? said : `${lead} — your later changes are not saved yet`); status.className = `links-save-status${queued ? '' : ' ok'}`; }
             updateLastSaved(currentUser, lastSaveTime(entry) ?? new Date());
@@ -1826,11 +1459,7 @@ export function init() {
             await sessionReady;
 
             if (!savingId) {
-                // First save of a generator-created design — create the Firestore document.
-                // One create primitive, so the baseline invariant cannot differ between a design
-                // made by the picker and one made by the generator (v21.87): an unresolved
-                // read-back must pair loadedUpdatedAt=null with baselineUnknown=true, or the next
-                // save sees neither and clobbers a co-editor with no prompt.
+                // A first save is the store's one create, so its baseline is armed as every other new design's is.
                 const created = await store.create(buildDoc());
                 designs.push(restoredEntryFrom({ id: created.id, name: dsn.name, ...written },
                     { updatedAt: created.updatedAt, updatedBy: currentUser, revision: created.baseline.loadedRevision }));
@@ -1846,19 +1475,12 @@ export function init() {
                 return;
             }
 
-            // Two designers can have this page open at once. The compare-and-set that guards
-            // against that is the store's now (v21.87) — including the rule that only an OFFLINE
-            // failure may take an unserialised path, which three silent overwrites came out of
-            // (v16.19 / v16.23 / v17.18) and which was reinstated by accident as recently as the
-            // v21.86 audit. What remains below is the conversation with the designer.
+            // The compare-and-set is the store's (links-design-store.js); what is here is the conversation with the designer.
             const confirmOverwrite = (/** @type {{by:string, at:any}} */ c) => {
-                // The app's one clock face, `formatClock` — 24-hour, its hour cycle pinned. A bare
-                // toLocaleTimeString leaves the cycle to the locale data, and where that falls back to
-                // 12-hour the question said "at 4:40 pm" beside a save row saying 16:40.
+                // `formatClock`, never toLocaleTimeString, which can fall back to 12-hour beside a save row in 24.
                 const at = c.at?.toDate?.();
                 const when = at instanceof Date && !Number.isNaN(at.getTime()) ? formatClock(at) : '';
-                // Your OWN name here is another tab or device, or a rename that could not be
-                // checked — "replace their changes" would have you overwrite yourself unasked.
+                // Your OWN name is another tab or device, or an unchecked rename: there is no "them".
                 const mine = c.by === currentUser;
                 return confirmDialog({
                     title: mine ? 'This design changed' : 'Someone else saved',
@@ -1877,28 +1499,17 @@ export function init() {
                     status.className   = 'links-save-status err';
                 }
             };
-            // A refused save is news about the LIST, read only at load: compare and reopening showed the designer's own old copy
-            // as the colleague's (Nov 2026). Entries only, never the working copy or its baseline, so a later Save still asks;
-            // the save row's "Last saved" reads the refreshed entry, as the masthead does.
+            // A refused save is news about the LIST: re-read it, or compare and reopening show the designer's own old copy as
+            // the colleague's. An edited working copy keeps its baseline, so a later Save still asks.
             const refreshAfterRefusal = () => _refreshLists().then(() => {
                 const entry = here() ? designs.find(x => x.id === savingId) : null;
                 if (entry) updateLastSaved(entry.updatedBy, lastSaveTime(entry));
             }).catch((/** @type {any} */ err) => console.error('[Links] Refreshing the list after a refused save failed:', err));
-            // Declining the overwrite used to be a dead end: the status said "refresh to see the
-            // latest version", and refreshing THROWS AWAY everything you just did. The only two
-            // outcomes were clobber your colleague or lose your own work. Offer the third (v19.38) —
-            // keep both, by forking your version into a new design. The machinery already exists.
-            // A co-designer may have DELETED this design while we had it open (v19.41). That is
-            // not the same event as "someone saved a different version", and it must not be
-            // reported as one: the design is in their bin, and a plain overwrite here would
-            // silently resurrect it — a delete undone by someone who never saw the delete. Offer
-            // the fork instead, which keeps our work without contradicting their action.
-            // Out of the live list: it stayed in the picker, counted towards the last-design rule, and
-            // set off Duplicate's "goes back to its last save" confirm. Also when the page moved on.
+            // Deleted by a colleague while open: never overwritten, which would undo their delete unseen (v19.41). Out of the
+            // live list, even when the page has moved on, and the work offered as a NEW design.
             const dropDeleted = (/** @type {any} */ data) => {
                 designs = designs.filter(x => x.id !== savingId);
-                // Once (48-hour review): "Not now" leaves the design open, so each further Save
-                // lands here again, and every one of them added another copy to Recently deleted.
+                // Upserted: after "Not now" each further Save lands here again.
                 if (data) library.upsertBin(binEntryFromDoc(savingId, data));
                 renderDesignPicker();
             };
@@ -1918,8 +1529,8 @@ export function init() {
                 return true;
             };
 
-            // Worded like the conflict dialog it answers: with your OWN name on it, there is no "them". Its "Save mine as new"
-            // is the choice made, so the copy asks nothing more, as after a deletion.
+            // Declining is never a dead end: keep both (v19.38). Worded like the dialog it answers, and its "Save mine as new"
+            // is the choice made, so the copy asks nothing more.
             const declineOrFork = async (/** @type {any} */ c) => {
                 markNotSaved();
                 refreshAfterRefusal();
@@ -1931,12 +1542,7 @@ export function init() {
                 })) await duplicateDesign(true);
             };
 
-            // ── THE PROTOCOL LIVES IN links-design-store.js (v21.87) ────────────────────────
-            // This function used to hold the transaction, the conflict comparison, the offline
-            // fallback and the baseline arithmetic inline — one of five write paths each doing its
-            // own version of that, which is how the same defect reached production twice. What is
-            // left here is the part that genuinely belongs to a workspace: what to ASK, and what to
-            // do with the answer. The store never asks anything.
+            // The protocol is the store's, which never asks; what to ASK, and what to do with the answer, is here.
             const res = await store.save({
                 id: savingId,
                 buildPayload: buildDoc,
@@ -1947,8 +1553,7 @@ export function init() {
             });
 
             if (res.status === 'deleted-elsewhere' && queuedSaves.neverMade(savingId)) return;   // never MADE, not deleted: already said
-            // Nothing written, and another design is open now: the conversation below would act on
-            // THAT one, so say so and stop.
+            // Nothing written, and another design is open: the conversation below would act on THAT one.
             if (!here() && (res.status === 'conflict' || res.status === 'deleted-elsewhere')) {
                 refreshAfterRefusal();   // so "Open it to check" opens the version it changed to; asked before the drop, as in deletedElsewhere
                 if (res.status === 'deleted-elsewhere') dropDeleted(res.deletedData);
@@ -1957,13 +1562,8 @@ export function init() {
             }
             if (res.status === 'deleted-elsewhere') { await deletedElsewhere(res.deletedData); return; }
             if (res.status === 'conflict') {
-                // ── CONSENT IS PER VERSION, SO THE ASK CAN REPEAT (v21.96) ──────────────────
-                // Accepting "replace their changes" names ONE version — the one the dialog showed.
-                // If somebody else saves while that dialog sits open, the store refuses and hands
-                // back the NEW conflict rather than writing over a version nobody was asked about,
-                // so the honest response is to ask again about that one. The loop is bounded: a
-                // colleague saving faster than this admin can read is not a state to sit in, and an
-                // unbounded prompt cycle would be its own defect.
+                // CONSENT IS PER VERSION (v21.96): a save made while the question sat open is asked about in turn, a
+                // bounded number of times.
                 let pending = res.conflict;
                 for (let round = 0; ; round++) {
                     if (!await confirmOverwrite(pending)) { await declineOrFork(pending); return; }
@@ -1971,8 +1571,7 @@ export function init() {
                         id: savingId, buildPayload: buildDoc,
                         baseline: loadedUpdatedAt, loadedRevision, baselineUnknown, currentUser,
                         forcing: true,
-                        // BOTH, deliberately: `rev` is exact and `at` is the fallback for a design
-                        // nobody has saved since v22.18. Consent is per version either way.
+                        // Both: `rev` is exact, `at` the fallback for a design with no revision yet.
                         forceAgainstRev: pending?.rev ?? null,
                         forceAgainstRevision: pending?.at?.toMillis?.() ?? null,
                     });
@@ -1992,8 +1591,7 @@ export function init() {
             console.error('[Links] Save failed:', err);
             if (here()) {
                 dirty = true;
-                // Signed out mid-save. An ONLINE save is a transaction, which is never queued, so it
-                // may or may not have landed: say check, and keep the work unsaved (dirty) (v24.38).
+                // Signed out mid-save: an online transaction may or may not have landed, so say check, and keep it unsaved.
                 if (status) { status.textContent = unconfirmedWriteLine(err, 'this save', 'the design') ?? 'Save failed — try again'; status.className = 'links-save-status err'; }
             }
         } finally {
@@ -2002,16 +1600,12 @@ export function init() {
         }
     }
 
-    // The design collection's persistence lifecycle and its concurrency protocol (v21.87). Every
-    // Firestore handle it needs is passed in, which is what makes the interleavings testable —
-    // see links-design-store.js for why that mattered enough to extract.
+    // Every design read and write, with its Firebase handles passed in so the interleavings are testable.
     const store = createDesignStore({
         db, doc, getDoc, setDoc, getDocs, runTransaction,
         serverTimestamp, deleteField, designsCol: DESIGNS_COL,
         withClaimRetry: writeWithClaimRetry,
-        // The offline consult's own read (links-design-12): offline, plain getDoc rejects for a design
-        // this device KNOWS was removed for good, so a save queued over it and brought it back on sync.
-        getDocFromCache,
+        getDocFromCache,   // offline, plain getDoc cannot tell "removed for good" from "never held" (links-design-12)
         ownWritesSent: whenOwnWritesSent,   // its own queued saves before any transaction (store rule 5)
     });
     library = createDesignLibrary({
@@ -2020,19 +1614,16 @@ export function init() {
         addDesign: (d) => { designs.push(d); _sortDesigns(); },
         activate: _activateDesign,
         isDirty: () => dirty,
-        // Which SAVED design is open (links-design-10): Keep only the shortlist replaces the working copy
-        // only when that design is one of those moving, so it warns about unsaved work only then.
-        activeId: () => activeDesignId,
-        markQueued: (id, settled) => { queuedIds.add(id); _whenQueuedEnds(id, settled); },   // an import queued in this browser: the pill says so until it lands (links-app-4)
+        activeId: () => activeDesignId,   // Keep only the shortlist warns only when the open design moves (links-design-10)
+        markQueued: (id, settled) => { queuedIds.add(id); _whenQueuedEnds(id, settled); },   // an import queued in this browser
         hasOpenDesign: () => !!design,
         renderPicker: renderDesignPicker,
         refreshLists: _refreshLists,
         actionStatus: _designActionStatus,
         getHeader: () => header,
-        // "Keep only the shortlist" (v25.09, links-shortlist.js): the moved designs leave the live list; an open one gives way to the next, else to the first built-in design (Balanced V6, A to Z), read-only.
-        // Compare is reset either way, so the page is DRAWN again either way (links-app-10): with the picker alone, the
-        // two compare grids stayed up under a button reading "Compare with…", with no paint bar and the grid hidden.
-        // Edited while the moves ran: the edits stay, as an unsaved new design, as after a delete that lands late.
+        // Keep only the shortlist: the moved designs leave the list, and an open one gives way to the next or to the first
+        // proposal — unless it was EDITED while the moves ran, when the edits stay as a new design. Compare is reset, so the
+        // page is drawn again either way (links-app-10).
         snapshot: () => ({ act: activation, before: _contentKey() }),
         removeDesigns: (/** @type {Set<string>} */ ids, /** @type {any} */ mark) => {
             designs = designs.filter(d => !ids.has(d.id));
@@ -2047,16 +1638,14 @@ export function init() {
 
     const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live
     const binMoves = new Set();    // old-length designs whose move STARTED and has not failed or been skipped
-    /** Re-read and repaint the LISTS only. A bin row settled by a colleague used to call
-     *  `loadDesigns`, which rebuilt the working copy — discarding unsaved edits — and blanked the
-     *  grid if the read failed. The open design, its baseline and `dirty` are not a bin row's. */
+    /** Re-read and repaint the LISTS, never `loadDesigns`, which rebuilt the working copy over unsaved edits. */
     async function _refreshLists() {
-        // The answer is older than the page, which goes on meanwhile: applied only to rows the page left alone (Nov 2026).
+        // The answer is older than the page, so it is applied only to the rows the page left alone (`mergeListAnswer`).
         const listed = new Map(designs.map(d => [d.id, listRowSig(d)]));
         const binnedThen = new Map(library.binList().map((/** @type {any} */ b) => [b.id, listRowSig(b)]));
         const openId = activeDesignId, act = activation;
         try {
-            // The load's own split (links-design-load.js), with the refresh's one difference: it shows in the bin only a move this page started.
+            // The load's own split, but the bin shows only a move this page started.
             const { docs, fromCache } = await store.loadAll();
             const split = splitDesignDocs(docs, { binOld: binOldOnRefresh(binMoves), currentUser });
             // A cached answer holding no live design cannot say the list is empty: applied, it would empty the picker.
@@ -2087,10 +1676,8 @@ export function init() {
         renderGrid(); renderBrushBar(); renderDesignChecks(); updateSaveBtn();
     }
 
-    /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill) — never from
-     *  a cached read, never queued offline. A restore or purge of one waits for its move (`trackBinMove`), or it would
-     *  meet a design not yet deleted and blame a colleague. Said AT ONCE, on the save row's line — on release day the list is
-     *  often empty, and then the empty state's own copy says it. @param {string[]} ids */
+    /** Bin the old-length designs, each re-checked in a transaction (`binIfStill`), never from a cached read and never
+     *  queued; a restore or purge of one waits for its move (`trackBinMove`). Said at once. @param {string[]} ids */
     function _binPre26(ids) {
         binnedOnLoad = ids.length;
         if (!ids.length) return;
@@ -2099,13 +1686,13 @@ export function init() {
             ? `${binnedOnLoad} design${binnedOnLoad === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${binnedOnLoad === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${binnedOnLoad === 1 ? 'it' : 'them'}.`
             : failed ? `${failed === 1 ? 'A design' : `${failed} designs`} drawn for the ${PREVIOUS_LINK_LENGTH}-line link could not be moved to Recently deleted, so ${failed === 1 ? 'it is' : 'they are'} still in your list.` : '', binnedOnLoad || !failed ? 'ok' : 'err', true);
         say();
-        // Settled OUTSIDE the bin (48-hour review): stop claiming it; an empty page opens it, as a load would.
+        // Settled OUTSIDE the bin: stop claiming it, and an empty page opens it, as a load would.
         const backInList = () => { binnedOnLoad--; _refreshLists().then(() => { if (!design && !loadFailed) _activateDesign(designs[0]); say(); }); };
         for (const id of ids) {
             binMoves.add(id);   // a refresh now shows it in the bin too, until the move says otherwise
             library.trackBinMove(id, store.binIfStill(id, currentUser, isPre26Design)
                 .then((/** @type {string} */ r) => { if (r === 'skipped') { binMoves.delete(id); backInList(); } })   // restored or redrawn since: show it live
-                // A FAILED move leaves it live on the server; in the bin, a Restore blamed a colleague (Oct 2026).
+                // A FAILED move leaves it live: shown in the bin, its Restore blamed a colleague.
                 .catch((/** @type {any} */ err) => { console.error('[Links] Binning an old-length design failed:', err); binMoves.delete(id); binFailed.add(id); failed++; backInList(); }));
         }
     }
@@ -2119,18 +1706,14 @@ export function init() {
         try {
             await sessionReady;
             const { docs, fromCache } = await store.loadAll();
-            // What the answer MEANS is links-design-load.js's, and the refresh reads it the same way: which designs
-            // are live, which binned, which old-length ones move (none on a cached answer), and whether a cached
-            // answer can be trusted at all — an empty one is the FAILED state, never "No designs yet" (links-app-5).
+            // What the answer MEANS is links-design-load.js's: an empty cached one is the FAILED state (links-app-5).
             const split = splitDesignDocs(docs, { binOld: binOldOnLoad(fromCache, binFailed), currentUser });
             if (readCannotAnswer(fromCache, split)) throw new Error('a cached read holds no live design, so whether any exist is unknown');
             const { named, binned, legacyData, toBin } = split;
             _binPre26(toBin);
 
-            // ONE-TIME migration of combined-28 (`migratesLegacy`: a collection that has ever held a design is past it).
+            // ONE-TIME migration of combined-28, through the shared mapping (`migratesLegacy`).
             if (migratesLegacy(split)) {
-                // Through the SHARED mapping (v19.94): it once skipped `normalisePatterns` and the
-                // `window` field, persisting legacy unpadded times for good. History: git log.
                 const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });
                 const { id: migratedId, baseline: migratedBase } = await store.create(docPayload(migrated, {
                     updatedBy: legacyData.updatedBy ?? currentUser,
@@ -2139,87 +1722,61 @@ export function init() {
                 named.push({ ...migrated, id: migratedId, updatedBy: legacyData.updatedBy || currentUser, revision: migratedBase.loadedRevision });
             }
 
-            // Sort by name — getDocs returns (random) auto-ID order, which shuffles the picker.
-            named.sort(byDesignName);
+            named.sort(byDesignName);   // auto-ids come back in random order
             designs = named;
-            // Bin: newest deletion first (pure, tested rule — incl. the unresolved-timestamp case).
-            library.setBin(sortByDeleted(binned));
-            // THE BIN IS PERMANENT (owner, 19 Sep 2026): nothing here deletes anything automatically.
-            // Removal is a deliberate "Remove for good". The argument: links-deletion.js's header.
-
+            library.setBin(sortByDeleted(binned));   // the bin is PERMANENT: nothing here deletes anything (links-deletion.js)
             // The design (or proposal) open last visit, else the first saved one; nothing saved opens nothing.
             open = designToOpen(designs, PROPOSAL_ENTRIES, lsGet(ACTIVE_KEY));
         } catch (err) {
             console.error('[Links] Load failed:', err);
             loadFailed = true;
         }
-        // The working copy is replaced HERE, after the awaits, so this is where `activation` moves (links-app-1):
-        // before them it told anything in flight that the page had moved on while it still showed what it had.
+        // Replaced HERE, after the awaits, so `activation` moves only when the page really moves on (links-app-1).
         _setWorkingCopy(open, { remember: !!open });
         if (open) updateLastSaved(open.updatedBy, lastSaveTime(open));
         listLoading = false;
         const genErr = document.getElementById('genError');
         if (genErr?.textContent === STILL_LOADING) genErr.textContent = '';
         _renderAll();
-        refreshGenTargetsForDesign();   // the open design's remembered generator targets (v19.38)
+        refreshGenTargetsForDesign();   // the open design's remembered generator targets
     }
 
-    // The rotation length appears in static markup too (the grid card's title, the empty-state
-    // sentence). Stamped from ROTATING_LINES so the HTML cannot go stale independently of the
-    // constant — which is exactly what happened to fifteen prose copies of "28" (v19.98).
+    // Figures the static markup carries, stamped from their constants so the HTML cannot go stale: the rotation length
+    // (fifteen prose copies of an old one once did, v19.98), the minimum rest in the line-order note, a cover week's duties.
     for (const el of document.querySelectorAll('.js-rotating-lines')) el.textContent = String(TOTAL_POS);
-    // …and the minimum rest the reorder is held to, in the line-order card's load-bearing note, from the
-    // generator's own MIN_REST_MINUTES (links-analysis-14's twin): a typed "12" outlives a moved minimum.
     for (const el of document.querySelectorAll('.js-min-rest-hours')) el.textContent = String(MIN_REST_MINUTES / 60);
-    // …and a cover week's duties, which move if the cover model does; a run can add its Sunday on top (spareDrawsOnFour).
     for (const el of document.querySelectorAll('.js-spare-worked-days')) el.textContent = String(SPARE_WORKED_DAYS);
     for (const el of document.querySelectorAll('.js-cover-week-run')) el.textContent = String(SPARE_WORKED_DAYS + 1);
-    // Same for the two numeric ceilings the markup carries. A spare week is a whole line, so at
-    // least one line has to be left to work — hence TOTAL_POS - 1 rather than TOTAL_POS.
+    // A cover week is a whole line, so one line at least is left to work.
     document.getElementById('genSpareLines')?.setAttribute('max', String(TOTAL_POS - 1));
     document.getElementById('objLongTarget')?.setAttribute('max', String(TOTAL_POS));
 
-    // ============================================
-    // COLLAPSIBLE CARDS
-    // ============================================
     initCardCollapse('linksGridToggleHeader', 'linksGridBody',  'linksGridChevron');
     initCardCollapse('generatorToggleHeader', 'generatorBody',  'generatorChevron');
     initCardCollapse('coverageToggleHeader',  'coverageBody',   'coverageChevron');
     initCardCollapse('checksToggleHeader',    'checksBody',     'checksChevron');
 
-    // ============================================
-    // BUTTON HANDLERS
-    // ============================================
     for (const b of _saveBtns()) b.addEventListener('click', saveChanges);
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape' && brush !== null) dearmBrush();
     });
 
-    // ============================================
-    // UNSAVED CHANGES GUARD
-    // ============================================
+    // ── UNSAVED WORK ──
     warnOnUnload(() => dirty);
-    // …and for the exits nothing asks about, iOS discarding a hidden page or a swipe back (iPhone audit, Nov 2026): the
-    // working copy and its baseline are kept while the page is hidden, and offered on the next load (BOOT, below).
-    // A save only this browser's queue holds is kept too, until the server confirms it (store rule 6, v26.03): with
-    // edits on top of it, on the baseline from BEFORE it, because the server may never get it; with none, its own copy.
-    // ONE slot: unsaved edits to one design win it over another design's unconfirmed save (links-design.md).
+    // The exits nothing can ask about — iOS discarding a hidden page, a swipe back — keep the working copy and its
+    // baseline, offered on the next load. Edits on top of a save only this browser holds keep that save's earlier
+    // baseline, as the server may never get it. ONE slot: unsaved edits win it over another design's queued save.
     keepDraftWhenHidden(() => dirty && !!design, {
         keep: () => draftSlot.keep({ design: activeDesignId ?? activeProposalId }, { patterns: design?.patterns, window: design?.window ?? null,
             baseline: queuedSaves.get(activeDesignId)?.baseline ?? { loadedRevision, loadedUpdatedAt, baselineUnknown } }),
         forget: _keepUnconfirmedOrForget,
     });
 
-    // A drawer link or the About panel's Operations link asks first — the shared question every page with
-    // unsaved work asks (links-app-18). Links kept an older copy of its own that navigated by itself on
-    // "Leave", so the drawer's handler never ran: a guide opened without `?from=links.html` (its ← went to
-    // the Calendar), and the drawer's own history entry was left behind to swallow one press of Back.
+    // A drawer link or the About panel's Operations link asks first, with the shared question (links-app-18).
     askBeforeLeavingByDrawer(() => dirty);
 
-    // ============================================
-    // ICON LIGHTBOX — About panel (shared about-lightbox.js)
-    // ============================================
+    // ── ABOUT, TIPS AND ORIENTATION ──
     (function () {
         const about = initAboutLightbox({
             appLabel: 'Marylebone Roster — Links',
@@ -2227,50 +1784,25 @@ export function init() {
         });
         if (about) { openAboutLightbox = about.open; closeAboutLightbox = about.close; }
 
-        // The 🔧 Operations shortcut in the About panel is admin-only: operations.html
-        // redirects a non-admin designer straight to admin.html, so
-        // showing them the link is a dead end. Reveal it only for admins. Its unsaved-changes
-        // question is `askBeforeLeavingByDrawer`'s, which covers the About panel's links as
-        // well as the drawer's — mobile browsers suppress the beforeunload dialog.
+        // Operations is the admin's: for anybody else the link is a dead end (operations.html sends them to Admin).
         const opsLink = document.getElementById('linksOpsLink');
         if (opsLink && isAdmin) opsLink.hidden = false;
 
         // Header logo: back to the calendar, through the unsaved-changes question (about-lightbox.js).
         wireHeaderLogo(async () => {
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })) return;
-            dirty = false;   // clear so beforeunload doesn't double-prompt
+            dirty = false;   // answered: no second "Leave site?"
             window.location.href = './';
         });
     })();
 
-    // ============================================
-    // TIPS LIGHTBOX — ? button on each card
-    // Lifecycle, renderer and button wiring live in tips-lightbox.js; the content is
-    // links-tips.js (extracted v22.32 — see its header for why the generator card's prose
-    // moved there, and for the two untrue tips the move retired).
-    // ============================================
-    initTipsLightbox(CARD_TIPS);
+    initTipsLightbox(CARD_TIPS);   // the `?` panels; the content is links-tips.js
 
-    // ============================================
-    // ORIENTATION — first visit, and for ever after from its row in the About panel
-    // ============================================
-    // IT STOPPED REACHING ANYBODY (v22.59, external review). This shipped at v19.51 as a one-time
-    // NOTICE with a 14-day window, and `isNoticeExpired` marks a notice seen WITHOUT showing it — so
-    // from 16 Aug 2026 a designer opening Links for the first time was flagged and shown nothing.
-    // Expiry is right for an announcement and wrong for what this panel actually holds: the three
-    // things a newcomer cannot work out from the screen — nothing here touches the live roster, the
-    // fatigue checks report rather than approve, and designs are shared so anyone can edit or delete
-    // one. Someone who does not know the first is afraid to touch anything; someone who does not know
-    // the second can take a clean panel into a meeting as an approval.
-    //
-    // So the two ideas are split. The ANNOUNCEMENT is over and is not replayed — it is written to the App
-    // Notices archive once, on the first close, and listed there for 180 days (since v26.46). The ORIENTATION never expires until that
-    // device has actually seen it, and `#linksHowBtn` in the About panel reopens it whenever anyone wants
-    // it, which is also what stops this being a pop-up nobody can get back to.
-    //
-    // A NEW STORAGE KEY was taken at v19.51 and is kept: reusing `myb_links_beta_seen` would have
-    // meant every current designer, all three of whom closed the beta notice months ago, never saw
-    // this. The old key is left on devices as an inert flag.
+    // ORIENTATION, on a device's first visit and from its row in the About panel for ever after. It holds the three
+    // things a newcomer cannot work out from the screen: nothing here touches the live roster, the checks report rather
+    // than approve, and designs are shared. So it NEVER expires — as an expiring notice it was marked seen unshown
+    // (v22.59). The ANNOUNCEMENT half is archived once, on the first close, and listed in App Notices for 180 days
+    // (since v26.46). Its own key since v19.51; the old beta key stays on devices, inert.
     (function () {
         const NOTICE_DATE   = '2 Aug 2026';
         const WELCOME_KEY   = 'myb_links_welcome_seen';
@@ -2282,9 +1814,7 @@ export function init() {
             content:  /** @type {HTMLElement} */ (document.getElementById('linksWelcomeContent')),
             closeBtn: /** @type {HTMLElement} */ (document.getElementById('linksWelcomeClose')),
             onClose() {
-                // The archive entry is the ANNOUNCEMENT half and is written once. Re-archiving on
-                // every manual open would file the same notice repeatedly under a date that is no
-                // longer when anybody read it.
+                // Archived once: a manual reopen would file it again under a date nobody read it on.
                 if (lsGet(WELCOME_KEY)) return;
                 lsSet(WELCOME_KEY, '1');
                 archiveNotice({
@@ -2297,46 +1827,28 @@ export function init() {
             },
         });
 
-        // Reachable for ever, from the About panel's own list of page links (v22.83). It is
-        // unconditional — never gated on the seen flag — which is the whole point of the split
-        // above.
-        //
-        // CLOSE ABOUT FIRST, then open this after the exit transition. Two overlays open together
-        // is the stacking hazard `openNoticeIfClear` exists for: one Escape ran both `onClose`
-        // callbacks, and the buried one was archived and flagged seen by somebody who never saw it.
-        // The 500ms matches `dismissOverlay`'s fallback — the same figure, for the same reason, as
-        // the About panel's own print button in about-lightbox.js.
+        // Never gated on the seen flag. About closes FIRST: two overlays open together share one Escape, and the buried
+        // one was archived unseen. 500ms is `dismissOverlay`'s fallback, as about-lightbox.js's print button waits.
         document.getElementById('linksHowBtn')?.addEventListener('click', () => {
             closeAboutLightbox?.();
             setTimeout(() => welcome.open(), 500);
         });
 
         if (lsGet(WELCOME_KEY)) return;
-        // Not `welcome.open()`: a one-time notice must never open stacked with another overlay —
-        // if it did, one Escape used to dismiss both and the buried one was flagged seen for good.
-        // Deferring leaves it unopened AND unflagged, so it gets its turn on the next load.
+        // Never stacked on another overlay: deferred, it is unopened AND unflagged, and gets its turn on the next load.
         openNoticeIfClear(welcome);
     })();
 
-    // ============================================
-    // registerServiceWorker moved to the top of init() (before the access gate) — v16.23.
     sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links', currentUser); });
-    // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
-    // critical path. Called NOW, with the session as its barrier, so the sign-in's one-shot marker is
-    // spent as the page opens — "consume BEFORE any await", as password-force.js promises. Behind
-    // `sessionReady.then` it was spent only once the session was confirmed, so a designer who left
-    // first carried it to a later ordinary load, which then asked out of nowhere. `currentUser` is
-    // already the signed-in designer here: an in-place sign-in runs init() again with the new session.
-    initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});   // it fails open itself; this only stops an unhandled rejection
+    // The forced set-password overlay, called NOW with the session as its barrier, so the sign-in's one-shot marker is
+    // spent as the page opens: behind `sessionReady.then` a designer who left first met it on a later load.
+    initPasswordForce(currentUser, { ready: sessionReady }).catch(() => {});   // it fails open itself
 
-    // ============================================
-    // BOOT
-    // ============================================
+    // ── BOOT ──
     // A kept draft is offered once the list is in, never over a FAILED load: its design is not there to restore onto.
     const openDesigns = () => loadDesigns().then(() => { if (!loadFailed) return draftSlot.offer({ ask: confirmDialog, apply: restoreDraft, unsaved: _draftStillUnsaved }); })
         .catch((err) => console.error('[Links] The unsaved-changes offer failed:', err));
-    // A failed load's "Try again" (links-app-5): back to the loading state, then the same read. Nothing
-    // is open to lose — a failed load opens nothing — and the button is hidden until it settles.
+    // A failed load's "Try again" (links-app-5): back to loading, then the same read. A failed load opened nothing.
     document.getElementById('linksEmptyRetry')?.addEventListener('click', () => {
         listLoading = true;
         renderDesignPicker();
