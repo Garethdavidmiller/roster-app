@@ -51,6 +51,13 @@ import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
 // which would have made all three wrong in three different ways.
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS = ROTATING_LINES;
+/**
+ * The share of weeks with a full weekend off that the Weekends off row aims for. Declared once and
+ * exported, because the Design checks `?` panel (`links-tips.js`) quotes it: two literals are two
+ * figures waiting to disagree.
+ */
+export const WEEKENDS_OFF_AIM_PCT = 40;
+
 /** The minimum rest in words, from the generator's own gate figure — never typed as "12". */
 const MIN_REST_HOURS = `${MIN_REST_MINUTES / 60} hours`;
 
@@ -507,7 +514,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             );
         }
 
-        const wkendGood = weekendsOffPct >= 40;
+        const wkendGood = weekendsOffPct >= WEEKENDS_OFF_AIM_PCT;
         rows.push(
             `<div class="check-row ${wkendGood ? 'check-good' : 'check-warn-row'}">` +
             `${wkendGood ? tick : warn}` +

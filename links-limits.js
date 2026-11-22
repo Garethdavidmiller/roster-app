@@ -199,7 +199,19 @@ export function contractedDaysPerYear(patterns, lines) {
             if (/^\d/.test(row[d]) || row[d] === 'SPARE') duties++;
         }
     }
-    return (duties + SPARE_WORKED_DAYS * cover) / lines * 365 / 7;
+    return contractedDaysFromCounts(duties, cover, lines);
+}
+
+/**
+ * The ceiling's arithmetic on its own, for a table of TARGETS rather than a drawn design — the
+ * generator's `?` panel quotes the default table's figure from this, so the formula has one home.
+ * @param {number} monSatDuties - Monday-to-Saturday duties a week (lone spare days included)
+ * @param {number} coverWeeks
+ * @param {number} lines
+ * @returns {number}
+ */
+export function contractedDaysFromCounts(monSatDuties, coverWeeks, lines) {
+    return (monSatDuties + SPARE_WORKED_DAYS * coverWeeks) / lines * 365 / 7;
 }
 
 /**
