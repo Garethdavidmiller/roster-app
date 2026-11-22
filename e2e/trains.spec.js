@@ -158,7 +158,7 @@ test.describe('trains', () => {
 
         // The `?` panels are wired — the page's caveats live there.
         await page.locator('.btn-card-tips[data-card="changes"]').click();
-        await expect(page.locator('#tipsLbTitle')).toHaveText('🔔 What’s changing');
+        await expect(page.locator('#tipsLbTitle')).toHaveText('What’s changing');
         await expect(page.locator('#tipsLbBody')).toContainText('5 of them also stop at means only five of those trains call there');
 
         expect(errors).toHaveLength(0);
@@ -1374,7 +1374,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
             await expect(page.locator('#trChangesTips'), 'its ?').toHaveAttribute('aria-label', `Tips for ${words.toLowerCase()}`);
             await expect(page.locator('#trChangesChevron'), 'its chevron').toHaveAttribute('aria-label', `Toggle ${words}`);
             await page.locator('#trChangesTips').click();
-            await expect(page.locator('#tipsLbTitle'), 'the ? panel').toHaveText(`🔔 ${words}`);
+            await expect(page.locator('#tipsLbTitle'), 'the ? panel').toHaveText(words);
         }
         // and the Last trains card's chips are headed for a screen reader in the same tense
         await page.locator('#tipsLightboxClose').click();
@@ -1491,7 +1491,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await expect(page.locator('#tipsLightbox')).toBeHidden();
         await page.clock.setFixedTime(new Date('2027-01-11T03:30:00'));
         await tips.click();
-        await expect(page.locator('#tipsLbBody')).toContainText('Chiltern\'s public timetables');
+        await expect(page.locator('#tipsLbBody')).toContainText('Chiltern’s public timetables');
         await expect(page.locator('#tipsLbBody')).not.toContainText('Christmas');
         await expect(page.locator('#tipsLbBody')).not.toContainText('leaf-fall');
         await page.locator('#tipsLightboxClose').click();
