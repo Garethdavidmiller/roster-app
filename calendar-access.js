@@ -65,7 +65,7 @@
  * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
 
-import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot, authBootstrap } from './firebase-client.js';
+import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot, authBootstrap, letViewerWritesGo } from './firebase-client.js';
 import { getSession, reconcileExpiredIdentity, ensureNamedSession, authGeneration, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
@@ -434,7 +434,8 @@ export async function lockCalendar() {
     // FAIL CLOSED, BECAUSE THE ALTERNATIVE IS A CONTROL THAT LIES. Reloading after a failed sign-out
     // re-decides "still a viewer", and the Calendar comes back UNLOCKED behind somebody who pressed
     // Lock and walked away. A button that reports success it did not achieve is worse than a failure.
-    await signOut(auth);
+    await letViewerWritesGo();   // its queued writes leave first (firebase-client.js says why)
+    if (!isViewerUser(auth.currentUser)) { if (auth.currentUser) return; } else await signOut(auth);   // never whoever replaced it in the wait
     if (isViewerUser(auth.currentUser)) {
         throw new Error('viewer still current after sign-out — Calendar not locked');
     }
