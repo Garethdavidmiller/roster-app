@@ -334,7 +334,10 @@ Marylebone and Reading are inside; Leamington Spa, Warwick, Solihull, Coventry a
 outside. It was settled from the boundary polygon in the railcard's own area-map PDF (a 41-vertex
 filled shape drawn immediately before the six `NETWORK RAILCARD AREA` labels, tested point-in-polygon)
 — **not from the map's station index**, which indexes the whole *London & the South East* map and also
-lists Bristol, Taunton, Weston-super-Mare and Exeter. A "correction" that read the index as the
+lists Bristol, Taunton, Weston-super-Mare and Exeter. **Re-checked on the June 2026 map (22 Nov 2026)**
+the same way: there the shape has 45 vertices and the labels are drawn as outlines, so they cannot be
+searched as text — find the shape by its fill and its position before the outlined letters, and place
+stations by their own markers. Banbury is still inside, on the edge (`GUIDE_SOURCES.md` → `rc-network-map`). A "correction" that read the index as the
 boundary, extending the area to Birmingham, was wrong, and was caught by the owner's operational
 knowledge. Two rules came out of it:
 
