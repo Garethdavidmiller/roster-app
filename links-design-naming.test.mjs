@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_DESIGN_NAME, nameKey, nameConflict, checkName, proposeCopyName } from './links-design-naming.js';
+import { MAX_DESIGN_NAME, nameKey, nameConflict, checkName, checkDesignName, proposeCopyName } from './links-design-naming.js';
+import { PROPOSAL_NAMES } from './links-proposals.js';
 
 // Organised by what a wrong answer COSTS, not by function — the two directions are not symmetrical.
 //
@@ -186,5 +187,30 @@ describe('nameKey / nameConflict — the comparison the two rules share', () => 
     test('it survives a malformed row rather than throwing', () => {
         const rows = /** @type {any} */ ([null, undefined, {}, { id: 'x' }, { id: 'y', name: 'Option A' }]);
         assert.equal(nameConflict('Option A', rows)?.id, 'y');
+    });
+});
+
+// ONE ANSWER FOR EVERY WAY A DESIGN IS NAMED (Nov 2026): New, Save as…, Save a copy as…, Rename and Import asked the
+// two checks themselves, in two places. A saved design may take neither another design's name nor a shortlisted
+// proposal's (links-design-6) — the proposals sit in the same picker and Compare chips, and cannot be renamed.
+describe('checkDesignName', () => {
+    const designs = [{ id: 'd1', name: 'Option A' }];
+    test('a design\'s name is refused first, naming the design', () => {
+        const r = checkDesignName('option  a', { designs, proposalNames: PROPOSAL_NAMES });
+        assert.equal(r.reason, 'duplicate');
+        assert.match(r.message ?? '', /already a design called “Option A”/);
+    });
+    test('…and every name a shortlisted proposal is shown under, naming the proposal', () => {
+        for (const { name } of PROPOSAL_NAMES) {
+            const r = checkDesignName(name.toUpperCase(), { designs, proposalNames: PROPOSAL_NAMES });
+            assert.equal(r.ok, false, name);
+            assert.match(r.message ?? '', /already a shortlisted proposal called/);
+        }
+    });
+    test('a rename may keep its own name; empty and over-long are refused as ever', () => {
+        assert.equal(checkDesignName('Option A', { designs, proposalNames: PROPOSAL_NAMES, exceptId: 'd1' }).ok, true);
+        assert.equal(checkDesignName('  ', { designs }).reason, 'empty');
+        assert.equal(checkDesignName('x'.repeat(MAX_DESIGN_NAME + 1), { designs }).reason, 'too-long');
+        assert.equal(checkDesignName('Option B', { designs, proposalNames: PROPOSAL_NAMES }).ok, true);
     });
 });

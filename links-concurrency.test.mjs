@@ -153,17 +153,13 @@ describe('the design protocol has exactly one owner', () => {
     const app   = strip(readFileSync(new URL('./links-app.js', import.meta.url), 'utf8'));
     const store = strip(readFileSync(new URL('./links-design-store.js', import.meta.url), 'utf8'));
 
-    test('the coordinator writes no design document itself', () => {
+    test('the coordinator writes no document itself', () => {
         // The one that matters. Five write paths each had their own version of the protocol, which
         // is how the same defect reached production twice; a sixth added the old way would be
         // invisible to every behavioural test until two designers collided.
         //
-        // Scoped to the DESIGN collection: links-app.js legitimately writes `linkTargetSets`, which
-        // is a different document with no revision semantics and no co-editing guarantee.
-        // Each write is judged by WHAT IT TARGETS, not counted against an approximation — the
-        // first draft compared two totals and fired on a target-set write whose collection
-        // constant it had not thought of, which is a guard that reports the wrong thing.
-        //
+        // No exemption: the staffing setups' writes left the coordinator for links-target-sets-store.js and
+        // links-generator-targets.js, so ANY write call here is an offender, whatever it targets.
         // The target is found by BRACKET-MATCHING the call, not by reading a fixed number of
         // characters after it (v21.96). The window was 160 chars, which is a proximity test: it
         // passed for every write that named its collection early and failed the moment a
@@ -179,9 +175,7 @@ describe('the design protocol has exactly one owner', () => {
                 if (ch === '(' || ch === '{') depth++;
                 else if (ch === ')' || ch === '}') { if (--depth === 0) break; }
             }
-            const call = app.slice(at, i + 1);
-            if (/linkTargetSets|SETS_COL/.test(call)) return;   // a different document entirely
-            offenders.push(`${what} @ ${lineOf(at)}`);
+            offenders.push(`${what} @ ${lineOf(at)}: ${app.slice(at, Math.min(i + 1, at + 80))}`);
         };
         // EVERY write firebase-client.js exports, not four of them (test audit, 7 Nov 2026): a design written with
         // `updateDoc`, or through a batch, passed this while the same write by `setDoc` failed it.

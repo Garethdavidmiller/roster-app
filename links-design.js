@@ -487,6 +487,17 @@ export function hmFromHours(hours) {
 }
 
 /**
+ * A `weeklyHours` average as every surface states it: `hm` the figure, `partial` when it covers fewer
+ * lines than the design has (`complete` false), `text` the two together — "35h 00m (partial)", or "—"
+ * with nothing to average. One decision, so no surface states the bare figure while another says partial.
+ * @param {{ exSunday: number|null, all?: number|null, complete: boolean }} wh @param {'exSunday'|'all'} [which]
+ */
+export function hoursFigure(wh, which = 'exSunday') {
+    const h = wh[which] ?? null, hm = h === null ? null : hmFromHours(h), partial = hm !== null && !wh.complete;
+    return { hm, partial, text: hm === null ? '—' : hm + (partial ? ' (partial)' : '') };
+}
+
+/**
  * How many hours a week this design actually gives somebody — the question the panel could not
  * answer until v20.04, and the most basic one anybody asks of a roster.
  *
@@ -596,12 +607,8 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
 }
 
 /**
- * PER-LINE totals for the grid's right-hand columns, and the average days worked (v21.09).
- *
- * The grid showed seven cells and a per-DAY cover footer; nothing anywhere said what a single line
- * comes to. That is the first question anybody asks of a rotation they are about to be put on —
- * "what does week 11 actually work?" — and answering it meant reading seven cells and doing the
- * arithmetic by hand, for every line, every time a cell changed.
+ * PER-LINE totals for the grid's right-hand columns, and the average days worked (v21.09) — the
+ * first question anybody asks of a rotation they are about to be put on: what does week 11 work?
  *
  * ── THE TWO DIVISORS ARE DIFFERENT, AND THAT IS NOT A MISTAKE ───────────────────────────────────
  *
@@ -622,12 +629,14 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
  * A COVER week is shown as the contracted week rather than zero — the app's settled position since
  * v20.98 — but marked `assumed` so the renderer can say it is a convention rather than a reading.
  * Its days are `null`: unknown, not none. An UNREADABLE duty contributes nothing and is counted, so
- * a line reading low can say why instead of looking like a light week.
+ * a line reading low can say why instead of looking like a light week. A LONE SPARE day — Mon–Sat
+ * SPARE on a line that is not a whole cover week — is a duty with no times, and is the same kind of
+ * floor (`loneSpare`): counted as no hours read as a light week (Nov 2026, as `weeklyHours` does).
  *
  * @param {Record<string, any>} patterns
  * @param {number} [rotatingLines]
  * @returns {{rows: Array<{pos: number, exSundayMinutes: number, allMinutes: number,
- *            days: number|null, assumed: boolean, unreadable: number, unfilled: boolean}>,
+ *            days: number|null, assumed: boolean, unreadable: number, loneSpare: number, unfilled: boolean}>,
  *            daysAverage: number|null, daysLines: number}}
  */
 export function lineTotals(patterns, rotatingLines = ROTATING_LINES) {
@@ -637,10 +646,11 @@ export function lineTotals(patterns, rotatingLines = ROTATING_LINES) {
 
     for (let w = 1; w <= rotatingLines; w++) {
         const row = /** @type {Record<string, any>} */ (patterns)?.[String(w)] || {};
-        let exSundayMinutes = 0, allMinutes = 0, days = 0, unreadable = 0;
+        let exSundayMinutes = 0, allMinutes = 0, days = 0, unreadable = 0, loneSpare = 0;
         let timed = false, hasWork = false;
         for (const d of DAYS) {
             const shift = row[d];
+            if (shift === 'SPARE' && d !== 'sun') { loneSpare++; hasWork = true; continue; }
             if (!shift || shift === 'RD' || shift === 'OFF' || shift === 'SPARE') continue;
             hasWork = true;
             const m = dutyMinutes(shift);
@@ -655,12 +665,12 @@ export function lineTotals(patterns, rotatingLines = ROTATING_LINES) {
         if (assumed) {
             // `allMinutes` here is a timed RDW Sunday, if the cover week has one — real hours on top.
             rows.push({ pos: w, exSundayMinutes: contractedMin, allMinutes: contractedMin + allMinutes,
-                days: null, assumed: true, unreadable: 0, unfilled: false });
+                days: null, assumed: true, unreadable: 0, loneSpare: 0, unfilled: false });
             continue;
         }
         if (timed) { daysTotal += days; daysLines++; }
         rows.push({ pos: w, exSundayMinutes, allMinutes, days,
-            assumed: false, unreadable, unfilled: !hasWork });
+            assumed: false, unreadable, loneSpare, unfilled: !hasWork });
     }
 
     return {

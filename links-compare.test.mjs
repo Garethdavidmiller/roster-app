@@ -78,9 +78,6 @@ function makeDeps(overrides = {}) {
         renderGrid: () => { calls.renderGrid++; },
         renderBrushBar: () => { calls.renderBrushBar++; },
         dearmBrush: () => { calls.dearmBrush++; },
-        emptyPattern: rest,
-        isUnfilledPattern: (/** @type {any} */ p) => DAYKEYS.every(d => (p[d] ?? 'RD') === 'RD'),
-        shiftLabel: (/** @type {string} */ s) => s,
         ...overrides,
     };
     return { deps, calls };
@@ -298,6 +295,9 @@ test('the compare grid renders no operable control — those cells cannot be pre
             `${id} still renders <button> cells. They are inert by CSS, which a screen reader does `
             + 'not read: it announces a control the user cannot operate.');
         assert.match(els[id].innerHTML, /shift-cell-btn/, 'the shift colouring class was dropped with the button');
+        // …and each is NAMED as the editable grid's cells are, on a role that carries a name (links-grid-cells.js):
+        // they said a bare "RD", and an aria-label on a role-less span is not read at all.
+        assert.match(els[id].innerHTML, /role="img" aria-label="Line 1 Sun: RD, rest day"/);
     }
 });
 
@@ -675,4 +675,11 @@ test('analysis: a figure that moved without changing the finding is behind its o
     const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Round-Times-P2-24-N13.json'));
     assert.match(html, /<details class="compare-an-more"><summary>\d+ more moved a figure without changing the finding/);
     assert.match(html, /FF11[\s\S]*?clear \(9\) → clear \(10\)/);   // 24-line fixtures at 26 lines, and v25.03 — see above
+});
+
+test('the strip says which side is which: the open design → the compared one', () => {
+    resetDom();
+    const c = initLinksCompare(makeDeps().deps);
+    c.toggleCompareMode(); c.selectCompareDesign('b'); c.renderCompare();
+    assert.match(els.compareSummary.innerHTML, /<p class="compare-an-note compare-sum-key">A → B<\/p><ul class="compare-sum-list">/);
 });

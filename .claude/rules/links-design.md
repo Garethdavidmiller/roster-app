@@ -65,8 +65,8 @@ list.
 
 | Module | Owns |
 |--------|------|
-| `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore write of its own — designs go through `links-design-store.js` — and one direct read remains, `loadDesigns`, which needs `metadata.fromCache` (+ `links-boot.js`, the CSP bootstrap) |
-| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and the refresh's read (`createDesignStore`) |
+| `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore read or write of its own — designs go through `links-design-store.js` (+ `links-boot.js`, the CSP bootstrap) |
+| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and every read of the collection, which says whether the cache answered it (`loadAll`; `createDesignStore`) |
 | `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, whether an answer still counts (v26.03), and whether the server ever made the design |
 | `links-design-library.js` | the import panel, the Recently deleted bin and its list, and Keep only the shortlist (`createDesignLibrary`). Rename, duplicate and delete stay in `links-app.js`, because they change the open design's baseline |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the picker sheet, the Save buttons' label and the ··· More sheet |
@@ -79,6 +79,11 @@ list.
 | `links-grid-input.js` | how the grid is OPERATED — one Tab stop and the arrow keys, a mouse stroke that paints every cell it crosses, the paint bar's height for the sticky header; what a cell MEANS stays in the coordinator |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-compare-analysis.js` | what the difference between two designs MEANS — cover, limits and fatigue for both (pure, `compareDesigns`) |
+| `links-analyse.js` | ONE reading of a design for every panel — `analyse`, keyed on CONTENT and computed part by part on first ask, and `readAgainstService` |
+| `links-grid-cells.js` | what one grid cell SAYS — its label, its name ("RD, rest day"), and the markup of the editable grid, the compare grids and their cover rows |
+| `links-build-press.js` | what the Build press SAYS and remembers — the refusals, the question before a build replaces a design, the status line, which build of these inputs it is, and the surplus lines a longer design keeps |
+| `links-today.js` | what the page reads from TODAY's roster — the shift times offered, and today's link against the fatigue factors, measured once |
+| `links-print.js` | the page prepared for paper and put back — every disclosure opened, and the print ended by the reader's next touch where iOS sends no `afterprint` |
 | `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each), and how a list read answered after the page changed the list is applied (`mergeListAnswer`) |
 | `links-deletion.js` | the soft-delete rules: what counts as deleted, its label and order, and what a delete or a rename that found the design already gone says |
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in |
@@ -526,10 +531,10 @@ an edit's effect was out of sight.
   and `assessFatigue` returns `present` beside `standing`. The strip never claims full cover, only that
   no STAFFED hour is uncovered, and never says "no fatigue factors" while standing ones exist (pinned in
   `links-analysis.test.mjs`).
-- **`renderSummary` recomputes rather than reading the other renderers' results.** That duplicates
-  WORK, not LOGIC — each figure still comes from the one function that owns it — and it buys
-  order-independence: shared state would make the strip silently wrong whenever the renderers ran in a
-  different order.
+- **`renderSummary` never reads the other renderers' results.** Shared state would make the strip
+  silently wrong whenever the renderers ran in a different order. Every panel — and compare mode —
+  asks `analyse` (`links-analyse.js`), one reading keyed on the design's CONTENT, so whichever asks
+  first computes it and each figure still comes from the one function that owns it.
 - **`sticky` needs no scroll container**, because `.card` is `overflow: clip`, which does not create one.
   **The bar can cover the last grid lines while it is pinned** — a sticky element keeps its flow
   position only once it comes to rest — but only in passing: every line reaches full view at some scroll
@@ -723,11 +728,12 @@ The night-family rollup belongs INSIDE the disclosure, or the heading and the la
 things.
 
 **Printing must open every `<details>`, and CSS cannot do it**: Chromium hides a closed disclosure's
-content through an internal slot no author rule reaches. `_preparePrint` opens them — from the Print
-button before `window.print()`, and on `beforeprint`, idempotently — and `_restoreAfterPrint` closes them
-on `afterprint` and again when the page becomes visible, because Safari fires neither event for
-AirPrint. The printed sheet goes to the assessing manager, and dropping completed checks from it is the
-false-assurance failure this panel exists to prevent.
+content through an internal slot no author rule reaches. `createPrintPrep` (`links-print.js`) opens them —
+from the Print button before `window.print()`, and on `beforeprint`, idempotently — and closes them on
+`afterprint`, when the page becomes visible, and at the reader's next touch, key or scroll, because Safari
+fires neither event for AirPrint (the rules are its header, as `fip-guide.js`'s net). The printed sheet
+goes to the assessing manager, and dropping completed checks from it is the false-assurance failure this
+panel exists to prevent.
 
 **Today's link, for comparison** (`currentLinkBaseline`, passed as `getBaseline`): measured over the MAIN
 cycle (`weeklyRoster`) at its own length. Never splice two cycles into one rotation — the join itself
@@ -975,11 +981,11 @@ finish runs into Sunday's start.
   default is unchanged, and FILTERED on, because a weight can always be outbid.
 
 **Deterministic per attempt.** The 2-opt is a local search, so where it starts decides where it lands.
-Attempt 0 starts from the greedy order, so the first press is canonical; pressing Generate again on
+Attempt 0 starts from the greedy order, so the first press is canonical; pressing Build again on
 unchanged inputs moves to the next attempt, which keeps the best of three seeded shuffles (mulberry32 on
 the attempt number — **never `Math.random`, never the clock**), and any change of input goes back to
 attempt 0. So "design 3" means the same design on every device, and a variant is recovered by pressing
-Generate the same number of times. The status line names the design, tracks the best so far on the
+Build the same number of times (`createBuildCounter`, `links-build-press.js`). The status line names the design, tracks the best so far on the
 ticked objectives, and says how to get a superseded best back. **The even cover spread and the boundary
 rest are FILTERS on the candidates as well as weights**: a local search can only pay a price it can find
 a path away from. If all three starts fail, the attempt falls back to the canonical design and the
@@ -1095,7 +1101,7 @@ Measured at 390px and 1280px, not eyeballed. The reasoning for each rule is besi
   the first generate grows the grid card above by a whole grid, so the handler re-anchors the scroll to
   keep the button under the finger. Both pinned by an e2e. From the press until the line-order search
   has run, both lines read "Building the link…" and the button is held (links-app-21), so the finished
-  line ("Link generated …"), never the mirror's visibility, is what says a design exists.
+  line ("Link built …"), never the mirror's visibility, is what says a design exists.
 - **The objective labels:** the label text is ONE `<span>` (a flex item), so it wraps as a block, and a
   numeric clause has its own line. **Grid is wrong here**: every child becomes an item, and the number
   box drops into the checkbox's column. **A number and the words that qualify it are one unbreakable
@@ -1304,8 +1310,8 @@ and the window editor are hidden.
   would compete and saving is the one that matters; the save row is hidden on paper, so it costs the
   sheet nothing. It goes through `printOrExplain` (`print-guard.js`): in a home-screen app on iOS
   `window.print()` does nothing, so the tap explains and offers Safari. It prepares the sheet itself
-  before printing (`_preparePrint`, the function `beforeprint` also calls) rather than relying on the
-  event.
+  before printing (`createPrintPrep`'s `printNow`: from the page on screen, the masthead stamped afresh)
+  rather than relying on the event.
 - **The masthead carries provenance, and must say when that provenance does not describe the sheet.**
   `#printDesignName` names the design, who last saved it and when (a proposal: its ref, "built into the
   app"), the staffed window (marked "(moved)" when it is not the default), and the date and time printed,

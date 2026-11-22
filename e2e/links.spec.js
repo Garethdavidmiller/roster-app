@@ -749,38 +749,18 @@ test('links: the fatigue panel collapses its "nothing to report" rows but still 
 // comparison is measured ONCE. It describes today's roster, a constant for the session, and was measured
 // again on every paint for the same answer. It is the one call made at a length other than the design's
 // own, so those calls are counted across three edits.
-test('links: today\'s link quotes each factor\'s own threshold, and is measured once', async ({ page }) => {
-    const EDITS = /** @type {[string, string][]} */ ([
-        ["status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 13,",
-            "status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 12,"],
-        ["status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4,",
-            "status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 3,"],
-        ['export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } = {}) {',
-            'export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } = {}) {\n'
-            + '    if (lines !== ROTATING_LINES) { const w = /** @type {any} */ (globalThis); w.__todayMeasured = (w.__todayMeasured || 0) + 1; }'],
-    ]);
-    // A missing anchor THROWS: a silent no-op would leave a green test that had stopped testing anything.
-    await page.route('**/links-fatigue.js', async route => {
-        const res = await route.fetch();
-        let src = await res.text();
-        for (const [from, to] of EDITS) {
-            if (!src.includes(from)) throw new Error(`links: links-fatigue.js no longer contains "${from}" — re-point the test.`);
-            src = src.replace(from, to);
-        }
-        await route.fulfill({ response: res, body: src, contentType: 'text/javascript' });
-    });
+// TODAY'S LINK, ON THE CARD (wiring). Its own thresholds and the measure-once memo are unit-pinned with the fatigue
+// factors mocked (links-today.test.mjs), which replaced patching links-fatigue.js on the wire here; what only the page
+// shows is that the checks card carries the row, from the real roster, and keeps it through an edit.
+test('links: the Design checks card compares with today\'s link, measured on the main cycle', async ({ page }) => {
     await openLinksWithDesign(page);
     const today = page.locator('#checksContent .check-row', { hasText: 'Today\'s link already features' });
-    await expect(today, 'FF11 is quoted at its own threshold').toContainText('against FF11\'s 12.');
-    await expect(today, '…and FF15 at its own').toContainText('against FF15\'s 3.');
-
-    // Three edits, each one repainting the checks card.
+    await expect(today).toContainText(/on the main \d+-line cycle — the link a new design would replace\./);
+    await expect(today).toContainText(/against FF11's \d+\./);
     await page.locator('#brushBar .brush-chip[data-shift="06:20-14:20"]').click();
-    for (const day of ['sun', 'fri', 'sat']) await gridCell(page, 1, day).click();
+    await gridCell(page, 1, 'sun').click();
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
-    await expect(today).toContainText('against FF11\'s 12.');
-    expect(await page.evaluate(() => /** @type {any} */ (globalThis).__todayMeasured),
-        'today\'s link is measured once for the session, not on every paint').toBe(1);
+    await expect(today, 'still there after a repaint').toContainText('against FF15\'s');
 });
 
 test('links: printing opens every collapsed disclosure, and closes it again afterwards', async ({ page }) => {
@@ -822,14 +802,14 @@ test('links: the line-order switches change the design, and say what each one co
         await page.locator('#genApplyBtn').click({ force: true });
         const ok = page.locator('.dialog-btn-confirm');
         if (await ok.count()) await ok.first().click();
-        await expect(page.locator('#linksSaveStatus')).toContainText('Link generated');
+        await expect(page.locator('#linksSaveStatus')).toContainText('Link built');
         return (await page.locator('#linksSaveStatus').textContent()).trim();
     }
 
     // Switches ON: the reorder runs and reports before→after for each objective.
     const on = await generate(page);
-    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/week-to-week \d+→\d+ min/);
-    expect(on).toMatch(/weekends off \d+→\d+/);
+    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/average week-to-week move \d+ → \d+ min/);
+    expect(on).toMatch(/full weekends off \d+ → \d+/);
 });
 
 // THE LINE-ORDER NOTE STATES THE MINIMUM REST FROM THE CONSTANT (links-analysis-14's twin, routed here).
@@ -1540,7 +1520,7 @@ test('links: the generator fills every line and names what it replaces', async (
     const dialog = page.locator('.lb-overlay.visible');
     await expect(dialog).toContainText('Option A');
     await expect(dialog).toContainText(new RegExp(`replaces all ${ROTATING_LINES} lines`, 'i'));
-    await dialog.getByRole('button', { name: new RegExp(`Replace all ${ROTATING_LINES} lines`, 'i') }).click();
+    await dialog.getByRole('button', { name: 'Build', exact: true }).click();
 
     await expect(page.locator('tr.row-unfilled')).toHaveCount(0);   // every line now designed
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
@@ -1708,13 +1688,13 @@ test('links memory: a remembered spare count that leaves no working line is refu
     await openLinksWithMemory(page, { slots: [{ time: '06:20-14:20', weekday: 0, sat: 0, sun: 0 }], spareLines: ROTATING_LINES });
     const error = page.locator('#genError');
     await page.locator('#genApplyBtn').click();
-    await expect(error).toContainText(`${ROTATING_LINES} spare weeks leaves no working lines`);
+    await expect(error).toContainText(`${ROTATING_LINES} cover weeks leaves no working lines`);
 
     const box = page.locator('#genSpareLines');
     await box.fill(String(ROTATING_LINES));
     await box.dispatchEvent('input');
     await page.locator('#genApplyBtn').click();
-    await expect(error, 'a typed count is clamped short of it').toContainText('Can\'t generate');
+    await expect(error, 'a typed count is clamped short of it').toContainText('Can\'t build the link');
     await expect(error).not.toContainText('leaves no working lines');
 });
 
@@ -1724,9 +1704,9 @@ test('links memory: a remembered spare count that leaves no working line is refu
 // crossing them would tell the designer to make it worse. Until now the only refused press driven in a
 // browser was the spare count above and the over-capacity one.
 for (const [label, weekday, gap, remedy, notRemedy] of /** @type {Array<[string, number, string, string, string]>} */ ([
-    ['short of', 1, 'a week of duty missing across the rotation', 'Add duties, lengthen them, or use more spare weeks',
+    ['short of', 1, 'a week of duty missing across the rotation', 'Add duties, lengthen them, or use more cover weeks',
         'Remove duties'],
-    ['over', ROTATING_LINES, 'a week of duty more than the rotation is paid for', 'Remove duties, shorten them, or use fewer spare weeks',
+    ['over', ROTATING_LINES, 'a week of duty more than the rotation is paid for', 'Remove duties, shorten them, or use fewer cover weeks',
         'Add duties'],
 ])) {
     test(`links generator: a table ${label} the contracted week is refused, with its own remedy`, async ({ page }) => {
@@ -1735,12 +1715,12 @@ for (const [label, weekday, gap, remedy, notRemedy] of /** @type {Array<[string,
         await openLinksWithMemory(page, { slots: [{ time: '06:20-14:20', weekday, sat: 0, sun: 0 }], spareLines: 0 });
         await page.locator('#genApplyBtn').click();
         const error = page.locator('#genError');
-        await expect(error).toContainText(`Can't generate — These targets average`);
+        await expect(error).toContainText(`Can't build the link — These targets average`);
         await expect(error).toContainText(`the contract is ${CONTRACTED_HOURS_PER_WEEK}h`);
         await expect(error).toContainText(gap);
         await expect(error).toContainText(remedy);
         await expect(error, 'the opposite remedy would make it worse').not.toContainText(notRemedy);
-        await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
+        await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link built');
     });
 }
 
@@ -1759,10 +1739,10 @@ test('links generator: a table no arrangement can give the minimum rest is refus
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').click();
     const error = page.locator('#genError');
-    await expect(error).toContainText('Can\'t generate — one turn would follow another with only');
+    await expect(error).toContainText('Can\'t build the link — one shift would follow another with only');
     await expect(error).toContainText('rest, and the minimum is 20h 00m. No arrangement of these lines fixes it.');
     await expect(error).toContainText('Move a late finish earlier or a following start later.');
-    await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
+    await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link built');
 });
 
 // ── Saved target sets (v21.04) ──────────────────────────────────────────────────────────────────
@@ -2111,7 +2091,7 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     // on the old design or mid-redraw (48-hour review, Nov 2026 — one intermittent red under load).
     // Its FINISHED line, not the mirror's visibility: since links-app-21 the mirror reads "Building the
     // link…" for a frame before the search runs, and the old design is still on screen in that frame.
-    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
+    await expect(page.locator('#genStatus')).toContainText('Link built', { timeout: 10_000 });
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 
     // Three cells on every line, no exceptions — the renderer indexes rows by position, so a short
@@ -2210,6 +2190,11 @@ const MIXED_DESIGN = (() => {
     }
     return patterns;
 })();
+
+/** MIXED_DESIGN with its spare days rested, so no line's totals are a floor unless a test makes one (a lone spare day
+ *  is a duty with no times, a floor — lineTotals). */
+const MIXED_NO_SPARE = Object.fromEntries(Object.entries(MIXED_DESIGN)
+    .map(([k, row]) => [k, Object.fromEntries(Object.entries(row).map(([d, v]) => [d, v === 'SPARE' ? 'RD' : v]))]));
 
 /** Open Links on MIXED_DESIGN at a desktop size. @param {import('@playwright/test').Page} page */
 async function openMixedDesign(page, size = { width: 1366, height: 768 }) {
@@ -2495,7 +2480,7 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000,
             patterns: { ...pats, 2: { ...pats[2], mon: 'TBC' } } }];
-    }, MIXED_DESIGN);
+    }, MIXED_NO_SPARE);
     await page.goto('/links.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     const mark = (/** @type {string} */ sel) => page.locator(sel).evaluateAll(els => els.map(el => getComputedStyle(el, '::after').content));
@@ -2505,6 +2490,42 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
     const plain = await mark('#linksGridBodyRows tr[data-pos="3"] td.tot-cell');
     for (const c of plain) expect(c, 'an ordinary total carries no mark').not.toMatch(/\+/);
     expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
+});
+
+// THE FOOTER'S AVERAGES SAY "(partial)" WHERE THE CHECKS ROW AND THE STRIP DO (Nov 2026, `hoursFigure`): a line with no
+// readable time is left out of the average, and the footer stated the bare figure under a grid that showed the line.
+test('links grid: the hours averages in the footer say "(partial)" when a whole line has no readable time', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(pats => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        const tbc = Object.fromEntries(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(d => [d, 'TBC']));
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000, patterns: { ...pats, 2: tbc } }];
+    }, MIXED_NO_SPARE);
+    await page.goto('/links.html');
+    const avgs = page.locator('#linksCoverageFoot .tot-avg .tot-avg-num');
+    await expect(avgs).toHaveCount(3);
+    await expect(avgs.nth(0)).toHaveText(/^\d+h \d{2}m \(partial\)$/);
+    await expect(avgs.nth(1)).toHaveText(/^\d+h \d{2}m \(partial\)$/);
+});
+
+test('links grid: a lone spare day makes its line\'s totals a floor, and the cell says why', async ({ page }) => {
+    // A Mon–Sat SPARE on a line that is not a whole cover week carries no times. It was skipped as rest, so
+    // the line read as a lighter week with nothing to say why (Nov 2026).
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(pats => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000,
+            patterns: { ...pats, 2: { ...pats[2], mon: 'SPARE' } } }];
+    }, MIXED_NO_SPARE);
+    await page.goto('/links.html');
+    const totals = page.locator('#linksGridBodyRows tr[data-pos="2"] td.tot-cell');
+    await expect(totals).toHaveCount(3);
+    for (const c of await totals.all()) await expect(c).toHaveClass(/\btot-uncertain\b/);
+    await expect(totals.first()).toHaveAttribute('aria-label', /1 spare day on this line carries no times, so these totals are a floor$/);
 });
 
 // THE LEGEND'S WORDS NAME WHAT ITS SAMPLE DRAWS (whole-app fix, Nov 2026). The floor sample draws
@@ -3297,6 +3318,33 @@ test('links: a design saved against a LONGER rotation says so', async ({ page })
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 });
 
+// …AND BUILDING OVER ONE KEEPS THOSE LINES (Nov 2026). The notice says the surplus is "still stored and saved with
+// the design", and a Build replaced the patterns with the rotation's own, so the next Save dropped them for good.
+test('links: building over a design saved against a longer rotation keeps its surplus lines', async ({ page }) => {
+    await seedContractTargets(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((lines) => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        /** @type {any} */ const pat = {};
+        for (let i = 1; i <= lines + 2; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        w.__E2E.docs = [{ id: 'd1', name: 'Longer', patterns: pat, updatedAt: Date.now(), updatedBy: 'S. Silva' }];
+    }, ROTATING_LINES);
+    await page.goto('/links.html');
+    await expect(page.locator('#linksOverLengthNotice')).toBeVisible();
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#genStatus')).toContainText('Link built', { timeout: 10_000 });
+    await expect(page.locator('#linksOverLengthNotice'), 'the surplus is still held').toBeVisible();
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    const saved = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites.at(-1).data.patterns);
+    expect(Object.keys(saved).length, 'every line it held is written back').toBe(ROTATING_LINES + 2);
+    expect(saved[String(ROTATING_LINES + 2)]).toEqual({ sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' });
+});
+
 test('links: a design at the current length shows no such notice', async ({ page }) => {
     // The mirror image, and the one that matters more day to day: a permanently-visible caution on
     // every normal design would be read past within a week, which is the cry-wolf failure the
@@ -3319,7 +3367,7 @@ test('links: generating names the construction that produced the design', async 
     await page.locator('#generatorToggleHeader').click();
     await page.locator('#genApplyBtn').click();
     await clickDialogConfirm(page);
-    await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
+    await expect(page.locator('#linksSaveStatus')).toContainText(/each line kept to one wave of similar start times \(\d+ waves?\)/);
 });
 
 // ── Pressing Generate again explores (v20.07) ────────────────────────────────────────────────────
@@ -3348,7 +3396,7 @@ test('links: pressing Generate again produces a different, named design', async 
         /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText);
 
     await gen();
-    await expect(page.locator('#linksSaveStatus')).toContainText('Generate again');
+    await expect(page.locator('#linksSaveStatus')).toContainText('Press Build again');
     const first = await gridText();
 
     await gen();
@@ -3390,7 +3438,7 @@ test('links: a generated design that repeats an earlier one says which design it
         // Changed is not finished: since links-app-21 the line reads "Building the link…" from the
         // press until the search has run, and a grid read in that frame is the PREVIOUS design's.
         await expect(status).not.toHaveText(before ?? '');
-        await expect(status).toContainText('Link generated');
+        await expect(status).toContainText('Link built');
         return {
             grid: await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText),
             said: await status.textContent() ?? '',
@@ -3444,11 +3492,11 @@ test('links: a zero in a line-order box is the figure used, not the default', as
         await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     };
     await build();
-    await expect(status).toContainText('Generate again');
+    await expect(status).toContainText('Press Build again');
     await page.locator('#objLongTarget').fill('0');
     await page.locator('#objBlockTarget').fill('0');   // under its minimum of 1
     await build();
-    await expect(status, 'new inputs start a new exploration, at design 1').toContainText('Generate again for a different line order');
+    await expect(status, 'new inputs start a new exploration, at design 1').toContainText('Press Build again for a different line order');
     await expect(status).not.toContainText('Design 2');
     await expect(page.locator('#objLongTarget')).toHaveValue('0');
     await expect(page.locator('#objBlockTarget'), 'raised to the minimum it was built with').toHaveValue('1');
@@ -3478,7 +3526,7 @@ test('links: Build the link says it is building, and holds the button until it h
     });
     await page.locator('#genApplyBtn').click();
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-    await expect(page.locator('#genStatus')).toContainText('Link generated');
+    await expect(page.locator('#genStatus')).toContainText('Link built');
     const seen = await page.evaluate(() => /** @type {any} */ (window).__genSeen);
     expect(seen.some((/** @type {any} */ s) => s.text === 'Building the link…' && s.shown && s.held),
         `"Building the link…" shown, with the button held — states seen: ${JSON.stringify(seen)}`).toBe(true);
@@ -3925,6 +3973,21 @@ test('links: the shift sheet\'s search box is called "Search shift times"', asyn
     await expect(box).toHaveAccessibleName('Search shift times');
 });
 
+// A PRINT ENDS AT THE READER'S NEXT TOUCH (Nov 2026, links-print.js rule 4). iOS sends no `afterprint` for AirPrint and
+// its sheet need not change the page's visibility, so the workspace stayed expanded, prepared, for good — the next
+// Print then re-used the old snapshot. The stub here prints and sends nothing after, as AirPrint does.
+test('links: a print that sends no afterprint is over at the reader\'s next touch', async ({ page }) => {
+    await page.addInitScript(() => { window.print = () => { window.dispatchEvent(new Event('beforeprint')); }; });
+    await openLinksWithDesign(page);
+    const closed = page.locator('#checksContent details:not([open])');
+    const before = await closed.count();
+    expect(before, 'the premise: the checks card has collapsed disclosures').toBeGreaterThan(0);
+    await page.locator('#linksPrintBtn').click();
+    await expect(closed, 'opened for paper').toHaveCount(0);
+    await page.mouse.click(5, 5);   // the reader is back
+    await expect(closed, 'put back as the reader left them').toHaveCount(before);
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.
@@ -4018,9 +4081,9 @@ test('links: the variety switch is what keeps you off one shift type for months'
         await page.locator('#genApplyBtn').click({ force: true });
         const ok = page.locator('.dialog-btn-confirm');
         if (await ok.count()) await ok.first().click();
-        await expect(page.locator('#linksSaveStatus')).toContainText(/longest block/, { timeout: 10_000 });
+        await expect(page.locator('#linksSaveStatus')).toContainText(/same shift type in a row/, { timeout: 10_000 });
         const txt = await page.locator('#linksSaveStatus').innerText();
-        const m = txt.match(/longest block (\d+)→(\d+) weeks/);
+        const m = txt.match(/same shift type in a row (\d+) → (\d+) weeks/);
         if (!m) throw new Error(`status did not report the block: ${txt}`);
         return { before: Number(m[1]), after: Number(m[2]) };
     };
@@ -4494,6 +4557,77 @@ test('links review: Import asks before it replaces unsaved work', async ({ page 
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // still dirty, still here
 });
 
+// …AND A CLEAN OPEN DESIGN FOLLOWS A COLLEAGUE'S NEWER SAVE (Nov 2026). A refresh replaced its list entry and left the
+// working copy on the older version, so the masthead and the printed sheet named the colleague over a grid they never
+// drew. Clean, it follows the entry, baseline included, so the next save asks nothing about a version on screen.
+test('links: a list refresh brings a clean open design up to a colleague\'s newer save', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await page.evaluate(() => {   // M. Robson saved "Morning heavy" since, and somebody restored the binned one
+        const w = /** @type {any} */ (window);
+        const newer = (/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, window: { monSat: { start: '06:00', end: '22:00' }, sun: { start: '07:00', end: '23:55' } }, updatedAt: Date.now(), updatedBy: 'M. Robson', revision: 3 }
+            : { ...d, deletedAt: undefined, deletedBy: undefined };
+        w.__E2E.docs = w.__E2E.docs.map(newer);
+        w.__E2E.txDocs = w.__E2E.docs;
+    });
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(page.locator('#winMonSatEnd'), 'the version the masthead names').toHaveValue('22:00');
+    await expect(page.locator('#linksLastSaved')).toContainText('M. Robson');
+    await expect(page.locator('#linksSaveBtn'), 'nothing unsaved').toBeDisabled();
+    await page.locator('#winMonSatEnd').fill('21:00');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay.visible'), 'no question about the version on screen').toHaveCount(0);
+});
+
+// A REFRESH THAT ONLY THE CACHE ANSWERED, WITH NO LIVE DESIGN IN IT, CHANGES NOTHING (Nov 2026) — the load's own rule
+// (`readCannotAnswer`): such an answer cannot tell "none" from "never read here", and applied, it emptied the picker.
+test('links: a list refresh the cache answered with no live design leaves the list alone', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await expect(designOptions(page)).toHaveCount(1);
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => ({ ...d, deletedAt: undefined, deletedBy: undefined }));
+        w.__E2E.docs = [];             // what this device's cache happens to hold
+        w.__E2E.docsFromCache = true;
+    });
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(designOptions(page), 'the cached read emptied nothing').toHaveCount(1);
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+});
+
+test('links: …but an EDITED open design keeps its edits through that refresh, and its next Save still asks', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const newer = (/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, window: { monSat: { start: '06:00', end: '22:00' }, sun: { start: '07:00', end: '23:55' } }, updatedAt: Date.now(), updatedBy: 'M. Robson', revision: 3 }
+            : { ...d, deletedAt: undefined, deletedBy: undefined };
+        w.__E2E.docs = w.__E2E.docs.map(newer);
+        w.__E2E.txDocs = w.__E2E.docs;
+    });
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(page.locator('#winMonSatEnd'), 'the edit is still here').toHaveValue('14:20');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('.dialog-overlay.visible'), 'on its own baseline, so the colleague\'s save is met').toContainText('M. Robson saved a different version');
+});
+
 test('links review: a colleague\'s restore settled in the bin leaves your unsaved edits alone', async ({ page }) => {
     // It called loadDesigns, which rebuilt the working copy and cleared `dirty` — the edit gone,
     // and nothing said so.
@@ -4540,7 +4674,7 @@ test('links review: a design found deleted on save leaves the list, and the copy
     await dialog.locator('.dialog-btn-confirm').click();              // "Save mine as new"
     // Straight to the name — not "goes back to its last save" about a design that is in the bin.
     const next = page.locator('.dialog-overlay.visible');
-    await expect(next).toContainText('Name for the duplicate');
+    await expect(next).toContainText('Name for the copy');
     await expect(next).not.toContainText('last save');
 });
 
@@ -4573,6 +4707,41 @@ test('links re-review: a save still in flight locks only ITS design, and a delet
     await expect(page.locator('#linksSaveStatus')).toContainText('was deleted elsewhere', { timeout: 10000 });
     await expect(designOptions(page)).toHaveCount(1);                     // out of the live list anyway
     await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0); // and no dialog about it
+});
+
+// A DESIGN WHOSE SAVE IS IN FLIGHT DOES NOT REOPEN UNTIL IT LANDS (Nov 2026). Reopened meanwhile, it was built
+// from its list entry — the version from BEFORE the save — and the next save met the one in flight as somebody
+// else's: "This design changed", in the designer's own name. Refused, and said; once the save has landed it opens
+// as saved, and the next save asks nothing.
+test('links: a design whose save is still in flight is not reopened until the save lands', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E;
+        e.txHold = true;      // the server is slow to answer
+        e.writesLand = true;  // …and once it has, the next save reads what it wrote
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+    await switchToDesign(page, 'Other');
+    await page.locator('.dialog-overlay.visible .dialog-btn-confirm').click();   // its edit is still unsaved until it lands
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await switchToDesign(page, 'Morning heavy');
+    await expect(page.locator('#linksSaveStatus')).toHaveText('“Morning heavy” is still saving — open it again once its save has finished.');
+    await expect(activeDesignName(page), 'not reopened over its own save').toHaveText('Other');
+    await expect(page.locator('.dialog-overlay.visible'), 'and nothing was asked').toHaveCount(0);
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.txHold = false; e.releaseTx(); });
+    await expect(async () => {
+        await switchToDesign(page, 'Morning heavy');
+        await expect(activeDesignName(page)).toHaveText('Morning heavy', { timeout: 500 });
+    }).toPass({ timeout: 10_000 });
+    await expect(page.locator('#winMonSatEnd'), 'the version it saved').toHaveValue('14:20');
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay.visible'), 'no conflict with its own save').toHaveCount(0);
 });
 
 test('links re-review: an offline save says it is in this browser, not "✓ Saved"', async ({ page, context }) => {
@@ -4916,7 +5085,7 @@ test('links: "Save mine as new" after a colleague\'s save asks nothing more, kee
     // Straight to the name: the "goes back to its last save. Duplicate anyway?" question was a third one,
     // about the choice just made (the path from a deleted design never asked it).
     const next = page.locator('.dialog-overlay.visible');
-    await expect(next).toContainText('Name for the duplicate');
+    await expect(next).toContainText('Name for the copy');
     await expect(next).not.toContainText('last save');
     await next.locator('.dialog-btn-confirm').click();
     await expect(activeDesignName(page)).toHaveText('Morning heavy copy');
@@ -5228,6 +5397,21 @@ test('links: edits on top of a queued save, and a second queued save, are kept o
     kept = await keptDraft(page);
     expect(kept?.data?.window?.monSat?.end).toBe('14:40');
     expect(kept?.data?.baseline, 'the EARLIEST unconfirmed baseline: neither save is known to the server').toEqual(BEFORE);
+});
+
+// …AND A DESIGN DELETED SINCE IS NOT KEPT (Nov 2026). Deleted with its save still queued, the kept copy stayed,
+// and the next load offered it back as "your unsaved changes" — a design the designer had just thrown away.
+test('links: a design deleted with its save still queued in this browser is not offered back as unsaved work', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await queueSaveOffline(page);
+    expect((await keptDraft(page))?.scope).toEqual({ design: 'd1' });
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(activeDesignName(page)).toHaveText('Other');
+    expect(await keptDraft(page), 'the deleted design\'s queued save is not kept as unsaved work').toBeNull();
+    await reloadPastLeaveSite(page);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('.dialog-overlay.visible'), 'nothing is offered back').toHaveCount(0);
 });
 
 test('links: a queued save the server confirms says "✓ Saved", and leaves nothing kept', async ({ page }) => {
@@ -5547,7 +5731,7 @@ test('links generator: pressing Generate leaves the button under your finger and
     // VISIBLE no longer says so: since links-app-21 it reads "Building the link…" for a frame before
     // the search runs, and on WebKit that frame stalled long enough for every check below to run
     // inside it (mobile-safari, CI run 42838201900: an 18-character status). The finished line does.
-    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
+    await expect(page.locator('#genStatus')).toContainText('Link built', { timeout: 10_000 });
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.

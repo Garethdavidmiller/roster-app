@@ -447,8 +447,8 @@ deletedAt   Optional — Firestore server timestamp. PRESENT = in the "Recently 
 deletedBy   Optional — display name of whoever deleted it
 ```
 Read: a **named** session — a bound member identity (`isMember()`) or `admin`. Deliberately NOT narrowed to `linksDesigner`: a designer whose token predates that claim must still be able to LOAD the workspace so their first write can permission-deny and self-heal through `writeWithClaimRetry`. Write: requires the `linksDesigner` claim OR `admin` (H2), and create/update is **shape-validated** — the authoritative key list is the `hasOnly([…])` in `firestore.rules` and the payload builder `docPayload` in `links-design-doc.js`; **do not restate it here**, because a copy here once omitted `window` while the rules and the payload carried it. `name` is a 1–100 char string, `patterns` a map, `updatedAt` a timestamp, `updatedBy` a ≤100 char string; `window`, `revision`, `deletedAt` and `deletedBy` are optional and type-checked when present (a live design carries neither delete field). **A hard delete is allowed only on a design already in the bin** (`deletedAt` present), so a client that deletes from a stale list can only fail, never destroy a live design. `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; every write goes through the design store with `writeWithClaimRetry`, so a stale token self-heals, and saves atomically via `runTransaction`. Designs are **not** member-owned (no per-member isolation — any designer edits, deletes or restores any design).
-Written by: `links-design-store.js` — every design write, through `createDesignStore`. Read by: `links-app.js`
-(`loadDesigns` reads directly, because it needs `metadata.fromCache`) and the store's `loadAll` (the refresh).
+Written by: `links-design-store.js` — every design write, through `createDesignStore`. Read by: the same store's
+`loadAll`, for the load and the refresh alike, which says whether the cache answered (`links-design-load.js` reads it).
 
 **linkTargetSets**
 ```
