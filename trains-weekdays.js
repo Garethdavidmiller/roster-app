@@ -114,17 +114,19 @@ export function weekdayGroups(nowRows, decRows, measure) {
 /**
  * Weekdays in words: "Mondays and Fridays", "Tuesday to Thursday", "Wednesdays", "Weekdays" — or,
  * `short`, as a train's days are marked beneath its time (`daysLabel`): "Mon and Fri", "Tue to Thu".
- * Three days or more in a row are a range; anything else is a list.
+ * Three days or more in a row are a range; anything else is a list. `plural` names a range's ends as
+ * a list's days are named, for a sentence that says "on" them: "on Tuesdays to Thursdays", beside "on
+ * Mondays and Fridays" — "on Tuesday to Thursday" read as one week's (24-hour check, Nov 2026).
  * @param {readonly Weekday[]} days  in weekday order
- * @param {{ short?: boolean }} [opts]
+ * @param {{ short?: boolean, plural?: boolean }} [opts]
  * @returns {string}
  */
-export function weekdayWords(days, { short = false } = {}) {
+export function weekdayWords(days, { short = false, plural = false } = {}) {
     const FULL = /** @type {Record<Weekday, string>} */ ({ Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday' });
     if (days.length === WEEKDAYS.length) return short ? 'Mon to Fri' : 'Weekdays';
     const at = days.map(d => WEEKDAYS.indexOf(d));
     if (days.length >= 3 && at.every((n, i) => i === 0 || n === at[i - 1] + 1)) {
-        const one = (/** @type {Weekday} */ d) => short ? d : FULL[d];
+        const one = (/** @type {Weekday} */ d) => short ? d : `${FULL[d]}${plural ? 's' : ''}`;
         return `${one(days[0])} to ${one(days[days.length - 1])}`;
     }
     const names = days.map(d => short ? d : `${FULL[d]}s`);
