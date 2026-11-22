@@ -1127,6 +1127,29 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
             await assertSucceeds(setDoc(doc(M(), 'linkDesigns', id),
                 { name: 'Line 1', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'M. Robson', revision: 2 }));
         });
+        test('the restore the store writes — a merge clearing the deleter with deleteField() — is accepted, and only stamped now', async () => {
+            // links-design-store.js's restore is THIS write, not the full set above: a merge, so the
+            // rule sees the stored pattern and name plus the cleared pair.
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+                { ...DESIGN(), revision: 1, deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+            const restore = (/** @type {any} */ at, by = 'M. Robson') => setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: deleteField(), deletedBy: deleteField(), revision: 2, updatedAt: at, updatedBy: by }, { merge: true });
+            await assertFails(restore(past()));                       // backdated
+            await assertFails(restore(serverTimestamp(), 'S. Silva'));  // signed as somebody else
+            await assertSucceeds(restore(serverTimestamp()));
+        });
+        test('the admin may stamp without a bound name — a break-glass token — but never another time', async () => {
+            // adminDb() carries `admin` and no memberName, so the name half is the admin's word; the TIME never is.
+            await assertSucceeds(setDoc(doc(adminDb(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'G. Miller' }));
+            await assertFails(setDoc(doc(adminDb(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'G. Miller', updatedAt: past() }));
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertFails(setDoc(doc(adminDb(), 'linkDesigns', id),
+                { deletedAt: past(), deletedBy: 'G. Miller' }, { merge: true }));   // a backdated delete
+            await assertSucceeds(setDoc(doc(adminDb(), 'linkDesigns', id),
+                { deletedAt: serverTimestamp(), deletedBy: 'G. Miller' }, { merge: true }));
+        });
     });
 });
 
