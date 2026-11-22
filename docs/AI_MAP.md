@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: November 2026 — v26.40 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -83,13 +83,13 @@ gone, and that no card outgrows its cap.
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
 | Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
-| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-overrides.js` (save logic) |
+| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-week-collect.js` (what a Save asks to write) · `admin-overrides.js` (save logic) |
 | An Admin save or delete must not overwrite a colleague's newer edit — the checked commit, and what counts as changed | `admin-override-store.js` · `override-compare.js` · `admin-week-row-state.js` (what each row showed) · `admin-own-write.js` (the page's OWN write is not a colleague's: the rows it touched follow it) · the weekly roster import's Save: `roster-import-save.js` (`saveRosterWrites`) |
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` (`parseRosterPDF`) + `functions/roster-parse-helpers.js` + `functions/roster-prompt.js` |
 | Pay calculator coordinator — calculate(), autosave, HPP, back-pay | `paycalc-app.js` + `paycalc.html` |
-| Pay calculator lightboxes — About, Help, YTD notice, decimal converter | `paycalc-lightboxes.js` |
+| Pay calculator lightboxes — About, the `?` panels' wiring, YTD notice, decimal converter | `paycalc-lightboxes.js` |
 | Pay calculator period arithmetic, select UI, nav | `paycalc-periods.js` |
 | Pay calculator grade helpers, settings save/load | `paycalc-settings.js` |
 | Roster-assist hint bar UI, fill logic, snap persistence | `paycalc-roster-hint.js` |
@@ -97,11 +97,11 @@ gone, and that no card outgrows its cap.
 | Back-pay lump sum calculator | `paycalc-backpay.js` |
 | Shared date/currency formatters (pure) | `paycalc-format.js` |
 | Result-card HTML builders (pure) — summary + breakdown | `paycalc-breakdown.js` |
-| Pay calculator help/tooltip text | `paycalc-help.js` |
+| Pay calculator `?` panel text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
-| Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` |
+| Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` (what it lists: `nav-destinations.js`) |
 | Whether the ☰ menu offers the Marylebone Newsletter — only while its latest issue is under six weeks old | `newsletter-recency.js` (the Calendar asks once a load; the drawer and the staff-PIN line read the answer this device keeps) |
 | Push notification subscribe/unsubscribe, VAPID key, notification state (shared) | `notif.js` |
 | Firestore security rules — write isolation, field validation, admin bypass | `firestore.rules` |
@@ -275,7 +275,7 @@ Team Week View — the grade-wide week grid toggled from the Calendar header: it
 - **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
 
 ### `admin-app.js`
-Coordinator for `admin.html`: sign-in and session, the member bar and week navigation, the Change a Shift Save collector, the AL banner and recorded-dates wiring, and initialising every card's module. Not here: the week grid (`admin-week-editor.js`), what a save writes (`admin-overrides.js`), the AL and Absence cards. Bound by `.claude/rules/admin.md`; capped by `coordinator-ratchet.test.mjs`.
+Coordinator for `admin.html`: sign-in and session, the member bar and week navigation, the Change a Shift Save, the AL banner and recorded-dates wiring, and initialising every card's module. Not here: the week grid (`admin-week-editor.js`), what a Save collects from it (`admin-week-collect.js`), what a save writes (`admin-overrides.js`), the AL and Absence cards. Bound by `.claude/rules/admin.md`; capped by `coordinator-ratchet.test.mjs`.
 - **Exports:** `init`
 
 ### `settings-status.js`
@@ -295,15 +295,15 @@ A card's collapsible header, and the deep link that opens a collapsed card by na
 - **Exports:** `initCardCollapse` · `openCardNamedByHash`
 
 ### `about-lightbox.js`
-The About panel (`#iconLightbox`) on every app page — version, update status, bug report, optional print — and `wireHeaderLogo`, a sub-page header logo's way back to the Calendar. A page stores the returned `.open`, never the object. Bound by `.claude/rules/nav-drawer.md`; the logo wiring by `page-contract-parity.test.mjs`.
+The About panel (`#iconLightbox`) on every app page — version, update status, bug report, optional print — and `wireHeaderLogo`, a sub-page header logo's way back to the Calendar. A page stores the returned `.open`, never the object. Bound by `.claude/rules/nav-drawer.md`; the logo wiring by `page-contract-parity.test.mjs`, and the ids every page's panel carries by `about-markup-parity.test.mjs`.
 - **Exports:** `initAboutLightbox` · `wireHeaderLogo`
 
 ### `tips-lightbox.js`
-The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each page keeps only its `CARD_TIPS` data. The content shape is in the header, pinned by `tips-content.test.mjs`.
+The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each page keeps only its `CARD_TIPS` data (the Pay Calculator's is `HELP_CONTENT`, on its `.help-btn` buttons). The content shape is in the header, pinned by `tips-content.test.mjs`.
 - **Exports:** `initTipsLightbox`
 
 ### `login-core.js`
-The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), which links the card's explanation may carry, and what a failed reset request says. `login-overlay.js` re-exports all three, so callers and `login-overlay.test.mjs` reach them there.
+The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), which links the card's explanation may carry, the explanation itself for a page that passes none (`signInAboutFor`), and what a failed reset request says. `login-overlay.js` re-exports the other three, so callers and `login-overlay.test.mjs` reach them there.
 - **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
 
 ### `login-overlay.js`
@@ -342,7 +342,7 @@ Whether arriving on THIS page ended the shared staff PIN, who is waiting to hear
 - **Exports:** `STAFF_PIN_ENDED_NOTICE` · `BACK_TO_PIN` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `takeStaffPinEndedMark` · `sayStaffPinEndedIn` · `onStaffPinEnded`
 
 ### `silent-sign-in.js`
-The rules of the sign-in nobody typed — what a page load may try for a member whose local session has no Firebase identity behind it, the six-hourly reset recheck (`AUTH_AND_SESSIONS.md` 23), and when a session began. Pure; `session.js` reads and writes the memory. Tested by `session.test.mjs`.
+The rules of the sign-in nobody typed — what a page load may try for a member whose local session has no Firebase identity behind it, the six-hourly reset recheck (`AUTH_AND_SESSIONS.md` 23), and when a session began, plus the one bound on how long Firebase may take (`AUTH_RESTORE_TIMEOUT_MS`). Pure; `session.js` reads and writes the memory. Tested by `session.test.mjs`.
 - **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
 
 ### `auth-state-core.js`
@@ -516,7 +516,7 @@ A member's CONTRACT leave allowance for a year: the grade that decides it ("role
 - **Exports:** `allowanceRole` · `countsAsDispatcherBankHoliday` · `countDispatcherBankHolidaysWorked` · `dispatcherBaseAL` · `getALEntitlement`
 
 ### `al-entitlement.js`
-Which annual-leave days spend a member's allowance, and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
+Which annual-leave days spend a member's allowance (a CEA's or CES's Spare week at most `SPARE_WEEK_MAX_DAYS`), and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
 - **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
@@ -604,7 +604,7 @@ The New link page (`newlink.html`): the three shortlisted proposals for the new 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
 The in-app PDF viewer: a full-screen panel with a ✕ that draws a PDF's pages with the vendored PDF.js, so a document opens inside the app and closes back to it — built for the New link pack, whose PDFs left an installed iPhone app with no way back (`pdf-viewer-core.js` header). Tested by `pdf-viewer-core.test.mjs` and `e2e/newlink.spec.js`.
 - `pdf-viewer.js` — the panel on `createLightbox`, loading PDF.js, fetching and drawing the pages; its header names the three things easy to get wrong.
-- `pdf-viewer-core.js` — the pure rules: page sizes, zoom steps, when a file may open outside the app (`canOpenOutside`), and what a failure says.
+- `pdf-viewer-core.js` — the pure rules: page sizes, zoom steps, when a file may open outside the app (`canOpenOutside`), and what a failure says and its button does.
 - **Exports of `pdf-viewer.js`:** `initPdfViewer`
 - **Exports of `pdf-viewer-core.js`:** `ZOOM_STEPS` · `MAX_DEVICE_PIXEL_RATIO` · `MAX_CANVAS_PIXELS` · `MAX_FIT_WIDTH` · `zoomAfter` · `zoomLabel` · `pageLayout` · `canOpenOutside` · `isPlainClick` · `classifyFailure` · `FAILURE_TEXT` · `failureAction` · `PAGE_FAILURE_TEXT` · `pageLabel` · `pagesLabel`
 
@@ -633,11 +633,11 @@ The Admin week grid's time boxes: two delegated `document` listeners that format
 - **Exports:** `initTimeInputs`
 
 ### `admin-day-pills.js`
-Which changes one week-grid day takes, refused at its pills with the reason in each control's accessible name: a Sunday (layer 1 of CLAUDE.md → "Sundays are non-contracted"), Boxing Day, Christmas Day, and a day before the member's start date. On a Sunday the Other pill offers Spare alone; neither Christmas day can be a Spare turn, so Boxing Day's Other pill is off (owner, Nov 2026; header). Tested by `admin-day-pills.test.mjs`.
+Which changes one week-grid day takes, refused at its pills with the reason in each control's accessible name: a Sunday (layer 1 of CLAUDE.md → "Sundays are non-contracted"), Boxing Day, Christmas Day, and a day before the member's start date. On a Sunday the Other pill offers Spare alone; neither Christmas day can be an Other day or a Spare turn, so both days' Other pill is off (owner, Nov 2026; header). Tested by `admin-day-pills.test.mjs`.
 - **Exports:** `restrictDayPills`
 
 ### `admin-week-row-state.js`
-A week-grid row's appearance in each of its states: on and off, drawn from its saved record (and remembered, for the save to compare with), the four things that follow its type, and a row's and a week's staged state as data for a kept draft. Dependency-free by design: the header says when the seam has moved. Tested through `admin-week-editor.test.mjs`, `admin-own-write.test.mjs` and `admin-overrides.test.mjs`.
+A week-grid row's appearance in each of its states: on and off, drawn from its saved record (and remembered, for the save to compare with), the four things that follow its type, a pill held on only to remove a record saved before the day refused its type, and a row's and a week's staged state as data for a kept draft. Dependency-free by design: the header says when the seam has moved. Tested through `admin-week-editor.test.mjs`, `admin-own-write.test.mjs` and `admin-overrides.test.mjs`.
 - **Exports:** `drawnRecords` · `drawnDays` · `rosteredWords` · `_syncOtherRdwWarn` · `_syncOtherSpareMode` · `_activateRow` · `_syncAlSwap` · `_syncOverwriteBadge` · `prefillRow` · `_deactivateRow` · `isStagedRow` · `readRowDraft` · `applyRowDraft` · `readWeekDraft` · `sendingEntries` · `keptWeekDraft` · `unsavedWeekDraft` · `applyWeekDraft`
 
 ### `admin-own-write.js`
@@ -665,7 +665,7 @@ What a run of booked dates is and what it reads as: the pure helpers the Recorde
 - **Exports:** `addDays` · `isRestGap` · `fmtPeriodDate` · `fmtPeriodRange` · `formatDisplay` · `namedDays`
 
 ### `admin-booked-periods.js`
-The Recorded Annual Leave dates and Recorded Absence dates sub-cards on `admin.html` — one renderer for both lists — and which YEAR of the list is on screen; also what a row's ✕ deletes (`periodDelete`) and the two-tap ✕ and feedback fade it shares with Saved Changes and the range cards. It states no total: the AL banner owns the figures. The owner's year-end rule is in the header. Tested by `admin-booked-periods.test.mjs`.
+The Recorded Annual Leave dates and Recorded Absence dates sub-cards on `admin.html` — one renderer for both lists — and which YEAR of the list is on screen; also what a row's ✕ deletes (`periodDelete`) and the two-tap ✕ and feedback fade it shares with Saved Changes, the range cards and Operations' work-email Remove. It states no total: the AL banner owns the figures. The owner's year-end rule is in the header. Tested by `admin-booked-periods.test.mjs`.
 - **Exports:** `periodDelete` · `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
 
 ### `admin-sick.js`
@@ -741,7 +741,7 @@ The shared skeleton of the three Operations document upload cards: the Weekly Re
 - **Exports:** `hiddenByNewerLine` · `isPdfFile` · `isDocxFile` · `initDocUploadCard`
 
 ### `admin-auth.js`
-The Staff Login Accounts card on Operations (admin only): the Set up accounts button, which calls `setupRosterAuth` with a fresh ID token, and the provisioning audit above it, a READ of `getAccountSetupGaps` naming who has no login, the wrong permissions, or is a leaver still able to sign in. It never collapses "could not tell" into "none found". Tested by `admin-auth.test.mjs`.
+The Staff Login Accounts card on Operations (admin only): the Set up accounts button, which calls `setupRosterAuth` with a fresh ID token, and the provisioning audit above it, a READ of `getAccountSetupGaps` naming who has no login, the wrong permissions, an account Set up accounts will not take over, or is a leaver still able to sign in. It never collapses "could not tell" into "none found". Tested by `admin-auth.test.mjs`.
 - **Exports:** `initAuthSetup`
 
 ### `roster-cell-rules.js`
@@ -789,7 +789,7 @@ The two opt-in money banners on the result card, back pay and the Holiday Pay Pr
 - **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner`
 
 ### `paycalc-lightboxes.js`
-The overlays on `paycalc.html`: About, Help, the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). The About panel and the header logo are also their own call (`initPaycalcAbout`), which the unsupported-role card makes too. Tested by `paycalc-notice-order.test.mjs`; the refusal card's chrome by `e2e/paycalc.spec.js`.
+The overlays on `paycalc.html`: About, the `?` panels' wiring (the shared Tips panel), the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). The About panel and the header logo are also their own call (`initPaycalcAbout`), which the unsupported-role card makes too. Tested by `paycalc-notice-order.test.mjs`; the refusal card's chrome by `e2e/paycalc.spec.js`.
 - **Exports:** `initPaycalcAbout` · `initPaycalcLightboxes`
 
 ### `paycalc-periods.js`
@@ -832,7 +832,7 @@ The Holiday Pay Premium card (this year's figure from three amount sources, last
 - **Exports:** `computeYearSoFar`
 
 ### `paycalc-backpay.js`
-The back-pay card: the lump owed for a pay award backdated to 1 April, computed from the member's hours or entered from the payslip, kept per tax year and opt-in to the take-home. Every rule is `.claude/rules/paycalc.md` → Back-pay (and invariants 1, 5 and 14); the three figure decisions are `paycalc-backpay-state.js`, the award arithmetic `paycalc-backpay-accrual.js`. Tested by `paycalc-backpay.test.mjs`, which drives the real `calcBackPay` against a fake `document`.
+The back-pay card: the lump owed for a pay award backdated to 1 April, computed from the member's hours or entered from the payslip, kept per tax year and opt-in to the take-home; it also holds the card's state as the take-home reads it (`bpState`). Every rule is `.claude/rules/paycalc.md` → Back-pay (and invariants 1, 5 and 14); the three figure decisions are `paycalc-backpay-state.js`, the award arithmetic `paycalc-backpay-accrual.js`. Tested by `paycalc-backpay.test.mjs`, which drives the real `calcBackPay` against a fake `document`.
 - **Exports:** `_backdatedFromPNum` · `applyBpMode` · `_bpAwardTaxYear` · `prefillBackPay` · `restoreBpState` · `raiseByPercent` · `bpStoryHtml` · `calcBackPay` · `bpState` · `onBackPayChange` · `runCalcBackPay` · `applyBpRisePct` · `refreshBackPayCard` · `syncBackPayForViewedYear`
 
 ### `paycalc-backpay-accrual.js`
@@ -884,7 +884,7 @@ The pay calculator's storage keys and its one-time data migrations: the per-memb
 - **Exports:** `PAY_DATA_GENERATION` · `memberSlug` · `keyOwnerSlug` · `pcPrefix` · `SK` · `setPaycalcNamespace` · `periodKey` · `parseSavedPeriod` · `readSavedPeriod` · `hppEstKey` · `hppActualKey` · `hppIncKey` · `hppModeKey` · `bpKey` · `ytdPayKey` · `ytdSrcKey` · `ytdTaxKey` · `NOTICE_YTD_KEY` · `NOTICE_HPP_KEY` · `isActualsDev` · `readPayslipActuals` · `writePayslipActuals` · `clearPayslipActuals` · `DEVICE_KEYS` · `RETIRED_DEVICE_KEYS` · `hasPendingLegacyMigration` · `resolveLegacyMigration` · `runMigrations`
 
 ### `paycalc-calc.js`
-The pay maths: the rate, threshold, pension and award tables, and the pure engine — gross pay, income tax (with the one tax-code reader), National Insurance, student loans and the take-home — with no DOM, Firebase or browser globals. Every figure, every payroll rule and the steps for the next award or tax year are `.claude/rules/paycalc.md` ("Current rates", "Payroll rules"). Tested by `paycalc.test.mjs`, `paycalc-current-year.test.mjs` and, on the owner's checkout, `npm run test:payslip-local`.
+The pay maths: the rate, threshold, pension and award tables, and the pure engine — gross pay, income tax (with the one tax-code reader), National Insurance, student loans and the take-home, priced by the one pipeline the payslip and the year so far share (`pricePayslip`) — with no DOM, Firebase or browser globals. Every figure, every payroll rule and the steps for the next award or tax year are `.claude/rules/paycalc.md` ("Current rates", "Payroll rules"). Tested by `paycalc.test.mjs`, `paycalc-current-year.test.mjs` and, on the owner's checkout, `npm run test:payslip-local`.
 - **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL` · `pricePayslip`
 
 ### `paycalc-roster-suggestions.js`
@@ -997,7 +997,7 @@ Where the drawer can take you, as DATA: the page pills (`NAV_PAGES`), the Latest
 - **Exports:** `NAV_PAGES` · `NAV_INFORMATION` · `NAV_GUIDES` · `SECTION_MODS` · `PILL_GATES` · `visiblePills`
 
 ### `nav-panel.js`
-The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). What it lists is `nav-destinations.js`'s; its decisions — the three zones, pills filtered rather than refused, sign-out's order, the bell, App Notices and the drawer's one history entry shared by its two lightboxes (one lifecycle, `_drawerLightbox`) — are `.claude/rules/nav-drawer.md`; the reasoning is the header and beside the code. Tested by `nav-panel.test.mjs`; capped by `coordinator-ratchet.test.mjs`.
+The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). What it lists is `nav-destinations.js`'s; its decisions — the three zones, pills filtered rather than refused, sign-out's order, the bell, App Notices and the drawer's one history entry shared by its two lightboxes (one lifecycle, `_drawerLightbox`) — are `.claude/rules/nav-drawer.md`; the reasoning is the header and beside the code. Tested by `nav-panel.test.mjs`, `nav-bell.test.mjs` and `nav-guide-fold.test.mjs`; capped by `coordinator-ratchet.test.mjs`.
 - **Exports:** `resetNavPanel` · `initNavPanel`
 
 ### `newsletter-recency.js`
