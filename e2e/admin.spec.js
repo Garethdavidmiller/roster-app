@@ -393,8 +393,8 @@ async function openAdminOnDecember(page) {
 }
 
 // THE KEYBOARD IS NOT LEFT ON <body> WHEN A BAR GOES FROM UNDER IT (review, 21 Nov 2026). The sticky
-// bar's Save and the unsaved banner's "Leave without saving" both hid the very button that was pressed.
-test('admin: after the sticky bar\'s Save, and after the banner\'s "Leave without saving", focus is somewhere real', async ({ page }) => {
+// bar's Save and the unsaved banner's "Discard changes" both hid the very button that was pressed.
+test('admin: after the sticky bar\'s Save, and after the banner\'s "Discard changes", focus is somewhere real', async ({ page }) => {
     await openAdminOnDecember(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.authUser = true; });
     const absent = () => page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="sick"]:not([disabled])') }).first();
@@ -408,6 +408,13 @@ test('admin: after the sticky bar\'s Save, and after the banner\'s "Leave withou
     await page.locator('#nextWeekBtn').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#unsavedBanner')).toBeVisible();
+    // Another week is a move WITHIN the page: the member leaves nothing, so it is not the leave question
+    // (review, 22 Nov 2026) — and "Keep editing" is still the safe answer, with the focus.
+    await expect(page.getByRole('alertdialog', { name: 'Discard your unsaved changes?' })).toBeVisible();
+    await expect(page.locator('#unsavedBannerMsg')).toHaveText('Discard your unsaved changes? They will be lost if you move on now.');
+    await expect(page.locator('#unsavedDiscardBtn')).toHaveText('Discard changes');
+    await expect(page.locator('#unsavedKeepBtn')).toHaveText('Keep editing');
+    await expect(page.locator('#unsavedKeepBtn')).toBeFocused();
     await page.locator('#unsavedDiscardBtn').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#unsavedBanner')).toBeHidden();

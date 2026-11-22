@@ -92,8 +92,8 @@ let _leaving = false;
 let _identityReload = false;
 
 /**
- * What every way off a page with unsaved work asks — the drawer, the About links and the header logos, and (its title
- * and buttons) Admin's own banner and Overtime's in-page moves.
+ * What every way off a page with unsaved work asks — the drawer, the About links and the header logos. A move WITHIN
+ * the page asks `DISCARD_QUESTION` instead.
  *
  * IT SAYS THE WORK IS LOST, BECAUSE IT IS (confirm review, Nov 2026). An answered leave stands `keepDraftWhenHidden`
  * aside, so nothing is kept and nothing is offered back — while the same members are taught elsewhere that unsaved
@@ -104,6 +104,22 @@ export const LEAVE_QUESTION = Object.freeze({
     title: 'Leave without saving?',
     message: 'Your unsaved changes on this page will be lost.',
     confirmLabel: 'Leave without saving',
+    cancelLabel: 'Keep editing',
+    danger: true,
+});
+
+/**
+ * What a move WITHIN a page asks when it would throw unsaved work away — Admin's unsaved banner (another week,
+ * This week, another member, the date field, a jump to a booking) and Overtime's other week or Back to the list.
+ *
+ * NOT THE LEAVE QUESTION (review, 22 Nov 2026). Those moves were asked "Leave without saving?", and the member
+ * leaves nothing: they stay on the page, and only the changes go. So the question names what is lost, the
+ * button says what it does, and the safe answer keeps the leave question's word, "Keep editing", and its place.
+ */
+export const DISCARD_QUESTION = Object.freeze({
+    title: 'Discard your unsaved changes?',
+    message: 'They will be lost if you move on now.',
+    confirmLabel: 'Discard changes',
     cancelLabel: 'Keep editing',
     danger: true,
 });
