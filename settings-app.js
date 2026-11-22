@@ -313,30 +313,53 @@ export function init() {
     function initApp() {
         // notif card collapse is wired by initHuddleNotifications() below.
 
+        // EACH CARD IS WIRED ON ITS OWN (settings review, Nov 2026). One card that threw stopped every
+        // card after it, and the summary — which waits for all of them — said "Checking…" for good.
+        // A card that cannot be set up says so on its own chip, and the summary reports a check that
+        // failed instead of waiting for one that is never coming.
+
         // Work Email card
-        initContactCard();
+        wireCard('work-email', initContactCard);
 
         // Password card (PASSWORD_DESIGN.md — chosen password + migration status)
-        initPasswordCard();
+        wireCard('password', initPasswordCard);
 
         // Notifications card. It reports its own state — huddle.js's words are the authority, and a second `peekNotifState`
         // read here could disagree with the screen. It names the pay reminder only to CEA and CES (functions/pay-reminder.js).
+        wireCard('notifications', () => {
         _cardHandles['notifications'] = initHuddleNotifications({
             onState: (state, chip, tone) => reportSetting('notifications', state, chip, tone),
             payReminders: payCalculatorPrices(teamMembers.find(m => m.name === currentUser) ?? null),
         });
+        });
         // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has. Read
         // BEFORE the Install card (Nov 2026): on an iPhone its first step copies the figures across
         // when this device holds some, and this card's inventory is the one count of them.
-        _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
-        const holdsPayFigures = initPayDataCard();
+        let holdsPayFigures = false;
+        wireCard('pay-data', () => {
+            _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
+            holdsPayFigures = initPayDataCard();
+        });
 
         // Install. Not collapsible and it has no chip — it is either an offer or, on an iPhone
         // in a browser, the prerequisite for the card above it. Either way it reports at once.
-        initDeviceCard((state, chip) => reportSetting('install', state, chip), installOffer, holdsPayFigures);
+        wireCard('install', () => initDeviceCard((state, chip) => reportSetting('install', state, chip), installOffer, holdsPayFigures));
 
         // Icon lightbox
-        initIconLightbox();
+        wireCard(null, initIconLightbox);
+    }
+
+    /**
+     * Wire one card, so a throw in it costs that card alone (see initApp).
+     * @param {string|null} id the card's settings-status.js id, told `error`; null for the About panel,
+     *   which has no state to report
+     * @param {() => void} wire
+     */
+    function wireCard(id, wire) {
+        try { wire(); } catch (err) {
+            console.error(`[settings] the ${id ?? 'About'} card could not be set up:`, err);
+            if (id) reportSetting(id, 'error', 'Couldn’t check');
+        }
     }
 
     // ── Pay Calculator Data — what this device is actually holding ────────────────

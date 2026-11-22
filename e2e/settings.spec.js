@@ -963,6 +963,25 @@ test('settings (signed in): a card whose wiring throws takes nothing else down w
     await expect(page.locator('#tipsLbTitle')).toHaveText('Work Email');
 });
 
+// ONE CARD'S THROW COSTS THAT CARD ALONE (settings review, Nov 2026). The cards were wired in one run, so the
+// Work Email card throwing stopped Password, Notifications, Pay data and Install from being wired at all, and
+// the summary — waiting for all of them — said "Checking…" for the life of the page.
+test('settings (signed in): a card that throws while it is set up says so, and every card after it still works', async ({ page }) => {
+    await page.route('**/settings-app.js', async route => {
+        const res = await route.fetch();
+        const anchor = '    function initContactCard() {\n';
+        const src = await res.text();
+        if (!src.includes(anchor)) throw new Error('settings-app.js: the initContactCard() anchor moved — update this test');
+        await route.fulfill({ response: res, contentType: 'text/javascript',
+            body: src.replace(anchor, `${anchor}        throw new Error('e2e: the Work Email card threw');\n`) });
+    });
+    await openSettings(page, { configured: true, payKeys: 2, noPush: true });
+    await expect(page.locator('#contactStatusChip')).toHaveText('Couldn’t check');
+    await expect(page.locator('#passwordStatusChip'), 'the card after it was never wired').toHaveText('✓ Password set');
+    await expect(page.locator('#payDataStatusChip')).toHaveText('2 payslips');
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'error');
+});
+
 // THE TIPS ✕ IS READ AS TEXT (whole-app review, Nov 2026). It is the panel's only visible way out, and it was
 // black at 35% on white — 2.43:1, under the 3:1 a control's own glyph needs as well as the text floor — with
 // only a mouse's hover ever lifting it. Shared by the six pages with a Tips panel; measured as painted: the
