@@ -415,18 +415,28 @@ export const minsWords = (n) => `${Math.abs(n)} min${Math.abs(n) === 1 ? '' : 's
  * train "Now goes on to …" — until v24.83 it said "Will" for weeks after it had happened. The
  * caller says which (`started`); nothing here reads a clock.
  *
+ * A STATION CARD SAYS "HERE". A train whose new end is the card's own station said "Will end at
+ * Aylesbury" on Aylesbury's card and "7 mins later, will come from High Wycombe" on High Wycombe's
+ * (Trains review, Nov 2026): the card names its station once, in its title, and a row naming it again
+ * read as somewhere else. Given `here`, an end there is "Will end here" / "Now ends here" leaving
+ * London, "Will start here" / "Now starts here" coming back. The lookup is timed at Marylebone, where
+ * no station is "here", and passes none.
+ *
  * @param {PairedTrain & { farShift?: number, atShift?: number }} t
  * @param {Readonly<Record<string, string>>} [stations]  names for a rerouted train's other route
  * @param {'dep'|'arr'} [dir]  leaving Marylebone ("runs to") or arriving ("comes from")
- * @param {{ started?: boolean, withTime?: boolean }} [opts]  started: the change has happened ·
- *   withTime: add the December time to a new end (a station card already shows it in its own cell)
+ * @param {{ started?: boolean, withTime?: boolean, here?: string }} [opts]  started: the change has happened ·
+ *   withTime: add the December time to a new end (a station card already shows it in its own cell) ·
+ *   here: the station whose card the row is on
  * @returns {string}
  */
-export function changeLabel(t, stations = {}, dir = 'dep', { started = false, withTime = true } = {}) {
+export function changeLabel(t, stations = {}, dir = 'dep', { started = false, withTime = true, here = '' } = {}) {
     const mins = minsWords;
     // On a station card a new end can come with a new time at the station itself (`atShift`).
     const at = /** @type {{ atShift?: number }} */ (t).atShift ?? 0;
     const moved = (/** @type {string} */ what) => at ? `${mins(Math.abs(at))} ${at > 0 ? 'later' : 'earlier'}, ${what[0].toLowerCase()}${what.slice(1)}` : what;
+    /** A new end at the card's own station, from the station's side (see above). */
+    const endsHere = () => dir === 'arr' ? (started ? 'Now starts here' : 'Will start here') : (started ? 'Now ends here' : 'Will end here');
     switch (t.kind) {
         case 'same': {
             // The time a passenger catches it holds; where it gets them to may not.
@@ -444,6 +454,7 @@ export function changeLabel(t, stations = {}, dir = 'dep', { started = false, wi
         case 'calls':   return started ? 'Now stops here' : 'Will stop here';
         case 'terminus': {
             const to = /** @type {string} */ (t.decTo), name = stations[to] ?? to;
+            if (here && to === here) return moved(endsHere());
             const further = lineDepth(to) > lineDepth(/** @type {string} */ (t.nowTo));
             const what = dir === 'arr' ? (started ? `Now starts at ${name}` : `Will start at ${name}`)
                 : further ? (started ? `Now goes on to ${name}` : `Will go on to ${name}`)
@@ -452,6 +463,7 @@ export function changeLabel(t, stations = {}, dir = 'dep', { started = false, wi
         }
         default: {
             const o = /** @type {NonNullable<PairedTrain['other']>} */ (t.other);
+            if (here && t.side !== 'new' && o.station === here) return moved(endsHere());
             const where = routeName(stations, o.station, o.via);
             if (t.side === 'new') return dir === 'dep' ? `Was the ${o.time} to ${where}` : `Was the ${o.time} from ${where}`;
             const verb = dir === 'dep' ? (started ? 'Now runs to' : 'Will run to') : (started ? 'Now comes from' : 'Will come from');

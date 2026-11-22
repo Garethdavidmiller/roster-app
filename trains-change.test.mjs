@@ -139,6 +139,22 @@ describe('a line that runs on — Aylesbury Vale Parkway is the Amersham line, o
         assert.equal(changeLabel(ext, STATIONS, 'arr'), 'Will start at Aylesbury Vale Parkway, 07:59');
     });
 
+    test('on the card of the station a train now ends or starts at, the row says "here" — in both tenses', () => {
+        // "Will end at Aylesbury" on Aylesbury's own card read as somewhere else (Trains review, Nov 2026).
+        const [cut] = compareRoutes([row('08:27', 'AVP')], [row('08:27', 'AYS', 'A')])[0].trains;
+        const card = (/** @type {any} */ t, /** @type {'dep'|'arr'} */ dir, started = false) => changeLabel(t, STATIONS, dir, { started, withTime: false, here: 'AYS' });
+        assert.deepEqual([card(cut, 'dep'), card(cut, 'dep', true), card(cut, 'arr'), card(cut, 'arr', true)],
+            ['Will end here', 'Now ends here', 'Will start here', 'Now starts here']);
+        // With a new time here as well, the time first, as on every row.
+        assert.equal(card({ ...cut, atShift: 6 }, 'arr'), '6 mins later, will start here');
+        // A train that now comes from this station by another route says so the same way.
+        const rerouted = /** @type {any} */ ({ kind: 'rerouted', side: 'old', now: '08:07', dec: '08:18', shift: 11, atShift: 7, other: { station: 'HWY', via: '', time: '08:18' } });
+        assert.equal(changeLabel(rerouted, STATIONS, 'arr', { withTime: false, here: 'HWY' }), '7 mins later, will start here');
+        assert.equal(changeLabel(rerouted, STATIONS, 'arr', { withTime: false, here: 'BCF' }), '7 mins later, will come from High Wycombe', 'another card names it');
+        // The lookup is timed at Marylebone, where nothing is "here": it passes no station and keeps the name.
+        assert.equal(changeLabel(cut, STATIONS), 'Will end at Aylesbury');
+    });
+
     test('the via-High-Wycombe Aylesbury trains are a different line and are not folded in', () => {
         const routes = compareRoutes([row('10:52', 'AYS', 'H'), row('10:57', 'AVP')], []);
         assert.deepEqual(routes.map(r => r.key).sort(), ['AYSA', 'AYSH']);

@@ -1460,6 +1460,26 @@ describe('the Trains review (Nov 2026): counts, pairings at the station, and the
             ['10:00>09:58 2 mins earlier, will run to High Wycombe', '10:05>10:10 5 mins later, will run to Oxford']);
     });
 
+    test('no station card\'s train list names the card\'s own station: it says "here"', () => {
+        // "7 mins later, will come from High Wycombe" on High Wycombe's card, "Will end at Aylesbury" on Aylesbury's.
+        // Read through renderStation, so the card passing its station to changeLabel is what is tested.
+        const names = Object.entries(STATIONS).sort((a, b) => b[1].length - a[1].length);
+        let chips = 0, here = 0;
+        for (const d of DAYS) for (const dir of DIRS) for (const crs of stationsOf()) for (const started of [false, true]) {
+            const view = stationView(TIMETABLES.now[d][dir], TIMETABLES.dec[d][dir], crs, dir, { started });
+            const html = renderStation(view, { stations: STATIONS, dir, showTrains: true, allTrains: true, started });
+            for (const [, chip] of html.matchAll(/<td><span class="tr-chip tr-chip--[a-z]+">([^<]*)<\/span><\/td><\/tr>/g)) {
+                chips++;
+                const text = chip.replace(/&amp;/g, '&');
+                if (/(?:start|end)s? here$/.test(text)) here++;
+                const named = names.find(([, n]) => text.includes(n))?.[0];
+                assert.notEqual(named, crs, `${d} ${dir} ${crs}${started ? ', after the change' : ''}: "${text}"`);
+            }
+        }
+        assert.ok(chips > 5000, `premise: train-list chips read (${chips})`);
+        assert.ok(here >= 14, `premise: rows that say "here" of an end at the card's station (${here})`);
+    });
+
     test('Aylesbury\'s two routes are never swapped onto each other to uncross them', () => {
         // Sunday, coming back: today's 07:15 and 07:19 cross at Aylesbury, but one is via Amersham and one via High
         // Wycombe — most of an hour apart — so each keeps its own route's December train.

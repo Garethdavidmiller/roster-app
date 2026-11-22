@@ -286,7 +286,7 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         const nowT = s.nowAt ?? s.now, decT = s.decAt ?? s.dec;
         return `<tr class="tr-row tr-row--${chip}"><td>${nowT ? esc(nowT) : none}${days ? small(days) : ''}${nowT ? end(s.nowTo) : ''}${!leaving && s.nowIn ? small(`in ${s.nowIn}`) : ''}</td>`
             + `<td>${decT ? esc(decT) : none}${decT ? end(s.decTo) : ''}${!leaving && s.decIn ? small(`in ${s.decIn}`) : ''}</td>`
-            + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(s, stations, dir, { started, withTime: false }) + (quiet ? ' · may be leaf fall' : ''))}</span></td></tr>`;
+            + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(s, stations, dir, { started, withTime: false, here: view.crs }) + (quiet ? ' · may be leaf fall' : ''))}</span></td></tr>`;
     }).join('');
     // Never "0 stay the same": Amersham coming back read "38 change, 0 stay the same" (v24.83).
     // THE TENSE FOLLOWS THE CHANGE, as the chips beside it do (`changeLabel`): "5 change" until
