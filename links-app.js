@@ -23,7 +23,7 @@ import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcile
 import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { openOptionSheet, readGroups } from './select-sheet.js';
-import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
+import { MAX_DESIGN_NAME, checkDesignName, proposeCopyName } from './links-design-naming.js';
 import { createDesignHeader, proposeNewDesignName, lastSaveTime } from './links-design-header.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -676,11 +676,7 @@ export function init() {
     /** Decide a typed design name — length AND the ambiguous-duplicate rule (links-design-naming.js).
      *  Returns true (and shows why) when the name may not be used. @param {string} name @param {string|null} [exceptId] */
     function _designNameRejected(name, exceptId = null) {
-        // …and not a SHORTLISTED PROPOSAL's name either (links-design-6): the proposals sit in the same
-        // picker and the same Compare chips, where two of one name cannot be told apart. The import
-        // refused one (links-design-library.js); New, Save as…, Save a copy as… and Rename decide here.
-        const asDesign = checkName(name, { existing: designs, exceptId, noun: 'design' });
-        const v = asDesign.ok ? checkName(name, { existing: [...PROPOSAL_NAMES], noun: 'shortlisted proposal' }) : asDesign;
+        const v = checkDesignName(name, { designs, proposalNames: PROPOSAL_NAMES, exceptId });   // a proposal's name too (links-design-6)
         if (!v.ok) _designActionStatus(v.message || 'That name cannot be used.');
         return !v.ok;
     }

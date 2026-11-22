@@ -457,7 +457,7 @@ The design masthead on `links.html`: which design is open, whose, whether it is 
 
 ### `links-design-naming.js`
 What a design or a staffing setup may be CALLED: one rule for new, import, duplicate, rename and save-a-setup-as-new, refusing a duplicate case- and space-insensitively rather than renaming it silently. Pure; the header says why what it guarantees is narrower than "no duplicates exist". Tested by `links-design-naming.test.mjs`.
-- **Exports:** `MAX_DESIGN_NAME` · `nameKey` · `nameConflict` · `checkName` · `proposeCopyName`
+- **Exports:** `MAX_DESIGN_NAME` · `nameKey` · `nameConflict` · `checkName` · `checkDesignName` · `proposeCopyName`
 
 ### `rangers-guide.css`
 The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff accept or refuse at the gateline, drawn as a dialect of the Railcard guide. A static page with no app modules; its chip bar is `guide-chips.js` and its ⤓ PDF button `guide-print.js`. The page's rules are `.claude/rules/guide-pages.md` → "Rangers & Rovers guide"; each product's evidence is a `GUIDE_SOURCES.md` row, held to the page by `guide-sources.test.mjs`.

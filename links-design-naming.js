@@ -90,6 +90,20 @@ export function checkName(name, ctx = {}) {
 }
 
 /**
+ * Decide a typed DESIGN name: `checkName` against the saved designs, and then against the shortlisted
+ * proposals — they sit in the same picker and the same Compare chips, where two of one name cannot be
+ * told apart, and a proposal cannot be renamed. One answer for New, Save as…, Save a copy as…, Rename
+ * and Import. The proposal names are passed IN: importing links-proposals.js here would be a cycle.
+ * @param {string} name
+ * @param {{ designs?: Array<{id?: string, name?: string}>, proposalNames?: Iterable<{id?: string, name?: string}>, exceptId?: string|null }} [ctx]  `proposalNames`: `PROPOSAL_NAMES`, every name each proposal is shown under
+ */
+export function checkDesignName(name, { designs = [], proposalNames = [], exceptId = null } = {}) {
+    const asDesign = checkName(name, { existing: designs, exceptId, noun: 'design' });
+    if (!asDesign.ok) return asDesign;
+    return checkName(name, { existing: [...proposalNames], noun: 'shortlisted proposal' });
+}
+
+/**
  * A free name for a copy: "X copy", then "X copy 2", "X copy 3"…
  *
  * Starts unnumbered because that is what a person writes, and only numbers once it has to. Bounded,

@@ -37,7 +37,7 @@
 import { CONFIG, escapeHtml } from './roster-data.js';
 import { serverTimestamp } from './firebase-client.js';
 import { createLightbox, confirmDialog } from './overlay.js';
-import { checkName, nameConflict } from './links-design-naming.js';
+import { checkName, checkDesignName, nameConflict } from './links-design-naming.js';
 import { ROTATING_LINES } from './links-design.js';
 import { PROPOSAL_NAMES } from './links-proposals.js';
 import { docPayload, restoredEntryFrom, binEntryFromDoc, binEntryFrom } from './links-design-doc.js';
@@ -193,10 +193,7 @@ export function createDesignLibrary(ctx) {
         if (!_importParsed) return;
         const name = (_importEl('linksImportName')?.value ?? '').trim();
         if (!name) { _importStatus('Give the design a name first.', 'bad'); return; }
-        // …and not a SHORTLISTED PROPOSAL's name either: the proposals sit in the same picker and the
-        // same Compare chips, where two of one name cannot be told apart (whole-app fix, Nov 2026).
-        const asDesign = checkName(name, { existing: ctx.getDesigns(), noun: 'design' });
-        const nameCheck = asDesign.ok ? checkName(name, { existing: [...PROPOSAL_NAMES], noun: 'shortlisted proposal' }) : asDesign;
+        const nameCheck = checkDesignName(name, { designs: ctx.getDesigns(), proposalNames: PROPOSAL_NAMES });   // a proposal's name too
         if (!nameCheck.ok) { _importStatus(nameCheck.message || 'That name cannot be used.', 'bad'); return; }
         const btn = _importEl('linksImportSave');
         if (btn) btn.disabled = true;
