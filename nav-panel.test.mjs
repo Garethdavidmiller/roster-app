@@ -682,9 +682,9 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
 // ── LOCK CALENDAR — the staff PIN's way out (calendar-pin e2e drives the journey) ─────────────────────
 // Two halves no unit test held: a `lock()` that REJECTS leaves the drawer open with a retry on the button,
 // because the drawer is the only surface left to report the failure on; and `isViewer` throwing fails
-// CLOSED — the button stays hidden, since "Lock Calendar" shown to a member offers an action that does
+// CLOSED — the button stays hidden, since "End staff PIN" shown to a member offers an action that does
 // nothing to their session. Asserted on behaviour; the button's words are not the subject here.
-describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable viewer question hides the button', () => {
+describe('End staff PIN (once "Lock Calendar"): a failed lock keeps the drawer, and an unanswerable viewer question hides the button', () => {
     beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
     afterEach(() => mock.timers.reset());
     const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
@@ -692,7 +692,7 @@ describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable vie
     test('a lock that rejects keeps the drawer open and re-arms the button with a retry line, which reverts', async () => {
         const { $ } = mountLive({ onSignOut: null, onLockCalendar: { isViewer: () => true, lock: async () => { throw new Error('viewer survived sign-out'); } } });
         const lock = /** @type {any} */ ($('navLockCalendarBtn'));
-        lock.textContent = 'Lock Calendar';   // as `_inject` draws it
+        lock.textContent = 'End staff PIN';   // as `_inject` draws it (it read "Lock Calendar" until 21 Nov 2026)
         /** @type {any} */ ($('navMenuBtn')).fire('click');
         assert.equal(lock.hasAttribute('hidden'), false, 'premise: a PIN viewer sees the button');
         lock.fire('click');
@@ -700,9 +700,9 @@ describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable vie
         await flush();
         assert.equal($('navPanel').classList.contains('open'), true, 'the drawer stays open: it is the only surface left to report on');
         assert.equal(lock.disabled, false, 'and the button can be pressed again');
-        assert.notEqual(lock.textContent, 'Lock Calendar', 'the button says the lock failed');
+        assert.notEqual(lock.textContent, 'End staff PIN', 'the button says the lock failed');
         mock.timers.tick(6000);
-        assert.equal(lock.textContent, 'Lock Calendar', 'the retry line gives way to the label');
+        assert.equal(lock.textContent, 'End staff PIN', 'the retry line gives way to the label');
     });
 
     test('a lock that succeeds without navigating closes the drawer', async () => {
@@ -732,4 +732,139 @@ describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable vie
         assert.equal(lock.hasAttribute('hidden'), false);
         assert.notEqual($('navPanelMember').textContent, '', 'the footer names the PIN mode');
     });
+});
+
+// ── THE DOCUMENT LINKS ON A PAGE THAT PASSES NO GATE (review, 22 Nov 2026) ───────────────────────────────
+// `canReadDocuments` defaulted to "yes", and Pay and Trains passed none. Offline the read answers from the
+// device's cache without asking a rule (calendar-doc-access.js), so a drawer wired for nobody opened what an
+// earlier visitor's session had left there. The default now asks for a named session — `memberName` — and
+// Pay and Trains pass gates of their own.
+describe('the drawer\'s documents: a named session, or the page\'s own gate', () => {
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/x.pdf?alt=media&token=e2e';
+    beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); opens.length = 0; });
+    afterEach(() => { mock.timers.reset(); latestCircular = async () => null; signedDocumentUrl = async () => null; });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    /** Tap the drawer's Circular row; say how many tabs were asked for and what the info panel says. */
+    async function tapCircular(/** @type {any} */ opts) {
+        const { $ } = mountLive(opts);
+        let tabs = 0, reads = 0;
+        latestCircular = async () => { reads++; return { storageUrl: STORED, fileType: 'pdf', storagePath: 'circulars/x.pdf' }; };
+        /** @type {any} */ (global.window).open = () => { tabs++; return { opener: {}, close() {}, location: {} }; };
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        link.dataset.csTitle = 'Weekly Retail Circular';
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        return { tabs, reads, said: $('navComingSoonBody').textContent };
+    }
+
+    test('no gate and nobody signed in: refused before any tab or read', async () => {
+        const got = await tapCircular({ memberName: null, onSignOut: null });
+        assert.equal(got.reads, 0, 'a drawer wired for nobody read the documents — offline, the cache answers without a rule');
+        assert.equal(got.tabs, 0);
+        assert.match(got.said, /Sign in, or enter the staff PIN/);
+    });
+
+    test('no gate and a member signed in: the read goes ahead, as on every named page', async () => {
+        const got = await tapCircular({});
+        assert.equal(got.reads, 1, 'the default refused a member on a page with a named session');
+        assert.equal(got.tabs, 1);
+    });
+
+    test('a page\'s own gate decides, in both directions, whoever the drawer was wired for', async () => {
+        assert.equal((await tapCircular({ canReadDocuments: () => false })).reads, 0);
+        assert.equal((await tapCircular({ memberName: null, onSignOut: null, canReadDocuments: () => true })).reads, 1,
+            'a PIN viewer on Trains, nobody by name, must still reach the documents its gate admits');
+    });
+
+    test('Pay and Trains pass a gate of their own at every drawer they wire', async () => {
+        const { readFileSync } = await import('node:fs');
+        for (const file of ['paycalc-app.js', 'trains-app.js']) {
+            const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+            const calls = src.split('initNavPanel({').slice(1).map(rest => rest.slice(0, rest.indexOf('});')));
+            assert.ok(calls.length > 0, `${file}: no initNavPanel call found`);
+            for (const call of calls) assert.match(call, /canReadDocuments:/, `${file}: a drawer wired with no document gate`);
+        }
+    });
+});
+
+describe('the pre-opened tab is cut off from this page', () => {
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => { mock.timers.reset(); latestCircular = async () => null; });
+    test('its opener is cleared at once, before the document is read', async () => {
+        const { $ } = mountLive();
+        /** @type {any} */ const tab = { opener: { a: 'this page' }, close() {}, location: {} };
+        /** @type {any} */ (global.window).open = () => tab;
+        latestCircular = () => new Promise(() => {});                // still reading
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        assert.equal(tab.opener, null, 'the document tab could script this page (and its signed-in session) through window.opener');
+    });
+});
+
+describe('a slow read that lands after the drawer was rebuilt touches nothing of the new one', () => {
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => { mock.timers.reset(); latestCircular = async () => null; });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    test('a failure answered into a panel no longer on the page opens no info panel and closes nothing', async () => {
+        const { $ } = mountLive();
+        /** @type {any} */ (global.window).open = () => ({ opener: null, close() {}, location: {} });
+        /** @type {(e: any) => void} */ let fail = () => {};
+        latestCircular = () => new Promise((_r, reject) => { fail = reject; });
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        /** @type {any} */ ($('navPanel')).isConnected = false;        // a rebuild removed this drawer
+        scrollUnlocks = 0;
+        fail(new Error('network'));
+        await flush();
+        assert.equal($('navComingSoonBody').textContent, '', 'the old drawer\'s answer opened an info panel over the new one');
+        assert.equal(scrollUnlocks, 0, 'and unlocked a scroll it no longer holds');
+    });
+});
+
+describe('the Newsletter the drawer opens is kept for the ☰ menu', () => {
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => mock.timers.reset());
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    test('its issue date is recorded, as the Calendar\'s own check records it', async () => {
+        const { $ } = mountLive();
+        /** @type {any} */ (global.window).open = () => ({ opener: null, close() {}, location: {} });
+        store.delete('myb_newsletter_latest');
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--newsletter']);
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--newsletter' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        // The mock answers "none uploaded" — the server's own null, which is an answer and is kept as one.
+        assert.equal(store.get('myb_newsletter_latest'), '', 'the drawer\'s read said nothing to the menu that offers it');
+    });
+});
+
+describe('a refusal from the server names the staff PIN\'s place only off the Calendar', () => {
+    beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
+    afterEach(() => { mock.timers.reset(); latestCircular = async () => null; });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    for (const [pathname, onCal] of /** @type {const} */ ([['/', true], ['/index.html', true], ['/trains.html', false]])) {
+        test(`on ${pathname}`, async () => {
+            const { $ } = mountLive();
+            /** @type {any} */ (global.window).location = { pathname };
+            /** @type {any} */ (global.window).open = () => ({ opener: null, close() {}, location: {} });
+            latestCircular = async () => { throw Object.assign(new Error('refused'), { code: 'permission-denied' }); };
+            /** @type {any} */ ($('navMenuBtn')).fire('click');
+            const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+            /** @type {any} */ ($('navPanel')).fire('click', {
+                target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+            await flush();
+            const said = $('navComingSoonBody').textContent;
+            assert.match(said, /may have ended/, 'premise: an access refusal');
+            if (onCal) assert.doesNotMatch(said, /on the Calendar/, 'the Calendar told its reader to go to the Calendar');
+            else assert.match(said, /enter the staff PIN on the Calendar/);
+        });
+    }
 });

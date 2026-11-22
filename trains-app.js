@@ -61,7 +61,7 @@ import { CONFIG } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, holdsStaffPin, signOutStaffPin } from './session.js';
+import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, holdsStaffPin, signOutStaffPin, staffPinIsCurrent } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 import { requirePage, navGatesFor, admitsStaffPin } from './auth-policy.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
@@ -153,11 +153,11 @@ function start(member) {
         guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established, about: SIGN_IN_ABOUT });
     }
     const isAdmin = !!member && CONFIG.ADMIN_NAMES.includes(member);
-
-    /** @type {any} */
-    let openAboutLightbox = null;
+    /** @type {any} */ let openAboutLightbox = null;
     initNavPanel({
         authReady: member ? sessionReady : Promise.resolve(),
+        // The drawer's documents as the Calendar gates them: the member's own session, or the PIN while it is still this browser's.
+        canReadDocuments: member ? () => getSession()?.name === member : staffPinIsCurrent,
         currentPage: 'trains',
         memberName: member,
         ...navGatesFor(member),   // the pill gates (auth-policy.js); all false for the staff PIN

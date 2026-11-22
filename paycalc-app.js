@@ -82,6 +82,16 @@ import { ytdHasFigures, refreshYtdSrc, updateYtdNote } from './paycalc-ytd-card.
 import { setDisclosure, toggleDisclosure, toggleHoursExtra, toggleHppNote, toggleBD, toggleDisclaimer } from './paycalc-disclosures.js';
 
 /**
+ * May the drawer's two document links read (nav-panel.js `canReadDocuments`)? Only while `name` is still
+ * this device's session (review, 22 Nov 2026): Pay is the one `soft` page, and offline the document read
+ * answers from the device's cache without asking a rule — so a session ended in another tab, or a page
+ * wired for nobody, would still open what an earlier session left there.
+ * @param {string|null|undefined} name the member the page was drawn for
+ * @returns {() => boolean}
+ */
+const paycalcDocsGate = (name) => () => !!name && getSession()?.name === name;
+
+/**
  * Withhold the calculator from a role it has no confirmed rates for, and say why.
  * Rationale: `gradeForRole`'s JSDoc (roster-data.js). Two things an editor here needs — it WITHHOLDS rather than
  * captioning (the page's whole output is one confident £ figure, and a member told "this may not
@@ -101,6 +111,7 @@ function _showUnsupportedRole(member) {
     initNavPanel({
         currentPage: 'paycalc',
         memberName:  member?.name || null,
+        canReadDocuments: paycalcDocsGate(member?.name),
         ...navGatesFor(member?.name),   // the pill gates (auth-policy.js), as on every page
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut: () => signOutAndLeave({ to: './' }),
@@ -1398,6 +1409,7 @@ export function init() {
         authReady: _paycalcAuthSettled,
         currentPage: 'paycalc',
         memberName:  _paycalcMember?.name || null,
+        canReadDocuments: paycalcDocsGate(_paycalcMember?.name),
         ...navGatesFor(_paycalcMember?.name),   // the pill gates (auth-policy.js), as on every page
         onLogoClick: () => openAboutLightbox?.(),
         // signOutAndLeave replaces, not navigates: the pay page leaves the history, so Back cannot
