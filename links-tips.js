@@ -147,7 +147,7 @@ export const CARD_TIPS = {
             // The prose that led the card until v22.32 — see the module header. A restatement of
             // links-default-targets.js's header; when that table changes, change this.
             { heading: 'The default table', items: [
-                { icon: '🚆', html: 'A new design starts from a table built against the <strong>December 2026 train service</strong>, not from today\'s roster. <strong>↺ Copy staffing from today\'s roster</strong> swaps in what the current roster actually provides; <strong>↺ Use the starting table (Short Run\'s duties)</strong> returns to it.' },
+                { icon: '🚆', html: 'A new design starts from a table built against the <strong>December 2026 train service</strong>, not from today\'s roster. <strong>↺ Copy staffing from today\'s roster</strong> swaps in what the current roster actually provides; <strong>↺ Use the starting table (Short Run’s duties)</strong> returns to it.' },
                 // The figures are READ from the table (DEFAULT_TABLE_FIGURES, above). "The shortlisted
                 // designs staff the same number of duties each day" is a claim about links-proposals.js,
                 // and tips-content.test.mjs checks it against every shortlisted grid.

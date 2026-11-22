@@ -1656,7 +1656,7 @@ test('links memory: a device holding an INTERMEDIATE default is retired by its v
     stamped.source = 'default';
     stamped.ver = '21.02';                       // any version that is not the running one
     await openLinksWithMemory(page, stamped);
-    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m each');
+    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m average');
     await expect(page.locator('#genMemoryNote')).toBeHidden();
 });
 
@@ -1676,7 +1676,7 @@ test('links memory: a device still holding the OLD auto-seeded table gets the ne
     // The owner's exact state. Nobody wrote that table — the app stored it on its own — so it is
     // superseded by content, the memory is cleared, and the card reads 35h 00m like a fresh device.
     await openLinksWithMemory(page, STALE_SEED);
-    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m each');
+    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m average');
     await expect(page.locator('#genHoursNote')).toContainText('on target');
     await expect(page.locator('#genMemoryNote')).toBeHidden();
 });
@@ -1860,7 +1860,7 @@ test('links sets: the picker lists every designer\'s sets, and Save follows whos
     await expect(page.locator('#genSetHint')).toContainText('saved by S. Silva');
     // …and says whose call it is. The advice about branching arrives when it is relevant — once the
     // set is loaded AND changed — rather than up front, over a table that is not hers yet (v21.08).
-    await expect(page.locator('#genSetHint')).toContainText('Only they can overwrite it');
+    await expect(page.locator('#genSetHint')).toContainText('Only they or the admin can change it');
 
     // My own: Save offered.
     await page.locator('#genSetSelect').selectOption('ts-robson');
@@ -1958,7 +1958,7 @@ test('links generator: the hours row is the generator\'s OWN test, and follows a
     await expect(page.locator('#genHoursValue')).toHaveClass(/gen-hours-off/);
     // And it says what has to reach zero, in the unit that has to reach it.
     await expect(page.locator('#genHoursNote')).toContainText('in total');
-    await expect(page.locator('#genHoursNote')).toContainText('Generate needs it exact');
+    await expect(page.locator('#genHoursNote')).toContainText('Build needs it exact');
 });
 
 test('links generator: a zero target recedes, and each day\'s block is separated', async ({ page }) => {
