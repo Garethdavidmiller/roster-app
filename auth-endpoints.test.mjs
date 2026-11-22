@@ -2379,6 +2379,12 @@ describe('resetMemberPassword tells the member, and only the member', () => {
         assert.doesNotMatch(`${title} ${body}`, /surname/i, 'nor the rule for deriving it');
     });
 
+    test('it says the member must sign in again — a reset signed every device out (AUTH_AND_SESSIONS 23)', async () => {
+        const { eps, sends } = build();
+        await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(sends[0].payload.body, 'The admin reset your password. Sign in again, then choose your own.');
+    });
+
     test('it speaks the app\'s notification design language', async () => {
         const { eps, sends } = build();
         await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
