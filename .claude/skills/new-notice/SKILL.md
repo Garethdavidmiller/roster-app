@@ -249,8 +249,9 @@ Notices on other pages need no audience: those pages already require a session.
 - **A notice about a page goes only where the page would let them in — ask the page's OWN question**
   (`canOpenNewlink`, the drawer pill's), at open time through `alsoWhen`. Never a list of the
   notice's own: two lists of who a page is for drift. Block 11 drives it for every name on the roster.
-- **A section with two words** (`'New link'`) is a QUOTED key in `SECTION_MODS` (nav-panel.js), with
-  an `--on-navy-*` colour beside the others; block 10 reads both spellings.
+- **A section with two words** (`'New link'`) is a QUOTED key in `SECTION_MODS` (nav-destinations.js),
+  with an `--on-navy-*` colour beside the others; block 10 imports the map and finds every file that
+  archives a notice by searching the tree, so a new page's first notice is checked by existing.
 - **Wire it last if it should give way.** On a load where two are due, the first to ask for the
   screen takes it; a notice placed last in `calendar-notices.js` comes back next load instead.
 
@@ -266,7 +267,7 @@ Notices on other pages need no audience: those pages already require a session.
 | Snooze key | `myb_notice_[id]_snooze` — ISO date string |
 | Notice ID naming | `[section]-[year]` or `[topic]_[tax-year]` — e.g. `links-beta-2026`, `ytd_2627` |
 | Posting date format | `D Mon YYYY` — e.g. `22 Jun 2026` — hardcoded in both the HTML `.notice-date` and the `archiveNotice()` call; never use `new Date()` |
-| Expiry on new device — short (28 days) | Default. Use for time-bound prompts that lose urgency quickly: feature launches, one-off nudges (e.g. beta notice). `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` — placed after the done/snooze checks. Import `isNoticeExpired` from `nav-panel.js`. |
+| Expiry on new device — short (28 days) | Default. Use for time-bound prompts that lose urgency quickly: feature launches, one-off nudges (e.g. beta notice). `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` — placed after the done/snooze checks. Import `isNoticeExpired` (and `archiveNotice`) from `notice-archive.js`. |
 | Expiry on new device — long (90 days) | Use for tax-year or seasonal notices that stay relevant for months: YTD entry reminders, pay rate change notices. `if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }` — same placement as short. |
 | Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write — the archive stays fresh over time on each device without the user having to clear storage. (It lives in `localStorage`, so it is per-device and does **not** sync across devices; legacy pre-v13.41 entries without `archivedAt` are migrated — stamped with the current time — not dropped, on the first write.) |
 | Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |

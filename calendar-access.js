@@ -426,7 +426,7 @@ export async function unlockWithPin(pin, stillWanted = () => true) {
 
 /**
  * Drop the viewer session and return the Calendar to its locked state — the nav drawer's
- * "Lock Calendar". Only ever offered in viewer mode, so it can never touch a member's session.
+ * "End staff PIN" (once "Lock Calendar"). Only ever offered in viewer mode, so it can never touch a member's session.
  * Reloads rather than tearing the Calendar down in place: the page has already rendered a member's
  * shifts, and unwinding that by hand is a long list of things to remember, every one of which
  * leaves roster data on screen if it is forgotten.

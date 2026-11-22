@@ -102,7 +102,7 @@ export function warnOnUnload(isDirty) {
 }
 
 /** Where the app draws links that leave the page: the drawer, and every page's About panel
- *  (`#iconLightbox`, about-lightbox.js) — Admin's "View staff roster" and "Staff & Admin Guide" went
+ *  (`#iconLightbox`, about-lightbox.js) — Admin's "Calendar" (once "View staff roster") and "Staff & Admin Guide" went
  *  straight past the question for as long as it asked about the drawer alone (iPhone audit, Nov 2026). */
 const LEAVING_ZONES = ['.nav-panel', '#iconLightbox'];
 
@@ -232,7 +232,7 @@ export function askBeforeSignOut(isDirty) {
             // Both facts when both are true (v24.57, review) — one question must not hide the other.
             const alsoDirty = isDirty() ? ' You also have unsaved changes.' : '';
             return confirmDialog({
-                message: `A change may still be on its way to the server — if you sign out now it may not be saved.${alsoDirty} Sign out anyway?`,
+                message: `A change is still saving — if you sign out now it may be lost.${alsoDirty} Sign out anyway?`,
                 confirmLabel: 'Sign out', danger: true,
             });
         }

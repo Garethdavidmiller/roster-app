@@ -35,6 +35,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { cardPageFiles, pageStylesheets } from './scripts/app-pages.mjs';
+import { NAV_PAGES } from './nav-destinations.js';
+
+/** The page file a pill's url opens: `./` is the Calendar's `index.html`. */
+const pageFileOf = (/** @type {string} */ url) => url.replace(/^\.\//, '') || 'index.html';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
 const stripComments = (/** @type {string} */ css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -157,19 +161,15 @@ test('no page stylesheet restates a badge colour — the shared rules read the p
 });
 
 test('the colour a page declares is the colour of the drawer pill that takes you there', () => {
-    // The drawer's page list is read as TEXT: nav-panel.js is a browser module and is not imported.
-    const nav = read('nav-panel.js');
+    // The drawer's page list, imported (nav-destinations.js): a page file → its pill's colour class.
     /** @type {Record<string, string>} */
-    const pillFor = {};
-    for (const m of nav.matchAll(/url:\s*'\.\/([\w-]*\.html)?'\s*,\s*colorClass:\s*'(nav-panel-pill--[\w-]+)'/g)) {
-        pillFor[m[1] || 'index.html'] = m[2];
-    }
+    const pillFor = Object.fromEntries(NAV_PAGES.map(p => [pageFileOf(p.url), p.colorClass]));
     const shared = read('shared.css');
     const base = declaredTrio(shared);
     const pages = ['index.html', ...CARD_PAGES.filter(p => p !== WORN_DIFFERENTLY)];
     for (const page of pages) {
         const pill = pillFor[page];
-        assert.ok(pill, `${page} has no drawer pill in nav-panel.js's NAV_PAGES`);
+        assert.ok(pill, `${page} has no drawer pill in nav-destinations.js's NAV_PAGES`);
         // The Calendar declares nothing: its colour IS the shared default.
         const trio = page === 'index.html' ? base : declaredTrio(read(SHEETS[page]));
         assert.equal(declared(shared, `.${pill}`, 'background'), trio['--page-accent'],
@@ -183,16 +183,14 @@ test('a page\'s badges carry its drawer pill\'s emoji — and its About badge th
     // css-tokens.md → "A page is one colour and one emoji wherever it is named": the header badge, the
     // drawer pill and the About badge. The About badge had no emoji on any page, and Pay's read "Pay
     // Calculator" where the pill and the header say "💷 Pay" (desktop audit, Nov 2026). Text, not a
-    // browser: the pills are read from nav-panel.js, the badges from each page's markup.
-    const nav = read('nav-panel.js');
+    // browser: the pills are imported from nav-destinations.js, the badges read from each page's markup.
     /** @type {Record<string, string>} */
-    const pillLabel = {};
-    for (const m of nav.matchAll(/label:\s*'([^']+)',\s*url:\s*'\.\/([\w-]*\.html)?'/g)) pillLabel[m[2] || 'index.html'] = m[1];
+    const pillLabel = Object.fromEntries(NAV_PAGES.map(p => [pageFileOf(p.url), p.label]));
     const text = (/** @type {string} */ html) => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
     for (const page of CARD_PAGES) {
         const html = read(page);
         const label = pillLabel[page];
-        assert.ok(label, `${page} has no drawer pill in nav-panel.js's NAV_PAGES`);
+        assert.ok(label, `${page} has no drawer pill in nav-destinations.js's NAV_PAGES`);
         const emoji = label.split(' ')[0];
         const about = /<div class="lightbox-badge"[^>]*>([\s\S]*?)<\/div>/.exec(html.slice(html.indexOf('id="iconLightbox"')))?.[1];
         assert.ok(about, `${page}: no About badge in #iconLightbox`);

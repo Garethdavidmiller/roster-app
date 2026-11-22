@@ -355,7 +355,7 @@ function showFirstRunPrompt() {
         '<div class="first-run-prompt">' +
           '<div class="first-run-emoji" aria-hidden="true">👋</div>' +
           '<h2>Choose your name to see your shifts</h2>' +
-          '<p>Pick your name from the menu above, and your roster will appear.</p>' +
+          '<p>Pick your name from the list above, and your roster will appear.</p>' +
         '</div>';
     // Don't leave a real member's name on the print header while no one is selected.
     document.querySelector('.header')?.removeAttribute('data-member-name');
@@ -364,7 +364,7 @@ function showFirstRunPrompt() {
     if (announcer) {
         announcer.textContent = '';
         requestAnimationFrame(() => {
-            announcer.textContent = 'Choose your name from the menu above to see your shifts.';
+            announcer.textContent = 'Choose your name from the list above to see your shifts.';
         });
     }
 }
@@ -1094,7 +1094,7 @@ reloadIfRestoredForSomeoneElse();
 // signed the viewer out (by design) let Back restore the roster it had shown (v24.56, auth review).
 // A restored viewer page asks again instead; while the viewer is still current that is one quiet reload.
 window.addEventListener('pageshow', (e) => { if (e.persisted && getAccessType() === 'viewer') window.location.reload(); });
-// The menu, built for the session saved NOW — which pills, whose name, Sign out or Lock Calendar.
+// The menu, built for the session saved NOW — which pills, whose name, Sign out or End staff PIN.
 // calendar-drawer.js decides it, and can build it again after a sign-in that does not reload.
 wireCalendarDrawer({
     authReady: calendarAuthReady,

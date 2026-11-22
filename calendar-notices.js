@@ -46,7 +46,7 @@
  */
 
 import { lsGet, lsSet } from './ls.js';
-import { archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { archiveNotice, isNoticeExpired } from './notice-archive.js';
 import { createLightbox, openNoticeIfClear, followLinkOutOf } from './overlay.js';
 import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';

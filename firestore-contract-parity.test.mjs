@@ -16,6 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { NAV_GUIDES } from './nav-destinations.js';
 
 const ROOT  = new URL('./', import.meta.url);
 const read  = (f) => readFileSync(new URL(f, ROOT), 'utf8');
@@ -66,28 +67,24 @@ test('every analytics id the client can write is allowed by firestore.rules', ()
         'ids allowed by firestore.rules that no client code writes — stale allowlist entries; remove them from pvCountIds() and their `is int` lines');
 });
 
-// The guide open ids have a FOURTH home — NAV_GUIDES in nav-panel.js, which is what actually emits
-// them. A guide added there without an `openId` renders a perfectly good link that counts nothing,
+// The guide open ids have a FOURTH home — NAV_GUIDES in nav-destinations.js, whose ids nav-panel.js
+// stamps on the links it draws. A guide added there without an `openId` renders a perfectly good link that counts nothing,
 // which is the quietest failure of the lot: the bar is simply absent, and an absent bar reads as
 // "nobody opens it". (This is the same shape as tips-content.test.mjs's missing-key case, where the
 // `?` button is inert rather than broken.) Until v19.95 the handler matched the href instead, and
 // two of the four guides had no branch at all — so the group answered a narrower question than its
 // heading claimed for five months.
 test('every guide in the nav drawer has an open counter, and every guide counter is emitted', () => {
+    // The list, imported (nav-destinations.js); the TEMPLATE that stamps it on the link is nav-panel.js's.
     const NAV = read('nav-panel.js');
-    const g = NAV.match(/const NAV_GUIDES = \[([\s\S]*?)\n\];/);
-    assert.ok(g, 'NAV_GUIDES not found in nav-panel.js');
-    /** One entry per line: assert on the LINE, so a url with no openId is a named failure. */
-    const entries = g[1].split('\n').filter(l => l.includes('url:'));
     // FIVE since v20.05 (Rangers & Rovers). The literal is the tripwire — it is what forces a
     // sixth guide through this test rather than past it, which is how the openId, OPEN_META and
     // firestore.rules ends get wired at the same time instead of one release apart.
-    assert.equal(entries.length, 5, `expected the five guides, found ${entries.length}`);
+    assert.equal(NAV_GUIDES.length, 5, `expected the five guides, found ${NAV_GUIDES.length}`);
     const navIds = new Set();
-    for (const line of entries) {
-        const id = line.match(/openId:\s*'([a-z-]+)'/)?.[1];
-        assert.ok(id, `a NAV_GUIDES entry has no openId, so opening it counts nothing:\n  ${line.trim()}`);
-        navIds.add(id);
+    for (const guide of NAV_GUIDES) {
+        assert.match(guide.openId ?? '', /^guide-[a-z-]+$/, `a NAV_GUIDES entry has no openId, so opening it counts nothing: ${guide.url}`);
+        navIds.add(guide.openId);
     }
 
     const om = read('operations-reports.js').match(/const OPEN_META = \{([\s\S]*?)\n\};/);

@@ -53,11 +53,12 @@ const PAGE_EVIDENCE_LABELS = {
 const RESULT_LIMIT = 8;
 
 /**
- * Wire the search box. Idempotent per page load; called once by nav-panel.js on first focus.
+ * Wire the search box. Called once per drawer BUILD, by nav-panel.js on the box's first focus — a
+ * rebuilt drawer (`resetNavPanel` then `initNavPanel`) has a fresh box and wires it again.
  *
- * @param {{ guides: {icon: string, label: string, url: string, openId: string}[] }} cfg
- *   `guides` is nav-panel's own NAV_GUIDES — passed in rather than imported so the drawer keeps
- *   the single declaration of which guides exist (it is deliberately not exported).
+ * @param {{ guides: ReadonlyArray<{icon: string, label: string, url: string, openId: string}> }} cfg
+ *   `guides` is the drawer's NAV_GUIDES (nav-destinations.js), handed over by nav-panel.js, so the
+ *   results can only ever name a guide the drawer lists.
  */
 export function initGuideSearch({ guides }) {
     const input    = /** @type {HTMLInputElement|null} */ (document.getElementById('navGuideSearchInput'));
@@ -148,10 +149,16 @@ export function initGuideSearch({ guides }) {
         // and a second copy in nav-panel.js would disagree the first time somebody typed a comma.
         // One writer here, one reader there.
         results.dataset.gsActive = active ? '1' : '';
+        // Every message this writes is an ordinary one: drop the error tone nav-panel.js gives the
+        // "Search is unavailable" line, should this element ever have carried it.
+        delete status.dataset.state;
         if (!active) {
             results.hidden = true;
             results.textContent = '';
-            list.hidden = false;
+            // The static list FOLLOWS THE FOLD (review, 21 Nov 2026): clearing a query under a folded
+            // Reference — the drawer reopening clears it — showed every guide beneath a heading that
+            // still said folded. The fold hides the search zone, so its state is read from there.
+            list.hidden = !!zone?.hidden;
             status.textContent = '';
             syncSearchMode();
             return;
@@ -167,7 +174,7 @@ export function initGuideSearch({ guides }) {
         // A live region, so the count reaches a screen reader without moving focus. Wording leads
         // with the number, never a glyph (status-glyph-parity).
         status.textContent = hits.length === 0
-            ? 'No matches in the guides'
+            ? 'No matches in the guides — try a different word'
             : `${hits.length} ${hits.length === 1 ? 'match' : 'matches'}`;
         syncSearchMode();
     }

@@ -981,7 +981,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // whatever page lay behind it: over the Calendar's dark grid they passed, over Admin's off-white
     // cards TRAINS read 3.0:1, PAY 3.36:1 and a date 4.43:1. It now sits on the opaque navy sheet the
     // notices it archives use. Admin, because it is the light page; one entry per section colour the
-    // archive draws (nav-panel.js → SECTION_MODS) and the neutral one, because each is its own small
+    // archive draws (nav-destinations.js → SECTION_MODS) and the neutral one, because each is its own small
     // coloured label. The panel is tall enough at 1366×900 to show all seven unscrolled.
     // TWO HALVES. The scan rates what it can see, but not text ON the sheet, whose gradient it cannot
     // see through (`incomplete`). So `contrastOnSheet` measures the labels, dates and bodies against

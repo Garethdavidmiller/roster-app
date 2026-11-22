@@ -5,8 +5,8 @@
  *
  * Moved out of nav-panel.js (Nov 2026), where coordinator-ratchet.test.mjs had named it as that file's
  * seam: these are RULES — what the archive holds, for how long, how a legacy record migrates, how a
- * posting date is counted — and the drawer only renders them. nav-panel.js re-exports the two calls
- * the pages make, so every page that archives a notice still imports them from there. The archive is
+ * posting date is counted — and the drawer only renders them. The pages that archive a notice import
+ * the two calls from here (nav-panel.js re-exported them until Nov 2026, which nothing needs now). The archive is
  * this DEVICE's storage, which Safari wipes and an installed app keeps separately, so an empty archive
  * says nothing about whether notices were posted. Imports only `ls.js`, so it loads in Node.
  */
@@ -101,6 +101,15 @@ export function archiveNotice({ id, title, section, date, body }) {
 export function readArchivedNotices() {
     try {
         const p = JSON.parse(lsGet(NOTICES_KEY) || '[]');
-        return Array.isArray(p) ? p.filter(n => n && typeof n === 'object') : [];
+        const now = Date.now(), expiryMs = ARCHIVE_EXPIRY_DAYS * 86_400_000;
+        // ONE AGE LIMIT FOR READING AND WRITING (review, 21 Nov 2026): the write prunes, but a device that
+        // archived nothing new went on listing a notice from 300 days ago. A record with no `archivedAt`
+        // is a legacy one the next write stamps with today (above), so it is kept here too.
+        const fresh = (/** @type {any} */ n) => {
+            if (!n.archivedAt) return true;
+            const t = new Date(n.archivedAt).getTime();
+            return !Number.isFinite(t) || (now - t) < expiryMs;
+        };
+        return Array.isArray(p) ? p.filter(n => n && typeof n === 'object' && fresh(n)) : [];
     } catch (_) { return []; }
 }

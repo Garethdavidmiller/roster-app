@@ -419,7 +419,10 @@ const CAPS = {
     // notice-archive.js (re-exported, so no page's import moved), and the drawer's thrice-told history became one telling.
     // 1300 → 1250 (16 Nov 2026, at 1,299): comments that had become a changelog cut to their reasons — the header's
     // four rules and their measurements kept — 1,299 lines down to 1,153.
-    'nav-panel.js':            1250,
+    // 1250 → 1150 (21 Nov 2026, at 1,099), a LOWER: the drawer's destinations and the pill filter left for
+    // nav-destinations.js (imported by the tests rather than read as text), its two lightboxes became one
+    // lifecycle (`_drawerLightbox`), the archive re-export and the dead `comingSoon` extension point went.
+    'nav-panel.js':            1150,
     // overlay.js crossed 900 on 18 Nov 2026, 892 → 953: `followLinkOutOf`, the rule for a link that leaves the page
     // from inside an open lightbox, and the argument for it. One subject (the overlay layer's history), and the rule
     // needs the PRIVATE handler stack, so it cannot leave without exporting that; it is held without a DOM in

@@ -23,7 +23,7 @@
  *
  * Every colleague on a normal CEA contract and the managers, since `PHASE` became 'open' (v25.60, owner, 9 Nov 2026), with
  * the admin and the named previewers (CONFIG.NEWLINK_PREVIEW, v25.33), who had it alone while it was a preview (auth-policy.js
- * `newlink`, nav-panel.js `newlinkAudienceOnly`, both read through `canOpenNewlink`). The sign-in is the
+ * `newlink`, nav-destinations.js `newlinkAudienceOnly`, both read through `canOpenNewlink`). The sign-in is the
  * app's ordinary front door rather than a protection — the proposals are public files — and the station PIN never reads
  * this page (owner: "No, signed-in only"), so it signs out on arrival like every page that does not ask for it.
  *
@@ -37,12 +37,12 @@
  * (`showNotForYou`). Those are the only words on the page that are not newlink-render.js's: they belong to the gate.
  */
 
-import { CONFIG, formatISO, escapeHtml } from './roster-data.js';
+import { formatISO, escapeHtml } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, onReturnToPage } from './page-session.js';
-import { requirePage, canOpenOvertime, canOpenNewlink } from './auth-policy.js';
+import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -118,9 +118,7 @@ function start(member, admitted) {
         authReady: sessionReady,
         currentPage: 'newlink',
         memberName: member,
-        isAdmin: CONFIG.ADMIN_NAMES.includes(member),
-        isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(member),
-        canOpenOvertime: canOpenOvertime(member), canOpenNewlink: canOpenNewlink(member),
+        ...navGatesFor(member),   // the pill gates (auth-policy.js), as on every page
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut: () => signOutAndLeave({ to: './' }),
     });

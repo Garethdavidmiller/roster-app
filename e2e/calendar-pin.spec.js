@@ -306,7 +306,7 @@ test('locked: the Newsletter check asks nothing, and the menu offers what this d
     expect(await docReads(page), 'the locked Calendar asked for the Newsletter').toBe(0);
     expect(await page.evaluate((k) => localStorage.getItem(k), NEWSLETTER_LATEST_KEY)).toBe(isoDaysAgo(3));
     await row.click();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN, or sign in, to read the Marylebone Newsletter.');
 });
 
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
@@ -318,8 +318,7 @@ test('locked: the drawer refuses a Circular tap without opening a tab', async ({
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--circular').click();
     await expect(page.locator('#navComingSoonLightbox')).toBeVisible();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to open this');
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Weekly Retail Circular');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular.');
     expect(await docReads(page)).toBe(before);
     expect(popups.length, 'no blank tab is opened for a read that will not happen').toBe(0);
 });
@@ -1214,6 +1213,7 @@ test('a viewer opens Trains from the drawer and reads it, still unlocked when it
     await page.locator('#navMenuBtn').click();
     await expect(page.locator('#navPanelMember')).toHaveText('Staff PIN access');
     await expect(page.locator('#navLockCalendarBtn')).toBeVisible();
+    await expect(page.locator('#navLockCalendarBtn'), 'it ends the PIN everywhere, not only the Calendar (owner, 21 Nov 2026)').toHaveText('End staff PIN');
     await expect(page.locator('#navPanel .nav-panel-pill--trains')).toHaveAttribute('aria-current', 'page');
 
     // Until v24.84 arriving here signed the PIN out, so the Calendar asked for it again.
@@ -1262,7 +1262,7 @@ test('Lock on the Trains page locks the station: the PIN card, and Trains asks f
 // screen with the viewer signed out underneath it. Reproduced on 22 Oct 2026; live since late
 // September. Both paths are pinned, because the one that broke is the one nobody tested.
 for (const start of ['/', '/index.html']) {
-    test(`Lock Calendar locks when the Calendar was opened at ${start}`, async ({ page }) => {
+    test(`End staff PIN locks when the Calendar was opened at ${start}`, async ({ page }) => {
         const errors = collectFatalErrors(page);
         await stubPinExchange(page);
         await page.goto(start);
@@ -1276,7 +1276,7 @@ for (const start of ['/', '/index.html']) {
     });
 }
 
-test('Lock Calendar appears for a viewer and not for a member', async ({ page }) => {
+test('End staff PIN appears for a viewer and not for a member', async ({ page }) => {
     await stubPinExchange(page);
     await page.goto('/index.html');
     await enterPin(page, '1234');
@@ -1284,7 +1284,7 @@ test('Lock Calendar appears for a viewer and not for a member', async ({ page })
     await expect(page.locator('#navLockCalendarBtn')).toBeVisible();
 });
 
-test('Lock Calendar is hidden from a signed-in member', async ({ page }) => {
+test('End staff PIN is hidden from a signed-in member', async ({ page }) => {
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/index.html');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
@@ -1357,7 +1357,7 @@ test('the card does not overflow at 360px, nor sprawl at 1440px', async ({ page 
 
 test('the nav drawer shows NO footer while the Calendar is locked', async ({ page }) => {
     // v20.12 widened the footer condition from `onSignOut` to `(onSignOut || onLockCalendar)` so the
-    // viewer's Lock Calendar button had somewhere to live — and the calendar always passes the
+    // viewer's End staff PIN button had somewhere to live — and the calendar always passes the
     // latter, so a locked visitor got an empty footer bar with a blank member name, and a
     // NOTIFICATION BELL. The bell is documented as signed-in only, and a viewer tapping it would be
     // denied by the v20.12 push-subscription rule: a control that cannot succeed, offered.
@@ -1381,7 +1381,7 @@ test('locked: with the guide search matching nothing, Tab from its box stays in 
     const input = page.locator('#navGuideSearchInput');
     await input.click();                                         // the first focus loads the search
     await input.fill('zzzqxv');
-    await expect(page.locator('#navGuideSearchStatus')).toHaveText('No matches in the guides');
+    await expect(page.locator('#navGuideSearchStatus')).toHaveText('No matches in the guides — try a different word');
     await input.press('Tab');
     expect(await page.evaluate(() => !!document.getElementById('navPanel')?.contains(document.activeElement)),
         'one Tab from the box left the drawer').toBe(true);
@@ -1389,7 +1389,7 @@ test('locked: with the guide search matching nothing, Tab from its box stays in 
     await expect(input, 'and Shift+Tab comes back round to it').toBeFocused();
 });
 
-test('a VIEWER gets the footer for Lock Calendar — but still no bell', async ({ page }) => {
+test('a VIEWER gets the footer for End staff PIN — but still no bell', async ({ page }) => {
     await stubPinExchange(page);
     await seedMember(page);
     await page.goto('/index.html');

@@ -21,6 +21,7 @@ import { closesWords, startsWords, designName } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
 import { PAGE_POLICIES, requirePage, admitsStaffPin, canOpenNewlink, rolesFor } from './auth-policy.js';
 import { teamMembers, CONFIG } from './roster-data.js';
+import { NAV_PAGES } from './nav-destinations.js';
 
 test('the page is open — the switch, the policy and the pill agree', () => {
     // Past 'preview' exactly while the policy admits the audience: the switch and its gate move together or this fails.
@@ -29,8 +30,7 @@ test('the page is open — the switch, the policy and the pill agree', () => {
     assert.equal(PAGE_POLICIES.newlink.role.includes('newlinkAudience'), PHASE !== 'preview', 'the switch and the gate have parted');
     assert.deepEqual(PAGE_POLICIES.newlink.role, ['admin', 'newlinkPreview', 'newlinkAudience']);
     assert.equal(admitsStaffPin('newlink'), false, 'never the station PIN (owner, 2 Nov 2026: "No, signed-in only")');
-    const nav = readFileSync(new URL('./nav-panel.js', import.meta.url), 'utf8');
-    assert.match(nav, /\{\s*id:\s*'newlink',[^}]*newlinkAudienceOnly:\s*true/, 'the pill has its own gate, read through canOpenNewlink');
+    assert.equal(NAV_PAGES.find(p => p.id === 'newlink')?.newlinkAudienceOnly, true, 'the pill has its own gate, read through canOpenNewlink');
 
     // The decision itself, through the REAL lists and the real roster (requirePage reads both), not roles made up for the
     // test. The examples are found on the roster rather than named, so a leaver cannot break the test, and each is asserted
