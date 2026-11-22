@@ -2260,14 +2260,28 @@ export function init() {
         // The answer is older than the page, which goes on meanwhile: applied only to rows the page left alone (Nov 2026).
         const listed = new Map(designs.map(d => [d.id, listRowSig(d)]));
         const binnedThen = new Map(library.binList().map((/** @type {any} */ b) => [b.id, listRowSig(b)]));
+        const openId = activeDesignId, act = activation;
         try {
             // The load's own split (links-design-load.js), with the refresh's one difference: it shows in the bin only a move this page started.
             const { named, binned } = splitDesignDocs(await store.loadAll(), { binOld: binOldOnRefresh(binMoves), currentUser });
             // A save only this browser has — queued, or refused and kept (links-queued-saves.js rule 4) — keeps its row.
             designs = mergeListAnswer(designs, named, listed, (id) => !!queuedSaves.get(id)); _sortDesigns();
             library.setBin(sortByDeleted(mergeListAnswer(library.binList(), binned, binnedThen)));
+            // A CLEAN open design follows a newer save of it (Nov 2026): the masthead and the printed sheet read the
+            // entry, so a grid left on the older version went out under the colleague's name. Edited, it stays as it
+            // is, on its own baseline, so its next Save still asks.
+            const entry = openId && act === activation && !dirty && !savingKeys.has(openId) ? designs.find(x => x.id === openId) : null;
+            if (entry && listRowSig(entry) !== listed.get(openId)) _followEntry(entry);
         } catch (err) { console.error('[Links] List refresh failed:', err); }
         renderDesignPicker(); library.renderBinList(); compare.renderCompare();
+    }
+
+    /** The open design becomes its entry's version, baseline included — nothing on it is unsaved. @param {any} entry */
+    function _followEntry(entry) {
+        design = workingCopy(entry);
+        ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(entry));
+        updateLastSaved(entry.updatedBy, lastSaveTime(entry));
+        renderGrid(); renderBrushBar(); renderDesignChecks(); updateSaveBtn();
     }
 
     /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill) — never from

@@ -4517,6 +4517,57 @@ test('links review: Import asks before it replaces unsaved work', async ({ page 
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // still dirty, still here
 });
 
+// …AND A CLEAN OPEN DESIGN FOLLOWS A COLLEAGUE'S NEWER SAVE (Nov 2026). A refresh replaced its list entry and left the
+// working copy on the older version, so the masthead and the printed sheet named the colleague over a grid they never
+// drew. Clean, it follows the entry, baseline included, so the next save asks nothing about a version on screen.
+test('links: a list refresh brings a clean open design up to a colleague\'s newer save', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await page.evaluate(() => {   // M. Robson saved "Morning heavy" since, and somebody restored the binned one
+        const w = /** @type {any} */ (window);
+        const newer = (/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, window: { monSat: { start: '06:00', end: '22:00' }, sun: { start: '07:00', end: '23:55' } }, updatedAt: Date.now(), updatedBy: 'M. Robson', revision: 3 }
+            : { ...d, deletedAt: undefined, deletedBy: undefined };
+        w.__E2E.docs = w.__E2E.docs.map(newer);
+        w.__E2E.txDocs = w.__E2E.docs;
+    });
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(page.locator('#winMonSatEnd'), 'the version the masthead names').toHaveValue('22:00');
+    await expect(page.locator('#linksLastSaved')).toContainText('M. Robson');
+    await expect(page.locator('#linksSaveBtn'), 'nothing unsaved').toBeDisabled();
+    await page.locator('#winMonSatEnd').fill('21:00');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay.visible'), 'no question about the version on screen').toHaveCount(0);
+});
+
+test('links: …but an EDITED open design keeps its edits through that refresh, and its next Save still asks', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        const newer = (/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, window: { monSat: { start: '06:00', end: '22:00' }, sun: { start: '07:00', end: '23:55' } }, updatedAt: Date.now(), updatedBy: 'M. Robson', revision: 3 }
+            : { ...d, deletedAt: undefined, deletedBy: undefined };
+        w.__E2E.docs = w.__E2E.docs.map(newer);
+        w.__E2E.txDocs = w.__E2E.docs;
+    });
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(page.locator('#winMonSatEnd'), 'the edit is still here').toHaveValue('14:20');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('.dialog-overlay.visible'), 'on its own baseline, so the colleague\'s save is met').toContainText('M. Robson saved a different version');
+});
+
 test('links review: a colleague\'s restore settled in the bin leaves your unsaved edits alone', async ({ page }) => {
     // It called loadDesigns, which rebuilt the working copy and cleared `dirty` — the edit gone,
     // and nothing said so.
