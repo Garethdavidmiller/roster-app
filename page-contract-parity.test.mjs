@@ -222,10 +222,11 @@ test('every app page carries the noindex meta', () => {
     assert.deepEqual(missing, [], 'pages without a robots noindex meta');
 });
 
-test('every app page opts out of algorithmic dark mode', () => {
+test('every app page and every guide opts out of algorithmic dark mode', () => {
     // The app has no dark theme; a force-dark browser inverts the off-white cards and leaves the
-    // navy, which is a real staff report rather than a hypothetical.
-    const missing = APP_PAGES.filter(p => !/name="color-scheme"[^>]*only light/.test(read(`./${p}`)));
+    // navy, which is a real staff report rather than a hypothetical. The guides have none either, and
+    // their navy header and gold chips are exactly what a forced inversion turns to mud.
+    const missing = [...APP_PAGES, ...GUIDES].filter(p => !/name="color-scheme"[^>]*only light/.test(read(`./${p}`)));
     assert.deepEqual(missing, [], 'pages without `color-scheme: only light`');
 });
 
@@ -815,6 +816,18 @@ test('every guide has a chip bar, driven by exactly one script, whose chips all 
         const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
         const dead = targets.filter(id => !main.includes(`id="${id}"`));
         assert.deepEqual(dead, [], `${file}: these chips lead to no id inside <main>, so tapping them does nothing`);
+
+        // THE HEADER'S TWO CONTROLS ARE SCRIPTS TOO (Nov 2026). Removing either tag from a guide left
+        // every non-browser suite green: without guide-back.js the ← ignores `?from=` and drops a reader
+        // opened from Admin on the calendar; without guide-print.js the ⤓ PDF button does nothing at
+        // all — not even the iOS 27 explanation. And guide-print.js binds `.btn-print`, so the button
+        // must carry that class and its id.
+        for (const tag of ['<script src="./guide-back.js" defer></script>', '<script type="module" src="./guide-print.js"></script>']) {
+            assert.equal(html.split(tag).length - 1, 1, `${file} must load ${tag} exactly once`);
+        }
+        const pdf = html.match(/<button\b[^>]*\bid="savePdfBtn"[^>]*>/);
+        assert.ok(pdf, `${file} has no #savePdfBtn`);
+        assert.match(pdf[0], /\bclass="[^"]*\bbtn-print\b[^"]*"/, `${file}: #savePdfBtn is not a .btn-print, so guide-print.js never hears it`);
     }
 });
 
