@@ -230,7 +230,7 @@ export function parseGrid(text, { lines = ROTATING_LINES } = {}) {
         if (week !== null && (week < 1 || week > lines)) {
             return { ok: false, error: `${at} is numbered ${week}, which is outside the ${lines}-line rotation.` };
         }
-        if (patterns[pos]) return { ok: false, error: `Week ${pos} appears twice.` };
+        if (patterns[pos]) return { ok: false, error: `Line ${pos} appears twice.` };
 
         /** @type {Record<string, string>} */
         const row = {};
@@ -247,7 +247,7 @@ export function parseGrid(text, { lines = ROTATING_LINES } = {}) {
 
     const count = Object.keys(patterns).length;
     if (count > lines) {
-        return { ok: false, error: `That is ${count} weeks, and the rotation is ${lines} lines.` };
+        return { ok: false, error: `That is ${count} rows, and the rotation is ${lines} lines.` };
     }
     // SHORT is a warning, not a refusal: a half-drafted proposal is a real thing to want in the
     // workspace, and the design panels already report an unfilled line better than this could.
@@ -288,8 +288,8 @@ function nightDutyWarning(patterns) {
     if (!found.size) return null;
     const list = [...found].sort().join(', ');
     return found.size === 1
-        ? `One duty starts at night or finishes after midnight (${list}). CEAs do not work nights — check it before you save.`
-        : `${found.size} duties start at night or finish after midnight (${list}). CEAs do not work nights — check them before you save.`;
+        ? `One duty starts at night or finishes after midnight (${list}). Customer Experience Ambassadors (CEAs) do not work nights — check it before you save.`
+        : `${found.size} duties start at night or finish after midnight (${list}). Customer Experience Ambassadors (CEAs) do not work nights — check them before you save.`;
 }
 
 /**

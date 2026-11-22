@@ -1161,3 +1161,20 @@ test('the fatigue chip says "present", singular and plural, never "to act on"', 
     assert.doesNotMatch(strip, /to act on/);
     if (present) assert.match(strip, new RegExp(`${present}</strong> fatigue factors? present${standing ? ` · ${standing} standing` : ''}`));
 });
+
+// ── FF2 NAMES THE DESIGN'S OWN OPENING (Nov 2026) ───────────────────────────────────────────────
+// The row said "the day starts at 06:20" whatever window the design was drawn against. Run through
+// the real renderer, because the window reaches `assessFatigue` only from here.
+test('FF2 states the opening from the design\'s window, and claims "unavoidable" only for an early one', () => {
+    const patterns = fullPatterns();     // 06:00 starts, so FF2 is standing
+    const render = (/** @type {any} */ window) => {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns, window }) }).renderDesignChecks();
+        return els.checksContent.innerHTML;
+    };
+    assert.match(render(undefined), /Unavoidable on this link — the station opens at 06:20 Monday to Saturday/);
+    const late = render({ monSat: { start: '07:30', end: '23:55' }, sun: { start: '07:15', end: '23:25' } });
+    assert.match(late, /The staffed window opens at 07:30 Monday to Saturday, so these starts come before the opening/);
+    assert.doesNotMatch(late, /Unavoidable on this link/);
+    assert.match(render({ monSat: { start: '06:00', end: '23:55' }, sun: { start: '07:15', end: '23:25' } }), /opens at 06:00 Monday/);
+});

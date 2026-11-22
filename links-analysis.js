@@ -700,7 +700,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // prescriptive limits. The greatest risk in this panel is a design showing nothing and being
         // read as approved, so clear and not-applicable factors are listed too — silence must not be
         // the same shape as compliance.
-        const fat = assessFatigue(design.patterns, ROTATING_LINES);
+        const fat = assessFatigue(design.patterns, ROTATING_LINES, { window: design.window });
         const base = getBaseline();
         const fatRows = [];
 
