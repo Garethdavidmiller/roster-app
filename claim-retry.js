@@ -228,12 +228,59 @@ export const OWN_WRITES_WAIT_MS = 8000;
  * @param {() => Promise<void>} waitForPendingWrites  the SDK's, bound to the page's Firestore — it
  *        rejects ('cancelled') if the account changes while it waits, and that rejection is passed on
  * @param {number} [ms]
+ * @param {{ onSettled?: (w: OwnWritesWait) => void, now?: () => number }} [diag]  told once how the
+ *        wait ended and how long it took (below); by default every `watchOwnWritesWaits` listener is.
+ *        Told as the answer settles, before the caller sees it; a throw from it changes nothing
  * @returns {Promise<boolean>} true once the queue has drained; false when `ms` passed first
  */
-export function ownWritesSent(waitForPendingWrites, ms = OWN_WRITES_WAIT_MS) {
+export function ownWritesSent(waitForPendingWrites, ms = OWN_WRITES_WAIT_MS, { onSettled = _announceOwnWritesWait, now = Date.now } = {}) {
     /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+    const started = now();
+    /** @param {OwnWritesOutcome} outcome */
+    const tell = outcome => {
+        try { onSettled({ ms: Math.max(0, now() - started), outcome }); } catch { /* a diagnostic never disturbs the save */ }
+    };
     const limit = new Promise(resolve => { timer = setTimeout(() => resolve(false), ms); });
-    return Promise.race([waitForPendingWrites().then(() => true), limit]).finally(() => clearTimeout(timer));
+    return Promise.race([waitForPendingWrites().then(() => true), limit])
+        .then(drained => { tell(drained ? 'drained' : 'ran out'); return drained; },
+              err => { tell('failed'); throw err; })
+        .finally(() => clearTimeout(timer));
+}
+
+// ── HOW EACH WAIT WENT, FOR THE SLOW-SAVE DIAGNOSTIC (22 Nov 2026) ──────────────────────────────────
+//
+// An installed iPhone app sent three "Slow save (diagnostic)" reports in one day, each EXACTLY 8.1s
+// to be confirmed, on screen, its sign-in token back in 0.0s. Eight seconds is OWN_WRITES_WAIT_MS:
+// one reading is that `waitForPendingWrites` never answers on that phone, the limit fires, and the
+// save is then held as a batch the server confirms at once — every checked save ≥8s, and a checked
+// removal refused, writing nothing. Another is Firestore's own transaction retries, which also take
+// about eight seconds to give up. The report could not tell them apart, so every wait now says how
+// it went: `ownWritesSent` hands `onSettled` its outcome, and by default announces it here, where
+// slow-save.js listens for the span of each save (`trackOwnWritesWaits`) and error-reporter.js
+// writes it on the diagnostic line. A plain in-module list rather than a DOM event: both modules
+// import this one, and Node can run it.
+
+/** @typedef {'drained'|'ran out'|'failed'} OwnWritesOutcome  'failed': the SDK abandoned the wait (the account changed) */
+/** @typedef {{ ms: number, outcome: OwnWritesOutcome }} OwnWritesWait */
+
+/** @type {Set<(w: OwnWritesWait) => void>} */
+const _ownWritesWatchers = new Set();
+
+/**
+ * Hear how every own-saves wait ends, from now until the returned unsubscribe is called.
+ * @param {(w: OwnWritesWait) => void} cb
+ * @returns {() => void}
+ */
+export function watchOwnWritesWaits(cb) {
+    _ownWritesWatchers.add(cb);
+    return () => { _ownWritesWatchers.delete(cb); };
+}
+
+/** Tell every watcher; one that throws silences nobody else, and never the save. @param {OwnWritesWait} w */
+function _announceOwnWritesWait(w) {
+    for (const cb of [..._ownWritesWatchers]) {
+        try { cb(w); } catch { /* a diagnostic never disturbs the save */ }
+    }
 }
 
 /**

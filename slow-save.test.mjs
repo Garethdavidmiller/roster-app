@@ -2,7 +2,7 @@
 // Pure: timers are injected, so nothing here waits eight real seconds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { watchSlowCommit, trackHiddenTime, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_ONLINE, SLOW_SAVE_TEXT_BATCHED_ONLINE, SLOW_SAVE_TEXT_UNHELD, SLOW_SAVE_TEXT_UNHELD_ONLINE, slowSaveText, SLOW_SAVE_EVENT } from './slow-save.js';
+import { watchSlowCommit, trackHiddenTime, trackOwnWritesWaits, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_ONLINE, SLOW_SAVE_TEXT_BATCHED_ONLINE, SLOW_SAVE_TEXT_UNHELD, SLOW_SAVE_TEXT_UNHELD_ONLINE, slowSaveText, SLOW_SAVE_EVENT } from './slow-save.js';
 
 /** A controllable clock: fire() runs every pending timer, as if its time had come. */
 function fakeTimers() {
@@ -318,6 +318,123 @@ test('a slow save reports the part of its wait spent in the background — throu
     } finally {
         frozen.resolve(); onScreen.resolve(); await tick();   // a failed assertion must not leave a write in flight
         Date.now = realNow;
+        globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
+        delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;
+        globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
+    }
+});
+
+// ── The own-saves wait, heard for the span of a save (22 Nov 2026) ─────────────────────────────────
+// Three reports from one installed iPhone app each took EXACTLY 8.1s to be confirmed, on screen, the
+// token back in 0.0s — and eight seconds is how long a checked save waits for this device's earlier
+// saves before it is held as a batch instead (OWN_WRITES_WAIT_MS, claim-retry.js). These say whether a
+// wait ran during the save, how long it took and how it ended, so the next report settles it.
+
+/** A source of wait announcements the test fires by hand, as `watchOwnWritesWaits` would. */
+function fakeWaits() {
+    /** @type {Set<(w: any) => void>} */ const listeners = new Set();
+    return {
+        deps: { subscribe: (/** @type {(w: any) => void} */ cb) => { listeners.add(cb); return () => { listeners.delete(cb); }; } },
+        /** @param {number} ms @param {string} outcome */
+        end: (ms, outcome) => { for (const cb of [...listeners]) cb({ ms, outcome }); },
+        listeners,
+    };
+}
+
+test('own-saves wait: none heard is null — a save that checks nothing never waits, and the line then says nothing', () => {
+    const waits = fakeWaits();
+    assert.equal(trackOwnWritesWaits(waits.deps).stop(), null);
+});
+
+test('own-saves wait: one heard is reported as it was', () => {
+    const waits = fakeWaits();
+    const t = trackOwnWritesWaits(waits.deps);
+    waits.end(8_004, 'ran out');
+    assert.deepEqual(t.stop(), { ms: 8_004, outcome: 'ran out', count: 1 });
+});
+
+test('own-saves wait: a wait that RAN OUT is the one reported, even beside a longer one that drained', () => {
+    // Only a wait that ran out puts the whole limit into the save and changes how it is sent; a
+    // drained one is reported only when none ran out.
+    const waits = fakeWaits();
+    const t = trackOwnWritesWaits(waits.deps);
+    waits.end(300, 'drained');
+    waits.end(1_000, 'ran out');
+    waits.end(4_000, 'drained');
+    assert.deepEqual(t.stop(), { ms: 1_000, outcome: 'ran out', count: 3 });
+});
+
+test('own-saves wait: with none run out, the LONGEST is reported, with how many there were', () => {
+    const waits = fakeWaits();
+    const t = trackOwnWritesWaits(waits.deps);
+    waits.end(20, 'drained');
+    waits.end(2_500, 'failed');
+    waits.end(900, 'drained');
+    assert.deepEqual(t.stop(), { ms: 2_500, outcome: 'failed', count: 3 });
+});
+
+test('own-saves wait: it stops listening when it stops, and a wait after that is not this save\'s', () => {
+    const waits = fakeWaits();
+    const t = trackOwnWritesWaits(waits.deps);
+    waits.end(10, 'drained');
+    assert.deepEqual(t.stop(), { ms: 10, outcome: 'drained', count: 1 });
+    assert.equal(waits.listeners.size, 0, 'a settled save leaves no listener behind');
+    waits.end(8_000, 'ran out');
+    assert.deepEqual(t.stop(), { ms: 10, outcome: 'drained', count: 1 }, 'a later call returns the same summary');
+
+    // …and the same when the source cannot be left: a wait heard after `stop()` is still not counted.
+    /** @type {Set<(w: any) => void>} */ const stuck = new Set();
+    const t2 = trackOwnWritesWaits({ subscribe: (cb) => { stuck.add(cb); return () => { throw new Error('cannot unsubscribe'); }; } });
+    assert.equal(t2.stop(), null);
+    for (const cb of stuck) cb({ ms: 8_000, outcome: 'ran out' });
+    assert.equal(t2.stop(), null, 'a save that has settled takes no later wait as its own');
+});
+
+test('own-saves wait: a failure to listen, or an announcement with no figure, is never a reading', () => {
+    assert.equal(trackOwnWritesWaits({ subscribe: () => { throw new Error('boom'); } }).stop(), null,
+        'the diagnostic must not disturb the save');
+    const waits = fakeWaits();
+    const t = trackOwnWritesWaits(waits.deps);
+    waits.end(/** @type {any} */ (undefined), 'drained');
+    waits.end(NaN, 'ran out');
+    assert.equal(t.stop(), null);
+    assert.doesNotThrow(() => trackOwnWritesWaits({ subscribe: () => /** @type {any} */ (null) }).stop(),
+        'nothing to unsubscribe is not an error');
+});
+
+test('a slow save reports its own-saves wait — the REAL wait (claim-retry.js ownWritesSent) through the real wrapper', async () => {
+    // The entry point: a save whose promise is built by a checked write. Its wait STARTS while the
+    // promise is being built — before withSlowSaveNotice sees it — so only an end-based match finds it.
+    const { ownWritesSent } = await import('./claim-retry.js');
+    /** @type {any[]} */ const done = [];
+    const g = /** @type {any} */ (globalThis);
+    const et = new EventTarget();
+    g.addEventListener = et.addEventListener.bind(et);
+    g.removeEventListener = et.removeEventListener.bind(et);
+    g.dispatchEvent = et.dispatchEvent.bind(et);
+    const listener = (/** @type {any} */ e) => { if (e.detail.phase === 'done') done.push(e.detail); };
+    globalThis.addEventListener(SLOW_SAVE_EVENT, listener);
+    const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
+    globalThis.document = /** @type {any} */ ({ getElementById: () => null, createElement: () => ({ setAttribute() {} }), body: { appendChild() {} } });
+    globalThis.__E2E = { slowSaveMs: 5 };
+    try {
+        // A queue that never drains: the wait runs out at its limit, and the save then goes on.
+        const save = (async () => { const sent = await ownWritesSent(() => new Promise(() => {}), 40); return sent ? 'checked' : 'held'; })();
+        assert.equal(await withSlowSaveNotice(save), 'held');
+        await tick();
+        assert.equal(done.length, 1);
+        assert.equal(done[0].ownWrites?.outcome, 'ran out');
+        assert.equal(done[0].ownWrites?.count, 1);
+        assert.ok(done[0].ownWrites.ms >= 35 && done[0].ownWrites.ms < 1_000, `the wait's own length, ${done[0].ownWrites.ms}ms`);
+
+        // A slow save that never waited says so by carrying nothing.
+        const plain = deferred();
+        const p = withSlowSaveNotice(plain.p);
+        await new Promise(r => setTimeout(r, 30));
+        plain.resolve(); await p; await tick();
+        assert.equal(done.length, 2);
+        assert.equal(done[1].ownWrites, null);
+    } finally {
         globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
         delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;
         globalThis.document = prevDoc; globalThis.__E2E = prevE2E;

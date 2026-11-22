@@ -912,4 +912,19 @@ describe('whenOwnWritesSent — the wait a checked write makes before it reads t
         assert.equal(await fc.whenOwnWritesSent(20), false);
         assert.ok(Date.now() - started < 1_000, 'the limit it was given was not the one it kept');
     });
+    test('every wait says how it went, for the slow-save diagnostic (22 Nov 2026)', async () => {
+        // The export is the one the checked saves call, so this is what the Error Log's line reads:
+        // a wiring that passed its own `onSettled` (or none at all) would leave the line silent.
+        const { watchOwnWritesWaits } = await import('./claim-retry.js');
+        /** @type {any[]} */ const heard = [];
+        const stop = watchOwnWritesWaits((w) => heard.push(w));
+        try {
+            state.pendingWrites = undefined;
+            assert.equal(await fc.whenOwnWritesSent(50), true);
+            state.pendingWrites = new Promise(() => {});
+            assert.equal(await fc.whenOwnWritesSent(20), false);
+        } finally { stop(); }
+        assert.deepEqual(heard.map((w) => w.outcome), ['drained', 'ran out']);
+        assert.ok(heard.every((w) => typeof w.ms === 'number' && w.ms >= 0));
+    });
 });
