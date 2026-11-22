@@ -135,9 +135,10 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 - **Sign-out.** The drawer's Sign out — once the page has committed to it (a `beforeSignOut` cancel
   keeps the record) — and the Calendar member card's "Sign out and use the staff PIN" hand-over call
   `releaseDevicePush` (`notif.js`), which deletes this device's record, so a targeted notice never
-  follows a member onto a shared device they have left. Only a signed-in CALENDAR load re-saves it
-  (`getNotifState`'s only caller), so until then another page shows notifications as on with no
-  record behind it. **Where the delete cannot run as the owner**, the browser subscription is dropped
+  follows a member onto a shared device they have left. `getNotifState` re-saves it, and runs on a
+  signed-in CALENDAR load and once each time SETTINGS opens signed in (`notif-card.js`, owner, 22 Nov
+  2026 — so the Notifications card's "✓ On" has a record behind it); until one of those, the drawer's
+  bell on another page shows notifications as on with no record behind it. **Where the delete cannot run as the owner**, the browser subscription is dropped
   instead and the next send's 410 deletes the record. All three, and the time box's cost, are
   `releaseDevicePush`'s JSDoc.
 - **A hold that ends without a sign-out** — an expired session's lingering identity
