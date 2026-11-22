@@ -3877,9 +3877,11 @@ const pcColour = (page, value) => page.evaluate((v) => {
     const c = getComputedStyle(i).color; i.remove(); return c;
 }, value);
 
-test('paycalc: a Tab stop on a dark surface wears the ring drawn for one', async ({ page }, info) => {
-    // The help sheet's ✕ and the guide link at the foot of the page have no focus rule of their own,
+test('paycalc: a Tab stop wears the ring drawn for the surface it is on', async ({ page }, info) => {
+    // The help sheet's ✕ and the guide link at the foot of the page had no focus rule of their own,
     // so they took the app's navy fallback ring: 1.17:1 on the dark glass and 1:1 on the navy canvas.
+    // The ? panels are the shared WHITE Tips sheet since Nov 2026, so their ✕ takes the navy ring every
+    // other page's Tips ✕ wears — gold there would be ~1.5:1.
     test.skip(isTouchProject(info), 'a keyboard');
     await seedSession(page);
     await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
@@ -3896,10 +3898,10 @@ test('paycalc: a Tab stop on a dark surface wears the ring drawn for one', async
     expect(await ring(link), 'the guide link on the navy canvas').toEqual({ focus: true, style: 'solid', colour: gold });
 
     await page.locator('.help-btn[data-help="hours"]').click();
-    await expect(page.locator('#helpLightbox.visible')).toBeVisible();
-    const close = page.locator('#helpLightboxClose');
+    await expect(page.locator('#tipsLightbox.visible')).toBeVisible();
+    const close = page.locator('#tipsLightboxClose');
     for (let i = 0; i < 6 && !(await close.evaluate(e => e === document.activeElement)); i++) await page.keyboard.press('Tab');
-    expect(await ring(close), 'the help sheet\'s ✕ on the dark glass').toEqual({ focus: true, style: 'solid', colour: gold });
+    expect(await ring(close), 'the ? panel\'s ✕ on the white sheet').toEqual({ focus: true, style: 'solid', colour: await pcColour(page, 'var(--primary-blue)') });
 });
 
 test('paycalc: the Training Days stepper draws its focus ring whole', async ({ page }, info) => {
@@ -4942,18 +4944,44 @@ test('paycalc: the ? help sheet is the Tips\' width at every size', async ({ pag
     for (const width of [1366, 820, 390]) {
         await page.setViewportSize({ width, height: 800 });
         await page.locator('#hoursCard .help-btn').click();
-        await expect(page.locator('#helpLightbox')).toHaveClass(/open/);
+        await expect(page.locator('#tipsLightbox')).toHaveClass(/open/);
         const w = await page.evaluate(() => {
             const probe = document.createElement('div');
             probe.style.cssText = 'position:absolute;width:min(var(--modal-standard), var(--modal-cap))';
             document.body.appendChild(probe);
             const want = probe.offsetWidth;
             probe.remove();
-            return { want, got: /** @type {HTMLElement} */ (document.getElementById('helpLightboxContent')).offsetWidth };
+            return { want, got: /** @type {HTMLElement} */ (document.getElementById('tipsLightboxContent')).offsetWidth };
         });
         expect(w.got, `the sheet at ${width}px`).toBe(w.want);
         await page.keyboard.press('Escape');
-        await expect(page.locator('#helpLightbox')).not.toHaveClass(/visible/);
+        await expect(page.locator('#tipsLightbox')).not.toHaveClass(/visible/);
+    }
+});
+
+// THE ? PANELS ARE THE SHARED TIPS SHEET (owner-approved, Nov 2026). They were a see-through glass sheet
+// (white at 9% over the page) of bullet lists, so the page's own text showed through behind the help —
+// confirmed on an iPhone. Now: the white sheet, the fixed title and ✕, section headings and icon rows
+// every other page's ? opens. And because one sheet serves all five buttons, a panel scrolled to its end
+// left the NEXT one opening part-way down, its first heading out of sight; each opens at its top now.
+test('paycalc: each ? opens the white Tips sheet, headed and at its top', async ({ page }) => {
+    await openReturning(page, { width: 375, height: 667 });
+    const sheet = page.locator('#tipsLightboxContent');
+    for (const key of ['settings', 'hours', 'accuracy', 'hpp', 'backpay']) {
+        await page.locator(`.help-btn[data-help="${key}"]`).click();
+        await expect(page.locator('#tipsLightbox'), key).toHaveClass(/open/);
+        await expect(page.locator('#tipsLbTitle'), key).not.toBeEmpty();
+        // Opaque: nothing of the page can show through it.
+        expect(await sheet.evaluate(e => getComputedStyle(e).backgroundColor), `${key}: an opaque sheet`).toBe('rgb(255, 255, 255)');
+        await expect(page.locator('#tipsLbBody .tips-lb-section').first(), `${key}: sections are headed`).toBeVisible();
+        expect(await page.locator('#tipsLbBody .tips-lb-item .tips-lb-icon').count(), `${key}: every row has its icon`)
+            .toBe(await page.locator('#tipsLbBody .tips-lb-item').count());
+        expect(await sheet.evaluate(e => e.scrollTop), `${key}: opens at its top`).toBe(0);
+        // Leave it scrolled to its end, as a member who read it all would, for the next one to open after.
+        await sheet.evaluate(e => { e.scrollTop = e.scrollHeight; });
+        expect(await sheet.evaluate(e => e.scrollTop), `premise: ${key}'s panel scrolls on a phone`).toBeGreaterThan(0);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#tipsLightbox')).not.toHaveClass(/visible/);
     }
 });
 
@@ -5079,7 +5107,7 @@ test('paycalc: nothing a mouse or a keyboard reads says "tap"', async ({ page },
     await payPageReady(page);
     await page.locator('#hoursShowMore').click();
     await page.locator('#hoursCard .help-btn').click();
-    await expect(page.locator('#helpLightbox')).toHaveClass(/open/);
+    await expect(page.locator('#tipsLightbox')).toHaveClass(/open/);
     const words = await page.evaluate(() => [document.body.innerText,
         ...[...document.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label'))].join('\n'));
     expect(words.match(/[^\n]*\btap(s|ped|ping)?\b[^\n]*/gi) ?? []).toEqual([]);

@@ -23,7 +23,7 @@ import { escapeHtml } from './roster-data.js';
 import { createLightbox } from './overlay.js';
 
 /**
- * Wire up the page's #tipsLightbox and every .btn-card-tips button.
+ * Wire up the page's #tipsLightbox and every `?` button that opens it (`.btn-card-tips` by default).
  * Safe no-op if the page has no #tipsLightbox.
  *
  * @param {object} cardTips - Tips content keyed by data-card value
@@ -31,8 +31,12 @@ import { createLightbox } from './overlay.js';
  * @param {Function} [opts.getIsAdmin] - Returns whether the current user is an
  *   admin, read at open time (login may complete after init). When omitted,
  *   adminOnly items are hidden and staffOnly items shown.
+ * @param {{ selector: string, key: string }} [opts.trigger] - Which buttons open the panel, and the
+ *   `data-*` name holding each one's content key. Default `.btn-card-tips` / `data-card`. The Pay
+ *   Calculator passes `{ selector: '.help-btn', key: 'help' }`: its `?` buttons predate this module and
+ *   keep their own markup and look, so the PANEL is shared without restyling five buttons (Nov 2026).
  */
-export function initTipsLightbox(cardTips, { getIsAdmin } = {}) {
+export function initTipsLightbox(cardTips, { getIsAdmin, trigger = { selector: '.btn-card-tips', key: 'card' } } = {}) {
     const lb       = document.getElementById('tipsLightbox');
     const content  = document.getElementById('tipsLightboxContent');
     const closeBtn = document.getElementById('tipsLightboxClose');
@@ -68,14 +72,19 @@ export function initTipsLightbox(cardTips, { getIsAdmin } = {}) {
         /** @type {HTMLElement} */ (lb).setAttribute('aria-label', tips.title);
         /** @type {HTMLElement} */ (titleEl).textContent = tips.title;
         /** @type {HTMLElement} */ (bodyEl).innerHTML = render(tips, !!getIsAdmin?.());
+        // EVERY CARD'S PANEL OPENS AT ITS TOP (Nov 2026). One sheet serves every `?` on a page, so a panel
+        // scrolled to its end left the NEXT card's panel opening part-way down, its first section and
+        // heading out of sight above — found on the Pay page, where the panels are long. AFTER open():
+        // a closed overlay is `display: none`, where a scroll write is lost and the old offset comes back.
         lightbox.open();
+        if (content) content.scrollTop = 0;
     }
 
     // Wire every card's ? button — stopPropagation prevents collapsing the card
-    document.querySelectorAll('.btn-card-tips').forEach(btn => {
+    document.querySelectorAll(trigger.selector).forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
-            openTips(/** @type {HTMLElement} */ (btn).dataset.card);
+            openTips(/** @type {HTMLElement} */ (btn).dataset[trigger.key]);
         });
     });
 }

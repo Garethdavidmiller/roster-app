@@ -875,7 +875,7 @@ The DOM half of the "Move Your Pay Data" card: the itemised list of what is on t
 - **Exports:** `initTransferCard`
 
 ### `paycalc-help.js`
-The pay calculator's help-panel text, keyed by each `.help-btn`'s `data-help`. Pure data; the rates, London Allowance and contracted hours in its tips are read from `paycalc-calc.js`, so no figure is typed here.
+The pay calculator's `?` panel text, keyed by each `.help-btn`'s `data-help`, in the shared Tips panel's sections-and-items shape (`initTipsLightbox` renders it). Pure data; the rates, London Allowance and contracted hours in its tips are read from `paycalc-calc.js`, so no figure is typed here.
 - **Exports:** `HELP_CONTENT`
 
 ### `paycalc-migrations.js`

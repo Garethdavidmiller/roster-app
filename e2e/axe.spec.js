@@ -460,6 +460,24 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // A ? PANEL OPEN (Nov 2026). The Pay "?" panels became the shared white Tips sheet — section headings,
+    // icon rows, a title and ✕ that stay while it scrolls — and no scan had opened a Tips panel on any page.
+    test('paycalc — a ? panel open (the shared Tips sheet)', async ({ page }) => {
+        await seedSession(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        for (let i = 0; i < 3 && await page.locator('.lb-overlay.visible').count(); i++) await page.keyboard.press('Escape');
+        await page.locator('.help-btn[data-help="hpp"]').click();
+        await expect(page.locator('#tipsLightbox')).toHaveClass(/\bopen\b/);
+        await expect(page.locator('#tipsLbBody .tips-lb-section').first()).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // THE "FROM YOUR CALENDAR" CARD IN THE STATES THAT ASK THE MEMBER TO CHECK SOMETHING (whole-app
     // check, 10 Nov 2026). The two scans above answer the recorded-changes read and type no hours, so
     // they never drew the four orange pairs these states draw — and all four failed AA: the

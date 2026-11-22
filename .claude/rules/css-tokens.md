@@ -106,8 +106,8 @@ default) is the app's common form and is allowed; `index.css` is held to the rul
 **Two overlay corner families, both named:** compact DIALOGS use `--radius-xl` (20px) — the white
 ones (month-jump, login, Tips, confirm/prompt, the Calendar's Circular/Newsletter viewer) and the
 Calendar's team info, a compact see-through one; full navy GLASS SHEETS (About, notices, day detail,
-AL) use `--radius-panel` (24px). The Pay Calculator's `?` help sheet is a see-through glass sheet at the
-Tips' `--modal-standard` width — one width at every size (desktop audit, 7 Nov 2026).
+AL) use `--radius-panel` (24px). The Pay Calculator's `?` panels ARE the shared Tips panel (owner, Nov
+2026); they were a see-through glass sheet, the one `?` in the app the page showed through behind.
 
 **Within the glass family, four are SOLID:** the one-time notices, the About panel and the drawer's
 App Notices and Coming Soon panels share one opaque navy sheet (`.notice-lb-content,

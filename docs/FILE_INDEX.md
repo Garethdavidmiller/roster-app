@@ -201,7 +201,7 @@ roster-app/
 ├── paycalc-transfer.js ← the pay-data BACKUP FORMAT and import rules (pay data is per-origin localStorage, which does not follow a member to a new phone): `selectBackupKeys`, `summarise`, `buildBackup`, `validateBackup`, `rekeyEntries`, `backupFilename`, `restoredLine`. `validateBackup` is the TRUST BOUNDARY. Tested by paycalc-transfer.test.mjs
 ├── paycalc-transfer-card.js ← the DOM half of the "Move Your Pay Data" card: `initTransferCard()`. Owns no rule (paycalc-transfer.js does). Restore REPLACES, never merges, and writes before removing — its header says why
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
-├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
+├── paycalc-help.js         ← HELP_CONTENT: the ? panels' text, in the Tips panel's shape (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.), runMigrations(), and the shared saved-period decoder parseSavedPeriod/readSavedPeriod (returns {data,error}; back-pay + HPP surface a corrupt period instead of silently dropping it)
 ├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion, fetchOverridesForPeriod
 ├── roster-data.js          ← shared: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions

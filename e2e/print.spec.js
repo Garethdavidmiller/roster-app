@@ -502,7 +502,7 @@ test('printing with a lightbox open prints the whole page, and not the lightbox 
     await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     for (const [url, ready, open, panel] of /** @type {Array<[string, string, string, string]>} */ ([
-        ['/paycalc.html', '.ty-tab.active', '.help-btn', '#helpLightbox'],
+        ['/paycalc.html', '.ty-tab.active', '.help-btn', '#tipsLightbox'],
         ['/trains.html', '.btn-card-tips', '.btn-card-tips', '#tipsLightbox'],
     ])) {
         await page.goto(url);

@@ -84,24 +84,55 @@ function readWiredCards(file) {
 
 // paycalc has the SAME contract under a different name, and it was unguarded until this review.
 // `HELP_CONTENT` (paycalc-help.js) is keyed by `data-help`, lives in a different file from its
-// renderer (paycalc-lightboxes.js), and is consumed with `data.tips.map(...)` — so a missing `tips`
-// throws exactly like `tips.sections` did, and a missing key gives the same silently-inert button.
-// It is clean today; it is covered here so it stays that way. (The nav-panel arrays are deliberately
-// NOT covered: they are module-internal constants sitting directly above their own renderer, so an
-// editor sees both at once — the cross-FILE separation is what let the reset-requests bug through.)
+// renderer, and a missing key gives the same silently-inert button. Since Nov 2026 it is rendered by
+// the shared `initTipsLightbox` (paycalc-lightboxes.js passes `.help-btn[data-help]` as its trigger:
+// the Pay "?" panels were a see-through glass sheet of bullet lists of their own until then), so it is
+// held to the SAME shape as every CARD_TIPS block — `{ title, sections: [{ heading, items: [{ icon,
+// html }] }] }`. (The nav-panel arrays are deliberately NOT covered: they are module-internal constants
+// sitting directly above their own renderer, so an editor sees both at once — the cross-FILE
+// separation is what let the reset-requests bug through.)
 const { HELP_CONTENT } = await import('./paycalc-help.js');   // top level: .mjs allows it
+/** Every item's html in one entry, in order. @param {any} entry @returns {string[]} */
+const helpItems = entry => entry.sections.flatMap((/** @type {any} */ s) => s.items).map((/** @type {any} */ i) => i.html);
 
 describe('paycalc-help.js — HELP_CONTENT', () => {
     const html = readFileSync('paycalc.html', 'utf8');
     const wired = [...html.matchAll(/data-help="([^"]+)"/g)].map(m => m[1]);
 
-    test('every entry has a title and a non-empty tips ARRAY', () => {
-        const broken = Object.entries(HELP_CONTENT)
-            .filter(([, v]) => !v || typeof v.title !== 'string' || !Array.isArray(v.tips) || !v.tips.length)
-            .map(([k, v]) => `${k} (tips: ${JSON.stringify(v && v.tips)})`);
+    test('every entry is in the shape the shared Tips panel renders', () => {
+        // The renderer does `for (const section of tips.sections)` and `for (const item of section.items)`.
+        const broken = [];
+        for (const [key, v] of Object.entries(HELP_CONTENT)) {
+            if (!v || typeof v.title !== 'string' || !Array.isArray(v.sections) || !v.sections.length) {
+                broken.push(`${key} has no title or no sections array`);
+                continue;
+            }
+            v.sections.forEach((/** @type {any} */ sec, /** @type {number} */ i) => {
+                if (!Array.isArray(sec.items) || !sec.items.length) { broken.push(`${key}.sections[${i}] has no items`); return; }
+                sec.items.forEach((/** @type {any} */ item, /** @type {number} */ j) => {
+                    if (typeof item.icon !== 'string' || !item.icon.trim() || typeof item.html !== 'string' || !item.html.trim()) {
+                        broken.push(`${key}.sections[${i}].items[${j}] is missing its icon or html`);
+                    }
+                });
+            });
+        }
         assert.deepEqual(broken, [],
-            `paycalc-help.js: ${broken.join(', ')} — the renderer does \`data.tips.map(...)\`, so a ` +
-            'missing or non-array tips throws the moment the ? is tapped.');
+            `paycalc-help.js: ${broken.join('; ')} — a wrong shape throws, or shows an empty row, the moment the ? is tapped.`);
+    });
+
+    test('every section has a short heading, as the other pages\' panels do', () => {
+        const bare = Object.entries(HELP_CONTENT).flatMap(([k, v]) => v.sections
+            .map((/** @type {any} */ s, /** @type {number} */ i) => [s.heading, `${k}.sections[${i}]`])
+            .filter(([h]) => typeof h !== 'string' || !h.trim() || h.length > 40).map(([, at]) => at));
+        assert.deepEqual(bare, [], 'a section with no heading, or one too long to be a heading');
+    });
+
+    test('the page opens its ? buttons through the shared panel, and carries that panel\'s markup', () => {
+        assert.match(readFileSync('paycalc-lightboxes.js', 'utf8'),
+            /initTipsLightbox\(HELP_CONTENT, \{ trigger: \{ selector: '\.help-btn\[data-help\]', key: 'help' \} \}\)/);
+        for (const id of ['tipsLightbox', 'tipsLightboxContent', 'tipsLightboxClose', 'tipsLbTitle', 'tipsLbBody']) {
+            assert.match(html, new RegExp(`id="${id}"`), `paycalc.html: #${id} is missing — initTipsLightbox returns early without it`);
+        }
     });
 
     test('every data-help button in paycalc.html has an entry', () => {
@@ -121,7 +152,7 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
         // It said "140 hours" by hand. Change the table, load a fresh copy of the help, and the tip
         // must say the new figure — per grade when the two grades differ.
         const { GRADES } = await import('./paycalc-calc.js');
-        const tipOf = (/** @type {any} */ mod) => mod.HELP_CONTENT.hours.tips.find((/** @type {string} */ t) => t.startsWith('Your contract includes'));
+        const tipOf = (/** @type {any} */ mod) => helpItems(mod.HELP_CONTENT.hours).find((/** @type {string} */ t) => t.startsWith('Your contract includes'));
         assert.match(tipOf({ HELP_CONTENT }), new RegExp(`${GRADES.cea.contr} hours per period`));
         const saved = [GRADES.cea.contr, GRADES.ces.contr];
         try {
@@ -130,6 +161,26 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
             GRADES.ces.contr = 147;
             assert.match(tipOf(await import('./paycalc-help.js?differ')), /CEA 150, CES 147/);
         } finally { [GRADES.cea.contr, GRADES.ces.contr] = saved; }
+    });
+
+    test('the premium panel names WHICH January pays which year, read from the tax-year table', async () => {
+        // It said "a single lump sum on a January payslip every year", and a member entering 2026/27 hours
+        // read that as January 2027 — whose payslip carries 2025/26's premium (paycalc.md invariant 4:
+        // the first January AFTER the year ends). The years come from TAX_YEARS, so the rollover moves them.
+        const { TAX_YEARS } = await import('./paycalc-calc.js');
+        const words = helpItems(HELP_CONTENT.hpp).join(' ');
+        const cur = TAX_YEARS[TAX_YEARS.length - 1], prev = TAX_YEARS[TAX_YEARS.length - 2];
+        assert.ok(cur.hppPaidJan > Number(cur.label.slice(0, 4)) + 1, 'premise: a year\'s premium is paid the January after it ends');
+        assert.match(words, new RegExp(`premium for ${cur.label} comes on your January ${cur.hppPaidJan} payslip`));
+        assert.match(words, new RegExp(`January ${prev.hppPaidJan} payslip carries the premium for ${prev.label}`));
+        assert.doesNotMatch(words, /a January payslip<\/strong> every year/);
+        // A new year in the table moves the sentence with it.
+        TAX_YEARS.push({ ...cur, label: '2099/00', hppPaidJan: 2101 });
+        try {
+            const moved = helpItems((await import('./paycalc-help.js?rollover')).HELP_CONTENT.hpp).join(' ');
+            assert.match(moved, /premium for 2099\/00 comes on your January 2101 payslip/);
+            assert.match(moved, new RegExp(`January ${cur.hppPaidJan} payslip carries the premium for ${cur.label}`));
+        } finally { TAX_YEARS.pop(); }
     });
 });
 

@@ -99,6 +99,7 @@
   <link rel="modulepreload" href="./paycalc-calc.js">
   <link rel="modulepreload" href="./paycalc-format.js">
   <link rel="modulepreload" href="./paycalc-help.js">
+  <link rel="modulepreload" href="./tips-lightbox.js">
   <link rel="modulepreload" href="./paycalc-hpp.js">
   <link rel="modulepreload" href="./paycalc-hpp-schedule.js">
   <link rel="modulepreload" href="./paycalc-inputs.js">
@@ -1207,12 +1208,15 @@
   <div class="sticky-amount" id="stickyAmount">£–</div>
 </div>
 
-<!-- Help lightbox: opened by ? buttons on each card -->
-<div id="helpLightbox" class="lb-overlay" role="dialog" aria-modal="true" aria-labelledby="helpLightboxTitle">
-  <div id="helpLightboxContent" class="lb-content">
-    <button id="helpLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
-    <div class="help-lightbox-title" id="helpLightboxTitle"></div>
-    <ul class="help-lightbox-list" id="helpLightboxList"></ul>
+<!-- The ? panels: the shared Tips panel every page's ? opens (tips-lightbox.js), filled from
+     paycalc-help.js by each card's .help-btn[data-help]. Not a glass sheet of its own any more (Nov 2026). -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+  <div id="tipsLightboxContent" class="lb-content">
+    <div class="tips-lb-top">
+      <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+      <div class="tips-lb-title" id="tipsLbTitle"></div>
+    </div>
+    <div id="tipsLbBody"></div>
   </div>
 </div>
 
