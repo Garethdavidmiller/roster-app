@@ -161,7 +161,8 @@ const CAPS = {
     // to 2,744. The formula gives 2800, a raise, so it is clamped to the round number below the old cap, as admin-app.js
     // was at v23.54: six lines of room. The save conversation in `saveChanges` is the next seam.
     // 2750 → 2550: brought DOWN with what left (Nov 2026): the Build press's words and bookkeeping (links-build-press.js) and what the page reads from today's roster (links-today.js), 2,744 measured lines to 2,483; the measured size plus 50, rounded up. Further cuts below lower it again.
-    'links-app.js':            2550,   // ← Nov 2026, extractions and comment cuts (2750 on 18 Nov 2026)
+    // 2550 → 2400: brought DOWN again (Nov 2026): the grid's cells (links-grid-cells.js), the one working-copy setter, one read of the collection and the print net (links-print.js), 2,483 measured lines to 2,348; the measured size plus 50, rounded.
+    'links-app.js':            2400,   // ← Nov 2026, extractions and comment cuts (2750 on 18 Nov 2026)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap

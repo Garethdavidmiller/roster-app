@@ -62,6 +62,7 @@ import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-ad
 import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
+import { createPrintPrep } from './links-print.js';
 import { shiftOptionLists, currentLinkBaseline } from './links-today.js';
 import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry, listRowSig, mergeListAnswer } from './links-concurrency.js';
@@ -1697,12 +1698,8 @@ export function init() {
         if (status && dirty) status.textContent = '';
     }
 
-    /**
-     * Build the print-only masthead: which design, which version, printed when.
-     *
-     * The date is stamped at BEFOREPRINT rather than at render, so a page left open for a week
-     * cannot print yesterday's date on today's sheet.
-     */
+    /** Build the print-only masthead: which design, which version, printed when — stamped on every prepare, so a page
+     *  left open for a week cannot print yesterday's date on today's sheet. */
     function _renderPrintMasthead() {
         const el = document.getElementById('printDesignName');
         if (!el) return;
@@ -1733,64 +1730,13 @@ export function init() {
             `<span class="print-design-meta">${escapeHtml(saved)} · ${escapeHtml(printed)}</span>` +
             `<span class="print-design-meta">Staffed window: ${escapeHtml(win + moved)}</span>`;
     }
-    // Re-stamp on the way to the printer so the "Printed" date is the real one.
-    // Kept ALONGSIDE the `_preparePrint` registration below, deliberately: that one is idempotent,
-    // so if a print dialog is cancelled on an engine that never fires `afterprint`, the next print
-    // would re-use the first run's stamp. This listener re-stamps the "Printed" date every time.
-    window.addEventListener('beforeprint', _renderPrintMasthead);
-
-    // The print button (v19.62; prepares synchronously since v23.20). It no longer RELIES on
-    // `window.print()` firing `beforeprint` — see `_preparePrint` below for why that assumption was
-    // not safe on the engine half this station reads on. The preparation is still shared, not
-    // duplicated: both routes call the one function, and it is idempotent.
+    // Every disclosure opened for paper, the masthead stamped on every prepare, and the page put back however the
+    // print ends — the reader's next touch, key or scroll included, because iOS sends no `afterprint` (links-print.js).
+    const printPrep = createPrintPrep({ stamp: _renderPrintMasthead });
     document.getElementById('linksPrintBtn')?.addEventListener('click', () => {
-        // Guarded (v24.61): in a home-screen app on iOS 27 `window.print()` does nothing, so the tap
-        // explains and offers Safari. Prepare only when a print will follow — the preparation's
-        // restore waits on events a print that never happens would never send.
-        printOrExplain({ print: () => { _preparePrint(); window.print(); }, explain: () => explainNoPrint(confirmDialog) });
-    });
-
-    let _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ ([]);
-    let _printPrepared = false;
-    /**
-     * Open every `<details>` for paper, and put them back afterwards (v19.57).
-     *
-     * CSS **cannot** do the opening: Chromium hides a closed `details`'s content through its own
-     * internal slot, which no author `display` rule reaches — measured, a `@media print` override
-     * still printed 13 of the fatigue panel's 24 rows. And that is not cosmetic. The sheet is what
-     * gets circulated to the assessing manager, so dropping 17 completed checks is precisely the
-     * false-assurance failure that panel exists to prevent: a design that looks assessed against
-     * fewer factors than it actually was. Restoring afterwards matters for the mirror-image reason
-     * — printing must not permanently expand what the designer deliberately collapsed.
-     *
-     * Called from the Print button BEFORE `window.print()` as well as from `beforeprint` (v23.20);
-     * `fip-guide.js` carries the argument for why the event alone was not safe, and the
-     * measurement. IDEMPOTENT ON PURPOSE: where both routes fire, a second snapshot would record
-     * every `details` as already open and the restore would leave the workspace expanded.
-     */
-    function _preparePrint() {
-        if (_printPrepared) return;
-        _printPrepared = true;
-        _renderPrintMasthead();
-        _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ (
-            [...document.querySelectorAll('details:not([open])')]);
-        for (const d of _reopenAfterPrint) d.open = true;
-    }
-    function _restoreAfterPrint() {
-        if (!_printPrepared) return;   // afterprint can fire twice, or not at all
-        _printPrepared = false;
-        for (const d of _reopenAfterPrint) d.open = false;
-        _reopenAfterPrint = [];
-    }
-    window.addEventListener('beforeprint', _preparePrint);
-    window.addEventListener('afterprint', _restoreAfterPrint);
-    // The restore needs the same defence the prepare got (v23.27): `afterprint` is the same event
-    // from the same engine that does not fire `beforeprint` for AirPrint, so on the route this
-    // station prints from the workspace was left permanently expanded. Becoming visible again is
-    // the signal every engine sends; where `afterprint` fires this is a no-op. The full argument
-    // and its measurement are in `fip-guide.js`, beside the identical net.
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') _restoreAfterPrint();
+        // In a home-screen app on iOS 27 `window.print()` does nothing, so the tap explains and offers Safari (v24.61).
+        // Prepared only when a print will follow: the restore waits on events a print that never happens never sends.
+        printOrExplain({ print: () => printPrep.printNow(() => window.print()), explain: () => explainNoPrint(confirmDialog) });
     });
 
     /**

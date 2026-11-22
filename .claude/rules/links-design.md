@@ -705,11 +705,12 @@ The night-family rollup belongs INSIDE the disclosure, or the heading and the la
 things.
 
 **Printing must open every `<details>`, and CSS cannot do it**: Chromium hides a closed disclosure's
-content through an internal slot no author rule reaches. `_preparePrint` opens them — from the Print
-button before `window.print()`, and on `beforeprint`, idempotently — and `_restoreAfterPrint` closes them
-on `afterprint` and again when the page becomes visible, because Safari fires neither event for
-AirPrint. The printed sheet goes to the assessing manager, and dropping completed checks from it is the
-false-assurance failure this panel exists to prevent.
+content through an internal slot no author rule reaches. `createPrintPrep` (`links-print.js`) opens them —
+from the Print button before `window.print()`, and on `beforeprint`, idempotently — and closes them on
+`afterprint`, when the page becomes visible, and at the reader's next touch, key or scroll, because Safari
+fires neither event for AirPrint (the rules are its header, as `fip-guide.js`'s net). The printed sheet
+goes to the assessing manager, and dropping completed checks from it is the false-assurance failure this
+panel exists to prevent.
 
 **Today's link, for comparison** (`currentLinkBaseline`, passed as `getBaseline`): measured over the MAIN
 cycle (`weeklyRoster`) at its own length. Never splice two cycles into one rotation — the join itself
@@ -1286,8 +1287,8 @@ and the window editor are hidden.
   would compete and saving is the one that matters; the save row is hidden on paper, so it costs the
   sheet nothing. It goes through `printOrExplain` (`print-guard.js`): in a home-screen app on iOS
   `window.print()` does nothing, so the tap explains and offers Safari. It prepares the sheet itself
-  before printing (`_preparePrint`, the function `beforeprint` also calls) rather than relying on the
-  event.
+  before printing (`createPrintPrep`'s `printNow`: from the page on screen, the masthead stamped afresh)
+  rather than relying on the event.
 - **The masthead carries provenance, and must say when that provenance does not describe the sheet.**
   `#printDesignName` names the design, who last saved it and when (a proposal: its ref, "built into the
   app"), the staffed window (marked "(moved)" when it is not the default), and the date and time printed,

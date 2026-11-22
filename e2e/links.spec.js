@@ -3970,6 +3970,21 @@ test('links: the shift sheet\'s search box is called "Search shift times"', asyn
     await expect(box).toHaveAccessibleName('Search shift times');
 });
 
+// A PRINT ENDS AT THE READER'S NEXT TOUCH (Nov 2026, links-print.js rule 4). iOS sends no `afterprint` for AirPrint and
+// its sheet need not change the page's visibility, so the workspace stayed expanded, prepared, for good — the next
+// Print then re-used the old snapshot. The stub here prints and sends nothing after, as AirPrint does.
+test('links: a print that sends no afterprint is over at the reader\'s next touch', async ({ page }) => {
+    await page.addInitScript(() => { window.print = () => { window.dispatchEvent(new Event('beforeprint')); }; });
+    await openLinksWithDesign(page);
+    const closed = page.locator('#checksContent details:not([open])');
+    const before = await closed.count();
+    expect(before, 'the premise: the checks card has collapsed disclosures').toBeGreaterThan(0);
+    await page.locator('#linksPrintBtn').click();
+    await expect(closed, 'opened for paper').toHaveCount(0);
+    await page.mouse.click(5, 5);   // the reader is back
+    await expect(closed, 'put back as the reader left them').toHaveCount(before);
+});
+
 test('links: the print button prints, and a work-in-progress sheet says so', async ({ page }) => {
     // The print CSS and the beforeprint/afterprint machinery have existed since v12.37; until v19.62
     // the only way to reach them was the browser menu, which an installed PWA often does not expose.
