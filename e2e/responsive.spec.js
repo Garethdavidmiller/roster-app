@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, seedViewerAccess } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, seedViewerAccess, scaleText } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -238,6 +238,47 @@ test('admin week label across New Year names the year it starts in, and still fi
     await expect(label).toHaveText('27 Dec 2026–2 Jan');
     const fit = await label.evaluate(el => ({ sw: el.scrollWidth, cw: el.clientWidth }));
     expect(fit.sw, `the New Year label ellipsises at 375px (${fit.sw}px into ${fit.cw}px)`).toBeLessThanOrEqual(fit.cw);
+});
+
+// ── THE OPERATIONS DATE FIELDS WITH THE MONTH IN FULL (22 Nov 2026) ─────────────────────────────
+// "A date with its year is written in full": the date picker's trigger reads "Wed 30 September 2026",
+// about 200px at 14px. Its row used to give it a ZERO flex basis, so it never wrapped and the words ran
+// under "Choose file" — already at 320px with the short month. The longest month, a Wednesday on its
+// widest day, set through the field's own `change` (the path a pick takes), at the narrowest phone, the
+// commonest iPhone, the e2e phone and under 1.5× text: the words stay inside the field, the field
+// inside its row, and the button beside or beneath it never covers it.
+test('operations date fields keep the full month inside the field, beside or above their button', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#huddleBody .date-trigger')).toBeAttached();
+    await page.evaluate(() => {
+        for (const id of ['huddleBody', 'circularUploadBody', 'newsletterUploadBody', 'rosterUploadBody']) document.getElementById(id)?.classList.add('open');
+        for (const [id, iso] of [['huddleDate', '2026-09-30'], ['circularDate', '2026-09-30'], ['newsletterDate', '2026-09-30'], ['rosterWeekEnding', '2026-09-26']]) {
+            const el = /** @type {HTMLInputElement} */ (document.getElementById(id));
+            el.value = iso;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    });
+    for (const [width, scale] of [[320, 1], [375, 1], [393, 1], [320, 1.5]]) {
+        await page.setViewportSize({ width, height: 900 });
+        if (scale !== 1) await scaleText(page, scale);
+        const fields = await page.evaluate(() => [...document.querySelectorAll('.huddle-row > .date-trigger')].map(t => {
+            const tr = t.getBoundingClientRect(), row = /** @type {HTMLElement} */ (t.parentElement).getBoundingClientRect();
+            const btn = /** @type {HTMLElement} */ (t.parentElement).querySelector('.huddle-file-label')?.getBoundingClientRect();
+            return {
+                text: t.textContent,
+                clipped: t.scrollWidth > t.clientWidth + 1,
+                outside: tr.left < row.left - 1 || tr.right > row.right + 1,
+                covered: !!btn && btn.left < tr.right - 1 && btn.right > tr.left + 1 && btn.top < tr.bottom - 1 && btn.bottom > tr.top + 1,
+            };
+        }));
+        expect(fields.map(f => f.text), 'the four fields, each with the month in full')
+            .toEqual(['Wed 30 September 2026', 'Wed 30 September 2026', 'Wed 30 September 2026', 'Sat 26 September 2026']);
+        const broken = fields.filter(f => f.clipped || f.outside || f.covered)
+            .map(f => `"${f.text}"${f.clipped ? ' runs out of its box' : ''}${f.outside ? ' leaves its row' : ''}${f.covered ? ' is covered by its button' : ''}`);
+        expect(broken, `at ${width}px and ${scale}× text:\n  ${broken.join('\n  ')}`).toEqual([]);
+    }
 });
 
 // ── Team View counts as a usable open (v21.37; App Speed review, Oct 2026) ──────────────────────
