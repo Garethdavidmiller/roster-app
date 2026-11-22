@@ -4374,8 +4374,8 @@ test('drawer Circular on Admin: when no tab comes back, staged edits are asked a
     }, [DOC_STORED, 'circulars/2026-09-25-a.pdf']);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--circular').click();
-    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible({ timeout: 10_000 });
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByText('Your unsaved changes on this page will be lost.', { exact: true })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Keep editing' }).click();
     await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
     await expect(row.locator('.day-start')).toHaveValue('06:00');
     // The question stops the click before the drawer's own handler, so the drawer is still OPEN — and

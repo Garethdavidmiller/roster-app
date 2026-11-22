@@ -26,7 +26,8 @@
  * a sign-out has been ANSWERED, so the member is not asked twice.
  *
  * `askBeforeLeavingByDrawer(isDirty)` — the same question asked IN the page, before a link in the
- * drawer or the About panel leaves it, because a phone never shows the browser's.
+ * drawer or the About panel leaves it, because a phone never shows the browser's. `leaveAfterAsking`
+ * asks it for one control (a header logo), and `LEAVE_ANSWERED` is how another surface says it asked.
  *
  * `keepDraftWhenHidden(isDirty, slot)` — for the exits nothing can ask about (iOS discarding a hidden
  * page, a swipe back): a copy of the unsaved work, kept when the page is hidden and offered on the
@@ -90,14 +91,29 @@ let _leaving = false;
  *  tab (review, 15 Nov 2026) — but nobody answered a leave, so a draft is still kept (`_leaving` is not). */
 let _identityReload = false;
 
-/** What every way off a page with unsaved work asks. */
-const LEAVE_QUESTION = 'You have unsaved changes. Leave this page anyway?';
+/**
+ * What every way off a page with unsaved work asks — the drawer, the About links and the header logos, and (its title
+ * and buttons) Admin's own banner and Overtime's in-page moves.
+ *
+ * IT SAYS THE WORK IS LOST, BECAUSE IT IS (confirm review, Nov 2026). An answered leave stands `keepDraftWhenHidden`
+ * aside, so nothing is kept and nothing is offered back — while the same members are taught elsewhere that unsaved
+ * work comes back (the Restore offer). It read "You have unsaved changes. Leave this page anyway?" under a plain
+ * "Leave", where the same discard through sign-out was already `danger`. One cancel word, "Keep editing", everywhere.
+ */
+export const LEAVE_QUESTION = Object.freeze({
+    title: 'Leave without saving?',
+    message: 'Your unsaved changes on this page will be lost.',
+    confirmLabel: 'Leave without saving',
+    cancelLabel: 'Keep editing',
+    danger: true,
+});
 
 /**
  * Warn before the tab closes or navigates while there is unsaved work.
  * @param {() => boolean} isDirty
  */
 export function warnOnUnload(isDirty) {
+    hearAnsweredLeave();
     window.addEventListener('beforeunload', (e) => {
         if (!_leaving && !_identityReload && isDirty()) { e.preventDefault(); e.returnValue = ''; }
     });
@@ -151,7 +167,7 @@ export function askBeforeLeavingByDrawer(isDirty) {
         if (!link || !LEAVING_ZONES.some(zone => link.closest(zone)) || !leavesPage(link)) return;
         e.preventDefault();
         e.stopPropagation();
-        confirmDialog({ message: LEAVE_QUESTION, confirmLabel: 'Leave' })
+        confirmDialog({ ...LEAVE_QUESTION })
             .then((ok) => {
                 if (!ok) return;
                 _leaving = true;   // answered: the unload warning must not ask a second time
@@ -165,13 +181,40 @@ export function askBeforeLeavingByDrawer(isDirty) {
  * Ask before ONE control leaves the page with unsaved work, as a drawer link does — the header logo
  * on Operations, the one way off that page that did not ask (review, 15 Nov 2026): a phone never shows
  * the browser's own question. On "Leave" the unload warning stands aside, as it does for the drawer.
+ * Admin's and Overtime's logos ask it too (confirm review, Nov 2026), so leaving a page is one
+ * question wherever it starts.
  * @param {() => boolean} isDirty @param {() => void} go what leaving does
  * @returns {Promise<void>}
  */
 export async function leaveAfterAsking(isDirty, go) {
-    if (isDirty() && !(await confirmDialog({ message: LEAVE_QUESTION, confirmLabel: 'Leave' }))) return;
+    if (isDirty() && !(await confirmDialog({ ...LEAVE_QUESTION }))) return;
+    leaveNow(go);
+}
+
+/**
+ * Leave NOW, the question about the work answered: marked first, so the browser's "Leave site?" does not
+ * ask a second time and `keepDraftWhenHidden` keeps nothing of the work the member chose to leave.
+ * @param {() => void} go what leaving does
+ */
+function leaveNow(go) {
     _leaving = true;
     go();
+}
+
+/**
+ * The event a question asked OUTSIDE this module sends once it has been answered with a leave — a
+ * notification's "Open it" or "Reload" (sw-register.js). Neither half was told, so a desktop asked
+ * "Leave site?" a second time and the next load offered back the work the member had chosen to leave
+ * (confirm review, Nov 2026). An EVENT, not an import: sw-register.js is in modules that must never
+ * reach the Firebase client (calendar-access-gate.test.mjs), and this module does.
+ */
+export const LEAVE_ANSWERED = 'myb-leave-answered';
+/** Whether this page listens for `LEAVE_ANSWERED` yet — once, from whichever of the two needs it first. */
+let _hearingAnsweredLeave = false;
+function hearAnsweredLeave() {
+    if (_hearingAnsweredLeave) return;
+    _hearingAnsweredLeave = true;
+    window.addEventListener(LEAVE_ANSWERED, () => { _leaving = true; });
 }
 
 /**
@@ -185,6 +228,7 @@ export async function leaveAfterAsking(isDirty, go) {
  * @param {{ keep: () => void, forget: () => void }} slot  writes, or deletes, this page's draft
  */
 export function keepDraftWhenHidden(isDirty, slot) {
+    hearAnsweredLeave();
     const onHide = () => {
         try { if (!_leaving && isDirty()) slot.keep(); else slot.forget(); }
         catch (err) { console.error('[page-session] the unsaved-work draft could not be kept:', err); }
@@ -230,16 +274,22 @@ export function onReturnToPage(afterMs, fn) {
  */
 export function askBeforeSignOut(isDirty) {
     return async () => {
+        // A TITLE ON EACH, AND THE CONSEQUENCE STATED (confirm review, Nov 2026): untitled, the dialog's
+        // accessible name was its whole message, and "Sign out anyway?" did not say the work is lost.
         if (writesInFlight() > 0) {
             // Both facts when both are true (v24.57, review) — one question must not hide the other.
-            const alsoDirty = isDirty() ? ' You also have unsaved changes.' : '';
+            const dirty = isDirty();
+            const alsoDirty = dirty ? ' Your unsaved changes on this page will be lost too.' : '';
             return confirmDialog({
-                message: `A change is still saving — if you sign out now it may be lost.${alsoDirty} Sign out anyway?`,
-                confirmLabel: 'Sign out', danger: true,
+                title: 'Sign out now?',
+                message: `A change is still saving — if you sign out now it may be lost.${alsoDirty}`,
+                confirmLabel: 'Sign out', cancelLabel: dirty ? 'Keep editing' : 'Stay signed in', danger: true,
             });
         }
         return !isDirty() || await confirmDialog({
-            message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true,
+            title: 'Sign out without saving?',
+            message: 'You have unsaved changes. If you sign out now they will be lost.',
+            confirmLabel: 'Sign out', cancelLabel: 'Keep editing', danger: true,
         });
     };
 }

@@ -974,7 +974,7 @@ test('links: cancelling "Sign out anyway?" keeps the session AND this device\'s 
     await page.locator('#navMenuBtn').click();
     await page.locator('#navSignOutBtn').click();
     const dialog = page.locator('.dialog-overlay').last();
-    await expect(dialog).toContainText('Sign out anyway?');
+    await expect(dialog).toContainText('If you sign out now they will be lost.');
     await dialog.locator('.dialog-btn-cancel').click();
     await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     await expect(page).toHaveURL(/links\.html/);

@@ -41,7 +41,7 @@ async function adminWithUnsavedEditAtSignOut(page) {
     await page.locator('#navMenuBtn').click();
     await page.locator('#navSignOutBtn').click();
     const dialog = page.locator('.dialog-overlay').last();
-    await expect(dialog).toContainText('Sign out anyway?');
+    await expect(dialog).toContainText('If you sign out now they will be lost.');
     return dialog;
 }
 
@@ -393,8 +393,8 @@ async function openAdminOnDecember(page) {
 }
 
 // THE KEYBOARD IS NOT LEFT ON <body> WHEN A BAR GOES FROM UNDER IT (review, 21 Nov 2026). The sticky
-// bar's Save and the unsaved banner's "Discard and continue" both hid the very button that was pressed.
-test('admin: after the sticky bar\'s Save, and after "Discard and continue", focus is somewhere real', async ({ page }) => {
+// bar's Save and the unsaved banner's "Leave without saving" both hid the very button that was pressed.
+test('admin: after the sticky bar\'s Save, and after the banner\'s "Leave without saving", focus is somewhere real', async ({ page }) => {
     await openAdminOnDecember(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.authUser = true; });
     const absent = () => page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="sick"]:not([disabled])') }).first();
@@ -415,7 +415,7 @@ test('admin: after the sticky bar\'s Save, and after "Discard and continue", foc
 });
 
 // THE DIALOG OVER THE DRAWER OWNS THE KEYBOARD (v25.06, whole-app review). The drawer's own keydown
-// handler had no topmost check, so with "Leave this page anyway?" open over it, Tab dragged focus into
+// handler had no topmost check, so with "Leave without saving?" open over it, Tab dragged focus into
 // the drawer behind the modal and a single Escape closed BOTH — two surfaces, two history steps.
 test('admin: with the leave question open over the drawer, Tab stays in it and Escape closes only it', async ({ page }) => {
     await openAdminOnDecember(page);
@@ -425,7 +425,7 @@ test('admin: with the leave question open over the drawer, Tab stays in it and E
     await row.locator('.day-end').fill('14:00');
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
-    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
+    await expect(page.getByText('Your unsaved changes on this page will be lost.', { exact: true })).toBeVisible();
     // The dialog is VISIBLE a frame before it takes focus (createLightbox focuses on the next
     // animation frame), so a Tab pressed the instant it shows can still start from the drawer's pill.
     // No person is that quick, and Playwright 1.64 on the phone project was (4 Nov 2026): wait for
@@ -437,7 +437,7 @@ test('admin: with the leave question open over the drawer, Tab stays in it and E
         expect(await page.evaluate(() => !!document.activeElement?.closest('.dialog-overlay')), 'Tab must stay inside the dialog').toBe(true);
     }
     await page.keyboard.press('Escape');
-    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeHidden();
+    await expect(page.getByText('Your unsaved changes on this page will be lost.', { exact: true })).toBeHidden();
     await expect(page.locator('#navPanel'), 'one Escape closes the topmost surface only').toHaveClass(/open/);
     await expect(page).toHaveURL(/admin\.html/);
     // A closed dialog stays in the page for 500ms so it can fade, and the next question builds a new
@@ -449,11 +449,11 @@ test('admin: with the leave question open over the drawer, Tab stays in it and E
     const overlayEntry = () => page.evaluate(() => history.state?.mybOverlay ?? null);
     await expect.poll(overlayEntry, { message: 'the closed dialog\'s history entry has gone' }).toBeNull();
     await page.locator('.nav-panel-pill--calendar').click();
-    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
+    await expect(page.getByText('Your unsaved changes on this page will be lost.', { exact: true })).toBeVisible();
     // …then the new dialog's own entry, which is what a Back is meant to close.
     await expect.poll(overlayEntry, { message: 'the dialog holds the top history entry' }).toBe(true);
     await page.evaluate(() => history.back());
-    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeHidden();
+    await expect(page.getByText('Your unsaved changes on this page will be lost.', { exact: true })).toBeHidden();
     await expect(page.locator('#navPanel'), 'Back closes the topmost surface only').toHaveClass(/open/);
     await expect(page).toHaveURL(/admin\.html/);
 });
@@ -468,17 +468,18 @@ test('admin: a drawer pill or the logo asks before leaving staged edits', async 
     // The drawer: asked, and Cancel keeps the page and the edit.
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
-    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByText('Your unsaved changes on this page will be lost.', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Keep editing' }).click();
     await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
     await expect(row.locator('.day-start')).toHaveValue('06:00');
 
-    // The logo: the page's own banner, and "Keep editing" keeps it.
+    // The logo: the drawer's own question (it leaves the page too), and "Keep editing" keeps it.
     await page.keyboard.press('Escape');
     await page.locator('#appIcon').click();
-    await expect(page.locator('#unsavedBanner')).toBeVisible();
-    await page.locator('#unsavedKeepBtn').click();
+    await expect(page.getByRole('alertdialog', { name: 'Leave without saving?' }).filter({ hasText: 'Your unsaved changes on this page will be lost.' })).toBeVisible();
+    await page.getByRole('button', { name: 'Keep editing' }).click();
     await expect(page).toHaveURL(/admin\.html/);
+    await expect(row.locator('.day-start')).toHaveValue('06:00');
 
     // Leave, from the drawer, runs the pill's own work too: the navigation it starts names the
     // edited month.
@@ -503,7 +504,7 @@ test('admin: a drawer pill or the logo asks before leaving staged edits', async 
     await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
-    await page.getByRole('button', { name: 'Leave', exact: true }).click({ noWaitAfter: true });
+    await page.getByRole('button', { name: 'Leave without saving', exact: true }).click({ noWaitAfter: true });
     const to = new URL((await leaving).url());
     expect(to.pathname, 'Leave goes to the Calendar').toBe('/');
     expect(to.searchParams.get('date'), 'Leave runs the pill’s own work: the link names the month being edited').toBe('2026-12-07');
@@ -548,10 +549,10 @@ test('admin: with staged edits, the About panel\'s links ask before leaving — 
     await expect(page.locator('.dialog-overlay'), 'mail leaves the page where it is').toHaveCount(0);
 
     // Calendar: asked, and Cancel keeps the page and the edit.
-    const question = page.getByText('You have unsaved changes. Leave this page anyway?');
+    const question = page.getByText('Your unsaved changes on this page will be lost.', { exact: true });
     await about.getByRole('link', { name: 'Calendar', exact: true }).click();
     await expect(question).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('button', { name: 'Keep editing' }).click();
     await expect(question).toBeHidden();
     await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
     await expect(row.locator('.day-start')).toHaveValue('06:00');
@@ -560,7 +561,7 @@ test('admin: with staged edits, the About panel\'s links ask before leaving — 
     const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
     await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
     await about.getByRole('link', { name: 'Calendar', exact: true }).click();
-    await page.getByRole('button', { name: 'Leave', exact: true }).click({ noWaitAfter: true });
+    await page.getByRole('button', { name: 'Leave without saving', exact: true }).click({ noWaitAfter: true });
     expect(new URL((await leaving).url()).pathname, 'Leave follows the link').toBe('/');
 });
 
@@ -585,6 +586,34 @@ async function reloadPastLeaveSite(page) {
     page.off('dialog', accept);
 }
 const ADMIN_DRAFT = 'myb_draft_admin_G.%20Miller';
+
+// A NOTIFICATION'S "RELOAD" RELOADS, AND IS THE ONE QUESTION (confirm review, Nov 2026). A tap whose page is
+// this one, at the hash it is already on, was "reloaded" by assigning the same address, which is a
+// same-document hop that reloads nothing; and page-session was never told the question was answered, so the
+// browser's "Leave site?" asked again on a desktop, and a draft was kept of the work the member had chosen
+// to leave. The worker's half (asking, then sending "open later") is sw-notification-tap.test.mjs.
+test('admin: a notification\'s Reload over staged edits really reloads, asks nothing more, and keeps no draft', async ({ page }) => {
+    await openAdminOnDecember(page);
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    await row.locator('.day-start').fill('06:00');
+    await row.locator('.day-end').fill('14:00');
+    /** @type {string[]} */ const browserAsked = [];
+    page.on('dialog', d => { browserAsked.push(d.type()); d.dismiss().catch(() => {}); });   // a "Stay" would stop the reload
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__beforeReload = true;
+        history.replaceState(history.state, '', '#tapped');   // the tap's address, hash and all, is the page's own
+        navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-open-later', url: location.href } }));
+    });
+    const dialog = page.getByRole('alertdialog', { name: 'Open the notification?' });
+    await expect(dialog).toContainText('If you open the notification now, they may be lost.');
+    await dialog.getByRole('button', { name: 'Reload', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__beforeReload === true).catch(() => true),
+        { message: 'the page did not reload' }).toBe(false);
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    expect(browserAsked, 'the browser asked a second time').toEqual([]);
+    expect(await page.evaluate((k) => localStorage.getItem(k), ADMIN_DRAFT), 'a draft was kept of the work the member left').toBeNull();
+});
 
 /** Mark a December weekday Absent, hide the page, and return that day and the time the offer names.
  *  @param {import('@playwright/test').Page} page */

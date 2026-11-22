@@ -22,7 +22,7 @@ import { initLoginOverlay, dismissLoginOverlay, sayStaffPinEndedIn } from './log
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, navGatesFor, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard, leaveAfterAsking, LEAVE_QUESTION } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -277,7 +277,8 @@ export function init() {
         // ── Leaving a half-filled form asks first (v21.48, external review; iPhone audit, Nov 2026) ──
         //
         // `confirmDiscard` guards every navigation THIS PAGE performs — another week, the list, a
-        // rebuilding resync, the logo. The drawer's links and the About panel's ask in the page too
+        // rebuilding resync. The logo LEAVES the page, so it asks page-session's own question
+        // (`leaveAfterAsking`), which also stands the browser's warning aside. The drawer's links and the About panel's ask in the page too
         // (`askBeforeLeavingByDrawer`), because a phone never shows the browser's warning, which
         // covers a reload or a closed tab where it does. A submit makes `isDirty()` false, which
         // disarms both. Deliberately NOT a localStorage draft, for the reasons on `confirmDiscard`: a
@@ -370,17 +371,16 @@ export function init() {
      * declaration about somebody's own availability, surviving sign-out on a shared station PC and
      * capable of disagreeing with the server. In-session is the whole requirement: the loss this
      * prevents happens seconds later, on the same page.
+     *
+     * THE LEAVE QUESTION'S TITLE AND BUTTONS (confirm review, Nov 2026): the drawer on this page asked
+     * page-session's question while this asked its own, under "Leave" and "Stay on this form", so one
+     * act had two wordings. Only the line is this page's, because "submitted" is this form's word.
      * @returns {Promise<boolean>} true when it is safe to proceed
      */
     async function confirmDiscard() {
         if (!currentForm?.isDirty()) return true;
-        return confirmDialog({
-            title: 'Leave without submitting?',
-            message: 'You have answers on this form that have not been submitted. '
-                + 'They will be lost if you leave it now.',
-            confirmLabel: 'Leave',
-            cancelLabel: 'Stay on this form',
-        });
+        return confirmDialog({ ...LEAVE_QUESTION,
+            message: 'You have answers on this form that have not been submitted. They will be lost if you leave it now.' });
     }
 
     async function loadEverything() {
@@ -721,7 +721,7 @@ export function init() {
 
     /** The page's own chrome — About on the drawer logo, the header logo home. Both paths, once (`??=`, Nov 2026). */
     // The logo is an exit, so it asks about unsubmitted answers as the page's others do (48-hour review).
-    function wireChrome() { openAboutLightbox ??= initAboutLightbox({ appLabel: 'Marylebone Roster — Overtime', getUserName: () => currentUser })?.open ?? null; wireHeaderLogo(async () => { if (await confirmDiscard()) window.location.href = './'; }); }
+    function wireChrome() { openAboutLightbox ??= initAboutLightbox({ appLabel: 'Marylebone Roster — Overtime', getUserName: () => currentUser })?.open ?? null; wireHeaderLogo(() => leaveAfterAsking(() => !!currentForm?.isDirty(), () => { window.location.href = './'; })); }
     /** @param {boolean} [paused] switched off for everyone (owner, Nov 2026), rather than not open to this member */
     function renderUnavailable(paused = false) {
         const mine = el('otMineContent');
