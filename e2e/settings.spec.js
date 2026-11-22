@@ -1030,6 +1030,41 @@ test('settings: the forced overlay\'s success updates the chip without a reload'
     await expect(page.locator('#passwordStatusChip')).toHaveText(/password set/i);
 });
 
+// A LATE FIRST READ CANNOT UNDO A CHANGE (settings review, Nov 2026). The page's first passwordStatus
+// read can be the slow one, and the read after a successful change is answered at once. Painted as they
+// landed, the first — arriving last, and still saying "surname" — took "✓ Password set" away again.
+for (const [label, late] of /** @type {const} */ ([['a stale answer', 'surname'], ['a failed read', 'fail']])) {
+    test(`settings: ${label} from the page's first status read, landing after a password change, does not undo it`, async ({ page }) => {
+        await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+            authUser: true, authUserEmail: 'g.miller@myb-roster.local', getDocHold: true }; });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/settings.html');
+        // The first reads are out and held; every read after this one is answered at once.
+        await expect.poll(() => page.evaluate(() => typeof /** @type {any} */ (window).__E2E.releaseGetDoc)).toBe('function');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.getDocHold = false; });
+        await page.locator('#passwordChevron').click();   // nothing has reported yet, so the card is still shut
+        await page.locator('#pwCurrent').fill('miller');
+        await page.locator('#pwNew').fill('a-real-password-9');
+        await page.locator('#pwConfirm').fill('a-real-password-9');
+        await page.locator('#pwSaveBtn').click();
+        await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+        await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+
+        // …and now the first read lands, saying what was true before the change, or failing.
+        await page.evaluate((late) => {
+            const e = /** @type {any} */ (window).__E2E;
+            // The held answer is built on release, so a getter that throws there fails exactly that read.
+            if (late === 'fail') Object.defineProperty(e, 'getDocData', { get() { throw new Error('e2e: the first read failed'); } });
+            e.releaseGetDoc();
+        }, late);
+        await expect(page.locator('#settingsSummary')).not.toHaveAttribute('data-tone', 'checking');
+        await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+        await expect(page.locator('#passwordNudge')).toBeHidden();
+        await expect(page.locator('#settingsSummaryItems')).not.toContainText('password');
+    });
+}
+
 test('settings (signed in): the Pay Calculator Data pointer card renders and links to the backup card', async ({ page }) => {
     // A POINTER, not a second copy of the controls — see paycalc-transfer-card.js.
     await seedSession(page);

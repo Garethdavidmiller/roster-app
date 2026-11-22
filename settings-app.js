@@ -628,10 +628,23 @@ export function init() {
         // `optimisticMigrated` lets the just-completed save flip the UI to migrated WITHOUT waiting on
         // the serverTimestamp() to resolve (an immediate local-cache read returns passwordSetAt:null
         // right after the write, which would briefly flash "using surname" under the ✓ message).
+        //
+        // ── ONLY THE LATEST READ PAINTS, AND A CONFIRMED WRITE IS LATCHED (settings review, Nov 2026) ──
+        // The first read can be the slow one — a cold connection — while the read after a successful
+        // change is answered at once from the local cache. Painting each answer as it landed let the
+        // FIRST read, arriving last, turn "✓ Password set" back into "Using surname" (or "Couldn’t
+        // check") under the member who had just set it. So every call is numbered and only the newest
+        // may paint; and once a password write on this device is confirmed (`optimisticMigrated` — the
+        // card's own save, or the forced overlay's event) migrated is held for the page's life: no read
+        // made before the write can know about it, and nothing on this page un-sets a password.
+        let _statusRead = 0;
+        let _writeConfirmed = false;
         async function refreshStatus(optimisticMigrated = false) {
             // No identity to ask about — nothing was learnt, and the summary must be told that
             // rather than waiting for an answer that is never coming.
             if (!member) { reportSetting('password', 'error', 'Couldn’t check'); return; }
+            if (optimisticMigrated) _writeConfirmed = true;
+            const mine = ++_statusRead;
             const paint = (/** @type {boolean} */ migrated) => {
                 // Every path into `paint(true)` is real evidence: the server says migrated, or a password
                 // write on THIS device just succeeded (`optimisticMigrated` — the card's own save, and the
@@ -657,19 +670,21 @@ export function init() {
                 reportSetting('password', migrated ? 'ok' : 'action',
                     migrated ? '✓ Password set' : 'Using surname');
             };
-            if (optimisticMigrated) paint(true);
+            if (_writeConfirmed) paint(true);
             try {
                 // Gate the owner-only read on the Firebase session (like initContactCard) — a cold-load
                 // read before auth.currentUser exists is rejected by the rules and would blank the chip.
                 await sessionReady;
                 const st = await getPasswordStatus(member);
+                if (mine !== _statusRead) return;   // a newer read was asked for: its answer is the one
                 // isPasswordMigrated (auth-identity.js) is the single, unit-tested source (§6).
-                paint(isPasswordMigrated(st) || optimisticMigrated);
+                paint(isPasswordMigrated(st) || _writeConfirmed);
             } catch {
+                if (mine !== _statusRead) return;
                 // Leave the chip/nudge as the optimistic paint left them — but the SUMMARY must
                 // hear about it. Silence here would let "✓ You’re all set" appear over a password
                 // status nobody actually read, which is the one thing that line must never do.
-                if (!optimisticMigrated) reportSetting('password', 'error', 'Couldn’t check');
+                if (!_writeConfirmed) reportSetting('password', 'error', 'Couldn’t check');
             }
         }
         refreshStatus();
