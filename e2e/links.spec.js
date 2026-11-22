@@ -4748,6 +4748,44 @@ test('links: a design whose save is still in flight is not reopened until the sa
     await expect(page.locator('.dialog-overlay.visible'), 'no conflict with its own save').toHaveCount(0);
 });
 
+// …AND NO OTHER PATH OPENS IT EITHER (24-hour check, Nov 2026). Deleting the open design, Keep only the shortlist and an
+// old-length design back in the list each opened the FIRST design with no such check, so a design still saving that
+// sorts first came back from its pre-save entry, and its next save met its own as a colleague's. The delete here.
+test('links: deleting the open design does not open one whose save is still in flight', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E;
+        e.txHold = true;      // the server is slow to answer the first save
+        e.writesLand = true;  // …and once it has, the next save reads what it wrote
+        // The server's copy of BOTH designs, so the delete's landed write does not leave it holding only that one.
+        e.docsByQuery = { linkDesigns: e.docs.map((/** @type {any} */ d) => ({ ...d })) };
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+    await switchToDesign(page, 'Other');
+    await page.locator('.dialog-overlay.visible .dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    // Only the first save stays held: the delete goes straight through.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = false; });
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveStatus')).toContainText('“Morning heavy” is still saving, so a shortlisted proposal is open.');
+    await expect(activeDesignName(page), 'not reopened over its own save').not.toHaveText('Morning heavy');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());
+    await expect(async () => {
+        await switchToDesign(page, 'Morning heavy');
+        await expect(activeDesignName(page)).toHaveText('Morning heavy', { timeout: 500 });
+    }).toPass({ timeout: 10_000 });
+    await expect(page.locator('#winMonSatEnd'), 'the version it saved').toHaveValue('14:20');
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay.visible'), 'no conflict with its own save').toHaveCount(0);
+});
+
 test('links re-review: an offline save says it is in this browser, not "✓ Saved"', async ({ page, context }) => {
     // The store queues the write and returns 'queued'; the page read that as a server-confirmed save.
     // And it promised an upload "when you're back online", which a page iOS has closed cannot make: the
