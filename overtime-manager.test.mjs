@@ -248,11 +248,11 @@ describe('the sheet says when it was PRINTED, not when it was drawn (overtime-ui
         const host = fakeHost();
         renderWeekDetail(/** @type {any} */ (host), WIN, { participants: PARTICIPANTS, submissions: submissions() },
             { dates: DATES, now: READ, printedAt: DRAWN });
-        assert.match(host.innerHTML, /ot-print-printed">Printed Tue 10 Nov 2026 · 09:00</, 'the paint\'s own time, not the device clock');
+        assert.match(host.innerHTML, /ot-print-printed">Printed Tue 10 November 2026 · 09:00</, 'the paint\'s own time, not the device clock');
         assert.match(host.innerHTML, /ot-print-asat">Availability as at Tue 10 Nov · 08:00/, 'and the data keeps its read time');
         const line = { textContent: '' };
         stampPrinted(/** @type {any} */ ({ querySelector: (/** @type {string} */ s) => (s === '.ot-print-printed' ? line : null) }), PRINTED);
-        assert.equal(line.textContent, 'Printed Tue 10 Nov 2026 · 10:30');
+        assert.equal(line.textContent, 'Printed Tue 10 November 2026 · 10:30');
         stampPrinted(null, PRINTED);   // no workspace on the page: nothing to stamp, nothing thrown
     });
 });

@@ -1137,8 +1137,8 @@ body.auth-ready .container { display: grid; }
     color: var(--success-green);
 }
 .acct-pw--warn {
-    background: color-mix(in oklch, var(--accent-gold) 16%, white);
-    border-color: color-mix(in oklch, var(--accent-gold) 45%, white);
+    background: var(--gold-wash-bg);
+    border-color: var(--gold-wash-border);
     color: var(--orange-text);
 }
 /* The WHOLE address, always: it WRAPS rather than ellipsising (Nov 2026). The card is read to check an

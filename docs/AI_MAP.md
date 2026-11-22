@@ -750,7 +750,7 @@ The app's own single-date picker, replacing the native date popup the app cannot
 
 ### `date-format.js`
 ONE spelling of a date in words, everywhere the app writes one: the name tables (re-exported by `roster-data.js`), the composers, the "Printed …" stamp and the London zone shim, because `Intl`'s short month spells September "Sept". Pure, and imports nothing. Tested by `date-format.test.mjs`; `month-vocabulary-parity.test.mjs` fails on a new local fix.
-- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
+- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `MONTH_NAMES` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
 
 ### `huddle.js`
 The Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform). Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names). The Settings Notifications card left it for `notif-card.js` (22 Nov 2026).

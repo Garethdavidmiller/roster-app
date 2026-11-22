@@ -55,6 +55,14 @@
  */
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/**
+ * The FULL register — "September". It lived in roster-data.js, read only by the heading builders,
+ * until a composer needed it (22 Nov 2026): a date WITH its year is written in full, so
+ * `formatDayMonthYear` spells from this table. It moved here for the reason MONTH_ABB did — the
+ * vocabulary owns the words it spells with — and roster-data.js re-exports it, so nothing that
+ * reads it there had to change.
+ */
+export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 // The year is the device's own calendar year, deliberately: these take a Date that a caller has
 // already put in the calendar it means. For an instant that must read as LONDON wall-clock,
 // convert with `londonDate` first and then compose — one zone shim, then the same words.
@@ -80,21 +88,36 @@ export const NO_DATE = '—';
 /** "18 Sep" @param {Date} d */
 export const formatDayMonth = d => (usable(d) ? `${d.getDate()} ${MONTH_ABB[d.getMonth()]}` : NO_DATE);
 
-/** "18 Sep 2026" @param {Date} d */
-export const formatDayMonthYear = d => (usable(d) ? `${formatDayMonth(d)} ${d.getFullYear()}` : NO_DATE);
+/**
+ * "18 September 2026" — a date with its year is written IN FULL, everywhere (owner, 22 Nov 2026).
+ *
+ * It said "18 Sep 2026" until then, and house style — the app's copy, the guides, every message to
+ * staff — is "18 September 2026". The year is what marks a date as one a reader may keep, quote or
+ * act on (a payslip, a start date, a saved change, a printed sheet), and that is where an
+ * abbreviation costs most. The short register stays where there is no year: "18 Sep" in a calendar
+ * cell, a week label, a deadline line, where the month is already in view.
+ *
+ * Every surface that calls this was re-measured with the full month at 320px (the longest is
+ * "30 September 2026", seven characters more than "30 Sep 2026"). A surface that genuinely cannot
+ * fit it takes a SEPARATELY NAMED short helper with a comment saying why — never a flag here, which
+ * would let the short form back in by default. `formatDayMonthYear2` ("18 Sep 26") is that kind of
+ * helper already: the Pay Calculator's dense columns.
+ * @param {Date} d
+ */
+export const formatDayMonthYear = d => (usable(d) ? `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` : NO_DATE);
 
 /** "18 Sep 26" — the two-digit-year form. @param {Date} d */
 export const formatDayMonthYear2 = d => (usable(d)
     ? `${formatDayMonth(d)} ${String(((d.getFullYear() % 100) + 100) % 100).padStart(2, '0')}`
     : NO_DATE);
 
-/** "Fri 18 Sep", or "Fri 18 Sep 2026" with the year. @param {Date} d @param {boolean} [withYear] */
+/** "Fri 18 Sep", or "Fri 18 September 2026" with the year — the year brings the full month (`formatDayMonthYear`). @param {Date} d @param {boolean} [withYear] */
 export const formatWeekdayDate = (d, withYear = false) => (usable(d)
     ? `${DAY_NAMES[d.getDay()]} ${withYear ? formatDayMonthYear(d) : formatDayMonth(d)}`
     : NO_DATE);
 
 /**
- * "Printed Fri 18 Sep 2026 · 14:23" — the provenance line every printable surface closes on.
+ * "Printed Fri 18 September 2026 · 14:23" — the provenance line every printable surface closes on.
  *
  * ONE SHAPE ACROSS FIVE SURFACES (v24.06). The Calendar, Team View, Overtime, Links and the Pay
  * Calculator all print a "when", and each said it differently: a long month with "at" before the

@@ -666,6 +666,72 @@ test('below 1024px the app\'s name keeps to the room between ☰ and the badge, 
     }
 });
 
+test('on a phone the app\'s name stops short of the badge, at the normal size and in larger text', async ({ page }) => {
+    // With no gap in `.app-header`, an ellipsised "Mary…" met the page badge with 0px between them —
+    // at 320px on New link, Overtime and Settings at the normal size, and on every card page at 375px in
+    // 1.3× text. shared.css gives `.app-header` an 8px gap each side of the name.
+    test.setTimeout(120_000);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    let checked = 0;
+    for (const [width, k] of [[320, 1], [375, 1.3]]) {
+        await page.setViewportSize({ width, height: 800 });
+        for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
+            await page.goto(p.url);
+            await waitForPageSettled(page);
+            if (k !== 1) await scaleText(page, k);
+            const m = await namePlace(page);
+            if (!m || m.right === null) continue;
+            expect(m.right, `${p.file} at ${width}px in ${k}× text: the name's room before the badge`).toBeGreaterThanOrEqual(6);
+            checked++;
+        }
+    }
+    expect(checked, 'no header was measured — this proves nothing').toBeGreaterThanOrEqual(12);
+});
+
+test('no card\'s chip covers its title in larger text, on any card page', async ({ page }) => {
+    // A header's actions cluster (chip, `?`, arrow) keeps its width, so under a phone's larger text the
+    // title block shrank beneath it: Settings' "🔑 Password" read "Pas" under "Using surname" at 320px
+    // from 1.15 times, and Admin's "2026: 32 left" sat on "Record Annual Leave" at 1.5 times. Below 18em
+    // of its own text a header with a chip now gives the chip, `?` and arrow a row of their own
+    // (shared.css → "LARGER TEXT: A CHIP NEVER SITS ON ITS TITLE"). Text is SCALED, not the viewport
+    // narrowed — Android enlarges fonts and leaves the screen alone (the `@layout` tests below say why).
+    // Each title's own LINE BOXES are measured, not its h2's box: a clipped word overflows the box it
+    // was squeezed into, so the box alone can look clear of a chip the words run under.
+    test.setTimeout(150_000);
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    for (const [width, k] of [[320, 1.3], [375, 1.5]]) {
+        await page.setViewportSize({ width, height: 900 });
+        let chips = 0;
+        for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
+            await page.goto(p.url);
+            await waitForPageSettled(page);
+            await scaleText(page, k);
+            const found = await page.evaluate(() => [...document.querySelectorAll('.card-header-toggle, .card-header--row')]
+                .map(h => {
+                    const t = h.querySelector('h2');
+                    const chip = [...h.querySelectorAll('.card-year-chip')].find(c => c.getClientRects().length);
+                    if (!t || !chip || !t.getClientRects().length) return null;
+                    const range = document.createRange();
+                    range.selectNodeContents(t);
+                    const words = [...range.getClientRects()].filter(r => r.width > 0);
+                    const c = chip.getBoundingClientRect();
+                    const under = words.some(r => r.right > c.left + 0.5 && r.left < c.right - 0.5
+                                                && r.bottom > c.top + 0.5 && r.top < c.bottom - 0.5);
+                    return { title: (t.textContent || '').trim(), chip: (chip.textContent || '').trim(),
+                             under, clipped: t.scrollWidth > t.clientWidth + 1 };
+                }).filter(Boolean));
+            chips += found.length;
+            const bad = found.filter(f => f && (f.under || f.clipped));
+            expect(bad, `${p.url} at ${width}px in ${k}× text → ${bad.map(b => b && `"${b.title}" ${b.under ? 'runs under' : 'is clipped beside'} "${b.chip}"`).join(' · ')}`).toEqual([]);
+        }
+        // Settings, the Pay Calculator, Admin and Trains each show a chip in this state; a walk that
+        // found none measured nothing.
+        expect(chips, `at ${width}px no card header with a chip was measured — this proves nothing`).toBeGreaterThanOrEqual(8);
+    }
+});
+
 // ── A PAGE'S FIELD RULES STAY ON THE PAGE (css-admin-ops-1 and -5, Nov 2026) ────────────────────────
 // Admin and Operations style their fields BY ELEMENT, and those rules were unscoped, so they reached
 // the shared surfaces every page hosts and out-ranked those surfaces' own rules. Focused, the drawer's

@@ -81,7 +81,7 @@ test('fmt signs a negative before the pound sign, as the subtracting rows do —
 // how getPeriods builds period dates, so the printed day is stable regardless of the runner's zone.
 test('fd / fdShort / fdLong are three distinct en-GB variants', () => {
     const d = new Date(2026, 6, 3);           // 3 Jul 2026, local noon-free calendar date
-    assert.equal(fdLong(d),  '3 Jul 2026');   // full year — the payday / joined-on / printed-on form
+    assert.equal(fdLong(d),  '3 July 2026');   // full year — the payday / joined-on / printed-on form
     assert.equal(fd(d),      '3 Jul 26');     // 2-digit year
     assert.equal(fdShort(d), '3 Jul');        // no year
 });

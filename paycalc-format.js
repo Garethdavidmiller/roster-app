@@ -24,11 +24,12 @@ export const fd = formatDayMonthYear2;
 /** "18 Sep" @param {Date} d */
 export const fdShort = formatDayMonth;
 
-// Full-year variant ("3 Jul 2026") — the payday/joined-on/printed-on long form. Was duplicated
+// Full-year variant ("3 July 2026" — a date with its year is written in full, owner 22 Nov 2026) —
+// the payday/joined-on/printed-on long form. Was duplicated
 // inline as `.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })` in
 // paycalc-app / paycalc-backpay / paycalc-periods / paycalc-roster-hint before being written once
 // here (review item 21).
-/** "18 Sep 2026" @param {Date} d */
+/** "18 September 2026" @param {Date} d */
 export const fdLong = formatDayMonthYear;
 
 /**
