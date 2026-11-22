@@ -101,7 +101,7 @@ function applyCountryFilter(/** @type {string} */ raw) {
     var terms = foldWords(raw);
     // FILTERING MEANS A WORD WAS TYPED, not that the box holds something. A query of only punctuation or
     // an emoji ("-", "/", "&", a flag) has no words, so it matches every card — and while it counted as
-    // a filter it showed the ✕, "Showing 32 of 32 cards", and turned ⤓ PDF into a print of the cards
+    // a filter it showed the ✕, a count of every card out of every card, and turned ⤓ PDF into a print of the cards
     // alone, all for a search that had filtered nothing. filterShowsCards (print) asks the same question.
     var q = terms.length > 0;
     var shown = 0;
@@ -127,7 +127,7 @@ function applyCountryFilter(/** @type {string} */ raw) {
         // The second clause is the VISIBLE half of describePrintScope. The accessible name carries
         // the scope for a screen reader, but a sighted reader filtering to one country has nothing
         // on screen saying the ⤓ PDF button will follow their filter — and the whole reason that
-        // behaviour exists is a traveller who wants one country, not 25 pages. It states the RULE
+        // behaviour exists is a traveller who wants one country, not the whole book. It states the RULE
         // rather than repeating the number, so it reads correctly at one country and at twelve.
         countEl.textContent = showCount
             ? ('Showing ' + shown + ' of ' + countryCards.length + ' cards · the PDF saves these, with what to carry and the key rules')
@@ -198,7 +198,7 @@ openHashTarget();   // first load: honour a deep link (defer → the DOM is alre
 // IT PRINTS WHAT IS ON SCREEN (v23.27). Until now the prepare also UN-HID every card the finder had
 // filtered out, on the reasoning that paper should carry the whole reference. That reasoning ignores
 // why anybody presses this button: a traveller has searched "Belgium", is looking at one country,
-// and gets 25 pages. Opening a collapsed card is a RENDERING repair — the content is on screen and
+// and gets the whole book. Opening a collapsed card is a RENDERING repair — the content is on screen and
 // the print engine would drop it. Un-hiding a filtered one is not; it overrides a choice the reader
 // made deliberately, in the one direction that costs them a stack of paper at a station.
 // The button now SAYS which it will do, from the same count the finder already computes.
@@ -338,13 +338,13 @@ document.addEventListener('guide:print-refused', resetStalePrint);
 // ── PRINT THIS COUNTRY (v24.06) ────────────────────────────────────────────────────────────────
 //
 // The print review, item 1 (ROADMAP_HISTORY.md), and the row states the case: "Most readers want France, not the book."
-// The full guide is 25 sheets and a traveller checking one coupon before a trip needs one card.
+// The full guide runs to many sheets, and a traveller checking one coupon before a trip needs one card.
 //
 // A BUTTON PER CARD, not one control in the header. A header control would have to know which
-// country the reader means, and the only honest answers to that are a picker (a second list of 32
-// names, beside the finder and the jump chips that are already two) or "whichever is open", which
+// country the reader means, and the only honest answers to that are a picker (a second list of every
+// country, beside the finder and the jump chips that are already two) or "whichever is open", which
 // is wrong the moment two are. Inside the card there is no question to answer: the country is the
-// one you are reading. It is injected rather than written into 32 cards by hand — the same reason
+// one you are reading. It is injected rather than written into every card by hand — the same reason
 // the drawer builds its own pills.
 //
 // PRINTING ONE CARD IS A CSS STATE, NOT A DOM EDIT. `body[data-print-country]` plus a marker class
@@ -352,8 +352,8 @@ document.addEventListener('guide:print-refused', resetStalePrint);
 // so an interrupted print cannot leave the page missing a country — which is the failure the
 // restore machinery above exists to prevent, reached a different way.
 //
-// IT REUSES THE EXPAND, DELIBERATELY. `expandAllForPrint` opens every <details>, including the 31
-// this print will hide, and that is cheaper than a second narrower path: the hidden ones cost
+// IT REUSES THE EXPAND, DELIBERATELY. `expandAllForPrint` opens every <details>, including every
+// one this print will hide, and that is cheaper than a second narrower path: the hidden ones cost
 // nothing on paper, and one prepare/restore pair means one thing to keep idempotent rather than
 // two. The restore is chained onto the existing one for the same reason.
 var PRINT_COUNTRY_MARK = 'is-print-country';
@@ -387,8 +387,8 @@ countryCards.forEach(function (card) {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn-print-country';
-    // The country is NAMED in the label. "Print this country" on a sheet of 32 identical buttons
-    // reads fine in place and badly in a screen reader's element list, where they would be 32
+    // The country is NAMED in the label. "Print this country" on a page of identical buttons
+    // reads fine in place and badly in a screen reader's element list, where they would be
     // copies of one string with nothing to tell them apart.
     btn.textContent = '⤓ Print ' + name.replace(/^\S+\s/, '');
     btn.addEventListener('click', function () {

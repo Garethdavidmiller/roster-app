@@ -248,28 +248,30 @@ that register structurally (part of `npm run test:hygiene`) — every row must k
 ## What adding a guide page touches
 
 Every place below knows the guide list, and most fail loudly — the good case. Listed so the work is
-estimated honestly; each row was checked against the code.
+estimated honestly; each row was checked against the code. The last column says which: **enforced**
+(a test fails until it is done) or **remembered** (nothing fails; this table is the reminder).
 
-| # | File | What |
-|---|---|---|
-| 0 | `scripts/app-pages.mjs` | a `GUIDE_PAGES` entry — `page-contract-parity.test.mjs` fails on an undeclared page — then `npm run generate:guide-index` (`guide-index-parity.test.mjs` checks it) |
-| 1 | `nav-panel.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** |
-| 2 | `firestore.rules` | analytics counter id, in **two** places (the `pvCountIds()` list and the per-id int check) |
-| 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways |
-| 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) |
-| 5 | `sw-asset-check.test.mjs` | asset-list parity, and the `noindex` meta contract |
-| 6 | `csp-meta-parity.test.mjs` | the page's `<meta http-equiv="Content-Security-Policy">` must mirror the header |
-| 7 | the page itself | `noindex` meta + `color-scheme: only light` meta |
-| 8 | `e2e/axe.spec.js` | accessibility scan (blocking gate) |
-| 9 | `e2e/csp.spec.js` | deployed-CSP proof |
-| 10 | `e2e/calendar.spec.js` | each guide records its **own** open id, driven through the real drawer |
-| 11 | `GUIDE_SOURCES.md` | a register row per high-risk claim |
-| 12 | `guide-sources.test.mjs` | the two-way `data-guide-source` contract — a row with no block fails, and vice versa |
-| 13 | `guide-shell.css` | nothing to change, but confirm nothing new is needed |
-| 14 | `guide-back.js` | already generic; confirm the new page is in scope |
-| 15 | `e2e/visual.spec.js` + baselines | every guide is baselined — the document-style pair at desktop 900, the other three at mobile 390; pick the width that shows the new page's densest state |
-| 16 | `.claude/rules/guide-pages.md` | its `paths:` globs **and** its per-guide section (this file) |
-| 17 | `docs/FILE_INDEX.md` + `docs/AI_MAP.md` | the file catalogue, same-commit rule |
+| # | File | What | |
+|---|---|---|---|
+| 0 | `scripts/app-pages.mjs` | a `GUIDE_PAGES` entry — `page-contract-parity.test.mjs` fails on an undeclared page — with its `documentStyle` and `column`, each checked against the page; then `npm run generate:guide-index` (`guide-index-parity.test.mjs` checks it). The browser suites (`e2e/guides.spec.js`, `print.spec.js`, `pages.spec.js`) and `guide-sources.test.mjs` loop over this list, so the new guide joins them with no edit there | enforced |
+| 1 | `nav-panel.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** | enforced (#3) |
+| 2 | `firestore.rules` | analytics counter id, in **two** places (the `pvCountIds()` list and the per-id int check) | enforced (#3) |
+| 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways | — |
+| 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) | enforced (#5) |
+| 5 | `sw-asset-check.test.mjs` | asset-list parity, and the `noindex` meta contract | — |
+| 6 | `csp-meta-parity.test.mjs` | the page's `<meta http-equiv="Content-Security-Policy">` must mirror the header | enforced |
+| 7 | the page itself | `noindex` meta + `color-scheme: only light` meta; a chip bar; the three script tags — `guide-back.js`, `guide-print.js` (a module) and `guide-chips.js` — once each; and `#savePdfBtn.btn-print` | enforced (#5, `page-contract-parity.test.mjs`) |
+| 8 | `e2e/axe.spec.js` | accessibility scan (blocking gate) | enforced (reads `GUIDE_PAGES`) |
+| 9 | `e2e/csp.spec.js` | deployed-CSP proof | enforced (reads `GUIDE_PAGES`) |
+| 10 | `e2e/calendar.spec.js` | each guide records its **own** open id, driven through the real drawer | remembered |
+| 11 | `GUIDE_SOURCES.md` | a register row per high-risk claim | remembered |
+| 12 | `guide-sources.test.mjs` | the two-way `data-guide-source` contract. It reads every guide from `GUIDE_PAGES`, so a block on the new page citing a missing row fails at once; for its OWN rows to need anchoring, add its Guide value to `ANCHORED` and the register's `GUIDES` | enforced; `ANCHORED` remembered |
+| 13 | `scripts/guide-index-lib.mjs` | if the guide has CARDS that should be search results of their own, a `CARD_RULES` entry (a tag, an id pattern and a class, in any attribute order), and a line in `guide-index-parity.test.mjs` contract 10 (or 9) so every card is checked to be a unit | remembered |
+| 14 | `guide-shell.css` | nothing to change, but confirm nothing new is needed | remembered |
+| 15 | `guide-back.js` | already generic: the `←` and, on a card guide, the footer `.guide-back-link` both follow `?from=` | — |
+| 16 | `e2e/visual.spec.js` + baselines | every guide is baselined — the document-style pair at desktop 900, the other three at mobile 390; pick the width that shows the new page's densest state | enforced (`page-contract-parity.test.mjs`) |
+| 17 | `.claude/rules/guide-pages.md` | its `paths:` globs **and** its per-guide section (this file) | remembered |
+| 18 | `docs/FILE_INDEX.md` + `docs/AI_MAP.md` | the file catalogue, same-commit rule | enforced for a new `.js` module (pre-commit, `doc-parity.test.mjs`); the page and stylesheet lines remembered |
 
 Note #10 and #12 specifically: the analytics open-id mapping has already produced a real defect class
 (a substring match filed every Pay Calculator Guide open under the Staff Guide), and the register's
