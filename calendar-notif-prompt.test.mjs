@@ -274,13 +274,15 @@ describe('Enable is answered, not just acted on (cal-docs-5, whole-app review 10
 
     test('the failure line names where to try later, as one unbreakable route — and so does every route the Calendar tells', () => {
         // shared.css `.nav-path`: without it the wrap can land between ☰ and →, leaving a line that
-        // starts "→ Settings". Every "☰ →" route in the page's markup is held to it, the Team View tip
-        // included (css-shared lead, whole-app review 10 Nov 2026).
+        // starts "→ Settings". Every "☰ →" route in the page's markup is held to it (the Team View tip
+        // was one until 22 Nov 2026; css-shared lead, whole-app review 10 Nov 2026).
         assert.match(HTML, /<span class="top-prompt-text" id="notifPromptFailed" hidden>/,
             'the failure line is in the markup, hidden until it is needed');
         assert.match(FAILED_LINE, /☰ → Settings/);
         const routes = [...HTML.matchAll(/☰ →/g)].map(m => m.index ?? 0);
-        assert.ok(routes.length >= 2, 'the strip\'s route and the Team View tip, at least');
+        // The Team View tip's "☰ → Daily Huddle" went with the duplicated About tips (lightbox review, 22 Nov
+        // 2026): the strip's own route is the one left, and any route added later is held to the same rule.
+        assert.ok(routes.length >= 1, 'the strip\'s route, at least');
         for (const at of routes) {
             assert.match(HTML.slice(Math.max(0, at - 40), at), /class="nav-path">$/,
                 `a route told without .nav-path: …${HTML.slice(at - 30, at + 25)}…`);
