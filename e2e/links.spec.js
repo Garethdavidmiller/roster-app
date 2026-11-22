@@ -4571,6 +4571,41 @@ test('links re-review: a save still in flight locks only ITS design, and a delet
     await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0); // and no dialog about it
 });
 
+// A DESIGN WHOSE SAVE IS IN FLIGHT DOES NOT REOPEN UNTIL IT LANDS (Nov 2026). Reopened meanwhile, it was built
+// from its list entry — the version from BEFORE the save — and the next save met the one in flight as somebody
+// else's: "This design changed", in the designer's own name. Refused, and said; once the save has landed it opens
+// as saved, and the next save asks nothing.
+test('links: a design whose save is still in flight is not reopened until the save lands', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E;
+        e.txHold = true;      // the server is slow to answer
+        e.writesLand = true;  // …and once it has, the next save reads what it wrote
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+    await switchToDesign(page, 'Other');
+    await page.locator('.dialog-overlay.visible .dialog-btn-confirm').click();   // its edit is still unsaved until it lands
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await switchToDesign(page, 'Morning heavy');
+    await expect(page.locator('#linksSaveStatus')).toHaveText('“Morning heavy” is still saving — open it again once its save has finished.');
+    await expect(activeDesignName(page), 'not reopened over its own save').toHaveText('Other');
+    await expect(page.locator('.dialog-overlay.visible'), 'and nothing was asked').toHaveCount(0);
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.txHold = false; e.releaseTx(); });
+    await expect(async () => {
+        await switchToDesign(page, 'Morning heavy');
+        await expect(activeDesignName(page)).toHaveText('Morning heavy', { timeout: 500 });
+    }).toPass({ timeout: 10_000 });
+    await expect(page.locator('#winMonSatEnd'), 'the version it saved').toHaveValue('14:20');
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay.visible'), 'no conflict with its own save').toHaveCount(0);
+});
+
 test('links re-review: an offline save says it is in this browser, not "✓ Saved"', async ({ page, context }) => {
     // The store queues the write and returns 'queued'; the page read that as a server-confirmed save.
     // And it promised an upload "when you're back online", which a page iOS has closed cannot make: the

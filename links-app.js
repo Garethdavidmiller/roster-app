@@ -1088,8 +1088,11 @@ export function init() {
      */
     async function selectDesign(id) {
         if (id === activeDesignId || (id === activeProposalId && !activeDesignId)) return;
-        // A switch that does NOT happen must put the picker back — `change` has already moved the
-        // select. Argued in links-design-header.js's render (v23.33).
+        // Not while its save is in flight, and before anything is asked: its entry still holds the version from BEFORE
+        // the save, and the next save met that save as somebody else's — "This design changed", in your own name (Nov 2026).
+        const saving = savingKeys.has(id) ? designs.find(x => x.id === id) : null;
+        if (saving) { renderDesignPicker(); _designActionStatus(`“${saving.name}” is still saving — open it again once its save has finished.`, ''); return; }
+        // A switch that does NOT happen must put the picker back (links-design-header.js's render, v23.33).
         if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
         const d = designs.find(x => x.id === id) ?? PROPOSAL_ENTRIES.find(x => x.id === id);
         if (!d) { renderDesignPicker(); return; }
