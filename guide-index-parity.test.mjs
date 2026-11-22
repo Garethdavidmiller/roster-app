@@ -19,7 +19,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildGuideIndex, GUIDE_PAGES, PROVISIONAL_MARKERS } from './scripts/guide-index-lib.mjs';
+import { buildGuideIndex, extractGuideUnits, GUIDE_PAGES, PROVISIONAL_MARKERS } from './scripts/guide-index-lib.mjs';
 import { GUIDE_INDEX } from './guide-index.js';
 import { searchGuideIndex } from './guide-search.js';
 
@@ -162,4 +162,66 @@ test('contract 9 — every FIP country card is a unit of its own, the plain-div 
     for (const [q, id] of [['sweden', 'country-se'], ['finland', 'country-fi'], ['czechia', 'country-cz'], ['lodz', 'country-pl']]) {
         assert.equal(searchGuideIndex(GUIDE_INDEX, q)[0]?.id, id, `"${q}" no longer leads to its own country card`);
     }
+});
+
+/**
+ * Every opening `<div>` in a page whose class list holds one of `classes`, with its id — read by a scan
+ * of this file's own, attribute order ignored, so it does not share a blind spot with the extractor.
+ * @param {string} html @param {string[]} classes @returns {string[]}
+ */
+function cardIds(html, classes) {
+    const src = html.replace(/<!--[\s\S]*?-->/g, ' ');
+    const ids = [];
+    for (const m of src.matchAll(/<div\b([^>]*)>/g)) {
+        const id = m[1].match(/(?:^|\s)id="([^"]+)"/)?.[1];
+        const cls = (m[1].match(/(?:^|\s)class="([^"]*)"/)?.[1] || '').split(/\s+/);
+        if (id && classes.some(c => cls.includes(c))) ids.push(id);
+    }
+    return ids;
+}
+
+test('contract 10 — every Railcard and Rangers card is a unit of its own, however its attributes are ordered', () => {
+    // Contract 9's job for the other two card guides. The extractor's card patterns once spelled the
+    // attributes out in order, so writing the Gold Card as `<div id="rc-gold" class="rc amber">` dropped
+    // it from the drawer's search with every test green: an element a pattern misses is not an error.
+    /** @type {Array<[string, string[], number]>} */
+    const guides = [
+        ['railcard-guide.html', ['rc'], 10],
+        ['rangers-guide.html', ['rr-card', 'rr-no-item'], 8],
+    ];
+    for (const [page, classes, least] of guides) {
+        const ids = cardIds(read(page), classes);
+        assert.ok(ids.length >= least, `${page}: found only ${ids.length} cards — the scan is wrong`);
+        const indexed = new Set(GUIDE_INDEX.filter(u => u.page === page).map(u => u.id));
+        assert.deepEqual(ids.filter(id => !indexed.has(id)), [], `${page}: these cards are not in the search index`);
+    }
+    // …and the extractor itself reads a card whichever attribute comes first, on all three card guides.
+    const swaps = [
+        ['railcard-guide.html', '<div class="rc amber" id="rc-gold"', '<div id="rc-gold" class="rc amber"', 'rc-gold'],
+        ['rangers-guide.html', '<div class="rr-no-item" id="rr-cotswolds"', '<div id="rr-cotswolds" class="rr-no-item"', 'rr-cotswolds'],
+        ['fip-guide.html', '<div id="country-se" class="card card-pad not-fip-card mb-8"',
+            '<div class="card card-pad not-fip-card mb-8" id="country-se"', 'country-se'],
+        ['fip-guide.html', '<details id="country-fr"', '<details class="x" id="country-fr"', 'country-fr'],
+    ];
+    for (const [page, from, to, id] of swaps) {
+        const html = read(page);
+        assert.ok(html.includes(from), `premise: ${page} no longer opens #${id} as ${from}`);
+        const units = extractGuideUnits(html.replace(from, to), page);
+        assert.ok(units.some(u => u.id === id), `${page}: #${id} is no longer a unit once its attributes are reordered`);
+    }
+});
+
+test('contract 5c — a key legend holds no nested <div>, so blanking it blanks all of it', () => {
+    // evidenceOf blanks a legend from `<div class="key"` to the FIRST `</div>`. A <div> nested in the
+    // legend would end that blank at its own close, and the rest of the legend's example markers would be
+    // read as claims again — contract 5's failure, reached by a markup change rather than an extractor one.
+    let legends = 0;
+    for (const page of GUIDE_PAGES) {
+        const src = read(page).replace(/<!--[\s\S]*?-->/g, ' ');
+        for (const m of src.matchAll(/<div class="key"[^>]*>([\s\S]*?)<\/div>/g)) {
+            legends++;
+            assert.doesNotMatch(m[1], /<div\b/, `${page}: a key legend holds a nested <div>`);
+        }
+    }
+    assert.ok(legends >= 2, `found ${legends} key legends — the Railcard and Rangers guides each have one`);
 });

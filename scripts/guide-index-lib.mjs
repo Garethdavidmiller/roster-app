@@ -48,18 +48,56 @@ export const PROVISIONAL_MARKERS = {
     unconfirmed: ['myb-status--unconfirmed'],
 };
 
-/** Per-page card patterns: which elements are fine-grained answer units of their own. */
+/**
+ * Per-page card rules: which elements are fine-grained answer units of their own.
+ *
+ * A rule names a TAG and tests the element's id and class list — never the order its attributes are
+ * written in. These were once regexes that spelled the attributes out in sequence (`class` then `id`
+ * on the Railcard and Rangers cards, `id` then `class` on the FIP ones), and writing the Gold Card's
+ * `id` before its `class` dropped it from the search with every test green: the pattern stopped
+ * matching, and an unmatched card is not an error. guide-index-parity.test.mjs (contract 10) also
+ * checks, by a scan of its own, that every such card IS a unit.
+ * @type {Record<string, Array<{ tag: string, id: RegExp, cls?: string[], close: string|null }>>}
+ */
 const CARD_RULES = {
-    'railcard-guide.html': [{ open: /<div class="rc[^"]*" id="(rc-[a-z0-9-]+)"/g,                  close: null }],
-    'rangers-guide.html':  [{ open: /<div class="rr-(?:card|no-item)[^"]*" id="(rr-[a-z0-9-]+)"/g, close: null }],
+    'railcard-guide.html': [{ tag: 'div', cls: ['rc'], id: /^rc-[a-z0-9-]+$/, close: null }],
+    'rangers-guide.html':  [{ tag: 'div', cls: ['rr-card', 'rr-no-item'], id: /^rr-[a-z0-9-]+$/, close: null }],
     'fip-guide.html': [
-        { open: /<details id="([a-z0-9-]+)"/g, close: '</details>' },
+        { tag: 'details', id: /^[a-z0-9-]+$/, close: '</details>' },
         // The "No FIP operator listed" cards are plain divs, not <details>. Read by the details rule
         // alone, Sweden and Finland were never units, so "sweden" in the drawer found Denmark's card
         // and "finland" the top of the countries section (whole-app check, 10 November 2026).
-        { open: /<div id="(country-[a-z]+)" class="[^"]*\bnot-fip-card\b/g, close: null },
+        { tag: 'div', cls: ['not-fip-card'], id: /^country-[a-z]+$/, close: null },
     ],
 };
+
+/**
+ * One attribute's value out of an opening tag's attribute text, wherever in the tag it is written.
+ * Anchored to whitespace, so `data-id="…"` is not read as `id`.
+ * @param {string} attrs @param {string} name @returns {string|null}
+ */
+function attrOf(attrs, name) {
+    const m = attrs.match(new RegExp(`(?:^|\\s)${name}="([^"]*)"`));
+    return m ? m[1] : null;
+}
+
+/**
+ * Where each element a card rule names opens, and its id, in document order.
+ * @param {string} src @param {{ tag: string, id: RegExp, cls?: string[] }} rule
+ * @returns {{ index: number, id: string }[]}
+ */
+function cardOpenings(src, rule) {
+    /** @type {{ index: number, id: string }[]} */
+    const out = [];
+    for (const m of src.matchAll(new RegExp(`<${rule.tag}\\b([^>]*)>`, 'g'))) {
+        const id = attrOf(m[1], 'id');
+        if (!id || !rule.id.test(id)) continue;
+        const classes = (attrOf(m[1], 'class') || '').split(/\s+/);
+        if (rule.cls && !rule.cls.some(c => classes.includes(c))) continue;
+        out.push({ index: m.index ?? 0, id });
+    }
+    return out;
+}
 
 /** @param {string} html strip tags + entities to visible text */
 function textOf(html) {
@@ -134,10 +172,10 @@ export function extractGuideUnits(html, page) {
     const cards = [];
     const rules = CARD_RULES[/** @type {keyof typeof CARD_RULES} */ (page)] || [];
     // Every card start on the page, whichever rule found it: an open-ended card runs to the next one.
-    const allStarts = rules.flatMap(r => [...src.matchAll(r.open)].map(m => m.index ?? 0)).sort((a, b) => a - b);
+    const allStarts = rules.flatMap(r => cardOpenings(src, r).map(o => o.index)).sort((a, b) => a - b);
     for (const rule of rules) {
-        for (const m of src.matchAll(rule.open)) {
-            const start = m.index ?? 0;
+        for (const o of cardOpenings(src, rule)) {
+            const start = o.index;
             let end;
             if (rule.close) {
                 const c = src.indexOf(rule.close, start);
@@ -147,7 +185,7 @@ export function extractGuideUnits(html, page) {
                 const nextHead = heads.find(h => (h.index ?? 0) > start);
                 end = Math.min(nextCard, nextHead ? (nextHead.index ?? src.length) : src.length);
             }
-            cards.push({ id: m[1], start, end });
+            cards.push({ id: o.id, start, end });
         }
     }
     cards.sort((a, b) => a.start - b.start);
