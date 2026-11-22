@@ -77,9 +77,9 @@ body:not(.auth-ready) .app-header { display: none; }
        thead and the sticky save row both need. hidden first as a fallback. */
     overflow: hidden;
     overflow: clip;
-    /* The LAYOUT CONTAINMENT this brings is load-bearing, container queries aside: without it the
-       first Generate stranded its button a grid's height down the page in 2 of 24 runs at 1280px.
-       Keep it unless that test is re-run many times without it. */
+    /* The query container for the em queries below (larger text). Its LAYOUT CONTAINMENT is
+       load-bearing as well: without it the first Generate stranded its button a grid's height down
+       the page in 2 of 24 runs at 1280px. Keep it unless that test is re-run many times without it. */
     container-type: inline-size;
 }
 
@@ -220,7 +220,8 @@ body:not(.auth-ready) .app-header { display: none; }
     font-weight: 600;                    /* quiet-status tier — a reading, not a label to scan */
     background: var(--surface-sunken);
     color: var(--text-mid);
-    white-space: nowrap;
+    /* The words WRAP inside the pill at large text, where a nowrap chip ran off the strip uncut. */
+    max-width: 100%;
 }
 .sum-chip strong { font-weight: 800; color: var(--text-dark); }
 /* Three states, told apart without colour: the emoji carries the meaning, the tint reinforces it. */
@@ -237,6 +238,7 @@ body:not(.auth-ready) .app-header { display: none; }
     border: 1px solid var(--border-light);
     color: var(--text-dark);
     font-weight: 800;
+    white-space: nowrap;
     /* A name has no length limit: it truncates, and the full name is on the compare column head and
        the masthead. `inline-block`: an ellipsis does not reach a flex container's anonymous text. */
     display: inline-block;
@@ -414,7 +416,14 @@ body:not(.auth-ready) .app-header { display: none; }
     background: var(--surface-sunken);
     border-radius: var(--radius-xs);
 }
-.win-row { display: flex; align-items: center; gap: 8px; }
+.win-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+/* LARGER TEXT: ASK THE CARD, IN em (css-tokens.md). A row of label, box, dash and box needs about 23.5em
+   of card; narrower for its text — a phone at 1.5x, or 320px — the label goes above its two boxes,
+   which may give up a little width rather than run off the card. A 375px phone at 1x is 25.4em. */
+@container (max-width: 24em) {
+    .win-label { flex-basis: 100%; }
+    .win-time { min-width: 0; flex: 0 1 auto; }
+}
 .win-label {
     font-size: var(--type-badge);
     font-weight: 700;
@@ -431,11 +440,12 @@ body:not(.auth-ready) .app-header { display: none; }
     text-align: center;
     font-variant-numeric: tabular-nums;
     padding: 5px 7px;
-    border: 1px solid var(--border-light);
+    border: var(--field-border);
     border-radius: var(--radius-xs);
     background-color: var(--field-bg);
     color: var(--text-dark);
 }
+@media (pointer: coarse) { .win-time { min-height: 40px; } }   /* the generator's field height */
 .win-time:focus-visible {
     outline: var(--focus-outline);
     box-shadow: var(--focus-ring);
@@ -1070,11 +1080,12 @@ body:not(.auth-ready) .app-header { display: none; }
 @media (max-width: 767px) {
     .gen-sets-actions .btn-set--danger { margin-left: auto; }
 }
-/* SETUP BUTTONS. Use setup leads: the most pressed, and the only one that changes the screen. */
+/* SETUP BUTTONS. Use setup leads: the most pressed, and the only one that changes the screen. They
+   are buttons, so the button corner (css-tokens.md → Corners), not a chip's pill. */
 .btn-set {
     background: none;
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-pill);
+    border-radius: var(--radius-button);
     padding: 4px 12px;
     font-size: var(--type-small);
     font-family: inherit;
@@ -1251,7 +1262,9 @@ body:not(.auth-ready) .app-header { display: none; }
 .design-masthead.is-unnamed .dm-rule { background: repeating-linear-gradient(90deg, var(--accent-gold-dark) 0 6px, transparent 6px 11px); }
 
 .dm-bottom { display: flex; align-items: center; gap: 8px; padding: 8px 10px 10px 12px; }
-.dm-meta { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+/* The meta WRAPS rather than cut the status to "Sa…" (320px, larger text): a line break goes by each
+   item's full width, so the status drops under the name only when it does not fit beside it. */
+.dm-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; flex: 1; min-width: 0; }
 .dm-who { display: inline-flex; align-items: center; gap: 8px; flex: none; }
 .dm-avatar { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: white; font-size: var(--type-micro); font-weight: 800; letter-spacing: 0.3px; flex: none; outline: 2px solid rgba(255, 255, 255, 0.55); outline-offset: -2px; }
 .dm-avatar--lg { width: 38px; height: 38px; font-size: var(--type-small); }
@@ -1305,7 +1318,7 @@ body:not(.auth-ready) .app-header { display: none; }
     .dm-icon-btn { width: 40px; height: 40px; font-size: var(--type-button); }
     .dm-rule { grid-area: rule; height: 3px; margin: 0 18px; background: linear-gradient(90deg, var(--accent-gold) 0 88px, var(--border-light) 88px); }
     .dm-bottom { grid-area: bottom; padding: 0 14px 0 6px; gap: 14px; }
-    .dm-meta { gap: 12px; }
+    .dm-meta { gap: 2px 12px; }
     .dm-avatar { width: 30px; height: 30px; font-size: var(--type-badge); }
     .dm-who-role { display: block; }
     .dm-who-name { font-size: var(--type-label); }
@@ -1319,6 +1332,14 @@ body:not(.auth-ready) .app-header { display: none; }
     .dm-actions { gap: 8px; }
     .design-masthead .btn-save.dm-save { min-width: 128px; padding: 0 20px; min-height: 44px; font-size: var(--type-button); }
     .dm-more { width: 52px; min-height: 44px; }
+}
+/* A THUMB GETS 44px whatever the width (css-tokens.md: density is a pointer decision). ✎ keeps its
+   round face and takes a 44px hit area instead, as `.btn-card-tips` does. */
+@media (pointer: coarse) {
+    .design-masthead .btn-save.dm-save { min-height: 44px; }
+    .dm-more { min-width: 44px; min-height: 44px; }
+    .dm-icon-btn { position: relative; }
+    .dm-icon-btn::after { content: ''; position: absolute; inset: calc((100% - 44px) / 2); }
 }
 
 /* ── The ··· More and picker sheets — one shell, scrolling in `.lb-content`. The picker's rows are
@@ -1426,6 +1447,8 @@ body:not(.auth-ready) .app-header { display: none; }
     letter-spacing: 0.5px;
     flex-shrink: 0;
 }
+/* On a phone the label takes its own line: centred beside a stack of chips it read as one of them. */
+@media (max-width: 759px) { .compare-label { flex-basis: 100%; } }
 .design-chips--compare .design-chip {
     background: white;
     border-color: var(--border-light);
@@ -1789,7 +1812,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .gen-slot-table thead .gen-th-time { background: var(--surface-sunken); }
     .gen-spare-row .gen-td-label { background: color-mix(in srgb, var(--accent-gold) 10%, var(--surface)); }
     .gen-total-row td:first-child { background: var(--surface-sunken); }
-    .gen-select { min-width: 104px; }
+    /* In em, so the column grows with the text: a px minimum held at large text and cut the end time. */
+    .gen-select { min-width: 7.5em; }
     /* The counts scroll, so they must not each claim a third of the viewport. */
     .gen-slot-table th:not(.gen-th-time), .gen-slot-table td:not(.gen-td-time) { padding: 4px 4px; }
     /* `nowrap` in a STICKY cell just overflows its fill. */
@@ -2031,7 +2055,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .compare-an-more[open] summary { margin-bottom: 4px; }
 
 /* ═══ THE ROW-OF-BUTTONS FAMILIES GET A THUMB-SIZED TARGET TOO ═══
-   The setup buttons measured 25px, one of them Delete, with no bin behind a setup. At the END by
+   The setup buttons measured 25px, one of them Delete, with no bin behind a setup: 44px. At the END by
    convention: the base rules set `padding`, not `min-height` or `display`, so source order decides
    nothing today, but it will the moment one of them does. `min-height` with flex centring, not more
    padding, which would widen them. */
@@ -2040,7 +2064,7 @@ body:not(.auth-ready) .app-header { display: none; }
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-height: 30px;
+        min-height: 44px;
     }
     /* The compare-with names: a <button> centres its own words, so no flex (it would cost the
        ellipsis). */
@@ -2062,6 +2086,9 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 /* `display: flex` out-specifies the `[hidden]` attribute. */
 .compare-filter[hidden] { display: none !important; }
+/* The filter is a TOGGLE, so it keeps the chip's pill beside the compare-with chips, where the setup
+   buttons it borrows its class from take the button corner. */
+.compare-filter-btn { border-radius: var(--radius-pill); }
 .compare-filter-btn[aria-pressed="true"] {   /* on: the page's colour */
     background: var(--page-accent);
     border-color: var(--page-accent);
