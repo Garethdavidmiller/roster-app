@@ -29,11 +29,12 @@ import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } from './links-desig
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { DAYTIME, renderFurtherChanges } from './trains-render.js';
+import { LEAVE_FILE_MAX_AGE_DAYS } from './al-leave-file.js';
 
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
  *
- * `scope` names the coordinator constants a page's tips strings interpolate. Only Links has any:
+ * `scope` names the constants a page's tips strings interpolate (Links, Trains, and Operations' leave-file age). Links:
  * four of its entries state the rotation length and one states the main cycle's length, and
  * `links-rotation-parity.test.mjs` requires the former to be DERIVED rather than typed (the length
  * went 28 → 22 at v19.98 and left prose behind in fifteen places). So the two guards pull in
@@ -43,7 +44,7 @@ import { DAYTIME, renderFurtherChanges } from './trains-render.js';
  */
 const PAGES = [
     { js: 'admin-tips.js',     html: 'admin.html' },
-    { js: 'operations-tips.js', html: 'operations.html' },
+    { js: 'operations-tips.js', html: 'operations.html', scope: { LEAVE_FILE_MAX_AGE_DAYS } },
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
@@ -194,12 +195,12 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
     const link = String(new Function(`return (${m[1]});`)()).replace(/<[^>]+>/g, '');
 
     test('the card hint quotes the link\'s opening words', () => {
-        const hint = /<span class="hint">Staff who tapped “([^”]+)”/.exec(readFileSync('operations.html', 'utf8'))?.[1];
+        const hint = /<span class="hint">Staff who selected “([^”]+)”/.exec(readFileSync('operations.html', 'utf8'))?.[1];
         assert.ok(hint && link.startsWith(hint), `operations.html quotes "${hint}"; the link reads "${link}"`);
     });
 
     test('the ? panel quotes the link in full', () => {
-        const first = readCardTips('operations-tips.js')['reset-requests'].sections[0].items[0].html;
+        const first = readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS })['reset-requests'].sections[0].items[0].html;
         assert.equal(/“([^”]+)”/.exec(first)?.[1], link);
     });
 });
@@ -213,7 +214,7 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
 // a developer's words, for a link that opens the NEWEST issue, not the one just filed. The reset queue's
 // panel title also wore an emoji, the only Operations panel title that did.
 describe('operations — the document cards promise only what the app does', () => {
-    const tips = readCardTips('operations-tips.js');
+    const tips = readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS });
 
     test('the Huddle header says staff open the latest, not today\'s', () => {
         const hint = /Daily Huddle<\/h2>\s*<span class="hint">(.*)<\/span>\s*<\/div>/.exec(readFileSync('operations.html', 'utf8'))?.[1];
@@ -553,5 +554,47 @@ for (const { js, html, scope } of PAGES) {
                 `${js}: CARD_TIPS entries no button can open: ${orphans.join(', ')}. Either the card ` +
                 'lost its ? button or the key was renamed on one side only.');
         });
+
+        // ── HOUSE STYLE, AS RENDERED (lightbox review R2, Nov 2026) ─────────────────────────────────
+        // Visible copy uses ’ and “ ”, and a straight quote had drifted into four of these modules (36
+        // apostrophes and 4 double quotes) because nothing looked. Read as the lightbox shows it, tags
+        // stripped, so an attribute's own quotes (an href) are not counted.
+        // links-tips.js is left out of both checks below only because another session owns the Links page.
+        if (js !== 'links-tips.js') test(`no tip in ${js} shows a straight apostrophe or double quote`, () => {
+            const straight = [];
+            for (const [key, v] of Object.entries(tips)) {
+                const texts = [v.title, ...v.sections.flatMap((/** @type {any} */ s) => [s.heading ?? '', ...s.items.map((/** @type {any} */ i) => i.html)])];
+                for (const t of texts.map(h => String(h).replace(/<[^>]+>/g, ''))) {
+                    if (/[A-Za-z]'[A-Za-z]|"/.test(t)) straight.push(`${key}: ${t.slice(0, 80)}`);
+                }
+            }
+            assert.deepEqual(straight, [], `${js}: use ’ for an apostrophe and “ ” for quotes in visible copy`);
+        });
+
+        // A panel title is the dialog's aria-label (tips-lightbox.js), so an emoji there is read out before
+        // the title; the card's header carries the emoji. And the title is the card's heading, so the
+        // panel a reader opens is named as the card they opened it from ("Weekly Roster upload" was not).
+        if (js !== 'links-tips.js') test(`every panel title in ${js} is its card's heading, with no emoji`, () => {
+            const page = readFileSync(html, 'utf8');
+            const wrong = [];
+            for (const m of page.matchAll(/class="[^"]*btn-card-tips[^"]*"[^>]*data-card="([^"]+)"/g)) {
+                const h2 = [...page.slice(0, m.index).matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].pop()?.[1] ?? '';
+                const heading = h2.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]+>/g, '').trim();
+                const title = tips[m[1]]?.title ?? '';
+                if (/\p{Extended_Pictographic}/u.test(title) || title !== heading) wrong.push(`${m[1]}: title “${title}”, card “${heading}”`);
+            }
+            assert.deepEqual(wrong, []);
+        });
     });
 }
+
+// ── THE LEAVE SHEET'S AGE LIMIT IS THE FILE'S OWN CONSTANT (R2-19) ──────────────────────────────
+// "14 days" was typed twice in the panel while al-leave-file.js holds LEAVE_FILE_MAX_AGE_DAYS. Evaluated
+// with a stand-in, the panel must say the stand-in in both places.
+describe('operations-tips.js — the leave sheet panel reads LEAVE_FILE_MAX_AGE_DAYS', () => {
+    test('both of its age lines follow the constant', () => {
+        const text = JSON.stringify(readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS: 21 })['annual-leave-sheet']);
+        assert.equal(text.match(/more than 21 days old/g)?.length, 2, text);
+        assert.doesNotMatch(text, /\b14 days\b/);
+    });
+});
