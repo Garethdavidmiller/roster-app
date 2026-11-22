@@ -13,8 +13,9 @@ import { formatDayMonthYear } from './date-format.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated, validateNewPassword, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 import { initNavPanel } from './nav-panel.js';
-import { initHuddleNotifications } from './huddle.js';
-import { isIOS } from './notif.js';
+import { initNotificationsCard } from './notif-card.js';
+import { timetableListed } from './notif-card-core.js';
+import { isIOS, isStandalonePWA, onPagesMirror } from './notif.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, navGatesFor } from './auth-policy.js';
@@ -78,7 +79,8 @@ const CARD_TIPS = {
                 { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
                 { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
                 { icon: '💷', html: '<strong>Pay reminder</strong> — for CEA and CES colleagues: on the cut-off Saturday, six days before payday, to enter your hours.' },
-                { icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' },
+                // Listed only while a change is scheduled — the card hides it after the send (notif-card-core.js).
+                ...(timetableListed() ? [{ icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' }] : []),
             ]},
             { heading: 'How it works', items: [
                 { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
@@ -325,7 +327,7 @@ export function init() {
 
     // ── Main app init (runs when authenticated) ───────────────────────────────────
     function initApp() {
-        // notif card collapse is wired by initHuddleNotifications() below.
+        // notif card collapse is wired by initNotificationsCard() below.
 
         // EACH CARD IS WIRED ON ITS OWN (settings review, Nov 2026). One card that threw stopped every
         // card after it, and the summary — which waits for all of them — said "Checking…" for good.
@@ -338,12 +340,14 @@ export function init() {
         // Password card (PASSWORD_DESIGN.md — chosen password + migration status)
         wireCard('password', initPasswordCard);
 
-        // Notifications card. It reports its own state — huddle.js's words are the authority, and a second `peekNotifState`
-        // read here could disagree with the screen. It names the pay reminder only to CEA and CES (functions/pay-reminder.js).
+        // Notifications card. It reports its own state — notif-card-core.js's words are the authority, and a second
+        // `peekNotifState` read here could disagree with the screen. It names the pay reminder only to CEA and CES
+        // (functions/pay-reminder.js), and re-registers this device once `sessionReady` is true (notif-card.js).
         wireCard('notifications', () => {
-        _cardHandles['notifications'] = initHuddleNotifications({
+        _cardHandles['notifications'] = initNotificationsCard({
             onState: (state, chip, tone) => reportSetting('notifications', state, chip, tone),
             payReminders: payCalculatorPrices(teamMembers.find(m => m.name === currentUser) ?? null),
+            sessionReady,
         });
         });
         // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has. Read
@@ -905,7 +909,7 @@ function captureInstallOffer() {
     /** @type {{ event: any, onChange: null | (() => void) }} */
     const offer = { event: null, onChange: null };
     // The Pages mirror is refused below; leave Chrome's own infobar alone there.
-    if (/github\.io$/i.test(window.location.hostname)) return offer;
+    if (onPagesMirror()) return offer;
     window.addEventListener('beforeinstallprompt', (e) => {
         // Chrome's own mini-infobar is suppressed only for a member ALREADY signed in, for whom the
         // Device card is about to offer the install instead (v25.06, whole-app review). The card is
@@ -945,9 +949,8 @@ function initDeviceCard(/** @type {(state: import('./settings-status.js').CardSt
     // Already installed, or the Pages mirror — the calendar's install strip refuses both, for the same
     // reasons: there is nothing to install, and installing FROM the mirror would pin a member to the
     // address we are migrating off. (An iPhone there is sent to the main address instead, below.)
-    const installed = window.matchMedia?.('(display-mode: standalone)').matches
-        || /** @type {any} */ (window.navigator).standalone === true;
-    const onMirror  = /github\.io$/i.test(window.location.hostname);
+    const installed = isStandalonePWA();
+    const onMirror  = onPagesMirror();
 
     // **The report is synchronous and definite, and that is load-bearing.** The summary waits on
     // every card it speaks for, so a state that only arrived with `beforeinstallprompt` would leave a

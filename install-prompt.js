@@ -41,9 +41,10 @@
  * · **Anyone already inside the installed app** — `beforeinstallprompt` never fires there, and the
  *   iOS branch checks `display-mode: standalone` for the same reason.
  * · **Anyone on the GitHub Pages mirror.** This one is easy to miss and would quietly work against
- *   the migration: `myb-roster.web.app` is the primary install target, and the mirror is kept alive
- *   only for staff who already installed from it (CLAUDE.md). An install offer there would create
- *   NEW installs on the origin the app is trying to leave.
+ *   the migration: `myb-roster.web.app` is the primary install target. Most staff still open the app
+ *   on the mirror (CLAUDE.md → Project identity — the changeover is deliberate and gradual), so it is
+ *   no rump; but an install offer there would create NEW installs on the origin the app is moving
+ *   off, which is why the mirror's answer is to install from the main address instead.
  *
  * ── THE TWO PLATFORMS ARE DIFFERENT THINGS ────────────────────────────────────────────────────
  *
@@ -103,7 +104,7 @@
  *     visit; Settings keeps the install card as the place to find it.
  */
 import { lsGet, lsSet } from './ls.js';
-import { isIOS } from './notif.js';
+import { isIOS, isStandalonePWA, onPagesMirror } from './notif.js';
 
 /** One-off per device, like the notification prompt beside it. */
 const DISMISSED_KEY = 'myb_install_prompt_done';
@@ -121,20 +122,9 @@ let _yieldTook = [];
  *  @type {(() => void)|null} */
 let _showOnRelease = null;
 
-/** True when running as an installed Home Screen PWA. Mirrors notif.js's private copy. */
-function isStandalone() {
-    return window.matchMedia?.('(display-mode: standalone)').matches
-        || /** @type {any} */ (window.navigator).standalone === true;
-}
-
-/**
- * The GitHub Pages mirror, which must never offer an install — see the header. Matched on the host
- * alone: the mirror is served from `garethdavidmiller.github.io`, and nothing else the app is served
- * from ends in `github.io`.
- */
-function isDeprecatedMirror() {
-    return /github\.io$/i.test(window.location.hostname);
-}
+// The installed app (`isStandalonePWA`) and the GitHub Pages mirror, which must never offer an
+// install (`onPagesMirror` — see the header), are read through notif.js, the app's one copy of each
+// (Nov 2026): this module kept a private pair that had to be kept in step with it.
 
 /**
  * Can this strip be seen at this width at all? Read from the stylesheet's own `--prompt-available`,
@@ -166,8 +156,8 @@ function canBeSeen(strip) {
  * @returns {{ how: 'prompt'|'ios'|'menu', mirror: boolean } | null}
  */
 export function installRoute() {
-    if (isStandalone() || !window.matchMedia?.('(pointer: coarse)').matches) return null;
-    const mirror = isDeprecatedMirror();
+    if (isStandalonePWA() || !window.matchMedia?.('(pointer: coarse)').matches) return null;
+    const mirror = onPagesMirror();
     return { how: !mirror && _offer ? 'prompt' : isIOS() ? 'ios' : 'menu', mirror };
 }
 
@@ -236,7 +226,7 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
     const strip = document.getElementById('installPrompt');
     if (!strip) return;
     if (lsGet(DISMISSED_KEY)) return;
-    if (isStandalone() || isDeprecatedMirror()) return;
+    if (isStandalonePWA() || onPagesMirror()) return;
     if (!canBeSeen(/** @type {HTMLElement} */ (strip))) return;   // desktop — leave Chrome's own offer alone
 
     const actionBtn  = document.getElementById('installPromptAction');

@@ -302,7 +302,9 @@ const sendPayReminderNotification = onSchedule(
  */
 const TIMETABLE_CHANGE = Object.freeze({ year: 2026, month: 11, day: 13 });   // Sunday 13 December 2026 (month 0-based)
 // The push's words come from the constant, so moving it moves the guard AND the sentence. documents-endpoints.test.mjs
-// also holds this date equal to trains-data.js's CHANGE_DATE, and to a Sunday (the headline says so).
+// also holds this date equal to trains-data.js's CHANGE_DATE, and to a Sunday (the headline says so). The Settings
+// Notifications card keeps a client copy (notif-card-core.js, listing "Timetable changes" only until this send),
+// held to this one and to the 18:00 schedule below by notif-card-core.test.mjs — move all three together.
 const MONTH_WORDS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const TIMETABLE_CHANGE_WORDS = `${TIMETABLE_CHANGE.day} ${MONTH_WORDS[TIMETABLE_CHANGE.month]}`;
 const sendTimetableReminder = onSchedule(

@@ -111,9 +111,11 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     await expect(page.locator('#installSteps')).toContainText('Add to Home Screen');
     await expect(page.locator('#installBtn')).toBeHidden();
 
-    // Notifications is still honestly unavailable — the fix names the prerequisite, it does not
-    // pretend the card can be turned on.
-    await expect(page.locator('#notifStatusChip')).toHaveText(/not available/i);
+    // Notifications are not available HERE, and will be once installed (22 Nov 2026: "After install",
+    // not "Not available", which is kept for a device that truly cannot). The list it shows is the
+    // installed app's, so the card promises nothing this browser tab can receive.
+    await expect(page.locator('#notifStatusChip')).toHaveText('After install');
+    await expect(page.locator('#notifKindsLead')).toHaveText('In the Home Screen app, you’ll get:');
 
     // …and POINTS at the Install card rather than restating its steps (polish round 2). The pointer
     // is checked against the card's REAL heading, so renaming that card cannot leave this line
@@ -165,13 +167,15 @@ for (const [label, payKeys, payStep] of [['with pay figures, the first step carr
 // notifications "not available" the summary said "✓ You're all set" to a phone that can never receive
 // one. It is a to-do there too, and the steps start at the main address. The mirror is the host the
 // page tests for (`github.io`); this serves the page as if it were there, LOUD if that test moves.
+// notif.js's `onPagesMirror` is the app's one copy of the test and MUST be found. settings-app.js still
+// carries copies of its own; they are rewritten too while they last, and may go (to `onPagesMirror`).
 async function asMirror(page) {
-    for (const file of ['settings-app.js', 'huddle.js']) {
+    for (const [file, required] of /** @type {const} */ ([['notif.js', true], ['settings-app.js', false]])) {
         await page.route(`**/${file}`, async route => {
             const res = await route.fetch();
             const src = await res.text();
             const host = '/github\\.io$/i.test(window.location.hostname)';
-            if (!src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
+            if (required && !src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
             await route.fulfill({ response: res, contentType: 'text/javascript', body: src.replaceAll(host, 'true') });
         });
     }
@@ -189,6 +193,14 @@ test('settings: an iPhone on the Pages mirror is sent to the main address to ins
     await expect(main.locator('a')).toHaveAttribute('href', 'https://myb-roster.web.app/');
     await expect(page.locator('#installStepSafari'), 'the step for opening THIS address gives way to it').toBeHidden();
     await expect(page.locator('#installSteps li:visible').last()).toContainText('sign in there once');
+    // ONE set of instructions (22 Nov 2026): the Notifications card on the mirror gave its own steps to
+    // the main address while the Install card gave them too. It points at that card, as off the mirror.
+    const heading = await page.locator('#deviceCard h2').evaluate(h =>
+        [...h.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim());
+    const notif = page.locator('#notifStatusMsg');
+    await expect(notif).toContainText(heading);
+    await expect(notif).not.toContainText(/web\.app|Add to Home Screen|Share/);
+    await expect(page.locator('#notifStatusChip')).toHaveText('After install');
 });
 
 test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
@@ -346,7 +358,7 @@ for (const [label, configured, stripTone, chipTone, chips] of [
 test('settings: notifications switched off on purpose are not coloured as good news', async ({ page }) => {
     // The one `ok` chip whose words are not good news (v25.14). Switched off HERE is `ok` to the
     // summary — nothing to do, the member decided — but a green "Off" would have the colour and
-    // the word disagree. huddle.js says so at the source ('plain'); this pins that it arrives.
+    // the word disagree. notif-card-core.js says so at the source ('plain'); this pins that it arrives.
     // Permission is pinned to 'default' for the same reason openSettings pins the platform: a
     // headless engine's own answer is not the state under test.
     await page.addInitScript(() => {
@@ -1394,9 +1406,8 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
         await expect(page.locator('#notifToggleHeader .hint')).toHaveText(
             gets ? 'Get alerts for staff updates and pay reminders' : 'Get alerts for staff updates', { useInnerText: true });
         await expect(page.locator('#notifKindPay')).toBeVisible({ visible: gets });
-        await expect(page.locator('#notifStatusMsg')).toHaveText(gets
-            ? 'Select “Enable notifications” to get an alert when a new document arrives and before the pay cut-off.'
-            : 'Select “Enable notifications” to get an alert when a new document arrives.');
+        // The status line points at the list, which is the member's own — so it never names the pay reminder.
+        await expect(page.locator('#notifStatusMsg')).toHaveText('Select “Enable notifications” to get the alerts listed above.');
     });
 }
 
@@ -1406,13 +1417,30 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
 // Chrome drew it as two sliders from 2023 (18 Nov 2026).
 for (const [where, installed, says] of /** @type {const} */ ([
     ['the home screen app', true, 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'],
-    ['a browser tab', false, 'On Android: tap the icon at the left of Chrome’s address bar (a padlock or two sliders) → Site settings → Notifications → Allow.'],
+    ['a browser tab', false, 'On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow.'],
 ])) {
     test(`settings: blocked on Android, ${where} is told the route that exists there`, async ({ page }) => {
         await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied', installed });
         await expect(page.locator('#notifDeniedMsg')).toHaveText(says);
+        await expect(page.locator('#notifStatusMsg')).toHaveText('Notifications are blocked on this device, so the button can’t turn them on. To allow them:');
     });
 }
+
+// ALLOWED IN THE PHONE'S SETTINGS, THEN BACK TO THE PAGE (22 Nov 2026). The card read once, at open, so a
+// member who followed its own steps came back to "Blocked" until they reloaded. It re-reads when the page
+// is visible again (and on a back/forward-cache restore, and a permission change — notif-card.test.mjs).
+test('settings: notifications allowed outside the page are seen on coming back, without a reload', async ({ page }) => {
+    await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied' });
+    await expect(page.locator('#notifStatusChip')).toHaveText('Blocked');
+    await expect(page.locator('#notifEnableBtn')).toBeHidden();
+    await page.evaluate(() => {
+        /** @type {any} */ (window.Notification).permission = 'default';     // allowed again in the phone's settings
+        document.dispatchEvent(new Event('visibilitychange'));                // …and the member comes back
+    });
+    await expect(page.locator('#notifStatusChip')).toHaveText('Off');
+    await expect(page.locator('#notifEnableBtn')).toBeVisible();
+    await expect(page.locator('#notifDeniedMsg')).toBeHidden();
+});
 
 // A BLOCKED BELL SAYS SO WHEN TAPPED (whole-app check, 17 Nov 2026). It wore 🔕 — the same as "off" — and a tap did
 // nothing: the browser will not ask again, and only a screen reader heard "blocked". It now says where it is fixed:
@@ -1439,7 +1467,7 @@ test('settings: the drawer\'s bell, blocked, says where notifications are allowe
 
 // The blocked-notification route on a laptop (laptop polish, 13 Nov 2026): "Site settings → Notifications
 // → Allow" broke after "Site settings", so the next line began "→ Notifications", which reads as a stray
-// arrow. The route is one unit now (`.nav-path`, huddle.js), so no line of the message starts with one.
+// arrow. The route is one unit now (`.nav-path`, notif-card.js), so no line of the message starts with one.
 // Lines are read the way a reader meets them: each character's own box, grouped by the line it sits on.
 test('settings: a blocked notification\'s route never starts a line with an arrow on a laptop', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'the desktop browser\'s route; a phone gets its own');

@@ -83,7 +83,7 @@ time-sensitive event. "Latest" does not apply; lead with the event and its urgen
 | Overtime asked | `⏱️ Overtime — availability form open` | `Tell the roster team when you can work. Answer by Tue 18 Aug · 12:00.` |
 | Overtime reminder | `⏱️ Overtime — answers due today` | `Initial answers for week ending Sat 5 Sep are due by 12:00 today.` |
 | Reset request | `🙋 Reset requests — 2 waiting` | `N. Surname asked for a reset. 1 other waiting.` |
-| Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Open Settings to choose your own.` |
+| Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Sign in again, then choose your own.` |
 | Timetable change | `🚆 New timetable from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
 | Error Log | `🐛 Error Log — 3 new` | `1 error and 2 slow saves. Tap to open the Error Log.` |
 | Staff PIN blocked | `🔢 Staff PIN — blocked station-wide` | `200 wrong entries in 15 minutes. It reopens by itself at 14:20.` |
@@ -135,9 +135,10 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 - **Sign-out.** The drawer's Sign out — once the page has committed to it (a `beforeSignOut` cancel
   keeps the record) — and the Calendar member card's "Sign out and use the staff PIN" hand-over call
   `releaseDevicePush` (`notif.js`), which deletes this device's record, so a targeted notice never
-  follows a member onto a shared device they have left. Only a signed-in CALENDAR load re-saves it
-  (`getNotifState`'s only caller), so until then another page shows notifications as on with no
-  record behind it. **Where the delete cannot run as the owner**, the browser subscription is dropped
+  follows a member onto a shared device they have left. `getNotifState` re-saves it, and runs on a
+  signed-in CALENDAR load and once each time SETTINGS opens signed in (`notif-card.js`, owner, 22 Nov
+  2026 — so the Notifications card's "✓ On" has a record behind it); until one of those, the drawer's
+  bell on another page shows notifications as on with no record behind it. **Where the delete cannot run as the owner**, the browser subscription is dropped
   instead and the next send's 410 deletes the record. All three, and the time box's cost, are
   `releaseDevicePush`'s JSDoc.
 - **A hold that ends without a sign-out** — an expired session's lingering identity
@@ -162,7 +163,9 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 
 - **The new password is NEVER in the payload.** A push renders on a LOCK SCREEN, so naming it would
   show it to whoever picks the phone up — and the default is derived from a surname that is on the
-  roster. The body says that it changed and where to fix it, and nothing else.
+  roster. The body says that it changed, that the member must sign in again (a reset signs every
+  device out — AUTH_AND_SESSIONS 23) and that they then choose their own — never WHAT to sign in
+  with: "your surname" is the derivation rule, as much a leak as the credential itself.
 - **The uid is the one the endpoint already resolved** to write the password, not a fresh
   name→address→uid lookup (the reset-request notice needs one; this is addressed to the account the
   handler is already holding), so there is no resolution step to widen or miss.
