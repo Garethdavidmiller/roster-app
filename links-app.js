@@ -1025,6 +1025,9 @@ export function init() {
             const before = _contentKey();
             const { status: found, deletedData } = await store.softDelete(id, currentUser);
             designs = designs.filter(x => x.id !== id);
+            // A save of it only this browser holds is not unsaved work any more: kept, it came back as "your unsaved changes".
+            queuedIds.delete(id); queuedSaves.acked(id);
+            if (!dirty) _keepUnconfirmedOrForget();
             // The bin row is what the delete FOUND (whole-app fix, Nov 2026). Binned by somebody else
             // already, the row is THEIR delete, read from the server, never one signed as ours; removed
             // for good, there is no row at all. Our own delete's deletedAt is null until the server

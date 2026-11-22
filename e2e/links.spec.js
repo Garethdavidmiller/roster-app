@@ -5261,6 +5261,21 @@ test('links: edits on top of a queued save, and a second queued save, are kept o
     expect(kept?.data?.baseline, 'the EARLIEST unconfirmed baseline: neither save is known to the server').toEqual(BEFORE);
 });
 
+// …AND A DESIGN DELETED SINCE IS NOT KEPT (Nov 2026). Deleted with its save still queued, the kept copy stayed,
+// and the next load offered it back as "your unsaved changes" — a design the designer had just thrown away.
+test('links: a design deleted with its save still queued in this browser is not offered back as unsaved work', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await queueSaveOffline(page);
+    expect((await keptDraft(page))?.scope).toEqual({ design: 'd1' });
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(activeDesignName(page)).toHaveText('Other');
+    expect(await keptDraft(page), 'the deleted design\'s queued save is not kept as unsaved work').toBeNull();
+    await reloadPastLeaveSite(page);
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('.dialog-overlay.visible'), 'nothing is offered back').toHaveCount(0);
+});
+
 test('links: a queued save the server confirms says "✓ Saved", and leaves nothing kept', async ({ page }) => {
     await openWindowDesign(page);
     await queueSaveOffline(page);
