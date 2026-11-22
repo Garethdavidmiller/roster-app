@@ -49,8 +49,18 @@ describe('the four composers', () => {
 
     test('day-month, with the full year and with two digits', () => {
         assert.equal(formatDayMonth(d), '18 Sep');
-        assert.equal(formatDayMonthYear(d), '18 Sep 2026');
+        assert.equal(formatDayMonthYear(d), '18 September 2026');
         assert.equal(formatDayMonthYear2(d), '18 Sep 26');
+    });
+
+    test('a date WITH its year is written in full, every month (owner, 22 Nov 2026)', () => {
+        // House style is "18 September 2026". The short register keeps the dates with no year
+        // (formatDayMonth) and the Pay Calculator's dense two-digit form (formatDayMonthYear2).
+        assert.deepEqual(
+            Array.from({ length: 12 }, (_, m) => formatDayMonthYear(new Date(2026, m, 1))),
+            ['1 January 2026', '1 February 2026', '1 March 2026', '1 April 2026', '1 May 2026', '1 June 2026',
+             '1 July 2026', '1 August 2026', '1 September 2026', '1 October 2026', '1 November 2026',
+             '1 December 2026']);
     });
 
     test('a two-digit year below ten keeps its leading zero', () => {
@@ -61,7 +71,7 @@ describe('the four composers', () => {
 
     test('the weekday form, with and without the year', () => {
         assert.equal(formatWeekdayDate(d), 'Fri 18 Sep');
-        assert.equal(formatWeekdayDate(d, true), 'Fri 18 Sep 2026');
+        assert.equal(formatWeekdayDate(d, true), 'Fri 18 September 2026');
         // The default is the SHORT one: a deadline is days away and its year is noise. The year is
         // opt-in so a surface that needs it has to say so.
         assert.equal(formatWeekdayDate(d), formatWeekdayDate(d, false));
@@ -79,7 +89,7 @@ describe('the four composers', () => {
 describe('the provenance stamp', () => {
     test('one shape for all five printable surfaces', () => {
         const d = new Date(2026, 8, 18, 14, 23);
-        assert.equal(printedStamp(d, formatClock(d)), 'Printed Fri 18 Sep 2026 · 14:23');
+        assert.equal(printedStamp(d, formatClock(d)), 'Printed Fri 18 September 2026 · 14:23');
     });
 
     test('the YEAR is always there — a printout is read next August', () => {
@@ -98,9 +108,9 @@ describe('the provenance stamp', () => {
 describe('the London shim', () => {
     test('an instant becomes its LONDON calendar date, under BST and under GMT', () => {
         // 23:30 UTC on 1 Jul is 00:30 BST on the 2nd — the day the sheet was really printed.
-        assert.equal(formatDayMonthYear(londonDate(Date.UTC(2026, 6, 1, 23, 30))), '2 Jul 2026');
+        assert.equal(formatDayMonthYear(londonDate(Date.UTC(2026, 6, 1, 23, 30))), '2 July 2026');
         // 23:30 UTC on 31 Dec is still 31 Dec in GMT.
-        assert.equal(formatDayMonthYear(londonDate(Date.UTC(2026, 11, 31, 23, 30))), '31 Dec 2026');
+        assert.equal(formatDayMonthYear(londonDate(Date.UTC(2026, 11, 31, 23, 30))), '31 December 2026');
     });
 
     test('it takes a Date or a millisecond count, the same way', () => {
@@ -119,7 +129,7 @@ describe('the London shim', () => {
         // Date would silently shift it. Noon exists in every zone on every day.
         const d = londonDate(Date.parse('2026-03-29T01:30:00Z'));
         assert.equal(d.getHours(), 12);
-        assert.equal(formatDayMonthYear(d), '29 Mar 2026');
+        assert.equal(formatDayMonthYear(d), '29 March 2026');
     });
 
     test('the parts are read NUMERICALLY, so the shim cannot re-introduce a spelling', () => {
@@ -202,7 +212,7 @@ describe('an unusable date does not render as arithmetic', () => {
         }
         // An instant is untouched, the epoch included: `0` is falsy and must not read as missing.
         assert.equal(londonClock(0), '01:00', 'London kept summer time all year in 1970');
-        assert.equal(formatDayMonthYear(londonDate(0)), '1 Jan 1970');
+        assert.equal(formatDayMonthYear(londonDate(0)), '1 January 1970');
     });
 
     test('a valid date is untouched by the guard', () => {
@@ -214,7 +224,7 @@ describe('an unusable date does not render as arithmetic', () => {
         // audit, 7 Nov 2026): this line compared the value with itself, and the one beside it only
         // ruled out the em-dash, so a blank or a garbled epoch passed both. It is 1 January 1970 in
         // UTC and east of it, and still 31 December 1969 west of it, where the no-install lane runs.
-        assert.match(formatDayMonthYear(new Date(0)), /^(?:1 Jan 1970|31 Dec 1969)$/);
+        assert.match(formatDayMonthYear(new Date(0)), /^(?:1 January 1970|31 December 1969)$/);
         assert.notEqual(formatDayMonthYear(new Date(0)), '—');
     });
 });

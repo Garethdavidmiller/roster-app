@@ -43,8 +43,8 @@ function day(over = {}) {
 const LOOK_KEYS = COUNT_KEYS.filter(k => !['match', 'sunday', 'carried', 'spare-week'].includes(k));
 
 test('every date carries its weekday and its year — the sheet runs into the next January', () => {
-    assert.equal(dayLabel('2026-02-24'), 'Tue 24 Feb 2026');
-    assert.equal(dayLabel('2027-01-04'), 'Mon 4 Jan 2027');
+    assert.equal(dayLabel('2026-02-24'), 'Tue 24 February 2026');
+    assert.equal(dayLabel('2027-01-04'), 'Mon 4 January 2027');
 });
 
 test('every place a day can be found has words of its own', () => {
@@ -260,12 +260,12 @@ test('every reason somebody is not compared has words of its own — the re-aske
 });
 
 test('the age line: today, yesterday, days ago, old only PAST the limit, and unknown when the file does not say', () => {
-    assert.match(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 0, maxAge: 14 }).line, /on 6 Nov 2026 \(today\)/);
+    assert.match(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 0, maxAge: 14 }).line, /on 6 November 2026 \(today\)/);
     // The London day: saved at 00:30 on 21 July is 23:30 on the 20th in UTC (review, 15 Nov 2026).
-    assert.match(ageWords({ saved: '2026-07-20T23:30:00Z', ageDays: 0, maxAge: 14 }).line, /on 21 Jul 2026 \(today\)/);
+    assert.match(ageWords({ saved: '2026-07-20T23:30:00Z', ageDays: 0, maxAge: 14 }).line, /on 21 July 2026 \(today\)/);
     assert.match(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 1, maxAge: 14 }).line, /\(yesterday\)/);
     assert.equal(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 8, maxAge: 14 }).line,
-        'The clerks last saved this sheet on 6 Nov 2026 (8 days ago). Anything booked since then shows as only in the app.');
+        'The clerks last saved this sheet on 6 November 2026 (8 days ago). Anything booked since then shows as only in the app.');
     assert.equal(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 14, maxAge: 14 }).old, false);
     assert.equal(ageWords({ saved: '2026-11-06T09:12:00Z', ageDays: 15, maxAge: 14 }).old, true);
     // No date at all is UNKNOWN, not "more than 14 days old" — which the file cannot support (review, 14 Nov 2026).
@@ -392,12 +392,12 @@ test('the refusals each say why, and what to do instead', () => {
     assert.equal(refusalWords('too-old', { maxAge: 14 }),
         'This copy is more than 14 days old, so it can’t be saved. Ask the clerks for a fresh copy and make a new leave file.');
     assert.equal(refusalWords('older-copy', { maxAge: 14, newest: { clerksLastSaved: '2026-11-10T09:00:00Z', savedAt: new Date('2026-11-12T12:00:00Z') } }),
-        'A newer copy of this sheet, saved by the clerks on 10 Nov 2026, was saved here on 12 Nov 2026. '
+        'A newer copy of this sheet, saved by the clerks on 10 November 2026, was saved here on 12 November 2026. '
         + 'This copy is older, so it can’t be saved: it could put back leave cancelled since.');
     assert.match(refusalWords('older-copy', { maxAge: 14, newest: { clerksLastSaved: '2026-11-10T09:00:00Z', savedAt: null } }),
-        /saved by the clerks on 10 Nov 2026, was saved here\. /, 'no stamp yet: the day it was saved here is left out, not guessed');
+        /saved by the clerks on 10 November 2026, was saved here\. /, 'no stamp yet: the day it was saved here is left out, not guessed');
     assert.match(refusalWords('older-copy', { maxAge: 14, newest: { clerksLastSaved: '2026-07-20T23:30:00Z', savedAt: new Date('2026-07-21T23:15:00Z') } }),
-        /saved by the clerks on 21 Jul 2026, was saved here on 22 Jul 2026\. /, 'both days are London’s');
+        /saved by the clerks on 21 July 2026, was saved here on 22 July 2026\. /, 'both days are London’s');
     assert.match(lastSaveWords({ savedAt: new Date(NaN), savedBy: 'A. Clerkson', added: 1 }), /^This sheet was last saved here on — by A\. Clerkson/,
         'an unreadable stamp reads as no date, never a fault');
     assert.equal(refusalWords('old-year', { maxAge: 14, year: 2024 }),
@@ -407,12 +407,12 @@ test('the refusals each say why, and what to do instead', () => {
 
 test('the last Save and its Undo, singular and plural', () => {
     assert.equal(lastSaveWords({ savedAt: new Date('2026-11-14T10:00:00Z'), savedBy: 'A. Clerkson', added: 1 }),
-        'This sheet was last saved here on 14 Nov 2026 by A. Clerkson, adding 1 day of leave.');
+        'This sheet was last saved here on 14 November 2026 by A. Clerkson, adding 1 day of leave.');
     assert.equal(lastSaveWords({ savedAt: null, savedBy: 'A. Clerkson', added: 2 }),
         'This sheet was last saved here by A. Clerkson, adding 2 days of leave.');
     // A later Save added nothing (al-leave-plan.js → `undoable`): the line never calls this one the last.
     assert.equal(lastSaveWords({ savedAt: new Date('2026-11-14T10:00:00Z'), savedBy: 'A. Clerkson', added: 1, latest: false }),
-        'The last Save here that added leave was on 14 Nov 2026 by A. Clerkson, adding 1 day of leave. Later Saves added none.');
+        'The last Save here that added leave was on 14 November 2026 by A. Clerkson, adding 1 day of leave. Later Saves added none.');
     assert.equal(undoConfirmWords(1), 'This takes back the 1 day of leave the Save added — except any that somebody has changed since.');
     assert.equal(undoConfirmWords(3), 'This takes back the 3 days of leave the Save added — except any that somebody has changed since.');
     assert.deepEqual(undoneWords({ removed: [], kept: ['C. Specimen|2026-03-03'], gone: [] }), [SAVE_WORDS.undoNothing,

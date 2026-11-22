@@ -174,12 +174,12 @@ describe('the line the changeover payslip carries under its rate', () => {
     const line = (/** @type {Date} */ today) => gradeSplitLine({ parts, rateOf: rate2627, start: ACROSS.start, today });
     test('before the day: "changes"', () => {
         assert.equal(line(new Date(2026, 10, 13)),
-            'Your grade changes on Sun 22 Nov 2026, part-way through this payslip: 7 days at the CEA rate (£21.49/hr) '
+            'Your grade changes on Sun 22 November 2026, part-way through this payslip: 7 days at the CEA rate (£21.49/hr) '
             + 'and 21 at the CES rate (£22.60/hr), so its hours are priced at £22.32/hr — the two rates weighted by their days.');
     });
     test('on the day and after it: "changed"', () => {
-        assert.match(line(new Date(2026, 10, 22)), /^Your grade changed on Sun 22 Nov 2026, part-way/);
-        assert.match(line(new Date(2027, 0, 5)), /^Your grade changed on Sun 22 Nov 2026, part-way/);
+        assert.match(line(new Date(2026, 10, 22)), /^Your grade changed on Sun 22 November 2026, part-way/);
+        assert.match(line(new Date(2027, 0, 5)), /^Your grade changed on Sun 22 November 2026, part-way/);
     });
     test('a payslip on one grade carries no line', () => {
         assert.equal(gradeSplitLine({ parts: [{ grade: 'ces', days: 28 }], rateOf: rate2627, start: AFTER.start, today: new Date() }), '');
@@ -200,7 +200,7 @@ describe('what the roster says, in words — the line under the Grade box', () =
             ['CEA', 'cea', new Date(2026, 3, 1).toDateString(), new Date(2026, 10, 21).toDateString()],
             ['CES', 'ces', new Date(2026, 10, 22).toDateString(), new Date(2027, 2, 31).toDateString()],
         ]);
-        assert.equal(rosterGradeLine(s), 'The roster lists you as CEA until 21 Nov 2026, then CES from 22 Nov 2026.');
+        assert.equal(rosterGradeLine(s), 'The roster lists you as CEA until 21 November 2026, then CES from 22 November 2026.');
     });
     test('no change in the span is one grade, without dates', () => {
         assert.equal(rosterGradeLine(rosterStretches(steadyRow, YEAR[0], YEAR[1])), 'The roster lists you as CEA.');
@@ -216,7 +216,7 @@ describe('the one-time note — a change of grade on the roster needs nothing do
     test('before the day it says the grade changes, with the day; after it, that it changed', () => {
         assert.deepEqual(gradeChangeNote(stretches, new Date(2026, 10, 13)), {
             key: '2026-11-22',
-            text: 'Your grade on the roster changes from CEA to CES on Sun 22 Nov 2026. Each payslip is priced at the '
+            text: 'Your grade on the roster changes from CEA to CES on Sun 22 November 2026. Each payslip is priced at the '
                 + 'grade you held while you worked it, so there is nothing for you to change.',
         });
         assert.match(/** @type {any} */ (gradeChangeNote(stretches, new Date(2026, 10, 23))).text, /^Your grade on the roster changed from CEA to CES/);
@@ -232,7 +232,7 @@ describe('the one-time note — a change of grade on the roster needs nothing do
         const twice = { role: 'CEA', roleHistory: [{ role: 'CEA', until: new Date(2026, 5, 6) }, { role: 'CES', until: new Date(2026, 10, 21) }] };
         const note = gradeChangeNote(rosterStretches(twice, new Date(2026, 3, 1), new Date(2027, 2, 31)), new Date(2026, 11, 1));
         assert.equal(note?.key, '2026-11-22');
-        assert.match(String(note?.text), /changed from CES to CEA on Sun 22 Nov 2026/);
+        assert.match(String(note?.text), /changed from CES to CEA on Sun 22 November 2026/);
     });
 });
 

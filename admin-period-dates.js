@@ -89,7 +89,7 @@ export function fmtPeriodRange(start, end) {
 }
 
 /**
- * Formats YYYY-MM-DD as "18 Mar 2026" — `formatDayMonthYear`'s spelling (date-format.js owns the
+ * Formats YYYY-MM-DD as "18 March 2026" — `formatDayMonthYear`'s spelling (date-format.js owns the
  * words). Returns "—" for empty input. (Moved from admin-overrides.js, which re-exports it, when that
  * file reached its line cap.)
  * @param {string} str
