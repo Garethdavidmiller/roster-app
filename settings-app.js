@@ -22,7 +22,7 @@ import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen, installNeed } from './settings-status.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, trackBackgroundWrite } from './claim-retry.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut } from './page-session.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
@@ -201,11 +201,11 @@ export function init() {
     reconcileExpiredIdentity().catch(() => {});   // it handles and logs its own failures; this only keeps an unexpected one from going unhandled
 
     // ── Check session ─────────────────────────────────────────────────────────────
-    // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these are refreshed
+    // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these two are refreshed
     // inside initAuthorised() from the just-saved session — the module loaded while signed out, so the
-    // load-time values are null.
+    // load-time values are null. `isAuthenticated` is read once, for the sign-in decision below.
     let currentSession   = getSession();
-    let isAuthenticated  = !!currentSession;
+    const isAuthenticated = !!currentSession;
     let currentUser      = currentSession?.name ?? null;
 
     // Assigned by initIconLightbox (runs inside initApp when signed in); the closure
@@ -218,7 +218,7 @@ export function init() {
     // rather than being stranded" for as long as that had been untrue, which is the sentence a reader
     // would have restored the two-identity double render from. A signed-out visitor is not stranded:
     // the full-screen login overlay carries its own "← Back to roster" — login-overlay.js.)
-    // onSignOut is null when not authenticated, which hides the footer.
+    // It is only ever wired for a signed-in member, so Sign out is always there.
     function wireNavPanel() {
         initNavPanel({
         // Drawer Circular/Newsletter read waits for the session (AUTH_PLAN.md → E1).
@@ -227,15 +227,22 @@ export function init() {
             memberName:  currentUser,
             ...navGatesFor(currentUser),   // the pill gates (auth-policy.js); all false signed out
             onLogoClick: () => openAboutLightbox?.(),
-            onSignOut:   currentUser ? () => signOutAndLeave({ to: './' }) : null,
+            onSignOut:   () => signOutAndLeave({ to: './' }),
+            // A SAVE ON ITS WAY IS ASKED ABOUT FIRST (settings review, Nov 2026). Signing out mid-save said
+            // nothing: the email's write and the password's change are counted by `writesInFlight`, and
+            // the password's re-authentication — before anything is written — by `_passwordSaving`, which asks
+            // "without saving?" only until the change is sent: after that "still saving" is the whole truth.
+            beforeSignOut: askBeforeSignOut(() => _passwordSaving && writesInFlight() === 0),
         });
     }
 
     // ── Wired BEFORE the sign-in decision, as Operations does (Nov 2026 review) ──────────────────────
     // initAuthorised() has no try/catch on the signed-in path, so a throw in any card's wiring used to
-    // skip all of these (the set-password step now runs first in initAuthorised). Hold a release's reload while a save is on its way (v24.61): the contact
-    // card's writes are counted by slow-save, the password card's two-step write by `_passwordSaving`.
-    // writesInFlight also counts the "own password" record (claim-retry.js → trackBackgroundWrite).
+    // skip all of these (the set-password step now runs first in initAuthorised). Hold a release's
+    // reload, and a notification tap, while a save is on its way (v24.61): the contact card's writes are
+    // counted by slow-save; the password's change and its "own password" record by `trackBackgroundWrite`
+    // (claim-retry.js), which `writesInFlight` reads; and the re-authentication before them, which
+    // writes nothing, by `_passwordSaving`. Behaviour-tested in e2e/settings.spec.js.
     const _busy = () => writesInFlight() > 0 || _passwordSaving;
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
@@ -273,7 +280,6 @@ export function init() {
         // session (saveSession ran before onSuccess). Identical no-op re-read on a normal signed-in load.
         currentSession  = getSession();
         currentUser     = currentSession?.name ?? null;
-        isAuthenticated = !!currentSession;
         // In-place: remove the still-mounted overlay to reveal the page. No-op on a normal load.
         dismissLoginOverlay();
         // Re-establish Firebase Auth in the background. A returning user skips the login handler, so

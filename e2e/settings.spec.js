@@ -516,6 +516,63 @@ test('settings: a change refused AFTER the current password was accepted is not 
     await expect(page.locator('#pwFeedback')).toHaveText('Your password wasn’t updated — try again shortly.');
 });
 
+// ── A PASSWORD SAVE ON ITS WAY HOLDS THE PAGE (settings review, Nov 2026) ───────────────────────────────
+// The save has two stages: the re-authentication, which writes nothing (`_passwordSaving` holds it), then
+// the change, which `writesInFlight` must count. Settings never counted the change, and signing out
+// mid-save asked nothing at all. Replaces a regex over `const _busy = …`, which passed throughout.
+/** What the page answers the worker's "busy?" when a notification is tapped (sw-register.js →
+ *  answerNotificationTaps) — the page's own busy check, as the update reload also reads it.
+ *  @param {import('@playwright/test').Page} page */
+const tapIsHeld = (page) => page.evaluate(() => new Promise(resolve => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (e) => resolve(e.data?.busy);
+    navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
+}));
+/** Fill the open password form with a valid change and press Set password. @param {import('@playwright/test').Page} page */
+async function startPasswordSave(page) {
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwSaveBtn')).toHaveText('Saving…');
+}
+
+test('settings: while a password CHANGE is on its way, a tap waits and signing out asks — the change is counted', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', hangPasswordWrite: true }; });
+    await openSettings(page, { configured: false, noPush: true });
+    expect(await tapIsHeld(page), 'premise: nothing on its way, nothing held').toBe(false);
+    await startPasswordSave(page);
+    await expect.poll(() => page.evaluate(() => typeof /** @type {any} */ (window).__E2E_releasePasswordWrite),
+        { message: 'premise: the change was sent' }).toBe('function');
+    expect(await tapIsHeld(page), 'a notification tap would take the page away mid-change').toBe(true);
+
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    // "A change is still saving" is the `writesInFlight` question: without the change counted, it was
+    // "unsaved changes" at best, and nothing at all before this page passed a `beforeSignOut`.
+    const dialog = page.getByRole('alertdialog', { name: 'Sign out now?' });
+    await expect(dialog).toContainText('A change is still saving');
+    await expect(dialog, 'a password on its way is not "unsaved changes"').not.toContainText('unsaved');
+    await dialog.getByRole('button', { name: 'Stay signed in' }).click();
+    expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'a declined sign-out keeps the session').not.toBeNull();
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E_releasePasswordWrite(true));
+    await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+    await expect.poll(() => tapIsHeld(page), { message: 'still held once the change had landed' }).toBe(false);
+});
+
+test('settings: while the current password is being checked, before anything is written, the page is held too', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', reauthDelayMs: 4000 }; });
+    await openSettings(page, { configured: false, noPush: true });
+    await startPasswordSave(page);
+    expect(await tapIsHeld(page), 'between Set password and the change, a tap or an update could take the page away').toBe(true);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    await expect(page.getByRole('alertdialog', { name: 'Sign out without saving?' })).toBeVisible();
+});
+
 test('forced password overlay: a change refused after sign-in says it was not updated, not that a password was wrong', async ({ page }) => {
     await forcePasswordSet(page);
     // The member's OWN account (authUserEmail): since v25.98 a password call on any other account is refused before
