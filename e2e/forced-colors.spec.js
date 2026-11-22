@@ -418,3 +418,81 @@ test.describe('Windows High Contrast — a filled button keeps its shape', () =>
             .toBeGreaterThan(100);
     });
 });
+
+// THE TRAINS GRID KEEPS ITS DOTS (Trains review, 22 Nov 2026). The stopping-pattern grid says everything with dots — a
+// stop, a stop in some hours, a new stop, a stop that ends — and every one of them was a background or a box-shadow.
+// A forced-colours theme repaints a background as Canvas, drops a gradient and drops a box-shadow, so under Windows
+// High Contrast the whole grid and its key were blank: 39 station names over empty columns (measured). The station
+// PC is Windows. trains.css now draws the four marks in the theme's own CanvasText on Canvas, still as four shapes.
+//
+// What is counted is INK: a dot's pixels that differ from the cell behind it (its corner, outside the round mark).
+// The key's four marks must each be inked and no two alike — the shapes are the only thing that tells them apart
+// once the theme has taken the colour — and so must every mark of each kind the grid itself draws.
+
+/**
+ * A 12px mark's inked pixels, whether its middle is inked, and its whole histogram.
+ * @param {import('@playwright/test').Locator} loc
+ */
+async function ink(loc) {
+    const buf = await loc.screenshot({ scale: 'css' });
+    const { w, h, bpp, px } = decodePNG(buf);
+    const bg = [px[0], px[1], px[2]];
+    const inked = (/** @type {number} */ i) => [0, 1, 2].some(c => Math.abs(px[i + c] - bg[c]) > 40);
+    let n = 0;
+    for (let i = 0; i < w * h * bpp; i += bpp) if (inked(i)) n++;
+    // Every one of the four marks crosses its middle — the fill, the half, the plus, the stroke; a bare ring does not.
+    const mid = [[w / 2 - 1, h / 2 - 1], [w / 2, h / 2 - 1], [w / 2 - 1, h / 2], [w / 2, h / 2]]
+        .some(([x, y]) => inked((Math.floor(y) * w + Math.floor(x)) * bpp));
+    return { n, mid, all: colourCounts(buf).all };
+}
+
+test.describe('Windows High Contrast — the Trains stopping grid keeps its dots', () => {
+    test.skip(({ browserName }) => browserName !== 'chromium',
+        'forced-colors emulation is Chromium-only');
+
+    test('every mark in the grid and its key is drawn, and the four marks are four shapes', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await seedSession(page, 'A. Person');
+        await page.emulateMedia({ forcedColors: 'active' });
+        await page.goto('/trains.html');
+        expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches),
+            'the emulation did not take — this test would pass by not testing').toBe(true);
+        await page.locator('[data-view="grid"]').click();
+        await page.locator('[data-grid="dec"]').click();
+        await expect(page.locator('#trPattern .tr-grid')).toBeVisible();
+        await stillPage(page);
+
+        /** @type {Record<string, { n: number, all: string }>} */ const key = {};
+        for (const kind of ['', 'some', 'new', 'lost']) {
+            const sel = kind ? `.tr-grid-key .tr-dot--${kind}` : '.tr-grid-key .tr-dot:not([class*="--"])';
+            await expect(page.locator(sel), `premise: the key shows the "${kind || 'stops'}" mark`).toHaveCount(1);
+            key[kind || 'stops'] = await ink(page.locator(sel));
+            expect(key[kind || 'stops'].n, `the key's "${kind || 'stops'}" mark has ${key[kind || 'stops'].n} px of ink — blank under forced colours`)
+                .toBeGreaterThan(30);
+            expect(key[kind || 'stops'].mid, `the key's "${kind || 'stops'}" mark is a bare ring — its plus, stroke or fill is not drawn`).toBe(true);
+        }
+        const names = Object.keys(key);
+        for (let i = 0; i < names.length; i++) {
+            for (let j = i + 1; j < names.length; j++) {
+                expect(key[names[i]].all, `the "${names[i]}" and "${names[j]}" marks paint alike — the theme took the only difference`)
+                    .not.toBe(key[names[j]].all);
+            }
+        }
+
+        // The grid's own marks: the first few of each kind it draws, wherever the table has scrolled them to.
+        const drawn = { stops: 0, some: 0 };
+        for (const [name, sel] of /** @type {[string, string][]} */ ([['stops', '.tr-grid .tr-dot:not([class*="--"])'], ['some', '.tr-grid .tr-dot--some'],
+            ['new', '.tr-grid .tr-dot--new'], ['lost', '.tr-grid .tr-dot--lost']])) {
+            const dots = page.locator(sel);
+            const count = Math.min(await dots.count(), 4);
+            for (let i = 0; i < count; i++) {
+                await dots.nth(i).scrollIntoViewIfNeeded();
+                const { n, mid } = await ink(dots.nth(i));
+                expect(n, `a "${name}" mark in the grid has ${n} px of ink — blank under forced colours`).toBeGreaterThan(30);
+                expect(mid, `a "${name}" mark in the grid is a bare ring`).toBe(true);
+                if (name in drawn) drawn[/** @type {'stops'|'some'} */ (name)]++;
+            }
+        }
+        expect(drawn, 'premise: the grid draws full and half marks').toEqual({ stops: 4, some: 4 });
+    });
+});

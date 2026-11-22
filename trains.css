@@ -761,6 +761,31 @@ on the answer: the app's ring, not the browser's orange one. */
 /* Some hours only: half filled. A column is every hour's train at that minute (stoppingGrid), and a
    station only some of them stop at is not a stop "every hour" (v24.83). */
 .tr-dot--some { background: linear-gradient(90deg, var(--primary-blue) 50%, transparent 50%); box-shadow: inset 0 0 0 2px var(--primary-blue); }
+/* WINDOWS HIGH CONTRAST (Trains review, 22 Nov 2026). Every mark above is a background, a gradient or a box-shadow,
+   and a forced-colours theme repaints the first as Canvas and drops the other two — so the grid and its key were
+   BLANK there, station names over empty columns, on the station PC's own operating system. The marks opt out of the
+   forcing and are redrawn in the theme's CanvasText on Canvas: the same four SHAPES, which were already what told them
+   apart (above), so nothing is lost but the colour the reader asked to replace. System colours only, and longhands —
+   native-surface-parity contract 14 reads every forced-colours block; e2e/forced-colors.spec.js counts the ink. */
+@media (forced-colors: active) {
+    .tr-dot { forced-color-adjust: none; background-color: CanvasText; background-image: none; box-shadow: none; }
+    .tr-dot--some, .tr-dot--new, .tr-dot--lost {
+        background-color: Canvas;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: auto;
+        box-shadow: inset 0 0 0 2px CanvasText;
+    }
+    .tr-dot--some { background-image: linear-gradient(90deg, CanvasText 50%, transparent 50%); }
+    .tr-dot--new {
+        background-image: linear-gradient(CanvasText, CanvasText), linear-gradient(CanvasText, CanvasText);
+        background-size: 6px 2px, 2px 6px;
+    }
+    .tr-dot--lost {
+        background-image: linear-gradient(135deg, transparent calc(50% - 1px), CanvasText calc(50% - 1px) calc(50% + 1px),
+                          transparent calc(50% + 1px));
+    }
+}
 /* Two even columns on a phone (the 2 Nov 2026 polish): wrapping freely, the four entries stranded "no
    longer stops" alone on a second line. One row from a tablet up, where all four fit. */
 .tr-grid-key {
@@ -904,6 +929,22 @@ uppercase. */
     .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-grid-swipe, .tr-change-station { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
+    /* An in-card choice (Now / From 13 Dec, Going there / Coming back) prints as the ONE it is: the chosen tab's words
+       are white for its raspberry fill, which paper drops, so the sheet showed the chosen one faint and the other bold
+       (Trains review, 22 Nov 2026). Paper cannot be pressed, so the other tab goes, and the chosen one prints as an
+       outlined label in the body's ink — the card's subtitle names the day; this names the timetable or direction.
+       Written on the groups' ids, never on the chosen state, so no rule here colours a choice (page-identity-parity). */
+    .tr-tabs--in-card .tr-tab[aria-pressed="false"] { display: none; }
+    #trStationDir .tr-tab, #trGridMode .tr-tab {
+        flex: 0 0 auto;
+        min-height: 0;
+        padding: 3px 12px;
+        background: none;
+        border-color: var(--text-dark);
+        color: var(--text-dark);
+        box-shadow: none;
+        transition: none;   /* the tab eases its colours, and a print taken mid-ease kept the white */
+    }
 }
 
 /* The boot placeholder's other half (v24.96): the cards wait for `auth-ready`, which trains-app.js
