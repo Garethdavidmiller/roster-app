@@ -1020,7 +1020,7 @@ test('paycalc: the Holiday Pay Premium notice comes the load after the Year to D
     await expect(page.locator('.lb-overlay.visible'), 'exactly one overlay open').toHaveCount(1);
     // What it teaches: the premium, the year, the payslip, the figure on it, and where that goes.
     const notice = page.locator('#noticeHppContent');
-    for (const words of ['Holiday Pay Premium', '2025/26', '13 Mar 2026', 'Taxable Pay', 'Rough estimate from your Year to Date pay']) {
+    for (const words of ['Holiday Pay Premium', '2025/26', '13 March 2026', 'Taxable Pay', 'Rough estimate from your Year to Date pay']) {
         await expect(notice).toContainText(words);
     }
     // "Not now" answers it for good, and App Notices keeps it — archived as it opened.
