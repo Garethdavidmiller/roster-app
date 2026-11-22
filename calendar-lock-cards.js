@@ -227,6 +227,12 @@ export function showLockPanel() {
     try { fetch(_deps.unlockUrl, { method: 'GET', cache: 'no-store' }).catch(() => {}); }
     catch { /* fetch unavailable — the submit path is unaffected */ }
 
+    // THE HINT SAYS WHAT THE PIN IS FOR, AND HOW LONG IT LASTS, TRUTHFULLY (Nov 2026). It read "for as
+    // long as this browser stays open": the viewer's session is `browserSessionPersistence`, which is
+    // ONE TAB, and a browser that restores its tabs restores that session with them — so on a shared
+    // PC, closing the browser was not the lock the words promised. The words name the tab, and the
+    // control that does end it, by its label in the menu (nav-panel.js → `#navLockCalendarBtn`).
+    //
     // Mirrors `#loginCard`'s structure element for element (v20.14) — icon, app name, subtitle,
     // a left-aligned `.login-field` with its uppercase label and hint, the shared primary button,
     // the `.login-error` channel, then a quiet text link. Staff meet this exact shape on five other
@@ -245,7 +251,7 @@ export function showLockPanel() {
                            inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*"
                            maxlength="${PIN_LENGTH}" enterkeyhint="go" spellcheck="false"
                            aria-describedby="calLockHint" autocapitalize="off">
-                    <p class="login-hint" id="calLockHint">One code for everyone at Marylebone. It opens the live roster — including annual leave, absence and shift changes — for as long as this browser stays open.</p>
+                    <p class="login-hint" id="calLockHint">One code for everyone at Marylebone. It opens the live roster — annual leave, absence and shift changes included — in this tab. On a shared computer, choose End staff PIN in the menu before you leave.</p>
                 </div>
                 <div role="status" aria-live="polite"><div class="login-error" id="calLockMsg"></div></div>
                 <button id="calLockSubmit" type="submit" disabled>${SUBMIT_LABEL}</button>
@@ -423,10 +429,13 @@ export async function showSignInPanel(notice = '') {
             // is the pages the PIN opens (auth-policy.js → `staffPin`), so Trains is on it and the
             // guides are not: the menu and every guide stay open without it (v25.82). The documents
             // are the menu's, so the Newsletter is named only while its button is: while this device knows of
-            // an issue under six weeks old (newsletter-recency.js).
+            // an issue under six weeks old (newsletter-recency.js). Never "no password yet" (until Nov
+            // 2026): every member has one from the start — their surname — so those words sent members
+            // who had not tried it to the PIN. "Not set up in the app yet" is the starter whose account
+            // does not exist yet, which is the case that was meant.
             hint: newsletterInMenu()
-                ? 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and Trains.'
-                : 'Visiting or agency staff, or no password yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular and Trains.',
+                ? 'Visiting or agency staff, at a station computer, or not set up in the app yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular, the Marylebone Newsletter and Trains.'
+                : 'Visiting or agency staff, at a station computer, or not set up in the app yet? The staff PIN opens the roster, the Daily Huddle, the Weekly Retail Circular and Trains.',
             // The PIN card is the door's second view, so it takes a Back entry (sign-in check, 11 Nov
             // 2026): Back on a phone used to leave the app from here instead of returning.
             onSelect: () => {
@@ -521,8 +530,30 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
         // The card's heading already names them; the form should not ask again (v23.58). The
         // overlay pre-selects grade and name and lands on the password field. `presetName` is a
         // convenience the overlay is free to ignore — it never widens who may sign in.
-        const open = (/** @type {typeof import('./login-overlay.js')} */ m) =>
-            m.initLoginOverlay({ pageLabel: 'Calendar', onSuccess: () => { _deps.finishSignIn(); }, presetName: name });
+        //
+        // ── ITS WAY BACK IS THIS CARD, IN PLACE (Nov 2026) ──────────────────────────────────────
+        // The modal form's way back is "← Back to roster", a link to `./`, and its Escape follows the
+        // link — on the Calendar, the page it is already on: both reloaded into this same card. So the
+        // form is given an `alternative` (login-overlay.js replaces the link with a button that runs
+        // it, and refuses it mid-sign-in), and Escape is caught on the way DOWN to the form's own
+        // handler and sent to the same place — never while the form's own sign-in is out, as the
+        // form refuses its own Escape then. The form goes; this card, which never left, takes focus.
+        const back = (/** @type {typeof import('./login-overlay.js')} */ m) => {
+            m.dismissLoginOverlay();
+            if (submit.isConnected) { try { submit.focus(); } catch { /* noop */ } }
+        };
+        const open = (/** @type {typeof import('./login-overlay.js')} */ m) => {
+            if (document.getElementById('loginOverlay')) return;   // already up — the form never mounts twice
+            m.initLoginOverlay({ pageLabel: 'Calendar', onSuccess: () => { _deps.finishSignIn(); }, presetName: name,
+                alternative: { label: '← Back', onSelect: () => back(m) } });
+            // Capture, on the form itself: it runs before the form's own Escape (a bubbling listener on
+            // the same element), and `stopImmediatePropagation` keeps that one from following its link.
+            document.getElementById('loginOverlay')?.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
+                if (e.key !== 'Escape') return;
+                e.stopImmediatePropagation();
+                if (!signInInFlight()) back(m);
+            }, true);
+        };
         if (_signInForm) { open(_signInForm); return; }   // inside the tap — see the block above
         /** @type {typeof import('./login-overlay.js')} */ let mod;
         // A failed load must not leave a dead button: say so and keep the button live. After a

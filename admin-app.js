@@ -16,7 +16,7 @@ import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate } fro
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, LEAVE_QUESTION } from './page-session.js';
 import { createDraftSlot, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -69,7 +69,7 @@ import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 const ADMIN_SIGN_IN_ABOUT = Object.freeze({
     lines: Object.freeze([
         'Record your annual leave, absences and shift changes, so they show on the Calendar.',
-        "It keeps them under your own name, so you sign in as yourself — the staff PIN doesn't open it.",
+        "It keeps them under your own name, so you sign in as yourself — the staff PIN doesn’t open it.",
     ]),
     footnote: 'On a shared screen, sign out from the menu when you finish.',
 });
@@ -154,8 +154,9 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo: back to the calendar, through the unsaved-changes banner like every other exit.
-        wireHeaderLogo(() => { const go = () => { window.location.href = './'; }; if (confirmNavigate(go)) go(); });
+        // Header logo: back to the calendar, asking the drawer's own question (confirm review, Nov 2026) — it
+        // LEAVES the page, and leaving is one question wherever it starts. The banner is for moves within it.
+        wireHeaderLogo(() => leaveAfterAsking(hasUnsavedChanges, () => { window.location.href = './'; }));
     })();
 
     // ---- Per-card tips lightbox: content in admin-tips.js, lifecycle and filtering in tips-lightbox.js ----
@@ -277,7 +278,7 @@ export function init() {
     askBeforeLeavingByDrawer(hasUnsavedChanges);
 
     // Pending navigation callback — set by confirmNavigate() when unsaved changes
-    // exist. Executed if the user taps "Discard and continue" in the banner.
+    // exist. Executed if the user taps "Leave without saving" in the banner.
     /** @type {any} */
     let _pendingNavigate = null;
     // Element focus returns to when the unsaved banner is dismissed without navigating.
@@ -289,6 +290,13 @@ export function init() {
         const discardBtn  = document.getElementById('unsavedDiscardBtn');
         const keepBtn     = document.getElementById('unsavedKeepBtn');
         if (!banner || !discardBtn || !keepBtn) return;
+        // THE LEAVE QUESTION'S OWN WORDS (confirm review, Nov 2026). The banner stays non-modal for moves within
+        // the page — another week, another member — but says what the dialog says, so one act has one wording.
+        banner.setAttribute('aria-label', LEAVE_QUESTION.title);
+        const bannerMsg = document.getElementById('unsavedBannerMsg');
+        if (bannerMsg) bannerMsg.textContent = `${LEAVE_QUESTION.title} ${LEAVE_QUESTION.message}`;
+        discardBtn.textContent = LEAVE_QUESTION.confirmLabel;
+        keepBtn.textContent = LEAVE_QUESTION.cancelLabel;
 
         discardBtn.addEventListener('click', () => {
             banner.style.display = 'none';

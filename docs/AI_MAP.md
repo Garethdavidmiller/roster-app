@@ -156,7 +156,7 @@ Keyboard navigation and the hover tooltip for the month grid: a roving tabindex 
 
 ### `calendar-access.js`
 The Calendar's access gate: it decides at boot, shows the right card, exchanges the staff PIN for a session-only viewer identity, and re-locks. It writes the one access state (`calendar-access-state.js`) in `grant` and in `handleAccessLost`, the one call for every route that loses access; its header holds the design and the rules an edit can break. Invariants: `CALENDAR_DATA.md` 3, 4, 11, 12 and `AUTH_AND_SESSIONS.md` 7–10, 17–20; running the PIN: OPERATIONS_REFERENCE.md → "Staff PIN access for the Calendar". Tested by `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
-- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
+- **Exports:** `calendarAccessReady` · `calendarAuthReady` · `_resetPageForTest` · `getAccessType` · `isViewerMode` · `unlockWithPin` · `lockCalendar` · `finishSignIn` · `handleAccessLost` · `initCalendarAccess`
 
 ### `calendar-lock-cards.js`
 The three cards that can stand where the Calendar goes — the member sign-in card (the front door), the staff-PIN card and the member's come-back card — with their wiring and the unlock backoff. They DRAW; `calendar-access.js` DECIDES and keeps the security properties, and hands its collaborators in through `initLockCards`. The header lists the four things an edit can silently break. Tested through `calendar-access.test.mjs` and `e2e/calendar-pin.spec.js`.
@@ -288,7 +288,7 @@ Coordinator for `settings.html`, for every signed-in member: the sign-in, the dr
 
 ### `overlay.js`
 The shared overlay layer: the scroll lock, Android Back's LIFO stack, the topmost-only keyboard rule, the canonical lightbox (`createLightbox` — every lightbox, with three exceptions named in its JSDoc), the app-drawn confirm and prompt dialogs, and `openNoticeIfClear` for one-time notices. Re-exports `card-collapse.js`. Bound by CLAUDE.md → Canonical lightbox lifecycle and `.claude/rules/nav-drawer.md`. Tested by `overlay.test.mjs`, `overlay-history.test.mjs`, `overlay-parity.test.mjs` and `e2e/links.spec.js`.
-- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
+- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `pinCloseButton` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
 
 ### `card-collapse.js`
 A card's collapsible header, and the deep link that opens a collapsed card by name (`#<cardId>`). `overlay.js` re-exports both, so pages import them from there. No imports, no browser global read at load. Tested by `card-collapse.test.mjs` and `overlay.test.mjs`.
@@ -304,7 +304,7 @@ The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each p
 
 ### `login-core.js`
 The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), which links the card's explanation may carry, and what a failed reset request says. `login-overlay.js` re-exports all three, so callers and `login-overlay.test.mjs` reach them there.
-- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine`
+- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
 
 ### `login-overlay.js`
 The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-pin.spec.js`.
@@ -343,7 +343,7 @@ Whether arriving on THIS page ended the shared staff PIN, who is waiting to hear
 
 ### `silent-sign-in.js`
 The rules of the sign-in nobody typed — what a page load may try for a member whose local session has no Firebase identity behind it, the six-hourly reset recheck (`AUTH_AND_SESSIONS.md` 23), and when a session began. Pure; `session.js` reads and writes the memory. Tested by `session.test.mjs`.
-- **Exports:** `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
+- **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
 
 ### `auth-state-core.js`
 The pure identity state machine (AUTH_ARCHITECTURE.md Track 1, Phase 1): who the user is, never what a page decides (that is `auth-policy.js`). Tested by `auth-state-core.test.mjs`.
@@ -605,7 +605,7 @@ The in-app PDF viewer: a full-screen panel with a ✕ that draws a PDF's pages w
 - `pdf-viewer.js` — the panel on `createLightbox`, loading PDF.js, fetching and drawing the pages; its header names the three things easy to get wrong.
 - `pdf-viewer-core.js` — the pure rules: page sizes, zoom steps, when a file may open outside the app (`canOpenOutside`), and what a failure says.
 - **Exports of `pdf-viewer.js`:** `initPdfViewer`
-- **Exports of `pdf-viewer-core.js`:** `ZOOM_STEPS` · `MAX_DEVICE_PIXEL_RATIO` · `MAX_CANVAS_PIXELS` · `MAX_FIT_WIDTH` · `zoomAfter` · `zoomLabel` · `pageLayout` · `canOpenOutside` · `isPlainClick` · `classifyFailure` · `FAILURE_TEXT` · `PAGE_FAILURE_TEXT` · `pageLabel` · `pagesLabel`
+- **Exports of `pdf-viewer-core.js`:** `ZOOM_STEPS` · `MAX_DEVICE_PIXEL_RATIO` · `MAX_CANVAS_PIXELS` · `MAX_FIT_WIDTH` · `zoomAfter` · `zoomLabel` · `pageLayout` · `canOpenOutside` · `isPlainClick` · `classifyFailure` · `FAILURE_TEXT` · `failureAction` · `PAGE_FAILURE_TEXT` · `pageLabel` · `pagesLabel`
 
 ### `overtime-phase.js`
 Where the Overtime week stands in the member's terms, and the two deadlines that decide it: the phase, its sentence, chip and tone, and the form head's deadline lines. Pure. Everything but `phaseAt` is re-exported from `overtime-format.js`; `phaseAt` is the client twin of the server's `phaseFor` (`functions/overtime-core.js`). Overtime is paused (OVERTIME_AVAILABILITY.md). Tested by `overtime-format.test.mjs` and `overtime-parity.test.mjs`.
@@ -665,7 +665,7 @@ What a run of booked dates is and what it reads as: the pure helpers the Recorde
 
 ### `admin-booked-periods.js`
 The Recorded Annual Leave dates and Recorded Absence dates sub-cards on `admin.html` — one renderer for both lists — and which YEAR of the list is on screen; also what a row's ✕ deletes (`periodDelete`) and the two-tap ✕ and feedback fade it shares with Saved Changes and the range cards. It states no total: the AL banner owns the figures. The owner's year-end rule is in the header. Tested by `admin-booked-periods.test.mjs`.
-- **Exports:** `periodDelete` · `armConfirm` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
+- **Exports:** `periodDelete` · `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
 
 ### `admin-sick.js`
 The Record Absence card on `admin.html`: a thin config over `createRangeBookingSection` (`admin-range-booking.js`) with the one-year range cap and the 🪑 preview. Absence is not capped and never asks the swapped-day question, but over a day whose work earned a day in lieu it lowers the leave allowance, so the card names those days and raises the shared over-allowance bar (`projectAbsenceRange`). A rest day holding Rest Day Working or free leave is left as it is, and named in the preview and the receipt, because an absence there would never show. Nothing on it is scoped to a year (header). Exercised by `e2e/admin.spec.js`.
@@ -875,7 +875,7 @@ The DOM half of the "Move Your Pay Data" card: the itemised list of what is on t
 - **Exports:** `initTransferCard`
 
 ### `paycalc-help.js`
-The pay calculator's help-panel text, keyed by each `.help-btn`'s `data-help`. Pure data; the rates, London Allowance and contracted hours in its tips are read from `paycalc-calc.js`, so no figure is typed here.
+The pay calculator's `?` panel text, keyed by each `.help-btn`'s `data-help`, in the shared Tips panel's sections-and-items shape (`initTipsLightbox` renders it). Pure data; the rates, London Allowance and contracted hours in its tips are read from `paycalc-calc.js`, so no figure is typed here.
 - **Exports:** `HELP_CONTENT`
 
 ### `paycalc-migrations.js`
@@ -944,7 +944,7 @@ The pure write-safety rules, every dependency injected: one refresh-and-retry fo
 
 ### `page-session.js`
 How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
-- **Exports:** `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `guardNamedSession`
+- **Exports:** `LEAVE_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page; a swipe back asks nothing) and offered to the same member on the next load. Its six rules are the header: never applied silently, never across members, a mirror of the unsaved state at the last hide that deletes only its own copy, a day then gone, a draft is work and not a decision, and work a save has since landed is not unsaved. Written through `keepDraftWhenHidden` (`page-session.js`); used by Admin and Links. Tested in `page-session.test.mjs`.
@@ -1195,8 +1195,8 @@ WHO a notice for the admin may reach — one rule for the reset-request doorbell
 - **Exports:** `enabledAdminUids`
 
 ### `functions/account-lifecycle.js`
-The pure rules Set up accounts and the admin reset apply at the edges of an account's life: whether a failed password write proves nothing changed and what the admin is then told, which elevated claims a re-stamp takes away, and which leavers are already disabled. The header carries the reasoning; `auth-endpoints.js` is the orchestration. Tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`.
-- **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids`
+The pure rules Set up accounts and the admin reset apply at the edges of an account's life: whether a failed password write proves nothing changed and what the admin is then told, which elevated claims a re-stamp takes away, which leavers are already disabled, and which a confirmed sweep may disable against its preview. The header carries the reasoning; `auth-endpoints.js` is the orchestration. Tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`.
+- **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids` · `sweepAgainstPreview`
 
 ### `functions/reset-request.js`
 `requestPasswordReset`, the public doorbell a locked-out member rings — one of the two unauthenticated endpoints: it records the request, never resets anything, and tells the admin's devices only. Built by `buildAuthEndpoints`, which hands in the kill switch. The header says how the abuse surface is bounded; the throttle, the coalescing window and the notice's words are `roster-parse-helpers.js`'s. Tested through the real handler by `auth-endpoints.test.mjs`.

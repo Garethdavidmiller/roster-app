@@ -2202,7 +2202,7 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await page.locator('#navMenuBtn').click();
         await page.locator('#navSignOutBtn').click();
         const dialog = page.locator('.dialog-overlay').last();
-        await expect(dialog).toContainText('Sign out anyway?');
+        await expect(dialog).toContainText('If you sign out now they will be lost.');
         await dialog.locator('.dialog-btn-cancel').click();
         await expect(page.locator('.dialog-overlay')).toHaveCount(0);
         expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')),
@@ -2220,12 +2220,12 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await page.locator('.ot-day').first().waitFor();
         const answer = page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' });
         await answer.click();
-        const question = page.getByText('You have unsaved changes. Leave this page anyway?');
+        const question = page.getByText('Your unsaved changes on this page will be lost.', { exact: true });
 
         await page.locator('#navMenuBtn').click();
         await page.locator('.nav-panel-pill--calendar').click();
         await expect(question).toBeVisible();
-        await page.getByRole('button', { name: 'Cancel' }).click();
+        await page.getByRole('button', { name: 'Keep editing' }).click();
         await expect(question).toBeHidden();
         await expect(page, 'Cancel keeps the page').toHaveURL(/overtime\.html/);
         // A closed dialog stays in the page for 500ms so it can fade, and the next question builds a new
@@ -2236,7 +2236,7 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         await page.locator('#navPanelBrand').click();   // the drawer is still open: its head opens About
         await page.locator('#iconLightbox').getByRole('link', { name: 'Calendar', exact: true }).click();
         await expect(question).toBeVisible();
-        await page.getByRole('button', { name: 'Cancel' }).click();
+        await page.getByRole('button', { name: 'Keep editing' }).click();
         await expect(question).toBeHidden();
         await expect(page).toHaveURL(/overtime\.html/);
         await expect(answer, 'and the answer is still on the form').toBeChecked();
@@ -2919,7 +2919,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.locator('.ot-submit').click();
         await expect(page.locator('.ot-feedback')).toContainText('Saving');
         await page.locator('[data-openweek="2026-09-12"]').click();
-        await page.getByRole('button', { name: 'Leave', exact: true }).click();
+        await page.getByRole('button', { name: 'Leave without saving', exact: true }).click();
         await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
         await expect(page.locator('.ot-back-to-list')).toBeVisible();
         release();
@@ -2948,7 +2948,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
             expect(await armed(), 'the answer on screen is guarded').toBe(true);
             await hold(true);
             await leave();
-            await page.getByRole('button', { name: 'Leave', exact: true }).click();
+            await page.getByRole('button', { name: 'Leave without saving', exact: true }).click();
             await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
             expect(await armed(), 'left by choice, so nothing is guarded while the next form loads').toBe(false);
             await hold(false);
@@ -3000,7 +3000,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.locator('[data-openweek="2026-09-12"]').click();
         const dialog = page.locator('.dialog-lb-content, .lb-overlay.open');
         await expect(dialog.first()).toBeVisible();
-        await page.getByRole('button', { name: 'Stay on this form' }).click();
+        await page.getByRole('button', { name: 'Keep editing' }).click();
         // Staying means staying: the answer survives and the week has not changed underneath them.
         await expect(page.locator('.ot-day--set')).toHaveCount(1);
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
@@ -3014,7 +3014,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.locator('.ot-day').first().waitFor();
         await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
         await page.locator('#appIcon').click();
-        await page.getByRole('button', { name: 'Stay on this form' }).click();
+        await page.getByRole('button', { name: 'Keep editing' }).click();
         await expect(page).toHaveURL(/overtime\.html/);
         await expect(page.locator('.ot-day--set')).toHaveCount(1);
     });
@@ -3896,7 +3896,7 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         page.on('popup', (p) => popups.push(p));
         await page.locator('#navMenuBtn').click();
         await page.locator('#navPanel .nav-panel-link--circular').click();
-        await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN on the Calendar, or sign in, to read the Weekly Retail Circular.');
+        await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN on the Calendar, to read the Weekly Retail Circular.');
         expect(await reads(), 'no read is issued').toBe(before);
         expect(popups.length, 'and no blank tab is opened for it').toBe(0);
     });

@@ -526,7 +526,7 @@ test('functions/roster-members.json matches active staff in roster-data.js', asy
 
     // B4: the server-owned member + role lists that setupRosterAuth trusts must match roster-data.js
     // EXACTLY — drift could disable a real account or leave a claim tier client-editable. activeMembers
-    // mirrors admin-auth.js's ACTIVE_MEMBERS (the same four getMembersForGrade calls, order preserved).
+    // is the four getMembersForGrade sign-in groups, order preserved (generate-roster-members.mjs).
     const expectedActive = [
         ...getMembersForGrade('CEA'), ...getMembersForGrade('CES'),
         ...getMembersForGrade('Dispatcher'), ...getMembersForGrade('Management'),

@@ -99,6 +99,7 @@
   <link rel="modulepreload" href="./paycalc-calc.js">
   <link rel="modulepreload" href="./paycalc-format.js">
   <link rel="modulepreload" href="./paycalc-help.js">
+  <link rel="modulepreload" href="./tips-lightbox.js">
   <link rel="modulepreload" href="./paycalc-hpp.js">
   <link rel="modulepreload" href="./paycalc-hpp-schedule.js">
   <link rel="modulepreload" href="./paycalc-inputs.js">
@@ -1207,12 +1208,15 @@
   <div class="sticky-amount" id="stickyAmount">£–</div>
 </div>
 
-<!-- Help lightbox: opened by ? buttons on each card -->
-<div id="helpLightbox" class="lb-overlay" role="dialog" aria-modal="true" aria-labelledby="helpLightboxTitle">
-  <div id="helpLightboxContent" class="lb-content">
-    <button id="helpLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
-    <div class="help-lightbox-title" id="helpLightboxTitle"></div>
-    <ul class="help-lightbox-list" id="helpLightboxList"></ul>
+<!-- The ? panels: the shared Tips panel every page's ? opens (tips-lightbox.js), filled from
+     paycalc-help.js by each card's .help-btn[data-help]. Not a glass sheet of its own any more (Nov 2026). -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+  <div id="tipsLightboxContent" class="lb-content">
+    <div class="tips-lb-top">
+      <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+      <div class="tips-lb-title" id="tipsLbTitle"></div>
+    </div>
+    <div id="tipsLbBody"></div>
   </div>
 </div>
 
@@ -1225,7 +1229,7 @@
     <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
     <div class="lightbox-badge"><span class="badge-glyph" aria-hidden="true">💷</span> Pay</div>
-    <div class="lightbox-privacy">Pay data stays in this browser — never shared.</div>
+    <div class="lightbox-privacy">Pay data is saved in this browser on this device — the app never sends it to a server.</div>
     <!-- Print, then the link rows, then Report a bug — the order every About panel keeps (desktop
          audit, Nov 2026; Print came last here and first on the Calendar). -->
     <div class="lightbox-print-wrap">
@@ -1297,11 +1301,15 @@
       <div class="lightbox-app-name">Is this your pay data?</div>
     </div>
     <div class="notice-main">
-      <p class="notice-body">This device already has saved Pay Calculator data (tax code, Year to Date figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it stays in this browser on this device, kept as yours. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
+      <!-- SAYS WHAT "NO" DOES (review R3-2, Nov 2026). "Start fresh" deletes every pay figure on this device
+           that is not tied to a member, hours included, and closes the question for everyone on it
+           (resolveLegacyMigration, paycalc-migrations.js) — on a shared phone, one colleague's "No" was
+           another's data gone, and nothing here said so. Closing is the safe answer, and is named. -->
+      <p class="notice-body">This device has Pay Calculator data saved before each person&rsquo;s was kept apart &mdash; hours, tax code, Year to Date figures or settings. If it&rsquo;s <strong>yours</strong>, choose &ldquo;Yes&rdquo; to keep it as yours. &ldquo;No&rdquo; <strong>deletes it from this device</strong> &mdash; if it could be a colleague&rsquo;s, close this so they can claim it when they sign in. Closing leaves it untouched and asks again next time.</p>
     </div>
     <div class="notice-actions">
       <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>
-      <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; start fresh</button>
+      <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; delete it</button>
     </div>
   </div>
 </div>

@@ -155,7 +155,7 @@ export const MIN_PASSWORD_LENGTH = 8;
  * while still on a guessable credential.
  *
  * Rule order is preserved from the Settings card so the message a member sees is unchanged: length,
- * then mismatch, then the surname block.
+ * then an empty Confirm box, then mismatch, then the surname block.
  *
  * @param {string} fullName  the member's display name, for the surname check
  * @param {string} next      the new password (trimmed by the caller or here)
@@ -166,13 +166,19 @@ export function validateNewPassword(fullName, next, confirm) {
     const n = (typeof next === 'string' ? next : '').trim();
     const c = (typeof confirm === 'string' ? confirm : '').trim();
     if (n.length < MIN_PASSWORD_LENGTH) return `Your new password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+    // An EMPTY Confirm box is not a mismatch (review, Nov 2026): "don’t match" sent a member who had
+    // not yet typed it twice looking for a difference between two passwords. Say what is missing.
+    // `newPasswordProblemField` already sends the caret to Confirm for both.
+    if (!c) return 'Type your new password again in the second box to confirm it.';
     if (n !== c) return 'The two new passwords don’t match.';
     // Block choosing the surname back — otherwise "migrated ✓" is a lie for that member. The
     // `surname &&` guard matters: normaliseSurname('') === '' for a single-word display name, and
     // without it ANY all-digits/symbols password (whose alpha part is also '') would be rejected as
     // "your surname".
     const surname = normaliseSurname(fullName || '');
-    if (surname && lettersOnly(n) === surname) return 'Choose something other than your surname.';
+    // The comparison is on the LETTERS only, so "Miller2026!" is refused as well — and the sentence
+    // says so, or a member who added digits is told something that looks untrue (review, Nov 2026).
+    if (surname && lettersOnly(n) === surname) return 'Your new password can’t be your surname, even with numbers or symbols added.';
     return null;
 }
 

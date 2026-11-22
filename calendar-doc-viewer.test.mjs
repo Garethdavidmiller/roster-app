@@ -136,7 +136,7 @@ describe('doc viewer — THE DOCUMENT GATE (v23.17): a locked tap reads nothing,
         initDocViewer({ authReady: Promise.resolve(), docAccess: { has: () => false, onChange: fn => { subs.push(fn); return () => {}; } } });
         await flush();
         assert.equal(fetched, 0, 'a locked viewer must not issue the read — the local cache would answer it');
-        assert.match(bodyText(), /Enter the staff PIN, or sign in, to read the Weekly Retail Circular/);
+        assert.match(bodyText(), /Sign in, or enter the staff PIN, to read the Weekly Retail Circular/);
         assert.equal(subs.length, 1, 'it subscribes to the gate so the unlock can finish the tap');
     });
 
@@ -187,7 +187,7 @@ describe('doc viewer — a LOCK while a document is loading takes it down (v24.5
         land({ storageUrl: 'https://firebasestorage.googleapis.com/x', date: '2026-10-01', fileType: 'pdf' });
         await flush();
         assert.doesNotMatch(bodyText(), /Open/, 'a read from before the lock must not offer the document');
-        assert.match(bodyText(), /Enter the staff PIN, or sign in, to read the Weekly Retail Circular/);
+        assert.match(bodyText(), /Sign in, or enter the staff PIN, to read the Weekly Retail Circular/);
         let fetched = 0;
         _circularImpl = () => { fetched++; return Promise.resolve(null); };
         open = true; subs.forEach(fn => fn(true));   // the PIN it asked for goes in
@@ -219,7 +219,7 @@ describe('doc viewer — a COLD deep link waits for the access decision before c
             docAccess: { has: () => false, onChange: () => () => {} } });
         await flush();
         decide(); await flush();
-        assert.match(bodyText(), /Enter the staff PIN, or sign in, to read the Weekly Retail Circular/);
+        assert.match(bodyText(), /Sign in, or enter the staff PIN, to read the Weekly Retail Circular/);
     });
 
     test('decided GRANTED: the held tap reads, and the PIN message never appears', async () => {
@@ -245,7 +245,7 @@ describe('doc viewer — a COLD deep link waits for the access decision before c
         await flush();
         global.window.location.hash = '#circular';
         onHash?.();
-        assert.match(bodyText(), /Enter the staff PIN, or sign in/, 'a tap after the decision sat on "Loading…"');
+        assert.match(bodyText(), /Sign in, or enter the staff PIN/, 'a tap after the decision sat on "Loading…"');
     });
 
     test('a waiting tap the reader CLOSED is not re-shown by the decision', async () => {
@@ -417,6 +417,21 @@ describe('doc viewer — the open must always reach a terminal state', () => {
         assert.equal(calls, 2, 'pressing it must actually re-read the document');
     });
 
+    test('pressing Try again moves focus to the panel BEFORE the button goes (lightbox review R1-6)', async (t) => {
+        // The retry's "Loading…" removes the button that has focus, and focus on a removed node falls to the
+        // page: a screen-reader user sat on <body> for the whole wait. The panel takes it first.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _circularImpl = () => Promise.reject(new Error('offline'));
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve() });
+        await flush();
+        const btn = _els.docViewerBody._children.find(c => /Try again/.test(c.textContent));
+        /** @type {string[]} */ const order = [];
+        _els.docViewerContent.focus = () => { order.push(btn._parent ? 'panel focused, button still there' : 'panel focused after the button went'); };
+        btn._fire('click');
+        assert.deepEqual(order, ['panel focused, button still there'], 'focus fell to the page as the button was removed');
+    });
+
     test('the failure state offers a retry CONTROL, not just text', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         _circularImpl = () => Promise.reject(new Error('offline'));
@@ -559,7 +574,7 @@ describe('cal-docs-1 · a tap the lock is holding survives the sign-in\'s reload
         global.window.location.hash = '#circular';
         initDocViewer({ authReady: Promise.resolve(), docAccess: gateOf(false) });
         await flush();
-        assert.match(bodyText(), /Enter the staff PIN, or sign in/);
+        assert.match(bodyText(), /Sign in, or enter the staff PIN/);
         _winListeners.pagehide.forEach(fn => fn());              // the sign-in reloads the page
         assert.match(_tabStore.get(HELD) ?? '', /^\d+\|circular$/, 'the held tap was not written down');
 
@@ -659,7 +674,7 @@ describe('cal-docs-16 · the dialog is named for its document, and its outcome i
         const [glyph, words] = _els.docViewerTitle._children;
         assert.equal(glyph._attrs['aria-hidden'], 'true', 'the emoji would be read out as part of the dialog\'s name');
         assert.equal(words, 'Marylebone Newsletter');
-        assert.match(_els.docViewerStatus.textContent, /Enter the staff PIN, or sign in, to read the Marylebone Newsletter/);
+        assert.match(_els.docViewerStatus.textContent, /Sign in, or enter the staff PIN, to read the Marylebone Newsletter/);
         assert.deepEqual(_els.docViewerBody._children, [_els.docViewerStatus], 'a message outside the status line is not spoken');
         gate.set(true);
         await flush();

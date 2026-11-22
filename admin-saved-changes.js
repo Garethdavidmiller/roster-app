@@ -35,7 +35,7 @@ import { unconfirmedWriteLine, isAccessFailure } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
 import { withClearedDays } from './admin-own-write.js';
 // The two-tap ✕ and the feedback line's fade, shared with the Recorded-dates lists (their header says why).
-import { armConfirm, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
+import { twoTap, disarmConfirm, holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 
 /** The receipt's account of a duplicate cleared alongside: said, never silent. @param {number} n */
 const _olderCopies = (n) => n > 0 ? `, and ${n} earlier entr${n === 1 ? 'y' : 'ies'} for that day` : '';
@@ -256,7 +256,7 @@ const _deleteOverage = (rows) => planAlDelete({ rows, members: teamMembers, over
 async function _handleDelete(e) {
     const btn     = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('.btn-delete'));
     if (!btn) return;
-    if (!btn.classList.contains('confirming')) { armConfirm(btn, 'Delete?', '✕'); return; }
+    if (!twoTap(btn, 'Delete?', '✕')) return;   // arms, or the same gesture's second tap (admin-booked-periods.js)
     await _deleteRow(btn, false);
 }
 
@@ -350,11 +350,8 @@ function _initOverridesTable() {
             const picked = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id ?? '');
 
             // Two-tap confirm, ARMED FOR THIS SELECTION: the count asked about is the count deleted.
-            if (!bulkDeleteBtn.classList.contains('confirming') || bulkDeleteBtn.dataset.armedFor !== picked.join('|')) {
-                bulkDeleteBtn.dataset.armedFor = picked.join('|');
-                armConfirm(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected', `Confirm delete ${picked.length} selected change${picked.length !== 1 ? 's' : ''}`);
-                return;
-            }
+            if (!twoTap(bulkDeleteBtn, `Delete ${picked.length}?`, 'Delete selected',
+                `Confirm delete ${picked.length} selected change${picked.length !== 1 ? 's' : ''}`, picked.join('|'))) return;
             disarmConfirm(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
             await _bulkDelete(bulkDeleteBtn, picked, false);
         });

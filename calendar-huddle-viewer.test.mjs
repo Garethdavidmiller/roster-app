@@ -173,7 +173,7 @@ function tapHuddle() {
 }
 
 const flush = async (n = 8) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
-const LOCKED = 'Enter the staff PIN, or sign in, to read the Daily Huddle.';
+const LOCKED = 'Sign in, or enter the staff PIN, to read the Daily Huddle.';
 const READY  = 'The latest Huddle is ready.';
 /** A PDF Huddle: no `htmlContent`, so the viewer draws its "Open Huddle" prompt (no sanitiser needed). */
 const huddle = (/** @type {string} */ n) => ({ storageUrl: `https://firebasestorage.googleapis.com/v0/b/x/o/${n}.pdf`, storagePath: `huddles/${n}.pdf`, fileType: 'pdf' });
@@ -396,7 +396,7 @@ describe('cal-docs-10 · a tap made before the first answer is answered, and the
         assert.match(body.innerHTML, /Loading…/);
         listeners[0].onData(null, true);                         // only the local cache answers: empty
         await settle();
-        assert.match(body.innerHTML, /Couldn't load the Daily Huddle/, 'the tap was left unanswered');
+        assert.match(body.innerHTML, /Couldn’t load the Daily Huddle/, 'the tap was left unanswered');
     });
 
     test('in the Calendar\'s own order — the gate shut at wiring, opened by the grant — the deadline is real', async (t) => {
@@ -412,7 +412,7 @@ describe('cal-docs-10 · a tap made before the first answer is answered, and the
         assert.match(body.innerHTML, /Loading…/);
         t.mock.timers.tick(8000);
         await settle();
-        assert.match(body.innerHTML, /Couldn't load the Daily Huddle/, 'still "Loading…" when the wait should have ended');
+        assert.match(body.innerHTML, /Couldn’t load the Daily Huddle/, 'still "Loading…" when the wait should have ended');
         listeners[0].onData(huddle('late'), false);              // a late answer still replaces the message
         await settle();
         assert.ok(body.innerHTML.includes(READY));
@@ -429,7 +429,7 @@ describe('cal-docs-10 · a tap made before the first answer is answered, and the
         assert.equal(viewer.classList.contains('visible'), false, 'guard: the cold-tap rule stands');
         t.mock.timers.tick(8000);                                // …but the deadline answers it
         await settle();
-        assert.match(body.innerHTML, /Couldn't load the Daily Huddle/, 'a cold tap was left unanswered for as long as the device stayed offline');
+        assert.match(body.innerHTML, /Couldn’t load the Daily Huddle/, 'a cold tap was left unanswered for as long as the device stayed offline');
         closeTap();
         listeners[0].onData(huddle('later'), false);             // the signal comes back
         await settle();
@@ -591,7 +591,7 @@ describe('cal-docs-14 · a Huddle this device could not check is labelled a save
     /** @param {boolean} onLine */
     const setOnline = (onLine) => Object.defineProperty(globalThis, 'navigator', { value: { onLine }, configurable: true });
     afterEach(() => { if (real) Object.defineProperty(globalThis, 'navigator', real); });
-    const SAVED = /Saved copy — couldn't check for changes/;
+    const SAVED = /Saved copy — couldn’t check for changes/;
 
     for (const [kind, make] of /** @type {const} */ ([['an inline Huddle', docx], ['a PDF Huddle', huddle]])) {
         test(`offline, ${kind} answered by the cache alone says so, in the Calendar's own words`, async (t) => {

@@ -17,7 +17,7 @@ mock.module(R + 'firebase-client.js', { namedExports: {
     resolveDocumentOpenUrl: () => null, fetchSignedDocumentUrl: async () => null, currentUserAfterBoot: async () => ({ uid: 'u' }) } });
 mock.module(R + 'notif.js', { namedExports: { notifSupported: () => false, peekNotifState: async () => 'off-default',
     enableNotifications: async () => 'on', disableNotifications: async () => 'off-default', releaseDevicePush: async () => {} } });
-mock.module(R + 'overlay.js', { namedExports: { lockBodyScroll() {}, unlockBodyScroll() {}, suppressNextPop() {},
+mock.module(R + 'overlay.js', { namedExports: { lockBodyScroll() {}, unlockBodyScroll() {}, suppressNextPop() {}, pinCloseButton() {},
     registerPopInterceptor() {}, whenHistorySettled: (fn) => fn(), watchScrollFade: () => () => {}, closeOnBackdropTap() {} } });
 mock.module(R + 'ls.js', { namedExports: { lsGet: () => null, lsSet() {}, lsDel() {} } });
 mock.module(R + 'usage-reporter.js', { namedExports: { recordUsage() {}, recordOpen() {} } });

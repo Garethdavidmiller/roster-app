@@ -283,10 +283,15 @@ export function initTransferCard() {
                 // BELOW the two inventories and therefore below the fold on a 640px phone. A
                 // member could reach Replace without ever seeing them. Detail may be scrolled
                 // to; a consequence may not.
-                message: 'Restoring replaces what is here — anything on this device that is not in '
-                       + `the backup will be lost.${damagedNote}\n\n`
+                // IT SAYS IT CANNOT BE UNDONE, AND WHERE THE WAY OUT IS (review R5-10, Nov 2026): a replace
+                // is final, and the card this dialog opens from has "Download backup" two buttons up. The
+                // Cancel is named in the words, so its label is passed rather than left to a default.
+                message: 'Restoring replaces what is here and can’t be undone — anything on this device that is '
+                       + 'not in the backup will be lost. To keep a copy first, choose Cancel and use Download backup.'
+                       + `${damagedNote}\n\n`
                        + `The backup holds:\n${arriving}\n\nThis device currently holds:\n${here}`,
-                confirmLabel: 'Replace',
+                confirmLabel: 'Replace my pay data',
+                cancelLabel: 'Cancel',
                 danger: true,
             });
             if (!ok) { status('Nothing was changed.'); return; }

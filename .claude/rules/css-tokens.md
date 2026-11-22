@@ -106,8 +106,8 @@ default) is the app's common form and is allowed; `index.css` is held to the rul
 **Two overlay corner families, both named:** compact DIALOGS use `--radius-xl` (20px) — the white
 ones (month-jump, login, Tips, confirm/prompt, the Calendar's Circular/Newsletter viewer) and the
 Calendar's team info, a compact see-through one; full navy GLASS SHEETS (About, notices, day detail,
-AL) use `--radius-panel` (24px). The Pay Calculator's `?` help sheet is a see-through glass sheet at the
-Tips' `--modal-standard` width — one width at every size (desktop audit, 7 Nov 2026).
+AL) use `--radius-panel` (24px). The Pay Calculator's `?` panels ARE the shared Tips panel (owner, Nov
+2026); they were a see-through glass sheet, the one `?` in the app the page showed through behind.
 
 **Within the glass family, four are SOLID:** the one-time notices, the About panel and the drawer's
 App Notices and Coming Soon panels share one opaque navy sheet (`.notice-lb-content,
@@ -214,6 +214,12 @@ Always `width: min(var(--modal-*), var(--modal-cap))`. **Pick a size; do not inv
 or a second idiom (`max-width: Npx; width: 100%`) — variation in overlay width and cap means nothing.
 **Why 90vw:** it leaves the WIDEST overlay (the dialog) unchanged at phone width, where a clipped
 message would matter most.
+
+**One height cap, `--modal-max-h` (86dvh)**, for every panel — never a literal `vh` (lightbox review,
+22 Nov 2026). **One ✕ colour per surface family**: `.lb-close` reads `--lb-close-color` (light by
+default; a navy panel sets `--lb-close-navy` on itself), so no ✕ is left to the browser. **A ✕ that is
+a direct child of a scrolling panel is pinned** by `createLightbox` (`pinCloseButton`, overlay.js —
+shared.css → "THE ✕ STAYS"): do not restate a panel's padding in CSS for it, it is measured.
 
 **Out of scope, deliberately:** the nav drawer (`min(260px, 72vw)` — a side panel, not a centred
 modal) and the Calendar's page-local overlays in `index.css` — the glass day detail, AL and team info,

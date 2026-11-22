@@ -804,8 +804,11 @@ try {
                     if (calendarTips)  calendarTips.hidden  = inTeam;
                     if (teamViewTips)  teamViewTips.hidden  = !inTeam;
                     if (teamViewBadge) teamViewBadge.hidden = !inTeam;
-                    if (printBtn)  printBtn.textContent  = inTeam ? '🖨️ Print this week\'s roster' : '🖨️ Print this calendar';
-                    if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month\'s calendar';
+                    // The emoji keeps its own aria-hidden span, as the markup gives it (lightbox review, 22 Nov
+                    // 2026): `textContent` wiped it on the first open, and a screen reader then said "printer".
+                    // The Team button's v22.87 fix (calendar-team-view.js), for the same defect.
+                    if (printBtn)  printBtn.innerHTML    = '<span aria-hidden="true">🖨️</span> ' + (inTeam ? 'Print this week’s roster' : 'Print this calendar');
+                    if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month’s calendar';
                 },
                 // Just print. The paper is decided by which VIEW is open, not by which control
                 // reached the printer — `calendar-team-view.js`'s `applyTeamPrintPage` installs the

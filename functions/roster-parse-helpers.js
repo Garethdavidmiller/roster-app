@@ -34,6 +34,7 @@ const {
 } = require('./cell-day-rules');
 const { readOtherDayCell, namesMeeting } = require('./roster-other-days');
 const { isViewerAccount } = require('./calendar-viewer-auth');
+const { jsonBodyOf } = require('./request-helpers');
 
 // ── Shift normalisation ──────────────────────────────────────────────────────
 
@@ -894,22 +895,25 @@ const { NOTIFICATION_FEATURES, buildPushPayload } = require('./push-notices');
 
 /**
  * Parse the ACTION flags from a setupRosterAuth request. Only `removeOrphans`/`confirmOrphanRemoval`
- * are honoured (member/role lists are server-owned). A non-JSON Content-Type makes firebase-functions
- * populate `reqBody` with a wrong-shape object, so re-parse `rawBody` as JSON whenever `removeOrphans`
- * isn't already a boolean — otherwise the flags would silently drop on the raw-body curl fallback.
- * @param {any} reqBody  req.body (parsed by firebase-functions, or a wrong-shape object)
+ * and the previewed uids are honoured (member/role lists are server-owned). The body is read by
+ * `jsonBodyOf` (request-helpers.js), the one body reader every endpoint shares — a Buffer, a string,
+ * rawBody, or JSON a form parser mangled all read alike (this read them its own way until Nov 2026).
+ *
+ * FAILS SAFE: a flag is on only for the boolean `true` — a string "true" or a 1 is off, as `lostDevice`
+ * is on the reset — so nothing short of an exact request starts a sweep or confirms one. `confirmUids`
+ * is the dry run's `orphanUids`, sent back with the confirm so the sweep disables only what the admin
+ * read (`sweepAgainstPreview`, account-lifecycle.js): `null` when the field is ABSENT (a client older
+ * than that), and a malformed one is an EMPTY list — disable nobody, never everybody.
+ * @param {any} reqBody  req.body, in any shape the runtime hands over
  * @param {any} rawBody  req.rawBody (Buffer/string) — the raw request body
- * @returns {{ removeOrphans: boolean, confirmOrphanRemoval: boolean }}
+ * @returns {{ removeOrphans: boolean, confirmOrphanRemoval: boolean, confirmUids: string[]|null }}
  */
 function parseSetupActionFlags(reqBody, rawBody) {
-    let body = (reqBody && typeof reqBody === 'object' && !Array.isArray(reqBody)) ? reqBody : {};
-    if (typeof body.removeOrphans !== 'boolean' && rawBody) {
-        try {
-            const parsed = JSON.parse(rawBody.toString('utf8'));
-            if (parsed && typeof parsed === 'object') body = parsed;
-        } catch (_e) { /* not JSON — keep reqBody; flags default off (fail-safe: no sweep) */ }
-    }
-    return { removeOrphans: body.removeOrphans === true, confirmOrphanRemoval: body.confirmOrphanRemoval === true };
+    const body = jsonBodyOf(reqBody, rawBody);
+    const sent = body.confirmUids;
+    const confirmUids = sent === undefined ? null : [...new Set((Array.isArray(sent) ? sent : [])
+        .filter((u) => typeof u === 'string' && u !== '' && u.length <= 128))];
+    return { removeOrphans: body.removeOrphans === true, confirmOrphanRemoval: body.confirmOrphanRemoval === true, confirmUids };
 }
 
 /**
@@ -1052,6 +1056,10 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  * accounts — so they are one group, and a leaver still enabled, needing a confirmed action, is its
  * own. Within it `unstamped` (NO claim at all) is told apart from `claims`, because that press TAKES
  * such an account BACK (`mustReclaim`: surname default, signed out, other ways in removed) — not a fix.
+ * And two the press REFUSES (review D3, Nov 2026), so they are not `claims` either, whose remedy is the
+ * press: `viewer-linked` — the shared PIN account holds the address (`isViewerAccount`) — and
+ * `other-member` — the account's claims name somebody else (`claimedByAnotherMember`). Asked in the
+ * button's own order, so the audit names the reason Set up accounts will give.
  *
  * IT REFUSES RATHER THAN CRIES WOLF. If not one `@myb-roster.local` account is visible, the
  * account list did not arrive — an empty page from a transient failure, a wrong project — and
@@ -1068,15 +1076,15 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  * PURE — the handler around it uses the Admin SDK and cannot run in the test sandbox, and every
  * judgement worth getting wrong is here. Tested in roster-parse-helpers.test.mjs.
  *
- * @param {Array<{ email?: string, displayName?: string, disabled?: boolean, customClaims?: Record<string, any>|null }>} users
+ * @param {Array<{ uid?: string, email?: string, displayName?: string, disabled?: boolean, customClaims?: Record<string, any>|null }>} users
  *        every Firebase Auth user (all pages of listUsers)
  * @param {{ processMembers: string[], adminSet: Set<string>, managerSet: Set<string>, designerSet: Set<string> }} cfg
  *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
- * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'unstamped'|'claims' }>, leavers: string[] }}
+ * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'unstamped'|'claims' }>, leavers: string[] }}
  */
 function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
     const list = Array.isArray(users) ? users : [];
-    /** @type {Map<string, {disabled?: boolean, customClaims?: Record<string, any>|null}>} */
+    /** @type {Map<string, {uid?: string, email?: string, disabled?: boolean, customClaims?: Record<string, any>|null}>} */
     const byEmail = new Map();
     for (const u of list) {
         const email = u && typeof u.email === 'string' ? u.email.toLowerCase() : '';
@@ -1087,7 +1095,7 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
     // "we cannot see the roster's accounts" situation and must not report the whole roster as missing either.
     if (byEmail.size === 0) return { refused: 'no-accounts-visible', setUp: [], leavers: [] };
 
-    /** @type {Array<{name: string, why: 'no-account'|'disabled'|'unstamped'|'claims'}>} */
+    /** @type {Array<{name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'unstamped'|'claims'}>} */
     const setUp = [];
     /** @type {Set<string>} */
     const activeEmails = new Set();
@@ -1096,6 +1104,9 @@ function summariseAccountGaps(users, { processMembers, adminSet, managerSet, des
         activeEmails.add(email);
         const user = byEmail.get(email);
         if (!user)         { setUp.push({ name, why: 'no-account' }); continue; }
+        if (isViewerAccount(user)) { setUp.push({ name, why: 'viewer-linked' }); continue; }
+        // Required here, not at the top: member-identity.js requires this file.
+        if (require('./member-identity').claimedByAnotherMember(user)) { setUp.push({ name, why: 'other-member' }); continue; }
         const actual = user.customClaims || {};   // no claim at all is `mustReclaim`'s test, asked in the button's order
         if (!Object.keys(actual).length) { setUp.push({ name, why: 'unstamped' }); continue; }
         if (user.disabled) { setUp.push({ name, why: 'disabled' });   continue; }

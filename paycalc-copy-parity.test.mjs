@@ -171,7 +171,7 @@ describe('a row or a card says what it is for, and only that', () => {
         // It empties the WHOLE payslip, and the figures a Replace overwrote do not come back — so the
         // tip that paired it with "Replace … will overwrite them" sent a member to lose more, not less.
         const { HELP_CONTENT } = await import('./paycalc-help.js');
-        const tips = Object.values(HELP_CONTENT).flatMap(h => h.tips).map(text);
+        const tips = Object.values(HELP_CONTENT).flatMap(h => h.sections.flatMap(s => s.items.map(i => i.html))).map(text);
         assert.ok(tips.some(t => /Replace with calendar values/.test(t)), 'premise: the hours help explains Replace');
         for (const t of tips) assert.doesNotMatch(t, /Clear all entries[^.]*undo|undo[^.]*Clear all entries/i, t.slice(0, 80));
     });
@@ -251,7 +251,7 @@ describe('the privacy line promises only what the app controls', () => {
 // "in addition to any plan above" (a member with only that loan needs it).
 describe('Settings: a fact the card stopped repeating still has a home', () => {
     const words = (/** @type {string} */ s) => s.replace(/<[^>]+>/g, '').replace(/&nbsp;|\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-    const settingsTips = async () => (await import('./paycalc-help.js')).HELP_CONTENT.settings.tips.map(words);
+    const settingsTips = async () => (await import('./paycalc-help.js')).HELP_CONTENT.settings.sections.flatMap(s => s.items.map(i => i.html)).map(words);
     /** The markup of the element carrying this id, to the first `</div>` that ends a `<div>` it opened. */
     const block = (/** @type {string} */ id) => {
         const at = html.indexOf(`id="${id}"`);
@@ -279,8 +279,11 @@ describe('Settings: a fact the card stopped repeating still has a home', () => {
 
     test('the pension stays explained: per payslip, and what the not-in-the-scheme tick is for', async () => {
         const tips = await settingsTips();
-        assert.ok(tips.some(t => /^Pension contribution:/.test(t) && /saved separately for each period/i.test(t)),
-            'the ? panel no longer says the pension is kept per payslip');
+        // "each PAYSLIP" since Nov 2026 (review R3-15): the page calls every pay period a payslip, and the
+        // tip now also says a typed figure changes that payslip only (R3-4), which "period" left open.
+        assert.ok(tips.some(t => /^Pension contribution:/.test(t) && /saved separately for each payslip/i.test(t)
+            && /changes that payslip only/.test(t)),
+            'the ? panel no longer says the pension is kept per payslip, and that a typed figure changes only that one');
         assert.ok(tips.some(t => /^Not in the pension scheme:/.test(t) && /opted out of or left/i.test(t)),
             'the ? panel no longer says what the tick is for');
         // The label names the payslip being edited on every visit (paycalc-app.js writes it).

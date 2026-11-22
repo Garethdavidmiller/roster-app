@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids } =
+const { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids, sweepAgainstPreview } =
     require('./functions/account-lifecycle.js');
 const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
 const { computeOrphanLabels } = require('./functions/roster-parse-helpers.js');
@@ -170,5 +170,29 @@ describe('disabledLeaverUids — the leavers the sweep has already disabled', ()
         assert.deepEqual(disabledLeaverUids([], active), []);
         assert.deepEqual(disabledLeaverUids(undefined, active), []);
         assert.deepEqual(disabledLeaverUids([null, undefined], active), []);
+    });
+});
+
+// ── A CONFIRM AGAINST ITS PREVIEW (review D1) ───────────────────────────────────────────────────
+// Disabling an account the admin never saw named is the cost with teeth; leaving one enabled costs a
+// second preview, and it is named. So the answer is the OVERLAP, and both differences are reported.
+describe('sweepAgainstPreview — the overlap of what was previewed and what is a leaver now', () => {
+    const found = [{ uid: 'a', label: 'A. Gone' }, { uid: 'b', label: 'B. Gone' }, { uid: undefined, label: 'c@myb-roster.local' }];
+
+    test('only the previewed leavers are disabled; the rest are named either way', () => {
+        assert.deepEqual(sweepAgainstPreview(found, ['a', 'z']), {
+            toDisable: [{ uid: 'a', label: 'A. Gone' }],
+            skipped: ['z'],
+            notPreviewed: ['B. Gone', 'c@myb-roster.local'],
+        });
+    });
+
+    test('an empty preview disables nobody; a leaver with no uid can never be confirmed', () => {
+        assert.deepEqual(sweepAgainstPreview(found, []).toDisable, []);
+        assert.deepEqual(sweepAgainstPreview(found, ['a', 'b']).notPreviewed, ['c@myb-roster.local']);
+    });
+
+    test('no list at all — a client older than it — is every leaver found, as before', () => {
+        assert.deepEqual(sweepAgainstPreview(found, null), { toDisable: found, skipped: [], notPreviewed: [] });
     });
 });

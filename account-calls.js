@@ -33,7 +33,7 @@ export function buildAccountCalls({ auth }) {
 
     /**
      * Reset a member's password to the surname default (admin break-glass). Requires the caller's admin
-     * claim (enforced server-side). A reset always signs the member out of their other devices.
+     * claim (enforced server-side). A reset always signs the member out on every device.
      * @param {string} memberName @param {{ lostDevice?: boolean }} [opts] a lost phone: no notice, every push record released — sent only for `true` itself
      * @returns {Promise<any>} the function's JSON response
      */
@@ -87,7 +87,7 @@ export function buildAccountCalls({ auth }) {
      * block runs or one began in the last day, `null` for none, and ABSENT when the server could not
      * read it or does not send it yet — unknown, never "none" (operations-pin-lockout.js).
      *
-     * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'disabled'|'claims'|'unstamped'}[], leavers: string[],
+     * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'claims'|'unstamped'}[], leavers: string[],
      *   pinLockout?: { active: boolean, blockedUntil: number, lastBlockedAt: number, blocks: number }|null }>}
      */
     async function getAccountSetupGaps() {

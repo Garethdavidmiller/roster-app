@@ -34,6 +34,14 @@ let _lbDepth = 0;
 export function lockBodyScroll() {
     if (_lbDepth++ > 0) return;   // already locked by an outer overlay — keep its scroll baseline
     _lbScrollY = window.scrollY;
+    // THE PAGE DOES NOT JUMP SIDEWAYS (lightbox review R1-13, 22 Nov 2026). On a screen with a
+    // permanent scrollbar — the Windows station PC — fixing the body took the scrollbar away and the
+    // page behind moved right by its width, on every lightbox and the drawer. Where a scrollbar is
+    // taking room NOW, its gutter is kept for as long as the lock (shared.css, `html.lb-keep-gutter`).
+    // Only then: a gutter kept always (the reviewer's draft) moved every desktop page that does not
+    // scroll by the gutter's width, and a phone's scrollbar takes no room, so it never gains one.
+    const root = document.documentElement;
+    if (root && window.innerWidth - root.clientWidth > 0) root.classList.add('lb-keep-gutter');
     document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
     document.body.classList.add('lb-open');
 }
@@ -47,6 +55,7 @@ export function unlockBodyScroll() {
     if (_lbDepth === 0) return;
     if (--_lbDepth > 0) return;    // an outer overlay is still open — keep the lock
     document.body.classList.remove('lb-open');
+    document.documentElement?.classList.remove('lb-keep-gutter');
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
 }
@@ -149,11 +158,16 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
     // appeared and leaking a phantom history entry.
     let _done = false;
     /** @type {any} */ let _t;
+    // THE OVERLAY'S OWN FADE, NOT A CHILD'S (lightbox review R1-4, 22 Nov 2026). `transitionend`
+    // BUBBLES: a dialog button's press easing back (`.dialog-btn`, `.notice-cta`, 120 ms) reached
+    // this listener and finished the 200 ms fade early, so the card vanished instead of fading.
+    /** @param {Event} e */
+    const onEnd = (e) => { if (e.target === el) finishOnce(); };
     const finishOnce = () => {
         if (_done) return;
         _done = true;
         clearTimeout(_t);
-        el.removeEventListener('transitionend', finishOnce);
+        el.removeEventListener('transitionend', onEnd);
         el.classList.remove('visible');
         unlockBodyScroll();
         afterClose?.();
@@ -166,7 +180,7 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose, backHandler
     // for one left half a second of an invisible layer over the page, swallowing every tap.
     if (!fadedIn || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finishOnce(); return null; }
     _t = setTimeout(finishOnce, 500);
-    el.addEventListener('transitionend', finishOnce);
+    el.addEventListener('transitionend', onEnd);
     // Return the idempotent finisher so a caller re-opening DURING the fade can complete this close
     // synchronously first (removes .visible + unlocks scroll exactly once) and then re-open cleanly,
     // instead of the re-open being silently dropped by a `.visible`-still-set guard.
@@ -442,6 +456,9 @@ export function watchScrollFade(panel) {
     const sync = () => {
         const more = panel.scrollHeight - panel.clientHeight - panel.scrollTop > 2;
         panel.classList.toggle('has-more', more);
+        // Scrolled at all: a pinned ✕ takes its disc, so the words passing beneath it do not show
+        // through the glyph (`pinCloseButton` below; shared.css → THE ✕ STAYS).
+        panel.classList.toggle('is-scrolled', panel.scrollTop > 0);
     };
     // The WINDOW listener outlives the panel unless something removes it (v21.86, external audit).
     // The scroll listener dies with the element; `resize` is on `window`, so every open added one
@@ -474,6 +491,43 @@ export function watchScrollFade(panel) {
         ac.signal.addEventListener('abort', () => mo.disconnect());
     }
     return () => ac.abort();
+}
+
+/**
+ * Keep a panel's ✕ in reach while the panel scrolls (lightbox review R1-5, 22 Nov 2026).
+ *
+ * The shared `.lb-close` is placed ABSOLUTELY inside the panel that scrolls, so it scrolled away with
+ * the words: a long About or notice on a small phone, or at a large text size, left the reader with no
+ * close control on screen — and iOS has no system Back. shared.css's `.lb-close--pinned` makes it
+ * sticky instead. This measures where the shared rule put it — its `top` and `right` less the panel's
+ * own padding, and what cancels its height (and a flex gap) — so the pinned ✕ sits on exactly the same
+ * spot at rest, whatever the panel's padding is on this page at this window size, and the content
+ * does not move. Measured here rather than restated per panel in CSS, where a copy of each padding
+ * would drift from the panel the first time either changed.
+ *
+ * Re-measured on every open (a window or text size may have changed since). Left alone, and so as it
+ * always was: a ✕ that is not a direct child of the panel (the Tips' and the picker's sit in a sticky
+ * top of their own), one a page has placed differently (`position: static` in a full-bleed header),
+ * a panel that does not scroll, and a flex ROW or grid panel, where an in-flow ✕ would take a column.
+ * Best-effort decoration, as `watchScrollFade` is: with no layout API it does nothing.
+ * @param {Element|null|undefined} panel the scrolling `.lb-content`
+ */
+export function pinCloseButton(panel) {
+    const btn = /** @type {HTMLElement|null} */ (panel?.querySelector?.(':scope > .lb-close') ?? null);
+    if (!panel || !btn || typeof getComputedStyle !== 'function') return;
+    btn.classList.remove('lb-close--pinned');   // measure where the SHARED rule places it
+    const b = getComputedStyle(btn), p = getComputedStyle(panel);
+    const flex = /flex/.test(p.display);
+    if (b.position !== 'absolute' || !/auto|scroll/.test(p.overflowY)
+        || (flex && !p.flexDirection.startsWith('column')) || /grid/.test(p.display)) return;
+    const px = (/** @type {string} */ v) => parseFloat(v) || 0;
+    const y = px(b.top) - px(p.paddingTop);
+    const x = px(b.right) - px(p.paddingRight);
+    const gap = flex ? px(p.rowGap) : 0;
+    btn.style.setProperty('--lb-pin-y', `${y}px`);
+    btn.style.setProperty('--lb-pin-x', `${x}px`);
+    btn.style.setProperty('--lb-pin-after', `${-(y + btn.offsetHeight + gap)}px`);
+    btn.classList.add('lb-close--pinned');
 }
 
 /**
@@ -564,6 +618,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         lockBodyScroll();
         _pushOverlayState(close);
         overlay.classList.add('visible');
+        pinCloseButton(content);   // now it has boxes to measure; still transparent until the frame below
         _stopScrollFade = watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
         _stopFocusGuard = _guardFocus(overlay, content ?? overlay, () => _isTopOverlay(close));   // after the push: already top
         // A TEXT FIELD IS FOCUSED NOW, IN THE TAP (iPhone audit, 7 Nov 2026): iOS raises its keyboard only for
@@ -709,9 +764,14 @@ function _openDialog(o) {
         overlay.className = 'lb-overlay dialog-overlay';
         overlay.setAttribute('role', o.withInput ? 'dialog' : 'alertdialog');
         overlay.setAttribute('aria-modal', 'true');
-        if (o.title) overlay.setAttribute('aria-labelledby', titleId);
-        else overlay.setAttribute('aria-label', o.message);
-        overlay.setAttribute('aria-describedby', msgId);
+        // Named by the title and described by the message; with NO title the message is the name alone.
+        // Naming AND describing by the same sentence read it out twice (lightbox review R1-8, 22 Nov 2026).
+        if (o.title) {
+            overlay.setAttribute('aria-labelledby', titleId);
+            overlay.setAttribute('aria-describedby', msgId);
+        } else {
+            overlay.setAttribute('aria-labelledby', msgId);
+        }
 
         const content = document.createElement('div');
         content.className = 'lb-content dialog-lb-content';
@@ -829,8 +889,11 @@ function _openDialog(o) {
             // No `closeBtn`: Cancel is wired below, because it is an ANSWER, and createLightbox's close
             // control would resolve it as a dismissal. The backdrop, Escape and Back stay its own.
             // The prompt's field; else the option, the one choice the dialog asks for — so Space ticks it, and Tab
-            // reaches Cancel and the confirm button; else the confirm button, as a plain confirm always has.
-            initialFocus: () => input ?? box ?? confirmBtn,
+            // reaches Cancel and the confirm button; else the confirm button, as a plain confirm always has —
+            // EXCEPT a destructive one, which opens on Cancel (lightbox review R1-2 / R5-1, 22 Nov 2026): on the
+            // red button one stray Enter or Space removed the thing. Admin's own unsaved-work banner already
+            // focused "Keep editing". A danger REPORT (no Cancel) still focuses its one answer.
+            initialFocus: () => input ?? box ?? (o.danger && o.cancelLabel !== null ? cancelBtn : confirmBtn),
             // Resolve when the close has LANDED, not as it starts. Callers chain dialogs
             // (`if (!await confirmDialog(…)) return; await promptDialog(…)`), and a resolve here in
             // onClose let the next dialog push its Back entry while this close's history.back() was

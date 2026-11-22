@@ -238,7 +238,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // back off the history instead (the hashchange handler below).
     // ── A TAP THE LOCK HELD SURVIVES A RELOAD (whole-app review, 10 Nov 2026) ─────────────────────
     // Both sign-ins on a locked Calendar ended in `window.location.reload()` until v26.40, and the hash
-    // had been consumed long before — so a member who answered "Enter the staff PIN, or sign in, to
+    // had been consumed long before — so a member who answered "Sign in, or enter the staff PIN, to
     // read the Daily Huddle" by signing in got the Calendar and no Huddle. A sign-in now grants in
     // place on a page not yet granted, and finishes the tap as the PIN does; one that still reloads
     // (`finishSignIn`'s fallback) needs the tap the lock is holding written down as the page unloads
@@ -381,7 +381,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         note.className = 'calendar-stale-note';
         const words = document.createElement('span');
         words.setAttribute('role', 'status');
-        words.textContent = 'Saved copy — couldn\'t check for changes';
+        words.textContent = 'Saved copy — couldn’t check for changes';
         note.appendChild(words);
         return note;
     }
@@ -404,8 +404,8 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
                 window.open(open.url, '_blank', 'noopener');
             } else {
                 ++_bodySeq;
-                body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact the admin.</p>';
-                say('This Huddle link is unavailable — please contact the admin.');
+                body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please tell the admin.</p>';
+                say('This Huddle link is unavailable — please tell the admin.');   // the doc viewer's words
             }
         });
         // A null is ORDINARY — no IAM grant, a lapsed claim, a timeout — and the stored url is used.
@@ -428,7 +428,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         const seq = ++_bodySeq;
         body.innerHTML = '<div class="huddle-open-prompt">'
             + '<p>The latest Huddle is ready.</p>'
-            + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
+            + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn"><span aria-hidden="true">📄</span> Open Huddle</button>'
             + '</div>';
         const saved = _savedCopyNote();
         if (saved) body.prepend(saved);
@@ -519,9 +519,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         ++_bodySeq;
         _disarmOnClose = false;
         body.innerHTML = '<div class="huddle-open-prompt">'
-            + '<p>Enter the staff PIN, or sign in, to read the Daily Huddle.</p>'
+            + '<p>Sign in, or enter the staff PIN, to read the Daily Huddle.</p>'
             + '</div>';
-        say('Enter the staff PIN, or sign in, to read the Daily Huddle.');
+        say('Sign in, or enter the staff PIN, to read the Daily Huddle.');
         openViewer();
         close?.focus();
     }
@@ -539,9 +539,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         ++_bodySeq;
         body.innerHTML = state === 'none'
             ? '<div class="huddle-open-prompt"><p>No Daily Huddle has been uploaded yet.</p></div>'
-            : '<div class="huddle-open-prompt"><p class="huddle-error">Couldn\'t load the Daily Huddle.</p>'
+            : '<div class="huddle-open-prompt"><p class="huddle-error">Couldn’t load the Daily Huddle.</p>'
               + '<button type="button" id="huddleRetryBtn" class="huddle-open-btn">↻ Try again</button></div>';
-        say(state === 'none' ? 'No Daily Huddle has been uploaded yet.' : 'Couldn\'t load the Daily Huddle.');
+        say(state === 'none' ? 'No Daily Huddle has been uploaded yet.' : 'Couldn’t load the Daily Huddle.');
         const retry = document.getElementById('huddleRetryBtn');
         retry?.addEventListener('click', () => {
             _huddleState = 'loading';

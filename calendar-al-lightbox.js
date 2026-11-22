@@ -15,7 +15,7 @@
  * e2e/calendar.spec.js, because no behavioural assertion can see one box overlapping another.
  */
 
-import { createLightbox } from './overlay.js';
+import { createLightbox, followLinkOutOf, whenHistorySettled } from './overlay.js';
 import { onCalendarAccess } from './calendar-access-state.js';
 import { getAccessType } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
@@ -77,6 +77,13 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     closeBtn: /** @type {HTMLElement} */ (document.getElementById('alLightboxClose')),
     onOpen:   () => { alYear = getDisplayYear(); loadALStats(); },
   });
+  // ITS TWO LINKS LEAVE THROUGH `followLinkOutOf` (overlay.js), as a notice's link does (lightbox review,
+  // 22 Nov 2026). "Record leave" and "Leave dates" are plain links to Admin, and followed from inside the
+  // open panel Admin was stacked on top of the panel's own history entry: one Back came back to that
+  // entry, the Calendar reloaded with nothing to answer it, and the next Back did nothing. The link now
+  // REPLACES the panel's entry, so Back from Admin lands on the Calendar and the next one leaves it. A
+  // new tab and a modified click are left to the browser. e2e/calendar.spec.js → "one Back".
+  document.getElementById('alLightboxContent')?.addEventListener('click', (e) => { followLinkOutOf(alLb, e); });
 
   /** @param {number} step */
   function stepALYear(step) {
@@ -118,7 +125,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
   /** Why a year has no allowance, in one line, for the em-dash state. @param {any} member @param {number} year */
   function noAllowanceLine(member, year) {
     if (member?.startDate instanceof Date && year < member.startDate.getFullYear()) {
-      return `No allowance for ${year}: it is before the start date.`;
+      return `No allowance for ${year}: that is before their start date.`;   // "their": the panel may show a colleague
     }
     return `No allowance on record for ${year}: the app keeps leave figures for the CEA, CES and Dispatcher grades only.`;
   }
@@ -150,8 +157,11 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     remEl.textContent    = String(Math.abs(remaining));
     if (remLblEl) remLblEl.textContent = remaining < 0 ? 'Over' : 'Remaining';
     remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
+    // A footnote under the figures since 22 Nov 2026, not a caption inside the Entitlement cell, so it
+    // names the figure it explains: "Entitlement 33: includes 1 day in lieu for working Boxing Day 2026".
     if (breakdownEl) {
-      breakdownEl.textContent = s.breakdown ?? '';
+      const note = s.breakdown ?? '';
+      breakdownEl.textContent = note ? `Entitlement ${s.entitlement}: ${note.charAt(0).toLowerCase()}${note.slice(1)}` : '';
       breakdownEl.hidden = s.breakdown == null;
     }
     if (carryEl) {
@@ -323,7 +333,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
       // the original visible error state.
       if (memoShown) {
         console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e);
-        noteLine('Saved copy — couldn\'t check for changes');
+        noteLine('Saved copy — couldn’t check for changes');
         return;
       }
       console.error('[AL lightbox] Failed:', e);
@@ -416,6 +426,8 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     closeBtn: /** @type {HTMLElement} */ (document.getElementById('dayDetailClose')),
     onClose:  refocusRebuiltDay,
   }) : null;
+  // "Leave dates" leaves through `followLinkOutOf`, for the leave panel's reason (above).
+  if (detailLb) document.getElementById('dayDetailContent')?.addEventListener('click', (e) => { followLinkOutOf(detailLb, e); });
 
   /** @param {any} cell */
   function openDayDetail(cell) {
@@ -615,7 +627,12 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     if (payBtn) {
       if (personal && payTarget && navigateToPaycalc) {
         payBtn.hidden = false;
-        payBtn.onclick = () => { detailLb.close(); navigateToPaycalc(payTarget); };
+        // THE JUMP WAITS FOR THE CLOSE'S BACK (lightbox review, 22 Nov 2026). `close()` takes the
+        // panel's history entry off with a `history.back()` that the browser answers LATER, and the
+        // navigation used to start before it had: the two raced, and whichever won, the stack was
+        // left with an entry nothing answers or the jump undone. `whenHistorySettled` runs it once the
+        // Back has landed, so the calculator stacks on the Calendar itself and one Back returns there.
+        payBtn.onclick = () => { detailLb.close(); whenHistorySettled(() => navigateToPaycalc(payTarget)); };
       } else {
         payBtn.hidden = true;
         payBtn.onclick = null;

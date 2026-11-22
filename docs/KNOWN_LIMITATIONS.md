@@ -676,7 +676,7 @@ session-only, so it ends when the browser session does.
 
 **What it does change, stated plainly.** A LEAVER whose device still holds a local session keeps the
 signed-in *UI* for up to 60 days. That was never the control it looked like: the real remedy is
-Operations → Set up accounts → "Disable accounts for leavers", after which the ID token stops
+Operations → Set up accounts → "Disable accounts for anyone no longer on the roster (leavers)", after which the ID token stops
 refreshing (≤1 hour) and every authenticated read and write fails, and the Admin page independently
 blocks a signed-in name that is no longer a selectable roster member. So the exposure is bounded by
 the account disable, not by the local timer — which is why the timer's length is a UX choice, not a

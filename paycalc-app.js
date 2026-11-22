@@ -137,7 +137,9 @@ export function init() {
       // once with the just-saved session, and runMigrations() selects the right namespace for free
       // (AUTH_ARCHITECTURE.md Phase 9). If init() throws mid-wiring it falls back to a reload, so the
       // in-place path is never less robust than the reload one; and it reloads (a fresh overlay)
-      // rather than re-enter a soft-lock when saveSession silently failed (iOS private mode).
+      // rather than re-enter a soft-lock when there is no session by then — belt and braces, because
+      // a failed save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first, and
+      // Private Browsing has not refused storage since iOS 11): only a session lost in between.
       // rebaseRestoreGuard first: the guard above recorded this page as nobody's, so a Back to it after
       // the in-place sign-in reloaded for nothing (the Calendar and Overtime already rebase).
       const onSuccess = () => { try { if (!getSession()?.name) { window.location.reload(); return; } rebaseRestoreGuard(); init(); } catch { window.location.reload(); } };

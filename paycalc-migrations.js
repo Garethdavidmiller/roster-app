@@ -87,7 +87,7 @@ const _MEMBER_SLUGS = new Set(teamMembers.map(m => memberSlug(m.name)));
  *  A slug the roster NO LONGER names owns its keys too (paycalc-3-5): a renamed member's data, or a
  *  row removed outright. Hidden leavers stay on the roster, but nothing kept a rename's old slug
  *  there, and its data was offered to the next person to sign in, re-keyed by "Yes, it's mine" to
- *  `myb_pc_<new>_<old>_…` where nothing reads it, or deleted by another member's "start fresh". It is
+ *  `myb_pc_<new>_<old>_…` where nothing reads it, or deleted by another member's "No — delete it". It is
  *  told apart from legacy by what the key IS (`classifyPayKey`, the one authority on that —
  *  invariant 15): the remainder after the slug is a pay key this app writes, which no legacy key's
  *  remainder is (`myb_pc_ytd_pay_2026_27` leaves `pay_2026_27`; paycalc-migrations.test.mjs runs

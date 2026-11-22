@@ -1689,10 +1689,9 @@
         @media screen and (min-width: 1024px) and (max-height: 820px) {
             #teamInfoContent { max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); }
         }
-        #teamInfoClose { color: rgba(255, 255, 255, 0.45); }
-        @media (hover: hover) and (pointer: fine) {
-            #teamInfoClose:hover { color: white; }
-        }
+        /* The navy ✕ pair (shared.css, "The ✕ — ONE colour"). It was white at 45%, about 3.3:1 over Team View's white
+           cells through the glass — the one ✕ under the rest's 50% (lightbox review R1-3). */
+        #teamInfoClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }
         .team-help-title {
             font-size: var(--type-large);   /* unified overlay title (v18.29) */
             font-weight: 700;
@@ -2494,10 +2493,7 @@
         /* The icon sits a shade larger than its label so the chip reads icon-first — that is the
            whole point of the chip, and at matched sizes the emoji disappeared into the word. */
         .ddm-icon { font-size: var(--type-label); line-height: 1; }
-        #dayDetailClose { color: rgba(255,255,255,0.5); }
-        @media (hover: hover) and (pointer: fine) {
-            #dayDetailClose:hover { color: white; }
-        }
+        #dayDetailClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }   /* the navy ✕ pair, shared.css → "The ✕ — ONE colour" */
         /* Every ✕ on this page's navy (the glass panels, the Huddle viewer's header) takes the gold
            ring of every control inside a navy panel — the drawer, About, the day panel's own buttons;
            the header's light ring is for the header. The navy fallback was invisible. Inset, in 44px. */
@@ -2608,10 +2604,7 @@
            is zero before it scrolls, and `.al-lb-stats`'s `overflow: hidden` makes it zero (measured at
            667×375). A day-panel zone given `overflow` would need this too; the landscape e2e checks both. */
         #alLightboxContent > * { flex-shrink: 0; }
-        #alLightboxClose { color: rgba(255,255,255,0.5); }
-        @media (hover: hover) and (pointer: fine) {
-            #alLightboxClose:hover { color: white; }
-        }
+        #alLightboxClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }   /* the navy ✕ pair, shared.css → "The ✕ — ONE colour" */
 
         .al-lb-icon   { font-size: 44px; margin-bottom: 4px; }
         .al-lb-title  { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }
@@ -2707,12 +2700,6 @@
             .al-lb-stat { padding-inline: 3px; }
             .al-lb-lbl  { letter-spacing: 0; }
             #alLightboxContent { padding-inline: 14px; }
-        }
-        /* Wraps (v24.46 polish): nowrap clipped "22 base + 5 BH lieu" at the card edge at 320px. */
-        .al-lb-breakdown {
-            font-size: var(--type-micro);
-            line-height: 1.25;
-            color: rgba(255,255,255,0.6);
         }
         .al-lb-link {
             color: rgba(255,255,255,0.9);
@@ -2941,14 +2928,16 @@
             background: white;
             width: min(420px, 88vw);
             margin: auto;
-            padding: 26px 24px max(24px, env(safe-area-inset-bottom));
+            /* 24px all round the foot (lightbox review R1-12): the home-bar inset was for a sheet that meets
+               the screen's bottom edge, and on this centred card it only made the foot uneven on an iPhone. */
+            padding: 26px 24px 24px;
             border-radius: var(--radius-xl);   /* a white dialog's corner; --radius-lg is the card's, which no overlay wears */
             box-shadow: var(--shadow-3);
             text-align: center;
-        }
-        #docViewerContent .lb-close { color: var(--text-mid); }
-        @media (hover: hover) and (pointer: fine) {
-            #docViewerContent .lb-close:hover { color: var(--text-dark); }
+            /* CAPPED (lightbox review R1-5): it had no cap, so large text on a phone on its side could put
+               its ✕ off the screen with no way to scroll to it. Its ✕ is the light one, `.lb-close`'s own. */
+            max-height: 86vh;
+            max-height: var(--modal-max-h);
         }
         .doc-viewer-title {
             font-size: var(--type-large);
@@ -2996,6 +2985,11 @@
         /* #monthJumpOverlay uses .lb-overlay, in the lightbox band like every dialog (a literal 7000 put it
            under the drawer, whose band is below every dialog); unique only in its slightly faster fade. */
         #monthJumpOverlay { transition: opacity var(--dur-med) var(--ease-standard); }
+        /* An id outranks shared.css's `.lb-overlay { transition: none }` under reduced motion, so the fade
+           above came back for exactly the readers who asked for none (lightbox review R1-9). */
+        @media (prefers-reduced-motion: reduce) {
+            #monthJumpOverlay { transition: none; }
+        }
         #monthJumpCard {
             background: white;
             border-radius: var(--radius-xl);
@@ -3003,10 +2997,12 @@
             min-width: 260px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             text-align: center;
+            max-height: 86vh;                     /* capped, as every panel is (lightbox review R1-5) */
+            max-height: var(--modal-max-h);
         }
 
         #monthJumpCard h2 {
-            font-size: var(--type-button);
+            font-size: var(--type-large);         /* every panel title's size (lightbox review R1-12) */
             font-weight: 700;
             color: var(--primary-blue);
             margin-bottom: 16px;

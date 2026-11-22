@@ -37,7 +37,7 @@ test('a manager is told who the calculator is for and why they might point their
 
 test('a role nobody planned for gets the general refusal, which names the gap and the way to ask', () => {
     const c = unsupportedRoleCopy('Station Manager');
-    assert.match(c.title, /isn't available for your role yet/);
+    assert.match(c.title, /isn’t available for your role yet/);
     assert.match(c.why, /confirmed rates for CEA and CES/);
     assert.match(c.why, /ask the admin/, 'an app matter goes to the admin (CLAUDE.md wording conventions)');
 });
@@ -45,7 +45,7 @@ test('a role nobody planned for gets the general refusal, which names the gap an
 test('a name the roster no longer holds is told THAT — not a role gap, and not a description of a page it cannot use', () => {
     for (const role of [undefined, null, '']) {
         const c = unsupportedRoleCopy(role);
-        assert.match(c.title, /isn't on the current roster/);
+        assert.match(c.title, /isn’t on the current roster/);
         assert.equal(c.what, null);
         assert.match(c.why, /Ask the admin to check your name/);
     }
@@ -54,7 +54,7 @@ test('a name the roster no longer holds is told THAT — not a role gap, and not
 test('every refusal that explains the calculator names both grades IN FULL on first sight, and what it works out', () => {
     for (const role of ['Dispatcher', 'Management', 'Station Manager']) {
         const what = /** @type {string} */ (unsupportedRoleCopy(role).what);
-        assert.match(what, /Customer Experience Ambassador's or Supervisor's \(CEA or CES\)/, `${role}: expand the term before using it`);
+        assert.match(what, /Customer Experience Ambassador’s or Supervisor’s \(CEA or CES\)/, `${role}: expand the term before using it`);
         assert.match(what, /take-home pay/);
         assert.match(what, /tax, National Insurance and pension/);
     }
@@ -70,7 +70,7 @@ test('the sign-in explanation names both grades in full, says the PIN does not o
     const text = PAYCALC_SIGN_IN_ABOUT.lines.join(' ');
     assert.match(text, /Customer Experience Ambassadors and Supervisors \(CEA and CES\)/);
     assert.match(text, /you sign in as yourself/);
-    assert.match(text, /staff PIN doesn't open it/);
+    assert.match(text, /staff PIN doesn’t open it/);
     // AUTH_AND_SESSIONS.md 18: the PIN is a barrier, not a sign-in — no surface may imply it signs anybody in.
     assert.doesNotMatch(text + ' ' + PAYCALC_SIGN_IN_ABOUT.footnote, /PIN\b[^.]*\b(signs?|logs?) (you |them |somebody |anyone )?in\b/i);
     assert.match(PAYCALC_SIGN_IN_ABOUT.footnote, /shared screen/);
@@ -104,7 +104,7 @@ test('paintRoleCard writes the three slots, and hides the whole "What it does" b
     // A leaver after a Dispatcher on the same page object: the explanation must go, not linger —
     // and the BOX goes, heading and guide link included, not only its sentence.
     paintRoleCard({ role: null }, doc);
-    assert.match(els.unsupportedGradeTitle.textContent, /isn't on the current roster/);
+    assert.match(els.unsupportedGradeTitle.textContent, /isn’t on the current roster/);
     assert.equal(els.unsupportedGradeAbout.hidden, true);
     assert.equal(els.unsupportedGradeWhat.textContent, '');
 
@@ -113,5 +113,5 @@ test('paintRoleCard writes the three slots, and hides the whole "What it does" b
     assert.equal(els.unsupportedGradeAbout.hidden, false);
 
     paintRoleCard(null, doc);   // no member at all — the coordinator passes one built from the session name
-    assert.match(els.unsupportedGradeTitle.textContent, /isn't on the current roster/);
+    assert.match(els.unsupportedGradeTitle.textContent, /isn’t on the current roster/);
 });

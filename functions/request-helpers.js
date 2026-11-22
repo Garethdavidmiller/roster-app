@@ -24,12 +24,18 @@
  * Otherwise it is a Buffer, a string, an empty object or absent, with the bytes in `req.rawBody`.
  * Malformed JSON, an array or a scalar is `{}`: there is nothing a caller could do differently on
  * being told which, and every field read from the result is checked by its own reader.
+ *
+ * One object is NOT the body: JSON sent as `application/x-www-form-urlencoded` is parsed into a single
+ * key holding the whole JSON text with an empty value (`{ '{"a":true}': '' }`). That shape is read
+ * from the bytes instead — setupRosterAuth's flag reader did this alone until it was rebuilt on this
+ * one (Nov 2026), so its leaver sweep and every other endpoint now read such a body the same way.
  * @param {any} body     `req.body`
  * @param {any} [rawBody] `req.rawBody`
  * @returns {Record<string, any>}
  */
 function jsonBodyOf(body, rawBody) {
-    if (body && typeof body === 'object' && !Buffer.isBuffer(body) && Object.keys(body).length) return body;
+    if (body && typeof body === 'object' && !Buffer.isBuffer(body) && !Array.isArray(body)
+        && Object.keys(body).length && !isFormParsedJson(body)) return body;
     const source = Buffer.isBuffer(body) || (typeof body === 'string' && body) ? body : rawBody;
     const text = Buffer.isBuffer(source) ? source.toString('utf8') : (typeof source === 'string' ? source : '');
     if (!text.trim()) return {};
@@ -39,6 +45,13 @@ function jsonBodyOf(body, rawBody) {
     } catch (_) {
         return {};
     }
+}
+
+/** A form parser's reading of a JSON text: one key that opens like JSON, with an empty value.
+ *  @param {Record<string, any>} body @returns {boolean} */
+function isFormParsedJson(body) {
+    const keys = Object.keys(body);
+    return keys.length === 1 && /^\s*[{[]/.test(keys[0]) && body[keys[0]] === '';
 }
 
 /** `jsonBodyOf` for a request. @param {any} req @returns {Record<string, any>} */

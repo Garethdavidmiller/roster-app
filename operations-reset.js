@@ -28,7 +28,7 @@
  * reports, never asserted: a sign-out that failed, an account taken back from outside the app (v24.57), a member no
  * notice reached (v23.62 — `notified` is what HAPPENED, so a member with no notifications lands there, which is the
  * point). A sign-out that failed is not left standing either (sign-in audit E2): the password change still ends the
- * other devices' sign-ins when they next renew, within the hour, so the line says that and offers the reset that ends
+ * member's sign-ins when they next renew, within the hour, so the line says that and offers the reset that ends
  * them now — and it no longer hides that the member was not told.
  *
  * ── WHAT A FAILURE MAY CLAIM ───────────────────────────────────────────────────────────────────────────────────────
@@ -63,13 +63,19 @@ export const LOST_PHONE = Object.freeze({
  * The Reset dialog for one member — `confirmWithOption`'s options, the lost-phone box included. The message tracks the
  * FORCED overlay (v21.94): `CONFIG.FORCE_PASSWORD_SET` is on, so a reset member is made to choose a new password at
  * their next sign-in.
+ *
+ * WHAT THE SERVER DOES, IN THE ORDER IT DOES IT (confirm review, Nov 2026; `resetMemberPassword`,
+ * functions/auth-endpoints.js): the password is written first, so the old one stops working at once; then every
+ * device is signed out; then, unless the box is ticked or the account is taken back, a notice goes to the member's own
+ * devices. The question used to say none of the first or the third, and told the admin to "tell them", which the
+ * default path already does — the outcome (`resetOutcome`) says when a notice did not reach them.
  * @param {string} name
  */
 export function resetQuestion(name) {
     return {
         title: 'Reset password?',
-        message: `Reset ${name}'s password back to their surname default and sign them out of their other devices? Tell them to sign in with their surname — the app will then ask them to choose a new one.`,
-        confirmLabel: 'Reset',
+        message: `Reset ${name}’s password to their surname default and sign them out on every device? Their current password stops working straight away. Unless you tick the box below, a notice goes to their devices, and when they sign in with their surname the app asks them to choose a new password.`,
+        confirmLabel: 'Reset password',
         danger: true,
         option: LOST_PHONE,
     };
@@ -98,13 +104,13 @@ export function resetFailure(name, err) {
     if (err?.code === RESET_NOT_SENT) {
         return { retry: true, note: {
             title: 'The reset wasn’t sent',
-            message: `This device couldn’t renew your admin sign-in — usually because there is no signal — so nothing was sent and ${name}'s password has not changed.\n\nCheck the connection, then press Retry.`,
+            message: `This device couldn’t renew your admin sign-in — usually because there is no signal — so nothing was sent and ${name}’s password has not changed.\n\nCheck the connection, then press Retry.`,
         } };
     }
     if (isFetchTimeout(err?.cause)) {
         return { retry: false, note: {
             title: 'Couldn’t confirm the reset',
-            message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and their other devices already signed out.\n\nReload this page and check ${name}'s row before resetting again. Resetting again is safe.`,
+            message: `The reset for ${name} was sent, but the server didn’t answer in time. It may still have gone through — their password may already be their surname, and they may already be signed out on every device.\n\nReload this page and check ${name}’s row before resetting again. Resetting again is safe.`,
         } };
     }
     const refused = serverRefusal(err);
@@ -120,7 +126,7 @@ export function resetFailure(name, err) {
 
 /**
  * What the admin is told after a reset the server ANSWERED, or null when the row's "Reset ✓" says it all: the password
- * is the surname, the other devices were signed out, and the member was told on their own.
+ * is the surname, they were signed out on every device, and the member was told on their own.
  *
  * The title takes the most pressing stage first: a sign-in that may still be live somewhere; then a lost phone that is
  * still being sent notices; then an account that waits on Set up accounts; then a member to tell.
@@ -141,11 +147,13 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
     if (!revokeFailed && !takenBack && !lost && !lostSkipped && !untold) return null;
 
     const signedOut = !revokeFailed;
-    const parts = [`${name}'s password WAS reset to their surname.`];
+    const parts = [`${name}’s password WAS reset to their surname.`];
     if (revokeFailed) {
-        parts.push('Their other devices couldn’t be signed out straight away. The password change still ends those sign-ins when they next renew, within the hour — reset again to sign them out now.');
+        // NOT "other devices" (confirm review, Nov 2026): `revokeFailed` is the member's whole sign-out failing, and the
+        // admin's device was never one of theirs, so "other" had nothing to be other than.
+        parts.push('They couldn’t be signed out of their devices straight away. The password change still ends every sign-in when it next renews, within the hour — reset again to sign them out now.');
     } else {
-        parts.push(lost ? 'They are signed out on every device, the lost phone included.' : 'Their other sessions were signed out.');
+        parts.push(lost ? 'They are signed out on every device, the lost phone included.' : 'They are signed out on every device.');
     }
     if (takenBack) {
         parts.push(`This account had been registered outside the app, so it was taken back: anyone signed in on it was signed out. Run Set up accounts next — until then ${name} cannot use the app on it. Then let them know their password is their surname.`);
@@ -168,11 +176,11 @@ export function resetOutcome(name, result, { lostDevice: askedLost = false } = {
         // WHAT HAPPENED, NOT WHY (18 Nov 2026). `notified: false` comes back for a member with no notifications on this
         // app, and just as much for a send that failed or that no push service accepted — so the line said the member
         // had none when the fault was the server's. The admin's errand is the same either way.
-        parts.push(`No reset notice reached ${name}'s devices, so they have NOT been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
+        parts.push(`No reset notice reached ${name}’s devices, so they have NOT been told. Let them know their password is now their surname${signedOut ? ' and they are signed out' : ''}.`);
     }
     parts.push('Resetting again is safe.');
     return {
-        title: revokeFailed ? 'Password reset — other devices not signed out yet'
+        title: revokeFailed ? 'Password reset — not signed out yet'
              : lostSkipped  ? 'Password reset — the lost-phone step didn’t run'
              : releaseFailed ? 'Password reset — notifications still on'
              : takenBack    ? 'Account taken back — run Set up accounts'

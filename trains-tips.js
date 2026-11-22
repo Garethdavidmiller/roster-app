@@ -52,43 +52,43 @@ import { DAYTIME, renderFurtherChanges, changesTitle } from './trains-render.js'
 /** @type {Record<string, TipPanel>} */
 export const CARD_TIPS = {
     'overview': {
-        title: '🗓️ New timetable',
+        title: 'New timetable',
         sections: [
             {
                 items: [
-                    { icon: '📅', html: `The page's first column is Chiltern's timetable <strong>until ${dateWords(CHANGE_DATE, -1, { weekday: true })}</strong>; the second is the new one, <strong>from ${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>.` },
+                    { icon: '📅', html: `The page’s first column is Chiltern’s timetable <strong>until ${dateWords(CHANGE_DATE, -1, { weekday: true })}</strong>; the second is the new one, <strong>from ${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>.` },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
-                    { icon: '🗓️', html: 'In the first column, a few weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Where that changes a figure, the totals give each its own row and a station\'s card names the days; the trains themselves are listed with their days.' },
-                    { icon: '⚠️', html: `These are Chiltern's published timetables, not live running: on the day, a train can still be late, altered or cancelled. Before you tell a customer, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> or the live departure boards, linked from the About panel (the logo in the menu).` },
+                    { icon: '🗓️', html: 'In the first column, a few weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Where that changes a figure, the totals give each its own row and a station’s card names the days; the trains themselves are listed with their days.' },
+                    { icon: '⚠️', html: `These are Chiltern’s published timetables, not live running: on the day, a train can still be late, altered or cancelled. Before you tell a customer, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> or the live departure boards, linked from the About panel (the logo in the menu).` },
                     { icon: '🎄', html: `${renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)} Amersham-line times may change in those weeks too. For those dates, check the journey planner.`, until: FURTHER_CHANGES_UNTIL },
                 ],
             },
             {
                 heading: 'Where these times come from',
                 items: [
-                    { icon: '📄', html: `First column: Chiltern's public timetables, valid until ${dateWords(CHANGE_DATE, -1, { weekday: true })}.` },
-                    { icon: '📄', html: `From ${dateWords(CHANGE_DATE)}: Chiltern's new public timetables, valid until ${dateWords(DEC_VALID_UNTIL, 0, { weekday: true })} ${DEC_VALID_UNTIL.slice(0, 4)}.` },
-                    { icon: '🍂', html: `The first column's Amersham-line times are Chiltern's <strong>leaf-fall</strong> ones: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.`, until: LEAF_FALL.until },
+                    { icon: '📄', html: `First column: Chiltern’s public timetables, valid until ${dateWords(CHANGE_DATE, -1, { weekday: true })}.` },
+                    { icon: '📄', html: `From ${dateWords(CHANGE_DATE)}: Chiltern’s new public timetables, valid until ${dateWords(DEC_VALID_UNTIL, 0, { weekday: true })} ${DEC_VALID_UNTIL.slice(0, 4)}.` },
+                    { icon: '🍂', html: `The first column’s Amersham-line times are Chiltern’s <strong>leaf-fall</strong> ones: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.`, until: LEAF_FALL.until },
                 ],
             },
         ],
     },
 
     'last': {
-        title: '🌙 Last trains',
+        title: 'Last trains',
         sections: [
             {
                 items: [
                     { icon: '🕛', html: 'The <strong>last train from Marylebone</strong> that calls at each station, on the kind of day chosen above — the time it leaves Marylebone, not the time it gets there.' },
                     { icon: '🗓️', html: 'On weekdays the last trains are the same every day, Monday to Friday.' },
-                    { icon: '⚠️', html: 'Published times, not live running. For tonight\'s actual last train, check the live departure boards — linked from the About panel (the logo in the menu).' },
+                    { icon: '⚠️', html: 'Published times, not live running. For tonight’s actual last train, check the live departure boards — linked from the About panel (the logo in the menu).' },
                 ],
             },
         ],
     },
 
     'changes': {
-        title: '🔔 What’s changing',
+        title: 'What’s changing',
         sections: [
             {
                 items: [
@@ -101,14 +101,14 @@ export const CARD_TIPS = {
             {
                 heading: 'One line per story',
                 items: [
-                    { icon: '🔗', html: 'When the same trains are added, or taken away, at several stations, that is one line, named by where the trains go. <strong>They also stop at</strong> lists the other stations they call at; <strong>5 of them also stop at</strong> means only five of those trains call there.' },
+                    { icon: '🔗', html: 'When the same trains are added, or taken away, at several stations, that is one line, named by where the trains go. For trains added, <strong>they also stop at</strong> lists the other stations they call at, and <strong>5 of them also stop at</strong> means only five of those trains call there. For trains taken away, the line names each station instead: <strong>… loses them too</strong>, or <strong>… loses 5 of them too</strong>.' },
                 ],
             },
         ],
     },
 
     'stations': {
-        title: '🚉 Stations',
+        title: 'Stations',
         sections: [
             {
                 items: [
@@ -123,14 +123,14 @@ export const CARD_TIPS = {
                 heading: 'Good to know',
                 items: [
                     { icon: '➡️', html: 'Some trains run on past where most of their line stops: <strong>Aylesbury Vale Parkway</strong> trains are Aylesbury trains via Amersham run on, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> trains are Moor Street trains run on.' },
-                    { icon: '🗓️', html: 'In the first column, a few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time. Where they change one of the card\'s figures, the card names the days its answer is for, with the other days\' figure in small print: <strong>Mon and Fri: 46</strong>.' },
+                    { icon: '🗓️', html: 'In the first column, a few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time. Where they change one of the card’s figures, the card names the days its answer is for, with the other days’ figure in small print: <strong>Mon and Fri: 46</strong>.' },
                 ],
             },
         ],
     },
 
     'pattern': {
-        title: '🕰️ Where they stop',
+        title: 'Where they stop',
         sections: [
             {
                 items: [
@@ -150,7 +150,7 @@ export const CARD_TIPS = {
     },
 
     'lookup': {
-        title: '🔎 Look up a time',
+        title: 'Look up a time',
         sections: [
             {
                 items: [
@@ -178,6 +178,6 @@ export function tipsOn(today) {
         const sections = panel.sections.map(s => ({ ...s, items: s.items.filter(holds) })).filter(s => s.items.length);
         out[key] = { ...panel, sections };
     }
-    out.changes = { ...out.changes, title: `🔔 ${changesTitle(daysUntil(today, CHANGE_DATE) <= 0)}` };
+    out.changes = { ...out.changes, title: changesTitle(daysUntil(today, CHANGE_DATE) <= 0) };
     return out;
 }

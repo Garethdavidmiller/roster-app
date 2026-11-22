@@ -473,7 +473,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
         note.className = 'calendar-stale-note';
         const words = document.createElement('span');
         words.setAttribute('role', 'status');
-        words.textContent = 'Saved copy — couldn\'t check for changes';
+        words.textContent = 'Saved copy — couldn’t check for changes';
         note.appendChild(words);
         if (onRetryMonth) {
             const btn = document.createElement('button');

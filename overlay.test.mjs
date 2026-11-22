@@ -8,7 +8,7 @@
  * before the import so the module loads cleanly in Node.
  */
 
-import { test, describe, beforeEach, mock } from 'node:test';
+import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // ── Minimal browser-global stub (must be set before the import) ───────────────
@@ -73,7 +73,7 @@ function makeEl({ tagName = 'DIV', classes = [], attrs = {} } = {}) {
     const classList = new Set(classes);
     const _attrs    = { ...attrs };
     const listeners = {};
-    return {
+    const el = {
         tagName,
         classList: {
             add:      (...cls) => cls.forEach(c => classList.add(c)),
@@ -99,8 +99,11 @@ function makeEl({ tagName = 'DIV', classes = [], attrs = {} } = {}) {
         removeEventListener: (type, fn) => {
             listeners[type] = (listeners[type] || []).filter(f => f !== fn);
         },
-        _trigger: (type, evt = {}) => (listeners[type] || []).slice().forEach(fn => fn(evt)),
+        // An event is the element's OWN unless the test says otherwise (`{ target: child }`), as a browser's is:
+        // dismissOverlay finishes only on the overlay's own `transitionend`, never a bubbled child's.
+        _trigger: (type, evt = { target: el }) => (listeners[type] || []).slice().forEach(fn => fn(evt)),
     };
+    return el;
 }
 
 // ── lockBodyScroll / unlockBodyScroll ─────────────────────────────────────────
@@ -189,6 +192,38 @@ describe('lockBodyScroll — nesting (depth counter, v16.16)', () => {
         _lastScrollTo = { x: 0, y: 0 };
         unlockBodyScroll();               // depth already 0 → must NOT scroll
         assert.equal(_lastScrollTo.y, 0, 'depth-0 unlock re-ran scrollTo with a stale offset');
+    });
+});
+
+// ── THE PAGE DOES NOT JUMP SIDEWAYS (lightbox review R1-13, 22 Nov 2026) ────────────────────────────
+// Fixing the body took a permanent scrollbar away (the Windows station PC), and the page behind moved right by its
+// width. The lock keeps its gutter — only where a scrollbar takes room now: a gutter on every desktop page moved the
+// pages that do not scroll, and a phone's scrollbar takes none. Shown with real scrollbars in Chromium (the browser
+// suites hide them): the page held still with the rule and moved 5px without it.
+describe('lockBodyScroll — the scrollbar\'s room is kept while locked, where it takes room', () => {
+    const rootClasses = new Set();
+    beforeEach(() => {
+        _drainLock(); _bodyClasses.clear(); rootClasses.clear();
+        /** @type {any} */ (global.document).documentElement = { clientWidth: 1270, classList: {
+            add: (/** @type {string} */ c) => rootClasses.add(c), remove: (/** @type {string} */ c) => rootClasses.delete(c) } };
+    });
+    afterEach(() => { delete (/** @type {any} */ (global.document)).documentElement; delete (/** @type {any} */ (global.window)).innerWidth; });
+
+    test('a scrollbar taking 10px: its gutter is kept until the outermost unlock', () => {
+        /** @type {any} */ (global.window).innerWidth = 1280;
+        lockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), true, 'the page jumps sideways by the scrollbar\'s width');
+        lockBodyScroll(); unlockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), true, 'a nested unlock gave the gutter up under the outer overlay');
+        unlockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), false, 'the gutter outlived the lock');
+    });
+
+    test('no scrollbar taking room (a phone, a page too short to scroll): no gutter', () => {
+        /** @type {any} */ (global.window).innerWidth = 1270;
+        lockBodyScroll();
+        assert.equal(rootClasses.has('lb-keep-gutter'), false, 'a gutter appeared where there was no scrollbar, moving the page');
+        unlockBodyScroll();
     });
 });
 
@@ -643,6 +678,27 @@ describe('createLightbox — a fade that never reports its end still finishes', 
             assert.equal(overlay.classList.contains('visible'), false, 'the overlay never left the screen');
             assert.equal(_bodyClasses.has('lb-open'), false, 'the page behind stayed locked');
         } finally { mock.timers.reset(); }
+    });
+});
+
+// ── A CHILD'S TRANSITION IS NOT THE OVERLAY'S FADE (lightbox review R1-4, 22 Nov 2026) ───────────
+// `transitionend` bubbles. A dialog button's press easing back (`.dialog-btn`, 120 ms) reached the
+// overlay's listener and finished its 200 ms fade early: the card vanished instead of fading out.
+describe('createLightbox — only the overlay\'s own transitionend finishes the close', () => {
+    beforeEach(() => { _drainLock(); _bodyClasses.clear(); global.document.activeElement = null; });
+
+    test('a transitionend bubbling up from a button inside leaves the fade running', () => {
+        const overlay = makeEl({});
+        const button  = makeEl({ tagName: 'BUTTON' });
+        const lb = createLightbox({ overlay, content: makeEl({}), closeBtn: null });
+        lb.open();
+        lb.close();
+        overlay._trigger('transitionend', { target: button });
+        assert.equal(overlay.classList.contains('visible'), true, 'a child\'s transition ended the overlay\'s fade');
+        assert.equal(_bodyClasses.has('lb-open'), true, 'and released the page under a card still on screen');
+        overlay._trigger('transitionend', { target: overlay });
+        assert.equal(overlay.classList.contains('visible'), false, 'the overlay\'s own fade still finishes it');
+        assert.equal(_bodyClasses.has('lb-open'), false);
     });
 });
 

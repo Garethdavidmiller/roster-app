@@ -296,12 +296,13 @@ describe('createLightbox — close() resolves when the close has LANDED, both ha
     function fakeOverlay() {
         const classes = new Set();
         /** @type {Record<string, Function[]>} */ const listeners = {};
-        return {
+        const el = {
             classList: { add: (/** @type {string} */ c) => classes.add(c), remove: (/** @type {string} */ c) => classes.delete(c), contains: (/** @type {string} */ c) => classes.has(c) },
             addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
             removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
-            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({})),
+            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({ target: el })),   // the overlay's OWN fade
         };
+        return el;
     }
     const microtasks = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
     const silentBack = () => { global.history.back = () => { backCount++; }; };
@@ -653,6 +654,32 @@ describe('confirmDialog — a dismissal, a button, and a second tap during the f
         assert.equal(await dismissed.result(), false);
         assert.ok((await open({})).cancel, 'every other confirmDialog keeps its Cancel');
     });
+
+    // ── A DESTRUCTIVE QUESTION OPENS ON ITS SAFE ANSWER (lightbox review R1-2 / R5-1, 22 Nov 2026) ─────────────────
+    // Every `danger: true` dialog opened with focus on its red button, so one stray Enter or Space removed the thing.
+    test('a danger dialog opens on Cancel; a danger REPORT, with no Cancel, still on its one answer', async () => {
+        const risky = await open({ danger: true, confirmLabel: 'Remove' });
+        assert.equal(/** @type {any} */ (global.document).activeElement, risky.cancel,
+            'a destructive question opened on its destructive button: one Enter removes the thing');
+        const report = await open({ danger: true, cancelLabel: null });
+        assert.equal(/** @type {any} */ (global.document).activeElement, report.confirm);
+        await open({});
+        assert.equal(/** @type {any} */ (global.document).activeElement, find(/** @type {any} */ (global.document.body).children.at(-1), 'dialog-btn-confirm'),
+            'a plain question still opens on its answer');
+    });
+
+    // ── NAMED ONCE (lightbox review R1-8) ────────────────────────────────────────────────────────────────────────
+    // With no title, the message was the dialog's name AND its description, so a screen reader said it twice.
+    test('with no title the message names the dialog and describes nothing; with one, the title names it', async () => {
+        const untitled = await open({});
+        const msg = find(untitled.overlay, 'dialog-message');
+        assert.equal(untitled.overlay.getAttribute('aria-labelledby'), msg.id);
+        assert.equal(untitled.overlay.getAttribute('aria-describedby'), null, 'the message is read out twice');
+        assert.equal(untitled.overlay.getAttribute('aria-label'), null);
+        const titled = await open({ title: 'Remove your work email?' });
+        assert.equal(titled.overlay.getAttribute('aria-labelledby'), find(titled.overlay, 'dialog-title').id);
+        assert.equal(titled.overlay.getAttribute('aria-describedby'), find(titled.overlay, 'dialog-message').id);
+    });
 });
 
 // ── A LINK OUT OF THE PAGE FROM INSIDE A LIGHTBOX (18 Nov 2026) ─────────────────────────────────────────────────────
@@ -665,12 +692,13 @@ describe('followLinkOutOf — the link\'s page takes the lightbox\'s history ent
     function fakeOverlay() {
         const classes = new Set();
         /** @type {Record<string, Function[]>} */ const listeners = {};
-        return {
+        const el = {
             classList: { add: (/** @type {string} */ c) => classes.add(c), remove: (/** @type {string} */ c) => classes.delete(c), contains: (/** @type {string} */ c) => classes.has(c) },
             addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (listeners[t] ??= []).push(fn); },
             removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { listeners[t] = (listeners[t] ?? []).filter(f => f !== fn); },
-            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({})),
+            fade: () => (listeners.transitionend ?? []).slice().forEach(fn => fn({ target: el })),   // the overlay's OWN fade
         };
+        return el;
     }
     /** @type {{ replaced: string[], assigned: string[] }} */ let went;
     /** A lightbox opened on `page` (the Calendar unless said), over `beneath` handlers already on the stack. */

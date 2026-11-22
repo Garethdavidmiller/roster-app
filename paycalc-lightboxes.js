@@ -2,9 +2,10 @@
 /**
  * paycalc-lightboxes.js — Lightbox and overlay initialisation for paycalc.html.
  *
- * Owns: About panel, Help tooltip lightbox, the page's two one-time notices (Year to Date, then the
- *   Holiday Pay Premium notice — one opener, `showPayNotice`), Decimal hours converter card, the
- *   data-ownership prompt and the developer-only payslip actuals import.
+ * Owns: About panel, the `?` panels' wiring (the shared Tips panel; content in paycalc-help.js), the
+ *   page's two one-time notices (Year to Date, then the Holiday Pay Premium notice — one opener,
+ *   `showPayNotice`), Decimal hours converter card, the data-ownership prompt and the developer-only
+ *   payslip actuals import.
  *   (The Welcome first-visit lightbox was RETIRED at v19.36 and is not here.)
  * Does NOT own: pay calculation (paycalc-app.js), period arithmetic (paycalc-periods.js),
  *   settings persistence (paycalc-settings.js).
@@ -15,6 +16,7 @@
 import { createLightbox, initCardCollapse, openNoticeIfClear, followLinkOutOf } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
+import { initTipsLightbox } from './tips-lightbox.js';
 import { archiveNotice, isNoticeExpired } from './notice-archive.js';
 import { lsGet, lsSet } from './ls.js';
 import { decimalHoursText } from './paycalc-inputs.js';
@@ -81,35 +83,11 @@ export function initPaycalcLightboxes() {
   // ── ABOUT LIGHTBOX ──────────────────────────────────────────────────────────
   const openAboutLightbox = initPaycalcAbout();
 
-  // ── HELP LIGHTBOX ───────────────────────────────────────────────────────────
-  // Generic lightbox driven by HELP_CONTENT — opened by any .help-btn[data-help].
-  (function () {
-    const lb      = document.getElementById('helpLightbox');
-    const titleEl = document.getElementById('helpLightboxTitle');
-    const listEl  = document.getElementById('helpLightboxList');
-    if (!lb) return;
-
-    const help = createLightbox({
-      overlay:  lb,
-      content:  /** @type {Element|undefined} */ (document.getElementById('helpLightboxContent') ?? undefined),
-      closeBtn: /** @type {Element|undefined} */ (document.getElementById('helpLightboxClose') ?? undefined),
-    });
-
-    function openHelp(/** @type {any} */ key) {
-      const data = /** @type {Record<string, any>} */ (HELP_CONTENT)[key];
-      if (!data) return;
-      if (titleEl) titleEl.textContent = data.title;
-      if (listEl) listEl.innerHTML = data.tips.map((/** @type {any} */ t) => `<li>${t}</li>`).join('');
-      help.open();
-    }
-
-    document.querySelectorAll('.help-btn').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        openHelp(/** @type {HTMLElement} */ (btn).dataset.help);
-      });
-    });
-  })();
+  // ── THE ? PANELS ─────────────────────────────────────────────────────────────
+  // The shared Tips panel (tips-lightbox.js), opened by each card's `.help-btn[data-help]`, with the
+  // content in paycalc-help.js. This page drew its own see-through glass sheet of bullet lists until
+  // Nov 2026, the one `?` in the app the page showed through behind (owner-approved).
+  initTipsLightbox(HELP_CONTENT, { trigger: { selector: '.help-btn[data-help]', key: 'help' } });
 
   // ── YTD NOTICE ──────────────────────────────────────────────────────────────
   // Shown once per device. It used to wait for the welcome lightbox; that was retired at v19.36.

@@ -257,6 +257,7 @@ mock.module('./admin-al-week-save.js', {
 let _bars = [];
 
 const { initSavedChanges, renderTable, resetTableMemberFilter } = await import('./admin-saved-changes.js');
+const { TWO_TAP_MIN_MS } = await import('./admin-booked-periods.js');
 
 const PAGE_IDS = ['overrideTableBody', 'bulkDeleteBtn', 'listFeedback', 'selectAllOverrides',
                  'overridesMonthFilter', 'fieldMember', 'fieldDate', 'listCount',
@@ -338,8 +339,14 @@ beforeEach(() => { _commit = async () => {}; _deleted = []; _batchSizes = []; _h
 // ~200 ms of tests (test audit, 7 Nov 2026). Mocked file-wide, they are fake timers the reset
 // throws away; the one test that steps through the five seconds still mocks its own (`t.mock`).
 // Not `--test-force-exit`, which has silently dropped tests in this repo.
-beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
-afterEach(() => { mock.timers.reset(); });
+//
+// THE TWO TAPS ARE TWO (confirm review, Nov 2026): a tap sooner than `TWO_TAP_MIN_MS` after arming is
+// the same gesture and confirms nothing (admin-booked-periods.js). That minimum is read on
+// `performance.now()`, which here moves on by the minimum at every read, so each tap in these cases
+// lands as a separate, considered one; the case that taps twice AT ONCE pins its own clock (section 1d).
+let _clock = 0;
+beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); mock.method(performance, 'now', () => (_clock += TWO_TAP_MIN_MS)); });
+afterEach(() => { mock.timers.reset(); mock.restoreAll(); });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -393,13 +400,13 @@ describe('1c. the confirm is armed for ONE selection (v25.06, whole-app review)'
     test('changing the selection disarms, and the next tap re-arms for the new count', async () => {
         _checked = ['a'].map(row);
         await fire('bulkDeleteBtn', 'click');
-        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 1?');
+        assert.equal(el('bulkDeleteBtn').textContent, 'Delete 1?');
         _checked = ['a', 'b', 'c'].map(row);
         await fire('selectAllOverrides', 'change');
         assert.equal(el('bulkDeleteBtn').textContent, 'Delete selected', 'the armed label must not survive a new selection');
         await fire('bulkDeleteBtn', 'click');
         assert.deepEqual(_deleted, [], 'the tap after a selection change arms — it never deletes');
-        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 3?');
+        assert.equal(el('bulkDeleteBtn').textContent, 'Delete 3?');
         await fire('bulkDeleteBtn', 'click');
         assert.deepEqual([..._deleted].sort(), ['a', 'b', 'c']);
     });
@@ -409,7 +416,7 @@ describe('1c. the confirm is armed for ONE selection (v25.06, whole-app review)'
         _checked = ['a', 'b'].map(row);                  // a redraw, say — nothing announced it
         await fire('bulkDeleteBtn', 'click');
         assert.deepEqual(_deleted, [], 'armed for one row, it must not delete two');
-        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 2?');
+        assert.equal(el('bulkDeleteBtn').textContent, 'Delete 2?');
     });
     test('a re-arm keeps its own five seconds (48-hour review, Nov 2026)', async (t) => {
         // Re-arming inside the window became a designed path above — and the FIRST arm's timer was
@@ -422,7 +429,7 @@ describe('1c. the confirm is armed for ONE selection (v25.06, whole-app review)'
         await fire('selectAllOverrides', 'change');
         await fire('bulkDeleteBtn', 'click');                 // t=4s: re-armed for three (due at 9s)
         t.mock.timers.tick(1500);                             // t=5.5s: the first arm's 5s has passed
-        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 3?', 'still asking, 1.5s into its own window');
+        assert.equal(el('bulkDeleteBtn').textContent, 'Delete 3?', 'still asking, 1.5s into its own window');
         await fire('bulkDeleteBtn', 'click');
         assert.deepEqual([..._deleted].sort(), ['a', 'b', 'c'], 'the confirming tap deletes');
     });
@@ -436,7 +443,31 @@ describe('1c. the confirm is armed for ONE selection (v25.06, whole-app review)'
         _checked = ['a', 'b'].map(row);                       // a redraw — nothing announced it
         await fire('bulkDeleteBtn', 'click');                 // t=4s: re-armed for two (due at 9s)
         t.mock.timers.tick(1500);
-        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 2?', 'the first arm\'s timer disarmed the second');
+        assert.equal(el('bulkDeleteBtn').textContent, 'Delete 2?', 'the first arm\'s timer disarmed the second');
+    });
+});
+
+describe('1d. a double tap is one gesture — its second tap deletes nothing (confirm review, Nov 2026)', () => {
+    // Both Saved Changes deletes armed and then deleted on the second tap of a double tap, which the Pay
+    // Calculator's Clear already refused. The clock is held still here, so the two taps are at once.
+    test('the row ✕ and Delete selected each stay armed through it, and a later tap deletes', async () => {
+        mock.method(performance, 'now', () => _clock);
+        _rows = [{ id: 'a', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', source: 'manual' }];
+        const btn = makeEl('row-delete'); btn.dataset.id = 'a';
+        const target = { closest: (/** @type {string} */ sel) => sel === '.btn-delete' ? btn : null };
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // the same gesture
+        assert.deepEqual(_deleted, [], 'the row ✕ deleted on the second tap of a double tap');
+        assert.equal(btn.textContent, 'Delete?', 'still asking');
+
+        _checked = ['a'].map(row);
+        await fire('bulkDeleteBtn', 'click');
+        await fire('bulkDeleteBtn', 'click');
+        assert.deepEqual(_deleted, [], 'Delete selected deleted on the second tap of a double tap');
+        assert.equal(el('bulkDeleteBtn').textContent, 'Delete 1?');
+        _clock += TWO_TAP_MIN_MS;
+        await fire('bulkDeleteBtn', 'click');
+        assert.deepEqual(_deleted, ['a'], 'a tap once the minimum has passed is the confirmation');
     });
 });
 
@@ -467,7 +498,7 @@ describe('1b. the accessible NAME travels with the label (v23.16, external revie
             await fire('selectAllOverrides', 'change');   // a fresh selection starts disarmed
             await fire('bulkDeleteBtn', 'click');         // arms
             const shown = el('bulkDeleteBtn').textContent, name = el('bulkDeleteBtn').getAttribute('aria-label');
-            assert.equal(shown, `⚠ Delete ${ids.length}?`);
+            assert.equal(shown, `Delete ${ids.length}?`);
             assert.ok(contains(name, shown), `the button shows "${shown}" but is named "${name}"`);
             assert.match(name, /^Confirm delete/, 'and the name still says its meaning changed');
         }

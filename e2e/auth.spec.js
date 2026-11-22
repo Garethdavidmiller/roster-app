@@ -609,15 +609,19 @@ test('reset request link: two credential failures EMPHASISE it (it never appears
     await expect(btn).not.toHaveClass(/login-reset-request--prompted/);
     // Baseline taken HERE, not before the first attempt: the error message appearing above the link
     // legitimately pushes it down the card. The claim under test is narrower — that the EMPHASIS
-    // moves nothing — so the two measurements must differ only in the emphasis.
-    const before = await btn.boundingBox();
+    // moves nothing — so the two measurements must differ only in the emphasis. Measured within the
+    // CARD, not the screen: a card taller than a phone's screen (Settings' since its explanation, 21 Nov
+    // 2026) scrolls as the password box takes focus, which moves everything on screen and nothing on the card.
+    const onCard = () => btn.evaluate(el => el.getBoundingClientRect().top
+        - /** @type {HTMLElement} */ (document.getElementById('loginCard')).getBoundingClientRect().top);
+    const before = await onCard();
 
     await page.locator('#loginPassword').fill('wrongagain');
     await page.locator('#loginSubmit').click();
     await expect(btn).toHaveClass(/login-reset-request--prompted/);
     // A control that relocates at the moment of frustration is harder to use, not easier.
-    const after = await btn.boundingBox();
-    expect(after.y, 'the link must not move when it is emphasised').toBeCloseTo(before.y, 0);
+    const after = await onCard();
+    expect(after, 'the link must not move when it is emphasised').toBeCloseTo(before, 0);
 });
 
 test('reset request link: a network/transient failure does NOT push the reset route', async ({ page }) => {
@@ -984,6 +988,27 @@ test('login overlay geometry is identical across every page that shows it', asyn
     expect(baseline.card, 'the login card should render on admin.html').toBeTruthy();
     for (const url of PAGES.slice(1)) {
         expect(await measure(url), `login overlay on ${url} differs from ${PAGES[0]}`).toEqual(baseline);
+    }
+});
+
+// EVERY PAGE'S CARD SAYS WHAT THE PAGE IS (owner, 21 Nov 2026). Admin, Pay, New link and Trains explained
+// themselves on the sign-in card; Settings, Operations and Links did not, so the same card read differently
+// from page to page. Every page that puts up the shared sign-in now carries an explanation. The five a member
+// reaches with their own account also say the PIN does not open them (AUTH_AND_SESSIONS 18, 24) and carry the
+// shared-screen footnote; Trains' card is the way in FOR the PIN, and New link's says who the page is for.
+test('every page\'s sign-in card says what the page is, and that the staff PIN does not open it', async ({ page }) => {
+    const SAYS_PIN_DOES_NOT_OPEN = ['/admin.html', '/paycalc.html', '/settings.html', '/operations.html', '/links.html'];
+    const PAGES = APP_PAGES.filter(p => p.file !== 'index.html'
+        && (p.file !== 'overtime.html' || CONFIG.OVERTIME_ENABLED === true)).map(p => p.url);
+    for (const url of PAGES) {
+        await page.goto(url);
+        await page.locator('#loginOverlay.visible').waitFor();
+        const about = page.locator('#loginOverlay #loginAbout');
+        await expect(about, `${url}: the card does not say what the page is`).toBeVisible();
+        if (SAYS_PIN_DOES_NOT_OPEN.includes(url)) {
+            await expect(about, `${url}: the card does not say the staff PIN won’t open it`).toContainText('the staff PIN doesn’t open it');
+            await expect(page.locator('#loginOverlay #loginFootnote'), `${url}: no shared-screen footnote`).toBeVisible();
+        }
     }
 });
 
