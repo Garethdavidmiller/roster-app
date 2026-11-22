@@ -1008,7 +1008,7 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         const id = uid();
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
-            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'G. Miller' }));
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
         await assertSucceeds(deleteDoc(doc(designerDb(), 'linkDesigns', id)));
     });
     // Soft delete (v19.41). `deletedAt`/`deletedBy` are OPTIONAL — the live documents that
@@ -1050,7 +1050,7 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         // bin is the one a hard delete is aimed at, so it is the one a non-designer must be refused.
         const id = uid();
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
-            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'Q. Example' }));
+            { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
         for (const db of [namedDb('A. Person'), managerDb('Q. Example'), staffDb()]) {
             await assertFails(deleteDoc(doc(db, 'linkDesigns', id)));
         }
@@ -1070,6 +1070,63 @@ describe('linkDesigns — designer-write enforcement (H2)', () => {
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
         await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
             { name: 'Renamed', updatedAt: serverTimestamp(), updatedBy: 'S. Silva' }, { merge: true }));
+    });
+
+    // "SAVED BY" AND "DELETED BY" ARE THE WRITER'S, AT THE SERVER'S TIME (22 Nov 2026). The store's
+    // fallback conflict check trusts `updatedBy`, and the old-length move and Keep only the shortlist
+    // read `updatedAt`, so a pair a client could choose let one designer sign a colleague's name or
+    // backdate a design into the bin. Each refusal below has its legitimate twin beside it.
+    describe('the save and delete stamps', () => {
+        const M = () => designerDb('M. Robson', 'uid_robson');
+        const past = () => Timestamp.fromMillis(Date.UTC(2026, 0, 1));
+        test('a save signed with a colleague\'s name is refused; the writer\'s own is accepted', async () => {
+            await assertFails(setDoc(doc(M(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'S. Silva' }));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', uid()), { ...DESIGN(), updatedBy: 'M. Robson' }));
+        });
+        test('a backdated updatedAt is refused, on a create and on a save', async () => {
+            await assertFails(setDoc(doc(designerDb(), 'linkDesigns', uid()), { ...DESIGN(), updatedAt: past() }));
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertFails(setDoc(doc(designerDb(), 'linkDesigns', id), { ...DESIGN(), updatedAt: past() }));
+        });
+        test('a colleague\'s soft delete carries the saver\'s pair through untouched', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: serverTimestamp(), deletedBy: 'M. Robson' }, { merge: true }));
+        });
+        test('a soft delete signed with someone else\'s name, or backdated, is refused', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            await assertFails(setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }, { merge: true }));
+            await assertFails(setDoc(doc(M(), 'linkDesigns', id),
+                { deletedAt: past(), deletedBy: 'M. Robson' }, { merge: true }));
+        });
+        test('a rename on a stale baseline leaves the pair as it was, and is accepted', async () => {
+            // links-design-store.js writes only { name, revision } then, so the colleague's save is
+            // not signed as ours — the "unchanged" half of the rule.
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), { ...DESIGN(), revision: 1 }));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', id), { name: 'Renamed', revision: 2 }, { merge: true }));
+        });
+        test('a write that keeps the old time but swaps in another name is refused', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id), DESIGN()));
+            const env = testEnv;
+            let kept = null;
+            await env.withSecurityRulesDisabled(async ctx => {
+                kept = (await getDoc(doc(ctx.firestore(), 'linkDesigns', id))).data().updatedAt;
+            });
+            await assertFails(setDoc(doc(M(), 'linkDesigns', id), { updatedAt: kept, updatedBy: 'Q. Example' }, { merge: true }));
+        });
+        test('a restore stamps the restorer now and clears the deleter', async () => {
+            const id = uid();
+            await assertSucceeds(setDoc(doc(designerDb(), 'linkDesigns', id),
+                { ...DESIGN(), deletedAt: serverTimestamp(), deletedBy: 'S. Silva' }));
+            await assertSucceeds(setDoc(doc(M(), 'linkDesigns', id),
+                { name: 'Line 1', patterns: {}, updatedAt: serverTimestamp(), updatedBy: 'M. Robson', revision: 2 }));
+        });
     });
 });
 
