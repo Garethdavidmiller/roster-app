@@ -575,6 +575,13 @@ describe('leaving by one control (leaveAfterAsking) — the Operations header lo
             confirmLabel: 'Leave without saving', cancelLabel: 'Keep editing', danger: true });
     });
 
+    test('a move WITHIN a page asks its own question — nothing is left, only the changes go (review, 22 Nov 2026)', () => {
+        assert.deepEqual({ ...ps.DISCARD_QUESTION }, { title: 'Discard your unsaved changes?', message: 'They will be lost if you move on now.',
+            confirmLabel: 'Discard changes', cancelLabel: 'Keep editing', danger: true });
+        assert.equal(ps.DISCARD_QUESTION.cancelLabel, ps.LEAVE_QUESTION.cancelLabel, 'one safe word on every question');
+        assert.doesNotMatch(Object.values(ps.DISCARD_QUESTION).join(' '), /\bleave\b/i, 'the member leaves nothing');
+    });
+
     test('a leave answered ELSEWHERE (a notification\'s Open it) stands the browser\'s question and the draft aside', async () => {
         const fresh = await import('./page-session.js?answered-elsewhere');
         listeners = {}; docListeners = {};

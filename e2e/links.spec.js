@@ -4748,6 +4748,81 @@ test('links: a design whose save is still in flight is not reopened until the sa
     await expect(page.locator('.dialog-overlay.visible'), 'no conflict with its own save').toHaveCount(0);
 });
 
+// …AND NO OTHER PATH OPENS IT EITHER (24-hour check, Nov 2026). Deleting the open design, Keep only the shortlist and an
+// old-length design back in the list each opened the FIRST design with no such check, so a design still saving that
+// sorts first came back from its pre-save entry, and its next save met its own as a colleague's. The delete here.
+test('links: deleting the open design does not open one whose save is still in flight', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {
+        const e = /** @type {any} */ (window).__E2E;
+        e.txHold = true;      // the server is slow to answer the first save
+        e.writesLand = true;  // …and once it has, the next save reads what it wrote
+        // The server's copy of BOTH designs, so the delete's landed write does not leave it holding only that one.
+        e.docsByQuery = { linkDesigns: e.docs.map((/** @type {any} */ d) => ({ ...d })) };
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+    await switchToDesign(page, 'Other');
+    await page.locator('.dialog-overlay.visible .dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    // Only the first save stays held: the delete goes straight through.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = false; });
+    await sheetAction(page, 'designDeleteBtn');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveStatus')).toContainText('“Morning heavy” is still saving, so a shortlisted proposal is open.');
+    await expect(activeDesignName(page), 'not reopened over its own save').not.toHaveText('Morning heavy');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());
+    await expect(async () => {
+        await switchToDesign(page, 'Morning heavy');
+        await expect(activeDesignName(page)).toHaveText('Morning heavy', { timeout: 500 });
+    }).toPass({ timeout: 10_000 });
+    await expect(page.locator('#winMonSatEnd'), 'the version it saved').toHaveValue('14:20');
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toHaveText('✓ Saved');
+    await expect(page.locator('.dialog-overlay.visible'), 'no conflict with its own save').toHaveCount(0);
+});
+
+// EVERY QUESTION THAT DISCARDS UNSAVED WORK OPENS ON ITS SAFE ANSWER (24-hour check, Nov 2026). The header logo asked
+// its own "Leave anyway?" under a plain "Leave", which took the focus, so one stray Enter threw a design's edits away;
+// Create new, Switch and Import did the same. The logo now asks the shared leave question, and the three are `danger`.
+test('links: the questions that discard unsaved work open on Cancel, and the logo asks the shared leave question', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+    const dialog = page.locator('.dialog-overlay.visible');
+    /** @param {string} confirm */
+    const opensOnCancel = async (confirm) => {
+        await expect(dialog.locator('.dialog-btn-confirm')).toHaveText(confirm);
+        await expect(dialog.locator('.dialog-btn-confirm')).toHaveClass(/danger/);
+        await expect(dialog.locator('.dialog-btn-cancel'), `"${confirm}" is not where the focus opens`).toBeFocused();
+        await dialog.locator('.dialog-btn-cancel').click();
+        await expect(dialog).toHaveCount(0);
+    };
+    await switchToDesign(page, 'Other');
+    await opensOnCancel('Switch');
+    await sheetAction(page, 'newDesignBtn');
+    await opensOnCancel('Create new');
+    await sheetAction(page, 'importDesignBtn');
+    await opensOnCancel('Import');
+    await page.locator('#appIcon').click();
+    await expect(page.getByRole('alertdialog', { name: 'Leave without saving?' })).toContainText('Your unsaved changes on this page will be lost.');
+    await opensOnCancel('Leave without saving');
+    await expect(page).toHaveURL(/links\.html/);
+    await expect(page.locator('#winMonSatEnd'), 'Keep editing keeps the work').toHaveValue('14:20');
+    // Leaving is answered once: the browser's own "Leave site?" does not ask again.
+    /** @type {string[]} */ const browserAsked = [];
+    page.on('dialog', (d) => { browserAsked.push(d.type()); d.accept().catch(() => {}); });
+    await page.locator('#appIcon').click();
+    await dialog.locator('.dialog-btn-confirm').click();
+    await expect(page, 'the logo goes back to the Calendar').not.toHaveURL(/links\.html/);
+    expect(browserAsked, 'no second question from the browser').toEqual([]);
+});
+
 test('links re-review: an offline save says it is in this browser, not "✓ Saved"', async ({ page, context }) => {
     // The store queues the write and returns 'queued'; the page read that as a server-confirmed save.
     // And it promised an upload "when you're back online", which a page iOS has closed cannot make: the

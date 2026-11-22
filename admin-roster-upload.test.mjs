@@ -2960,6 +2960,51 @@ describe('a Christmas-week import (week ending Sat 26 Dec 2026)', async () => {
         assert.ok(!(s.options ?? []).some((/** @type {any} */ o) => o.value === 'RD'), 'no rest-day reading is offered');
     });
 
+    test('an unreadable cell there never offers a Training or Meeting reading either — it too was a "Rest" over the leave', () => {
+        // The twin of the spare test above, for `christmas-other` (review, 22 Nov 2026).
+        for (const [d, cand] of [[BOXING, ['TRG', '13:30-21:00']], [XMAS, ['MEET 10:00-14:00', '13:30-21:00']]]) {
+            const parsed = { parsed: [{ memberName: m.name, shifts: shiftsWith({ [d]: `UNKNOWN|${cand.join(' or ')}?` }) }],
+                dates: DATES, choices: { [`${m.name}|${d}`]: cand } };
+            const s = computeCellStates(parsed, []).get(`${m.name}|${d}`);
+            assert.equal(s.state, 'UNREADABLE', d);
+            assert.ok(!(s.options ?? []).some((/** @type {any} */ o) => o.value === 'RD' || o.guarded === 'christmas-other'),
+                `${d}: no rest-day reading stands in for the Other day`);
+        }
+    });
+
+    test('an Other day printed over an EARLIER IMPORT before 2026 is offered unticked, never pre-ticked (review, 22 Nov 2026)', () => {
+        // Before 2026 the Christmas-leave rule does not untick a row, so the Other guard must, on its own.
+        const d25 = '2025-12-26';
+        const days25 = ['2025-12-21', '2025-12-22', '2025-12-23', '2025-12-24', '2025-12-25', d25, '2025-12-27'];
+        const imp25 = { id: 'i4', memberName: m.name, date: d25, type: 'shift', value: '13:30-21:00', source: 'roster_import' };
+        for (const v of ['TRG', 'MEET 10:00-14:00']) {
+            const s25 = computeCellStates({ parsed: [{ memberName: m.name, shifts: { [d25]: v } }], dates: days25 }, [imp25])
+                .get(`${m.name}|${d25}`);
+            assert.deepEqual([s25.state, s25.guarded, s25.christmas, s25.chosen], ['REMOVE_IMPORT', 'christmas-other', false, false],
+                `${v}, 2025: offered, never ticked`);
+        }
+    });
+
+    test('a Training or Meeting day on a SUNDAY Boxing Day (2027) is held as a Christmas day, times or not (review, 22 Nov 2026)', () => {
+        // The Sunday guard turned a timed Other day into Sunday work before the Christmas guard looked,
+        // so a Training day printed with times on Sunday 26 December 2027 was a ticked DIFF of worked hours.
+        const SUN = '2027-12-26';
+        const days27 = ['2027-12-26', '2027-12-27', '2027-12-28', '2027-12-29', '2027-12-30', '2027-12-31', '2028-01-01'];
+        const worked = { id: 'w2', memberName: m.name, date: SUN, type: 'rdw', value: '13:30-21:00' };
+        for (const v of ['TRG', 'TRG 09:00-17:00', 'MEET RDW 10:00-14:00']) {
+            for (const existing of [[], [worked]]) {
+                const shifts = { ...Object.fromEntries(days27.map(d => [d, getBaseShift(m, at(d))])), [SUN]: v };
+                const st = computeCellStates({ parsed: [{ memberName: m.name, shifts }], dates: days27 }, existing);
+                const s = st.get(`${m.name}|${SUN}`);
+                assert.deepEqual([s.state, s.guarded], ['GUARDED', 'christmas-other'], `${v} with ${existing.length} saved`);
+                const html = rs.guardedRowHtml({ key: `${m.name}|${SUN}`, s, dayName: 'Sun', dateStr: SUN, badgeHtml: 'Train', esc: (/** @type {string} */ x) => x });
+                assert.ok(html.includes('can’t be on Christmas Day or Boxing Day'), `${v}: the row names Christmas as the reason`);
+                assert.ok(!html.includes('can’t be on a Sunday'), `${v}: not the Sunday reason`);
+                assert.deepEqual(collectRosterWrites(st), [], `${v} with ${existing.length} saved: nothing written`);
+            }
+        }
+    });
+
     test('an earlier import there is an unticked "Clear old", never a question — and the same leave again is left alone', () => {
         const imp = { id: 'i1', memberName: m.name, date: BOXING, type: 'rdw', value: '13:30-21:00', source: 'roster_import' };
         const s = states({ [BOXING]: 'AL' }, [imp]).get(`${m.name}|${BOXING}`);

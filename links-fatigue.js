@@ -555,16 +555,25 @@ export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } 
     const earlies = seq.filter(x => isEarlyStart(x.shift));
     // The opening is the DESIGN's window, not a fixed 06:20 (Nov 2026): a design whose window opens
     // later says so, and the sentence claims "unavoidable" only while the opening itself is early.
+    // So does the STATUS (24-hour check, Nov 2026): `standing` means "from the operation, not from this
+    // design" (point 3 above; the panel's triage line says exactly that), which is true only while the
+    // opening itself falls in 05:00–07:00. Opened earlier or later, the opening does not need these
+    // starts, so they are this design's own and count as `present`. Three sentences, one per case: the
+    // second used to say an opening BEFORE 05:00 came after every 05:00–07:00 start.
     const opens = normaliseWindow(win).monSat.start;
     const opensMin = windowMinutes(opens);
     const opensEarly = opensMin !== null && opensMin >= EARLY_FROM && opensMin < EARLY_TO;
+    const opensBefore = opensMin !== null && opensMin < EARLY_FROM;
+    const ff2Count = `${earlies.length} of ${timed.length} timed duties.`;
     add({ code: 'FF2', family: 'Time of day', title: 'Early shift starting 05:00–07:00',
-        status: earlies.length ? 'standing' : 'clear',
+        status: earlies.length ? (opensEarly ? 'standing' : 'present') : 'clear',
         value: earlies.length,
         detail: earlies.length
             ? (opensEarly
-                ? `${earlies.length} of ${timed.length} timed duties. Unavoidable on this link — the station opens at ${opens} Monday to Saturday — so this is a property of the operation, not of the design.`
-                : `${earlies.length} of ${timed.length} timed duties. The staffed window opens at ${opens} Monday to Saturday, so these starts come before the opening.`)
+                ? `${ff2Count} Unavoidable on this link — the station opens at ${opens} Monday to Saturday — so this is a property of the operation, not of the design.`
+                : opensBefore
+                    ? `${ff2Count} The staffed window opens at ${opens} Monday to Saturday, before 05:00, so the opening does not need these starts — they come from this design.`
+                    : `${ff2Count} The staffed window opens at ${opens} Monday to Saturday, so these starts come before the opening — they come from this design, not from the operation.`)
             : 'No duty starts between 05:00 and 07:00.' });
 
     const veryEarly = seq.filter(x => isVeryEarlyStart(x.shift));

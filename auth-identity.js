@@ -297,8 +297,17 @@ export function isRestThrottled(status, body) {
 
 /**
  * Did the Identity Toolkit REST sign-in REJECT the credential (as opposed to failing to answer)?
- * A rejection is not "unknown": the caller lets the ordinary SDK sign-in run and fail exactly as it
- * always has, so the remembered-migrated-member logic keeps working.
+ * A rejection is not "unknown", and it is not retried: the silent sign-in STOPS on it, without the SDK
+ * sign-in, sets the device's no-default flag and records `auth/invalid-credential` (session.js). FOUR
+ * messages count, and the caller cannot tell them apart: a wrong password (INVALID_LOGIN_CREDENTIALS,
+ * or INVALID_PASSWORD from before email-enumeration protection), no such account (EMAIL_NOT_FOUND,
+ * only sent with that protection off) and a DISABLED account (USER_DISABLED). So a disabled account's
+ * silent sign-in is recorded as a refused password, and a missing one sets the flag that
+ * `remembersRefusal` (silent-sign-in.js) never sets for `auth/user-not-found`. Both are kept on
+ * purpose: neither account can take the surname until an admin acts, and every admin action that puts
+ * an account on its surname — creating it, re-enabling it, a reset — stamps a `resetAt` the old session
+ * predates (AUTH_AND_SESSIONS 23), so the flag costs that device nothing; not setting it would send a
+ * doomed request on every load from behind the station's one shared address.
  * @param {number} status
  * @param {any} body
  * @returns {boolean}

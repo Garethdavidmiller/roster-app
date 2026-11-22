@@ -39,11 +39,15 @@ mock.module('./firebase-client.js', {
         currentUserAfterBoot: async () => ({ uid: 'u1' }),   // the drawer bell asks (v25.06)
     },
 });
+/** What the bell's read and its turn-on answer — a test that races them replaces them. @type {() => Promise<string>} */
+let peekState = async () => 'off-default';
+/** @type {() => Promise<string>} */
+let enableNotif = async () => 'on';
 mock.module('./notif.js', {
     namedExports: {
         notifSupported:      () => false,
-        peekNotifState:      async () => 'off-default',
-        enableNotifications: async () => 'on',
+        peekNotifState:      () => peekState(),
+        enableNotifications: () => enableNotif(),
         disableNotifications: async () => 'off-default',
         releaseDevicePush:    async () => { signOutLog.push('release'); },
     },
@@ -679,12 +683,13 @@ describe('opening the latest Circular stays inside its 8-second budget', () => {
     });
 });
 
-// ── LOCK CALENDAR — the staff PIN's way out (calendar-pin e2e drives the journey) ─────────────────────
+// ── END STAFF PIN — the staff PIN's way out (calendar-pin e2e drives the journey) ─────────────────────
+// (`onLockCalendar` and `#navLockCalendarBtn` keep the name the button had before it read "End staff PIN".)
 // Two halves no unit test held: a `lock()` that REJECTS leaves the drawer open with a retry on the button,
 // because the drawer is the only surface left to report the failure on; and `isViewer` throwing fails
-// CLOSED — the button stays hidden, since "Lock Calendar" shown to a member offers an action that does
+// CLOSED — the button stays hidden, since "End staff PIN" shown to a member offers an action that does
 // nothing to their session. Asserted on behaviour; the button's words are not the subject here.
-describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable viewer question hides the button', () => {
+describe('End staff PIN: a failed lock keeps the drawer, and an unanswerable viewer question hides the button', () => {
     beforeEach(() => mock.timers.enable({ apis: ['setTimeout'] }));
     afterEach(() => mock.timers.reset());
     const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
@@ -692,7 +697,7 @@ describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable vie
     test('a lock that rejects keeps the drawer open and re-arms the button with a retry line, which reverts', async () => {
         const { $ } = mountLive({ onSignOut: null, onLockCalendar: { isViewer: () => true, lock: async () => { throw new Error('viewer survived sign-out'); } } });
         const lock = /** @type {any} */ ($('navLockCalendarBtn'));
-        lock.textContent = 'Lock Calendar';   // as `_inject` draws it
+        lock.textContent = 'End staff PIN';   // as `_inject` draws it
         /** @type {any} */ ($('navMenuBtn')).fire('click');
         assert.equal(lock.hasAttribute('hidden'), false, 'premise: a PIN viewer sees the button');
         lock.fire('click');
@@ -700,9 +705,9 @@ describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable vie
         await flush();
         assert.equal($('navPanel').classList.contains('open'), true, 'the drawer stays open: it is the only surface left to report on');
         assert.equal(lock.disabled, false, 'and the button can be pressed again');
-        assert.notEqual(lock.textContent, 'Lock Calendar', 'the button says the lock failed');
+        assert.notEqual(lock.textContent, 'End staff PIN', 'the button says the lock failed');
         mock.timers.tick(6000);
-        assert.equal(lock.textContent, 'Lock Calendar', 'the retry line gives way to the label');
+        assert.equal(lock.textContent, 'End staff PIN', 'the retry line gives way to the label');
     });
 
     test('a lock that succeeds without navigating closes the drawer', async () => {
@@ -732,4 +737,127 @@ describe('Lock Calendar: a failed lock keeps the drawer, and an unanswerable vie
         assert.equal(lock.hasAttribute('hidden'), false);
         assert.notEqual($('navPanelMember').textContent, '', 'the footer names the PIN mode');
     });
+});
+
+// ── A REFRESH NEVER PAINTS OVER A TAP — IN FLIGHT, OR AFTER ITS ANSWER (24-hour check, 22 Nov 2026) ───────
+// The drawer closed and reopened during a slow toggle started a refresh numbered ABOVE the tap's, whose read
+// began before the toggle settled and answered after it: the old 🔕 was painted over the tap's 🔔 — the
+// symptom `_bellGen` was written for, back through a second door.
+describe('the bell: a drawer reopened during a slow toggle never paints the state from before the tap', () => {
+    afterEach(() => { peekState = async () => 'off-default'; enableNotif = async () => 'on'; });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    /** A promise and the hand that settles it. */
+    const deferred = () => { /** @type {(v: any) => void} */ let resolve = () => {}; const p = new Promise(r => { resolve = r; }); return { p, resolve }; };
+
+    /** Open the drawer on an "off" bell, tap it with a slow turn-on, close and reopen with a slow read. */
+    async function tapThenReopen() {
+        const { $ } = mountLive();
+        const bell = /** @type {any} */ ($('navNotifBell'));
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        await flush();
+        assert.equal(bell.dataset.notifState, 'off-default', 'premise: the bell opens on "off"');
+        const toggle = deferred();
+        enableNotif = () => toggle.p;
+        bell.fire('click');
+        assert.equal(bell.dataset.notifState, 'loading', 'premise: the tap shows its working glyph');
+        /** @type {any} */ ($('navPanelClose')).fire('click');
+        const read = deferred();
+        peekState = () => read.p;   // a read begun before the toggle settled: it will answer the OLD state
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        await flush();
+        return { bell, toggle, read };
+    }
+
+    test('the reopen\'s read answering AFTER the toggle settles does not undo it', async () => {
+        const { bell, toggle, read } = await tapThenReopen();
+        toggle.resolve('on'); await flush();
+        assert.equal(bell.dataset.notifState, 'on', 'premise: the tap painted its answer');
+        read.resolve('off-default'); await flush();
+        assert.equal(bell.dataset.notifState, 'on', 'a read from before the tap painted 🔕 over a device just subscribed');
+        assert.equal(bell.getAttribute('aria-pressed'), 'true');
+    });
+
+    test('the reopen\'s read answering WHILE the toggle is in flight leaves the working glyph alone', async () => {
+        const { bell, toggle, read } = await tapThenReopen();
+        read.resolve('off-default'); await flush();
+        assert.equal(bell.dataset.notifState, 'loading', 'a refresh painted over a tap still in flight');
+        toggle.resolve('on'); await flush();
+        assert.equal(bell.dataset.notifState, 'on');
+    });
+
+    test('control, the first door: a tap during the OPEN\'s own slow read is not undone when that read answers', async () => {
+        const { $ } = mountLive();
+        const bell = /** @type {any} */ ($('navNotifBell'));
+        bell.dataset.notifState = 'off-default';   // as an earlier refresh left it
+        const read = deferred();
+        peekState = () => read.p;
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        await flush();   // the open's refresh is now reading
+        const toggle = deferred();
+        enableNotif = () => toggle.p;
+        bell.fire('click');
+        toggle.resolve('on'); await flush();
+        read.resolve('off-default'); await flush();
+        assert.equal(bell.dataset.notifState, 'on', 'the open\'s read, begun before the tap, painted over its answer');
+    });
+
+    test('a toggle that errors still restores the real state, once the tap has let go', async () => {
+        const { $ } = mountLive();
+        const bell = /** @type {any} */ ($('navNotifBell'));
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        await flush();
+        enableNotif = async () => { throw new Error('push service down'); };
+        peekState = async () => 'off-lapsed';
+        const warn = console.warn; console.warn = () => {};
+        try { bell.fire('click'); await flush(); } finally { console.warn = warn; }
+        assert.equal(bell.dataset.notifState, 'off-lapsed', 'the failed tap left the bell on its working glyph');
+        assert.equal(bell.disabled, false);
+    });
+});
+
+// ── A SLOW DOCUMENT READ BELONGS TO THE DRAWER IT WAS TAPPED IN (review, 21 Nov 2026) ─────────────────────
+// `resetNavPanel` + `initNavPanel` rebuild the drawer (a sign-in in place). A Circular read from the OLD drawer
+// that answers afterwards must not close the NEW one's state from under it: its classes stayed "open" while the
+// module said shut, and Escape stopped working. Both answers are held — the failure fallback and the new-tab close.
+describe('a document read that answers after the drawer was rebuilt leaves the new drawer alone', () => {
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/x.pdf?alt=media&token=e2e';
+    afterEach(() => { latestCircular = async () => null; });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+
+    /** @param {any} answer what the old drawer's read finally answers */
+    async function rebuildDuringRead(answer) {
+        const { $, press, els } = mountLive();
+        /** @type {any} */ (global.window).open = () => ({ opener: null, close() {}, location: { set href(/** @type {string} */ _v) {} } });
+        /** @type {(v: any) => void} */ let settle = () => {};
+        latestCircular = () => new Promise(r => { settle = r; });
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        const link = liveEl(['nav-panel-link', 'nav-panel-link--circular']);
+        link.dataset.csTitle = 'Weekly Retail Circular';
+        /** @type {any} */ ($('navPanel')).fire('click', {
+            target: { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-link--circular' ? link : null) }, button: 0, preventDefault() {} });
+        await flush();
+        // THE REBUILD, as the page does it: the old drawer's elements leave the page, and the burger is replaced.
+        const oldPanel = /** @type {any} */ ($('navPanel'));
+        for (const id of ['navPanel', 'navPanelOverlay', 'navComingSoonLightbox', 'navNoticesLightbox']) {
+            const el = /** @type {any} */ ($(id));
+            el.remove = () => { el.isConnected = false; els.delete(id); };
+        }
+        /** @type {any} */ ($('navMenuBtn')).cloneNode = () => liveEl();
+        /** @type {any} */ ($('navMenuBtn')).replaceWith = (/** @type {any} */ fresh) => { els.set('navMenuBtn', fresh); };
+        resetNavPanel();
+        initNavPanel({ currentPage: 'links', memberName: 'B. Test', onSignOut: () => {} });
+        assert.equal(oldPanel.isConnected, false, 'premise: the old drawer has left the page');
+        const panel = /** @type {any} */ ($('navPanel'));
+        assert.notEqual(panel, oldPanel, 'premise: a new drawer was built');
+        /** @type {any} */ ($('navMenuBtn')).fire('click');
+        assert.equal(panel.classList.contains('open'), true, 'premise: the new drawer is open');
+        settle(answer); await flush();
+        assert.equal(panel.classList.contains('open'), true, 'the new drawer was closed by the old one\'s read');
+        press('Escape');
+        assert.equal(panel.classList.contains('open'), false, 'Escape no longer closes the new drawer: its state was closed under it');
+    }
+
+    test('no document — the failure fallback is dropped', () => rebuildDuringRead(null));
+    test('a document that opens in its tab — the old drawer\'s close is dropped', () =>
+        rebuildDuringRead({ storageUrl: STORED, fileType: 'pdf', storagePath: 'circulars/x.pdf' }));
 });

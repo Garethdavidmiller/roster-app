@@ -55,6 +55,13 @@ describe('readArchivedNotices — what the App Notices panel lists', () => {
             'the 300-day-old one goes; a legacy record with no date is kept, as the next write stamps it');
     });
 
+    test('read and write agree on a record whose archivedAt cannot be read: neither keeps it (24-hour check)', () => {
+        store.set(KEY, JSON.stringify([{ ...notice('kept'), archivedAt: new Date().toISOString() }, { ...notice('garbled'), archivedAt: 'not a date' }]));
+        assert.deepEqual(readArchivedNotices().map(n => n.id), ['kept'], 'the panel listed a record the next write drops');
+        archiveNotice(notice('new'));
+        assert.deepEqual(readArchivedNotices().map(n => n.id), ['new', 'kept'], 'premise: the write drops it too');
+    });
+
     test('unreadable storage reads as empty rather than throwing into the panel', () => {
         store.set(KEY, 'not json at all');
         assert.deepEqual(readArchivedNotices(), []);

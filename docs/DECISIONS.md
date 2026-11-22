@@ -195,7 +195,7 @@ shown that yet.
 - **A Spare week's leave costs at most four days** (owner, 21 Nov 2026 — "A full spare week off
   should be charged as 4 days AL"; part weeks "1 a day, at most 4"; "count only"). A Spare week is four
   days' work of 35 hours, but the roster marks all seven days Spare, so a whole week off was charged as
-  six (Monday to Saturday). Each day still Spare costs one, and a week stops costing at four, in date
+  six (Monday to Saturday). Each day costs one, and a week stops costing at four, in date
   order (`pastSpareWeekCap`, `al-entitlement.js`); the booking preview asks the same rule of the week as
   it will stand after the save (`projectAlBooking`, `admin-al-projection.js`) and its Spare line says so.
   **CEA and CES only** (owner, 21 Nov 2026): a Dispatcher's Spare days cost one each, as before, because
@@ -203,8 +203,14 @@ shown that yet.
   (`spareUnderneath`). A week running over New Year counts its December days first. **Count only:** every
   day is still written as leave, so the Calendar shows the whole week off and nothing saved had to
   change. Weighed and not chosen: writing leave on four days and Rest Day on two (weeks already booked
-  would still count six), and charging any leave in a Spare week as four. A Spare week a roster upload
-  turned into named shifts is charged as shifts. How the clerks' grid books one is AL_WORKBOOK.md §10
+  would still count six), and charging any leave in a Spare week as four. **The cap follows the week as
+  rostered** (owner, 22 Nov 2026): a week the BASE roster makes Spare costs at most four however many of
+  its days a roster upload has since given named shifts (`rosteredSpareDay`), where it used to count only
+  the days still Spare — so a whole week off cost 4, 5 with one day assigned, 6 with two. The base line,
+  not the record, decides: leave over an assigned day keeps only `replacedType: 'shift'`, which a swapped
+  working day leaves too, so a Spare turn saved over a day the base roster has at work is not a Spare
+  week and costs a day. The booking preview still CALLS a day Spare only while it is unassigned
+  (`spareUnderneath`). How the clerks' grid books one is AL_WORKBOOK.md §10
   question 17.
 
 - **Leave over rest-day working is free, whatever kind** (owner, 10 Nov 2026 — "Free, like plain

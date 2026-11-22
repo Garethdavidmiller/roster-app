@@ -120,6 +120,9 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *   `charged` — how far the balance moves: the cost of every day it can change, after less before.
  *                  The new days charged, except where a Spare week's four moved between days already
  *                  booked and days booked now — the figure the preview and the receipt say.
+ *   `capFreed` — how many of the NEW days charged leave the balance where it was, because charging them
+ *                  freed a day of the same Spare week already booked: new days charged less `charged`.
+ *                  Said "at no cost" with the days written free, so no surface charges them twice.
  *   `writes`  — the leave records as the save will write them, with `swapped`, for `overridesAfterSave`.
  *
  *   `alreadyBooked` — a day that already HOLDS leave, which the save only writes again at the same
@@ -138,7 +141,7 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *        `false` (genuine rest, free). A date ABSENT is unanswered, which is a state, not a default.
  * @returns {{asked: string[], unanswered: string[], consuming: string[], freeWritten: string[],
  *            skipped: string[], answeredFree: string[], christmas: string[], writing: string[], lieuLost: string[],
- *            alreadyBooked: string[], charged: number,
+ *            alreadyBooked: string[], charged: number, capFreed: number,
  *            writes: Array<{date: string, type: string, value: string, swapped: boolean}>,
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
  *                     skipped:number, answeredFree:number, christmas:number, writing:number, lieuLost:number,
@@ -147,7 +150,7 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
 export function projectAlBooking({ member, dates, ovByDate: given = null, swapAnswers = null }) {
     const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [], lieuLost: [],
         alreadyBooked: [] };
-    if (!member || !Array.isArray(dates)) return { ...empty, charged: 0, writes: [], counts: _counts(empty) };
+    if (!member || !Array.isArray(dates)) return { ...empty, charged: 0, capFreed: 0, writes: [], counts: _counts(empty) };
     // Omitted means "nothing in play", as it does for every rule below — `isWorkingDate` alone
     // dereferences the map, and threw on the first ordinary working day without one.
     const ovByDate = given ?? new Map();
@@ -220,9 +223,16 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
     for (const d of writing) for (const w of spareWeekDays(d)) touched.add(w);
     let charged = 0;
     for (const d of touched) charged += Number(costs(afterMap, d)) - Number(costs(ovByDate, d));
+    // …and the new days the week's four make FREE ON BALANCE (review, 22 Nov 2026). Booking the Monday
+    // of a Spare week whose Wednesday to Saturday are already booked charges the Monday and frees the
+    // Saturday, so the day is in `consuming` and the balance does not move. Counted here, once, so the
+    // preview, the Spare note and the receipt all say "at no cost" of it instead of "uses 1 day" over a
+    // headline of "No days". Only a week's cap can free a day that was costing, so it is never negative.
+    const newCharged = consuming.filter(d => !alreadyBooked.includes(d)).length;
+    const capFreed = Math.max(0, newCharged - charged);
 
     const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost, alreadyBooked };
-    return { ...out, charged, writes: writing.map(d => ({ date: d, type: 'annual_leave', value: 'AL', swapped: swappedSet.has(d) })),
+    return { ...out, charged, capFreed, writes: writing.map(d => ({ date: d, type: 'annual_leave', value: 'AL', swapped: swappedSet.has(d) })),
         counts: _counts(out) };
 }
 

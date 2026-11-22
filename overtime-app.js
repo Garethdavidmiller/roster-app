@@ -22,7 +22,7 @@ import { initLoginOverlay, dismissLoginOverlay, sayStaffPinEndedIn } from './log
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, navGatesFor, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard, leaveAfterAsking, LEAVE_QUESTION } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -379,8 +379,9 @@ export function init() {
      */
     async function confirmDiscard() {
         if (!currentForm?.isDirty()) return true;
-        return confirmDialog({ ...LEAVE_QUESTION,
-            message: 'You have answers on this form that have not been submitted. They will be lost if you leave it now.' });
+        // A move WITHIN the page — another week, Back to the list — so the in-page question (review, 22 Nov 2026).
+        return confirmDialog({ ...DISCARD_QUESTION,
+            message: 'You have answers on this form that have not been submitted. They will be lost if you move on now.' });
     }
 
     async function loadEverything() {

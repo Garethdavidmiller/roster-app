@@ -6,7 +6,7 @@
 // costs exactly one day of annual leave.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spareShiftNote, countSpareDays, spareDaysOf } from './admin-al-spare-note.js';
+import { spareShiftNote, countSpareDays, spareDaysOf, spareWeekDaysOf } from './admin-al-spare-note.js';
 import { teamMembers, getBaseShift, isSunday } from './roster-data.js';
 import { projectAlBooking } from './admin-al-projection.js';
 
@@ -171,4 +171,45 @@ test('a booking past a Spare week\'s four says the cap and what it does use', ()
     assert.match(spareShiftNote(1, 1, 0), /^📋 This is a Spare day — .* this week's 4 are already booked, so it uses none\.$/);
     assert.doesNotMatch(spareShiftNote(6, 6, 4), /Each still uses 1 day/);
     assert.equal(spareShiftNote(3, 6, 3), spareShiftNote(3, 6), 'charged in full reads as before');
+});
+
+// ── THE CAP SENTENCE COUNTS THE WEEK AS ROSTERED (owner, 22 Nov 2026) ──────────────────────────────
+// The cap counts every day of a base Spare week, assigned or not; the note counted only the days still
+// Spare, so a week with one assigned day read "5 of these days are Spare days … so they use 3 days"
+// under a headline of 4, and a booking of assigned days alone that the cap freed had no line at all.
+const SPARE_M = { name: 'Spare Week Tester', rosterType: 'main', currentWeek: 1, role: 'CEA' };
+const SPARE_WEEK = ['2027-03-08', '2027-03-09', '2027-03-10', '2027-03-11', '2027-03-12', '2027-03-13'];
+const assignedShift = (/** @type {string} */ date) => ({ id: `s-${date}`, memberName: SPARE_M.name, date, type: 'shift', value: '06:00-14:00', source: 'roster_import' });
+
+test('the note\'s figure for a partly assigned week is the week\'s, as the headline\'s is', () => {
+    // Tuesday assigned by the roster upload, the whole week booked: five Spare days, six in the week, four charged.
+    const ov = new Map([[SPARE_WEEK[1], assignedShift(SPARE_WEEK[1])]]);
+    assert.equal(spareDaysOf(SPARE_M, SPARE_WEEK, ov).length, 5, 'premise: five are still Spare');
+    const week = spareWeekDaysOf(SPARE_M, SPARE_WEEK, ov);
+    assert.deepEqual([week.dates, week.weeks], [SPARE_WEEK, 1], 'all six are days of the Spare week');
+    const p = projectAlBooking({ member: SPARE_M, dates: SPARE_WEEK, ovByDate: ov });
+    assert.equal(p.charged, 4, 'premise: the headline says four');
+    const charged = week.dates.filter(d => p.consuming.includes(d)).length - p.capFreed;
+    assert.equal(spareShiftNote(5, 6, charged, { days: 6, weeks: 1 }),
+        '📋 5 of these days are Spare days — on standby, with the shift not yet assigned. A Spare week uses at most 4 days of annual leave, so the 6 days booked in that week use 4 days.');
+});
+
+test('a booking of assigned days alone that the cap frees still says why it costs nothing', () => {
+    // One assigned day, the week's other four already booked: free on balance, so the line is the reason.
+    assert.equal(spareShiftNote(0, 1, 0, { days: 1, weeks: 1 }),
+        '📋 This day is in a Spare week, with its shift since assigned. A Spare week uses at most 4 days of annual leave, and this week\'s 4 are already booked, so it uses none.');
+    assert.match(spareShiftNote(0, 3, 1, { days: 2, weeks: 1 }),
+        /^📋 2 of these days are in a Spare week, with their shifts since assigned\. .*counting the days already booked that week, so they use 1 day\.$/);
+    assert.match(spareShiftNote(0, 12, 8, { days: 12, weeks: 2 }), /in Spare weeks, .* so they use 8 days\.$/);
+    // …and assigned days the cap does NOT free cost as shifts do: nothing to explain, so no line.
+    assert.equal(spareShiftNote(0, 2, 2, { days: 2, weeks: 1 }), '');
+    assert.equal(spareShiftNote(0, 2, 0, { days: 0, weeks: 0 }), '');
+});
+
+test('spareWeekDaysOf counts the base week, not the record, and leaves a Dispatcher out', () => {
+    const ov = new Map(SPARE_WEEK.map(d => [d, assignedShift(d)]));
+    assert.deepEqual(spareDaysOf(SPARE_M, SPARE_WEEK, ov), [], 'premise: nothing is still Spare');
+    assert.deepEqual(spareWeekDaysOf(SPARE_M, SPARE_WEEK, ov).dates, SPARE_WEEK);
+    assert.deepEqual(spareWeekDaysOf({ ...SPARE_M, role: 'Dispatcher' }, SPARE_WEEK, ov), { dates: [], weeks: 0 });
+    assert.deepEqual(spareWeekDaysOf(null, SPARE_WEEK, ov), { dates: [], weeks: 0 });
 });

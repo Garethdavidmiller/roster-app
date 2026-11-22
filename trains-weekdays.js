@@ -30,10 +30,11 @@ export const REAL_DAY = /** @type {Weekday} */ ('Tue');
 
 /**
  * Whether a train with this weekday exception runs on one weekday — the three exceptions trains-data.js
- * documents, read from a row's `days` or a listed train's. A code this does not know is counted every
+ * documents, read from a row's `days` or a listed train's — or, for a row a station card adds itself
+ * (`daysCode`), the weekdays it names, "Mon Tue Thu Fri". A code this does not know is counted every
  * day, as it always was; trains-stations.test.mjs fails on one in the data, so a new code from the
  * generator is taught here rather than miscounted.
- * @param {string|undefined} days  'MFO', 'MFX', 'WO', or '' for every day of its kind
+ * @param {string|undefined} days  'MFO', 'MFX', 'WO', a list of weekdays, or '' for every day of its kind
  * @param {Weekday} day
  * @returns {boolean}
  */
@@ -42,8 +43,30 @@ export function runsOn(days, day) {
         case 'MFO': return day === 'Mon' || day === 'Fri';
         case 'MFX': return day !== 'Mon' && day !== 'Fri';
         case 'WO': return day === 'Wed';
-        default: return true;
+        default: {
+            const list = listedDays(days);
+            return list ? list.includes(day) : true;
+        }
     }
+}
+
+/** The weekdays a `daysCode` list names, or null when `days` is not one. @param {string|undefined} days */
+function listedDays(days) {
+    if (!days) return null;
+    const list = days.split(' ');
+    return list.every(d => WEEKDAYS.includes(/** @type {Weekday} */ (d))) ? /** @type {Weekday[]} */ (list) : null;
+}
+
+/**
+ * Some weekdays as a train's `days`: the data's own code where one names exactly them ('' for all five),
+ * else the days themselves, "Mon Tue Thu Fri", which `runsOn` reads. For a December train a station card
+ * lists on the days nothing else carries it (trains-stations.js, `stationTrains`).
+ * @param {readonly Weekday[]} days  in weekday order
+ * @returns {string}
+ */
+export function daysCode(days) {
+    const code = ['', 'MFO', 'MFX', 'WO'].find(c => WEEKDAYS.every(w => runsOn(c, w) === days.includes(w)));
+    return code ?? days.join(' ');
 }
 
 /**

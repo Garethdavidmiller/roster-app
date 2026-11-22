@@ -639,6 +639,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // refresh it does not wait for; a tap while that refresh was still reading repainted the bell, when
     // it answered, with the state it read BEFORE the tap — 🔕 "off" on a device just subscribed. Every
     // refresh and every tap takes the next number, and a refresh paints only while its number is current.
+    // …AND NEVER WHILE A TAP IS IN FLIGHT, NOR AFTER ITS ANSWER (24-hour check, 22 Nov 2026): the drawer
+    // closed and reopened during a slow toggle (up to ~8 s) started a refresh with a HIGHER number than
+    // the tap's, whose read — begun before the toggle settled — then painted the old 🔕 over the tap's 🔔.
+    // So a refresh that finds a tap in flight after its first wait stands aside (`_bellBusy`): one that
+    // gets past it begins its read only once the tap has let go, so it reads the tap's answer, never the
+    // state from before it — and a tap that starts after that still makes it stale through the number.
     let _bellGen    = 0;
 
     /** Apply a state string to the toggle glyph and accessible name.
@@ -674,7 +680,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // NOT WHILE THE ACCOUNT BEHIND THE SESSION IS GONE: a tap then subscribed, the rules refused
         // the save and the bell flipped back to off unexplained. After the boot restore, so one in progress keeps it.
         const user = await currentUserAfterBoot(3000);
-        if (gen !== _bellGen) return;
+        if (gen !== _bellGen || _bellBusy) return;
         bell.hidden = !user;
         // A restore still running at 3s is not an account gone (48-hour review): bring it back when it lands.
         if (bell.hidden) { void currentUserAfterBoot().then(u => { if (u) void _refreshBell(); }); return; }
@@ -697,18 +703,22 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         bell.dataset.notifState = 'loading';
         _paintBell('loading');   // repaint NOW — otherwise the old 🔔/"On" glyph shows through a slow toggle (up to 8s)
         bell.disabled = true;
+        let failed = false;
         try {
             _paintBell(state === 'on' ? await disableNotifications() : await enableNotifications());
         } catch (err) {
             console.warn('[Nav] Bell toggle failed:', err);
-            await _refreshBell(); // restore correct state if toggle errored
+            failed = true;
         } finally {
             bell.disabled = false;
             _bellBusy = false;
         }
+        // Restore the real state if the toggle errored — once the tap has let go, or the refresh stands aside.
+        if (failed) await _refreshBell();
     });
 
-    // "Coming soon" placeholder lightbox — reuses the shared .lb-overlay pattern.
+    // The drawer's info panel — a document that cannot open, and the blocked bell, explain themselves
+    // here (its ids still say "coming soon": the links it was first built for are gone). Shared .lb-overlay pattern.
     const csLightbox = document.getElementById('navComingSoonLightbox');
     const csClose    = document.getElementById('navComingSoonClose');
     const csTitle    = document.getElementById('navComingSoonTitle');
@@ -716,7 +726,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     const csBody     = document.getElementById('navComingSoonBody');
 
     /**
-     * Open the placeholder lightbox for a "coming soon" link.
+     * Open the drawer's info panel for the control that was tapped (a document row, the blocked bell).
      * @param {HTMLElement} [triggerEl] the link that was tapped - its
      *   data-cs-title / data-cs-icon drive the heading, so the one generic
      *   lightbox shows the right title for whichever item opened it.

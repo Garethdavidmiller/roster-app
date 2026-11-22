@@ -104,11 +104,13 @@ export function readArchivedNotices() {
         const now = Date.now(), expiryMs = ARCHIVE_EXPIRY_DAYS * 86_400_000;
         // ONE AGE LIMIT FOR READING AND WRITING (review, 21 Nov 2026): the write prunes, but a device that
         // archived nothing new went on listing a notice from 300 days ago. A record with no `archivedAt`
-        // is a legacy one the next write stamps with today (above), so it is kept here too.
+        // is a legacy one the next write stamps with today (above), so it is kept here too. One whose
+        // `archivedAt` cannot be read is DROPPED here, as the next write drops it (24-hour check, 22 Nov
+        // 2026): it was listed until then, and gone after, for no reason the reader could see.
         const fresh = (/** @type {any} */ n) => {
             if (!n.archivedAt) return true;
             const t = new Date(n.archivedAt).getTime();
-            return !Number.isFinite(t) || (now - t) < expiryMs;
+            return Number.isFinite(t) && (now - t) < expiryMs;
         };
         return Array.isArray(p) ? p.filter(n => n && typeof n === 'object' && fresh(n)) : [];
     } catch (_) { return []; }

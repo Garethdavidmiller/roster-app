@@ -70,7 +70,7 @@ import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, leaveAfterAsking } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
     sortByDeleted, deleteOutcomeLine, renameRefusedLine,
@@ -170,6 +170,10 @@ export function init() {
      *  cannot finish never locks the others. */
     const savingKeys = new Set();
     const savingHere = () => savingKeys.has(activeDesignId ?? 'unsaved');
+    /** The saved design to open when the open one goes (deleted, shortlisted away, an empty page filled): the first with
+     *  no save in flight. One still saving would open from its entry — the version from BEFORE that save — and its next
+     *  save met the one in flight as somebody else's, in the designer's own name (`selectDesign` refuses it too). */
+    const firstNotSaving = () => designs.find(x => !savingKeys.has(x.id));
     /** Moves whenever the working copy is replaced, so a write that lands later knows the page has moved on. */
     let activation = 0;
     /** True until the designs' read has answered (links-app-1): it REPLACES the working copy when it lands, so
@@ -550,7 +554,8 @@ export function init() {
         making = '';
         try {
             // Unsaved work is asked about FIRST: the decision that might cancel the action must not come last.
-            if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
+            // `danger`: it discards the work, so the dialog opens on Cancel and one stray Enter keeps it.
+            if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new', danger: true })) return;
             const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. “Option A”):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
             if (!name) return;
             if (_designNameRejected(name)) return;
@@ -722,7 +727,7 @@ export function init() {
             else if (found !== 'gone') library.addToBin(binEntryFrom(d, currentUser));
             const outcome = deleteOutcomeLine(found, d.name, deletedData);
             const wasOpen = id === activeDesignId;
-            const newActive = wasOpen && _contentKey() === before ? (designs[0] ?? PROPOSAL_ENTRIES[0] ?? null) : null;
+            const newActive = wasOpen && _contentKey() === before ? (firstNotSaving() ?? PROPOSAL_ENTRIES[0] ?? null) : null;
             // Compare ends if the deleted design was compared, fewer than two are left, the next design IS the compared
             // one (a design compared with itself), or the open design went with nothing in its place. A comparison on
             // ANOTHER design is the designer's own, and stays (whole-app check, Nov 2026).
@@ -734,7 +739,8 @@ export function init() {
                 _activateDesign(newActive);
                 // Our own delete needs no line; one that found it already gone is news, and so is a proposal in its place.
                 if (found !== 'deleted') _designActionStatus(outcome, '');
-                else if (isProposalId(newActive.id)) _designActionStatus(`${outcome} No saved design is left, so a shortlisted proposal is open.`, 'ok');
+                else if (isProposalId(newActive.id)) _designActionStatus(`${outcome} ${designs.length === 0 ? 'No saved design is left'
+                    : designs.length === 1 ? `“${designs[0].name}” is still saving` : 'The other designs are still saving'}, so a shortlisted proposal is open.`, 'ok');
                 return;
             }
             // Edited while its delete was in flight: the edits stay, as an unsaved NEW design.
@@ -757,7 +763,7 @@ export function init() {
         const saving = savingKeys.has(id) ? designs.find(x => x.id === id) : null;
         if (saving) { renderDesignPicker(); _designActionStatus(`“${saving.name}” is still saving — open it again once its save has finished.`, ''); return; }
         // A switch that does NOT happen must put the picker back (links-design-header.js's render, v23.33).
-        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch', danger: true })) { renderDesignPicker(); return; }
         const d = designs.find(x => x.id === id) ?? PROPOSAL_ENTRIES.find(x => x.id === id);
         if (!d) { renderDesignPicker(); return; }
         if (id === compare.getCompareId()) compare.resetCompare();
@@ -1634,7 +1640,7 @@ export function init() {
             compare.resetCompare();
             const edited = ids.has(activeDesignId) && dirty && !!design && !!mark && (mark.act !== activation || mark.before !== _contentKey());
             if (edited && design) _openAsNew(design.patterns, design.window);
-            if (ids.has(activeDesignId) && !edited) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]);
+            if (ids.has(activeDesignId) && !edited) _activateDesign(firstNotSaving() ?? PROPOSAL_ENTRIES[0]);
             else _renderAll();
             return edited;
         },
@@ -1691,7 +1697,7 @@ export function init() {
             : failed ? `${failed === 1 ? 'A design' : `${failed} designs`} drawn for the ${PREVIOUS_LINK_LENGTH}-line link could not be moved to Recently deleted, so ${failed === 1 ? 'it is' : 'they are'} still in your list.` : '', binnedOnLoad || !failed ? 'ok' : 'err', true);
         say();
         // Settled OUTSIDE the bin: stop claiming it, and an empty page opens it, as a load would.
-        const backInList = () => { binnedOnLoad--; _refreshLists().then(() => { if (!design && !loadFailed) _activateDesign(designs[0]); say(); }); };
+        const backInList = () => { binnedOnLoad--; _refreshLists().then(() => { if (!design && !loadFailed) _activateDesign(firstNotSaving()); say(); }); };
         for (const id of ids) {
             binMoves.add(id);   // a refresh now shows it in the bin too, until the move says otherwise
             library.trackBinMove(id, store.binIfStill(id, currentUser, isPre26Design)
@@ -1794,12 +1800,9 @@ export function init() {
         const opsLink = document.getElementById('linksOpsLink');
         if (opsLink && isAdmin) opsLink.hidden = false;
 
-        // Header logo: back to the calendar, through the unsaved-changes question (about-lightbox.js).
-        wireHeaderLogo(async () => {
-            if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })) return;
-            dirty = false;   // answered: no second "Leave site?"
-            window.location.href = './';
-        });
+        // Header logo: back to the calendar, through the shared leave question — it opens on "Keep editing", and its
+        // answer stands the unload warning aside (page-session.js), as the drawer's links do.
+        wireHeaderLogo(() => leaveAfterAsking(() => dirty, () => { window.location.href = './'; }));
     })();
 
     initTipsLightbox(CARD_TIPS);   // the `?` panels; the content is links-tips.js

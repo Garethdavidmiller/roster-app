@@ -16,7 +16,7 @@ import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate } fro
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { auth, writeWithClaimRetry } from './firebase-client.js';
 import { unconfirmedWriteLine, saveFailureMessage } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, LEAVE_QUESTION } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, onReturnToPage, leaveAfterAsking, DISCARD_QUESTION } from './page-session.js';
 import { createDraftSlot, weekRestoredLine } from './unsaved-draft.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -278,7 +278,7 @@ export function init() {
     askBeforeLeavingByDrawer(hasUnsavedChanges);
 
     // Pending navigation callback — set by confirmNavigate() when unsaved changes
-    // exist. Executed if the user taps "Leave without saving" in the banner.
+    // exist. Executed if the user taps "Discard changes" in the banner.
     /** @type {any} */
     let _pendingNavigate = null;
     // Element focus returns to when the unsaved banner is dismissed without navigating.
@@ -290,13 +290,14 @@ export function init() {
         const discardBtn  = document.getElementById('unsavedDiscardBtn');
         const keepBtn     = document.getElementById('unsavedKeepBtn');
         if (!banner || !discardBtn || !keepBtn) return;
-        // THE LEAVE QUESTION'S OWN WORDS (confirm review, Nov 2026). The banner stays non-modal for moves within
-        // the page — another week, another member — but says what the dialog says, so one act has one wording.
-        banner.setAttribute('aria-label', LEAVE_QUESTION.title);
+        // THE IN-PAGE QUESTION'S OWN WORDS (review, 22 Nov 2026). Every banner question is a move WITHIN the
+        // page — another week, This week, another member, the date field, a jump to a booking — so it is
+        // `DISCARD_QUESTION`, Overtime's in-page wording too; leaving the page asks `LEAVE_QUESTION`, in a dialog.
+        banner.setAttribute('aria-label', DISCARD_QUESTION.title);
         const bannerMsg = document.getElementById('unsavedBannerMsg');
-        if (bannerMsg) bannerMsg.textContent = `${LEAVE_QUESTION.title} ${LEAVE_QUESTION.message}`;
-        discardBtn.textContent = LEAVE_QUESTION.confirmLabel;
-        keepBtn.textContent = LEAVE_QUESTION.cancelLabel;
+        if (bannerMsg) bannerMsg.textContent = `${DISCARD_QUESTION.title} ${DISCARD_QUESTION.message}`;
+        discardBtn.textContent = DISCARD_QUESTION.confirmLabel;
+        keepBtn.textContent = DISCARD_QUESTION.cancelLabel;
 
         discardBtn.addEventListener('click', () => {
             banner.style.display = 'none';
@@ -983,21 +984,25 @@ export function init() {
         // THE BUTTON'S IDLE STATE IS admin-booked-periods.js's, restored when this promise settles.
         if (!deleteIds.length) return;
         const idSet = new Set(deleteIds);
-        // Wait for the session, as executeSave() does: auth.currentUser is briefly null while a returning
-        // session restores, and a delete then would report a false "Delete failed".
-        await sessionReady;
-        if (!auth.currentUser) {
-            if (feedbackEl) {
-                holdFeedback(feedbackEl);
-                setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
-                feedbackEl.className = 'feedback error';
-            }
-            feedbackEl?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-            return;
-        }
+        // IN FLIGHT FROM THE CONFIRMING TAP, BEFORE ANYTHING IS AWAITED (review, 22 Nov 2026). Marked only after
+        // the session wait, a second confirming tap during that wait still found the control armed and
+        // enabled, passed `twoTap`, and started a second delete of the same days. A disabled control takes no
+        // tap, and the `finally` below gives it back on every path, the signed-out one included.
         btn.disabled    = true;
         btn.textContent = '…';
         try {
+            // Wait for the session, as executeSave() does: auth.currentUser is briefly null while a returning
+            // session restores, and a delete then would report a false "Delete failed".
+            await sessionReady;
+            if (!auth.currentUser) {
+                if (feedbackEl) {
+                    holdFeedback(feedbackEl);
+                    setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
+                    feedbackEl.className = 'feedback error';
+                }
+                feedbackEl?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+                return;
+            }
             // The rows this card LISTED are compared with the server and deleted in ONE transaction.
             await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(allForDelete.filter(o => idSet.has(o.id)))), { held: false });
             removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage

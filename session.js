@@ -469,8 +469,10 @@ export async function ensureFirebaseSession(name, _gen, password) {
             // THE PROBE IS A SIGN-IN, SO ITS REFUSAL IS ONE (review, Nov 2026). On a device with no flag
             // yet this went on to the SDK sign-in with the same surname: two wrong-password requests a
             // load from the station's one address, whose shared throttle is why the flag exists. Stop
-            // here as the recheck does, remember it as the SDK's refusal of the surname would have, and
-            // record that refusal's code, so the attempt still ends NONE with a reason to read.
+            // here as the recheck does, remember it, and record a refusal's code, so the attempt still
+            // ends NONE with a reason to read. 'credential' also covers no such account and a DISABLED
+            // one, which the probe cannot tell apart from a wrong password: both get the flag and the
+            // code `auth/invalid-credential` — on purpose (`isRestCredentialRejection` says why).
             if (resetAt === 'credential') {
                 lsSet(noDefaultKey(name), String(Date.now()));
                 lastError = 'auth/invalid-credential';

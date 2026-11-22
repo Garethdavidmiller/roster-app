@@ -646,7 +646,8 @@ of every rule — read it before changing one. What governs it:
   the short-turnaround row it duplicates.
 - **NOT-APPLICABLE ≠ CLEAR, and STANDING ≠ PRESENT.** A factor true of every 06:20 duty (FF2) is a
   property of the operation: `standing`, counted separately, because adding it to the findings would
-  claim the designer could have avoided it.
+  claim the designer could have avoided it. Only while the design's window OPENS in 05:00–07:00:
+  opened earlier or later, the opening does not need those starts, so they are `present`.
 - **Only FF19 carries `confirm: true`**, rendered "(definition to confirm)". On 28 Sep 2026 the owner
   checked the once-unsettled rows against ORR's *Managing rail staff fatigue* (Aug 2024): MRSF's 7×8h
   reads eight hours or more; FF17 is ORR's own definition (a shift starting earlier than the last,

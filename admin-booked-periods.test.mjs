@@ -702,3 +702,26 @@ describe('the two-tap ignores the second tap of a double tap', () => {
         assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 3?', 'Delete selected', 'Confirm delete 3', 'a|b|c'), true);
     });
 });
+
+// ── THE COORDINATOR'S DELETE IS IN FLIGHT FROM THE CONFIRMING TAP (review, 22 Nov 2026) ──────────
+// `deletePeriodOverrides` (admin-app.js, which imports Firebase and so cannot load here) marked its ✕
+// disabled only AFTER `await sessionReady`, so a second confirming tap during that wait found it armed
+// and enabled, passed `twoTap`, and started a second delete of the same days. A source guard, because
+// the coordinator has no unit seam: the control is disabled before the function's first `await`, and
+// given back in a `finally` that covers the session wait's signed-out return too.
+describe('admin-app.js marks a period delete in flight before it waits for anything', () => {
+    it('btn.disabled = true comes before the first await, inside a try whose finally re-enables it', async () => {
+        const { readFileSync } = await import('node:fs');
+        const src = readFileSync(new URL('./admin-app.js', import.meta.url), 'utf8');
+        const start = src.indexOf('async function deletePeriodOverrides(');
+        assert.ok(start > 0, 'premise: the coordinator still holds the period delete');
+        const body = src.slice(start, src.indexOf('\n    }\n', start));
+        const disabled = body.indexOf('btn.disabled    = true;');
+        const firstAwait = body.indexOf('await ');
+        const tryAt = body.indexOf('try {');
+        assert.ok(disabled > 0 && firstAwait > 0, 'premise: both are there');
+        assert.ok(disabled < firstAwait, 'the control is disabled before the first await');
+        assert.ok(disabled < tryAt && tryAt < body.indexOf('await sessionReady'), 'the session wait is inside the try');
+        assert.match(body.slice(body.lastIndexOf('} finally {')), /btn\.disabled = false;/, 'and the finally gives the control back');
+    });
+});

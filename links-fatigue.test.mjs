@@ -414,6 +414,29 @@ describe('assessFatigue — the report as a whole', () => {
         assert.match(ff2.detail, /property of the operation/);
     });
 
+    // ONE SENTENCE AND ONE STATUS PER OPENING (24-hour check, Nov 2026). An opening before 05:00 was told
+    // "these starts come before the opening", which a 05:00–07:00 start never does; and an opening after
+    // 07:00 kept `standing`, so the triage line called the starts "from the operation" while the row said
+    // they fell outside it. Only an opening inside the band makes them the operation's.
+    test('FF2 says where the opening falls — before 05:00, within the band, after 07:00 — and is standing only within it', () => {
+        const at = (/** @type {string} */ start) => assessFatigue(GOOD, 2,
+            { window: { monSat: { start, end: '23:25' }, sun: { start: '07:15', end: '23:25' } } }).results.find(r => r.code === 'FF2');
+        const before = at('04:00'), within = at('06:20'), after = at('07:30');
+        assert.equal(within.status, 'standing');
+        assert.match(within.detail, /^4 of \d+ timed duties\. Unavoidable on this link — the station opens at 06:20 Monday to Saturday — so this is a property of the operation, not of the design\.$/);
+        assert.equal(before.status, 'present', 'an opening before 05:00 does not need a 05:00–07:00 start');
+        assert.match(before.detail, /The staffed window opens at 04:00 Monday to Saturday, before 05:00, so the opening does not need these starts — they come from this design\.$/);
+        assert.doesNotMatch(before.detail, /come before the opening|Unavoidable/);
+        assert.equal(after.status, 'present', 'an opening after 07:00 does not need them either');
+        assert.match(after.detail, /The staffed window opens at 07:30 Monday to Saturday, so these starts come before the opening — they come from this design, not from the operation\.$/);
+        assert.doesNotMatch(after.detail, /Unavoidable/);
+        for (const r of [before, within, after]) assert.equal(r.value, 4, 'the count does not move with the opening');
+        // The boundaries: 05:00 is in the band, 07:00 is not.
+        assert.equal(at('05:00').status, 'standing');
+        assert.equal(at('07:00').status, 'present');
+        assert.equal(at('04:59').status, 'present');
+    });
+
     test('the night factors are NOT APPLICABLE until a night duty appears — then all of them flip', () => {
         const a = assessFatigue(GOOD, 2);
         const nightCodes = ['FF6', 'FF8', 'FF9', 'FF12', 'FF14', 'FF16', 'FF20'];
