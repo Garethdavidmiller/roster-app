@@ -2432,13 +2432,14 @@ test('links: the generator\'s boxes and the Import fields wear the app\'s field 
         // boxes keep it by decision (links.css, "THE CLOSED FACE IS THE APP'S"): there the outline is the ring.
         if (!(browserName === 'webkit' && seen.platformSelect)) expect(seen.ring, `${sel}'s ring with focus`).toBe(token.ring);
     }
-    // The setup buttons beside them are pills, and wore the dialog corner (--radius-xl), which looks
-    // the same only while a pill is under 40px tall — chip-radius-parity reads chip NAMES, not this.
+    // The setup buttons beside them are BUTTONS, so the button corner (css-tokens.md → Corners). They
+    // were pills, and before that wore the dialog corner (--radius-xl); chip-radius-parity reads chip
+    // NAMES, not this, so the computed corner is asserted here.
     expect(await page.locator('#genSetLoadBtn').evaluate(el => {
-        const probe = document.createElement('i'); probe.style.borderRadius = 'var(--radius-pill)'; document.body.append(probe);
-        const pill = getComputedStyle(probe).borderTopLeftRadius; probe.remove();
-        return getComputedStyle(el).borderTopLeftRadius === pill;
-    }), 'a set button wears the pill corner').toBe(true);
+        const probe = document.createElement('i'); probe.style.borderRadius = 'var(--radius-button)'; document.body.append(probe);
+        const corner = getComputedStyle(probe).borderTopLeftRadius; probe.remove();
+        return getComputedStyle(el).borderTopLeftRadius === corner;
+    }), 'a set button wears the button corner').toBe(true);
     await sheetAction(page, 'importDesignBtn');
     await expect(page.locator('#linksImportText')).toBeFocused();   // the dialog opens on the paste box
     await page.locator('#linksImportText').blur();
@@ -4379,8 +4380,9 @@ test('links compare: scrolling one column moves the other to the same day', asyn
     const cols = page.locator('.compare-grid-scroll');
     await expect(cols).toHaveCount(2);
     // Narrow enough that the 560px-minimum tables genuinely overflow their columns — without real
-    // overflow `scrollLeft` stays 0 and the assertion below would pass on a broken sync.
-    await page.setViewportSize({ width: 1024, height: 1000 });
+    // overflow `scrollLeft` stays 0 and the assertion below would pass on a broken sync. A phone
+    // width: from 1024px each half holds all seven days, so nothing there scrolls.
+    await page.setViewportSize({ width: 480, height: 1000 });
     const room = await cols.first().evaluate(el => el.scrollWidth - el.clientWidth);
     expect(room, 'the columns must actually overflow, or this test proves nothing').toBeGreaterThan(0);
 
