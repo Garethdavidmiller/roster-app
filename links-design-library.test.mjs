@@ -55,7 +55,7 @@ function setup(over = {}) {
     _confirmed = [];
     // `seq` is the ORDER of the calls that matter to the masthead: whether a design is recorded as
     // queued before or after the open (or the picker repaint) that draws it.
-    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [], tone: [], removed: [], marks: [], queued: [], seq: [] });
+    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [], tone: [], removed: [], marks: [], queued: [], refreshed: [], seq: [] });
     /** @type {any[]} */ const designs = [];
     let open = false;
     let dirty = false;
@@ -73,7 +73,7 @@ function setup(over = {}) {
         isDirty: () => dirty,
         hasOpenDesign: () => open,
         renderPicker: () => { calls.picker.push(1); calls.seq.push('picker'); },
-        refreshLists: async () => {},
+        refreshLists: async () => { calls.refreshed.push(1); calls.seq.push('refresh'); },
         actionStatus: (msg, tone) => { calls.status.push(msg); calls.tone.push(tone); },
         getHeader: () => null,
         removeDesigns: (ids, mark) => { calls.removed.push([...ids]); calls.marks.push(mark); calls.seq.push('removed'); return over.kept ?? false; },
@@ -454,5 +454,50 @@ describe('Keep only the shortlist keeps edits made while its moves run', () => {
         await settle();
         assert.doesNotMatch(s.calls.status.at(-1), /still here/);
         assert.equal(s.calls.tone.at(-1), 'ok');
+    });
+});
+
+// THE LISTS ARE RE-READ WHEN A COLLEAGUE HAS SETTLED SOMETHING, ONCE, AND OTHERWISE NOT (test audit, Nov 2026). The
+// harness answered `refreshLists` with nothing and recorded nothing, so deleting any of the library's three calls
+// left this file green. Each outcome a colleague settled re-reads both lists exactly once, before saying so; the
+// library's own outcomes, which change nothing it does not already know, do not.
+describe('the library re-reads the lists exactly when a colleague settled something', () => {
+    const OLD = { id: 'old1', name: 'Old', updatedBy: 'S. Silva', updatedAt: { toMillis: () => Date.UTC(2026, 8, 1) } };
+    for (const status of ['gone', 'already-restored']) {
+        test(`a restore that finds the design ${status === 'gone' ? 'removed for good' : 'already restored'} re-reads them once, then says so`, async () => {
+            const s = setup({ restore: async () => ({ status }) });
+            s.lib.setBin([BINNED('a', 'Alpha')]);
+            await clickBin('.bin-restore', 'a');
+            assert.deepEqual(s.calls.refreshed, [1]);
+            assert.match(s.calls.seq.join(','), /refresh/);
+        });
+    }
+    test('a restore that went through does not', async () => {
+        const s = setup();
+        s.lib.setBin([BINNED('a', 'Alpha')]);
+        await clickBin('.bin-restore', 'a');
+        assert.deepEqual(s.calls.refreshed, []);
+    });
+    test('a removal a colleague\'s restore spared re-reads them once; one that went through does not', async () => {
+        const spared = setup({ purge: async () => 'restored-elsewhere' });
+        spared.lib.setBin([BINNED('a', 'Alpha')]);
+        await clickBin('.bin-purge', 'a');
+        assert.deepEqual(spared.calls.refreshed, [1]);
+        const removed = setup();
+        removed.lib.setBin([BINNED('a', 'Alpha')]);
+        await clickBin('.bin-purge', 'a');
+        assert.deepEqual(removed.calls.refreshed, []);
+    });
+    test('Keep only the shortlist re-reads them once when a move was skipped, before the line — and not when all moved', async () => {
+        const skipped = setup({ activeId: () => null, binIfStill: async (/** @type {string} */ id) => (id === 'old1' ? 'moved' : 'skipped') });
+        skipped.designs.push(OLD, { ...OLD, id: 'old2', name: 'Old two' });
+        await fire('keepShortlistBtn', 'click');
+        await settle();
+        assert.deepEqual(skipped.calls.refreshed, [1]);
+        const all = setup({ activeId: () => null });
+        all.designs.push(OLD);
+        await fire('keepShortlistBtn', 'click');
+        await settle();
+        assert.deepEqual(all.calls.refreshed, []);
     });
 });
