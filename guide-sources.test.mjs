@@ -883,6 +883,28 @@ test('rangers: the key explains only the markers a card on the page wears', () =
     }
 });
 
+// …AND EVERY MARKER A CARD WEARS IS IN THE KEY (review, 22 Nov 2026). The test above is one direction only: a
+// product marked unconfirmed (amber "⚠ Check") could ship with its key line still absent and every check green —
+// a gateline reader then meets a badge the page never explains. The Chiltern side is keyed by its tokens: a
+// "yes" badge reads as ✓ and a "no" as ⊘; an unconfirmed badge needs a key line of its own.
+test('rangers: every marker a card wears is explained in the key', () => {
+    const html = RR_HTML.replace(/<!--[\s\S]*?-->/g, ' ');
+    const key = html.match(/<div class="key"[^>]*>([\s\S]*?)<\/div>/);
+    assert.ok(key, 'the Rangers key was not found');
+    const keyed = new Set([...key[1].matchAll(/<span class="key-item"><span class="([^"]+)">/g)].flatMap(m => m[1].trim().split(/\s+/)));
+    const cards = html.replace(key[0], ' ');
+    const worn = new Set([...cards.matchAll(/class="(?:myb-status|ch-status|pill) ((?:myb-status|ch-status|pill)-[a-z-]+)"/g)].map(m => m[1]));
+    assert.ok(worn.size >= 3, `only ${worn.size} worn markers were read — the scan is wrong`);
+    // A conflict badge, on either side, is the "⚠ conflict" state the key's conflict line explains in the same words;
+    // an UNCONFIRMED one ("⚠ Check", amber) is a different state and needs a line of its own.
+    const CHILTERN_TOKEN = /** @type {Record<string, string>} */ ({ 'ch-status--yes': 'tok-ok', 'ch-status--no': 'tok-no',
+        'ch-status--conflict': 'pill-conflict', 'myb-status--conflict': 'pill-conflict' });
+    for (const mark of worn) {
+        const explainedBy = CHILTERN_TOKEN[mark] ?? mark;
+        assert.ok(keyed.has(explainedBy), `a card wears "${mark}" but the key has no line for it — add one to the key strip`);
+    }
+});
+
 test('rangers: the Thames 7-Day conflict never leaks onto the 3-Day product', () => {
     // Two different tickets. The 3-Day page names GWR only; merging the finding would invent
     // validity for a product that does not have it.
