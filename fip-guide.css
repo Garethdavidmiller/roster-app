@@ -1,27 +1,17 @@
 /* MYB Roster — FIP Travel Guide page styles. Linked by fip-guide.html after guide-shell.css. */
 
 :root {
-    /* --navy / --navy-dark / --gold defined in guide-shell.css */
-    --text:       #1a1a2e;
-    --mid:        #555;
-    --light:      #666666;
-    --border:     #dde1e8;
-    --bg:         #f4f5f8;
-    --white:      #fff;
-    --green-bg:   #e8f5e9;
-    --green-text: #2e7d32;
-    --red-bg:     #ffebee;
-    --red-text:   #c62828;
+    /* The palette — greys, grounds, the green/amber/red families — is guide-shell.css's, one set for every
+       guide (Nov 2026: this page's copy had drifted, --light #666666 and --red-bdr #f5c0c0). This page's own: */
+    --green-text: var(--green);   /* this page's names for the shell's status colours */
+    --red-text:   var(--red);
     /* THE NOTES TAKE THE GUIDE FAMILY'S TINTS (v25.84): the amber of the Railcard and Rangers guides' notes
        and banner, the blue of the document guides' info boxes. The yellow box was ringed in a dark gold,
        the heaviest edge on any guide, and the blue was a second, brighter blue. */
-    --amber:      #b45000;   /* = railcard/rangers --amber */
-    --amber-bg:   #fff8e1;   /* = railcard/rangers --amber-bg */
     --yellow-bg:  var(--amber-bg);
     --yellow-bdr: color-mix(in srgb, var(--amber) 30%, transparent);   /* the Rangers note's edge, before v25.84 */
     --blue-bg:    var(--info-bg);   /* guide-shell.css: the document guides' info blue */
     --blue-text:  #1565c0;
-    --red-bdr:    #f5c0c0;
     --blue-bdr:   #d6e2f7;   /* = guide-doc.css --info-border */
     /* The finder is the app's field (css-tokens.md → "Corners — a field and the button under it share one"). */
     --field-bg:     #f0f3f7;   /* = the app's --surface-sunken */
@@ -69,8 +59,8 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 .card {
     background: var(--white);
     border-radius: 12px;
-    /* Layered shadow (v18.79) — tight contact line + soft ambient, matching the app's card depth */
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 12px rgba(0,30,60,0.07);
+    /* guide-shell.css's --shadow-card, the guides' one card lift (it was a 12px blur here, 10px elsewhere) */
+    box-shadow: var(--shadow-card);
     margin-bottom: 10px;
 }
 .card-pad { padding: 14px 16px; }
@@ -154,17 +144,8 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 .fip-unresolved { background: var(--red-bg); border: 1px solid var(--red-bdr); border-left: 4px solid var(--red-text); }
 .fip-unresolved strong:first-child { color: var(--red-text); }
 
-/* The banner a page with a provisional claim carries above its chip bar (the Rangers and Railcard
-   shape, in this page's tokens). Amber, not red: nothing on the page is wrong. 728 = the 760px column
-   less its 16px sides, so its words start where the header's ← and the chips do. */
-.source-banner {
-    background: var(--yellow-bg);
-    border-bottom: 2px solid var(--amber);
-    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
-}
-.source-banner > * { max-width: 728px; margin-left: auto; margin-right: auto; }
-.source-banner .draft-title { font-weight: 800; color: var(--amber); font-size: 13px; letter-spacing: 0.2px; margin-bottom: 4px; }
-.source-banner p { font-size: 13px; color: var(--text); margin-top: 0; margin-bottom: 0; }   /* never `margin: 0` — it undoes the centring above */
+/* The banner a page with a provisional claim carries above its chip bar is guide-shell.css's — the
+   Railcard and Rangers guides' own, one recipe for the three. */
 
 /* ── Eurostar pricing (v18.83) ───────────────
    Compact fare table: one row per route, price right-aligned, the shared standard-class
@@ -279,7 +260,7 @@ a[href^="tel:"]:not([class]) { white-space: nowrap; }
 details {
     background: var(--white);
     border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(0,30,60,0.05), 0 3px 12px rgba(0,30,60,0.07);
+    box-shadow: var(--shadow-card);
     margin-bottom: 8px;
     overflow: hidden;
 }

@@ -15,13 +15,16 @@
 
 /* ── Variables ───────────────────────────────────────── */
 :root {
-    /* --navy / --navy-mid / --gold / --info-bg defined in guide-shell.css */
+    /* The palette is guide-shell.css's. These two guides OVERRIDE its four greys with their own, set for the
+       denser two-column sheet, and keep their own ground (--page-bg). */
     --text:    #16202e;
     --mid:     #4a5563;
     --light:   #5a6472;
     --border:  #e3e7ee;
     --hair:    #eef1f6;
-    --bg:      #f7f9fc;   /* card fill */
+    /* The fill of a code chip and of a table's even rows. It was --bg, which in guide-shell.css is the card
+       guides' page ground — one name, two meanings, on the one stylesheet chain (Nov 2026). */
+    --card-fill: #f7f9fc;
     --page-bg: #eef1f6;   /* flat edge-to-edge guide background (rules/guide-pages.md) */
     --card:    #ffffff;
 
@@ -67,8 +70,8 @@ body {
 }
 
 /* The section chip bar (guide-shell.css) on the page's own ground (v25.80). The shell paints it `--bg`,
-   which on the card guides IS the page colour; here `--bg` is the card fill, and the bar read as a
-   pale band laid across the page rather than part of it. */
+   the card guides' page colour, a hair lighter than this ground: here the bar read as a pale band laid
+   across the page rather than part of it. */
 .chip-bar { background: var(--page-bg); }
 
 /* ── In-document banner (titles the printed page; also an on-screen divider) ── */
@@ -217,7 +220,7 @@ thead th {
 }
 tbody td { padding: 6px 9px; border-bottom: 1px solid var(--hair); vertical-align: top; background: var(--card); }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:nth-child(even) td { background: var(--bg); }
+tbody tr:nth-child(even) td { background: var(--card-fill); }
 td strong { color: var(--navy); }
 
 /* ── Footer ──────────────────────────────────────────── */
@@ -233,7 +236,7 @@ td strong { color: var(--navy); }
 /* ── Body copy ───────────────────────────────────────── */
 p { font-size: 12.5px; color: var(--mid); margin-bottom: 8px; line-height: 1.55; }
 p strong, li strong { color: var(--text); }
-code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--navy); }
+code { background: var(--card-fill); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--navy); }
 
 /* ── Mobile: single column (screen only — print keeps two cols) ── */
 @media screen and (max-width: 640px) {
