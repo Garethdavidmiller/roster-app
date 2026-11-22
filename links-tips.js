@@ -35,10 +35,9 @@
  * `links-rotation-parity.test.mjs` enforces across every `links-*.js` file including this one.
  */
 
-import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } from './links-design.js';
+import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from './links-design.js';
 import { buildDefaultTargets, OPENING_TURNS, CLOSING_TURNS, EVENING_TURNS_FROM_22 } from './links-default-targets.js';
 import { CONTRACTED_DAYS_CEILING, contractedDaysFromCounts } from './links-limits.js';
-import { WEEKENDS_OFF_AIM_PCT } from './links-analysis.js';
 
 /**
  * The default table's figures, READ from the table rather than typed (Nov 2026): the panel had

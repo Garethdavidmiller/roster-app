@@ -161,3 +161,14 @@ describe('the wiring (links-design-library.js, links-app.js, links.html)', () =>
         assert.match(app, code('removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else { renderDesignPicker(); renderGrid(); renderBrushBar(); compare.renderCompare(); } },'));
     });
 });
+
+// ── THE ··· MORE ROW STATES THE CUT-OFF, AND IT IS THIS CONSTANT (Nov 2026) ─────────────────────
+// "Older saved designs" did not say older than WHAT. The row now names the date, and a date typed
+// into markup is a second copy of `OLDER_BEFORE` — so the two are tied here.
+test('the Keep only the shortlist row names OLDER_BEFORE as its date', () => {
+    const html = readFileSync(new URL('./links.html', import.meta.url), 'utf8');
+    const said = html.match(/Keep only the shortlist<small>Designs last saved before ([^<]+) move to Recently deleted<\/small>/)?.[1];
+    assert.ok(said, 'the row no longer states its cut-off date');
+    const expected = new Date(OLDER_BEFORE).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
+    assert.equal(said, expected, `the row says "${said}", but OLDER_BEFORE is ${expected}`);
+});

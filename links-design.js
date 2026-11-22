@@ -172,6 +172,13 @@ export function spareDrawsOnFour(i) {
 export const DEFAULT_MAX_RUN = 6;
 
 /**
+ * The share of weeks with a full weekend off the Design checks' Weekends off row aims for — an aim,
+ * like `DEFAULT_MAX_RUN`, not a limit. Declared once because the row and its `?` panel
+ * (`links-tips.js`) both quote it, and two literals are two figures waiting to disagree.
+ */
+export const WEEKENDS_OFF_AIM_PCT = 40;
+
+/**
  * The longest run of consecutive worked days a line can be made to carry — the WORST CASE, because
  * a spare week's four duties can be placed on any of Monday to Saturday, its Sunday can be worked on
  * top as overtime (`spareDrawsOnFour`), and we do not know which.

@@ -378,7 +378,7 @@ Coordinator for `links.html`, the link-design workspace (designers only): the pa
 
 ### `links-analysis.js`
 The read-only analysis on `links.html` — the Coverage heat map with its demand rows, the Design checks card and the sticky summary strip — rendered from the pure modules' results. `.claude/rules/links-design.md` invariant 10. Tested by `links-analysis.test.mjs`.
-- **Exports:** `WEEKENDS_OFF_AIM_PCT` · `initLinksAnalysis`
+- **Exports:** `initLinksAnalysis`
 
 ### `links-compare-analysis.js`
 What the difference between two Links designs MEANS, for compare mode; pure, and rendered by `links-compare.js`. It scores nothing, and the header holds its four rules. Tested by `links-compare-analysis.test.mjs` and `links-compare.test.mjs`.
@@ -398,7 +398,7 @@ How the design grid on `links.html` is operated — one Tab stop and the arrow k
 
 ### `links-design.js`
 The pure link-design maths — reading a shift, coverage, hours, the generator and its rest repair, and the design checks — with no DOM, no Firebase and no imports. `ROTATING_LINES` is the one declaration of the rotation length. `.claude/rules/links-design.md` defers its export list to this entry. Tested by `links-design.test.mjs` and `links-contract.test.mjs`.
-- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
+- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
 
 ### `links-target-sets-store.js`
 The Firestore half of the saved staffing setups, with every Firebase handle injected so it loads in Node; used by `links-generator-targets.js`. Its two rules are in the header. Tested by `links-target-sets-store.test.mjs`.

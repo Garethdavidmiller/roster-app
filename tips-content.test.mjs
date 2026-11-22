@@ -23,9 +23,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } from './links-design.js';
+import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from './links-design.js';
 import { DEFAULT_TABLE_FIGURES } from './links-tips.js';
-import { WEEKENDS_OFF_AIM_PCT } from './links-analysis.js';
 // trains-tips.js reads its dates and numbers from the page's own modules (v24.83), so it is evaluated
 // with the same values.
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';

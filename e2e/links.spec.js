@@ -378,7 +378,9 @@ test('links: a first-time designer gets the orientation, and can always get it b
 
     const panel = page.locator('#linksWelcomeLb');
     await expect(panel).toBeVisible();
-    // The three facts, each one something a newcomer could otherwise get wrong.
+    // The facts, each one something a newcomer could otherwise get wrong — what a link IS first, its
+    // line count stamped from ROTATING_LINES (Nov 2026).
+    await expect(panel).toContainText(`A link is the rota everyone works through in turn: ${ROTATING_LINES} lines, one week each`);
     await expect(panel).toContainText('never the live roster');
     await expect(panel).toContainText('do not pass or fail');
     await expect(panel).toContainText('shared');
@@ -1842,7 +1844,7 @@ test('links generator: on a phone every first-column label stays put while the c
                 .map(s => Math.round(/** @type {Element} */ (wrap.querySelector(s)).getBoundingClientRect().left - edge)) };
     });
     expect(lefts.scrolled, 'the premise: the table scrolls at this width').toBe(true);
-    expect(lefts.labels, 'time head, Spare weeks, Total on duty, Hours a week — each at the left edge').toEqual([0, 0, 0, 0]);
+    expect(lefts.labels, 'time head, Cover weeks, Lines used, Hours a week — each at the left edge').toEqual([0, 0, 0, 0]);
 });
 
 test('links sets: the picker lists every designer\'s sets, and Save follows whose is selected', async ({ page }) => {
