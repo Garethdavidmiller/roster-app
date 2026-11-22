@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: November 2026 — v26.40 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -606,6 +606,11 @@ pre-commit hook enforces both).
 
 **Success:** the touched file is smaller, what moved has Node tests of its own, and no browser test
 had to change.
+
+**Progress:** `links-app.js` was split in v26.50, inside the Links review that changed its rules: 2,742
+lines to about 1,860, with the Build press, one shared analysis, the grid cells, today's link and print
+preparation each in a Node-tested module of its own (`FILE_INDEX.md`). Its ratchet cap moved down with it.
+`admin-app.js` and `paycalc-app.js` remain, each for its own next change.
 
 ### Build tooling — trigger-based; no action currently
 **Status:** Conditional · **Do nothing until a trigger occurs**

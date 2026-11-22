@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: November 2026 — v26.40 · Updated every 0.10 version*
+*Last updated: November 2026 — v26.50 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -1584,11 +1584,11 @@ not do, or cannot know:
   no distinction between named and unnamed positions. The heat map colour scale is relative to the
   week's own peak, so a lightly staffed day naturally shows cooler colours.
 - **EVERY line rotates and must be filled.** In a rotating link everyone passes through every line,
-  so an all-rest line is an *unfinished* line, not a vacancy — the link can't be authorised then
+  so an all-rest line is an *unfinished* line, not a vacancy — the link can't be agreed and then
   re-cut each time a post is filled. The link is designed as a full rotation so it survives staff
   changes; a member on fixed hours sits outside it, on a fixed pattern of their own
   (`rosterType: 'fixed'`), not in this designer. A Design-checks row and amber grid marker
-  (`.row-unfilled`) flag any unfilled line until it is designed. The auto-generator produces a
+  (`.row-unfilled`) flag any unfilled line until it is designed. The generator (Build a link) produces a
   complete rotation in one step, and "Start with a blank grid" (`#linksEmptyNew`) and the importer
   (`links-import.js`) create a design without it.
 - **The rotation LENGTH is hardcoded by design.** `ROTATING_LINES` reflects the agreed link concept —
