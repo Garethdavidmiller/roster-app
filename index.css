@@ -1674,7 +1674,7 @@
             .tv-day-num { font-size: var(--type-body); }
             .team-table th.tv-name-col { max-width: none; }
         }
-        /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
+        /* ---- Team info (?) lightbox — the Team Week help panel, on the glass of the Calendar's own overlays ---- */
         /* #teamInfoLightbox uses .lb-overlay — no unique properties */
         #teamInfoContent {
             background: rgba(255, 255, 255, 0.09);

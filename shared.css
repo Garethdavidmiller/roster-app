@@ -3007,7 +3007,7 @@ button.nav-panel-link--notices {
 }
 
 /* `.nav-panel-signout` and `.nav-panel-footer` set a display, which beats the `hidden` attribute's UA
-   rule. Without these, Lock Calendar (rendered hidden, revealed for a PIN viewer) showed to every
+   rule. Without these, End staff PIN (rendered hidden, revealed for a PIN viewer) showed to every
    signed-in member as an action that does nothing, and a locked visitor's footer showed as an empty
    bar with a blank name. No `!important`: at (0,2,0) each already outranks the (0,1,0) rule that sets
    its display, and no other rule names either class. */
@@ -3780,8 +3780,6 @@ body.auth-ready .boot-placeholder { display: none; }
     border-radius: 8px;
     margin-top: 1px;
 }
-/* The panel's only visible way out: `--text-light` (6.0:1), as the date picker's ✕. It was black at 35%,
-   2.43:1 — under both floors, and only a mouse's hover lifted it (whole-app review, Nov 2026). */
 
 /* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----
    In shared.css because the roster upload that wraps its writes runs on OPERATIONS, which does not
