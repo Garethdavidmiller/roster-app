@@ -79,6 +79,11 @@ list.
 | `links-grid-input.js` | how the grid is OPERATED — one Tab stop and the arrow keys, a mouse stroke that paints every cell it crosses, the paint bar's height for the sticky header; what a cell MEANS stays in the coordinator |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
 | `links-compare-analysis.js` | what the difference between two designs MEANS — cover, limits and fatigue for both (pure, `compareDesigns`) |
+| `links-analyse.js` | ONE reading of a design for every panel — `analyse`, keyed on CONTENT and computed part by part on first ask, and `readAgainstService` |
+| `links-grid-cells.js` | what one grid cell SAYS — its label, its name ("RD, rest day"), and the markup of the editable grid, the compare grids and their cover rows |
+| `links-build-press.js` | what the Build press SAYS and remembers — the refusals, the question before a build replaces a design, the status line, which build of these inputs it is, and the surplus lines a longer design keeps |
+| `links-today.js` | what the page reads from TODAY's roster — the shift times offered, and today's link against the fatigue factors, measured once |
+| `links-print.js` | the page prepared for paper and put back — every disclosure opened, and the print ended by the reader's next touch where iOS sends no `afterprint` |
 | `links-concurrency.js` | the pure co-editing rules (three historical silent-overwrite bugs, one test each), and how a list read answered after the page changed the list is applied (`mergeListAnswer`) |
 | `links-deletion.js` | the soft-delete rules: what counts as deleted, its label and order, and what a delete or a rename that found the design already gone says |
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in |
@@ -958,11 +963,11 @@ finish runs into Sunday's start.
   default is unchanged, and FILTERED on, because a weight can always be outbid.
 
 **Deterministic per attempt.** The 2-opt is a local search, so where it starts decides where it lands.
-Attempt 0 starts from the greedy order, so the first press is canonical; pressing Generate again on
+Attempt 0 starts from the greedy order, so the first press is canonical; pressing Build again on
 unchanged inputs moves to the next attempt, which keeps the best of three seeded shuffles (mulberry32 on
 the attempt number — **never `Math.random`, never the clock**), and any change of input goes back to
 attempt 0. So "design 3" means the same design on every device, and a variant is recovered by pressing
-Generate the same number of times. The status line names the design, tracks the best so far on the
+Build the same number of times (`createBuildCounter`, `links-build-press.js`). The status line names the design, tracks the best so far on the
 ticked objectives, and says how to get a superseded best back. **The even cover spread and the boundary
 rest are FILTERS on the candidates as well as weights**: a local search can only pay a price it can find
 a path away from. If all three starts fail, the attempt falls back to the canonical design and the
@@ -1078,7 +1083,7 @@ Measured at 390px and 1280px, not eyeballed. The reasoning for each rule is besi
   the first generate grows the grid card above by a whole grid, so the handler re-anchors the scroll to
   keep the button under the finger. Both pinned by an e2e. From the press until the line-order search
   has run, both lines read "Building the link…" and the button is held (links-app-21), so the finished
-  line ("Link generated …"), never the mirror's visibility, is what says a design exists.
+  line ("Link built …"), never the mirror's visibility, is what says a design exists.
 - **The objective labels:** the label text is ONE `<span>` (a flex item), so it wraps as a block, and a
   numeric clause has its own line. **Grid is wrong here**: every child becomes an item, and the number
   box drops into the checkbox's column. **A number and the words that qualify it are one unbreakable
