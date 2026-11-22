@@ -23,7 +23,7 @@ import { verdictFor, minutesWords, hourWords, hourNote, rateWords, balanceFacts,
 import { headlineChanges } from './trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks,
     leadWords, changesTitle, renderFurtherChanges, SIGN_IN_ABOUT } from './trains-render.js';
-import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL, daysLabel, serviceMinutes } from './trains-change.js';
+import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL, daysLabel, serviceMinutes, parseTypedTime } from './trains-change.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { lastTrains } from './trains-stations.js';
 import { TIMETABLES, STATIONS, STATION_ORDER, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from './trains-data.js';
@@ -1698,10 +1698,13 @@ describe('the lookup and the cards as the words review read them (Nov 2026)', ()
         assert.doesNotMatch(renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'HWY', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: false }), /journey-planner/);
     });
 
-    // "5.15pm" passes through "5.15p", which is no time, so the box put up its hint and the live region read it.
-    test('a.m. or p.m. still being typed is recognised, for an hour that can take one', async () => {
+    // "5 pm" passes through "5 ", which is no time, so the box put up its hint and the live region read it. A tail begun
+    // ("5.15p") is a time now, answered as one: kept pending, it left the last answer up beneath it (24-hour check).
+    test('a.m. or p.m. still to come is recognised, for an hour that can take one — and a tail begun is a time', async () => {
         const { amPmPending } = await import('./trains-cards.js');
-        for (const v of ['5 ', '5.15 ', '5.15p', '5.15 p', '5.15p.', '515a', '12 ', '12p']) assert.equal(amPmPending(v), true, v);
-        for (const v of ['', '5', '5.', '5.1', '5.15', '5.15pm', '5.15 a.m.', '1715 ', '17:15p', '0.15 ', '13p', 'abc ']) assert.equal(amPmPending(v), false, v);
+        for (const v of ['5 ', '5.15 ', '515 ', '12 ', '12.15  ']) assert.equal(amPmPending(v), true, v);
+        for (const v of ['', '5', '5.', '5.1', '5.15', '5.15pm', '5.15 a.m.', '1715 ', '17:15p', '0.15 ', '13p', 'abc ',
+            '5.15p', '5.15 p', '5.15p.', '515a', '12p', '10.15p']) assert.equal(amPmPending(v), false, v);
+        for (const v of ['5.15p', '5.15 p', '5.15p.', '515a', '12p', '10.15p']) assert.ok(parseTypedTime(v), `${v} is answered as a time`);
     });
 });
