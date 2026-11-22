@@ -13,7 +13,7 @@
  *   siblings — no DOM, no Firebase there). The module table is .claude/rules/links-design.md.
  */
 
-import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
+import { CONFIG, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
 import { db, doc, getDoc, getDocFromCache, setDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry, whenOwnWritesSent } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
@@ -62,7 +62,7 @@ import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-ad
 import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
-import { assessFatigue } from './links-fatigue.js';
+import { shiftOptionLists, currentLinkBaseline } from './links-today.js';
 import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry, listRowSig, mergeListAnswer } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
@@ -194,51 +194,8 @@ export function init() {
     /** localStorage key remembering the last active design across visits. */
     const ACTIVE_KEY = 'myb_links_active_design';
 
-    // Shift option lists derived from actual roster data so they always match real shifts.
-    //
-    // The MAIN roster only, since v19.98. The December 2026 link is the CEA roster WIDENED (20 → 24
-    // lines at v20.01) and does not take on the bilingual roster's work, so offering the bilingual times
-    // would put ten shifts in the brush bar and the cell dropdown that no line in this design can
-    // legitimately work. All ten are bilingual-only — there is zero overlap with main's 18 — so
-    // this removes exactly those and nothing a designer needs.
-    const { EARLY_SHIFTS, LATE_SHIFTS } = (() => {
-        const all = new Set();
-        for (const roster of [weeklyRoster]) {
-            for (const week of Object.values(roster)) {
-                for (const shift of Object.values(week)) {
-                    if (shift && shift !== 'RD' && shift !== 'OFF' && shift !== 'SPARE') all.add(shift);
-                }
-            }
-        }
-        const early = [], late = [];
-        for (const s of [...all].sort()) {
-            const cls = classifyShift(s);
-            if (cls === 'early') early.push(s);
-            else if (cls === 'late') late.push(s);
-            // 'night' never appears here — CEAs do not work nights.
-        }
-        return { EARLY_SHIFTS: early, LATE_SHIFTS: late };
-    })();
-
-    // The DROPDOWNS offer the roster's times AND the ones the default target table proposes
-    // (v21.00), so a cell can always be changed to any time the workspace knows about.
-    //
-    // A design generated from the default is built out of times the roster has never worked, so a
-    // dropdown listing only the roster leaves a designer unable to change one row to another row's
-    // time — the values are right there on screen and unselectable, with `Custom time…` and a
-    // re-typed clock as the only route. That is a hole, and a `<select>` costs nothing to lengthen.
-    //
-    // The BRUSH BAR is a different question and is answered in `renderBrushBar` — it offers the
-    // times THIS DESIGN is made of, which is neither of these lists.
-    const { EARLY_OPTIONS, LATE_OPTIONS } = (() => {
-        const early = new Set(EARLY_SHIFTS), late = new Set(LATE_SHIFTS);
-        for (const t of DEFAULT_SHIFT_TIMES) {
-            const cls = classifyShift(t);
-            if (cls === 'early') early.add(t);
-            else if (cls === 'late') late.add(t);
-        }
-        return { EARLY_OPTIONS: [...early].sort(), LATE_OPTIONS: [...late].sort() };
-    })();
+    // The shift times offered — the MAIN roster's, and for the cell sheet the default table's too (links-today.js).
+    const { early: EARLY_SHIFTS, earlyOptions: EARLY_OPTIONS, lateOptions: LATE_OPTIONS } = shiftOptionLists();
 
     // ============================================
     // STATE
@@ -302,58 +259,6 @@ export function init() {
     /** The bin, newest first — owned by the library. */
     const _bin = () => library ? library.binList() : [];
 
-    // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
-    // links-analysis.js (v17.70). They read only the live active design, via this getter.
-    /**
-     * The CURRENT link's fatigue profile, for comparison (v19.46; main-only since v19.98).
-     *
-     * Computed over the REAL main rotation at its OWN length — 20 lines, never padded or spliced.
-     * Two things this must not become:
-     *
-     * **Do not splice cycles together.** Concatenating main and bilingual reported a longest run of
-     * 19 days, which is a property of the JOIN rather than of either roster. That was the v19.46
-     * reason for measuring each separately, and it still applies to any future pairing.
-     *
-     * **The bilingual row is gone, and the summary says why rather than leaving a hole.** A design
-     * is now the main roster WIDENED (`CONFIG.MAIN_ROSTER_WEEKS` → `ROTATING_LINES`) and excludes the bilingual
-     * roster entirely, so a bilingual figure would be a comparison against a rotation the proposal does not
-     * replace. The summary names the comparator — the main cycle, which the design replaces — and reads
-     * the length from `ROTATING_LINES` rather than restating it,
-     * so its absence reads as a decision and not as a missing number.
-     */
-    function currentLinkBaseline() {
-        // MEASURED ONCE (links-app-20). Today's roster is a constant for the session, and this ran for
-        // every painted cell — about a fifth of a paint's computation — for the same answer every time.
-        if (_baselineMemo !== undefined) return _baselineMemo;
-        try {
-            const toPatterns = (/** @type {any} */ cycle) => {
-                /** @type {Record<string, any>} */ const p = {}; let i = 1;
-                for (const k of Object.keys(cycle)) p[String(i++)] = cycle[k];
-                return { p, lines: i - 1 };
-            };
-            const main = toPatterns(weeklyRoster);
-            const a = assessFatigue(main.p, main.lines);
-            const pick = (/** @type {any} */ r, /** @type {string} */ code) =>
-                r.results.find((/** @type {any} */ x) => x.code === code && x.status !== 'n/a');
-            const ff11a = pick(a, 'FF11');
-            const ff15a = pick(a, 'FF15');
-            // Each factor's threshold is ITS OWN row's (links-fatigue.js), never typed here: a sentence
-            // that types "13" and "4" goes on saying them after the rule it quotes has moved.
-            _baselineMemo = {
-                summary: `Today's link already features ${a.present} of these factors on the main ${main.lines}-line cycle,`
-                    + ` which this ${TOTAL_POS}-line design replaces.`,
-                detail: `Longest run without a two-day break: ${ff11a?.value}, against FF11's ${ff11a?.threshold}.`
-                    + ` Longest run of consecutive early starts: ${ff15a?.value}, against FF15's ${ff15a?.threshold}.`
-                    + ` Measured on the main cycle at its own length, not spliced into one rotation.`,
-            };
-        } catch (err) {
-            console.warn('[Links] Baseline unavailable:', err);
-            _baselineMemo = null;   // the panel simply omits the comparison rather than showing a wrong one
-        }
-        return _baselineMemo;
-    }
-    /** `currentLinkBaseline`'s one answer; undefined until it is first asked. @type {{summary: string, detail: string}|null|undefined} */
-    let _baselineMemo;
 
     /**
      * The staffed-window editor on the Coverage card (v19.54).
@@ -465,7 +370,7 @@ export function init() {
     function renderCoverageCard() { renderCoverageChart(); paintWindowEditor(); renderSummary(); }
     const { renderCoverageChart, renderDesignChecks, renderSummary } = initLinksAnalysis({
         getDesign: () => design,
-        getBaseline: currentLinkBaseline,
+        getBaseline: () => currentLinkBaseline(),   // today's link, measured once (links-today.js)
         // A thunk, not a value: `compare` is the single source of truth for compare mode and is
         // declared further down. Reading it lazily also means the strip cannot go stale — every
         // path that toggles compare already re-renders the grid, and the grid renders this.

@@ -747,38 +747,18 @@ test('links: the fatigue panel collapses its "nothing to report" rows but still 
 // comparison is measured ONCE. It describes today's roster, a constant for the session, and was measured
 // again on every paint for the same answer. It is the one call made at a length other than the design's
 // own, so those calls are counted across three edits.
-test('links: today\'s link quotes each factor\'s own threshold, and is measured once', async ({ page }) => {
-    const EDITS = /** @type {[string, string][]} */ ([
-        ["status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 13,",
-            "status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 12,"],
-        ["status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4,",
-            "status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 3,"],
-        ['export function assessFatigue(patterns, lines = ROTATING_LINES) {',
-            'export function assessFatigue(patterns, lines = ROTATING_LINES) {\n'
-            + '    if (lines !== ROTATING_LINES) { const w = /** @type {any} */ (globalThis); w.__todayMeasured = (w.__todayMeasured || 0) + 1; }'],
-    ]);
-    // A missing anchor THROWS: a silent no-op would leave a green test that had stopped testing anything.
-    await page.route('**/links-fatigue.js', async route => {
-        const res = await route.fetch();
-        let src = await res.text();
-        for (const [from, to] of EDITS) {
-            if (!src.includes(from)) throw new Error(`links: links-fatigue.js no longer contains "${from}" — re-point the test.`);
-            src = src.replace(from, to);
-        }
-        await route.fulfill({ response: res, body: src, contentType: 'text/javascript' });
-    });
+// TODAY'S LINK, ON THE CARD (wiring). Its own thresholds and the measure-once memo are unit-pinned with the fatigue
+// factors mocked (links-today.test.mjs), which replaced patching links-fatigue.js on the wire here; what only the page
+// shows is that the checks card carries the row, from the real roster, and keeps it through an edit.
+test('links: the Design checks card compares with today\'s link, measured on the main cycle', async ({ page }) => {
     await openLinksWithDesign(page);
     const today = page.locator('#checksContent .check-row', { hasText: 'Today\'s link already features' });
-    await expect(today, 'FF11 is quoted at its own threshold').toContainText('against FF11\'s 12.');
-    await expect(today, '…and FF15 at its own').toContainText('against FF15\'s 3.');
-
-    // Three edits, each one repainting the checks card.
+    await expect(today).toContainText(/on the main \d+-line cycle — the link a new design would replace\./);
+    await expect(today).toContainText(/against FF11's \d+\./);
     await page.locator('#brushBar .brush-chip[data-shift="06:20-14:20"]').click();
-    for (const day of ['sun', 'fri', 'sat']) await gridCell(page, 1, day).click();
+    await gridCell(page, 1, 'sun').click();
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
-    await expect(today).toContainText('against FF11\'s 12.');
-    expect(await page.evaluate(() => /** @type {any} */ (globalThis).__todayMeasured),
-        'today\'s link is measured once for the session, not on every paint').toBe(1);
+    await expect(today, 'still there after a repaint').toContainText('against FF15\'s');
 });
 
 test('links: printing opens every collapsed disclosure, and closes it again afterwards', async ({ page }) => {

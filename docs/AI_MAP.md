@@ -396,6 +396,10 @@ How the design grid on `links.html` is operated — one Tab stop and the arrow k
 What the Build press on `links.html` says and remembers: why a table was refused, the question before a build replaces a design, the line it reports and which build of these inputs it is. Pure; the press itself (the confirm, the held button, the scroll anchor) stays in `links-app.js`. Tested by `links-build-press.test.mjs`.
 - **Exports:** `overCapacityLine` · `refusalLine` · `buildConfirm` · `withSurplusLines` · `createBuildCounter` · `builtStatusLine`
 
+### `links-today.js`
+What `links.html` reads from today's roster: the shift times its cell sheet offers (the main roster's, never the bilingual one's) and today's link measured against the fatigue factors for the Design checks card's comparison — once per roster, each factor at its own threshold. Pure; tested by `links-today.test.mjs`.
+- **Exports:** `shiftOptionLists` · `currentLinkBaseline`
+
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s `?` panels: pure data, rendered by `tips-lightbox.js`, shape pinned by `tips-content.test.mjs`. Its generator panel restates `links-default-targets.js`'s header, and no test can see that rule.
 - **Exports:** `CARD_TIPS`

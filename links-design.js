@@ -598,12 +598,8 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
 }
 
 /**
- * PER-LINE totals for the grid's right-hand columns, and the average days worked (v21.09).
- *
- * The grid showed seven cells and a per-DAY cover footer; nothing anywhere said what a single line
- * comes to. That is the first question anybody asks of a rotation they are about to be put on —
- * "what does week 11 actually work?" — and answering it meant reading seven cells and doing the
- * arithmetic by hand, for every line, every time a cell changed.
+ * PER-LINE totals for the grid's right-hand columns, and the average days worked (v21.09) — the
+ * first question anybody asks of a rotation they are about to be put on: what does week 11 work?
  *
  * ── THE TWO DIVISORS ARE DIFFERENT, AND THAT IS NOT A MISTAKE ───────────────────────────────────
  *
