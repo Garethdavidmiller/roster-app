@@ -216,7 +216,10 @@ or a second idiom (`max-width: Npx; width: 100%`) — variation in overlay width
 message would matter most.
 
 **One height cap, `--modal-max-h` (86dvh)**, for every panel — never a literal `vh` (lightbox review,
-22 Nov 2026). **One ✕ colour per surface family**: `.lb-close` reads `--lb-close-color` (light by
+22 Nov 2026). **The token holds its own fallback** — `86vh` in `:root`, `86dvh` only under
+`@supports (height: 1dvh)` — because a `vh` line above a `var()` is no fallback: the `var()` always
+parses, and a `dvh` token in a browser without `dvh` makes the cap compute to `none`
+(`css-var-parity.test.mjs`). **One ✕ colour per surface family**: `.lb-close` reads `--lb-close-color` (light by
 default; a navy panel sets `--lb-close-navy` on itself), so no ✕ is left to the browser. **A ✕ that is
 a direct child of a scrolling panel is pinned** by `createLightbox` (`pinCloseButton`, overlay.js —
 shared.css → "THE ✕ STAYS"): do not restate a panel's padding in CSS for it, it is measured.

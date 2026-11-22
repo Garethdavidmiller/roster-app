@@ -398,8 +398,14 @@
     --modal-wide:     380px;
     --modal-cap:      90vw;
     /* ONE HEIGHT CAP (lightbox review R1-12): the largest that still leaves the backdrop showing to tap.
-       `dvh`, because on iOS `vh` is the LARGE viewport and could put a panel's foot under the bar. */
-    --modal-max-h:    86dvh;
+       `dvh`, because on iOS `vh` is the LARGE viewport and could put a panel's foot under the bar.
+       THE TOKEN CARRIES ITS OWN FALLBACK: it is `86vh` here and becomes `86dvh` only inside the
+       `@supports` block after `:root`. A call site's `max-height: 86vh;` line is no fallback for a
+       `var()` beneath it: a `var()` declaration always parses, so it replaces the `vh` line, and in a
+       browser without `dvh` (Chrome and Android WebView before 108) an `86dvh` token is invalid at
+       computed-value time, which makes `max-height` compute to `none` — every panel uncapped.
+       css-var-parity.test.mjs fails on a dynamic-viewport token defined without this shape. */
+    --modal-max-h:    86vh;
 
     /* ── The ✕ — ONE colour per surface family (lightbox review R1-3) ─────────────────────────
        It was set seven ways, and on the picker sheet not at all (the browser's own button colour).
@@ -500,6 +506,12 @@
        Contextual  = per-section accent (gold, green, teal)
        Back/nav  = outline only (.btn-back)
        Never use plain blue — clashes with sync chip and Firestore status. */
+}
+
+/* The dynamic-viewport half of `--modal-max-h` (see its declaration in `:root`): only a browser that
+   understands `dvh` is given it. */
+@supports (height: 1dvh) {
+    :root { --modal-max-h: 86dvh; }
 }
 
 /* Reduced motion: neutralise the button press so scale(var(--press-scale))
