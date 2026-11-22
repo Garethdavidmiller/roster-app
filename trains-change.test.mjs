@@ -81,6 +81,15 @@ describe('foldWeekdayVariants — a train that runs at two times on different we
         const folded = foldWeekdayVariants(alignTimes([row('17:37', 'PRR', '', 'MFX')], []));
         assert.equal(folded[0].kind, 'gone');
     });
+
+    test('a partner further than MAX_SHIFT_MIN away is another train, as alignment would say', () => {
+        const pair = (/** @type {string} */ mfo) => foldWeekdayVariants(/** @type {any} */ ([
+            { now: '17:00', dec: '17:00', kind: 'same', shift: 0, days: 'MFX' },
+            { now: mfo, dec: null, kind: 'gone', shift: 0, days: 'MFO' }]))[1];
+        assert.equal(MAX_SHIFT_MIN, 20, 'premise: the times below sit either side of twenty minutes');
+        assert.deepEqual([pair('17:20').kind, pair('17:20').dec], ['earlier', '17:00']);
+        assert.equal(pair('17:21').kind, 'gone');
+    });
 });
 
 describe('compareRoutes — one train, a different destination', () => {
@@ -128,6 +137,22 @@ describe('a line that runs on — Aylesbury Vale Parkway is the Amersham line, o
         const [ext] = compareRoutes([row('07:57', 'AYS', 'A')], [row('07:59', 'AVP')])[0].trains;
         assert.equal(changeLabel(ext, STATIONS), 'Will go on to Aylesbury Vale Parkway, 07:59');
         assert.equal(changeLabel(ext, STATIONS, 'arr'), 'Will start at Aylesbury Vale Parkway, 07:59');
+    });
+
+    test('on the card of the station a train now ends or starts at, the row says "here" — in both tenses', () => {
+        // "Will end at Aylesbury" on Aylesbury's own card read as somewhere else (Trains review, Nov 2026).
+        const [cut] = compareRoutes([row('08:27', 'AVP')], [row('08:27', 'AYS', 'A')])[0].trains;
+        const card = (/** @type {any} */ t, /** @type {'dep'|'arr'} */ dir, started = false) => changeLabel(t, STATIONS, dir, { started, withTime: false, here: 'AYS' });
+        assert.deepEqual([card(cut, 'dep'), card(cut, 'dep', true), card(cut, 'arr'), card(cut, 'arr', true)],
+            ['Will end here', 'Now ends here', 'Will start here', 'Now starts here']);
+        // With a new time here as well, the time first, as on every row.
+        assert.equal(card({ ...cut, atShift: 6 }, 'arr'), '6 mins later, will start here');
+        // A train that now comes from this station by another route says so the same way.
+        const rerouted = /** @type {any} */ ({ kind: 'rerouted', side: 'old', now: '08:07', dec: '08:18', shift: 11, atShift: 7, other: { station: 'HWY', via: '', time: '08:18' } });
+        assert.equal(changeLabel(rerouted, STATIONS, 'arr', { withTime: false, here: 'HWY' }), '7 mins later, will start here');
+        assert.equal(changeLabel(rerouted, STATIONS, 'arr', { withTime: false, here: 'BCF' }), '7 mins later, will come from High Wycombe', 'another card names it');
+        // The lookup is timed at Marylebone, where nothing is "here": it passes no station and keeps the name.
+        assert.equal(changeLabel(cut, STATIONS), 'Will end at Aylesbury');
     });
 
     test('the via-High-Wycombe Aylesbury trains are a different line and are not folded in', () => {
@@ -193,7 +218,9 @@ describe('words', () => {
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'earlier', shift: -6 })), '6 mins earlier');
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'same' })), 'No change');
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'new' })), 'New train');
-        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'gone' })), 'No longer runs');
+        // A train that goes still runs until the change: "No longer runs" said so of trains running that evening.
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'gone' })), 'Will stop running');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'gone' }), {}, 'dep', { started: true }), 'No longer runs');
         assert.equal(daysLabel('MFO'), 'Mon and Fri only');
         assert.equal(daysLabel('MFX'), 'Tue to Thu only');
         assert.equal(daysLabel(''), '');
@@ -477,15 +504,15 @@ describe('the Trains tips hold on both sides of the change', () => {
             const day = on(iso);
             const festive = timetablePhase(day, { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL }).festive;
             const leafFall = daysUntil(day, LEAF_FALL.until) >= 0;   // the station card's own test (trains-cards.js)
-            assert.equal(/Christmas and New Year are not on this page/.test(words(day)), festive, `${iso}: the Christmas line and the overview's note disagree`);
+            assert.equal(/Christmas and New Year times are not on this page/.test(words(day)), festive, `${iso}: the Christmas line and the overview's note disagree`);
             assert.equal(/leaf-fall/.test(words(day)), leafFall, `${iso}: the leaf-fall line and the station card's note disagree`);
             assert.equal(tipsOn(day).overview.sections.flatMap(s => s.items).length, all - (festive ? 0 : 1) - (leafFall ? 0 : 1), `${iso}: another line went too`);
             assert.ok(Object.values(tipsOn(day)).every(p => p.sections.every(s => s.items.length)), `${iso}: a heading is left over an empty section`);
             assert.equal(tipsOn(day).changes.title, changesTitle(daysUntil(day, CHANGE_DATE) <= 0), `${iso}: the changes panel is titled for the other side of the change`);
         }
         // The last day of both still has both; the next has neither.
-        assert.match(words(on('2027-01-10')), /Christmas and New Year are not on this page[\s\S]*leaf-fall/);
-        assert.doesNotMatch(words(on('2027-01-11')), /Christmas|leaf-fall|changing times again/);
+        assert.match(words(on('2027-01-10')), /Christmas and New Year times are not on this page[\s\S]*leaf-fall/);
+        assert.doesNotMatch(words(on('2027-01-11')), /Christmas|leaf-fall|changing some times/);
         // And it is the railway day: 02:00 on 11 January is still the 10th.
         assert.match(words(railwayToday(new Date(2027, 0, 11, 2, 0))), /leaf-fall/);
     });

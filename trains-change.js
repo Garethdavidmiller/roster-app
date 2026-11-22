@@ -395,25 +395,48 @@ export function daysUntil(today, changeDate) {
 }
 
 /**
- * The wording for one paired train's change — the one place the page's change words are written.
+ * A number of minutes in a change's words — "1 min", "6 mins" — whichever way it moved: the sign is said
+ * by the word after it ("later", "earlier"). The figures table writes a journey as "24 min", a unit after
+ * a figure; a change is a count, and takes the plural.
+ * @param {number} n
+ * @returns {string}
+ */
+export const minsWords = (n) => `${Math.abs(n)} min${Math.abs(n) === 1 ? '' : 's'}`;
+
+/**
+ * The wording for one paired train's change: the chip beside a train on a station card, and the
+ * lookup's answer. Not the only place the page writes change words — the Last trains panel's chips
+ * (trains-render.js → `renderLastTrains`), the lookup's own small print and the headline chips
+ * (trains-headlines.js → `headlineChip`) write theirs — but the one place a PAIRED TRAIN's are.
+ * Every count of minutes in them is `minsWords`'s.
  *
  * TENSE FOLLOWS THE CHANGE DATE. Before it, a new end is "Will go on to …": the page's first column
  * is TODAY, so "Now runs to" read as a fact about the current timetable. From the change, the same
  * train "Now goes on to …" — until v24.83 it said "Will" for weeks after it had happened. The
  * caller says which (`started`); nothing here reads a clock.
  *
+ * A STATION CARD SAYS "HERE". A train whose new end is the card's own station said "Will end at
+ * Aylesbury" on Aylesbury's card and "7 mins later, will come from High Wycombe" on High Wycombe's
+ * (Trains review, Nov 2026): the card names its station once, in its title, and a row naming it again
+ * read as somewhere else. Given `here`, an end there is "Will end here" / "Now ends here" leaving
+ * London, "Will start here" / "Now starts here" coming back. The lookup is timed at Marylebone, where
+ * no station is "here", and passes none.
+ *
  * @param {PairedTrain & { farShift?: number, atShift?: number }} t
  * @param {Readonly<Record<string, string>>} [stations]  names for a rerouted train's other route
  * @param {'dep'|'arr'} [dir]  leaving Marylebone ("runs to") or arriving ("comes from")
- * @param {{ started?: boolean, withTime?: boolean }} [opts]  started: the change has happened ·
- *   withTime: add the December time to a new end (a station card already shows it in its own cell)
+ * @param {{ started?: boolean, withTime?: boolean, here?: string }} [opts]  started: the change has happened ·
+ *   withTime: add the December time to a new end (a station card already shows it in its own cell) ·
+ *   here: the station whose card the row is on
  * @returns {string}
  */
-export function changeLabel(t, stations = {}, dir = 'dep', { started = false, withTime = true } = {}) {
-    const mins = (/** @type {number} */ n) => `${n} min${n === 1 ? '' : 's'}`;
+export function changeLabel(t, stations = {}, dir = 'dep', { started = false, withTime = true, here = '' } = {}) {
+    const mins = minsWords;
     // On a station card a new end can come with a new time at the station itself (`atShift`).
     const at = /** @type {{ atShift?: number }} */ (t).atShift ?? 0;
     const moved = (/** @type {string} */ what) => at ? `${mins(Math.abs(at))} ${at > 0 ? 'later' : 'earlier'}, ${what[0].toLowerCase()}${what.slice(1)}` : what;
+    /** A new end at the card's own station, from the station's side (see above). */
+    const endsHere = () => dir === 'arr' ? (started ? 'Now starts here' : 'Will start here') : (started ? 'Now ends here' : 'Will end here');
     switch (t.kind) {
         case 'same': {
             // The time a passenger catches it holds; where it gets them to may not.
@@ -424,11 +447,14 @@ export function changeLabel(t, stations = {}, dir = 'dep', { started = false, wi
         case 'later':   return `${mins(t.shift)} later`;
         case 'earlier': return `${mins(-t.shift)} earlier`;
         case 'new':     return 'New train';
-        case 'gone':    return 'No longer runs';
+        // A train that goes is still running until the change: "No longer runs" said so of twelve trains
+        // a member could catch that evening (Trains review, Nov 2026).
+        case 'gone':    return started ? 'No longer runs' : 'Will stop running';
         case 'passes':  return started ? 'No longer stops here' : 'Will no longer stop here';
         case 'calls':   return started ? 'Now stops here' : 'Will stop here';
         case 'terminus': {
             const to = /** @type {string} */ (t.decTo), name = stations[to] ?? to;
+            if (here && to === here) return moved(endsHere());
             const further = lineDepth(to) > lineDepth(/** @type {string} */ (t.nowTo));
             const what = dir === 'arr' ? (started ? `Now starts at ${name}` : `Will start at ${name}`)
                 : further ? (started ? `Now goes on to ${name}` : `Will go on to ${name}`)
@@ -437,6 +463,7 @@ export function changeLabel(t, stations = {}, dir = 'dep', { started = false, wi
         }
         default: {
             const o = /** @type {NonNullable<PairedTrain['other']>} */ (t.other);
+            if (here && t.side !== 'new' && o.station === here) return moved(endsHere());
             const where = routeName(stations, o.station, o.via);
             if (t.side === 'new') return dir === 'dep' ? `Was the ${o.time} to ${where}` : `Was the ${o.time} from ${where}`;
             const verb = dir === 'dep' ? (started ? 'Now runs to' : 'Will run to') : (started ? 'Now comes from' : 'Will come from');
@@ -497,6 +524,14 @@ export function dateWords(iso, offset = 0, { short = false, weekday = false } = 
     const words = `${at.getUTCDate()} ${short ? month.slice(0, 3) : month}`;
     return weekday ? `${DAYS[at.getUTCDay()]} ${words}` : words;
 }
+
+/**
+ * The month of a 'YYYY-MM-DD' date, as the page names a timetable by it: "December". Derived, as
+ * `dateWords` is, so books that start in May are not called December.
+ * @param {string} iso
+ * @returns {string}
+ */
+export const monthWords = (iso) => dateWords(iso).replace(/^\d+ /, '');
 
 /**
  * The holidays inside a window of dates, as the page names them: 'Christmas and New Year',

@@ -39,7 +39,7 @@ mock.module('./ls.js', {
 });
 
 const { notifSupported, isIOS, getNotifState, peekNotifState, enableNotifications, disableNotifications,
-    notifOffByChoice, releaseDevicePush } = await import('./notif.js');
+    notifOffByChoice, releaseDevicePush, isStandalonePWA, onPagesMirror } = await import('./notif.js');
 
 // ── Configurable browser environment ──────────────────────────────────────────
 /**
@@ -53,12 +53,13 @@ const { notifSupported, isIOS, getNotifState, peekNotifState, enableNotification
  * @param {boolean} [cfg.swFails]     serviceWorker.ready rejects
  * @param {boolean} [cfg.subscribeFails] pushManager.subscribe rejects
  * @param {string}  [cfg.endpoint]
+ * @param {string}  [cfg.hostname]    where the page is served from (default the main address)
  */
 function setupEnv(cfg = {}) {
     const {
         apis = true, ios = false, standalone = true, permission = 'default',
         requestResult = 'granted', hasSub = false, swFails = false, subscribeFails = false,
-        endpoint = 'https://fcm.googleapis.com/push/ABC', keyless = false,
+        endpoint = 'https://fcm.googleapis.com/push/ABC', keyless = false, hostname = 'myb-roster.web.app',
     } = cfg;
 
     // Real PushSubscriptions expose getKey(); a keyless one (some Android builds) returns null.
@@ -91,6 +92,7 @@ function setupEnv(cfg = {}) {
     const win = {
         matchMedia: (/** @type {string} */ q) => ({ matches: q.includes('standalone') ? standalone : false }),
         navigator: nav,
+        location: { hostname },
     };
     if (apis) { /** @type {any} */ (win).Notification = Notification; /** @type {any} */ (win).PushManager = PushManager; }
 
@@ -131,6 +133,28 @@ describe('notifSupported / isIOS', () => {
         assert.equal(isIOS(), true);
         setupEnv({ ios: false });
         assert.equal(isIOS(), false);
+    });
+});
+
+// The app's ONE copy of each platform read (Nov 2026): install-prompt.js and the Settings card import
+// these rather than keeping their own, so a wrong answer here is wrong everywhere at once.
+describe('isStandalonePWA / onPagesMirror', () => {
+    test('the installed app is read from display-mode, and from iOS\'s own navigator.standalone', () => {
+        setupEnv({ standalone: true });
+        assert.equal(isStandalonePWA(), true);
+        setupEnv({ standalone: false });
+        assert.equal(isStandalonePWA(), false, 'a browser tab');
+        setupEnv({ ios: true, standalone: true });
+        /** @type {any} */ (window).matchMedia = () => ({ matches: false });   // an iOS that only sets navigator.standalone
+        assert.equal(isStandalonePWA(), true);
+    });
+    test('the Pages mirror is the github.io host, and nothing else', () => {
+        setupEnv({ hostname: 'garethdavidmiller.github.io' });
+        assert.equal(onPagesMirror(), true);
+        for (const host of ['myb-roster.web.app', 'myb-roster.firebaseapp.com', 'localhost', 'github.io.example.com']) {
+            setupEnv({ hostname: host });
+            assert.equal(onPagesMirror(), false, host);
+        }
     });
 });
 

@@ -386,6 +386,7 @@ test('in-place sign-in: settings still offers an install the browser offered BEF
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
     await expect(page.locator('#deviceCard')).toBeVisible();
+    await page.locator('#deviceChevron').click();   // an offer is a shut card, like its siblings
     await expect(page.locator('#installBtn')).toBeVisible();
 });
 
@@ -1006,7 +1007,8 @@ test('every page\'s sign-in card says what the page is, and that the staff PIN d
         const about = page.locator('#loginOverlay #loginAbout');
         await expect(about, `${url}: the card does not say what the page is`).toBeVisible();
         if (SAYS_PIN_DOES_NOT_OPEN.includes(url)) {
-            await expect(about, `${url}: the card does not say the staff PIN won’t open it`).toContainText('the staff PIN doesn’t open it');
+            // "it", or the page by name where "it" would have nothing to refer to (Settings' card, 22 Nov 2026).
+            await expect(about, `${url}: the card does not say the staff PIN won’t open it`).toContainText(/the staff PIN doesn’t open (it|Settings)\./);
             await expect(page.locator('#loginOverlay #loginFootnote'), `${url}: no shared-screen footnote`).toBeVisible();
         }
     }
@@ -1147,7 +1149,7 @@ test('forced overlay: a write that outlives its deadline is reported as UNCONFIR
     const err = page.locator('#pwfError');
     await expect(err).toContainText('couldn’t confirm', { timeout: 15_000 });
     // The exact instruction that makes this safe under BOTH outcomes.
-    await expect(err).toContainText('Keep the password you just entered');
+    await expect(err).toContainText('Remember the new password you just entered: try it first the next time you sign in, and your old one if it doesn’t work.');
     await expect(err).toBeVisible();
     // It must NOT claim failure — that is the whole defect.
     await expect(err).not.toContainText('Couldn’t connect');

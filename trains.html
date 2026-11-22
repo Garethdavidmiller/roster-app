@@ -63,7 +63,7 @@
             <!-- The live answer this page cannot give (v24.94): the timetable says what should run, the
                  boards say what is. Both addresses were checked on 23 Oct 2026. -->
             <a href="https://www.nationalrail.co.uk/live-trains/departures/london-marylebone/" target="_blank" rel="noopener noreferrer" class="lightbox-bug-link"><span aria-hidden="true">🕒</span> Live departures from Marylebone</a>
-            <a href="https://www.chilternrailways.co.uk/live-train-times" target="_blank" rel="noopener noreferrer" class="lightbox-bug-link"><span aria-hidden="true">🚆</span> Chiltern live train times</a>
+            <a href="https://www.chilternrailways.co.uk/live-train-times" target="_blank" rel="noopener noreferrer" class="lightbox-bug-link"><span aria-hidden="true">📡</span> Chiltern live train times</a>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
 </div>
@@ -88,6 +88,11 @@
     <span class="boot-placeholder-text">Loading…</span>
 </div>
 <main class="app" id="trainsMain">
+
+    <!-- WHAT A SCREEN READER IS TOLD (Trains review, 22 Nov 2026): one short line for each press — the list's day, a
+         station's journey and its answer, the grid's chosen train — written by trains-app.js (`statusLine`). The cards
+         themselves are not live regions: as they were, every press read a whole card out. -->
+    <p id="trStatus" class="sr-only" role="status"></p>
 
     <!-- No page title and no hero on the canvas (v24.72). The header already names the page, and
          every other page opens straight onto its cards — the countdown is this card's header chip,
@@ -124,10 +129,10 @@
                 <!-- Two columns on a wide screen, each its own stack (the 2 Nov 2026 polish): as one grid of shared
                      rows, the totals' height opened a gap between the two paragraphs beside them. -->
                 <div class="tr-ov-main">
-                <!-- Worded by trains-app.js from the date (timetablePhase): "Today's…" before the change, "The
-                     timetable that ran until…" after it. This text is what shows before the script runs. -->
-                <p class="card-explainer" id="trLead">Today’s timetable beside the new one that starts on Sunday 13 December. Both
-                    are Chiltern’s published timetables, not live running information.</p>
+                <!-- Worded by trains-app.js from the date (timetablePhase): "…compares today's timetable…" before
+                     the change, "…the timetable that ran until…" after it. This text is what shows before the script runs. -->
+                <p class="card-explainer" id="trLead">This page compares today’s timetable with the new one that starts on Sunday
+                    13 December. Both are Chiltern’s published timetables, not live running information.</p>
                 <!-- After December's books expire (DEC_VALID_UNTIL) neither column is running any more. -->
                 <p class="card-explainer" id="trEnded" hidden><strong>Both timetables on this page have
                     ended.</strong> Check the journey planner for today’s trains.</p>
@@ -233,7 +238,7 @@
                     </div>
                 </div>
                 <div class="card-collapsible-body open" id="trChangesBody">
-                    <div class="card-body"><div id="trChanges" aria-live="polite"></div></div>
+                    <div class="card-body"><div id="trChanges"></div></div>
                 </div>
             </div>
         </div>
@@ -273,7 +278,7 @@
                         <button type="button" class="tr-tab" data-sdir="dep" aria-pressed="true">Going there</button>
                         <button type="button" class="tr-tab" data-sdir="arr" aria-pressed="false">Coming back</button>
                     </div>
-                    <div id="trStation" aria-live="polite"></div>
+                    <div id="trStation"></div>
                 </div>
             </div>
         </div>

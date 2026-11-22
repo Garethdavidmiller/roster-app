@@ -35,7 +35,7 @@
  * be waiting at once and the first to finish must not take down the notice the second still needs.
  */
 
-import { hasUnconfirmedWrite, backgroundWritesInFlight } from './claim-retry.js';
+import { hasUnconfirmedWrite, backgroundWritesInFlight, watchOwnWritesWaits } from './claim-retry.js';
 
 /** How long a write may wait for the server before the app says why. */
 export const SLOW_SAVE_MS = 8000;
@@ -105,7 +105,9 @@ export function slowSaveText(batched, held = true) {
 /**
  * The event a SLOW save announces twice, both carrying the save's `id`: `{ phase: 'slow', batched }` the moment it passes SLOW_SAVE_MS
  * (v24.55), and `{ phase: 'done', ms, hiddenMs, onlineWhenSlow, batched, ok }` when it settles (v24.54;
- * `hiddenMs`, the part of `ms` the page spent in the background, v25.87 — see trackHiddenTime). A
+ * `hiddenMs`, the part of `ms` the page spent in the background, v25.87 — see trackHiddenTime;
+ * `ownWrites`, how the wait for this device's own unsent saves went, 22 Nov 2026 — see
+ * trackOwnWritesWaits). A
  * diagnostic, not a feature — error-reporter.js listens and records the case that cannot be explained
  * by signal (the browser said online), because an iPhone whose every save took longer than
  * SLOW_SAVE_MS left nothing behind to say WHICH part was slow. An event rather than an import, because
@@ -205,6 +207,49 @@ export function trackHiddenTime({ isHidden = _pageHidden, subscribe = _onVisibil
         return { stop() { try { unsubscribe(); } catch { /* the figure stands without it */ } close(); return total; } };
     } catch {
         return unmeasured;   // a diagnostic must never disturb the save it describes
+    }
+}
+
+/**
+ * Hear the own-saves waits (`ownWritesSent`, claim-retry.js) that END from now until `stop()`, and
+ * sum them up as the one that best explains a slow save (22 Nov 2026).
+ *
+ * WHY: three reports from one installed iPhone app each took EXACTLY 8.1s to be confirmed, online and
+ * on screen. A checked save waits up to OWN_WRITES_WAIT_MS (eight seconds) for this device's earlier
+ * saves to reach the server before its transaction, and is held as a batch when they have not —
+ * so a wait that never drains reads as an 8s save. The line now says whether a wait ran and how.
+ *
+ * WHICH WAITS: those that END inside the save's span, not those that start in it. The wait is the
+ * first thing a checked save does, synchronously, while its promise is being built — BEFORE it is
+ * handed to withSlowSaveNotice — so a start-based match would miss the very wait it is for. Two
+ * saves at once can each hear the other's wait; the summary is a diagnostic, and says how many.
+ *
+ * THE SUMMARY: a wait that RAN OUT wins (the longest of them), because it alone puts eight seconds
+ * into a save; otherwise the longest. `count` is how many ended in the span. `null` when none did —
+ * a save that does not check (a plain batch, a contact record) never waits — or when listening failed.
+ * Pure: `subscribe` is injected for the tests.
+ * @param {{ subscribe?: (cb: (w: { ms: number, outcome: string }) => void) => (() => void) }} [deps]
+ * @returns {{ stop: () => ({ ms: number, outcome: string, count: number }|null) }}
+ */
+export function trackOwnWritesWaits({ subscribe = watchOwnWritesWaits } = {}) {
+    try {
+        /** @type {{ ms: number, outcome: string }|null} */ let best = null;
+        let count = 0;
+        let listening = true;
+        const rank = (/** @type {{ ms: number, outcome: string }} */ w) => [w.outcome === 'ran out' ? 1 : 0, w.ms];
+        const unsubscribe = subscribe(w => {
+            if (!listening || typeof w?.ms !== 'number' || !Number.isFinite(w.ms)) return;
+            count++;
+            const [a, b] = rank(w), [c, d] = best ? rank(best) : [-1, -1];
+            if (a > c || (a === c && b > d)) best = { ms: w.ms, outcome: String(w.outcome) };
+        });
+        // Once it has stopped listening nothing can be added, so a later call returns the same summary.
+        return { stop() {
+            if (listening) { listening = false; try { unsubscribe(); } catch { /* the summary stands without it */ } }
+            return best ? { ...best, count } : null;
+        } };
+    } catch {
+        return { stop: () => null };   // a diagnostic must never disturb the save it describes
     }
 }
 
@@ -316,7 +361,8 @@ export function withSlowSaveNotice(promise, { batched = false, held = true } = {
     // From the START, the span `ms` below covers: a phone usually freezes the app before the slow
     // moment, and it is the overdue timer, on the way back, that raises the notice (v25.87).
     const hidden = trackHiddenTime();
-    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); _render(); hidden.stop(); };
+    const ownWrites = trackOwnWritesWaits();   // this save's own-saves wait, which ends inside its span
+    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); _render(); hidden.stop(); ownWrites.stop(); };
     promise.then(settle, settle);   // observe only — the caller still sees the result or error
     // `window.__E2E?.slowSaveMs` is a TEST SEAM, the same shape as text-scale.js's: the e2e holds a
     // commit open and would otherwise sit through eight real seconds to see the notice. Nothing in
@@ -341,7 +387,7 @@ export function withSlowSaveNotice(promise, { batched = false, held = true } = {
             _hide(batched, held);
             try {
                 globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, {
-                    detail: { phase: 'done', id, ms: Date.now() - started, hiddenMs: hidden.stop(), onlineWhenSlow, batched, ok },
+                    detail: { phase: 'done', id, ms: Date.now() - started, hiddenMs: hidden.stop(), ownWrites: ownWrites.stop(), onlineWhenSlow, batched, ok },
                 }));
             } catch { /* a diagnostic must never disturb the save it describes */ }
         },

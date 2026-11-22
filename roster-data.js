@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '26.50';
+export const APP_VERSION = '26.53';
 
 // ============================================
 // PERFORMANCE CACHES — at the top, above everything that reads them: a `const` read before its own
@@ -234,9 +234,8 @@ export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 // DAY_NAMES and MONTH_ABB live in `date-format.js` and are re-exported here (v24.06) — they are
 // the app's date VOCABULARY, and they belong beside the composers that spell with them. Everything
 // that already reads them from this module keeps working; nothing needs to change import.
-// `MONTH_NAMES` stays here: it is the FULL register, used by headings rather than by any composer.
-export { DAY_NAMES, MONTH_ABB } from './date-format.js';
-export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// `MONTH_NAMES`, the FULL register, joined them on 22 Nov 2026, when `formatDayMonthYear` began to spell from it.
+export { DAY_NAMES, MONTH_ABB, MONTH_NAMES } from './date-format.js';
 export const TEAM_GRADES = ['CEA', 'CES', 'Dispatcher'];
 
 // Swipe gesture thresholds — shared by calendar-app.js and admin-app.js so tuning

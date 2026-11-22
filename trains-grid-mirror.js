@@ -11,7 +11,7 @@
  * It is `aria-hidden` and takes no pointer events: the real heads stay the only controls, so a
  * screen reader meets one header and a tap lands on the one that does something. Its cells are the
  * real heads' visible spans, cloned, at the real cells' measured widths, and it follows the grid's
- * sideways scroll with a transform — so it is exactly as wide as the table box, never wider, and
+ * sideways scroll with a transform — so it is as wide as the table box or the table, whichever is narrower, and
  * cannot scroll the page (the sideways-scroll test in e2e/trains.spec.js measures that).
  *
  * ── FIXED, NOT STICKY ──────────────────────────────────────────────────────────────────────────
@@ -109,7 +109,9 @@ export function syncGridMirror(host) {
         if (!show) return;
         const w = wrap.getBoundingClientRect();
         stick.style.left = `${w.left}px`;
-        stick.style.width = `${w.width}px`;
+        // As wide as the TABLE when it is narrower than its box (600–1023px, where it is not stretched across the
+        // card): sized to the box, the copy ran on past the last column as a bar over nothing (Trains review, 22 Nov 2026).
+        stick.style.width = `${Math.min(w.width, t.width)}px`;
         st.style.width = `${heads[0].getBoundingClientRect().width}px`;
         cells.forEach((c, i) => { c.style.width = `${heads[i + 1].getBoundingClientRect().width}px`; });
         row.style.transform = `translateX(${-sideways(wrap.scrollLeft, wrap.scrollWidth, wrap.clientWidth)}px)`;

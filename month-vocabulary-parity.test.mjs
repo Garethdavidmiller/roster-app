@@ -183,13 +183,17 @@ describe('the two local fixes it replaced are gone, not merely bypassed', () => 
         //
         // WHERE they live is the part worth pinning. MONTH_ABB moved into date-format.js at v24.06
         // so the vocabulary owns the words it spells with, which is also what let five paycalc
-        // suites keep mocking roster-data.js by name. MONTH_NAMES did not move: no composer uses
-        // it, and it is read straight by the heading builders.
+        // suites keep mocking roster-data.js by name. MONTH_NAMES followed on 22 Nov 2026, when
+        // `formatDayMonthYear` began writing the month in full and so became a composer that uses it.
         assert.match(read('./date-format.js'), /export const MONTH_ABB\s*=/,
             'MONTH_ABB left date-format.js — the composers now spell from somewhere else');
         assert.match(read('./date-format.js'), /export const DAY_NAMES\s*=/);
-        assert.match(read('./roster-data.js'), /export const MONTH_NAMES\s*=/);
+        assert.match(read('./date-format.js'), /export const MONTH_NAMES\s*=/,
+            'MONTH_NAMES left date-format.js — formatDayMonthYear now spells from somewhere else');
         // Re-exported, so nothing that already read the tables from roster-data.js had to change.
         assert.match(read('./roster-data.js'), /export \{[^}]*MONTH_ABB[^}]*\} from '\.\/date-format\.js'/);
+        assert.match(read('./roster-data.js'), /export \{[^}]*MONTH_NAMES[^}]*\} from '\.\/date-format\.js'/);
+        // ONE table, not two: a second copy in roster-data.js would be the drift this file exists to stop.
+        assert.doesNotMatch(read('./roster-data.js'), /export const MONTH_NAMES\s*=/);
     });
 });

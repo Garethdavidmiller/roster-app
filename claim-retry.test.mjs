@@ -5,7 +5,7 @@ import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
     runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, UNCONFIRMED_LINE, unconfirmedWriteLine,
-    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, OWN_WRITES_WAIT_MS, runWatchedClaimRetry } from './claim-retry.js';
+    trackBackgroundWrite, backgroundWritesInFlight, ownWritesSent, OWN_WRITES_WAIT_MS, watchOwnWritesWaits, runWatchedClaimRetry } from './claim-retry.js';
 
 // ── trackBackgroundWrite (review, 11 Nov 2026) — a write no page started, counted until it settles ──
 describe('trackBackgroundWrite', () => {
@@ -558,5 +558,60 @@ describe('ownWritesSent — how long a checked write waits for this device\'s qu
         // Firestore spends about eight seconds on a transaction that cannot reach the server before it
         // gives up; the wait matches it, so a save is never refused sooner than it would have been.
         assert.ok(OWN_WRITES_WAIT_MS >= 5_000 && OWN_WRITES_WAIT_MS <= 10_000, `OWN_WRITES_WAIT_MS is ${OWN_WRITES_WAIT_MS}`);
+    });
+});
+
+// ── …and says how each wait went, for the slow-save diagnostic (22 Nov 2026) ───────────────────────
+// Three reports from one installed iPhone app took exactly 8.1s each; eight seconds is this limit. The
+// summary for a save is slow-save.test.mjs (trackOwnWritesWaits); the line, error-reporter-wiring.test.mjs.
+describe('ownWritesSent — tells how the wait ended, and never changes the answer by telling', () => {
+    /** A clock the test moves, so a reported length is exact. */
+    const clock = (/** @type {number[]} */ ...readings) => { let i = 0; return () => readings[Math.min(i++, readings.length - 1)]; };
+
+    it('drained: the outcome and how long the wait took', async () => {
+        /** @type {any[]} */ const told = [];
+        assert.equal(await ownWritesSent(async () => {}, 1_000, { onSettled: w => told.push(w), now: clock(5_000, 5_120) }), true);
+        assert.deepEqual(told, [{ ms: 120, outcome: 'drained' }]);
+    });
+    it('ran out: the limit fired first', async () => {
+        /** @type {any[]} */ const told = [];
+        assert.equal(await ownWritesSent(() => new Promise(() => {}), 20, { onSettled: w => told.push(w), now: clock(0, 8_003) }), false);
+        assert.deepEqual(told, [{ ms: 8_003, outcome: 'ran out' }]);
+    });
+    it('failed: the SDK abandoned the wait — told, and the rejection still passed on', async () => {
+        /** @type {any[]} */ const told = [];
+        const cancelled = Object.assign(new Error('user changed'), { code: 'cancelled' });
+        await assert.rejects(ownWritesSent(() => Promise.reject(cancelled), 1_000, { onSettled: w => told.push(w), now: clock(10, 15) }),
+            (/** @type {any} */ e) => e === cancelled);
+        assert.deepEqual(told, [{ ms: 5, outcome: 'failed' }]);
+    });
+    it('told before the caller sees the answer, so a save\'s span always contains its own wait', async () => {
+        /** @type {string[]} */ const order = [];
+        await ownWritesSent(async () => {}, 1_000, { onSettled: () => order.push('told') }).then(() => order.push('answered'));
+        assert.deepEqual(order, ['told', 'answered']);
+    });
+    it('a listener that throws changes nothing — the diagnostic never disturbs the save', async () => {
+        const boom = () => { throw new Error('listener broke'); };
+        assert.equal(await ownWritesSent(async () => {}, 1_000, { onSettled: boom }), true);
+        assert.equal(await ownWritesSent(() => new Promise(() => {}), 10, { onSettled: boom }), false);
+        const cancelled = Object.assign(new Error('user changed'), { code: 'cancelled' });
+        await assert.rejects(ownWritesSent(() => Promise.reject(cancelled), 1_000, { onSettled: boom }), (/** @type {any} */ e) => e === cancelled);
+    });
+    it('a clock set back mid-wait reports 0, never a negative wait', async () => {
+        /** @type {any[]} */ const told = [];
+        await ownWritesSent(async () => {}, 1_000, { onSettled: w => told.push(w), now: clock(9_000, 4_000) });
+        assert.deepEqual(told, [{ ms: 0, outcome: 'drained' }]);
+    });
+    it('by default every watcher hears it, until it unsubscribes — and one that throws silences no other', async () => {
+        /** @type {any[]} */ const heard = [];
+        const stopBroken = watchOwnWritesWaits(() => { throw new Error('a broken listener'); });
+        const stop = watchOwnWritesWaits(w => heard.push(w.outcome));
+        try {
+            assert.equal(await ownWritesSent(async () => {}, 1_000), true);
+            assert.equal(await ownWritesSent(() => new Promise(() => {}), 10), false);
+            assert.deepEqual(heard, ['drained', 'ran out']);
+        } finally { stop(); stopBroken(); }
+        await ownWritesSent(async () => {}, 1_000);
+        assert.deepEqual(heard, ['drained', 'ran out'], 'an unsubscribed watcher hears nothing more');
     });
 });

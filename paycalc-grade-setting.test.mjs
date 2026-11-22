@@ -156,7 +156,7 @@ describe('a grade saved before grades had dates is converted once, on load', () 
         assert.deepEqual(G.getGradeSetting(), { grade: 'roster', from: 0 });
         assert.equal(page.gradeSelect.value, 'roster');
         assert.equal(page.gradeFromField.classList.contains('hidden'), true, 'the roster needs no "from which payslip?"');
-        assert.equal(page.gradeRosterLine.textContent, 'The roster lists you as CEA until 21 Nov 2026, then CES from 22 Nov 2026.');
+        assert.equal(page.gradeRosterLine.textContent, 'The roster lists you as CEA until 21 November 2026, then CES from 22 November 2026.');
         assert.equal(page.gradeRosterLine.hidden, false);
         assert.equal(page.gradePrompt.hidden, true, 'with the roster deciding there is nothing to ask');
     });
@@ -202,7 +202,7 @@ describe('the one-time note: a change of grade on the roster needs nothing doing
         load(PROMOTED, { grade: 'roster' }, t, NOV_13);
         assert.equal(page.gradeNote.hidden, false);
         assert.equal(page.gradeNoteText.textContent,
-            'Your grade on the roster changes from CEA to CES on Sun 22 Nov 2026. Each payslip is priced at the '
+            'Your grade on the roster changes from CEA to CES on Sun 22 November 2026. Each payslip is priced at the '
             + 'grade you held while you worked it, so there is nothing for you to change.');
         page.gradeNoteOk.click();
         assert.equal(_ls.get(SK.gradeNote), '2026-11-22');
@@ -218,7 +218,7 @@ describe('the one-time note: a change of grade on the roster needs nothing doing
 
     test('after the day it says the grade changed', (t) => {
         load(PROMOTED, { grade: 'roster' }, t, new Date(2026, 11, 20, 10));
-        assert.match(page.gradeNoteText.textContent, /^Your grade on the roster changed from CEA to CES on Sun 22 Nov 2026\./);
+        assert.match(page.gradeNoteText.textContent, /^Your grade on the roster changed from CEA to CES on Sun 22 November 2026\./);
     });
 
     test('a grade chosen by hand is the grade prompt\'s business, not the note\'s', (t) => {

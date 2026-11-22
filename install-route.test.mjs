@@ -5,7 +5,7 @@
  * WHY THIS EXISTS (v24.96, the 72-hour review). calendar-notices.test.mjs replaces the whole of
  * install-prompt.js with a mock, so its install-notice matrix proves what the notice DOES with a route
  * and nothing about how the route is DECIDED — and the two decisive guards had no test anywhere:
- * `isStandalone()` (no notice inside the installed app) and `!mirror` (never the browser's one-tap
+ * `isStandalonePWA()` (no notice inside the installed app) and `!mirror` (never the browser's one-tap
  * offer on the Pages mirror, which serves the manifest and so DOES get a `beforeinstallprompt` on
  * Chrome Android — a one-tap install of the mirror is the one thing the notice exists to prevent).
  * Deleting either guard left every suite green. This file imports the real module under a window it
@@ -40,9 +40,15 @@ function installFakeBrowser() {
     globalThis.localStorage = /** @type {any} */ ({ getItem: () => null, setItem() {}, removeItem() {} });
 }
 installFakeBrowser();
-// notif.js (isIOS) imports firebase-client.js, which loads the Firebase SDK from gstatic — not importable
-// in Node. The only thing install-prompt.js takes from it is isIOS, answered from the same knob.
-mock.module('./notif.js', { namedExports: { isIOS: () => browser.ios } });
+// notif.js imports firebase-client.js, which loads the Firebase SDK from gstatic — not importable in
+// Node. install-prompt.js takes three platform reads from it, each answered from the same knobs. The
+// two guards this file pins are the CALLS in install-prompt.js (deleting one still fails here); the
+// reads themselves are notif.js's, and notif.test.mjs pins those.
+mock.module('./notif.js', { namedExports: {
+    isIOS: () => browser.ios,
+    isStandalonePWA: () => browser.standalone,
+    onPagesMirror: () => /github\.io$/i.test(browser.hostname),
+} });
 const { installRoute, initInstallPrompt, yieldToInstallNotice, releaseInstallNoticeYield, installNoticeHasTheVisit } = await import('./install-prompt.js');
 
 /**

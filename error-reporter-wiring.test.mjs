@@ -174,14 +174,18 @@ describe('a slow save while online is written as a DIAGNOSTIC that says how much
         const slow = listeners['myb-slow-save'];
         assert.equal(typeof slow, 'function', 'no slow-save listener — a slow save leaves nothing in the Error Log');
         const done = (/** @type {object} */ d) => slow({ detail: { phase: 'done', onlineWhenSlow: true, batched: false, ok: true, ...d } });
+        // Each also carries a different own-saves wait (22 Nov 2026), the field that says whether the
+        // eight-second wait for this device's earlier saves ran out: none, one that ran out, and the
+        // summary of several that drained.
         done({ id: 901, ms: 81_800, hiddenMs: 74_000 });
-        done({ id: 902, ms: 9_400, hiddenMs: 0 });
-        done({ id: 903, ms: 12_000, hiddenMs: null });
-        const tail = ' · sign-in token not measured · installed app: no';
+        done({ id: 902, ms: 8_100, hiddenMs: 0, ownWrites: { ms: 8_004, outcome: 'ran out', count: 1 } });
+        done({ id: 903, ms: 12_000, hiddenMs: null, ownWrites: { ms: 40, outcome: 'drained', count: 3 } });
+        const token = ' · sign-in token not measured', tail = ' · installed app: no';
         assert.deepEqual(writes.map(w => w.message), [
-            `Slow save (diagnostic): the save took 81.8s to be confirmed — a save while the phone said it was online · in the background for 74.0s${tail}`,
-            `Slow save (diagnostic): the save took 9.4s to be confirmed — a save while the phone said it was online · on screen throughout${tail}`,
-            `Slow save (diagnostic): the save took 12.0s to be confirmed — a save while the phone said it was online · background time not measured${tail}`,
+            `Slow save (diagnostic): the save took 81.8s to be confirmed — a save while the phone said it was online · in the background for 74.0s${token}${tail}`,
+            `Slow save (diagnostic): the save took 8.1s to be confirmed — a save while the phone said it was online · on screen throughout${token} · own-saves wait 8.0s, ran out${tail}`,
+            `Slow save (diagnostic): the save took 12.0s to be confirmed — a save while the phone said it was online · background time not measured${token} · own-saves wait 0.0s, drained (3 waits)${tail}`,
         ]);
+        assert.ok(writes.every(w => w.message.length <= 300), 'every line fits the 300 characters the record keeps');
     });
 });

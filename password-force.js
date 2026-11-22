@@ -27,7 +27,7 @@
  *     next sign-in.
  *     · v18.92 shipped this covering REJECTIONS only. A promise that never settles is not a rejection:
  *       it reached neither the catch nor the close, so a dead-air connection left "Saving…" up with the
- *       escape still hidden — the exact trap. `SAVE_TIMEOUT_MS` converts a hang into a rejection
+ *       escape still hidden — the exact trap. `SAVE_TIMEOUT_MS` (own-password.js) converts a hang into a rejection
  *       (v18.94). When adding any await inside the overlay, time-box it or this property is void.
  *
  * ── WHY IT IS LOGIN-GATED ─────────────────────────────────────────────────────────────────────
@@ -68,6 +68,7 @@ import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
 import { getPasswordStatus, changeOwnPassword, reauthenticateWithPassword } from './firebase-client.js';
 import { trackBackgroundWrite } from './claim-retry.js';
+import { runPasswordSave, withTimeout, settleOrTimeout } from './own-password.js';
 import { isPasswordMigrated, validateNewPassword, MIN_PASSWORD_LENGTH, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
@@ -78,69 +79,9 @@ const STATUS_READ_TIMEOUT_MS = 4000;
 /** Failed save attempts before the escape hatch appears regardless of the error. */
 const ESCAPE_AFTER_FAILURES = 3;
 
-/** Ceiling on the password WRITE. Mirrors runNamedSignIn's 8s sign-in budget (the login freeze). */
-const SAVE_TIMEOUT_MS = 8000;
-
-/**
- * Reject `promise` if it hasn't settled in `ms`. Load-bearing here, not defensive padding: a promise
- * that never settles reaches neither `catch` nor the close path, so without this a dead-air mobile
- * connection left a MANDATORY overlay showing "Saving…" with the escape hatch still hidden — the
- * member could neither satisfy it nor dismiss it, which is precisely the trap this feature's design
- * claims to have closed. It closed it for REJECTIONS; a hang is not a rejection. Every other network
- * call in the feature was already time-boxed (the ready barrier, the status read, sign-in itself);
- * this one wasn't.
- * EXPORTED (v18.95) so the Settings Password card can reuse it rather than grow a second copy — it
- * made the same password-change call and had the same gap. Its consequence is milder (a stuck card,
- * not a trap, because Settings is dismissible) but identical in kind: `finally` never runs on a
- * promise that never settles, so the button stayed disabled on "Saving…" until a reload.
- *
- * **Use this only for operations that change NOTHING** — a read, or an idempotent re-auth. For a
- * STATE-CHANGING call, use `settleOrTimeout` below: this one reports a timeout as a rejection, and a
- * rejection means "it did not happen", which for a password write is a claim we cannot make.
- * @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>}
- */
-export function withTimeout(promise, ms) {
-    /** @type {any} */ let timer;
-    return /** @type {Promise<T>} */ (Promise.race([
-        promise,
-        new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('timed out'), { code: 'myb/timeout' })), ms); }),
-    ]).finally(() => clearTimeout(timer)));
-}
-
-/**
- * Race a promise against a deadline WITHOUT claiming that a slow operation failed.
- *
- * `withTimeout` above turns a deadline into a rejection, and every caller treats a rejection as "it
- * did not happen". For a password WRITE that is false, and dangerously so: `Promise.race` stops
- * *waiting*, it does not *cancel* — Firebase's `updatePassword` keeps going and can succeed a second
- * after we have told the member it failed. They then believe their old password still works, retry
- * against a credential that has already changed, or walk away from a compulsory overlay mis-informed.
- * With FORCE_PASSWORD_SET live that is a route into a genuine lockout, caused by the very guard added
- * to prevent one (external review, v18.96).
- *
- * So this reports THREE outcomes rather than two, and hands back a handle on the original work:
- *   { status: 'ok', value }       — settled in time
- *   { status: 'failed', error }   — genuinely rejected in time
- *   { status: 'pending', settled }— deadline passed, STILL RUNNING; await `settled` for the real
- *                                   outcome (it resolves to an 'ok' or 'failed' record, never rejects)
- *
- * The tracked promise absorbs its own rejection immediately, so a late failure can never surface as
- * an unhandled rejection even if the caller stops caring.
- *
- * @template T @param {Promise<T>} promise @param {number} ms
- * @returns {Promise<{status:'ok',value:T}|{status:'failed',error:any}|{status:'pending',settled:Promise<{status:'ok',value:T}|{status:'failed',error:any}>}>}
- */
-export function settleOrTimeout(promise, ms) {
-    /** @type {any} */ let timer;
-    const settled = promise.then(
-        value => /** @type {any} */ ({ status: 'ok', value }),
-        error => /** @type {any} */ ({ status: 'failed', error }),
-    );
-    const deadline = new Promise(resolve => {
-        timer = setTimeout(() => resolve(/** @type {any} */ ({ status: 'pending', settled })), ms);
-    });
-    return /** @type {any} */ (Promise.race([settled, deadline]).finally(() => clearTimeout(timer)));
-}
+// The deadline helpers live with the save sequence in own-password.js (settings review, Nov 2026) and are
+// re-exported here because the sign-in card (login-core.js) imports `withTimeout` from this module.
+export { withTimeout, settleOrTimeout };
 
 /**
  * PURE gate decision — no DOM, no Firebase, no storage (so it is unit-testable).
@@ -180,7 +121,7 @@ function _mount() {
         <div id="pwForceContent">
             <img src="icon-192.png" alt="" aria-hidden="true">
             <div class="login-app-name">Set your own password</div>
-            <div class="login-subtitle">Your password is still your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
+            <div class="login-subtitle">Your password is your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
             <!-- A REAL FORM, FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026) — the sign-in card's shape
                  and its display:contents class (login-overlay.js). With no form and no username,
                  iCloud Keychain filed the new password under nobody. The username is the member's
@@ -203,7 +144,7 @@ function _mount() {
             <div class="login-field" id="pwfCurrentWrap" hidden>
                 <label for="pwfCurrent">Current password</label>
                 <input type="password" id="pwfCurrent" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
-                <div class="login-hint">Your surname in lowercase, unless you’ve already changed it.</div>
+                <div class="login-hint">Your surname, unless you’ve set your own since the admin last reset it.</div>
             </div>
             <div aria-live="polite"><div id="pwfError" class="login-error"></div></div>
             <button type="button" id="pwfSave">Set password →</button>
@@ -321,35 +262,25 @@ function _show(member) {
             const startFocus = document.activeElement;   // see the caret, in `finally`
             saveBtn.disabled = true;
             saveBtn.textContent = 'Saving…';
-            let reauthed = false;   // which STAGE a failure came from (the shared ladder, auth-identity.js)
             /** Where the caret goes after a refusal. @type {HTMLElement|null} */
             let refocus = null;
             try {
-                // If the current-password field is showing we already know a plain updatePassword was
-                // refused for staleness, so reauthenticate first. credentialCandidatesFor (inside
-                // reauthenticateWithPassword) handles the un-migrated short-surname padding, exactly
-                // as sign-in does — otherwise "C. Reen" typing "reen" could never complete this.
-                // Re-auth is safe to time out as a plain failure: it changes nothing, so retrying is
-                // free and "it did not happen" is a true statement about it.
-                if (!curWrap.hidden) await withTimeout(reauthenticateWithPassword(member, curEl.value), SAVE_TIMEOUT_MS);
-                reauthed = true;
-                // The WRITE is different — see settleOrTimeout. A deadline here means "we don't know",
-                // never "it failed". It times the password change ALONE (settings-ops-2): its
-                // migration stamp, a Firestore write that can be slow where the change was not, goes
-                // on in the background (`changeOwnPassword`), and waited for here it turned a changed
-                // password into "we couldn't confirm".
-                // COUNTED FOR AS LONG AS IT RUNS (audit E5): a release's reload waits for it on every page
-                // (sw-register.js reads the count), as it does for Settings' own card and the stamp, and this
-                // write was counted by none. Past the deadline too — `settleOrTimeout` stops waiting, never the write.
-                const res = await settleOrTimeout(trackBackgroundWrite(changeOwnPassword(member, next)), SAVE_TIMEOUT_MS);
+                // The sequence is own-password.js's (`runPasswordSave`, shared with Settings' card). It
+                // re-authenticates first only if the current-password field is showing — we then already
+                // know a plain updatePassword was refused for staleness (credentialCandidatesFor, inside
+                // it, pads an un-migrated short surname exactly as sign-in does, so "C. Reen" typing
+                // "reen" can complete this). The WRITE is timed alone and may come back PENDING — "we
+                // don't know", never "it failed" — and it is COUNTED for as long as it runs (audit E5),
+                // so a release's reload waits for it on every page (sw-register.js reads the count).
+                const res = await runPasswordSave({ member, current: curWrap.hidden ? null : curEl.value, next,
+                    reauthenticate: reauthenticateWithPassword, change: changeOwnPassword, track: trackBackgroundWrite });
                 if (res.status === 'pending') { onIndeterminate(res.settled); return; }
-                if (res.status === 'failed')  throw res.error;
                 // The password IS changed at this point. A missing migration stamp is a soft note
-                // (changeOwnPassword's contract, in firebase-client.js), never a failure — do not re-prompt.
-                onWriteConfirmed();
-            } catch (e) {
+                // (changeOwnPassword's contract, in own-password.js), never a failure — do not re-prompt.
+                if (res.status === 'ok') { onWriteConfirmed(); return; }
                 failures++;
-                const code = /** @type {any} */ (e)?.code || '';
+                const reauthed = res.reauthed;   // which STAGE the failure came from (the shared ladder, auth-identity.js)
+                const code = /** @type {any} */ (res.error)?.code || '';
                 if (code === 'auth/requires-recent-login') {
                     // The sign-in wasn't recent enough after all (the assumption this overlay is built
                     // on). Ask for the current password rather than dead-ending.
@@ -415,7 +346,7 @@ function _show(member) {
             _indeterminate = true;
             saveBtn.disabled = true;                 // no racing second write
             saveBtn.textContent = 'Still saving…';
-            setError('We couldn’t confirm whether your password was updated. Keep the password you just entered and try it first next time you sign in.');
+            setError('We couldn’t confirm whether your password was updated. Remember the new password you just entered: try it first the next time you sign in, and your old one if it doesn’t work.');
             offerEscape();
             settled.then(late => {
                 if (!overlay.isConnected) return;    // they left; nothing to update

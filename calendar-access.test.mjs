@@ -54,6 +54,8 @@ let lastFetchBody = null;
 
 const auth = { get currentUser() { return currentUser; } };
 
+/** Runs inside `letViewerWritesGo`, so a test can change the identity mid-wait. @type {null | (() => any)} */
+let duringViewerWrites = null;
 mock.module('./firebase-client.js', {
     namedExports: {
         auth,
@@ -66,6 +68,13 @@ mock.module('./firebase-client.js', {
             };
             if (emitOnSignIn) for (const cb of [...authSubs]) cb(currentUser);
             return { user: currentUser };
+        },
+        // 22 Nov 2026: the viewer's queued writes get a moment to leave before it is signed out
+        // (firebase-client.js). Recorded with WHO was current, and a hook to land a change mid-wait.
+        letViewerWritesGo: async () => {
+            ops.push(`viewerWrites:${currentUser?.uid ?? 'none'}`);
+            if (duringViewerWrites) await duringViewerWrites();
+            return true;
         },
         signOut: async () => {
             ops.push('signOut');
@@ -1497,6 +1506,27 @@ describe('lockCalendar + handleAccessLost', () => {
         ops = [];
         await lockCalendar();
         assert.ok(ops.includes('signOut'));
+    });
+
+    test('locking lets the viewer\'s queued writes leave FIRST, while it is still current (22 Nov 2026)', async () => {
+        // A viewer write left queued at the sign-out made every later checked save on the device
+        // wait out its eight seconds (firebase-client.js → letViewerWritesGo).
+        await unlockWithPin('1234');
+        const viewerUid = currentUser?.uid;
+        ops = [];
+        await lockCalendar();
+        const wait = ops.indexOf(`viewerWrites:${viewerUid}`);
+        assert.ok(wait >= 0, `no wait for the viewer's writes: ${JSON.stringify(ops)}`);
+        assert.ok(ops.indexOf('signOut') > wait, `the wait came after the sign-out: ${JSON.stringify(ops)}`);
+    });
+
+    test('a member who replaced the viewer during that wait is never signed out', async () => {
+        await unlockWithPin('1234');
+        ops = [];
+        duringViewerWrites = () => { currentUser = { uid: 'member-1', isAnonymous: false }; };
+        try { await lockCalendar(); } finally { duringViewerWrites = null; }
+        assert.ok(!ops.includes('signOut'), `the member was signed out: ${JSON.stringify(ops)}`);
+        assert.equal(currentUser?.uid, 'member-1');
     });
 
     test('locking is a NO-OP for a member — it can never touch a real session', async () => {

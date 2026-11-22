@@ -4,7 +4,7 @@
  *
  * Single source of truth for the VAPID key and the push-subscription lifecycle.
  * Imported by nav-panel.js (the drawer bell), calendar-notif-prompt.js (renewal + the one-off prompt),
- * huddle.js (the Settings Notifications card), settings-app.js, calendar-lock-cards.js, install-prompt.js.
+ * notif-card.js (the Settings Notifications card), settings-app.js, calendar-lock-cards.js, install-prompt.js.
  *
  * Public API:
  *   notifSupported()        → boolean — push usable on this device/browser
@@ -14,6 +14,9 @@
  *   disableNotifications()  → Promise<state> — unsubscribes, removes server record
  *   notifOffByChoice()      → boolean — the member switched them off on this device (not a lapse)
  *   releaseDevicePush(ms?)  → Promise<void> — on SIGN-OUT: drop this device's server record
+ *   isIOS()                 → boolean — an iPhone or iPad (iPadOS included)
+ *   isStandalonePWA()       → boolean — running as the installed app, not in a browser tab
+ *   onPagesMirror()         → boolean — served from the GitHub Pages mirror, not the main address
  *   state = 'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'
  *
  * A DELIBERATE OFF IS 'off-default', NOT 'off-lapsed' (Sep 2026 review). Granted + no subscription is
@@ -52,10 +55,27 @@ export function isIOS() {
            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 
-/** True when running as an installed Home Screen PWA (standalone display mode). */
-function isStandalonePWA() {
-    return window.matchMedia?.('(display-mode: standalone)').matches ||
+/**
+ * True when running as an installed Home Screen PWA (standalone display mode). ONE copy (Nov 2026):
+ * install-prompt.js, the Settings Notifications card and settings-app.js each kept their own, and
+ * three copies of a platform test are three chances for one of them to be the one that is wrong.
+ * @returns {boolean}
+ */
+export function isStandalonePWA() {
+    return window.matchMedia?.('(display-mode: standalone)').matches === true ||
            /** @type {any} */ (window.navigator).standalone === true;
+}
+
+/**
+ * True on the GitHub Pages mirror (`garethdavidmiller.github.io/roster-app/`) rather than the main
+ * address. Matched on the host alone: nothing else the app is served from ends in `github.io`. Most
+ * staff still open the app there (CLAUDE.md → Project identity), so this is not a rump to discount —
+ * what it changes is only where an INSTALL comes from: never the mirror, which would pin a member to
+ * the address the app is moving off. One copy, for the same reason as `isStandalonePWA`.
+ * @returns {boolean}
+ */
+export function onPagesMirror() {
+    return /github\.io$/i.test(window.location.hostname);
 }
 
 /**
@@ -253,9 +273,9 @@ export async function getNotifState() {
  *     re-save failed) — getNotifState() saves it again (at once when the account or the endpoint
  *     changed, else within a day), this never looks.
  * A keyless subscription is the one structural fault it does check ('off-lapsed', as getNotifState
- * says), and it leaves the rollback to getNotifState(). That runs only on a Calendar load with a named
- * grant (calendar-notif-prompt.js), so until the member next opens the Calendar signed in, these
- * surfaces show the browser's view and nothing more.
+ * says), and it leaves the rollback to getNotifState(). That runs on a Calendar load with a named
+ * grant (calendar-notif-prompt.js) and once each time Settings opens signed in (notif-card.js), so
+ * until the member next opens one of those, the drawer's bell shows the browser's view and nothing more.
  * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
  */
 export async function peekNotifState() {
@@ -360,12 +380,11 @@ async function _disableNotifications() {
  * When the delete is CONFIRMED the browser subscription is kept, so the device keeps its
  * notification setting: the re-save throttle is cleared, and the next `getNotifState()` re-saves the
  * record as whoever is signed in then. Only a confirmed delete earns that — see the last paragraph.
- * That re-save is a signed-in CALENDAR load's, and no other page's (whole-app review, 10 Nov 2026):
- * `calendar-notif-prompt.js` is `getNotifState`'s only caller, and the drawer's bell and the Settings
- * card read through `peekNotifState`, which writes nothing by design. So a member who signs back in
- * on any other page sees "on" with no record behind it, and nothing reaches this device until their
- * next Calendar load. Stated rather than changed here: closing it means a page other than the
- * Calendar writing on load, which is that page's decision to take.
+ * That re-save is made by `getNotifState`, which runs on a signed-in CALENDAR load
+ * (`calendar-notif-prompt.js`) and, since 22 November 2026 (owner decision), once each time SETTINGS
+ * opens signed in (`notif-card.js`), so the Notifications card's "✓ On" has a record behind it. The
+ * drawer's bell reads through `peekNotifState`, which writes nothing by design, so a member who signs
+ * back in on any other page sees "on" with no record behind it until they next open one of those two.
  *
  * UNLESS THE RECORD CANNOT BE DELETED (48-hour review). The rule lets only its owner delete it, and
  * the Calendar's member card is shown precisely when a local session has OUTLIVED its Firebase

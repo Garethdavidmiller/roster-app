@@ -10,7 +10,7 @@
  * (`verdictFor`), and a gain is never said without its cost (`balanceFacts`).
  */
 
-import { serviceMinutes, dateWords } from './trains-change.js';
+import { serviceMinutes, dateWords, monthWords } from './trains-change.js';
 import { CHANGE_DATE } from './trains-data.js';
 import { REAL_DAY, runsOn } from './trains-weekdays.js';
 
@@ -68,7 +68,10 @@ const countWords = (/** @type {number} */ was, /** @type {number} */ is) => {
  * @returns {Verdict}
  */
 export function verdictFor(now, dec, trains, dir = 'dep', { change = null, started = false, days = null, others = [] } = {}) {
-    if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published where its December trains stop. Today’s figures are below.', also: [] };
+    if (!dec) {
+        const month = monthWords(change || CHANGE_DATE);
+        return { tone: 'unknown', text: `${month} not known yet: Chiltern has not published where its ${month} trains stop. Today’s figures are below.`, also: [] };
+    }
     const lead = leadOf(now, dec, trains, dir, change, started);
     // Lower-case only the first letter: every sentence here opens on a word of ours ("Same", "More", "No",
     // "Fastest", "First", "Last") or a figure, never a name.
@@ -110,7 +113,11 @@ function leadOf(now, dec, trains, dir, change, started) {
             ? `New from ${from}: one direct train, the ${dec.first}.`
             : `New from ${from}: ${dec.total} direct trains a day.` };
     }
-    if (now.total && !dec.total) return { tone: 'less', kind: 'gone', text: `No direct trains from ${from}.` };
+    // Never "No direct trains from 13 December": coming back, "trains from" names where a train starts,
+    // and the sentence read as trains from a place (Trains review, Nov 2026).
+    if (now.total && !dec.total) {
+        return { tone: 'less', kind: 'gone', text: started ? `No direct trains on this day since ${from}.` : `From ${from}, no direct trains on this day.` };
+    }
     if (hourChanged(now, dec)) {
         const more = dec.daytime > now.daytime;
         return { tone: more ? 'more' : 'less', kind: 'hour',
@@ -119,14 +126,19 @@ function leadOf(now, dec, trains, dir, change, started) {
     const gained = dec.total - now.total;
     if (gained) return { tone: gained > 0 ? 'more' : 'less', kind: 'daily', text: countWords(now.total, dec.total) };
     if (sameRegularity(now, dec) && now.minutes.join() !== dec.minutes.join()) {
-        return { tone: 'moved', kind: 'minutes', text: `Same number of trains. In the daytime they leave at ${minutesWords(dec.minutes)} past the hour, was ${minutesWords(now.minutes)}.` };
+        return { tone: 'moved', kind: 'minutes', text: `Same number of trains a day. In the daytime they leave at ${minutesWords(dec.minutes)} past the hour, was ${minutesWords(now.minutes)}.` };
     }
     // A train that leaves on time but gets there later is a change too: "No change." sat above
     // "Fastest journey 159 → 164 min" at Cradley Heath (v24.83). Counted on one real day, as every count
     // on the card is: the list below shows a Mondays-and-Fridays train AND its Tuesday-to-Thursday twin,
     // and counting both said "7 are different" at Islip, where 6 are on any one day (18 Nov 2026).
-    const moved = (trains ?? []).filter(t => runsOn(t.days, REAL_DAY)
-        && (t.kind !== 'same' || (/** @type {StationTrain} */ (t).farShift ?? 0) !== 0)).length;
+    // And it counts DECEMBER'S trains that differ: a kept train that moved, at either end, and a train
+    // new to this station. A stop moved from one train to another is one change, not two — counting the
+    // train that stops calling AND the one that starts said "11 are different" at Kings Sutton, of a
+    // day of 10 (Trains review, Nov 2026). With the count held, every train that leaves the list is
+    // matched by one that joins it, so the joiners are the whole story.
+    const moved = (trains ?? []).filter(t => runsOn(t.days, REAL_DAY) && t.dec && (!t.now
+        || t.kind !== 'same' || (/** @type {StationTrain} */ (t).farShift ?? 0) !== 0)).length;
     if (moved) return { tone: 'moved', kind: 'moved', text: `Same number of trains a day, but ${moved} ${moved === 1 ? 'is' : 'are'} different — see Train by train below.` };
     return { tone: 'same', kind: 'same', text: 'No change.' };
 }
@@ -196,10 +208,10 @@ export function rateWords(s, { short = false } = {}) {
 }
 
 /**
- * Whether two stations' off-peak times can be compared minute for minute: the same number of times
- * repeat in most hours on both sides, so a difference is a train that MOVED. A train whose minute
- * only wobbles stops "repeating" without going anywhere — Beaconsfield's December :13 arrival is :10
- * in two hours of six — and comparing lists of different lengths said "from :13 and :39 to :39" of a
+ * Whether one station's daytime times, today and from the change, can be compared minute for minute:
+ * the same number of times repeat in most hours on both sides, so a difference is a train that MOVED.
+ * A train whose minute only wobbles stops "repeating" without going anywhere — Beaconsfield's December
+ * :13 arrival is :10 in two hours of six — and comparing lists of different lengths said "from :13 and :39 to :39" of a
  * station that keeps all three trains an hour (v24.80, seen once December's stops were known).
  * @param {StationSummary} now
  * @param {StationSummary} dec
@@ -222,17 +234,19 @@ export function hourWords(s) {
 }
 
 /**
- * The exception to the typical hour — "1 in some hours", "none in one hour" — or '' when every hour
- * is the same or there is no typical hour.
+ * The exception to the typical hour — "1 in some hours", "none in one hour", "5 or 6 in some hours" —
+ * or '' when every hour is the same or there is no typical hour.
  * @param {StationSummary} s
  * @returns {string}
  */
 export function hourNote(s) {
     const [lo, hi] = s.hourRange, t = s.typical;
     if (lo === hi || t === null) return '';
-    const odd = s.hourCounts.filter(n => n !== t).length;
-    const other = lo < t && hi > t ? `${lo} to ${hi}` : String(lo < t ? lo : hi);
-    return `${other === '0' ? 'none' : other} in ${odd === 1 ? 'one hour' : 'some hours'}`;
+    const odd = s.hourCounts.filter(n => n !== t);
+    // Each count an unusual hour has, named: a range hid a 5 inside "4 (6 in some hours)" and put the
+    // typical inside its own exception — "2 (1 to 3 in some hours)" (Trains review, Nov 2026).
+    const other = andList([...new Set(odd)].sort((a, b) => a - b).map(n => n === 0 ? 'none' : String(n)), 'or');
+    return `${other} in ${odd.length === 1 ? 'one hour' : 'some hours'}`;
 }
 
 /**
@@ -244,5 +258,10 @@ export function minutesWords(ms) {
     return andList(ms.map(m => `:${String(m).padStart(2, '0')}`));
 }
 
-/** A list as a reader says it: "A", "A and B", "A, B and C". */
-export const andList = (/** @type {string[]} */ ws) => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} and ${ws[ws.length - 1]}`;
+/**
+ * A list as a reader says it: "A", "A and B", "A, B and C" — or, with `word`, "A, B or C".
+ * @param {string[]} ws
+ * @param {'and'|'or'} [word]
+ * @returns {string}
+ */
+export const andList = (ws, word = 'and') => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} ${word} ${ws[ws.length - 1]}`;

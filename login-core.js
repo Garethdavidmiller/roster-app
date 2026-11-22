@@ -138,7 +138,7 @@ const SIGN_IN_ABOUT_BY_PAGE = Object.freeze({
     Settings: Object.freeze({
         lines: Object.freeze([
             'Your password, your work email for account recovery, and notifications on this device.',
-            'They belong to your own account, so you sign in as yourself — the staff PIN doesn’t open it.',
+            'They’re yours, so you sign in as yourself — the staff PIN doesn’t open Settings.',
         ]),
         footnote: SHARED_SCREEN,
     }),

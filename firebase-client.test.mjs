@@ -912,4 +912,76 @@ describe('whenOwnWritesSent — the wait a checked write makes before it reads t
         assert.equal(await fc.whenOwnWritesSent(20), false);
         assert.ok(Date.now() - started < 1_000, 'the limit it was given was not the one it kept');
     });
+    test('every wait says how it went, for the slow-save diagnostic (22 Nov 2026)', async () => {
+        // The export is the one the checked saves call, so this is what the Error Log's line reads:
+        // a wiring that passed its own `onSettled` (or none at all) would leave the line silent.
+        const { watchOwnWritesWaits } = await import('./claim-retry.js');
+        /** @type {any[]} */ const heard = [];
+        const stop = watchOwnWritesWaits((w) => heard.push(w));
+        try {
+            state.pendingWrites = undefined;
+            assert.equal(await fc.whenOwnWritesSent(50), true);
+            state.pendingWrites = new Promise(() => {});
+            assert.equal(await fc.whenOwnWritesSent(20), false);
+        } finally { stop(); }
+        assert.deepEqual(heard.map((w) => w.outcome), ['drained', 'ran out']);
+        assert.ok(heard.every((w) => typeof w.ms === 'number' && w.ms >= 0));
+    });
+});
+
+// ── the staff PIN's queued writes leave before it is signed out (22 Nov 2026) ─────────────────────
+// A viewer write still queued at its sign-out stayed in the on-device queue, and the SDK's wait for
+// the NEXT member's own writes waited on it (its IndexedDB queue does not bound the lookup to the
+// signed-in account) — every checked save on that device then ran out its eight seconds. Each
+// viewer sign-out awaits `letViewerWritesGo` first; its callers are tested in session.test.mjs and
+// calendar-access.test.mjs. Here: that it asks the app's own Firestore, only for the viewer, only
+// online, within its bound, and never makes the slow-save diagnostic think a save waited.
+describe('letViewerWritesGo — the PIN viewer\'s writes get a moment before it is signed out', () => {
+    const waits = () => state.ops.filter((o) => o.op === 'waitForPendingWrites');
+    const online = (v) => Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: v } });
+
+    test('the viewer, online: waits on the app\'s own Firestore, and says it drained', async () => {
+        signIn({ uid: 'calendar-viewer' });
+        online(true);
+        assert.equal(await fc.letViewerWritesGo(50), true);
+        assert.equal(waits().length, 1);
+        assert.equal(waits()[0].db, fc.db);
+    });
+    test('a member, or nobody: no wait at all — they own no viewer queue', async () => {
+        online(true);
+        signIn({ uid: 'uid_springer' });
+        assert.equal(await fc.letViewerWritesGo(50), false);
+        state.currentUser = null;
+        assert.equal(await fc.letViewerWritesGo(50), false);
+        assert.equal(waits().length, 0);
+    });
+    test('offline: no wait — nothing could leave, and the sign-out must not be held for it', async () => {
+        signIn({ uid: 'calendar-viewer' });
+        online(false);
+        try { assert.equal(await fc.letViewerWritesGo(50), false); } finally { online(true); }
+        assert.equal(waits().length, 0);
+    });
+    test('a queue that will not drain is let go within the bound, and never throws', async () => {
+        signIn({ uid: 'calendar-viewer' });
+        online(true);
+        state.pendingWrites = new Promise(() => {});
+        const started = Date.now();
+        assert.equal(await fc.letViewerWritesGo(20), false);
+        assert.ok(Date.now() - started < 1_000, 'the sign-out was held past its bound');
+        state.pendingWrites = Promise.reject(Object.assign(new Error('cancelled'), { code: 'cancelled' }));
+        state.pendingWrites.catch(() => {});
+        assert.equal(await fc.letViewerWritesGo(50), false, 'a rejected wait threw into the sign-out');
+    });
+    test('the bound defaults to VIEWER_WRITES_GRACE_MS, and the slow-save diagnostic hears nothing', async () => {
+        assert.equal(fc.VIEWER_WRITES_GRACE_MS, 2000);
+        const { watchOwnWritesWaits } = await import('./claim-retry.js');
+        /** @type {any[]} */ const heard = [];
+        const stop = watchOwnWritesWaits((w) => heard.push(w));
+        try {
+            signIn({ uid: 'calendar-viewer' });
+            online(true);
+            await fc.letViewerWritesGo(50);
+        } finally { stop(); }
+        assert.deepEqual(heard, [], 'a sign-out\'s wait was reported as a save\'s');
+    });
 });

@@ -367,6 +367,26 @@ export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRe
 /** Whether this device's queued writes reach the server within `ms` — a checked write asks first (claim-retry.js → ownWritesSent). @param {number} [ms] */
 export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrites(db), ms);
 
+/** How long the staff PIN's unsent writes get to leave before it is signed out (22 Nov 2026). */
+export const VIEWER_WRITES_GRACE_MS = 2000;
+/**
+ * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT (22 Nov 2026). Every sign-out of the viewer
+ * awaits this first. A viewer write still queued when it was signed out (its page views, speed
+ * samples) stays in Firestore's on-device queue until the viewer signs in again — and the SDK's
+ * `waitForPendingWrites` for the next member WAITS ON IT (its IndexedDB queue looks up the highest
+ * unsent batch, `getHighestUnacknowledgedBatchId`, without bounding it to the signed-in account:
+ * `@firebase/firestore` 4.19–4.20), so every checked save on that device ran out its 8s and every
+ * checked removal was refused as offline. Reproduced on both engines; KNOWN_LIMITATIONS.md → "Admin saves are slow on iPhones".
+ * Bounded, never throws, does not announce to the slow-save diagnostic, and does nothing offline
+ * (nothing would leave) or for anybody but the viewer.
+ * @param {number} [ms] @returns {Promise<boolean>} whether the viewer's queue drained
+ */
+export async function letViewerWritesGo(ms = VIEWER_WRITES_GRACE_MS) {
+    if (!isViewerUser(auth.currentUser) || globalThis.navigator?.onLine === false) return false;
+    try { return await ownWritesSent(() => waitForPendingWrites(db), ms, { onSettled: () => {} }); }
+    catch { return false; }
+}
+
 /** A READ THE OFFLINE CACHE ANSWERED IS A FAILED LOAD (settings-ops-1) — for the admin reads below, which
  *  Operations painted as current offline ("✓ No outstanding requests", "0/51"). analytics-client.js keeps the
  *  same guard, with the argument and why it throws `unavailable`. @template T @param {T} snap @returns {T} */

@@ -12,7 +12,7 @@
  * Edit here for: session expiry, Firebase Auth strategy.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, probeResetAtMs } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, probeResetAtMs, letViewerWritesGo } from './firebase-client.js';
 // `onAuthStateChanged` is read from the namespace AT CALL TIME (`watchForLateViewer`): a page's test that
 // stands in for this module without it still loads, and the watcher then simply does not start.
 import * as firebaseClient from './firebase-client.js';
@@ -818,6 +818,7 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
     // the staff PIN (audit C3): it owns no record, so the release dropped THIS BROWSER's subscription — a
     // member's own phone, used with the PIN, came back with notifications off — and held the notice up.
     if (!isViewerUser(u)) await releasePushForEndingHold();
+    else await letViewerWritesGo();   // the viewer's queued writes leave first (firebase-client.js says why)
     // …or anybody else did: a PIN unlock on the Calendar, which moves no generation (sign-in check,
     // 11 Nov 2026 — the sign-out below signed out whoever was current, which could be the new viewer).
     if (gen !== _authGen || getSession() || auth.currentUser !== u) return;
@@ -924,6 +925,8 @@ function watchForLateViewer(/** @type {() => void} */ fn) {
  */
 export async function signOutStaffPin() {
     if (!isViewerUser(auth.currentUser)) return;
+    await letViewerWritesGo();
+    if (!isViewerUser(auth.currentUser)) return;   // somebody else became current during the wait
     await firebaseSignOut(auth);
     if (isViewerUser(auth.currentUser)) throw new Error('viewer still current after sign-out — not locked');
 }

@@ -1260,3 +1260,30 @@ test('a FIP search prints its cards and the key rules, not the book @print', asy
     expect(await inPrint(page, () => Math.round(/** @type {HTMLElement} */ (document.getElementById('sec-eurostar')).getBoundingClientRect().height)),
         'with no search the general chapters print').toBeGreaterThan(0);
 });
+
+// ── TRAINS: AN IN-CARD CHOICE PRINTS AS THE ONE CHOSEN (Trains review, 22 Nov 2026) ─────────────────
+// "Now / From 13 Dec" over the grid, "Going there / Coming back" on a station: the chosen tab's words are white
+// for a raspberry fill that paper drops, so the sheet showed the CHOSEN one faint and the other in full navy —
+// read the wrong way round. Printed, only the chosen one is drawn, in the body's dark ink.
+test('trains: an in-card choice prints as the one chosen, in dark ink @print', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+    await seedSession(page, 'A. Person');
+    await page.goto('/trains.html');
+    await page.locator('[data-view="grid"]').click();
+    await page.locator('[data-grid="dec"]').click();
+    const read = () => inPrint(page, () => {
+        const shown = [...document.querySelectorAll('#trGridMode .tr-tab')].filter(t => t.getBoundingClientRect().height > 0);
+        const probe = document.body.appendChild(document.createElement('div'));
+        probe.style.color = 'var(--text-dark)';
+        const ink = getComputedStyle(probe).color;
+        probe.remove();
+        return { shown: shown.map(t => /** @type {HTMLElement} */ (t).dataset.grid), ink,
+                 colour: shown[0] && getComputedStyle(shown[0]).color, fill: shown[0] && getComputedStyle(shown[0]).backgroundColor };
+    });
+    const dec = await read();
+    expect(dec.shown, 'only the chosen timetable prints').toEqual(['dec']);
+    expect(dec.colour, 'its words print in the body\'s ink, not white for a fill paper drops').toBe(dec.ink);
+    expect(dec.fill, 'and it carries no fill of its own').toBe('rgba(0, 0, 0, 0)');
+    await page.locator('[data-grid="now"]').click();
+    expect((await read()).shown, 'the other choice prints in its place').toEqual(['now']);
+});

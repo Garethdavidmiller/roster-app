@@ -19,6 +19,11 @@ let _signOutBehavior = 'ok';
 let _signOutCalls = 0;
 /** Ordered log of member-persistence restores (see the mock below). */
 let _persistenceRestores = [];
+/** Each wait for the viewer's queued writes (22 Nov 2026), with who was current and whether a
+ *  sign-out had already run — the wait is only worth anything BEFORE it. @type {any[]} */
+let _viewerWaits = [];
+/** Runs INSIDE that wait, so a test can change the identity mid-wait. @type {null | (() => any)} */
+let _duringViewerWait = null;
 
 // Controllable Firebase Auth mock state for the ensureFirebaseSession tests below.
 // onAuthStateChanged yields _existingUser; each sign-in fn resolves when its behaviour is
@@ -143,6 +148,11 @@ mock.module('./firebase-client.js', {
         // THEN restore persistence) is assertable — reversing it would migrate the shared viewer
         // into IndexedDB, where it survives the browser closing.
         restoreMemberPersistence:       async () => { _persistenceRestores.push('member'); },
+        letViewerWritesGo:              async () => {
+            _viewerWaits.push({ user: mockAuth.currentUser, afterSignOut: _signOutCalled, restoresBefore: _persistenceRestores.length });
+            if (_duringViewerWait) await _duringViewerWait();
+            return true;
+        },
         probeResetAtMs:                 async () => { _probeCalls++; if (_probeGate) await _probeGate; return _resetAtMs; },
     },
 });
@@ -699,6 +709,24 @@ describe('reconcileExpiredIdentity', () => {
         await Promise.resolve();
         assert.equal(waiting, 1, 'each card is told once');
         stopWaiting();
+    });
+
+    test('a page that does not admit the PIN lets its queued writes leave BEFORE ending it (22 Nov 2026)', async () => {
+        // The reported case: a PIN viewer's counters still queued when opening Admin ended the PIN
+        // made every checked save of the member who signed in next wait out its eight seconds.
+        _viewerWaits = [];
+        auth.currentUser = /** @type {any} */ (viewerUser);
+        await reconcileExpiredIdentity();
+        assert.equal(_viewerWaits.length, 1, 'the PIN was ended without waiting for its writes');
+        assert.equal(_viewerWaits[0].user, viewerUser);
+        assert.equal(_viewerWaits[0].afterSignOut, false);
+        assert.equal(auth.currentUser, null, 'and it was still ended');
+
+        // A member whose session lapsed owns no viewer queue: nothing to wait for.
+        _viewerWaits = [];
+        auth.currentUser = /** @type {any} */ ({ uid: 'uid-x', isAnonymous: false, email: 'x@myb.test' });
+        await reconcileExpiredIdentity();
+        assert.deepEqual(_viewerWaits, []);
     });
 
     test('the DEFAULT sheds the shared viewer — a bare call is a protected page, not the Calendar', async () => {
@@ -2002,7 +2030,37 @@ describe('shedCalendarViewer — fail closed, or the shared viewer goes long-liv
         _existingUser = null; _signInBehavior = 'ok'; _anonCalled = false;
         mockAuth.currentUser = null;
     });
-    afterEach(() => { _signOutBehavior = 'ok'; });
+    afterEach(() => { _signOutBehavior = 'ok'; _duringViewerWait = null; });
+
+    test('the viewer\'s queued writes get their moment BEFORE it is signed out (22 Nov 2026)', async () => {
+        // Left queued, they made every checked save after this member signed in wait out its eight
+        // seconds (firebase-client.js → letViewerWritesGo).
+        _viewerWaits = [];
+        mockAuth.currentUser = viewer;
+        await shedCalendarViewer();
+        assert.equal(_viewerWaits.length, 1);
+        assert.equal(_viewerWaits[0].user, viewer, 'asked while the viewer was still the one current');
+        assert.equal(_viewerWaits[0].afterSignOut, false, 'asked after the sign-out, when it can no longer help');
+        assert.equal(_signOutCalled, true);
+    });
+
+    test('an identity that moved during that wait is decided afresh, never signed out blind', async () => {
+        _viewerWaits = [];
+        const member = { uid: 'someone-else', isAnonymous: false, email: 'a@b.test' };
+        mockAuth.currentUser = viewer;
+        _duringViewerWait = () => { mockAuth.currentUser = member; };
+        await shedCalendarViewer();
+        assert.equal(_signOutCalled, false, 'whoever replaced the viewer was signed out');
+        assert.equal(mockAuth.currentUser, member);
+        assert.deepEqual(_persistenceRestores, [], 'a member already current is left alone, as before');
+    });
+
+    test('a non-viewer identity waits for nothing', async () => {
+        _viewerWaits = [];
+        mockAuth.currentUser = { uid: 'someone-else', isAnonymous: false, email: 'a@b.test' };
+        await shedCalendarViewer();
+        assert.deepEqual(_viewerWaits, []);
+    });
 
     test('it is viewer-shed.js\'s, re-exported unchanged — the same function every test here drives', async () => {
         // Moved out whole in Nov 2026 (session.js's cap); session.js's sign-in is still its one caller.
@@ -2259,6 +2317,23 @@ describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that adm
         mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
         await signOutStaffPin();
         assert.equal(_signOutCalled, false, 'Lock is for the station PIN only');
+    });
+
+    test('Lock lets the PIN\'s queued writes leave first, and never signs out who replaced it (22 Nov 2026)', async () => {
+        _viewerWaits = [];
+        mockAuth.currentUser = viewer;
+        await signOutStaffPin();
+        assert.equal(_viewerWaits.length, 1);
+        assert.equal(_viewerWaits[0].user, viewer);
+        assert.equal(_viewerWaits[0].afterSignOut, false);
+
+        _signOutCalled = false;
+        const member = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
+        mockAuth.currentUser = viewer;
+        _duringViewerWait = () => { mockAuth.currentUser = member; };
+        try { await signOutStaffPin(); } finally { _duringViewerWait = null; }
+        assert.equal(_signOutCalled, false, 'a member who became current during the wait was signed out');
+        assert.equal(mockAuth.currentUser, member);
     });
 
     test('a Lock whose sign-out RESOLVES with the PIN still current is refused, not reported', () => {

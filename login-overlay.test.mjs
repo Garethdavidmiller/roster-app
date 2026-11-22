@@ -80,6 +80,7 @@ mock.module('./firebase-client.js', { namedExports: {
         fakeAuth.currentUser = null;
     },
     restoreMemberPersistence:   async () => 'indexeddb',
+    letViewerWritesGo:          async () => false,
     probeResetAtMs:             async () => 0,
     // password-force.js's, which the card imports for `withTimeout`; nothing here opens that overlay.
     getPasswordStatus:          async () => null,

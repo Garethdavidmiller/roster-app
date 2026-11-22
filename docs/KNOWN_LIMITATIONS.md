@@ -29,16 +29,6 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
   largest stylesheets are capped the same way by `stylesheet-ratchet.test.mjs`. A file at its cap
   takes the next feature only by extracting something first; the ratchet's header says what a good
   response looks like, and raising a cap in passing is not one.
-- **One twin kept apart on purpose.** `fip-guide.js` carries the chip-bar blocks of
-  `guide-chips.js` — jump, scrollspy, the hold that keeps a tapped or linked chip lit when its
-  section cannot reach the top, sticky offsets (watching the bar's size as well as the header's) and
-  deep-link landing — woven into its country finder, where a jump also opens the country's
-  `<details>`; the other four guides share the one file. Two rules are in the shared file only: the
-  two-column rule (the FIP guide is one column) and a banner section starting at its banner (the FIP
-  guide has no banners), so neither has anything to do there yet. The hold was a third until Nov
-  2026: at 375px and 1280px wide nothing bottomed the page out, but a tall desktop window does, and
-  there a tap on Ferries or Mistakes lit Apply (`e2e/guides.spec.js` → "fip: a chip near the end of
-  the page stays lit after its jump").
 - **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the stylesheets, the app's and
   the guides' alike — nearly all a navy shadow tint — are a ratchet that may only go down
   (`RGB_BASELINE` in `css-hex-parity.test.mjs`).
@@ -194,7 +184,7 @@ treated as a duplicate. On the capped All-staff list a very old day may not be l
 the member first is the complete route. None has been counted; nothing in the app reports them (see
 also "Duplicate Firestore override documents", below).
 
-## Admin saves are slow on iPhones — cause still being measured
+## Admin saves are slow on iPhones — one cause found, others still being measured
 
 Reported 5 Oct 2026, then said to be on every iPhone: each Admin week-grid save sat on "Saving…" past
 the 8-second notice with full signal, and the change then arrived. What is known:
@@ -234,6 +224,32 @@ why the figure was added.
   screen throughout, token 0.0s. So the slowness is not iPhone-only. By the order above it points
   at the connection to Firestore, with the token caveat. One reading 0.2s past the notice is not a
   case for a change; add each new one here before choosing.
+- 22 Nov 2026, v26.48–26.51, Admin, **installed iPhone app**: four readings, each 8.1s, online, on
+  screen throughout, token 0.0s. Exactly the own-saves limit below — which is what found the cause.
+
+**A cause found: another account's unsent write (22 Nov 2026).** A checked save first waits up to
+eight seconds (`OWN_WRITES_WAIT_MS`) for this device's earlier saves to reach the server, and is sent
+unchecked when they have not — or, if it removes something, refused as offline. Reproduced on the
+emulators on both engines, with the real SDK: that wait NEVER ends while **another account's** unsent
+write is still in Firestore's on-device queue, because the SDK's IndexedDB queue looks up the highest
+unsent batch without bounding the search to the signed-in account (the SDK's getHighestUnacknowledgedBatchId,
+`@firebase/firestore` 4.19, still in 4.20). Every checked save on that device then takes over eight
+seconds, and every checked removal is refused with a false "You appear to be offline", until that
+other account is next signed in online. The usual source is the **staff PIN**: its page views and
+speed samples still queued when opening Admin ended it. Whether a member is affected depends on how
+their account id sorts against the viewer's, which is why it looked like a few people's phones and
+not everybody's. Fresh pages, offline-then-online, two tabs and reloads were all fast.
+
+- **The diagnostic line now says how that wait went** (v26.52): "own-saves wait 8.0s, ran out" means
+  the eight seconds were spent there; "drained" with a small figure means the wait was not the cause;
+  no field means the save did not wait (`trackOwnWritesWaits`, slow-save.js).
+- **Every sign-out of the PIN viewer first gives its queued writes up to two seconds to leave**
+  (v26.52, `letViewerWritesGo`, firebase-client.js), so a new leftover is not made while online. It
+  does nothing for a device that already holds one, or for a viewer ended offline.
+- **To clear an affected device today:** enter the staff PIN once with a signal, then sign back in.
+- **Not done (owner, 22 Nov 2026):** falling back to a per-record check when the wait runs out, which
+  would rescue affected devices at the cost of a sixteen-second wait on a save with no data
+  connection. Revisit if readings show "ran out" persisting after v26.52.
 
 These entries are listed in the Error Log but not counted as unresolved errors (`DIAGNOSTIC_PREFIX`
 in `client-errors.js`), so the Operations strip leaves them out. The admin's Error Log notification
@@ -676,7 +692,7 @@ session-only, so it ends when the browser session does.
 
 **What it does change, stated plainly.** A LEAVER whose device still holds a local session keeps the
 signed-in *UI* for up to 60 days. That was never the control it looked like: the real remedy is
-Operations → Set up accounts → "Disable accounts for anyone no longer on the roster (leavers)", after which the ID token stops
+Operations → Staff Login Accounts → tick "Disable accounts for anyone no longer on the roster (leavers)" → Set up accounts, after which the ID token stops
 refreshing (≤1 hour) and every authenticated read and write fails, and the Admin page independently
 blocks a signed-in name that is no longer a selectable roster member. So the exposure is bounded by
 the account disable, not by the local timer — which is why the timer's length is a UX choice, not a

@@ -81,15 +81,15 @@ gone, and that no card outgrows its cap.
 | The recorded-DATES list on Admin, and which year of it is shown | `admin-booked-periods.js` (imports only `leave-year.js`; tested by `admin-booked-periods.test.mjs`) |
 | Sick Days Recording section | `admin-sick.js` |
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
-| Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
+| Push notifications card (all staff, settings page) — its wiring / its words | `notif-card.js` → `initNotificationsCard` / `notif-card-core.js` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
-| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-overrides.js` (save logic) |
+| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-week-editor.js` (week grid, bulk bar) · `admin-shift-types.js` (`PILL_TYPES`) · `admin-week-collect.js` (what a Save asks to write) · `admin-overrides.js` (save logic) |
 | An Admin save or delete must not overwrite a colleague's newer edit — the checked commit, and what counts as changed | `admin-override-store.js` · `override-compare.js` · `admin-week-row-state.js` (what each row showed) · `admin-own-write.js` (the page's OWN write is not a colleague's: the rows it touched follow it) · the weekly roster import's Save: `roster-import-save.js` (`saveRosterWrites`) |
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` (`parseRosterPDF`) + `functions/roster-parse-helpers.js` + `functions/roster-prompt.js` |
 | Pay calculator coordinator — calculate(), autosave, HPP, back-pay | `paycalc-app.js` + `paycalc.html` |
-| Pay calculator lightboxes — About, Help, YTD notice, decimal converter | `paycalc-lightboxes.js` |
+| Pay calculator lightboxes — About, the `?` panels' wiring, YTD notice, decimal converter | `paycalc-lightboxes.js` |
 | Pay calculator period arithmetic, select UI, nav | `paycalc-periods.js` |
 | Pay calculator grade helpers, settings save/load | `paycalc-settings.js` |
 | Roster-assist hint bar UI, fill logic, snap persistence | `paycalc-roster-hint.js` |
@@ -97,11 +97,11 @@ gone, and that no card outgrows its cap.
 | Back-pay lump sum calculator | `paycalc-backpay.js` |
 | Shared date/currency formatters (pure) | `paycalc-format.js` |
 | Result-card HTML builders (pure) — summary + breakdown | `paycalc-breakdown.js` |
-| Pay calculator help/tooltip text | `paycalc-help.js` |
+| Pay calculator `?` panel text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
-| Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` |
+| Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` (what it lists: `nav-destinations.js`) |
 | Whether the ☰ menu offers the Marylebone Newsletter — only while its latest issue is under six weeks old | `newsletter-recency.js` (the Calendar asks once a load; the drawer and the staff-PIN line read the answer this device keeps) |
 | Push notification subscribe/unsubscribe, VAPID key, notification state (shared) | `notif.js` |
 | Firestore security rules — write isolation, field validation, admin bypass | `firestore.rules` |
@@ -275,7 +275,7 @@ Team Week View — the grade-wide week grid toggled from the Calendar header: it
 - **Exports:** `weekStartForMonth` · `weekAfterDateChange` · `initTeamView`
 
 ### `admin-app.js`
-Coordinator for `admin.html`: sign-in and session, the member bar and week navigation, the Change a Shift Save collector, the AL banner and recorded-dates wiring, and initialising every card's module. Not here: the week grid (`admin-week-editor.js`), what a save writes (`admin-overrides.js`), the AL and Absence cards. Bound by `.claude/rules/admin.md`; capped by `coordinator-ratchet.test.mjs`.
+Coordinator for `admin.html`: sign-in and session, the member bar and week navigation, the Change a Shift Save, the AL banner and recorded-dates wiring, and initialising every card's module. Not here: the week grid (`admin-week-editor.js`), what a Save collects from it (`admin-week-collect.js`), what a save writes (`admin-overrides.js`), the AL and Absence cards. Bound by `.claude/rules/admin.md`; capped by `coordinator-ratchet.test.mjs`.
 - **Exports:** `init`
 
 ### `settings-status.js`
@@ -295,15 +295,15 @@ A card's collapsible header, and the deep link that opens a collapsed card by na
 - **Exports:** `initCardCollapse` · `openCardNamedByHash`
 
 ### `about-lightbox.js`
-The About panel (`#iconLightbox`) on every app page — version, update status, bug report, optional print — and `wireHeaderLogo`, a sub-page header logo's way back to the Calendar. A page stores the returned `.open`, never the object. Bound by `.claude/rules/nav-drawer.md`; the logo wiring by `page-contract-parity.test.mjs`.
+The About panel (`#iconLightbox`) on every app page — version, update status, bug report, optional print — and `wireHeaderLogo`, a sub-page header logo's way back to the Calendar. A page stores the returned `.open`, never the object. Bound by `.claude/rules/nav-drawer.md`; the logo wiring by `page-contract-parity.test.mjs`, and the ids every page's panel carries by `about-markup-parity.test.mjs`.
 - **Exports:** `initAboutLightbox` · `wireHeaderLogo`
 
 ### `tips-lightbox.js`
-The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each page keeps only its `CARD_TIPS` data. The content shape is in the header, pinned by `tips-content.test.mjs`.
+The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each page keeps only its `CARD_TIPS` data (the Pay Calculator's is `HELP_CONTENT`, on its `.help-btn` buttons). The content shape is in the header, pinned by `tips-content.test.mjs`.
 - **Exports:** `initTipsLightbox`
 
 ### `login-core.js`
-The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), which links the card's explanation may carry, and what a failed reset request says. `login-overlay.js` re-exports all three, so callers and `login-overlay.test.mjs` reach them there.
+The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), which links the card's explanation may carry, the explanation itself for a page that passes none (`signInAboutFor`), and what a failed reset request says. `login-overlay.js` re-exports the other three, so callers and `login-overlay.test.mjs` reach them there.
 - **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
 
 ### `login-overlay.js`
@@ -326,7 +326,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - `functions/reset-request.js` — the public endpoint, which resets nothing and pushes to the admin's devices only; its bounds are argued in its header.
 
 ### `password-force.js`
-The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run after a confirmed sign-in for a member still on the surname default, gated by a one-shot marker and failing open before and after showing. Also the two deadline helpers the Settings Password card shares. Every coordinator that mounts the sign-in runs it (`page-contract-parity.test.mjs`). Tested by `password-force.test.mjs`.
+The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run after a confirmed sign-in for a member still on the surname default, gated by a one-shot marker and failing open before and after showing. It re-exports the two deadline helpers, now `own-password.js`'s, for the sign-in card. Every coordinator that mounts the sign-in runs it (`page-contract-parity.test.mjs`). Tested by `password-force.test.mjs`.
 - **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `initPasswordForce`
 
 ### `session.js`
@@ -342,7 +342,7 @@ Whether arriving on THIS page ended the shared staff PIN, who is waiting to hear
 - **Exports:** `STAFF_PIN_ENDED_NOTICE` · `BACK_TO_PIN` · `noteStaffPinEnded` · `forgetStaffPinEnded` · `takeStaffPinEndedMark` · `sayStaffPinEndedIn` · `onStaffPinEnded`
 
 ### `silent-sign-in.js`
-The rules of the sign-in nobody typed — what a page load may try for a member whose local session has no Firebase identity behind it, the six-hourly reset recheck (`AUTH_AND_SESSIONS.md` 23), and when a session began. Pure; `session.js` reads and writes the memory. Tested by `session.test.mjs`.
+The rules of the sign-in nobody typed — what a page load may try for a member whose local session has no Firebase identity behind it, the six-hourly reset recheck (`AUTH_AND_SESSIONS.md` 23), and when a session began, plus the one bound on how long Firebase may take (`AUTH_RESTORE_TIMEOUT_MS`). Pure; `session.js` reads and writes the memory. Tested by `session.test.mjs`.
 - **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
 
 ### `auth-state-core.js`
@@ -536,7 +536,7 @@ A member's CONTRACT leave allowance for a year: the grade that decides it ("role
 - **Exports:** `allowanceRole` · `countsAsDispatcherBankHoliday` · `countDispatcherBankHolidaysWorked` · `dispatcherBaseAL` · `getALEntitlement`
 
 ### `al-entitlement.js`
-Which annual-leave days spend a member's allowance, and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
+Which annual-leave days spend a member's allowance (a CEA's or CES's Spare week at most `SPARE_WEEK_MAX_DAYS`), and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
 - **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
@@ -578,8 +578,8 @@ The Admin Annual Leave card's "Which year's allowance" panel and the save behind
 Which calendar year the Annual Leave figures on `admin.html` describe: the precedence between the places the page implies a year — a picked start date, the range picker's view once it has crossed a year, the Change a Shift week, then today. Pure and import-free so the order can be tested; the header says which two rungs must not be "tidied". Read by `updateALBanner` in `admin-app.js`; deliberately not wired on the Absence card (`admin-sick.js` header). Tested by `admin-al-year.test.mjs`.
 - **Exports:** `alFigureYear`
 
-### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js`
-The Trains page (`trains.html`): what changes at Marylebone when the December 2026 timetable starts, organised by the station a customer is going to. Open to every signed-in member and to the station PIN (`auth-policy.js` → `staffPin`; AUTH_AND_SESSIONS.md 24); it reads no network. Tested by `trains-change.test.mjs`, `trains-stations.test.mjs`, `tips-content.test.mjs` and `e2e/trains.spec.js`.
+### `trains-app.js` / `trains-boot.js` / `trains-cards.js` / `trains-change.js` / `trains-stations.js` / `trains-weekdays.js` / `trains-verdict.js` / `trains-headlines.js` / `trains-render.js` / `trains-data.js` / `trains-tips.js` / `trains-grid-mirror.js` / `trains-status.js`
+The Trains page (`trains.html`): what changes at Marylebone when the December 2026 timetable starts, organised by station. Open to every signed-in member and to the station PIN (`auth-policy.js` → `staffPin`; AUTH_AND_SESSIONS.md 24); it reads no network. Tested by `trains-change.test.mjs`, `trains-stations.test.mjs`, `tips-content.test.mjs` and `e2e/trains.spec.js`.
 - `trains-app.js` — the coordinator: the access gate, the page state and its wiring. `trains-boot.js` is its CSP shim.
 - `trains-cards.js` — paints each card from the page state.
 - `trains-change.js` — pure judgements about two timetables: alignment, `timetablePhase`, the railway day.
@@ -588,13 +588,13 @@ The Trains page (`trains.html`): what changes at Marylebone when the December 20
 - `trains-verdict.js` — pure: a station's change in words.
 - `trains-headlines.js` — pure: the "what's changing" list.
 - `trains-render.js` — the page's HTML as strings.
-- `trains-grid-mirror.js` — the stopping grid's column heads kept in view, and its swipe line.
+- `trains-grid-mirror.js` — the grid's heads kept in view; `trains-status.js` — the line a screen reader hears.
 - `trains-tips.js` — the `?` panels and their caveats.
 - `trains-data.js` — GENERATED by `docs/timetable-dec26/tooling/build.py`; never hand-edit.
 - **Exports of `trains-app.js`:** `init`
 - **Exports of `trains-boot.js`:** none
-- **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `renderLookup` · `setText` · `el`
-- **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `changeLabel` · `timetablePhase` · `dateWords` · `holidaysWithin` · `daysLabel` · `routeName` · `JOURNEY_PLANNER_URL`
+- **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `amPmPending` · `renderLookup` · `setText` · `el`
+- **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `minsWords` · `changeLabel` · `timetablePhase` · `dateWords` · `monthWords` · `holidaysWithin` · `daysLabel` · `routeName` · `JOURNEY_PLANNER_URL`
 - **Exports of `trains-stations.js`:** `boardingTime` · `parseStops` · `stopsKnown` · `callsOf` · `lineOf` · `callingAt` · `endingAt` · `knowableWithoutStops` · `decemberKnown` · `summarise` · `stationView` · `stationTrains` · `stopChanges` · `busiestStations` · `matchStations` · `stationBands` · `stoppingGrid` · `orderStations` · `pairColumns` · `lastTrains`
 - **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
 - **Exports of `trains-verdict.js`:** `EDGE_SHIFT_MIN` · `JOURNEY_SHIFT_MIN` · `verdictFor` · `balanceFacts` · `hourChanged` · `rateWords` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList`
@@ -603,6 +603,7 @@ The Trains page (`trains.html`): what changes at Marylebone when the December 20
 - **Exports of `trains-data.js`:** `CHANGE_DATE` · `FURTHER_CHANGES_UNTIL` · `DEC_VALID_UNTIL` · `LEAF_FALL` · `STATIONS` · `STATION_ORDER` · `TIMETABLES`
 - **Exports of `trains-tips.js`:** `CARD_TIPS` · `tipsOn`
 - **Exports of `trains-grid-mirror.js`:** `syncGridMirror`
+- **Exports of `trains-status.js`:** `announce` · `statusLine` · `matchesLine`
 
 ### `overflow-hint.js`
 A "swipe the table" line that is true: shown only while its table really scrolls sideways, measured as the table is drawn and again whenever the box or the table changes size. Shared by Team view's week (`calendar-team-view.js`) and the Trains stopping grid (`trains-grid-mirror.js`); the line's words and place stay with each page. Tested by `overflow-hint.test.mjs`.
@@ -623,7 +624,7 @@ The New link page (`newlink.html`): the three shortlisted proposals for the new 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
 The in-app PDF viewer: a full-screen panel with a ✕ that draws a PDF's pages with the vendored PDF.js, so a document opens inside the app and closes back to it — built for the New link pack, whose PDFs left an installed iPhone app with no way back (`pdf-viewer-core.js` header). Tested by `pdf-viewer-core.test.mjs` and `e2e/newlink.spec.js`.
 - `pdf-viewer.js` — the panel on `createLightbox`, loading PDF.js, fetching and drawing the pages; its header names the three things easy to get wrong.
-- `pdf-viewer-core.js` — the pure rules: page sizes, zoom steps, when a file may open outside the app (`canOpenOutside`), and what a failure says.
+- `pdf-viewer-core.js` — the pure rules: page sizes, zoom steps, when a file may open outside the app (`canOpenOutside`), and what a failure says and its button does.
 - **Exports of `pdf-viewer.js`:** `initPdfViewer`
 - **Exports of `pdf-viewer-core.js`:** `ZOOM_STEPS` · `MAX_DEVICE_PIXEL_RATIO` · `MAX_CANVAS_PIXELS` · `MAX_FIT_WIDTH` · `zoomAfter` · `zoomLabel` · `pageLayout` · `canOpenOutside` · `isPlainClick` · `classifyFailure` · `FAILURE_TEXT` · `failureAction` · `PAGE_FAILURE_TEXT` · `pageLabel` · `pagesLabel`
 
@@ -652,11 +653,11 @@ The Admin week grid's time boxes: two delegated `document` listeners that format
 - **Exports:** `initTimeInputs`
 
 ### `admin-day-pills.js`
-Which changes one week-grid day takes, refused at its pills with the reason in each control's accessible name: a Sunday (layer 1 of CLAUDE.md → "Sundays are non-contracted"), Boxing Day, Christmas Day, and a day before the member's start date. On a Sunday the Other pill offers Spare alone; neither Christmas day can be a Spare turn, so Boxing Day's Other pill is off (owner, Nov 2026; header). Tested by `admin-day-pills.test.mjs`.
+Which changes one week-grid day takes, refused at its pills with the reason in each control's accessible name: a Sunday (layer 1 of CLAUDE.md → "Sundays are non-contracted"), Boxing Day, Christmas Day, and a day before the member's start date. On a Sunday the Other pill offers Spare alone; neither Christmas day can be an Other day or a Spare turn, so both days' Other pill is off (owner, Nov 2026; header). Tested by `admin-day-pills.test.mjs`.
 - **Exports:** `restrictDayPills`
 
 ### `admin-week-row-state.js`
-A week-grid row's appearance in each of its states: on and off, drawn from its saved record (and remembered, for the save to compare with), the four things that follow its type, and a row's and a week's staged state as data for a kept draft. Dependency-free by design: the header says when the seam has moved. Tested through `admin-week-editor.test.mjs`, `admin-own-write.test.mjs` and `admin-overrides.test.mjs`.
+A week-grid row's appearance in each of its states: on and off, drawn from its saved record (and remembered, for the save to compare with), the four things that follow its type, a pill held on only to remove a record saved before the day refused its type, and a row's and a week's staged state as data for a kept draft. Dependency-free by design: the header says when the seam has moved. Tested through `admin-week-editor.test.mjs`, `admin-own-write.test.mjs` and `admin-overrides.test.mjs`.
 - **Exports:** `drawnRecords` · `drawnDays` · `rosteredWords` · `_syncOtherRdwWarn` · `_syncOtherSpareMode` · `_activateRow` · `_syncAlSwap` · `_syncOverwriteBadge` · `prefillRow` · `_deactivateRow` · `isStagedRow` · `readRowDraft` · `applyRowDraft` · `readWeekDraft` · `sendingEntries` · `keptWeekDraft` · `unsavedWeekDraft` · `applyWeekDraft`
 
 ### `admin-own-write.js`
@@ -684,7 +685,7 @@ What a run of booked dates is and what it reads as: the pure helpers the Recorde
 - **Exports:** `addDays` · `isRestGap` · `fmtPeriodDate` · `fmtPeriodRange` · `formatDisplay` · `namedDays`
 
 ### `admin-booked-periods.js`
-The Recorded Annual Leave dates and Recorded Absence dates sub-cards on `admin.html` — one renderer for both lists — and which YEAR of the list is on screen; also what a row's ✕ deletes (`periodDelete`) and the two-tap ✕ and feedback fade it shares with Saved Changes and the range cards. It states no total: the AL banner owns the figures. The owner's year-end rule is in the header. Tested by `admin-booked-periods.test.mjs`.
+The Recorded Annual Leave dates and Recorded Absence dates sub-cards on `admin.html` — one renderer for both lists — and which YEAR of the list is on screen; also what a row's ✕ deletes (`periodDelete`) and the two-tap ✕ and feedback fade it shares with Saved Changes, the range cards and Operations' work-email Remove. It states no total: the AL banner owns the figures. The owner's year-end rule is in the header. Tested by `admin-booked-periods.test.mjs`.
 - **Exports:** `periodDelete` · `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
 
 ### `admin-sick.js`
@@ -701,7 +702,7 @@ What a save did, said day by day: one line per date, in date order, because a ma
 
 ### `slow-save.js`
 Say so when a save is waiting on the server: one reference-counted live line after `SLOW_SAVE_MS`, worded for a held write, a batched one or a transaction, and a count of writes still in flight for the pages' reload and sign-out guards. It never says "saved" and never gives the button back (header). Wraps the Admin, Settings and Operations writes; its notice is styled in `shared.css`. Tested by `slow-save.test.mjs`.
-- **Exports:** `SLOW_SAVE_MS` · `SLOW_SAVE_TEXT` · `SLOW_SAVE_TEXT_BATCHED` · `SLOW_SAVE_TEXT_ONLINE` · `SLOW_SAVE_TEXT_BATCHED_ONLINE` · `SLOW_SAVE_TEXT_UNHELD` · `SLOW_SAVE_TEXT_UNHELD_ONLINE` · `slowSaveText` · `SLOW_SAVE_EVENT` · `watchSlowCommit` · `trackHiddenTime` · `writesInFlight` · `withSlowSaveNotice`
+- **Exports:** `SLOW_SAVE_MS` · `SLOW_SAVE_TEXT` · `SLOW_SAVE_TEXT_BATCHED` · `SLOW_SAVE_TEXT_ONLINE` · `SLOW_SAVE_TEXT_BATCHED_ONLINE` · `SLOW_SAVE_TEXT_UNHELD` · `SLOW_SAVE_TEXT_UNHELD_ONLINE` · `slowSaveText` · `SLOW_SAVE_EVENT` · `watchSlowCommit` · `trackHiddenTime` · `trackOwnWritesWaits` · `writesInFlight` · `withSlowSaveNotice`
 
 ### `admin-shift-types.js`
 The shift-type table the Change a Shift surface is built from: `TYPES`, `PILL_TYPES` (the ONE ordered list of pills — `.claude/rules/admin.md` → "Type pills in admin"), the one pill button both pill rows draw (`typePillHtml`, named in full by `pillName` while its label stays short), `WORKED_OVERRIDE_TYPES` and what a Saved Changes row prints for a value. Pure data in its own module so no consumer imports the coordinator back (header). Tested by `admin-shift-types.test.mjs`.
@@ -749,18 +750,26 @@ The app's own single-date picker, replacing the native date popup the app cannot
 
 ### `date-format.js`
 ONE spelling of a date in words, everywhere the app writes one: the name tables (re-exported by `roster-data.js`), the composers, the "Printed …" stamp and the London zone shim, because `Intl`'s short month spells September "Sept". Pure, and imports nothing. Tested by `date-format.test.mjs`; `month-vocabulary-parity.test.mjs` fails on a new local fix.
-- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
+- **Exports:** `DAY_NAMES` · `MONTH_ABB` · `MONTH_NAMES` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
 
 ### `huddle.js`
-Two cards: the Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform), and the Notifications card on Settings (all staff), through `notif.js`. Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names).
-- **Exports:** `initHuddleUpload` · `initHuddleNotifications`
+The Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform). Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names). The Settings Notifications card left it for `notif-card.js` (22 Nov 2026).
+- **Exports:** `initHuddleUpload`
+
+### `notif-card.js`
+The Settings Notifications card's wiring, through `notif.js`: when it reads (on open; on coming back to the page, a back/forward-cache restore, a permission change and `myb:notif-changed`), the once-per-open re-registration when the session is ready, and Enable (which waits for the session, and gives the button back if the browser's question never settles) and Disable. The words are `notif-card-core.js`'s. Tested by `notif-card.test.mjs`; the page by `e2e/settings.spec.js`.
+- **Exports:** `initNotificationsCard`
+
+### `notif-card-core.js`
+What the Settings Notifications card says, for every device and state (`notifCardWords`): the chip and state it reports to the summary, its status line, which button, the platform's own route back from blocked, and whether the card lists what it sends. Also the client copy of the timetable change's date (pinned to `functions/documents.js`), the installed app's label read from the page, and the list's separators. Pure. Tested by `notif-card-core.test.mjs`.
+- **Exports:** `TIMETABLE_CHANGE` · `TIMETABLE_SEND_HOUR` · `timetableListed` · `homeScreenLabel` · `punctuateKinds` · `STILL_ASKING_LINE` · `ENABLE_FAILED_LINE` · `notifCardWords`
 
 ### `doc-upload.js`
 The shared skeleton of the three Operations document upload cards: the Weekly Retail Circular and the Marylebone Newsletter (`operations-doc-uploads.js`) and the Daily Huddle (`huddle.js`). Pick → validate → optional transform → upload → receipt, one upload at a time per card, a date cap recomputed whenever it is read, and a write gated like any other (AUTH_AND_SESSIONS 22). `MAX_UPLOAD_BYTES` is one of three declarations of the size limit. Tested by `doc-upload.test.mjs` and `upload-cap-parity.test.mjs`.
 - **Exports:** `hiddenByNewerLine` · `isPdfFile` · `isDocxFile` · `initDocUploadCard`
 
 ### `admin-auth.js`
-The Staff Login Accounts card on Operations (admin only): the Set up accounts button, which calls `setupRosterAuth` with a fresh ID token, and the provisioning audit above it, a READ of `getAccountSetupGaps` naming who has no login, the wrong permissions, or is a leaver still able to sign in. It never collapses "could not tell" into "none found". Tested by `admin-auth.test.mjs`.
+The Staff Login Accounts card on Operations (admin only): the Set up accounts button, which calls `setupRosterAuth` with a fresh ID token, and the provisioning audit above it, a READ of `getAccountSetupGaps` naming who has no login, the wrong permissions, an account Set up accounts will not take over, or is a leaver still able to sign in. It never collapses "could not tell" into "none found". Tested by `admin-auth.test.mjs`.
 - **Exports:** `initAuthSetup`
 
 ### `roster-cell-rules.js`
@@ -808,7 +817,7 @@ The two opt-in money banners on the result card, back pay and the Holiday Pay Pr
 - **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner`
 
 ### `paycalc-lightboxes.js`
-The overlays on `paycalc.html`: About, Help, the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). The About panel and the header logo are also their own call (`initPaycalcAbout`), which the unsupported-role card makes too. Tested by `paycalc-notice-order.test.mjs`; the refusal card's chrome by `e2e/paycalc.spec.js`.
+The overlays on `paycalc.html`: About, the `?` panels' wiring (the shared Tips panel), the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). The About panel and the header logo are also their own call (`initPaycalcAbout`), which the unsupported-role card makes too. Tested by `paycalc-notice-order.test.mjs`; the refusal card's chrome by `e2e/paycalc.spec.js`.
 - **Exports:** `initPaycalcAbout` · `initPaycalcLightboxes`
 
 ### `paycalc-periods.js`
@@ -851,7 +860,7 @@ The Holiday Pay Premium card (this year's figure from three amount sources, last
 - **Exports:** `computeYearSoFar`
 
 ### `paycalc-backpay.js`
-The back-pay card: the lump owed for a pay award backdated to 1 April, computed from the member's hours or entered from the payslip, kept per tax year and opt-in to the take-home. Every rule is `.claude/rules/paycalc.md` → Back-pay (and invariants 1, 5 and 14); the three figure decisions are `paycalc-backpay-state.js`, the award arithmetic `paycalc-backpay-accrual.js`. Tested by `paycalc-backpay.test.mjs`, which drives the real `calcBackPay` against a fake `document`.
+The back-pay card: the lump owed for a pay award backdated to 1 April, computed from the member's hours or entered from the payslip, kept per tax year and opt-in to the take-home; it also holds the card's state as the take-home reads it (`bpState`). Every rule is `.claude/rules/paycalc.md` → Back-pay (and invariants 1, 5 and 14); the three figure decisions are `paycalc-backpay-state.js`, the award arithmetic `paycalc-backpay-accrual.js`. Tested by `paycalc-backpay.test.mjs`, which drives the real `calcBackPay` against a fake `document`.
 - **Exports:** `_backdatedFromPNum` · `applyBpMode` · `_bpAwardTaxYear` · `prefillBackPay` · `restoreBpState` · `raiseByPercent` · `bpStoryHtml` · `calcBackPay` · `bpState` · `onBackPayChange` · `runCalcBackPay` · `applyBpRisePct` · `refreshBackPayCard` · `syncBackPayForViewedYear`
 
 ### `paycalc-backpay-accrual.js`
@@ -883,8 +892,8 @@ WHEN a member was in the pension scheme, as a timeline of changes rather than a 
 - **Exports:** `parsePensionTimeline` · `serialisePensionTimeline` · `isOptedOutAt` · `withPensionChange` · `withOptOutStartAt` · `withRejoinAt` · `optOutStartsAt` · `migrateLegacyOptOut`
 
 ### `paycalc-inventory.js`
-What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
-- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines`
+What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list, Settings' Pay Calculator Data line and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
+- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines` · `inventorySummary`
 
 ### `paycalc-transfer.js`
 The pay-data backup format and its import rules. Pay data lives only in this browser's `localStorage` — per address, and kept off the server by decision — so this is how it moves to the other address or a new phone. Pure, because the import decides whether a member's whole pay history is overwritten: key selection, the validation ladder (`validateBackup`, the trust boundary), re-keying and the all-or-nothing replace. The DOM half is `paycalc-transfer-card.js`. Bound by `.claude/rules/paycalc.md` invariant 10; tested by `paycalc-transfer.test.mjs`, key shape by `paycalc-key-parity.test.mjs`.
@@ -903,7 +912,7 @@ The pay calculator's storage keys and its one-time data migrations: the per-memb
 - **Exports:** `PAY_DATA_GENERATION` · `memberSlug` · `keyOwnerSlug` · `pcPrefix` · `SK` · `setPaycalcNamespace` · `periodKey` · `parseSavedPeriod` · `readSavedPeriod` · `hppEstKey` · `hppActualKey` · `hppIncKey` · `hppModeKey` · `bpKey` · `ytdPayKey` · `ytdSrcKey` · `ytdTaxKey` · `NOTICE_YTD_KEY` · `NOTICE_HPP_KEY` · `isActualsDev` · `readPayslipActuals` · `writePayslipActuals` · `clearPayslipActuals` · `DEVICE_KEYS` · `RETIRED_DEVICE_KEYS` · `hasPendingLegacyMigration` · `resolveLegacyMigration` · `runMigrations`
 
 ### `paycalc-calc.js`
-The pay maths: the rate, threshold, pension and award tables, and the pure engine — gross pay, income tax (with the one tax-code reader), National Insurance, student loans and the take-home — with no DOM, Firebase or browser globals. Every figure, every payroll rule and the steps for the next award or tax year are `.claude/rules/paycalc.md` ("Current rates", "Payroll rules"). Tested by `paycalc.test.mjs`, `paycalc-current-year.test.mjs` and, on the owner's checkout, `npm run test:payslip-local`.
+The pay maths: the rate, threshold, pension and award tables, and the pure engine — gross pay, income tax (with the one tax-code reader), National Insurance, student loans and the take-home, priced by the one pipeline the payslip and the year so far share (`pricePayslip`) — with no DOM, Firebase or browser globals. Every figure, every payroll rule and the steps for the next award or tax year are `.claude/rules/paycalc.md` ("Current rates", "Payroll rules"). Tested by `paycalc.test.mjs`, `paycalc-current-year.test.mjs` and, on the owner's checkout, `npm run test:payslip-local`.
 - **Exports:** `P_YR` · `RATE_125` · `RATE_150` · `RATE_300` · `TAX_YEARS` · `TAX_BY_YEAR` · `NI_BY_YEAR` · `SL_BY_YEAR` · `SCOTTISH_TAX_BY_YEAR` · `GRADES` · `PENSION_STEPS` · `AWARD_RATES` · `awardRatesFor` · `awardFromForYear` · `isPreAwardPeriod` · `getRateForPeriod` · `HPP_FRACTION` · `takeHomePay` · `calcBandedTax` · `getTaxYearForOffset` · `taxYearForPeriod` · `getThresholds` · `getLondonAllowanceForPeriod` · `getPensionForPeriod` · `calcProRateFactor` · `proRateDays` · `capHours` · `computeGross` · `readTaxCode` · `computeTax` · `computeNI` · `computeSL` · `pricePayslip`
 
 ### `paycalc-roster-suggestions.js`
@@ -912,7 +921,7 @@ The roster-to-pay suggestion engine behind the hint bar: one member's recorded c
 
 ### `firebase-client.js`
 The single Firebase initialisation point: every page takes `db`, `auth` and the SDK calls from here, never from the CDN, so the SDK version appears once (a bump also moves `FIREBASE_SDK_VERSION` in `service-worker.js` — CLAUDE.md → Change impact). It cannot load in Node, so its rules live in the pure modules and factories it binds — `claim-retry.js` for every write, `documents-client.js`, `account-calls.js`, `analytics-client.js` among them. Boot persistence: `AUTH_AND_SESSIONS.md` 8; the persistent cache: `.claude/rules/pwa.md`. Tested by `firebase-client.test.mjs` and `calendar-viewer-parity.test.mjs`.
-- **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `restoreMemberPersistence` · `setViewerPersistence` · `signInWithEmailAndPassword` · `signInWithCustomToken` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
+- **Exports:** `db` · `collection` · `query` · `where` · `orderBy` · `limit` · `getDocs` · `getDocsFromCache` · `getDoc` · `getDocFromCache` · `onSnapshot` · `addDoc` · `setDoc` · `deleteDoc` · `doc` · `serverTimestamp` · `writeBatch` · `runTransaction` · `deleteField` · `COLLECTIONS` · `isSafeStorageUrl` · `resolveDocumentOpenUrl` · `auth` · `authBootstrap` · `authReady` · `currentUserAfterBoot` · `restoreMemberPersistence` · `setViewerPersistence` · `signInWithEmailAndPassword` · `signInWithCustomToken` · `signOut` · `onAuthStateChanged` · `withClaimRetry` · `writeWithClaimRetry` · `whenOwnWritesSent` · `VIEWER_WRITES_GRACE_MS` · `letViewerWritesGo` · `normaliseSurname` · `nameToEmail` · `uploadHuddle` · `uploadCircular` · `uploadNewsletter` · `getLatestCircular` · `getLatestNewsletter` · `getLatestHuddle` · `subscribeToLatestHuddle` · `currentAuthUid` · `savePushSubscription` · `deletePushSubscription` · `getStaffContact` · `saveStaffContact` · `deleteStaffContact` · `getAllStaffContacts` · `getPasswordStatus` · `probeResetAtMs` · `savePasswordSetAt` · `getAllPasswordStatus` · `reauthenticateWithPassword` · `changeOwnPassword` · `resetMemberPassword` · `getAccountSetupGaps` · `requestPasswordReset` · `fetchSignedDocumentUrl` · `getSignInStats` · `getResetRequests` · `clearResetRequest` · `logClientError` · `getClientErrors` · `resolveClientError` · `recordPageView` · `recordActiveAccount` · `recordOriginUse` · `recordPerfSample` · `getPerfStats` · `getUsageStats`
 
 ### `fetch-timeout.js`
 The bound on every client call to a Cloud Function: `fetch` with a deadline that also covers the body read, a separate code for a caller's own cancel, and `serverRefusal` for a 4xx that is an answer rather than a fault. The header holds the per-endpoint budgets and the two rules every caller keeps: a budget sits above the endpoint's own `timeoutSeconds`, and a timeout on a state-changing call does not mean it did not happen — a write says "may still have gone through", never "failed". Tested by `fetch-timeout.test.mjs`.
@@ -959,8 +968,8 @@ The pure rules of the client error log: the noise filters (too broad is the dang
 - **Exports:** `APP_SCRIPT_ORIGINS` · `shouldReport` · `CLIENT_ERROR_RETENTION_MS` · `isResolvedErrorExpired` · `expiredResolvedIds` · `orderClientErrors` · `DIAGNOSTIC_PREFIX` · `isDiagnosticEntry` · `capUnresolvedErrors`
 
 ### `claim-retry.js`
-The pure write-safety rules, every dependency injected: one refresh-and-retry for a stale-claim refusal, never sent as another account; the wait abandoned when the account goes, which ends the wait and not the write, so the outcome is called unconfirmed; the gate that refuses new writes once one ends unconfirmed; the wait for this device's queued writes before a checked write; the background-write count every update reload waits for; and the watch for a session that has gone. Bound by `AUTH_AND_SESSIONS.md` 5, 21 and 22; tested by `claim-retry.test.mjs`.
-- **Exports:** `isClaimRetryable` · `isAccessFailure` · `runWithClaimRetry` · `SIGNED_OUT_CODE` · `signedOutLine` · `UNCONFIRMED_CODE` · `UNCONFIRMED_LINE` · `hasUnconfirmedWrite` · `_resetUnconfirmedWrites` · `trackBackgroundWrite` · `backgroundWritesInFlight` · `runGatedWrite` · `unconfirmedWriteLine` · `OWN_WRITES_WAIT_MS` · `ownWritesSent` · `saveFailureMessage` · `abandonOnSignOut` · `runWatchedClaimRetry` · `watchIdentityLoss`
+The pure write-safety rules, every dependency injected: one refresh-and-retry for a stale-claim refusal, never sent as another account; the wait abandoned when the account goes, which ends the wait and not the write, so the outcome is called unconfirmed; the gate that refuses new writes once one ends unconfirmed; the wait for this device's queued writes before a checked write, and how each one ended (`watchOwnWritesWaits`, read by the slow-save diagnostic); the background-write count every update reload waits for; and the watch for a session that has gone. Bound by `AUTH_AND_SESSIONS.md` 5, 21 and 22; tested by `claim-retry.test.mjs`.
+- **Exports:** `isClaimRetryable` · `isAccessFailure` · `runWithClaimRetry` · `SIGNED_OUT_CODE` · `signedOutLine` · `UNCONFIRMED_CODE` · `UNCONFIRMED_LINE` · `hasUnconfirmedWrite` · `_resetUnconfirmedWrites` · `trackBackgroundWrite` · `backgroundWritesInFlight` · `runGatedWrite` · `unconfirmedWriteLine` · `OWN_WRITES_WAIT_MS` · `ownWritesSent` · `watchOwnWritesWaits` · `saveFailureMessage` · `abandonOnSignOut` · `runWatchedClaimRetry` · `watchIdentityLoss`
 
 ### `page-session.js`
 How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
@@ -1016,7 +1025,7 @@ Where the drawer can take you, as DATA: the page pills (`NAV_PAGES`), the Latest
 - **Exports:** `NAV_PAGES` · `NAV_INFORMATION` · `NAV_GUIDES` · `SECTION_MODS` · `PILL_GATES` · `visiblePills`
 
 ### `nav-panel.js`
-The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). What it lists is `nav-destinations.js`'s; its decisions — the three zones, pills filtered rather than refused, sign-out's order, the bell, App Notices and the drawer's one history entry shared by its two lightboxes (one lifecycle, `_drawerLightbox`) — are `.claude/rules/nav-drawer.md`; the reasoning is the header and beside the code. Tested by `nav-panel.test.mjs`; capped by `coordinator-ratchet.test.mjs`.
+The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). What it lists is `nav-destinations.js`'s; its decisions — the three zones, pills filtered rather than refused, sign-out's order, the bell, App Notices and the drawer's one history entry shared by its two lightboxes (one lifecycle, `_drawerLightbox`) — are `.claude/rules/nav-drawer.md`; the reasoning is the header and beside the code. Tested by `nav-panel.test.mjs`, `nav-bell.test.mjs` and `nav-guide-fold.test.mjs`; capped by `coordinator-ratchet.test.mjs`.
 - **Exports:** `resetNavPanel` · `initNavPanel`
 
 ### `newsletter-recency.js`
@@ -1029,7 +1038,7 @@ The App Notices archive's rules: what a seen one-time notice leaves behind on th
 
 ### `notif.js`
 The Web Push module: the client's one copy of the VAPID public key — it must match `functions/index.js`, and a mismatch is silent and permanent (CLAUDE.md → Change impact) — and the subscription lifecycle: the state the bell and the Settings card show, enable and disable, and `releaseDevicePush` at a sign-out. Which reads have side effects and why a deliberate Off is not a lapse are its header and each export's JSDoc. Tested by `notif.test.mjs`; the server side, a rotated endpoint and the fingerprint migration are `.claude/rules/notifications.md`.
-- **Exports:** `notifOffByChoice` · `isIOS` · `notifSupported` · `getNotifState` · `peekNotifState` · `enableNotifications` · `disableNotifications` · `releaseDevicePush`
+- **Exports:** `notifOffByChoice` · `isIOS` · `isStandalonePWA` · `onPagesMirror` · `notifSupported` · `getNotifState` · `peekNotifState` · `enableNotifications` · `disableNotifications` · `releaseDevicePush`
 
 ### `print-guard.js`
 Can `window.print()` do anything here, and what to say when it cannot: in a home-screen web app on iPhone or iPad it silently does nothing. Pure and import-free, so the guides and the app pages share one rule and one wording; every print control goes through `printOrExplain`. The WebKit reference, and why no iOS version is read, are its header. Tested by `print-guard.test.mjs`; the entry points by `e2e/print.spec.js`.
@@ -1116,8 +1125,8 @@ The Firestore I/O behind the admin's two read-outs of the app itself — the cli
 - **Exports:** `buildAnalyticsClient`
 
 ### `own-password.js`
-Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both. The properties an edit can break — the candidate ladder that stops on a transient failure, a changed password never reported as unchanged, and nothing sent unless the signed-in account is the page member's own — are its header. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
-- **Exports:** `buildPasswordClient`
+Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both. The properties an edit can break — the candidate ladder that stops on a transient failure, a changed password never reported as unchanged, and nothing sent unless the signed-in account is the page member's own — are its header. It also holds the save sequence both password surfaces run (`runPasswordSave`: re-auth, then a separately timed, counted write that may answer "pending") and the one `SAVE_TIMEOUT_MS`. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`, the sequence by `password-force.test.mjs`.
+- **Exports:** `buildPasswordClient` · `SAVE_TIMEOUT_MS` · `withTimeout` · `settleOrTimeout` · `runPasswordSave`
 
 ### `account-calls.js`
 The browser's side of three ACCOUNT endpoints — the admin's Reset, the provisioning audit (which also carries the staff PIN lockout) and the locked-out member's reset request. A factory with `auth` injected, so it makes no import cycle; `firebase-client.js` builds it once and re-exports the three. Its one rule: a deadline above each endpoint's own, and a WRITE that times out says it may still have happened. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
