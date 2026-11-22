@@ -30,31 +30,15 @@
  *    mode diffs cells, not windows; two designs built to different spans are not like for like, and
  *    the uncovered-hours figure is where that would otherwise hide.
  */
-import { DAYS, ROTATING_LINES, calcHourlyCoverage } from './links-design.js';
+import { ROTATING_LINES } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
-import { normaliseWindow, windowForDay, windowsDiffer, rowMinutes } from './links-window.js';
-import { DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DAY_CLASSES, peakHours, dutySpans, summariseDemand } from './links-demand.js';
+import { windowsDiffer } from './links-window.js';
+import { DEC_2026_DEMAND, DAY_CLASSES, peakHours } from './links-demand.js';
+import { readAgainstService } from './links-analyse.js';
 
 /** The five days the weekday demand class stands for. */
 const WEEKDAYS = Object.freeze(['mon', 'tue', 'wed', 'thu', 'fri']);
-
-/**
- * One design read against the service, exactly as the Coverage card reads it.
- * @param {{ patterns: Record<string, any>, window?: any }} design
- * @param {number} lines
- */
-function readAgainstService(design, lines) {
-    const hourly = calcHourlyCoverage(design.patterns, lines);
-    const win = normaliseWindow(design.window);
-    const sum = summariseDemand({
-        movements: DEC_2026_MOVEMENTS,
-        spans: dutySpans(design.patterns, lines),
-        days: DAYS,
-        windowFor: (day) => rowMinutes(windowForDay(win, day)),
-    });
-    return { hourly, sum };
-}
 
 /**
  * @typedef {{ status: string, value: any }} Reading
@@ -96,7 +80,7 @@ export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
             fewestOn: { a: fa.where, b: fb.where }, days: days.length });
     }
 
-    const uncovered = (/** @type {ReturnType<typeof summariseDemand>} */ sum) =>
+    const uncovered = (/** @type {ReturnType<typeof import('./links-demand.js').summariseDemand>} */ sum) =>
         ({ hours: sum.uncovered.length, cars: sum.uncoveredCars, where: sum.uncovered });
 
     // Hard limits, check by check. Both designs run the same list, so the ids pair up; a check only

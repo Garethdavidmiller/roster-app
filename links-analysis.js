@@ -32,17 +32,18 @@
  * sheet. Not keyed on the section's name — a section that renamed itself would slip a hardcoded
  * list while making the identical claim.
  */
-import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
+import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours, hoursFigure, SPARE_WORKED_DAYS } from './links-design.js';
 import { assessFatigue, COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
-import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
+import { normaliseWindow, heatSpan, isHourStaffed } from './links-window.js';
 import {
-    DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
-    demandAt, demandBucket, peakCars, peakHours, dutySpans, summariseDemand, describeHours, describeMovements,
+    DEC_2026_DEMAND, DEC_2026_SOURCE, DAY_CLASSES,
+    demandAt, demandBucket, peakCars, peakHours, describeHours, describeMovements,
 } from './links-demand.js';
 import { escapeHtml } from './roster-data.js';
 import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
+import { readAgainstService } from './links-analyse.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
@@ -104,7 +105,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (emptyMsg) emptyMsg.style.display = 'none';
         wrap.style.display = '';
 
-        const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
+        // Read the design against the service ONCE, and hand the same result to the rows and the prose: two
+        // calls would be two chances for the cells and the sentence under them to disagree.
+        const { hourly, sum } = readAgainstService(design, TOTAL_POS);
         const win = normaliseWindow(design.window);
 
         // Span and gaps both come from the WINDOW now, not from the design's own extremes (v19.54).
@@ -124,15 +127,6 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             hourTh.push(`<th class="cov-heat-hour">${String(h).padStart(2, '0')}</th>`);
         }
 
-        // Read the design against the service ONCE, and hand the same result to both the rows and
-        // the prose. Two calls would be two chances for the cells and the sentence under them to
-        // disagree about the very comparison the card exists to make.
-        const sum = summariseDemand({
-            movements: DEC_2026_MOVEMENTS,
-            spans: dutySpans(design.patterns, TOTAL_POS),
-            days: DAYS,
-            windowFor: (day) => rowMinutes(windowForDay(win, day)),
-        });
 
         let gapCount = 0, outsideCount = 0;
         const rows = DAYS.map((/** @type {string} */ d, /** @type {number} */ di) => {
@@ -195,7 +189,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      * horizontal scrolls. It is a second `<tbody>`, not more rows in the first, so the two halves
      * can be told apart at a glance and by a screen reader.
      *
-     * @param {ReturnType<typeof summariseDemand>} sum
+     * @param {ReturnType<typeof import('./links-demand.js').summariseDemand>} sum
      * @param {number} minH
      * @param {number} maxH
      */
@@ -243,7 +237,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      * a demand curve printed with no version on it is the undated-printed-sheet defect (v19.45) all
      * over again — right when it was made, unverifiable afterwards.
      *
-     * @param {ReturnType<typeof summariseDemand>} sum
+     * @param {ReturnType<typeof import('./links-demand.js').summariseDemand>} sum
      * @param {number} minH
      * @param {number} maxH
      * @param {Record<string, {hours: number[]}>} hourly - the cells above, to say when a gap is inside one
@@ -345,13 +339,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         el.hidden = false;
 
         const checks = runDesignChecks(design.patterns, ROTATING_LINES);
-        const win = normaliseWindow(design.window);
-        const sum = summariseDemand({
-            movements: DEC_2026_MOVEMENTS,
-            spans: dutySpans(design.patterns, TOTAL_POS),
-            days: DAYS,
-            windowFor: (day) => rowMinutes(windowForDay(win, day)),
-        });
+        const { sum } = readAgainstService(design, TOTAL_POS);
         const fat = assessFatigue(design.patterns, ROTATING_LINES);
 
         const chip = (/** @type {string} */ state, /** @type {string} */ icon,

@@ -404,6 +404,10 @@ What `links.html` reads from today's roster: the shift times its cell sheet offe
 What one cell of a Links grid says — its label, its accessible name, and the markup the editable grid, the compare grids and their cover rows are drawn from — so a name fixed once reaches every grid. Pure; tested by `links-grid-cells.test.mjs`.
 - **Exports:** `DAY_LABELS` · `shiftLabel` · `cellName` · `emptyPattern` · `isUnfilledPattern` · `cellAriaName` · `editCellHtml` · `compareCellHtml` · `coverCellsHtml`
 
+### `links-analyse.js`
+One reading of a Links design, shared by the Coverage card, the Design checks, the summary strip and compare mode: `readAgainstService` reads a design against the December 2026 service on its own window. Pure; tested by `links-analyse.test.mjs`.
+- **Exports:** `readAgainstService`
+
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s `?` panels: pure data, rendered by `tips-lightbox.js`, shape pinned by `tips-content.test.mjs`. Its generator panel restates `links-default-targets.js`'s header, and no test can see that rule.
 - **Exports:** `CARD_TIPS`
