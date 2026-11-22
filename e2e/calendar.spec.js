@@ -4864,6 +4864,84 @@ test('calendar: the leave panel\'s two links take the gold focus ring on its nav
     }
 });
 
+// ── EVERY WAY OUT OF A PANEL: ONE BACK RETURNS TO THE CALENDAR (lightbox review, 22 Nov 2026) ──────
+// The New link notice's rule (above, 18 Nov 2026) for the leave panel's two links, the day panel's
+// "Leave dates" and its Pay estimate. A plain link followed from inside an open panel stacked the next page
+// on top of the panel's own history entry, which carries the Calendar's address: Back reloaded the Calendar
+// on that entry, and the Back after it did nothing. The links now REPLACE the panel's entry
+// (`followLinkOutOf`), and Pay estimate waits for the close's own Back before it jumps
+// (`whenHistorySettled`). Playwright runs with the back/forward cache off, so Back always reloads here.
+/**
+ * From the page an exit opened: one Back lands on the Calendar on an entry no overlay holds, and the next
+ * leaves it for the page the member came from.
+ * @param {import('@playwright/test').Page} page @param {RegExp} landed
+ */
+async function oneBackReturnsToCalendar(page, landed) {
+    await expect(page).toHaveURL(landed);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/(index\.html)?$/);
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null),
+        'Back landed on the panel\'s own entry, whose next Back nothing answers').toBeNull();
+    await page.goBack();
+    await expect(page, 'one more Back leaves the Calendar').toHaveURL(/\/railcard-guide\.html$/);
+}
+
+for (const [label, sel, landed] of /** @type {const} */ ([
+    ['Record leave', '#alLightboxContent .al-lb-link:not(#alLbViewLink)', /\/admin\.html#book-annual-leave$/],
+    ['Leave dates', '#alLbViewLink', /\/admin\.html\?alYear=2026#alBookedBox$/],
+])) {
+    test(`calendar: the leave panel's "${label}" — one Back returns to the Calendar, and the next leaves it`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/railcard-guide.html');              // where the member came from
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#alBtn').click();
+        await expect(page.locator(sel)).toBeVisible();
+        await expect(page.locator(sel)).toHaveText(label);
+        await page.locator(sel).click();
+        await oneBackReturnsToCalendar(page, landed);
+        expect(errors).toHaveLength(0);
+    });
+}
+
+test('calendar: the day panel\'s "Leave dates" — one Back returns to the Calendar, and the next leaves it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'al9', memberName: 'G. Miller', date: '2026-09-04', type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const alDay = page.locator('.calendar-day:not(.other-month)[data-detail-shift-value="AL"]').first();
+    await expect(alDay, 'premise: the seeded leave day is drawn').toBeVisible();
+    await alDay.click();
+    await expect(page.locator('#dayDetailLeaveBtn')).toBeVisible();
+    await page.locator('#dayDetailLeaveBtn').click();
+    await oneBackReturnsToCalendar(page, /\/admin\.html\?alYear=2026#alBookedBox$/);
+    expect(errors).toHaveLength(0);
+});
+
+test('calendar: the day panel\'s Pay estimate — one Back returns to the Calendar, and the next leaves it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const payDay = page.locator('.calendar-day:not(.other-month)[data-payday-iso]').first();
+    await expect(payDay, 'premise: the month has a payday').toBeVisible();
+    await payDay.click();
+    await expect(page.locator('#dayDetailPayBtn')).toBeVisible();
+    await page.locator('#dayDetailPayBtn').click();
+    await oneBackReturnsToCalendar(page, /\/paycalc\.html\?payday=\d{4}-\d{2}-\d{2}$/);
+    expect(errors).toHaveLength(0);
+});
+
 // ── WHOSE LEAVE IT IS (v25.50, owner, 7 Nov 2026) ──────────────────────────────────────────────
 // "When I choose a name in calendar I can see their individual AL amounts, which is fine. But the AL
 // calendar screen doesn't actually tell me whose AL I'm looking at." The panel now names the member on
