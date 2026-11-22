@@ -2504,10 +2504,14 @@ test('links grid: the hours averages in the footer say "(partial)" when a whole 
         w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000, patterns: { ...pats, 2: tbc } }];
     }, MIXED_NO_SPARE);
     await page.goto('/links.html');
-    const avgs = page.locator('#linksCoverageFoot .tot-avg .tot-avg-num');
+    const avgs = page.locator('#linksCoverageFoot .tot-avg');
     await expect(avgs).toHaveCount(3);
-    await expect(avgs.nth(0)).toHaveText(/^\d+h \d{2}m \(partial\)$/);
-    await expect(avgs.nth(1)).toHaveText(/^\d+h \d{2}m \(partial\)$/);
+    // On a line of its own under the figure, so the column keeps its width (the 769px fit test).
+    for (const i of [0, 1]) {
+        await expect(avgs.nth(i).locator('.tot-avg-num')).toHaveText(/^\d+h \d{2}m$/);
+        await expect(avgs.nth(i).locator('.tot-avg-partial')).toHaveText('(partial)');
+    }
+    await expect(avgs.nth(2).locator('.tot-avg-partial'), 'the days average is not an hours figure').toHaveCount(0);
 });
 
 test('links grid: a lone spare day makes its line\'s totals a floor, and the cell says why', async ({ page }) => {

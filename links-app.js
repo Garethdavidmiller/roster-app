@@ -1149,15 +1149,19 @@ export function init() {
         // The hours averages are `weeklyHours`', as the checks row and the strip read them; only the DAYS average is the
         // footer's own, over the WORKING lines (invariant 7), so both divisors are printed.
         const wh  = weeklyHours(design.patterns, TOTAL_POS);
-        const avg = (/** @type {number|null} */ v, /** @type {string} */ text, /** @type {string} */ note) =>
+        // "(partial)" says what `hoursFigure` says on the checks row and the strip, on a line of its own under the
+        // figure: beside it, it widened the last columns past the card at 769px. Not a "+" floor — a line with no
+        // readable time is LEFT OUT of the average, which can then be high as well as low.
+        const avg = (/** @type {number|null} */ v, /** @type {string} */ text, /** @type {string} */ note, partial = false) =>
             `<td class="tot-cell tot-avg">` +
             (v === null ? `<span class="tot-avg-num">—</span>`
                 : `<span class="tot-avg-num">${escapeHtml(text)}</span>`) +
+            (partial && v !== null ? `<span class="tot-avg-note tot-avg-partial">(partial)</span>` : '') +
             `<span class="tot-avg-note">${escapeHtml(note)}</span></td>`;
         const lineWord = (/** @type {number} */ n, /** @type {string} */ w) => `over ${n} ${w}${n === 1 ? '' : 's'}`;
         const avgCells = totals
-            ? avg(wh.exSunday, hoursFigure(wh).text, lineWord(TOTAL_POS, 'line'))
-            + avg(wh.all, hoursFigure(wh, 'all').text, lineWord(TOTAL_POS, 'line'))
+            ? avg(wh.exSunday, hoursFigure(wh).hm ?? '—', lineWord(TOTAL_POS, 'line'), hoursFigure(wh).partial)
+            + avg(wh.all, hoursFigure(wh, 'all').hm ?? '—', lineWord(TOTAL_POS, 'line'), hoursFigure(wh, 'all').partial)
             + avg(totals.daysAverage, String(totals.daysAverage ?? ''), lineWord(totals.daysLines, 'working line'))
             : '';
         tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}${avgCells}</tr>`;
