@@ -256,13 +256,54 @@ function expandAllForPrint() {
         _fipOpenRestore.push([det, det.open]);
         det.open = true;
     });
+    armPrintEnd();
 }
 function restoreAfterPrint() {
     if (!_fipPrepared) return;         // afterprint can fire twice, or without a prepare at all
     _fipPrepared = false;
+    disarmPrintEnd();
     document.body.removeAttribute('data-print-filtered');
     _fipOpenRestore.forEach(function (p) { p[0].open = p[1]; });
     _fipOpenRestore = [];
+}
+
+// A PRINT IS OVER WHEN THE READER IS BACK (Nov 2026). The restore routes below are events an engine
+// may never send: `afterprint` is the one iOS does not send for AirPrint, and its print sheet need not
+// change the page's visibility either. Until something else happened — the header button, another
+// country's button — the page stayed as the prepare left it: every country open, and after a search
+// or "⤓ Print <country>" a print state on <body>. But the print sheet is MODAL, so any touch, key or
+// scroll the page receives after a prepare means the sheet has gone, and the print with it.
+//
+// The prepare's own effects must not end it. Opening every country above the reader moves the page
+// (scroll anchoring), and that scroll is dispatched in a later frame, so a scroll counts only if the page
+// has moved from where it stood once the cards were open — read after they open, which lays the page
+// out with the move already made. And only on screen: an engine laying the page out for paper fires
+// `scroll` without the reader (the sheet of one country is shorter than the page, so the position is
+// clamped). The pointerdown and keydown that START a print come before its click, so they cannot end
+// it; and while a blocking `window.print()` (Chromium) has its dialog open, nothing reaches the page.
+var PRINT_END_EVENTS = ['pointerdown', 'keydown', 'scroll'];
+var _fipPrintEndArmed = false;
+var _fipPrintEndY = 0;
+/** @param {Event} e */
+function onReaderBack(e) {
+    if (e.type === 'scroll' && (window.matchMedia('print').matches || Math.abs(window.scrollY - _fipPrintEndY) <= 2)) return;
+    resetStalePrint();
+}
+/** Called at the END of a prepare, once every card is open. */
+function armPrintEnd() {
+    _fipPrintEndY = window.scrollY;
+    if (_fipPrintEndArmed) return;
+    _fipPrintEndArmed = true;
+    PRINT_END_EVENTS.forEach(function (type) {
+        window.addEventListener(type, onReaderBack, { capture: true, passive: true });
+    });
+}
+function disarmPrintEnd() {
+    if (!_fipPrintEndArmed) return;
+    _fipPrintEndArmed = false;
+    PRINT_END_EVENTS.forEach(function (type) {
+        window.removeEventListener(type, onReaderBack, { capture: true });
+    });
 }
 window.addEventListener('beforeprint', expandAllForPrint);
 window.addEventListener('afterprint', restoreAfterPrint);
