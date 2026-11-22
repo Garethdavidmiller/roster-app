@@ -32,7 +32,7 @@
 <body spellcheck="false">
 
     <header class="page-header">
-        <a href="./" class="btn-back" aria-label="Back to roster">←</a>
+        <a href="./" class="btn-back" aria-label="Back to calendar">←</a>
         <div>
             <h1><span aria-hidden="true">🇪🇺</span> FIP Travel Guide</h1>
             <p class="sub">European rail travel for Chiltern staff</p>
@@ -182,7 +182,7 @@
                 </li>
                 <li>
                     <strong>bookmyrst.co.uk — the RST partner</strong>
-                    <span>RST work with <b>International Rail</b>, a travel agent, for a <b>fixed transaction fee</b>. Submit your journey online and they prepare a quote and contact you with the price. <b>Allow at least 3 weeks</b> — no telephone bookings. Also covers Eurostar and Thalys. What they can and cannot reach country by country is in the table below.</span>
+                    <span>RST work with <b>International Rail</b>, a travel agent, for a <b>fixed transaction fee</b>. Submit your journey online and they prepare a quote and contact you with the price. <b>Allow at least 3 weeks</b> — no telephone bookings. Also covers Eurostar and Eurostar Red (the former Thalys). What they can and cannot reach country by country is in the table below.</span>
                 </li>
                 <li>
                     <strong>SNCF direct — the only way to book French domestic</strong>
@@ -252,7 +252,7 @@
         </div>
 
         <div class="box box-blue mb-0" data-guide-source="fip-contact">
-            <strong>Which one to ring first</strong>
+            <strong>Which one to use first</strong>
             <strong>Trainseurope</strong> if you want it settled in one phone call. <strong>bookmyrst.co.uk</strong> if you have three weeks and want the RST-partnered route with its fixed fee. <strong>SNCF</strong> if the journey is inside France. <strong>Ffestiniog</strong> if the route is awkward and the first two can't help. Trainseurope and Ffestiniog aren't named on the Rail Staff Travel page — that's worth knowing if a query goes wrong, not a reason to avoid them.
         </div>
 
@@ -353,6 +353,7 @@
                        aria-label="Search countries or operators" aria-describedby="countryCount">
                 <button type="button" id="countryClear" class="cf-clear" aria-label="Clear search" hidden>✕</button>
             </div>
+            <p id="countryNoMatch" class="cf-nomatch" role="status" hidden></p>
             <span id="countryCount" class="cf-count" aria-live="polite" hidden></span>
             <div class="cf-popular">
                 <span class="cf-popular-label">Popular from Marylebone</span>
@@ -402,8 +403,6 @@
             <a href="#country-se" class="not-fip"><span aria-hidden="true">🇸🇪</span> Sweden</a>
             <a href="#country-fi" class="not-fip"><span aria-hidden="true">🇫🇮</span> Finland</a>
         </div>
-
-        <p id="countryNoMatch" class="cf-nomatch" role="status" hidden></p>
 
         <div class="box box-yellow mb-12">
             <strong>Always compare public fares first</strong>
@@ -608,7 +607,7 @@
 
                 <div class="box box-yellow">
                     <strong>⚠ Reservations cannot be bought online</strong>
-                    They are <strong>mandatory</strong> on long-distance and medium-distance trains, can <strong>only be booked at a station ticket office</strong>, and <strong>you may be refused access to the platform without one</strong>. Most MD trains in Catalonia are non-reservable; most elsewhere are not — check before you board.
+                    They are <strong>mandatory</strong> on long-distance and medium-distance trains, can <strong>only be booked at a station ticket office</strong>, and <strong>you may be refused access to the platform without one</strong>. Most MD trains in Catalonia need no reservation; elsewhere in Spain most do — check before you board.
                 </div>
 
                 <p><strong>Reservation fees (April 2026):</strong> AVE and AVE International within Spain — Elige <strong>€10.00</strong>, Elige Confort <strong>€13.00</strong>, Premium <strong>€23.50</strong>.</p>
@@ -1315,6 +1314,7 @@
 <script src="./guide-back.js" defer></script>
 
 <script type="module" src="./guide-print.js"></script>
+<script src="./guide-chips.js" defer></script>
 <script src="./fip-guide.js" defer></script>
 </body>
 </html>

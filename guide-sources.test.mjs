@@ -15,6 +15,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { GUIDE_PAGES } from './scripts/app-pages.mjs';
 
 const SRC = readFileSync(new URL('./docs/GUIDE_SOURCES.md', import.meta.url), 'utf8');
 
@@ -203,9 +204,25 @@ test('the railcard time-rule cards flagged in the audit are present and classifi
 //   • every railcard/fip register row is referenced by at least one block (no dead rows).
 // So a claim can no longer drift from the source that certifies it, in either direction.
 
-// Which guide file each Guide value lives in. Rows in other guides (paycalc) are exempt from
-// the HTML-block requirement — they render on a different surface with no data-guide-source blocks.
-const GUIDE_FILES = { railcard: 'railcard-guide.html', fip: 'fip-guide.html', rangers: 'rangers-guide.html' };
+// Every guide page, by its register Guide value (railcard-guide.html is "railcard"). FROM THE ONE PAGE
+// LIST, scripts/app-pages.mjs: this was a hand-kept three, so a dangling data-guide-source on the Staff
+// or Pay Calculator guide was never read at all — and nor would one on a guide added later have been.
+/** @type {Map<string, string>} file → Guide value */
+const GUIDE_OF_FILE = new Map(GUIDE_PAGES.map(p => [p.file, p.file.replace(/-guide\.html$/, '')]));
+
+// The guides whose register rows must each be ANCHORED by a block, Guide value → file. Rows in other
+// guides (paycalc) are exempt from that requirement: they render on a different surface. Every guide's
+// blocks are still read, so a block on any guide citing a missing row, or another guide's, fails.
+const ANCHORED = ['railcard', 'fip', 'rangers'];
+/** @type {Record<string, string>} */
+const GUIDE_FILES = Object.fromEntries(
+    [...GUIDE_OF_FILE].filter(([, g]) => ANCHORED.includes(g)).map(([f, g]) => [g, f]));
+
+test('the block linkage reads every guide page, and each anchored guide is one of them', () => {
+    assert.ok(GUIDE_OF_FILE.size >= 5, `read only ${GUIDE_OF_FILE.size} guide pages from scripts/app-pages.mjs`);
+    for (const [file, guide] of GUIDE_OF_FILE) assert.notEqual(guide, file, `${file} is not named <guide>-guide.html`);
+    assert.deepEqual(ANCHORED.filter(g => !GUIDE_FILES[g]), [], 'an anchored guide has no page in scripts/app-pages.mjs');
+});
 
 /**
  * Pull every `data-guide-source="a b c"` value out of an HTML file, space-splitting so one
@@ -223,7 +240,7 @@ function refsInFile(file) {
 }
 
 const registerIds = new Set(rows.map(r => r.ID));
-const refsByFile = new Map(Object.values(GUIDE_FILES).map(f => [f, refsInFile(f)]));
+const refsByFile = new Map([...GUIDE_OF_FILE.keys()].map(f => [f, refsInFile(f)]));
 
 test('every data-guide-source in the guides points at a real register row (no orphan refs)', () => {
     for (const [file, ids] of refsByFile) {
@@ -236,8 +253,8 @@ test('every data-guide-source in the guides points at a real register row (no or
 
 test('a block cites a row from its OWN guide (railcard blocks cite railcard rows, fip cite fip)', () => {
     const guideOf = new Map(rows.map(r => [r.ID, r.Guide]));
-    for (const [guide, file] of Object.entries(GUIDE_FILES)) {
-        for (const id of refsByFile.get(file)) {
+    for (const [file, guide] of GUIDE_OF_FILE) {
+        for (const id of refsByFile.get(file) || []) {
             assert.equal(guideOf.get(id), guide,
                 `${file}: cites "${id}", whose register Guide is "${guideOf.get(id)}" not "${guide}"`);
         }
@@ -880,6 +897,28 @@ test('rangers: the key explains only the markers a card on the page wears', () =
     assert.ok(marks.length >= 5, `only ${marks.length} key entries were read — the scan is wrong`);
     for (const cls of marks) {
         assert.match(cards, new RegExp(`class="[^"]*\\b${cls}\\b`), `the key explains .${cls}, which no card on the page wears`);
+    }
+});
+
+// …AND EVERY MARKER A CARD WEARS IS IN THE KEY (review, 22 Nov 2026). The test above is one direction only: a
+// product marked unconfirmed (amber "⚠ Check") could ship with its key line still absent and every check green —
+// a gateline reader then meets a badge the page never explains. The Chiltern side is keyed by its tokens: a
+// "yes" badge reads as ✓ and a "no" as ⊘; an unconfirmed badge needs a key line of its own.
+test('rangers: every marker a card wears is explained in the key', () => {
+    const html = RR_HTML.replace(/<!--[\s\S]*?-->/g, ' ');
+    const key = html.match(/<div class="key"[^>]*>([\s\S]*?)<\/div>/);
+    assert.ok(key, 'the Rangers key was not found');
+    const keyed = new Set([...key[1].matchAll(/<span class="key-item"><span class="([^"]+)">/g)].flatMap(m => m[1].trim().split(/\s+/)));
+    const cards = html.replace(key[0], ' ');
+    const worn = new Set([...cards.matchAll(/class="(?:myb-status|ch-status|pill) ((?:myb-status|ch-status|pill)-[a-z-]+)"/g)].map(m => m[1]));
+    assert.ok(worn.size >= 3, `only ${worn.size} worn markers were read — the scan is wrong`);
+    // A conflict badge, on either side, is the "⚠ conflict" state the key's conflict line explains in the same words;
+    // an UNCONFIRMED one ("⚠ Check", amber) is a different state and needs a line of its own.
+    const CHILTERN_TOKEN = /** @type {Record<string, string>} */ ({ 'ch-status--yes': 'tok-ok', 'ch-status--no': 'tok-no',
+        'ch-status--conflict': 'pill-conflict', 'myb-status--conflict': 'pill-conflict' });
+    for (const mark of worn) {
+        const explainedBy = CHILTERN_TOKEN[mark] ?? mark;
+        assert.ok(keyed.has(explainedBy), `a card wears "${mark}" but the key has no line for it — add one to the key strip`);
     }
 });
 

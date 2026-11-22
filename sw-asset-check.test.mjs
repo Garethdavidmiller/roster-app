@@ -578,6 +578,7 @@ test('no unused CSS custom properties defined in :root', () => {
         ['guide-shell.css', 'guide-doc.css', 'staff-guide.css'],
         ['guide-shell.css', 'guide-doc.css', 'paycalc-guide.css'],
         ['guide-shell.css', 'railcard-guide.css'],
+        ['guide-shell.css', 'rangers-guide.css'],   // missing until Nov 2026: it fell back to the app group
         ['guide-shell.css', 'fip-guide.css'],
     ];
     // Any css file not named in a group (a future addition) falls back to the app group,

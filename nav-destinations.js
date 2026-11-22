@@ -84,10 +84,10 @@ export const NAV_INFORMATION = Object.freeze([
 export const NAV_GUIDES = Object.freeze([
     // "Recording", never "Booking": the app records leave already agreed, and absence — it books nothing (admin.html's
     // "Record Annual Leave"; the guide's own "record annual leave that's already been agreed").
-    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Recording leave and absence, using the app', url: './staff-guide.html',    openId: 'guide-staff'    },
+    { icon: '📘', label: 'Staff & Admin Guide',  sub: 'Using the app, and recording leave and absence', url: './staff-guide.html',    openId: 'guide-staff'    },
     { icon: '💷', label: 'Pay Calculator Guide', sub: 'Estimating your take-home, and your payslip lines', url: './paycalc-guide.html',  openId: 'guide-paycalc'  },
     { icon: '🎫', label: 'Railcard Guide',       sub: 'Which railcard gives what discount',    url: './railcard-guide.html', openId: 'guide-railcard' },
-    { icon: '🗺️', label: 'Rangers & Rovers',     sub: 'Which area tickets are valid at Marylebone', url: './rangers-guide.html',  openId: 'guide-rangers'  },
+    { icon: '🗺️', label: 'Rangers & Rovers Guide', sub: 'Checking area tickets at Marylebone', url: './rangers-guide.html',  openId: 'guide-rangers'  },
     { icon: '🇪🇺', label: 'FIP Travel Guide',     sub: 'Free and discounted travel in Europe',  url: './fip-guide.html',      openId: 'guide-fip'      },
 ].map(g => Object.freeze(g)));
 

@@ -44,7 +44,7 @@ paths:
   the page.
 - **A guide that lists something the app keeps in one place is held to it.**
   `guide-app-parity.test.mjs` reads the app's own lists (the PIN's pages in `auth-policy.js`, the menu
-  in `nav-panel.js`, the Admin type buttons in `admin-shift-types.js`) and fails on the guide line that
+  in `nav-destinations.js`, the Admin type buttons in `admin-shift-types.js`) and fails on the guide line that
   disagrees, in both directions; the Calendar sign-in card's PIN hint is held to the same list. A new
   list a guide restates gets a check there, not a reminder.
 - **Draw an app control as the app draws it.** A reader matches the page to the screen by sight, so
@@ -67,25 +67,36 @@ paths:
   (`LEGACY_REDIRECTS`, `page-contract-parity.test.mjs`). **A future guide rename needs the same pair** —
   the Firebase redirect and the stub — or it breaks old links for the larger half of the staff.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP
-  (`script-src 'self'`) blocks them. All guide JS is in external files: `guide-back.js` and
-  `guide-print.js` (loaded by every guide), and the chip bar's script — the shared `guide-chips.js` on
-  the Railcard, Rangers, Staff and Pay Calculator guides, and `fip-guide.js`, which also opens the
-  target country `<details>` on jump/deep-link. **Every guide has a chip bar and exactly one of those
-  two drives it**: nothing else measures a guide's sticky stack, and two would bind every chip twice
-  (`page-contract-parity.test.mjs`). **Only `guide-print.js` prints**: a second `window.print()` handler
+  (`script-src 'self'`) blocks them. All guide JS is in external files, and every guide loads the same
+  three: `guide-back.js`, `guide-print.js` and the chip bar's `guide-chips.js`. The FIP guide alone
+  loads a fourth, `fip-guide.js`, AFTER `guide-chips.js`: its country finder, the opening of a country's
+  `<details>` on a jump or deep link, and its print preparation. **Every guide has a chip bar and
+  `guide-chips.js` alone drives it**: nothing else measures a guide's sticky stack, and a second copy
+  would bind every chip twice. `fip-guide.js` carried one until Nov 2026, held to the shared one by four
+  exact strings; it carries none now, and `guide-chips.js` is wrapped in a function so the two scripts
+  share no globals. `page-contract-parity.test.mjs` requires all of it: the three tags on every guide,
+  the FIP guide's order, no chip-bar calls in `fip-guide.js`, no top-level code in `guide-chips.js`,
+  and a `#savePdfBtn.btn-print`. **Only `guide-print.js` prints**: a second `window.print()` handler
   would open two sheets or bypass the iOS 27 guard.
 - **Back buttons** link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
   when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and `←` points
   back at that page, because guide links navigate in the SAME tab. `from` is allowlisted against the
-  app's own pages; an absent or unknown value leaves the authored href alone.
+  app's own pages; an absent or unknown value leaves the authored href alone. The footer
+  `.guide-back-link` follows it too. **Where the page before is the one named** (same origin and path,
+  by `document.referrer`), both call `history.back()` instead of linking, so Admin → drawer → guide → ←
+  leaves no second Admin over the guide for the phone's Back to land on; the href stays the fallback
+  (no referrer, no history, or a move within the guide since it loaded). `guide-back.js` has the why.
 
 ## Unified guide shell
 
 All five guide pages share one chrome for consistent behaviour on iOS, Android, desktop and print.
 It lives in **`guide-shell.css`** (linked by every guide, before each page's CSS) — edit it there once,
-do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (`--navy`,
-`--navy-dark`, `--navy-mid`, `--gold`) in its own `:root`; guide pages do not redefine them. Each
+do not re-inline it. `guide-shell.css` defines the whole shared guide palette in its own `:root` —
+the brand tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`), the status fills and borders, the
+greys, `--white` and `--shadow-card` — with the Railcard guide's values (owner, 22 Nov 2026), plus the
+source banner (`.source-banner`, `.draft-title`). Guide pages do not redefine them; the two document
+guides keep their own four greys on purpose, and `--bg` means the page background on every guide. Each
 "ONE …" rule below has its reasoning in the matching `guide-shell.css` block.
 
 **In `guide-shell.css` (shared — change once):**
@@ -106,7 +117,9 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
 - **The `←` has one hover, gold, on every guide** (fine pointers only), at a specificity no page's own
   `a:hover` reaches.
 - **Footer back link:** `.guide-back-link` is ONE recipe for railcard, rangers and FIP — centred, 44px
-  tall, "← Back to calendar" to `./`, the last element of `<main>`, hidden in print — with ONE hover
+  tall, authored "← Back to calendar" to `./` and retargeted by `guide-back.js` with the header's `←`
+  (opened from Admin it reads "← Back to Admin"; owner, Nov 2026), the last element of `<main>`,
+  hidden in print — with ONE hover
   (navy words, gold underline) at (0,2,0). Do not restyle it per page; `e2e/guides.spec.js` fails if the
   three diverge.
 - **Chips:** desktop hover feedback on the shared `.chip` (border-darken + soft shadow, colour-fade
@@ -160,7 +173,7 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
 - **One top gap:** `--guide-top` (20px) from the bottom of the header and chips to a guide's first
   line, on all five, at every width. Pinned by "every guide starts its first line the same space below
   the header and chips", at 390 and 1280px.
-- **The chip bar's hold** (`guide-chips.js` header has the argument; `fip-guide.js` mirrors it). On the
+- **The chip bar's hold** (`guide-chips.js` header has the argument, on all five guides). On the
   document guides' two columns (from 641px) no scroll position says which section is being read, so a
   chip is lit only by a jump or a link to it, until the reader moves ON (the SECTION moving, so a
   reflow lets go too); on one column the bar follows the reader. **A link holds its chip the way a tap
@@ -170,9 +183,9 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing. **A tap's jump is
   judged when it ENDS** — at `scrollend` where the browser has it; the 1.5 s timer judges only where it
   does not (run everywhere, it judged a slow jump in flight and let the chip go, Nov 2026).
-  `page-contract-parity.test.mjs` keeps the two scripts in step, and `e2e/guides.spec.js` proves each
-  in a browser: "a jump is judged when it ends…" pauses the shared script's clock mid-jump, and the FIP
-  test waits out a slow jump. A test that taps a chip waits for `scrollend` (`jumpTo`), never a set time.
+  `e2e/guides.spec.js` proves it in a browser: "a jump is judged when it ends…" pauses the page's
+  clock mid-jump on the Pay Calculator and FIP guides, and the FIP test waits out a slow jump. A test
+  that taps a chip waits for `scrollend` (`jumpTo`), never a set time.
 - **A bar too long for its window WRAPS** from 641px in a window at least 600px tall, and from 1024px at
   any height — a desktop bar hides its scrollbar, so a chip past the edge would never be found, and a
   window snapped to half a laptop screen is 683–768px wide (`guide-shell.css` has the figures). The page
@@ -222,10 +235,11 @@ that register structurally (part of `npm run test:hygiene`) — every row must k
 `Reviewed`/`Next` dates (Next strictly after Reviewed), and a valid class.
 
 - **Before changing a high-risk claim**, update its register row (Source + `Reviewed`), then the guide.
-- **Block ↔ source linkage:** each high-risk railcard/fip block carries a
+- **Block ↔ source linkage:** each high-risk Railcard, Rangers or FIP block carries a
   `data-guide-source="<register-id>"` attribute (several space-separated ids allowed).
-  `guide-sources.test.mjs` enforces both directions — an attribute pointing at a missing row fails, and
-  a railcard/fip row with no anchoring block fails — so adding a row means anchoring it in the HTML,
+  `guide-sources.test.mjs` enforces both directions — an attribute on ANY guide (it reads every
+  `GUIDE_PAGES` entry) pointing at a missing row, or at another guide's, fails, and a Railcard, Rangers
+  or FIP row with no anchoring block fails — so adding a row means anchoring it in the HTML,
   and removing a block means removing or re-homing its row. The attribute is inert (no CSS/JS reads
   it), so it needs no version bump.
 - The **National vs Local** flag is the anti-drift control: it stops a Marylebone shortcut being
@@ -237,28 +251,30 @@ that register structurally (part of `npm run test:hygiene`) — every row must k
 ## What adding a guide page touches
 
 Every place below knows the guide list, and most fail loudly — the good case. Listed so the work is
-estimated honestly; each row was checked against the code.
+estimated honestly; each row was checked against the code. The last column says which: **enforced**
+(a test fails until it is done) or **remembered** (nothing fails; this table is the reminder).
 
-| # | File | What |
-|---|---|---|
-| 0 | `scripts/app-pages.mjs` | a `GUIDE_PAGES` entry — `page-contract-parity.test.mjs` fails on an undeclared page — then `npm run generate:guide-index` (`guide-index-parity.test.mjs` checks it) |
-| 1 | `nav-destinations.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** |
-| 2 | `firestore.rules` | analytics counter id, in **two** places (the `pvCountIds()` list and the per-id int check) |
-| 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways |
-| 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) |
-| 5 | `sw-asset-check.test.mjs` | asset-list parity, and the `noindex` meta contract |
-| 6 | `csp-meta-parity.test.mjs` | the page's `<meta http-equiv="Content-Security-Policy">` must mirror the header |
-| 7 | the page itself | `noindex` meta + `color-scheme: only light` meta |
-| 8 | `e2e/axe.spec.js` | accessibility scan (blocking gate) |
-| 9 | `e2e/csp.spec.js` | deployed-CSP proof |
-| 10 | `e2e/calendar.spec.js` | each guide records its **own** open id, driven through the real drawer |
-| 11 | `GUIDE_SOURCES.md` | a register row per high-risk claim |
-| 12 | `guide-sources.test.mjs` | the two-way `data-guide-source` contract — a row with no block fails, and vice versa |
-| 13 | `guide-shell.css` | nothing to change, but confirm nothing new is needed |
-| 14 | `guide-back.js` | already generic; confirm the new page is in scope |
-| 15 | `e2e/visual.spec.js` + baselines | every guide is baselined — the document-style pair at desktop 900, the other three at mobile 390; pick the width that shows the new page's densest state |
-| 16 | `.claude/rules/guide-pages.md` | its `paths:` globs **and** its per-guide section (this file) |
-| 17 | `docs/FILE_INDEX.md` + `docs/AI_MAP.md` | the file catalogue, same-commit rule |
+| # | File | What | |
+|---|---|---|---|
+| 0 | `scripts/app-pages.mjs` | a `GUIDE_PAGES` entry — `page-contract-parity.test.mjs` fails on an undeclared page — with its `documentStyle` and `column`, each checked against the page; then `npm run generate:guide-index` (`guide-index-parity.test.mjs` checks it). The browser suites (`e2e/guides.spec.js`, `print.spec.js`, `pages.spec.js`) and `guide-sources.test.mjs` loop over this list, so the new guide joins them with no edit there | enforced |
+| 1 | `nav-destinations.js` | `NAV_GUIDES` entry — icon, label, url, **`openId`** | enforced (#3) |
+| 2 | `firestore.rules` | analytics counter id, in **two** places (the `pvCountIds()` list and the per-id int check) | enforced (#3) |
+| 3 | `firestore-contract-parity.test.mjs` | asserts `NAV_GUIDES` openIds match the rules list, both ways | — |
+| 4 | `service-worker.js` | precache: `.html` + `.css` (+ `.js` if any) | enforced (#5) |
+| 5 | `sw-asset-check.test.mjs` | asset-list parity, and the `noindex` meta contract | — |
+| 6 | `csp-meta-parity.test.mjs` | the page's `<meta http-equiv="Content-Security-Policy">` must mirror the header | enforced |
+| 7 | the page itself | `noindex` meta + `color-scheme: only light` meta; a chip bar; the three script tags — `guide-back.js`, `guide-print.js` (a module) and `guide-chips.js` — once each; and `#savePdfBtn.btn-print` | enforced (#5, `page-contract-parity.test.mjs`) |
+| 8 | `e2e/axe.spec.js` | accessibility scan (blocking gate) | enforced (reads `GUIDE_PAGES`) |
+| 9 | `e2e/csp.spec.js` | deployed-CSP proof | enforced (reads `GUIDE_PAGES`) |
+| 10 | `e2e/calendar.spec.js` | each guide records its **own** open id, driven through the real drawer | remembered |
+| 11 | `GUIDE_SOURCES.md` | a register row per high-risk claim | remembered |
+| 12 | `guide-sources.test.mjs` | the two-way `data-guide-source` contract. It reads every guide from `GUIDE_PAGES`, so a block on the new page citing a missing row fails at once; for its OWN rows to need anchoring, add its Guide value to `ANCHORED` and the register's `GUIDES` | enforced; `ANCHORED` remembered |
+| 13 | `scripts/guide-index-lib.mjs` | if the guide has CARDS that should be search results of their own, a `CARD_RULES` entry (a tag, an id pattern and a class, in any attribute order), and a line in `guide-index-parity.test.mjs` contract 10 (or 9) so every card is checked to be a unit | remembered |
+| 14 | `guide-shell.css` | nothing to change, but confirm nothing new is needed | remembered |
+| 15 | `guide-back.js` | already generic: the `←` and, on a card guide, the footer `.guide-back-link` both follow `?from=` | — |
+| 16 | `e2e/visual.spec.js` + baselines | every guide is baselined — the document-style pair at desktop 900, the other three at mobile 390; pick the width that shows the new page's densest state | enforced (`page-contract-parity.test.mjs`) |
+| 17 | `.claude/rules/guide-pages.md` | its `paths:` globs **and** its per-guide section (this file) | remembered |
+| 18 | `docs/FILE_INDEX.md` + `docs/AI_MAP.md` | the file catalogue, same-commit rule | enforced for a new `.js` module (pre-commit, `doc-parity.test.mjs`); the page and stylesheet lines remembered |
 
 Note #10 and #12 specifically: the analytics open-id mapping has already produced a real defect class
 (a substring match filed every Pay Calculator Guide open under the Staff Guide), and the register's
@@ -334,7 +350,10 @@ Marylebone and Reading are inside; Leamington Spa, Warwick, Solihull, Coventry a
 outside. It was settled from the boundary polygon in the railcard's own area-map PDF (a 41-vertex
 filled shape drawn immediately before the six `NETWORK RAILCARD AREA` labels, tested point-in-polygon)
 — **not from the map's station index**, which indexes the whole *London & the South East* map and also
-lists Bristol, Taunton, Weston-super-Mare and Exeter. A "correction" that read the index as the
+lists Bristol, Taunton, Weston-super-Mare and Exeter. **Re-checked on the June 2026 map (22 Nov 2026)**
+the same way: there the shape has 45 vertices and the labels are drawn as outlines, so they cannot be
+searched as text — find the shape by its fill and its position before the outlined letters, and place
+stations by their own markers. Banbury is still inside, on the edge (`GUIDE_SOURCES.md` → `rc-network-map`). A "correction" that read the index as the
 boundary, extending the area to Birmingham, was wrong, and was caught by the owner's operational
 knowledge. Two rules came out of it:
 
