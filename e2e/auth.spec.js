@@ -1006,7 +1006,8 @@ test('every page\'s sign-in card says what the page is, and that the staff PIN d
         const about = page.locator('#loginOverlay #loginAbout');
         await expect(about, `${url}: the card does not say what the page is`).toBeVisible();
         if (SAYS_PIN_DOES_NOT_OPEN.includes(url)) {
-            await expect(about, `${url}: the card does not say the staff PIN won’t open it`).toContainText('the staff PIN doesn’t open it');
+            // "it", or the page by name where "it" would have nothing to refer to (Settings' card, 22 Nov 2026).
+            await expect(about, `${url}: the card does not say the staff PIN won’t open it`).toContainText(/the staff PIN doesn’t open (it|Settings)\./);
             await expect(page.locator('#loginOverlay #loginFootnote'), `${url}: no shared-screen footnote`).toBeVisible();
         }
     }
