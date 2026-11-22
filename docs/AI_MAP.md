@@ -288,7 +288,7 @@ Coordinator for `settings.html`, for every signed-in member: the sign-in, the dr
 
 ### `overlay.js`
 The shared overlay layer: the scroll lock, Android Back's LIFO stack, the topmost-only keyboard rule, the canonical lightbox (`createLightbox` — every lightbox, with three exceptions named in its JSDoc), the app-drawn confirm and prompt dialogs, and `openNoticeIfClear` for one-time notices. Re-exports `card-collapse.js`. Bound by CLAUDE.md → Canonical lightbox lifecycle and `.claude/rules/nav-drawer.md`. Tested by `overlay.test.mjs`, `overlay-history.test.mjs`, `overlay-parity.test.mjs` and `e2e/links.spec.js`.
-- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
+- **Exports:** `initCardCollapse` · `openCardNamedByHash` · `lockBodyScroll` · `unlockBodyScroll` · `_pushOverlayState` · `_isTopOverlay` · `openNoticeIfClear` · `dismissOverlay` · `_clearOverlayHistory` · `registerPopInterceptor` · `suppressNextPop` · `whenHistorySettled` · `followLinkOutOf` · `trapFocus` · `closeOnBackdropTap` · `watchScrollFade` · `pinCloseButton` · `createLightbox` · `confirmDialog` · `confirmWithOption` · `promptDialog`
 
 ### `card-collapse.js`
 A card's collapsible header, and the deep link that opens a collapsed card by name (`#<cardId>`). `overlay.js` re-exports both, so pages import them from there. No imports, no browser global read at load. Tested by `card-collapse.test.mjs` and `overlay.test.mjs`.
@@ -605,7 +605,7 @@ The in-app PDF viewer: a full-screen panel with a ✕ that draws a PDF's pages w
 - `pdf-viewer.js` — the panel on `createLightbox`, loading PDF.js, fetching and drawing the pages; its header names the three things easy to get wrong.
 - `pdf-viewer-core.js` — the pure rules: page sizes, zoom steps, when a file may open outside the app (`canOpenOutside`), and what a failure says.
 - **Exports of `pdf-viewer.js`:** `initPdfViewer`
-- **Exports of `pdf-viewer-core.js`:** `ZOOM_STEPS` · `MAX_DEVICE_PIXEL_RATIO` · `MAX_CANVAS_PIXELS` · `MAX_FIT_WIDTH` · `zoomAfter` · `zoomLabel` · `pageLayout` · `canOpenOutside` · `isPlainClick` · `classifyFailure` · `FAILURE_TEXT` · `PAGE_FAILURE_TEXT` · `pageLabel` · `pagesLabel`
+- **Exports of `pdf-viewer-core.js`:** `ZOOM_STEPS` · `MAX_DEVICE_PIXEL_RATIO` · `MAX_CANVAS_PIXELS` · `MAX_FIT_WIDTH` · `zoomAfter` · `zoomLabel` · `pageLayout` · `canOpenOutside` · `isPlainClick` · `classifyFailure` · `FAILURE_TEXT` · `failureAction` · `PAGE_FAILURE_TEXT` · `pageLabel` · `pagesLabel`
 
 ### `overtime-phase.js`
 Where the Overtime week stands in the member's terms, and the two deadlines that decide it: the phase, its sentence, chip and tone, and the form head's deadline lines. Pure. Everything but `phaseAt` is re-exported from `overtime-format.js`; `phaseAt` is the client twin of the server's `phaseFor` (`functions/overtime-core.js`). Overtime is paused (OVERTIME_AVAILABILITY.md). Tested by `overtime-format.test.mjs` and `overtime-parity.test.mjs`.

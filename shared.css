@@ -397,6 +397,23 @@
     --modal-standard: 340px;
     --modal-wide:     380px;
     --modal-cap:      90vw;
+    /* ONE HEIGHT CAP (lightbox review R1-12, 22 Nov 2026): 78, 80, 85, 86 and 88 were written as
+       literals beside one width vocabulary, and meant nothing apart. 86, the dialog's: the largest any
+       panel had that still leaves the backdrop showing — the way to close a panel the ✕ is not. `dvh`,
+       because on iOS `vh` is the LARGE viewport and a `vh` cap could put a panel's foot under the bar. */
+    --modal-max-h:    86dvh;
+
+    /* ── The ✕ — ONE colour per surface family (lightbox review R1-3) ─────────────────────────
+       It was set seven ways (white at 45 and 50%, --on-navy-faint, --on-navy-muted, --text-light,
+       --text-mid) and on the picker sheet not at all, which left it the BROWSER's button colour:
+       black on Linux and Windows, the system blue in WebKit. `.lb-close` reads `--lb-close-color`, so
+       every ✕ has one; a navy panel sets the navy pair on itself and its ✕ inherits it. The light
+       value is --text-light, 5.3:1 on white; the navy one white at 50%, 4.2:1 at the sheet's lit top
+       and more below it — and a glyph needs 3:1. Hover goes to full ink on both. */
+    --lb-close-ink:        var(--text-light);
+    --lb-close-ink-hover:  var(--text-dark);
+    --lb-close-navy:       rgba(255, 255, 255, 0.5);
+    --lb-close-navy-hover: white;
 
     /* ── Focus indicators ─────────────────────────────────────────
        One vocabulary for the whole app's focus treatment: a hand-written ring drifts SILENTLY,
@@ -842,6 +859,13 @@ html {
     color-scheme: only light; /* 'only light' hard-opts-out of browser force-dark (Chrome auto-dark / WebView algorithmic darkening) as well as dark-mode scrollbars and form controls — the app is a fixed navy-brand design with no dark theme */
     -webkit-text-size-adjust: 100%; /* prevents auto-scaling on orientation change; 100% (not none) preserves user font-size accessibility settings */
     text-size-adjust: 100%;
+    /* THE PAGE DOES NOT JUMP SIDEWAYS WHEN A LIGHTBOX OPENS (lightbox review R1-13, 22 Nov 2026). On a
+       screen with a permanent scrollbar — the Windows station PC — `body.lb-open`'s `position: fixed`
+       took the page's scrollbar away, and the page behind moved right by its width whenever a lightbox
+       or the drawer opened or closed. The gutter is now always kept. A phone's overlay scrollbar takes
+       no room, so nothing changes there; the cost is an empty navy strip, the canvas's own colour, on a
+       desktop page too short to scroll. */
+    scrollbar-gutter: stable;
 }
 
 /* Balance headings and avoid orphan lines in prose; ignored where unsupported. :where() keeps the
@@ -1006,8 +1030,10 @@ body.lb-open #stickyTotal { display: none !important; }
     input[type="checkbox"]::before, input[type="radio"]::before { transition: none; }
 }
 
-/* Close button — structural only; colour stays in each ID. */
+/* Close button. Its COLOUR is the surface family's (`--lb-close-color`, set by a navy panel on itself —
+   the tokens in :root say why), so no ✕ is ever left to the browser's own button colour. */
 .lb-close {
+    color: var(--lb-close-color, var(--lb-close-ink));
     position: absolute;
     top: 14px;
     right: 14px;
@@ -1027,6 +1053,43 @@ body.lb-open #stickyTotal { display: none !important; }
     align-items: center;
     justify-content: center;
 }
+@media (hover: hover) and (pointer: fine) {
+    .lb-close:hover { color: var(--lb-close-hover, var(--lb-close-ink-hover)); }
+}
+/* THE ✕ STAYS WHILE A LONG PANEL SCROLLS (lightbox review R1-5, 22 Nov 2026). Placed absolutely inside
+   the panel that scrolls, it scrolled away with the words: on an iPhone SE, or at a large text size, a
+   member reading down About or a notice lost the only close control — and iOS has no system Back.
+
+   STICKY, NOT ABSOLUTE. `createLightbox` adds this class on every open to a ✕ that is a direct child of
+   a scrolling panel and still placed the shared way (overlay.js → `_pinClose`), and hands it three
+   lengths it MEASURED on that panel: `--lb-pin-y` and `--lb-pin-x`, where the ✕ sat less the panel's
+   own padding, and `--lb-pin-after`, what cancels its height (and a flex gap) so the content does not
+   move. So at rest it sits exactly where `top`/`right` put it, on any panel's padding — About's differs
+   by page and by window height — and scrolled it stops at that same spot. Measured, not restated:
+   a copy of each panel's padding here would drift from the panel the first time either changed.
+
+   The ✕ alone, not the title (the Tips' `.tips-lb-top` and the picker's `.picker-top` keep both): on
+   About and the notices the "title" is a masthead — the 100px logo, a badge, the date — and stuck it
+   would hold a fifth of a 667px phone. The close control is what must never be out of reach.
+
+   Scrolled, the panel's words pass beneath it, so it takes a disc of its panel's colour (`--lb-close-disc`,
+   white unless a navy panel says otherwise), drawn only once the panel has scrolled (`.is-scrolled`, set
+   with the fade's `has-more` by `watchScrollFade`): at rest, no disc, and nothing has changed. */
+.lb-close.lb-close--pinned {
+    position: sticky;
+    top: var(--lb-pin-y);
+    right: auto;   /* the shared `right: 14px` would make it sticky SIDEWAYS too, against the panel's padding */
+    z-index: 2;
+    display: flex;
+    width: max-content;
+    align-self: auto;
+    flex-shrink: 0;
+    margin: var(--lb-pin-y) var(--lb-pin-x) var(--lb-pin-after) auto;
+    border-radius: 50%;
+    transition: color var(--dur-med) var(--ease-standard), background-color var(--dur-med) var(--ease-standard);
+}
+.lb-content.is-scrolled > .lb-close--pinned { background-color: var(--lb-close-disc, white); }
+@media (prefers-reduced-motion: reduce) { .lb-close.lb-close--pinned { transition: none; } }
 
 /* ============================================================
    CONFIRM / PROMPT DIALOG (overlay.js confirmDialog/promptDialog)
@@ -1051,7 +1114,7 @@ body.lb-open #stickyTotal { display: none !important; }
        dismissed is the worst failure available to one. The `dvh` twin: on iOS `vh` is the LARGE
        viewport (browser bar minimised), so the 86vh cap alone could clip the buttons. */
     max-height: 86vh;
-    max-height: 86dvh;
+    max-height: var(--modal-max-h);
 }
 .dialog-title {
     font-size: var(--type-large);
@@ -1161,8 +1224,8 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 36px 40px 32px;
     width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
-    max-height: 80vh;
-    max-height: 80dvh;
+    max-height: 86vh;
+    max-height: var(--modal-max-h);
 }
 
 /* Enlarged app icon */
@@ -1453,8 +1516,8 @@ button.lightbox-bug-link {
     border-radius: var(--radius-xl);
     padding: 8px;
     width: min(var(--modal-wide), var(--modal-cap));
-    max-height: 85vh;
-    max-height: 85dvh;
+    max-height: 86vh;
+    max-height: var(--modal-max-h);
     box-shadow: var(--shadow-3);
     text-align: left;
     overflow-y: auto;
@@ -1594,13 +1657,11 @@ button.lightbox-bug-link {
     border-radius: var(--radius-xl);
     padding: 20px;
     width: min(var(--modal-standard), var(--modal-cap));   /* the one idiom (css-tokens.md → Overlay sizing) */
-    max-height: 88vh;
-    max-height: 88dvh;
+    max-height: 86vh;
+    max-height: var(--modal-max-h);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
 }
-.dp-close { color: var(--text-light); }
-@media (hover: hover) and (pointer: fine) { .dp-close:hover { color: var(--text-dark); } }
-.dp-title { font-size: var(--type-medium); font-weight: 700; color: var(--primary-blue); text-align: center; margin: 2px 24px 12px; }
+.dp-title { font-size: var(--type-large); font-weight: 700; color: var(--primary-blue); text-align: center; margin: 2px 24px 12px; }
 /* Day grid mirrors the admin range picker (.rp-*) so both calendars read as one component:
    flat borderless cells, a CIRCLE in the page's colour for the chosen day, today = navy bold + a
    small gold dot, and borderless navy month-nav glyphs. */
@@ -1730,8 +1791,8 @@ button.lightbox-bug-link {
     border-radius: var(--radius-panel);
     width: min(var(--modal-standard), var(--modal-cap));
     text-align: left;
-    max-height: 80vh;
-    max-height: 80dvh;
+    max-height: 86vh;
+    max-height: var(--modal-max-h);
 }
 
 /* THE OPAQUE NAVY SHEET — one surface: the one-time notices, About, and (desktop audit, Nov 2026) App
@@ -1741,6 +1802,9 @@ button.lightbox-bug-link {
 #iconLightboxContent,
 #navNoticesContent,
 #navComingSoonContent {
+    --lb-close-color: var(--lb-close-navy);
+    --lb-close-hover: var(--lb-close-navy-hover);
+    --lb-close-disc:  var(--primary-blue);
     background-color: var(--primary-blue);
     background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
     border: 1px solid rgba(255, 255, 255, 0.16);
@@ -1868,13 +1932,7 @@ button.lightbox-bug-link {
     .notice-later { transition: none; }
 }
 
-/* Every ✕ on the opaque navy sheet — colour only, the structure is `.lb-close`. An inherited dark ✕
-   reads as almost black on the navy, so each wears the muted white the About panel's always had. */
-.notice-lb-content .lb-close, #iconLightboxClose, #navNoticesClose, #navComingSoonClose { color: rgba(255, 255, 255, 0.5); }
-@media (hover: hover) and (pointer: fine) {
-    .notice-lb-content .lb-close:hover, #iconLightboxClose:hover, #navNoticesClose:hover,
-    #navComingSoonClose:hover { color: white; }
-}
+/* Every ✕ on the opaque navy sheet takes the navy pair the sheet sets above (`--lb-close-color`, :root). */
 
 /* Focus on the navy sheet (desktop audit, Nov 2026): the fallback ring is navy, invisible here. Gold,
    as in the drawer; the 2px offset puts it on the navy, so it serves the gold CTA too. The ✕ only on
@@ -2750,6 +2808,10 @@ button.nav-panel-link--notices {
     padding: 40px var(--space-5) 32px;
     width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
+    /* CAPPED (lightbox review R1-5): it had none, so with large text on a phone on its side the top —
+       the ✕ — could sit off the screen with no way to scroll to it. Capped, it scrolls inside itself. */
+    max-height: 86vh;
+    max-height: var(--modal-max-h);
 }
 .nav-cs-icon  { font-size: 52px; line-height: 1; }
 .nav-cs-title { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }
@@ -2764,8 +2826,8 @@ button.nav-panel-link--notices {
     border-radius: var(--radius-panel);
     padding: 40px var(--space-5) 32px;   /* the sides as #navComingSoonContent's, above */
     width: min(var(--modal-compact), var(--modal-cap));
-    max-height: 80vh;
-    max-height: 80dvh;
+    max-height: 86vh;
+    max-height: var(--modal-max-h);
     /* The inner list scrolls (not the whole card) so the ✕ and heading stay
        fixed even with a long archive. Overrides .lb-content's overflow-y:auto. */
     overflow: hidden;
@@ -3679,13 +3741,13 @@ body.auth-ready .boot-placeholder { display: none; }
     border-radius: var(--radius-xl);
     padding: 28px 28px 24px;
     width: min(var(--modal-standard), var(--modal-cap));
-    max-height: 85vh;
-    max-height: 85dvh;
+    max-height: 86vh;
+    max-height: var(--modal-max-h);
     box-shadow: var(--shadow-3);
 }
 .tips-lb-title {
     font-size: var(--type-large);   /* content-panel title role — unified across overlays (v18.29) */
-    font-weight: 800;
+    font-weight: 700;               /* every panel title's weight; 800 was the Tips' alone (lightbox review R1-12) */
     color: var(--primary-blue);
     margin-bottom: 16px;
     /* Clear of the ✕, as `.picker-head` is: the 44px `.lb-close` at `right: 14px` takes the panel's last 58px,
@@ -3734,10 +3796,6 @@ body.auth-ready .boot-placeholder { display: none; }
 }
 /* The panel's only visible way out: `--text-light` (6.0:1), as the date picker's ✕. It was black at 35%,
    2.43:1 — under both floors, and only a mouse's hover lifted it (whole-app review, Nov 2026). */
-#tipsLightboxClose { color: var(--text-light); }
-@media (hover: hover) and (pointer: fine) {
-    #tipsLightboxClose:hover { color: var(--text-dark); }
-}
 
 /* ---- Waiting for signal (v24.21, slow-save.js; moved here from admin.css at v24.23) ----
    In shared.css because the roster upload that wraps its writes runs on OPERATIONS, which does not

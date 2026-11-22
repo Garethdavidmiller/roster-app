@@ -215,6 +215,12 @@ or a second idiom (`max-width: Npx; width: 100%`) — variation in overlay width
 **Why 90vw:** it leaves the WIDEST overlay (the dialog) unchanged at phone width, where a clipped
 message would matter most.
 
+**One height cap, `--modal-max-h` (86dvh)**, for every panel — never a literal `vh` (lightbox review,
+22 Nov 2026). **One ✕ colour per surface family**: `.lb-close` reads `--lb-close-color` (light by
+default; a navy panel sets `--lb-close-navy` on itself), so no ✕ is left to the browser. **A ✕ that is
+a direct child of a scrolling panel is pinned** by `createLightbox` (`pinCloseButton`, overlay.js —
+shared.css → "THE ✕ STAYS"): do not restate a panel's padding in CSS for it, it is measured.
+
 **Out of scope, deliberately:** the nav drawer (`min(260px, 72vw)` — a side panel, not a centred
 modal) and the Calendar's page-local overlays in `index.css` — the glass day detail, AL and team info,
 and the white Circular/Newsletter viewer (`min(420px, 88vw)`) — which size themselves.

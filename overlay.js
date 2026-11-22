@@ -447,6 +447,9 @@ export function watchScrollFade(panel) {
     const sync = () => {
         const more = panel.scrollHeight - panel.clientHeight - panel.scrollTop > 2;
         panel.classList.toggle('has-more', more);
+        // Scrolled at all: a pinned ✕ takes its disc, so the words passing beneath it do not show
+        // through the glyph (`pinCloseButton` below; shared.css → THE ✕ STAYS).
+        panel.classList.toggle('is-scrolled', panel.scrollTop > 0);
     };
     // The WINDOW listener outlives the panel unless something removes it (v21.86, external audit).
     // The scroll listener dies with the element; `resize` is on `window`, so every open added one
@@ -479,6 +482,43 @@ export function watchScrollFade(panel) {
         ac.signal.addEventListener('abort', () => mo.disconnect());
     }
     return () => ac.abort();
+}
+
+/**
+ * Keep a panel's ✕ in reach while the panel scrolls (lightbox review R1-5, 22 Nov 2026).
+ *
+ * The shared `.lb-close` is placed ABSOLUTELY inside the panel that scrolls, so it scrolled away with
+ * the words: a long About or notice on a small phone, or at a large text size, left the reader with no
+ * close control on screen — and iOS has no system Back. shared.css's `.lb-close--pinned` makes it
+ * sticky instead. This measures where the shared rule put it — its `top` and `right` less the panel's
+ * own padding, and what cancels its height (and a flex gap) — so the pinned ✕ sits on exactly the same
+ * spot at rest, whatever the panel's padding is on this page at this window size, and the content
+ * does not move. Measured here rather than restated per panel in CSS, where a copy of each padding
+ * would drift from the panel the first time either changed.
+ *
+ * Re-measured on every open (a window or text size may have changed since). Left alone, and so as it
+ * always was: a ✕ that is not a direct child of the panel (the Tips' and the picker's sit in a sticky
+ * top of their own), one a page has placed differently (`position: static` in a full-bleed header),
+ * a panel that does not scroll, and a flex ROW or grid panel, where an in-flow ✕ would take a column.
+ * Best-effort decoration, as `watchScrollFade` is: with no layout API it does nothing.
+ * @param {Element|null|undefined} panel the scrolling `.lb-content`
+ */
+export function pinCloseButton(panel) {
+    const btn = /** @type {HTMLElement|null} */ (panel?.querySelector?.(':scope > .lb-close') ?? null);
+    if (!panel || !btn || typeof getComputedStyle !== 'function') return;
+    btn.classList.remove('lb-close--pinned');   // measure where the SHARED rule places it
+    const b = getComputedStyle(btn), p = getComputedStyle(panel);
+    const flex = /flex/.test(p.display);
+    if (b.position !== 'absolute' || !/auto|scroll/.test(p.overflowY)
+        || (flex && !p.flexDirection.startsWith('column')) || /grid/.test(p.display)) return;
+    const px = (/** @type {string} */ v) => parseFloat(v) || 0;
+    const y = px(b.top) - px(p.paddingTop);
+    const x = px(b.right) - px(p.paddingRight);
+    const gap = flex ? px(p.rowGap) : 0;
+    btn.style.setProperty('--lb-pin-y', `${y}px`);
+    btn.style.setProperty('--lb-pin-x', `${x}px`);
+    btn.style.setProperty('--lb-pin-after', `${-(y + btn.offsetHeight + gap)}px`);
+    btn.classList.add('lb-close--pinned');
 }
 
 /**
@@ -569,6 +609,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
         lockBodyScroll();
         _pushOverlayState(close);
         overlay.classList.add('visible');
+        pinCloseButton(content);   // now it has boxes to measure; still transparent until the frame below
         _stopScrollFade = watchScrollFade(/** @type {HTMLElement|null} */ (content ?? null));
         _stopFocusGuard = _guardFocus(overlay, content ?? overlay, () => _isTopOverlay(close));   // after the push: already top
         // A TEXT FIELD IS FOCUSED NOW, IN THE TAP (iPhone audit, 7 Nov 2026): iOS raises its keyboard only for

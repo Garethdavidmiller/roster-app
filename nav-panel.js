@@ -45,7 +45,7 @@ import { notifSupported, peekNotifState, enableNotifications, disableNotificatio
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { newsletterInMenu } from './newsletter-recency.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap, pinCloseButton } from './overlay.js';
 import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
@@ -787,6 +787,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             lockBodyScroll();
             setOpen(true);   // before the frame and the timer below, which both ask it
             el.classList.add('visible');
+            // Its ✕ stays in reach as a long panel scrolls, as every createLightbox panel's does (overlay.js).
+            // A no-op where the ✕ is not directly inside a scrolling panel (App Notices' list scrolls instead).
+            pinCloseButton(/** @type {HTMLElement|null} */ (el.querySelector('.lb-content')));
             // A CLOSE BEFORE THIS FRAME, OR THE TIMER, RETIRES THEM (15 Nov 2026), as createLightbox's does:
             // an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run after the
             // close, the frame faded the panel back in over the page and the timer moved focus into it.
@@ -1090,7 +1093,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
             ${footerHtml}
         </div>
         <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"
-             aria-label="Menu" aria-modal="true">
+             aria-label="Menu" aria-describedby="navComingSoonBody" aria-modal="true">
             <div class="lb-content" id="navComingSoonContent">
                 <button type="button" id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-icon" id="navComingSoonIcon" aria-hidden="true">📰</div>
