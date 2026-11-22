@@ -1,34 +1,19 @@
 /* links.css — all CSS for links.html (Links design workspace) */
 
 :root {
-    /* Coverage palette — links-workspace-specific; no shared.css token exists for these,
-       so hex values are defined here rather than forwarding from :root in shared.css. */
+    /* Coverage palette — this page's own; no shared token exists for these. */
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
     --cov-night: #6b3fa0;
-    /* Shift-cell colours — MATCH the app's roster language: early = orange, late = blue.
-       (v18.28 — previously inverted: this design tool coloured early blue / late orange, the
-       opposite of the calendar it feeds.) The coverage heat-ramp keeps --cov-early (blue): it's
-       headcount intensity, a separate single-hue scale, NOT shift identity.
-
-       These now FORWARD the app tokens instead of restating them as hex (v18.86). They were
-       hand-written copies labelled "app early"/"app late" that had drifted measurably from the
-       colours they claim to mirror — the early orange was 10% darker and 13° off hue, the late
-       blue 6% lighter and 11.5° off — because shared.css moved to oklch() and these hex literals
-       stayed behind. Forwarding means a brand change reaches this page too; links-colour-parity
-       is asserted by guide-colour-parity.test.mjs.
-
-       Contrast on the 16% wash, MEASURED (v18.91 — the figures here previously read "early 6.2:1,
-       late 7.3:1", which matched neither the values before the change nor after it): early #8f3000
-       on #f7e9d3 = 6.77:1, late #0c4689 on #d2e1f2 = 7.01:1. Both clear WCAG AA comfortably, and
-       they are now within 0.24 of each other so the two labels carry the same visual weight — at
-       the 62% mix the late text measured 9.71:1 and read noticeably heavier than early beside it.
+    /* Shift cells MATCH the app's roster language (early orange, late blue) and FORWARD the app
+       tokens: restated hex copies drifted measurably from the colours they mirrored
+       (guide-colour-parity.test.mjs). The heat ramp keeps --cov-early: headcount, not shift identity.
+       Measured on the 16% wash: early 6.77:1, late 7.01:1, near-equal so neither label reads heavier.
        Re-measure if either token moves; do not adjust these by eye. */
     --shift-early-fill: var(--orange);
     --shift-late-fill:  var(--blue-sky);
     --shift-early-text: var(--orange-text);
-    /* No app token exists for dark-blue TEXT (--blue-sky is a fill), so derive one from it rather
-       than hardcoding a fourth hex — it then tracks the brand blue automatically. */
+    /* Dark-blue TEXT derived from the fill (no token exists), so it tracks the brand blue. */
     --shift-late-text:  color-mix(in oklch, var(--blue-sky) 78%, black);
     --shift-spare-text: #705600;
     --shift-night-text: #3d1a5c;
@@ -50,8 +35,7 @@ body {
 }
 
 .container {
-    /* 1100px matches paycalc/settings/operations. The old --page-max-width
-       (1400px) stretched each 10px shift label across a ~170px cell. */
+    /* A wider page stretched each shift label across a ~170px cell. */
     max-width: var(--content-max-width);
     width: 100%;
     margin: 0 auto;
@@ -60,36 +44,20 @@ body {
     box-sizing: border-box;
     overflow-x: hidden; overflow-x: clip;
 }
-/* ── THE TRACK MUST BE ALLOWED TO SHRINK (v23.31) ──────────────────────────────────────────
-   The same defect `admin.css` documents at length, in the same words, because it is the same
-   CSS: a grid with no `grid-template-columns` gets ONE `auto` track whose automatic minimum is
-   MIN-CONTENT, so a single child that refuses to shrink drags the TRACK wider than the
-   container — and every sibling in it, header and all, stretches to that width and is then cut
-   off by the `overflow-x: clip` above. The page never scrolls; it is simply shaved down its
-   right edge, which is why it does not read as overflow.
-   MEASURED HERE, not assumed: at the default text size Links fits, and at Android's 1.3x
-   font scale it still does — which is why the Admin fix did not obviously extend to it. At
-   1.6x it goes, and 1.6x is a real device state rather than a stress test: Font size and
-   Display size are two separate Android settings and they MULTIPLY (1.3 x 1.3 = 1.69).
-   `minmax(0, 1fr)` lets the track shrink; each card then clips its own overflow, as
-   `.card { overflow: hidden }` already intends, instead of the page doing it for them. */
+/* THE TRACK MUST BE ALLOWED TO SHRINK — the defect admin.css documents. A grid with no template
+   has one `auto` track whose minimum is min-content, so one child that will not shrink widens the
+   track and the clip shaves the whole page down its right edge, never scrolling. Links fits at 1.3x
+   text and breaks at 1.6x, a real Android state (Font size and Display size multiply). */
 .container { grid-template-columns: minmax(0, 1fr); }
-/* The items get it too — a grid item's own `min-width: auto` is min-content, so a track allowed
-   to shrink can still be held open by its item. Kept as a pair for the reason admin.css gives:
-   which of the two binds depends on the content, and the content changes. */
+/* The items too: which of the two binds depends on the content. */
 .container > * { min-width: 0; }
 body.auth-ready .container { display: grid; }
-/* The header is <main>'s sibling (inside it, it was not the banner landmark), so it takes here what
-   the grid gave it: the page's band, 4px above the first card at every width as on Settings, and
-   the hide until sign-in. e2e/pages.spec.js holds all three. */
+/* The header is <main>'s sibling (inside it, it was not the banner landmark), so it takes the
+   band, 4px above the first card, and the hide until sign-in here (e2e/pages.spec.js). */
 .app-header { max-width: var(--content-max-width); margin: 0 auto 4px; }
 body:not(.auth-ready) .app-header { display: none; }
 
-/* ---- Header end ----
-   Holds the gold "🔗 Links" page badge. It carried a gold-OUTLINE "Beta" chip beside it from v12.33
-   until v19.50, along with a finite sheen sweep; the chip, its `beta-sheen` keyframes and the
-   reduced-motion override went with it. `.header-end` stays — it is the flex wrapper the badge sits
-   in on this page. */
+/* ---- Header end ---- the flex wrapper the page badge sits in. */
 .header-end {
     display: inline-flex;
     align-items: center;
@@ -105,44 +73,29 @@ body:not(.auth-ready) .app-header { display: none; }
     background: var(--surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-2);
-    /* clip keeps the rounded-corner clipping but, unlike hidden, is NOT a
-       scroll container — so the grid's sticky day-header row can stick to the
-       viewport on desktop. hidden first as a fallback for older browsers. */
+    /* clip, not hidden: it keeps the corners without making a scroll container, which the sticky
+       thead and the sticky save row both need. hidden first as a fallback. */
     overflow: hidden;
     overflow: clip;
-    /* NOT for a container query (there is none): the LAYOUT CONTAINMENT this brings is load-bearing.
-       Without it the first Generate stranded its button a grid's height down the page in 2 of 24
-       runs at 1280px ("pressing Generate leaves the button under your finger"); with it, 24 of 24
-       held. Measured, not explained — so keep it unless that test is re-run many times without it. */
+    /* The LAYOUT CONTAINMENT this brings is load-bearing, container queries aside: without it the
+       first Generate stranded its button a grid's height down the page in 2 of 24 runs at 1280px.
+       Keep it unless that test is re-run many times without it. */
     container-type: inline-size;
 }
 
-/* ---- Prose inside cards ---- */
-/* ---- Empty states (v19.66) ----
-   The blank page was its weakest surface by a distance. Measured at 1280px with no designs saved,
-   the three cards came to 160px / 117px / 117px — each a white slab holding ONE 12px grey sentence
-   pinned to the left edge. That is the first thing a new designer sees, and it read as three empty
-   boxes rather than as a page waiting to be used. Worse, the grid card's header hint still said
-   "Tap any shift cell to change it. Use the Paint bar to fill cells quickly" — instructions for a
-   grid and a paint bar that are not on screen in that state.
-
-   So an empty card now says what it is waiting FOR, centred in its own space with room to breathe,
-   and the one card that can DO something about it carries the action. Deliberately restrained: a
-   muted glyph, a short line, and — on the grid card only — the primary button. No illustration, no
-   marketing voice; this is a staff tool and the calm register is the app's own. */
+/* ---- Empty states ----
+   An empty card says what it is waiting FOR, centred, and only the grid card, which can act, carries
+   the action. Restrained: a muted glyph, a short line, no illustration. */
 .links-empty-msg {
     font-size: var(--type-small);
     color: var(--text-mid);
     margin: 0;
 }
-/* "24-line" is one word to a reader, and the browser breaks after any hyphen — measured as "…an empty
-   24-" / "line grid." at 320 and 390px (polish round 2). A span rather than a U+2011 non-breaking
-   hyphen because the number is STAMPED at runtime from ROTATING_LINES (links-rotation-parity), so the
-   wrapper is written once around both halves and the count inside it stays nobody's literal. */
+/* "N-line" is one word, and the browser breaks after any hyphen (measured at 320 and 390px). A span,
+   not U+2011, because the number is stamped at runtime and stays nobody's literal. */
 .links-nowrap { white-space: nowrap; }
-/* The two ANALYSIS placeholders (coverage, checks). They can offer no action — there is nothing to
-   analyse — so they state the dependency and stop. `min-height` is what stops a card that holds one
-   sentence from collapsing to a 117px sliver beside a 2,000px generator. */
+/* The analysis placeholders state the dependency and stop. `min-height` stops a one-sentence card
+   collapsing to a sliver beside the generator. */
 .links-empty-panel {
     display: flex;
     flex-direction: column;
@@ -166,10 +119,8 @@ body:not(.auth-ready) .app-header { display: none; }
     line-height: 1.5;
 }
 .links-desc:last-of-type { margin-bottom: 0; }
-/* ---- Empty state ---- */
-/* The GRID card's empty state — the only one that can offer a way out, so it carries the action.
-   `align-items: center` rather than `flex-start`: left-aligned, the sentence sat ~700px from the
-   "+ New" button it was telling you to press, at opposite ends of an 1100px card. */
+/* The grid card's empty state. Centred: left-aligned, the sentence sat ~700px from the button it
+   named. */
 .links-empty-state {
     display: flex;
     flex-direction: column;
@@ -188,11 +139,8 @@ body:not(.auth-ready) .app-header { display: none; }
    live region from the accessibility tree, where a later line may go unannounced. */
 .links-empty-status { margin: 0; max-width: 46ch; } .links-empty-status:empty { position: absolute; }
 
-/* A design saved against a LONGER rotation than the current one (v19.98). Amber, not red: the
-   design is intact and nothing is at risk — it simply describes a link that no longer exists, and
-   the rows past the rotation are dormant rather than broken. Reuses the existing amber recipe
-   (`--warning-amber` at 10% with a full-strength left edge) that the Design-checks rows use, so a
-   caution reads the same wherever it appears on this page. */
+/* A design saved against a LONGER rotation. Amber, not red: nothing is at risk, the extra rows are
+   dormant. The Design-checks amber recipe, so a caution reads the same across the page. */
 .links-overlength-notice {
     margin: 0 0 12px;
     padding: 10px 12px;
@@ -209,9 +157,7 @@ body:not(.auth-ready) .app-header { display: none; }
     color: var(--text-dark);
     margin: 0;
 }
-/* The action pair. `.btn-save` is the page's existing primary button — reused, not restated, so it
-   brings the 44px target and the press feedback with it (the same reasoning as the row actions
-   taking `.dialog-btn`). */
+/* `.btn-save` reused, so the 44px target and the press come with it. */
 .links-empty-actions {
     display: flex;
     flex-wrap: wrap;
@@ -221,31 +167,15 @@ body:not(.auth-ready) .app-header { display: none; }
     margin-top: 4px;
 }
 
-/* ---- Save row + live summary (sticky, v19.57) ----
-   The card is ~1,400px tall and the analysis it feeds sits ~1,600px below the fold, so editing used
-   to mean: paint a cell, scroll two screens to see the effect, scroll two screens back. This bar
-   sticks to the bottom of the viewport for as long as the grid card is on screen and scrolls away
-   with it — carrying both the Save button (previously 1,400px from wherever you were editing) and a
-   live reading of the three figures that decide whether the edit was any good.
-
-   `sticky` needs no scroll container here: the card uses `overflow: clip` at every width (chosen for
-   the sticky thead precisely because it does NOT create one).
-
-   THE CLAIM THAT USED TO FOLLOW — "the element keeps its place in flow, so it can never cover the
-   last grid row" — IS FALSE, and was measured false at v20.04. A sticky element only keeps its flow
-   position once it comes to REST; while the card extends past the fold the bar is pinned to the
-   viewport and draws over whatever is behind it, which at 1280×800 is the last two lines of a
-   24-line grid. What is true is weaker and worth stating accurately: the occlusion is TRANSIENT —
-   line 24 reaches its full height unobstructed at a different scroll position (measured), so nothing
-   is permanently unreadable and no bottom padding is warranted. Adding one would open a visible gap
-   above the bar at rest to fix a problem that resolves itself by scrolling. Do not "fix" this; do
-   not restore the guarantee either.
-
-   THE BOTTOM INSET IS NOT THAT PADDING (v24.61, iOS audit). On an iPhone the bar pinned at `bottom: 0`
-   sat behind Safari's floating tab bar and, installed, in the home-indicator gesture zone — the Save
-   button under glass. `env(safe-area-inset-bottom)` is the height of what obstructs it and is 0 on
-   every desktop, so the "visible gap at rest" the paragraph above warns of never opens where the
-   argument was made; it opens only where the bar was otherwise unreachable. */
+/* ---- Save row + live summary (sticky) ----
+   The analysis sits screens below the grid, so this bar carries Save and the figures that say whether
+   an edit was any good, pinned while the grid card is on screen. `.card` is `overflow: clip`, so
+   sticky needs no scroll container.
+   IT CAN COVER THE LAST GRID LINES WHILE PINNED (a sticky element keeps its flow place only at rest),
+   but only in passing: every line reaches full view at some scroll position (measured). So no bottom
+   padding, which would open a gap above the bar at rest, and do not restore the old claim that it can
+   never cover the last row. The bottom inset is not that padding: `env(safe-area-inset-bottom)` lifts
+   Save out from under Safari's tab bar and the home indicator, and is 0 on every desktop. */
 .links-save-row {
     position: sticky;
     bottom: 0;
@@ -259,40 +189,19 @@ body:not(.auth-ready) .app-header { display: none; }
     background: var(--surface);
     box-shadow: 0 -8px 12px -8px rgb(0 0 0 / 0.12);
 }
-/* THE BAR SPANS THE SAME WIDTH AS THE GRID IT FLOATS OVER (Sep 2026 polish). Below 768px the grid
-   wrapper bleeds into the card's 16px side gutters (`margin: 0 -16px` — so the table scrolls to the
-   card edge), but this bar sat inside them. Pinned over the grid, it left two 16px strips down its
-   sides through which the scrolling cells showed — measured at 390: bar 26→364, grid 10→380. Same
-   bleed, same padding, so the bar is as wide as what it covers and its content does not move. */
+/* Below 768px the grid bleeds into the card's 16px gutters, so the bar does too: inside them, it
+   left two strips down its sides through which the scrolling cells showed. */
 @media (max-width: 767px) {
     .links-save-row { margin-inline: -16px; padding-inline: 16px; }
 }
 
-/* The sticky summary strip starts `hidden` until a design loads. `display: flex` out-specifies the
-   attribute, so an empty strip occupied the header until then. Found by
-   page-visibility-parity.test.mjs — the third instance of this trap in the app. */
+/* `display: flex` out-specifies the `hidden` attribute (page-visibility-parity.test.mjs). */
 .links-summary[hidden] { display: none !important; }
 
-/* THE STRIP'S CHIPS ARE PACKED TIGHT ON A PHONE (v22.79). The save row is sticky, so whatever it
-   costs it costs permanently. At v22.79 the trains chip, then "⛔ N staffed hours with no cover" at
-   203px, missed sitting beside a 134px chip by six pixels, so the chip padding went from 4px 10px to
-   3px 8px and the gap from 10px to 8px, and the strip came to two rows and 190px of an 851px phone.
-   THAT ARITHMETIC NO LONGER HOLDS (re-measured 17 Nov 2026, Pixel 5, Chromium). The chip reads
-   "staffed hours with trains and nobody on", 262px alone, and beside the 127px "26 lines designed"
-   needs 397px of the strip's 341px at 393px. So it wraps to FOUR rows — the lines chip, the trains
-   chip, the fatigue and hours chips together, "Full analysis ↓" — and the save row is 215px, a
-   quarter of the screen; 360px is the same. The tight chips still let fatigue and hours share a row.
-
-   WHAT THIS DELIBERATELY DOES NOT DO is remove anything. Every figure still renders, no wording
-   changes, and `.links-save-meta` ("Last saved by …") stays on every width — hiding it below 1024px
-   was measured too (a further 28px) and refused: `linkDesigns` is a SHARED collection, designers
-   edit the same documents, and `links-concurrency.js` exists because a silent overwrite of a
-   colleague's work has happened three times. Who last saved, and when, is exactly the fact you
-   want while editing on a phone. 28px is not worth it.
-
-   Losing a row would mean shortening "staffed hours with trains and nobody on", which this page's
-   own rules forbid softening. Nor is 320px what any of this is sized against: nobody who has had
-   Links access has a device that narrow (owner, Sep 2026). */
+/* THE STRIP'S CHIPS ARE PACKED TIGHT, because the sticky row costs its height permanently. Even so
+   the strip takes four rows on a phone, about a quarter of the screen, and that is accepted: nothing
+   is removed. Hiding `.links-save-meta` was measured and refused (designs are SHARED, and who last
+   saved is what you want while editing), and the trains chip's words may not be softened. */
 .links-summary {
     display: flex;
     align-items: center;
@@ -304,9 +213,7 @@ body:not(.auth-ready) .app-header { display: none; }
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    /* 3px 8px, not 4px 10px — see the note on `.links-summary`. It is a density change and nothing
-       else: same type token, same weight, same pill radius, same colours, and the chip is not a
-       control so it owes no tap target. */
+    /* density only; the chip is not a control, so it owes no tap target */
     padding: 3px 8px;
     border-radius: var(--radius-pill);
     font-size: var(--type-badge);
@@ -316,27 +223,22 @@ body:not(.auth-ready) .app-header { display: none; }
     white-space: nowrap;
 }
 .sum-chip strong { font-weight: 800; color: var(--text-dark); }
-/* Three states, and they must be distinguishable without colour: the emoji carries the meaning and
-   the tint only reinforces it. */
+/* Three states, told apart without colour: the emoji carries the meaning, the tint reinforces it. */
 .sum-chip--ok    { background: color-mix(in srgb, var(--success-green) 12%, white); }
 .sum-chip--ok strong { color: color-mix(in srgb, var(--success-green) 80%, black); }
 .sum-chip--warn  { background: color-mix(in srgb, var(--warning-amber) 18%, white); }
 .sum-chip--warn strong { color: color-mix(in srgb, var(--warning-amber) 55%, black); }
 .sum-chip--bad   { background: color-mix(in srgb, var(--error-red) 10%, white); }
 .sum-chip--bad strong { color: color-mix(in srgb, var(--error-red) 80%, black); }
-/* WHO the figures describe, shown only in compare mode (v20.00) — see `renderSummary`. It carries
-   no STATUS, so it deliberately takes none of the three tints above: a fourth coloured chip would
-   read as a fourth finding. Navy on the page's own sunken surface, which is the same "this is a
-   label, not a result" treatment `.check-family` uses in the panel below. */
+/* WHO the figures describe, compare mode only (`renderSummary`). It carries no status, so none of the
+   three tints: a fourth coloured chip would read as a fourth finding. */
 .sum-chip--who {
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
     color: var(--text-dark);
     font-weight: 800;
-    /* A design name has no length limit and every chip is `nowrap`, so a long one ran straight off
-       the side of the bar at 390 (Sep 2026 polish). It truncates instead: the full name is on the
-       compare column head and the masthead, both on screen at the same time. `inline-block`
-       because an ellipsis does not reach the anonymous text item of a flex container. */
+    /* A name has no length limit: it truncates, and the full name is on the compare column head and
+       the masthead. `inline-block`: an ellipsis does not reach a flex container's anonymous text. */
     display: inline-block;
     max-width: 100%;
     overflow: hidden;
@@ -345,17 +247,13 @@ body:not(.auth-ready) .app-header { display: none; }
 .sum-jump { font-size: var(--type-badge); white-space: nowrap; }
 
 @media (max-width: 767px) {
-    /* The bar would eat a third of a phone screen with everything on one line. Summary drops to its
-       own row under the button; nothing is hidden — on mobile the analysis is 4,000px away, so the
-       figures and the jump link matter MORE here, not less. */
+    /* Its own row under the buttons; nothing is hidden. */
     .links-summary { margin-left: 0; width: 100%; }
 }
 .links-save-meta {
     flex: 1;
-    /* `min-width: 0` let this be crushed to 45px when the Print button joined the row at v19.62 —
-       "Last saved by S. Silva at 15:06" then stacked four lines deep and made the whole row 33px
-       taller. A real minimum means flex-wrap does its job and drops the meta onto its own line
-       instead, which is what the wrap was there for. Measured: 45px → full width, row 168 → 135px. */
+    /* A real minimum, so the row wraps the meta onto its own line instead of crushing it to 45px,
+       four lines deep. */
     min-width: 160px;
     display: flex;
     flex-direction: column;
@@ -367,17 +265,12 @@ body:not(.auth-ready) .app-header { display: none; }
 .links-last-saved  { font-size: var(--type-badge); color: var(--text-light); }
 .links-last-saved-when { white-space: nowrap; }
 
-/* Links page uses .btn-save inline (not full-width) — override the shared defaults */
-/* `min-height` because this page's `padding: 10px 20px` override rendered the shared `.btn-save` at
-   39px — under the app's own 44px touch-target floor, unnoticed until the Print button landed beside
-   it at 44px and the mismatch became visible. Raising Save is the right way round: it fixes the
-   target and makes the pair align, and it costs nothing extra (the row grows to 56px either way). */
+/* Inline, not full width. `min-height`: this padding rendered the shared button at 39px, under the
+   44px floor. */
 .btn-save { flex: none; width: auto; padding: 10px 20px; min-height: 44px; }
 
-/* Print (v19.62) — a SECONDARY action beside the navy Save button, so it is outlined rather than
-   filled: two solid buttons side by side would compete, and saving is the one that matters.
-   44px tall on every width — it sits next to a 44px Save, and the app gates density on
-   `pointer: fine`, never on width alone. */
+/* Print is a SECONDARY action, outlined: two filled buttons would compete. 44px at every width,
+   beside Save. */
 .btn-print-design {
     flex: none;
     display: inline-flex;
@@ -388,8 +281,7 @@ body:not(.auth-ready) .app-header { display: none; }
     background: var(--surface);
     color: var(--primary-blue);
     border: 1px solid var(--border-mid);
-    /* `--radius-button`, the token the app's own buttons use — not `--radius-md`, which is the
-       panel corner. Same class of mistake as v18.90's overlay-wearing-the-card-radius. */
+    /* the button token, not --radius-md (a panel corner) */
     border-radius: var(--radius-button);
     font-family: inherit;
     font-size: var(--type-button);
@@ -405,8 +297,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .btn-print-design:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 
 /* ---- Coverage heat map — on-duty headcount per hour per day ----
-   Intensity buckets b1–b5 are tints of --cov-early scaled to the week's peak;
-   colour stays in CSS (color-mix on the var) so no hex leaks into JS. */
+   Buckets b1–b5 are tints of --cov-early scaled to the week's peak, mixed here so no hex reaches JS. */
 .cov-heat-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -454,38 +345,27 @@ body:not(.auth-ready) .app-header { display: none; }
 .cov-heat-cell.heat-b1 { background: color-mix(in srgb, var(--cov-early) 14%, white); }
 .cov-heat-cell.heat-b2 { background: color-mix(in srgb, var(--cov-early) 30%, white); }
 .cov-heat-cell.heat-b3 { background: color-mix(in srgb, var(--cov-early) 48%, white); }
-/* b4 keeps DARK text (v19.57). It used to switch to white here — one bucket too early — which made
-   the mid-tone the WORST cell on the card at 2.59:1, worse than the darkest one. Dark text on the
-   same fill is 5.23:1, so this is a contrast fix with no colour change at all. */
+/* b4 keeps DARK text: white here was 2.59:1, dark is 5.23:1. */
 .cov-heat-cell.heat-b4 { background: color-mix(in srgb, var(--cov-early) 68%, white); }
-/* The darkest bucket is 8% darker than the raw token so white text clears AA: the token itself gave
-   4.33:1 against the 4.5 floor, and these cells are 10px bold, so the large-text exemption does not
-   apply. */
+/* 8% darker than the token so white text clears AA (the token gave 4.33:1; 10px bold gets no
+   large-text exemption). */
 .cov-heat-cell.heat-b5 { background: color-mix(in srgb, var(--cov-early) 92%, black); color: white; }
-/* The most important number on the card — "the station is open and nobody is on". Raw --error-red on
-   its own 10% tint is 4.28:1, so the text is darkened to clear AA; the fill is untouched. */
+/* "Open and nobody on". Raw --error-red on its own tint is 4.28:1, so the text is darkened. */
 .cov-heat-cell.heat-gap {
     color: color-mix(in srgb, var(--error-red) 80%, black);
     background: color-mix(in srgb, var(--error-red) 10%, white);
 }
-/* Outside the staffed window — the station is SHUT, which is not the same thing as a hole in the
-   cover and must never look like one (v19.54). Deliberately inert: a flat neutral with no heat
-   tint, so the eye reads it as "not applicable here" rather than as a reading of zero. */
+/* Outside the staffed window: the station is SHUT, which must never look like a hole in the cover.
+   Flat, hatched and inert. */
 .cov-heat-cell.heat-closed {
     background: var(--bg-faint);
     color: var(--text-light);
     background-image: repeating-linear-gradient(135deg,
         transparent 0 4px, color-mix(in srgb, var(--text-light) 12%, transparent) 4px 5px);
 }
-/* ---- Demand rows (v19.56, LINKS_DEC2026_PLAN package 3) ----
-   The service the design has to cover, in the SAME table as the cover so a reader comparing the two
-   is comparing columns rather than fighting two independent horizontal scrolls.
-
-   A DIFFERENT HUE is load-bearing, not decoration. Shading these in the cover ramp's blue would put
-   two rows of the same colour in one table meaning two different things in two different units
-   (people on duty · cars per hour), and the eye would read the darker one as "more of the same".
-   --cov-late (orange) is already in this stylesheet's coverage family, so the pair still reads as
-   one artefact. */
+/* ---- Demand rows ---- the service, in the SAME table as the cover so the two compare column by
+   column. The DIFFERENT HUE is load-bearing: two rows in two units (people, cars) in one colour, and
+   the eye reads the darker as more of the same. */
 .cov-demand { border-top: 3px solid var(--border-light); }
 .dem-head-row th {
     font-size: var(--type-badge);
@@ -504,16 +384,12 @@ body:not(.auth-ready) .app-header { display: none; }
 .dem-cell.dem-b2 { background: color-mix(in srgb, var(--cov-late) 26%, white); }
 .dem-cell.dem-b3 { background: color-mix(in srgb, var(--cov-late) 42%, white); }
 .dem-cell.dem-b4 { background: color-mix(in srgb, var(--cov-late) 60%, white); }
-/* Darkened for the same reason as heat-b5, and by more: white on the raw orange token is only
-   3.14:1. Orange is the harder hue — it carries more luminance at full saturation — so it needs a
-   deeper step to clear the 4.5 floor. */
+/* Darkened for the same reason, and by more: white on the raw orange is 3.14:1. */
 .dem-cell.dem-b5 { background: color-mix(in srgb, var(--cov-late) 78%, black); color: white; }
-/* Service in an hour the window does not staff. Marked, NOT faulted — it is the same distinction
-   heat-closed makes on the cover row, seen from the other side: trains run whether or not we roster
-   anyone. An underline rather than a fill, so the demand figure keeps its own intensity. */
+/* Trains in an hour the window does not staff: marked, NOT faulted. An underline, so the figure
+   keeps its own intensity. */
 .dem-cell.dem-shut { box-shadow: inset 0 -3px 0 var(--text-mid); }
-/* The SP column has no meaning on a demand row — the timetable has no spares. It keeps the cell so
-   the columns line up, but not the gold tint, which would read as a figure that is simply missing. */
+/* No spares on a timetable: the cell keeps the columns aligned, without the spare tint. */
 .dem-cell.dem-pad { background: var(--surface-sunken); }
 .dem-note { margin-top: 6px; }
 .dem-finding { color: var(--error-red); font-weight: 700; }
@@ -524,19 +400,10 @@ body:not(.auth-ready) .app-header { display: none; }
     color: var(--text-light);
 }
 
-/* The window is stated ONCE on screen — by the editor's own fields, directly above, now that they
-   carry a "Staffed window" eyebrow. A prose line repeating the same two times 20px lower was the
-   kind of duplication that reads as a second, possibly different, fact. On PAPER the editor is
-   hidden and the print masthead carries it instead. */
-
-/* ---- Staffed-window editor (v19.54) ----
-   Two rows, Mon–Sat and Sunday, because the operation genuinely differs. Sits ABOVE the heat map
-   it explains: the map's red zeros mean "open and nobody on", which is meaningless without the
-   window stated beside them. */
-/* `display` on an author rule BEATS the `hidden` attribute's UA `display:none`, so this pair is
-   mandatory, not belt-and-braces: without it the editor rendered — empty fields and all — on a page
-   with no design at all. Missed on the first pass because the probe read `el.hidden` (the property,
-   correctly true) instead of what the browser actually painted. */
+/* ---- Staffed-window editor ---- above the heat map, whose red zeros mean nothing without it. Its
+   fields are the ONE on-screen statement of the window; on paper the masthead states it.
+   `[hidden]` is mandatory: an author `display` beats the attribute, and a probe reading `el.hidden`
+   cannot see that. */
 .win-editor[hidden] { display: none; }
 .win-editor {
     display: flex;
@@ -556,9 +423,7 @@ body:not(.auth-ready) .app-header { display: none; }
     color: var(--text-mid);
     min-width: 62px;
 }
-/* 16px, like every other focusable field in the app — below it iOS zooms the page on focus.
-   Sized to its CONTENT (5 characters): a default text input is 20 characters wide, which made a
-   "06:20" field look like somewhere to type a sentence. */
+/* 16px, or iOS zooms on focus. Sized to its five characters. */
 .win-time {
     font-family: var(--font-sans);
     font-size: var(--type-medium);
@@ -579,14 +444,13 @@ body:not(.auth-ready) .app-header { display: none; }
 .win-dash { color: var(--text-light); }
 .win-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
 .win-status { font-size: var(--type-badge); color: var(--warning-amber); font-weight: 700; }
-/* The reset control reuses `.btn-text-link`, this stylesheet's existing small text button — a
-   second link-button recipe would be the drift the token rules keep warning about. */
+/* The reset reuses `.btn-text-link`: one link-button recipe on the page. */
 .win-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .win-head .field-eyebrow { margin-bottom: 0; }
 .win-moved { font-size: var(--type-badge); font-weight: 700; color: var(--warning-amber); }
 
-/* Compare mode states each column's window — see links-compare.js: the diff is per CELL, so
-   without this two designs built to different spans read as like for like. */
+/* Each compare column states its window: the diff is per CELL, so without it two designs built to
+   different spans read as like for like. */
 .compare-window {
     display: block;
     font-size: var(--type-badge);
@@ -611,9 +475,7 @@ body:not(.auth-ready) .app-header { display: none; }
     line-height: 1.5;
 }
 @media (min-width: 1024px) {
-    /* The app caps full-width prose at ~64-72ch on desktop (css-tokens.md). These two notes measured
-       188ch — 2.6x over — because the heat map beneath them is genuinely wide and the paragraphs
-       simply inherited its width. The TABLE keeps the full column; only the prose is capped. */
+    /* Prose takes the desktop reading measure; the table keeps the full column. */
     .cov-heat-note { max-width: 72ch; }
 }
 
@@ -624,18 +486,9 @@ body:not(.auth-ready) .app-header { display: none; }
     margin: 0 -16px;
     padding: 0 16px;
 }
-/* THE RIGHT-EDGE CUE, on the two tables that most need it (v21.14).
- *
- * The generator's target table has had one since v19.77; the DESIGN GRID and the HEAT MAP — the two
- * biggest scrollers on the page, and the two a designer actually reads — had none. Measured on an
- * iPhone at 390px the grid shows Sunday to Thursday and the heat map shows 06:00 to 18:00, with
- * nothing on screen to say Friday, Saturday, the evening hours or the spare column exist at all.
- * The smallest scroller announced itself and the two large ones did not.
- *
- * Same CSS-only recipe as the generator's, and the same reason for it: `local` masks the fade out
- * as you reach the end, `scroll` pins the shadow to the wrapper, and neither needs a JS scroll
- * listener that could go stale. The padding is inside the wrapper here, so the gradient is anchored
- * with `right 0` — at the padding edge, which is where the content actually stops. */
+/* THE RIGHT-EDGE CUE on the grid and the heat map, which otherwise give no sign that Friday,
+   Saturday, the evening hours or the spare column exist. CSS only: `local` masks the fade at the end,
+   `scroll` pins the shadow to the wrapper, so no scroll listener can go stale. */
 @media (max-width: 767px) {
     .links-grid-wrapper,
     .cov-heat-wrap {
@@ -644,42 +497,23 @@ body:not(.auth-ready) .app-header { display: none; }
             radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll;
     }
 }
-/* 768px, NOT 1024 (corrected v19.77 — measured, and the old value was costing the sticky header
-   across the whole tablet range for nothing).
+/* 768px, NOT 1024. `overflow-x: auto` makes the wrapper a scroll container whether or not anything
+   overflows, and a sticky header inside one is inert, so it stops scrolling as soon as the table
+   fits. The wrapper against the 675px the table needs (10 Nov 2026):
 
-   The wrapper is `overflow-x: auto` below this so the table can scroll inside a narrow card.
-   But `overflow-x: auto` makes it a SCROLL CONTAINER whether or not anything overflows, and
-   `position: sticky` resolves against the nearest scroll container — so the day-header row stuck to
-   a box that is its own content's height, i.e. never moved, i.e. was inert.
-
-   Measured across the range — the wrapper's width against the 675px the table needs (re-measured
-   10 Nov 2026 with the three totals columns, at the shared page gutter):
-
-       390px  370 / 675  overflows — a scroll container is genuinely needed
-       600px  580 / 675  overflows
+       390px  370 / 675  overflows
        768px  716 / 675  FITS
-       769px  691 / 675  FITS   <- the tightest: the body gutter steps up from 10px here
-       834px  752 / 675  FITS   <- iPad portrait
-      1024px  931 / 703  FITS   <- from here the totals keep one line, so the table needs 703
+       769px  691 / 675  FITS   <- the tightest: the body gutter steps up here
+       834px  752 / 675  FITS   <- iPad portrait, the "tablet" the first-visit notice recommends
+      1024px  931 / 703  FITS   <- the totals keep one line from here
 
-   675 holds only because, below 1024px, the totals' names and the days note may WRAP (`.col-total`,
-   `.tot-avg-note`). Unwrapped, "Days worked" and "over 26 working lines" held that column at 96px:
-   the table needed 703, ran up to 12px into the card's gutter from 769 to 782px, and at 1.3x text
-   61px past the card's edge, cut off by its clip with no scroll. Left, measured: at 1.6x text (an
-   Android setting no width query can see) it needs 754px, so from 768 to ~830px the card still
-   cuts the last totals column; the cure is this scroll container, at the sticky header's cost.
-
-   So from 768 to 1023 the wrapper was scrolling nothing and paying the sticky header for it. That
-   band includes iPad portrait, and this workspace's own first-visit notice recommends "a desktop or
-   tablet" — so it was broken on a device the app actively points people at.
-
-   BELOW 768 it stays a scroll container, deliberately: the table really does overflow there, and the
-   only way to give it a sticky header would be a `max-height` — a nested scrollbox around the
-   primary editing surface on touch. That trade was measured and declined; see KNOWN_LIMITATIONS.
-   Do not add `max-height` here without also resetting it at this breakpoint AND in `@media print`,
-   where a clipped sheet is silent on screen and only shows up on paper.
-
-   (.card uses overflow:clip — not hidden — for the same sticky reason, and is unscoped.) */
+   675 holds only because, below 1024px, the totals' names and the days note may WRAP: unwrapped,
+   "Days worked" and "over N working lines" held the column at 96px and the table ran past the card.
+   At 1.6x text it needs 754px, so from 768 to ~830px the card cuts the last totals column
+   (KNOWN_LIMITATIONS.md → Links; the owner kept the sticky header).
+   BELOW 768 it stays a scroll container: the table really overflows, and a sticky header there needs a
+   `max-height`, a nested scrollbox round the primary editing surface, declined. Never add one without
+   resetting it here AND in `@media print`, where a clipped sheet is silent on screen. */
 @media (min-width: 768px) {
     .links-grid-wrapper { margin: 0; padding: 0; overflow-x: visible; }
 }
@@ -708,12 +542,8 @@ body:not(.auth-ready) .app-header { display: none; }
     white-space: nowrap;
     position: sticky;
     top: 0;
-    /* STACKING (v19.45). The grid is sticky in BOTH axes — a day-header row and a line-number
-       column — so the three layers have to be ordered explicitly: corner cell > header row >
-       number column. They used to be 2 / 1 / 2, i.e. the body's number column OUTRANKED the
-       header row, so scrolling put a row number where "LINE" belongs and let that row's cell text
-       show as a sliver above the header. The corner cell also tied with the body column at 2 and
-       lost on DOM order, which is what made the number visible in the header's own cell. */
+    /* STACKING, sticky in both axes: corner > header row > number column, explicitly. The number
+       column once outranked the header and showed through it. */
     z-index: 2;
 }
 .links-grid th.col-pos { width: 36px; min-width: 36px; }
@@ -759,8 +589,7 @@ body:not(.auth-ready) .app-header { display: none; }
     padding: 2px 3px;
     line-height: 1.35;
     white-space: pre-line; /* allows \n in shiftLabel() to wrap start/end times */
-    /* Paint mode = rapid taps; without this iOS/Android treat them as
-       double-tap-to-zoom and the page lurches mid-paint. */
+    /* paint is rapid tapping: without this, double-tap zoom lurches the page */
     touch-action: manipulation;
 }
 .shift-cell-btn:active { transform: scale(var(--press-scale)); }
@@ -803,18 +632,9 @@ body:not(.auth-ready) .app-header { display: none; }
     font-size: var(--type-badge);
     color: var(--text-dark);
 }
-/* ROW HOVER (v21.09). The grid is eleven columns wide since the totals arrived, so following one
-   line from its Sunday cell to its hours needs the row picked out. Cosmetic only, and scoped to a
-   real pointer — the app's rule is that hover/pointer queries are safe for a `:hover` transition
-   and never for layout, because some Android devices misreport `hover: hover`.
-
-   THE SHIFT CELLS KEEP THEIR COLOURS (desktop audit, Nov 2026). The row was tinted by turning every
-   cell in it transparent, so the line under the pointer lost the very colours it is read by — and a
-   cell painted with the mouse showed no colour at all until the pointer left it. The row is marked
-   at its two ENDS instead, where no shift colour lives (its line number and its totals, opaque so
-   the sticky number column stays solid), and the cell under the pointer wears a navy inset ring:
-   the armed paint chip's marker, so the chip and the cell it is about to paint read as one idea.
-   An unfilled row keeps its amber flag. */
+/* ROW HOVER, cosmetic and real-pointer only. The shift cells KEEP their colours: the row is marked at
+   its two ends (number and totals, opaque so the sticky column stays solid), and the cell under the
+   pointer wears the armed chip's navy ring, so the chip and the cell read as one idea. */
 @media (hover: hover) and (pointer: fine) {
     .links-grid tbody tr:not(.row-unfilled):hover > .pos-num,
     .links-grid tbody tr:hover > .tot-cell { background-color: color-mix(in srgb, var(--accent-gold) 20%, var(--surface-sunken)); }
@@ -825,18 +645,13 @@ body:not(.auth-ready) .app-header { display: none; }
 .cov-label-n { color: var(--shift-night-text); }
 .cov-label-s { color: var(--shift-spare-text); }
 
-/* ── PER-LINE TOTALS (v21.09) ───────────────────────────────────────────────────────────────────
-   Three read-only columns to the right of Saturday, set apart from the seven editable day columns
-   by a heavier rule and a sunken fill: they are a RESULT of the row, not part of it, and nothing in
-   them can be clicked. The header carries a two-line label (name + unit) like the generator's own
-   table, so the columns need no legend. */
+/* ── PER-LINE TOTALS ── a RESULT of the row, set apart by a heavier rule and a sunken fill; nothing
+   in them can be clicked. */
 .links-grid th.col-total {
     background: var(--surface-sunken);
     line-height: 1.2;
     white-space: nowrap;
-    /* Sized to their content ("36h 20m" is the widest string) rather than sharing the table's
-       spare width equally with the day columns — the day cells carry two lines of time and are
-       what the designer is actually reading. */
+    /* Sized to the widest string ("36h 20m"); the day cells carry what the designer reads. */
     width: 68px;
     min-width: 68px;
 }
@@ -860,19 +675,15 @@ body:not(.auth-ready) .app-header { display: none; }
     color: var(--text-dark);
     white-space: nowrap;
 }
-/* A cover week's figure is a CONVENTION, not a reading of the row — see `_totalCells`. Muted and
-   italic so it cannot be mistaken for a measured week; the title says which. */
+/* A cover week's figure is a CONVENTION (`_totalCells`): muted and italic. */
 .links-grid td.tot-assumed { color: var(--text-light); font-style: italic; }
-/* At least one duty on the line could not be read, so the figure is a floor — and says so with a "+"
-   as well as the orange, whose ink is only 1.56:1 from the ordinary figure's (WCAG 1.4.1). Inter
-   has no "≥". The cell's aria-label already says it, so the mark is silent where `/ ""` is read. */
+/* A duty could not be read, so the figure is a floor: a "+" as well as the orange, whose ink is only
+   1.56:1 from the ordinary figure's (WCAG 1.4.1). Silent where the aria-label already says it. */
 .links-grid td.tot-uncertain { color: var(--orange-text); }
 .links-grid td.tot-uncertain::after { content: "+"; content: "+" / ""; }
-/* Same figure as the Mon–Sat column beside it, i.e. no Sunday duty. Muted so the lines that DO
-   work a Sunday are the ones the eye lands on. */
+/* No Sunday duty: muted, so the lines that DO work a Sunday catch the eye. */
 .links-grid td.tot-same { color: var(--text-light); }
-/* The legend under the grid for the three states above (v23.50) — the cells' `title` tooltips,
-   which no phone showed, said this one cell at a time. */
+/* The legend for the three states — a phone cannot hover for them. */
 .tot-legend { margin: 8px 0 0; font-size: var(--type-small); color: var(--text-mid); line-height: 1.5; }
 .tot-legend .lg-assumed   { font-style: italic; color: var(--text-light); }
 .tot-legend .lg-same      { color: var(--text-light); }
@@ -884,18 +695,15 @@ body:not(.auth-ready) .app-header { display: none; }
     font-weight: 700;
     color: var(--text-dark);
 }
-/* The divisor, stated on every average — the hours are over the whole rotation and the days over
-   the working lines only, and an average whose divisor is not on screen invites the wrong one. */
+/* The divisor, on every average: hours over the whole rotation, days over the working lines. */
 .tot-avg-note {
     display: block;
     font-size: 9px;
     font-weight: 400;
     color: var(--text-light);
 }
-/* BELOW A DESKTOP the totals' names and the days note may wrap. Unbroken, "Days worked" and "over
-   26 working lines" held the last column at 96px against the others' 68 — 28px the table did not
-   have from 769px (the 768px block above has the figures). From 1024px there is room at every text
-   size measured (1.6x included), so the desktop keeps its two-line header. */
+/* Below a desktop the totals' names and the days note may wrap (the 768px block has the figures).
+   From 1024px there is room at every text size measured. */
 @media (max-width: 1023px) {
     .links-grid th.col-total, .tot-avg-note { white-space: normal; }
 }
@@ -912,9 +720,8 @@ body:not(.auth-ready) .app-header { display: none; }
     position: relative;
     touch-action: manipulation;
 }
-/* A 12px underlined label is 16px tall, and "Start with a blank grid" is a standalone control in an
-   empty state rather than a link inside a sentence — so it owes a real tap target. Same expand-the
-   -region-not-the-glyph idiom as `.collapse-chevron` and `.btn-card-tips` in shared.css (v21.53). */
+/* A standalone control in an empty state owes a real tap target: expand the region, not the glyph
+   (as `.btn-card-tips`). */
 .btn-text-link::after { content: ''; position: absolute; inset: -6px -4px; }
 @media (hover: hover) and (pointer: fine) {
     .btn-text-link:hover { color: var(--text-dark); }
@@ -950,8 +757,7 @@ body:not(.auth-ready) .app-header { display: none; }
     font-weight: 700;
     font-family: inherit;
     cursor: pointer;
-    /* Two lines, start over end — the same shape as the cell this paints (v19.43). Centred so a
-       two-line chip and the single-line RD/SP/Custom chips sit on one baseline grid. */
+    /* Two lines, start over end, like the cell it paints; centred so the one-line chips sit level. */
     white-space: pre-line;
     line-height: 1.35;
     text-align: center;
@@ -963,33 +769,20 @@ body:not(.auth-ready) .app-header { display: none; }
 .brush-chip.type-early { background: color-mix(in srgb, var(--shift-early-fill) 16%, transparent); color: var(--shift-early-text); }
 .brush-chip.type-late  { background: color-mix(in srgb, var(--shift-late-fill) 16%, transparent); color: var(--shift-late-text); }
 .brush-chip--custom    { background: var(--surface); color: var(--text-mid); border: 1px dashed var(--border-light); font-style: italic; }
-/* ARMED: a navy ring INSIDE the chip, the mark the cell under the pointer wears. A shadow, because the
-   outline is the keyboard's: when the base rule gave every chip a transparent one for this, it beat
-   the app's focus fallback and Tab crossed the bar with no ring. */
+/* ARMED: a navy ring inside the chip, the mark the cell under the pointer wears. A shadow, because
+   the outline is the keyboard's. */
 .brush-chip--active    { box-shadow: inset 0 0 0 2px var(--primary-blue); }
 .brush-chip:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-/* Hover never repaints a chosen control (css-tokens.md): the ARMED chip keeps its own colour under
-   the pointer that armed it, so it still matches the cells it paints. */
+/* Hover never repaints the ARMED chip, so it still matches the cells it paints. */
 @media (hover: hover) and (pointer: fine) {
     .brush-chip:not([aria-pressed="true"]):hover { filter: brightness(0.88); }
 }
 .brush-chip:active { transform: scale(var(--press-scale)); }
 
-/* ── AND ON A THUMB THEY WERE 20px TALL (v22.61) ────────────────────────────────────────────────
-   Measured at 390px: RD 30x22, SP 27x20, Custom 53x22 — all under the 24px floor, and these are
-   the PRIMARY control on this page. You arm a chip and paint the grid with it; on a phone that is
-   the whole interaction. The Links designer is used on mobile as well as desktop (owner, Sep 2026),
-   so this is not a hypothetical surface.
-
-   The existing gate could not see them. `no control has a tap target under 24px` loads each page
-   with a session and nothing else, and links.html with no design renders the EMPTY state — no
-   grid, no brush bar, no chips. The page passed by not having its own controls on screen. The gate
-   now seeds a design (e2e/pages.spec.js), which is what makes this fix hold.
-
-   Gated on the POINTER, not the width — css-tokens.md's rule, because a wide touch screen needs
-   the spacing just as much. The override sits AFTER the base rule deliberately: the same file's
-   own recorded bug is a `@media (pointer: coarse)` block placed ~230 lines ABOVE the rule it meant
-   to beat, at equal specificity, which changed nothing and read as though it worked. */
+/* THE PAINT CHIPS ARE THE PRIMARY CONTROL, and on a thumb they measured 20–22px. Gated on the
+   POINTER (css-tokens.md), and AFTER the base rule it beats. The tap-target gate seeds a design so it
+   can see them (e2e/pages.spec.js): with none the page has no chips, and passed with nothing to
+   measure. */
 @media (pointer: coarse) {
     .brush-chip {
         display: inline-flex;
@@ -1000,34 +793,24 @@ body:not(.auth-ready) .app-header { display: none; }
     }
 }
 
-/* THE TIMES READ AT THE APP'S DENSE-LABEL SIZE ON A DESKTOP (desktop audit, Nov 2026): 10px in a
-   94–114px cell was the smallest text on the page. Screen only — print keeps its own 8px, which the
-   one-sheet measurement depends on — and AFTER both base rules, which it has to beat. A chip is the
-   cell it paints, so the two move together. */
+/* The times at the dense-label size on a desktop, where 10px was the smallest text on the page.
+   Screen only (print keeps its 8px, which the one-sheet fit needs), and after both base rules. */
 @media screen and (min-width: 1024px) and (pointer: fine) {
     .shift-cell-btn, .brush-chip { font-size: var(--type-small); }
 }
 
-/* THE PAINT BAR STAYS IN REACH (desktop audit, Nov 2026). At 1366×768 it had scrolled away by line
-   16, so painting the lower lines meant scrolling up for every change of brush. From 768px on a fine
-   pointer it sticks to the top of the screen, and the day header sticks beneath it at the bar's
-   MEASURED height (`--brush-bar-h`, links-grid-input.js — the bar wraps with its chips). Not below
-   768px, where the header does not stick at all, and not on a phone, where the bar is already
-   counted as a cost to the screen (KNOWN_LIMITATIONS.md → Links). Opaque, so the rows pass under it.
-   The header tucks 1px UNDER the bar: a collapsed border does not travel with a sticky cell, so its
-   top pixel row showed slivers of the cells scrolling behind it. */
+/* THE PAINT BAR STAYS IN REACH from 768px on a fine pointer, and the day header sticks beneath it at
+   the bar's MEASURED height (`--brush-bar-h`, links-grid-input.js: the bar wraps). Not on a phone,
+   where the bar already costs the screen. The header tucks 1px under the bar: a collapsed border does
+   not travel with a sticky cell, so its top row showed the cells behind. */
 @media screen and (min-width: 768px) and (pointer: fine) {
     .brush-bar { position: sticky; top: 0; z-index: 4; }
     #linksGridTable thead th { top: max(0px, calc(var(--brush-bar-h, 0px) - 1px)); }
 }
 
 /* ---- Design checks card ---- */
-/* Section heading inside the checks list — separates the design checks from the ORR fatigue
-   factors and the baseline comparison, so three different kinds of statement do not read as one
-   undifferentiated list.
-   The HAIRLINE is load-bearing, not decoration (v19.49): the card runs to ~29 rows of similar
-   height, and a small uppercase label alone was not enough weight to break that ribbon — it read
-   as one more row. The rule is what makes the three sections legible as sections. */
+/* Section heading. The HAIRLINE is load-bearing: among ~30 similar rows a small label alone read as
+   one more row. */
 .check-section-head {
     display: flex;
     align-items: baseline;
@@ -1044,46 +827,24 @@ body:not(.auth-ready) .app-header { display: none; }
     border-top: 1px solid var(--border-light);
 }
 .check-section-head .check-note { text-transform: none; letter-spacing: 0; font-weight: 600; }
-/* The section's headline counts, sitting at the far end of its own heading — so the reader gets
-   the summary BEFORE the 24 rows, not by tallying icons afterwards. */
-/* `margin-left: auto` rather than relying on `justify-content` alone (v21.14). Below ~420px the
-   heading wraps, and a lone flex item on its own line ignores `space-between` — so "within limits"
-   and "3 present · 2 standing · …" landed hard against the left margin directly under the title
-   they summarise, reading as the next clause of it. Pushed right in BOTH states, the count stays
-   recognisable as a count. */
+/* The section's counts, before its rows. `margin-left: auto`: a lone flex item on a wrapped line
+   ignores `space-between`, and the counts read as the title's next clause. */
 .check-section-meta { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); margin-left: auto; }
-/* The hard-limits heading count, when a limit is BREACHED (v19.80). The two sections of this panel
-   are structural peers — both are groups of checks — so the heading rank is deliberately the same;
-   what separates them is that a hard-limit row can go RED and an ORR row never may. This is the
-   only place the summary line is allowed to shout, and it shouts only when there is something to
-   shout about: an unbreached hard-limit check reads in the ordinary quiet grey, like everything
-   else. */
+/* A breached hard limit: the only place the counts may shout. The heading rank matches the ORR
+   section's; what separates them is that only a hard-limit row can go red. */
 .check-section-meta-breach { color: var(--error-red); font-weight: 800; }
 
-/* The FF number is the panel's scanning key — the whole point is cross-referencing the ORR's own
-   p3 list — and it shipped as `.check-note`, the faintest thing in the row, running inline with the
-   title so it disappeared into wrapped prose on mobile. A fixed-width tag lets the codes align down
-   the left edge and reads as a label rather than as the first word of a sentence. */
-/* The ORR's own family grouping, named so the code column's order reads as deliberate rather than
-   shuffled. Deliberately quieter than `.check-section-head` — no rule, no counts: it is a label
-   inside a section, not a section of its own. */
+/* The ORR's family label: quieter than the section head, a label inside a section. */
 .check-family {
     font-size: var(--type-badge);
     font-weight: 600;
     color: var(--text-light);
     margin: 8px 0 -2px 2px;
 }
-/* The code tag aligns the FF numbers down the left edge — and, since v20.00, the TITLES after them
-   too. It was `min-width: 44px`, which aligns only the tag's own left edge: `MRSF` and `FF8b` are
-   wider than 44px, so the title beside them started further right and the second column wandered
-   over 20px (measured 221–241px at 1440). In a 30-row list that ragged edge is most of what makes
-   it read as a list rather than a table.
-
-   A fixed `width` rather than `min-width`, because the whole point is that every tag is the same
-   size; `box-sizing: border-box` is inherited from the app reset, so the padding sits inside it.
-   The code set is closed and known (FF1–FF20, FF8b, MRSF — longest is 4 characters), and
-   `links-analysis.test.mjs` asserts no code exceeds what this width can hold, so a longer code
-   added later fails loudly instead of silently pushing its own title out of line. */
+/* The FF code tag, the panel's scanning key against the ORR's own list. A fixed `width`, never
+   `min-width`: every tag one size, so the titles after them align too (a minimum let MRSF and FF8b
+   push theirs out of line). `links-analysis.test.mjs` asserts that no code outgrows it, and that the
+   declaration is still `width`. */
 .check-code {
     display: inline-block;
     width: 52px;
@@ -1108,29 +869,19 @@ body:not(.auth-ready) .app-header { display: none; }
     font-size: var(--type-label);
     line-height: 1.4;
 }
-/* THE STATUS IS CARRIED ON THE LEFT EDGE, NOT BY THE FILL ALONE (v19.66). At 8–10% of a hue
-   against white, all four fills land within a couple of percent of each other, so a 30-row card
-   rendered as one ribbon of same-height, near-identical bars — the status readable only from a
-   13px glyph. A 3px edge in the FULL-strength token is the cheapest way to make the four states
-   scannable down the column without touching what any of them MEAN.
-
-   It changes no semantics, and must not: a fatigue factor that is present still wears amber and
-   never `.check-bad` red (below), so this makes the existing distinction visible rather than
-   introducing a new one. Do not promote a fatigue row to the red edge. */
+/* THE STATUS IS ON THE LEFT EDGE, not the fill alone: at 8–10% the four fills are near-identical
+   and the rows read only by their glyph. It changes no meaning: a present fatigue factor wears amber,
+   never the red edge. */
 .check-row { border-left: 3px solid transparent; }
 .check-good     { background: color-mix(in srgb, var(--success-green) 8%, transparent);
                   border-left-color: var(--success-green); }
-/* A fatigue factor that is PRESENT wears this amber, never `.check-bad` red: the ORR is explicit
-   these are not prescriptive limits, so a red row would read as a failure the guidance never
-   defines. (v19.48 removed a second, dead `.check-warn-row` declaration added above this one —
-   equal specificity, so this rule always won and the duplicate did nothing but mislead.) */
+/* A PRESENT fatigue factor wears amber, never `.check-bad` red: the ORR's factors are not
+   prescriptive limits. */
 .check-warn-row { background: color-mix(in srgb, var(--warning-amber) 10%, transparent);
                   border-left-color: var(--warning-amber); }
 .check-bad      { background: color-mix(in srgb, var(--error-red) 8%, transparent);
                   border-left-color: var(--error-red); }
-/* Neutral keeps a visible-but-quiet edge rather than none: an edge of `transparent` would make the
-   informational rows the only ones whose text starts 3px further left, which reads as a wobble
-   down the column. */
+/* Neutral keeps a quiet edge: none would start its text 3px left of every other row. */
 .check-neutral  { background: var(--surface-sunken); border-left-color: var(--border-mid); }
 .check-icon { font-size: var(--type-body); flex-shrink: 0; margin-top: 1px; }
 .check-tick      { color: var(--success-green); }
@@ -1138,10 +889,8 @@ body:not(.auth-ready) .app-header { display: none; }
 .check-cross     { color: var(--error-red); }
 .check-info-icon { color: var(--text-mid); }
 .check-body { flex: 1; min-width: 0; }
-/* Explanations hold to the app's desktop reading width (owner, 26 Sep 2026): at 1280 they ran to
-   ~170 characters a line. The ROW keeps its full width and tint; only the prose inside is capped.
-   `.check-prose` is a row whose whole body IS an explanation — the fatigue panel's two caveats ran
-   to 110 and 159 characters a line until they joined the cap (desktop audit, Nov 2026). */
+/* Explanations hold to the desktop reading width; the row keeps its width and tint. `.check-prose` is
+   a row whose whole body is an explanation. */
 @media (min-width: 1024px) { .check-body .check-note, .check-body .check-sub, .check-prose { max-width: 72ch; } }
 .check-note { font-size: var(--type-badge); color: var(--text-mid); }
 .check-sub  { font-size: var(--type-badge); color: var(--text-mid); margin-top: 3px; }
@@ -1156,18 +905,14 @@ body:not(.auth-ready) .app-header { display: none; }
 /* ---- Auto-generator — slot table ---- */
 .generator-form { margin-top: 8px; }
 .gen-slot-table-wrap {
-    /* max-width:100% + no negative margin: the wrapper can never exceed the card, so the
-       380px table scrolls INSIDE it instead of pushing the page sideways (v17.49 — was a
-       full-bleed -16px margin that let the wrapper overflow a ~393px viewport). */
+    /* Never wider than the card, so the table scrolls INSIDE it, not the page. */
     max-width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin: 0 0 10px;
     padding: 0;
-    /* position:relative makes this the containing block for the absolutely-positioned
-       `.sr-only` "Remove" label inside the (wider-than-viewport) table. Without it that
-       label escapes the overflow-x clip and pushes the whole PAGE sideways on a narrow
-       phone even though the table itself scrolls inside the wrapper (v17.59). */
+    /* The containing block for the table's absolute `.sr-only` label, which otherwise escapes the
+       clip and scrolls the PAGE sideways on a phone. */
     position: relative;
 }
 @media (min-width: 768px) {
@@ -1193,10 +938,8 @@ body:not(.auth-ready) .app-header { display: none; }
     padding: 6px;
 }
 .gen-th-time   { text-align: left; }
-/* THE LEFT-ALIGNED CELLS ARE LEFT-ALIGNED (laptop polish, 13 Nov 2026). Each rule here and below says so, and none of
-   them won: the table-wide `th, td { text-align: center }` above is (0,1,1) and a bare class is (0,1,0), so "SHIFT TIME",
-   "Spare weeks", "Total on duty" and "Hours a week" sat centred over selects that start at the left edge, and the spare
-   and hours sentences centred themselves across the three day columns. The table qualifier is what makes them count. */
+/* The table qualifier is load-bearing: the table-wide `th, td { text-align: center }` is (0,1,1) and
+   beat every bare class here. */
 .gen-slot-table :is(.gen-th-time, .gen-td-time, .gen-td-label, .gen-td-hours, .gen-td-spare) { text-align: left; }
 .gen-th-remove { width: 32px; border-left: none; }
 .gen-td-time   { text-align: left; }
@@ -1231,10 +974,7 @@ body:not(.auth-ready) .app-header { display: none; }
     color: var(--text-dark);
 }
 .gen-total-row td.gen-total-over { color: var(--error-red); }
-/* HOURS A WEEK (v20.04) — the answer to "does this add up to a contracted week?", which the table
-   could not give while it only ever totalled people. Reads as the row BELOW the totals: same sunken
-   fill, but left-aligned like the spare row above it, because it is a sentence rather than three
-   column figures. */
+/* HOURS A WEEK — a sentence, so left-aligned like the spare row. */
 .gen-hours-row td {
     background: var(--surface-sunken);
     font-size: var(--type-small);
@@ -1243,10 +983,8 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 .gen-td-hours { text-align: left; }
 .gen-td-hours .gen-td-note { display: inline; margin-left: 8px; }
-/* On target is a QUIET green, not a badge: hitting the contract is the expected state and does not
-   need celebrating. Off target is the app's amber — the same weight the Design-checks panel gives
-   the same finding, so the two surfaces do not disagree about how serious it is. Never red: a target
-   that does not yet total 35h is a work in progress, not an error. */
+/* On target is a quiet green; off target the Design-checks amber, never red: a work in progress,
+   not an error. */
 .gen-hours-ok  { font-weight: 700; color: color-mix(in srgb, var(--success-green) 80%, black); }
 .gen-hours-off { font-weight: 700; color: var(--orange-text); }
 .gen-input, .gen-select {
@@ -1260,40 +998,27 @@ body:not(.auth-ready) .app-header { display: none; }
     box-sizing: border-box;
 }
 .gen-input  { width: 58px; text-align: center; }
-/* NO NATIVE SPINNER. Every field in this table is `type="number"` — the ~114 slot counts plus the
-   four targets — and at 58px with centred text the UA's stepper takes about a third of the box and
-   pushes the digit off centre, in the one table on this page where the SHAPE of the numbers is the
-   thing being read (see the zero-dimming note above, which the arrows compete with directly).
-   `type="number"` is kept, not swapped for text: it carries the min/max, and on ANDROID it opens
-   the numeric keypad. On an iPhone it does not — it opens the numbers-and-punctuation keyboard — so
-   a box here also needs `inputmode="numeric"`, which is the digit pad on both (iPhone audit,
-   7 Nov 2026; the slot counts carry it in links-generator-targets.js). What goes is only the
-   chrome the app cannot style. */
+/* NO NATIVE SPINNER: at 58px it takes a third of the box, in the table whose SHAPE is read.
+   `type="number"` stays for min/max and Android's keypad; an iPhone also needs `inputmode="numeric"`
+   (links-generator-targets.js). */
 .gen-input::-webkit-outer-spin-button,
 .gen-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .gen-input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
-/* A ZERO IS THE ABSENCE OF A TARGET, and should read like one. Two thirds of the cells in the
-   default table are zeros, and at full contrast in identical white boxes they compete with the
-   numbers that mean something — the eye has to read all 114 cells to find the ~38 that matter.
-   Dimmed, the shape of the table is visible at a glance. The value is unchanged and the field is
-   still editable; typing into it restores full contrast immediately (`is-zero` is toggled live). */
+/* A ZERO IS THE ABSENCE OF A TARGET: dimmed, so the cells that matter show the table's shape. Still
+   editable; `is-zero` toggles live. */
 .gen-input.is-zero {
     color: var(--text-light);
     background-color: color-mix(in srgb, var(--surface-sunken) 60%, transparent);
     border-color: color-mix(in srgb, var(--border-light) 60%, transparent);
 }
 .gen-input.is-zero:focus-visible { color: var(--text-dark); }
-/* Where one day's block of shifts gives way to the next. A single stronger rule, not a heading row:
-   the columns already say which day it is, so what was missing was only the boundary. */
+/* Where one day's block of shifts gives way to the next. */
 .gen-slot-newblock > td { border-top: 2px solid var(--border-mid); }
 .gen-select { width: 100%; min-width: 122px; }
-/* THE CLOSED FACE IS THE APP'S, the pop-up list stays the OS's (desktop audit, Nov 2026). The slot
-   times are native by decision (select-sheet-parity → NATIVE_BY_DECISION), but with only a fill set
-   Safari drew its own grey face and stepper over every one, 8px taller than the counts beside it.
-   The app's closed plain-select recipe — Admin's and Operations' — with the small chevron token. Two
-   classes, so its right padding beats the base rule. FINE POINTER ONLY: on a phone the time column is
-   104px at 16px type, and the chevron's 24px cut "07:00-16:00" short (pages.spec, 360px), so a touch
-   screen keeps the platform's own closed face, which it had before and which leaves room for the time. */
+/* THE CLOSED FACE IS THE APP'S, the pop-up list stays the OS's (native by decision,
+   select-sheet-parity → NATIVE_BY_DECISION): Safari otherwise drew its own grey face and stepper. Two
+   classes, so its right padding beats the base. FINE POINTER ONLY: on a phone the chevron's 24px cut
+   the time short, so touch keeps the platform's face. */
 @media (pointer: fine) {
     .gen-select:not(.fieldpick) {
         -webkit-appearance: none; appearance: none; background-image: var(--caret-chevron-small);
@@ -1312,9 +1037,8 @@ body:not(.auth-ready) .app-header { display: none; }
     flex-wrap: wrap;
     margin-bottom: 12px;
 }
-/* Saved sets row (v21.04) — a picker plus three text-link actions, wrapping on a phone. The hint
-   line beneath carries whose set is selected and why Save may be off; it is the only place that
-   information exists, so it stays visible rather than living in a title attribute. */
+/* Saved setups. The hint beneath is the only place that says whose setup it is and why Save is
+   off, so it stays visible. */
 .gen-sets-row {
     display: flex;
     align-items: center;
@@ -1330,34 +1054,23 @@ body:not(.auth-ready) .app-header { display: none; }
     letter-spacing: 0.5px;
 }
 .gen-sets-row .gen-select { max-width: 240px; flex: 1 1 180px; min-width: 0; }
-/* ROOM FOR THE CHEVRON (Sep 2026 polish). `.gen-select`'s `padding: 5px 6px` out-ranks the shared
-   `.fieldpick` trigger's 30px right padding (same specificity, later sheet), so the face ran under
-   the chevron and was clipped there — "No staffing setups saved" read as "…saved ⌄" at 390, with
-   the ellipsis painted beneath the arrow. Two classes, so it wins on BOTH pointers regardless of
-   where the coarse block sits. Scoped to this picker: the slot-time pickers in the table size their
-   column to their content, and 24px more each would widen a table that already scrolls on a phone. */
+/* Room for the chevron: `.gen-select`'s padding out-ranks `.fieldpick`'s 30px, and the face ran
+   under it. Two classes, so it wins on both pointers. This picker only: 24px more per slot-time
+   picker would widen a table that already scrolls. */
 .gen-sets-row .gen-select.fieldpick { padding-right: 30px; }
-/* The four set buttons wrap as ONE block, not four independently (v21.14) — see the note in
-   links.html. `flex: 1 1 100%` makes them take their own line the moment the label + dropdown fill
-   the row, which is what a phone does, rather than trailing off the end of it. */
+/* The setup buttons wrap as ONE block, onto their own line once the label and picker fill it. */
 .gen-sets-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     flex: 1 1 100%;
 }
-/* Delete goes to the far end of whatever line it lands on — BUT ONLY WHERE THE ROW WRAPS. At 360px
-   the four buttons cannot share one line however they are grouped, so the question is not whether
-   Delete wraps but whether it reads as SET APART or as left over; pushed right it is the former.
-   On desktop the row fits easily and the same rule stranded Delete ~700px from the three buttons it
-   belongs with, at the far edge of the card — which is the opposite mistake. */
+/* Delete to the far end, only where the row wraps, where it reads as set apart; on a desktop it
+   stranded Delete ~700px from its group. */
 @media (max-width: 767px) {
     .gen-sets-actions .btn-set--danger { margin-left: auto; }
 }
-/* SET BUTTONS — the design toolbar's pill, reused (v21.08). Same shape, same radius, same
-   disabled treatment, so managing a saved set looks like managing a saved design, because it is
-   the same kind of act. Load leads: it is the one you press most, and the only one that changes
-   what is on screen. */
+/* SETUP BUTTONS. Use setup leads: the most pressed, and the only one that changes the screen. */
 .btn-set {
     background: none;
     border: 1px solid var(--border-light);
@@ -1369,16 +1082,14 @@ body:not(.auth-ready) .app-header { display: none; }
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
-    /* Colour and edge move WITH the fill. With the fill alone animated, pressing the only-what-differs
-       filter (v25.16: a purple fill under white words) put white text on a still-pale ground for a
-       tenth of a second — the frame WebKit's accessibility scan caught. */
+    /* Colour and edge move WITH the fill, or the pressed filter put white words on a pale ground
+       mid-transition (WebKit's accessibility scan caught it). */
     transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
                 border-color var(--dur-fast) var(--ease-standard);
 }
 .btn-set--primary { border-color: var(--primary-blue); color: var(--primary-blue); font-weight: 600; }
 .btn-set--danger  { color: var(--text-light); }
-/* Hover never repaints a PRESSED button: this rule out-specifies `.compare-filter-btn[aria-pressed]`,
-   so until v25.16 the filter you had just switched on turned grey under the pointer that switched it. */
+/* Hover never repaints a PRESSED button (css-tokens.md). */
 @media (hover: hover) and (pointer: fine) {
     .btn-set:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--surface-sunken); color: var(--text-dark); }
     /* The same (0,4,0) as the rule above, and after it: at (0,3,0) Delete's red words lost to it. */
@@ -1386,15 +1097,12 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 .btn-set:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .btn-set:disabled { opacity: 0.4; cursor: default; }
-/* A disabled "Use setup" drops its navy lead and reads like its disabled neighbours (desktop audit,
-   Nov 2026): at 40% of a navy 600-weight label it still looked stronger than the ENABLED "+ Save as
-   new…" beside it, so the one button you could not press was the one the row pointed you at. */
+/* A disabled Use setup drops its navy lead, or the one button you cannot press is the one the row
+   points at. */
 .btn-set--primary:disabled { border-color: var(--border-light); color: var(--text-mid); font-weight: 400; }
-/* The row is the last thing before the objectives fieldset, so it needs air above it as well as
-   the hint's own space below — it is a section, not a trailing line. */
+/* A section, not a trailing line: air above it. */
 .gen-sets-row { padding-top: 4px; }
-/* Provenance note — sits under the hours row it explains, and reads as a caution rather than a
-   hint, because the figure above it is the thing being questioned. */
+/* Provenance: a caution under the hours row, because that figure is the one in question. */
 .gen-memory-note {
     font-size: var(--type-small);
     color: var(--text-mid);
@@ -1417,17 +1125,14 @@ body:not(.auth-ready) .app-header { display: none; }
     margin-bottom: 10px;
     min-height: 1em;
 }
-/* The generate feedback beside the button (v20.54). Same green as `.links-save-status.ok` — it is
-   the SAME text, mirrored from the sticky save row, which from this button sits a full card
-   off-screen (measured: 448px above the viewport at 1280×900, 569px at 390×844). */
+/* Generate feedback beside the button: the save row's line, which is a card off-screen from here. */
 .gen-status {
     font-size: var(--type-label);
     color: var(--success-green);
     margin: 10px 0 0;
 }
 .gen-status[hidden] { display: none; }
-/* Prose, so it takes the reading measure the intro above it already has (css-tokens.md → reading
-   measure). After a Generate it is two or three sentences, and at 1280 it ran ~170ch in one line. */
+/* Prose, so the reading measure; after a Generate it runs to two or three sentences. */
 @media (min-width: 1024px) { .gen-status { max-width: 72ch; } }
 .gen-note {
     font-size: var(--type-badge);
@@ -1436,10 +1141,7 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 
 /* ---- Page identity ---- */
-/* The page's colour, purple: the header badge, the About badge and every chosen control all
-   read it (shared.css :root → "Page identity", v25.14). Declared once, here.
-   (The About badge carried a full-strength purple border until then, where every other page's
-   was a 35% tint — the drift one shared rule exists to stop.) */
+/* The page's colour, purple, declared once (shared.css → "Page identity"). */
 :root {
     --page-accent:      var(--purple);
     --page-accent-ink:  white;
@@ -1455,8 +1157,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .design-picker-wrap {
     margin-bottom: 12px;
 }
-/* Compare-with picker chips (the only chips left after v23.30 — the main design picker is the
-   masthead below). A chip is a <div> wrapping a name <button>; buttons must not nest. */
+/* Compare-with chips. A chip is a <div> wrapping a name <button>: buttons must not nest. */
 .design-chips {
     display: flex;
     gap: 5px;
@@ -1488,8 +1189,7 @@ body:not(.auth-ready) .app-header { display: none; }
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* A desktop has the room the cap was written for a phone without: at 1366 "Common Ground — Dec …"
-   was cut with ~400px of the row still empty (desktop audit, Nov 2026). */
+/* A desktop has the room the cap was written without. */
 @media (min-width: 1024px) { .design-chip-name { max-width: 320px; } }
 @media (hover: hover) and (pointer: fine) {
     .design-chip:not(.design-chip--active):hover {
@@ -1504,9 +1204,8 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 
 /* =====================================================================================
-   THE DESIGN MASTHEAD (v23.30) — which design, whose, saved? — then Save and ··· More.
-   Reasoning and the four rules: links-design-header.js. Phone first: two tight rows;
-   ≥760px opens out to one line with the eyebrow and the long status wording.
+   THE DESIGN MASTHEAD — which design, whose, saved? — then Save and ··· More. The four rules:
+   links-design-header.js. A phone gets two tight rows; ≥760px one line with the long status.
    ===================================================================================== */
 .design-masthead {
     background: white;
@@ -1520,13 +1219,8 @@ body:not(.auth-ready) .app-header { display: none; }
 .dm-eyebrow { display: none; font-size: var(--type-micro); font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-light); margin-bottom: 3px; align-items: center; gap: 8px; }
 .dm-count { font-weight: 600; letter-spacing: 0.2px; text-transform: none; }
 .dm-count::before { content: '·'; margin-right: 8px; }
-/* The native <select> is laid invisibly OVER the face (rule 1) so the phone's own picker opens. */
-/* The picker is the whole title block, and the invisible select fills it — so the block itself
-   has to be a tap target: 40px on a phone. The face sat at 22px and the tap-target guard caught the
-   select at 22px on mobile-chrome; the title row's padding gives back most of the difference. */
-/* The face IS the control (v23.32 — it used to be a decorative face under an invisible <select>).
-   40px minimum because a masthead heading is ~22px tall and CI's tap-target guard rightly refuses
-   that; the title row's own padding gives most of the difference back. */
+/* The face IS the control. 40px: the title row's padding gives back most of the difference to a
+   22px heading, which the tap-target guard refuses. */
 .dm-picker { min-width: 0; min-height: 40px; width: 100%; display: flex; flex-direction: column; justify-content: center; gap: 1px; background: none; border: none; padding: 0; font-family: inherit; text-align: left; cursor: pointer; }
 .dm-picker:disabled { cursor: default; }
 .dm-picker:focus-visible { outline: var(--focus-outline); outline-offset: 3px; border-radius: var(--radius-xs); }
@@ -1572,9 +1266,8 @@ body:not(.auth-ready) .app-header { display: none; }
 .dm-status--dirty  { color: var(--warning-amber); } .dm-status--dirty::before  { background: var(--warning-amber); }
 .dm-status--new    { color: var(--gold-text); }     .dm-status--new::before    { background: var(--accent-gold-dark); }
 .dm-status--proposal { color: var(--primary-blue); } .dm-status--proposal::before { background: var(--primary-blue); }
-/* An untouched proposal on a phone: the row is the ★ mark, "Shortlisted" and the Save a copy… button,
-   which between them already say read-only — and "Read-only" itself truncated to "R…" beside them.
-   Back from 760px, where it has room; an EDITED copy is tone `dirty` and shows "Unsaved" at every width. */
+/* An untouched proposal on a phone: the ★ mark, "Shortlisted" and Save a copy… already say read-only,
+   and "Read-only" truncated beside them. Back from 760px; an edited copy shows "Unsaved". */
 .dm-status--proposal { display: none; }
 .dm-status--saving::before { animation: dm-pulse 1s infinite; }
 @keyframes dm-pulse { 50% { opacity: 0.3; } }
@@ -1586,8 +1279,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .dm-actions { display: flex; gap: 6px; flex: none; }
 /* `.btn-save` is width:100% by default; in the masthead it is a compact primary. */
 .design-masthead .btn-save.dm-save { width: auto; flex: none; padding: 0 14px; min-height: 36px; font-size: var(--type-body); }
-/* The sticky save row's button wears the SAME quiet "nothing to save" state (owner, 26 Sep 2026):
-   left on the shared faded-navy disabled look, the one state read two different ways on one page. */
+/* The sticky row's Save wears the SAME quiet "nothing to save" state (owner, 26 Sep 2026). */
 .design-masthead .btn-save.dm-save:disabled,
 #linksSaveBtn:disabled { background: var(--surface-sunken); color: var(--text-light); cursor: default; }
 .design-masthead .btn-save.dm-save.is-new { box-shadow: var(--focus-ring); }
@@ -1606,9 +1298,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .dm-title { grid-area: title; padding: 14px 8px 14px 18px; }
     .dm-eyebrow { display: flex; }
     .dm-face-name { font-size: var(--type-large); letter-spacing: -0.25px; }
-    /* The chevron FOLLOWS the name (laptop polish, 13 Nov 2026). Grown to fill a ~700px title column, the name pushed it
-       ~480px away, beside ✎, where it read as a third round button rather than "this opens a list". The whole face is
-       still the button, so the target is unchanged, and a long name still ends in "…" (`min-width: 0` stays). */
+    /* The chevron FOLLOWS the name: grown to fill the column, the name pushed it beside ✎, where it
+       read as a third round button. A long name still ends in "…". */
     .dm-face-name { flex: 0 1 auto; }
     .dm-chev { width: 26px; height: 26px; } .dm-chev::after { width: 7px; height: 7px; }
     .dm-icon-btn { width: 40px; height: 40px; font-size: var(--type-button); }
@@ -1630,11 +1321,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .dm-more { width: 52px; min-height: 44px; }
 }
 
-/* ── The ··· More sheet and the design picker sheet (v23.32; rows moved to the shared classes
-   v23.33) — one shell for both, and it scrolls through `.lb-content`. The picker's ROWS are
-   `.picker-opt` from shared.css — the same rows `select-sheet.js` renders for every other dropdown
-   in the app, which is the point: one dropdown, one definition. See rule 1 in
-   links-design-header.js for why a native <select> stopped being the right control. */
+/* ── The ··· More and picker sheets — one shell, scrolling in `.lb-content`. The picker's rows are
+   shared.css's `.picker-opt`: one dropdown, one definition (links-design-header.js rule 1). */
 #designMoreContent, #designPickerContent {
     background: white;
     border-radius: var(--radius-xl);
@@ -1668,20 +1356,14 @@ body:not(.auth-ready) .app-header { display: none; }
 .dm-menu-btn--danger { color: var(--error-red); }
 .dm-menu-btn--danger .dm-menu-ic { background: color-mix(in oklch, var(--error-red) 9%, white); color: var(--error-red); }
 @media (hover: hover) and (pointer: fine) { .dm-menu-btn--danger:hover:not(:disabled) { background: color-mix(in oklch, var(--error-red) 9%, white); } }
-/* Compare mode ON is a state, so its tile takes the page's colour (v25.20 — it was the gold of the PRIMARY
-   item above, an emphasis, not a choice). The primary tile keeps its gold: it marks an action. */
+/* Compare mode ON is a state, so its tile takes the page's colour; the primary tile's gold marks an
+   action. */
 .dm-menu-btn.compare-active .dm-menu-ic { background: color-mix(in oklch, var(--page-accent) 22%, white); color: var(--page-accent-text); }
 
-/* Recently-deleted panel.
-   `.lb-content` alone is only the base — transform/scroll/cursor. Every real overlay in the app
-   takes its SURFACE from an id rule (#tipsLightboxContent, #iconLightboxContent) or a modifier
-   class (.notice-lb-content, .dialog-lb-content), and this one shipped at v19.41 with neither:
-   it computed to a transparent box with no padding and no radius, so the heading and intro floated
-   in navy text directly on the dimmed backdrop and only the rows — which carry their own
-   background — were visible. Every test passed, because they assert text and behaviour and no
-   visual baseline covered this overlay.
-   It joins the compact-dialog family (--radius-xl), at --modal-wide because each row carries a
-   name plus two actions. Do not invent a width; see .claude/rules/css-tokens.md. */
+/* Recently deleted. `.lb-content` alone is only transform, scroll and cursor: a panel takes its
+   SURFACE from an id rule or a modifier class, or renders as a transparent box (this one shipped so,
+   and every behaviour test passed). The compact-dialog family, at --modal-wide for a name and two
+   actions. */
 #designBinContent {
     background: white;
     border-radius: var(--radius-xl);
@@ -1717,10 +1399,7 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 .bin-row-meta { font-size: var(--type-micro); color: var(--text-mid); }
 .bin-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
-/* The two row actions carry .dialog-btn + .dialog-btn-confirm/-cancel from shared.css — the app's
-   canonical pair, which brings the 44px touch target, the press scale and the hover states with
-   them. Only the row-level sizing is page-local: full width once the row stacks, so the buttons
-   don't sit as two stubs under a long design name. */
+/* The row actions are shared.css's `.dialog-btn` pair: 44px, press and hover come with them. */
 .bin-restore, .bin-purge { white-space: nowrap; }
 .bin-restore:focus-visible, .bin-purge:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .bin-empty { font-size: var(--type-small); color: var(--text-mid); margin: 0; }
@@ -1751,9 +1430,8 @@ body:not(.auth-ready) .app-header { display: none; }
     background: white;
     border-color: var(--border-light);
 }
-/* The design you are comparing with: the page's purple, like every choice in the app (v25.16 — it was a
-   gold tint, the only chosen state in the app drawn that way). It needs this rule, not just the one
-   above, to beat the white `.design-chips--compare .design-chip` sets on every chip. */
+/* The design compared with: the page's colour, like every choice. It needs this rule to beat the
+   white the one above sets on every chip. */
 .design-chips--compare .design-chip--active {
     background: var(--page-accent);
     border-color: var(--page-accent);
@@ -1762,8 +1440,7 @@ body:not(.auth-ready) .app-header { display: none; }
 
 /* ---- Compare mode: two read-only grids side by side ---- */
 
-/* The main grid stays RENDERED in compare mode (print needs it) but is hidden
-   on screen via a body class. Screen-scoped so print is unaffected. */
+/* The main grid stays RENDERED in compare mode, because print needs it; screen-only hide. */
 @media screen {
     body.links-compare-on #linksGridWrapper { display: none; }
 }
@@ -1784,12 +1461,8 @@ body:not(.auth-ready) .app-header { display: none; }
         gap: 16px;
         align-items: start;
     }
-    /* THE TWO GRIDS START ON THE SAME LINE, WHATEVER THE NAMES (Sep 2026 polish). Each column is
-       its head over its grid, and the heads are the design NAMES — so a name that wrapped to two
-       lines pushed its grid 14px below the other, and every row of the pair sat off its neighbour
-       across the gap (measured at 1280 with one long name: header rows at 507 and 493). The two
-       columns now share their row's height and each head takes up the slack, its text sitting on
-       its rule, so both rules — and both grids — line up. */
+    /* THE TWO GRIDS START ON ONE LINE whatever the names: the columns share the row's height and
+       each head takes the slack, so a two-line name no longer drops its grid. */
     .compare-grids-wrap.compare-mode-active > .compare-col {
         align-self: stretch;
         display: flex;
@@ -1813,35 +1486,16 @@ body:not(.auth-ready) .app-header { display: none; }
     margin-bottom: 6px;
 }
 .compare-col-head--a { color: var(--primary-blue); border-color: var(--primary-blue); }
-/* The TEXT is darkened, the border is not (v22.78). `--cov-late` at full strength is 3.14:1 on
-   white — a SERIOUS axe contrast failure at 11px, and it had never been scanned because no axe
-   state entered compare mode until this release. Darkening to 70% gives 5.82:1 and is still
-   unmistakably the coverage family's orange; the 2px rule under it is decoration, not text, so it
-   keeps the bright hue that carries the column's identity at a glance. */
+/* The TEXT is darkened (raw --cov-late is 3.14:1 at 11px); the rule keeps the bright hue. */
 .compare-col-head--b { color: color-mix(in srgb, var(--cov-late) 70%, black); border-color: var(--cov-late); }
 
-/* KEYBOARD ACCESS TO THE SCROLLING COLUMNS (v22.78, WCAG 2.1.1 / axe scrollable-region-focusable).
-
-   AN ACCESSIBILITY FIX CAUSED THIS, WHICH IS WHY IT NEEDS WRITING DOWN. v22.60 correctly changed
-   the compare cells from `<button>` to `<span>`: they cannot be operated, so as buttons they
-   announced hundreds of controls that do nothing when reached. What nobody noticed is that those
-   buttons were also the column's ONLY focusable content — and a scrollable region containing
-   something focusable is reachable, because Tab moves to it and the browser scrolls to reveal it.
-   Removing them left the column scrollable and unreachable by keyboard: no error, no failing test,
-   and invisible until v22.78 finally pointed axe at compare mode.
-
-   Do NOT repair it by putting the buttons back. `tabindex="0"` on the wrapper makes the region
-   itself focusable and arrow-scrollable, which is two tab stops rather than several hundred.
-   `aria-labelledby` points at the column head so the name follows whichever design is in that
-   column, instead of a fixed "A"/"B" that goes stale the moment the picker changes.
-
-   The single grid needs none of this and is not a gap: its cells ARE buttons, so it has focusable
-   content and axe is right to pass it — measured at 393px, where it genuinely overflows. */
+/* KEYBOARD ACCESS TO THE SCROLLING COLUMNS (WCAG 2.1.1). The compare cells are spans (they cannot
+   be operated), which left each column scrollable with nothing focusable in it. Do NOT put buttons
+   back: `tabindex="0"` on the wrapper is one Tab stop per column, named by its head
+   (`aria-labelledby`). The single grid's cells ARE buttons, so it needs none of this. */
 .compare-grid-scroll:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 
-/* Scrolls independently within its column. Unlike the single grid, this KEEPS
-   overflow-x:auto on desktop — two 560px-min tables can't both fit a 1100px
-   container, so each column must be its own scroll area. */
+/* Each column scrolls on its own, on desktop too: two min-width tables cannot both fit. */
 .compare-grid-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -1855,10 +1509,8 @@ body:not(.auth-ready) .app-header { display: none; }
 /* Read-only compare grid — no interactive feedback */
 .links-grid--compare { pointer-events: none; }
 
-/* Diff highlight — a gold outline on cells where the two designs differ. The DARK gold: the brand
-   gold was 1.2-1.4:1 against the cell fills, under the 3:1 a marker needs; --gold-text is 5.4:1 or
-   more on every one (measured on rd, early, late and spare). Not a focus token: these cells take no
-   focus, and a marker borrowed from the focus family reads as one. */
+/* Diff marker: the DARK gold, 5.4:1 or more on every cell fill (the brand gold was 1.2–1.4:1). Not a
+   focus token: these cells take no focus. */
 .cell-diff .shift-cell-btn {
     outline: 2px solid var(--gold-text);
     outline-offset: -2px;
@@ -1874,12 +1526,9 @@ body:not(.auth-ready) .app-header { display: none; }
 /* Print-only design name — set by JS, names the printed sheet */
 .print-design-name { display: none; }
 
-/* First-visit notice lightbox — card styling comes entirely from .notice-lb-content in shared.css.
-   No page-local overrides here, deliberately: that is the rule for every notice in the app. */
+/* The first-visit notice is styled entirely by shared.css's .notice-lb-content, as every notice. */
 
-/* A link design is a paper artefact — consultations, noticeboards,
-   meeting handouts — so unlike settings/operations this page PRINTS its
-   content: the design grid and the coverage analysis, landscape A4. */
+/* A link design is a paper artefact, so this page PRINTS its content, A4 landscape. */
 @media print {
     @page { size: A4 landscape; margin: 1cm; }
     * {
@@ -1893,8 +1542,7 @@ body:not(.auth-ready) .app-header { display: none; }
     .links-save-row, .links-empty-state,
     #generatorCard, .brush-bar, .design-picker-wrap, .compare-grids-wrap,
     .btn-card-tips, .collapse-chevron, .hint,
-    /* The window EDITOR is a control, not information — the masthead states the window in prose,
-       which is what a paper reader needs (on screen, the editor's own fields are the only statement). */
+    /* the window editor is a control: the masthead states the window */
     #windowEditor { display: none !important; }
 
     .container { display: block !important; max-width: none; }
@@ -1907,21 +1555,12 @@ body:not(.auth-ready) .app-header { display: none; }
     /* Print collapsed cards too — paper has no tap-to-expand */
     .card-collapsible-body { display: block !important; }
 
-    /* A CARD THAT FITS A SHEET IS NOT ALLOWED TO STRADDLE TWO (v22.75). Measured from a real A4
-       landscape PDF: the coverage card is 635px against 718px of printable height, and it was
-       breaking anyway — the hour header and the SUNDAY row printed alone at the foot of the grid's
-       sheet, with MON–SAT overleaf. A reader comparing days then has Sunday on a different piece of
-       paper, which is the one thing a heat map exists to prevent. `avoid` moves it whole.
-
-       The GRID card is deliberately NOT given this: at 619px it fits, but it is the sheet the
-       masthead belongs to, and a rule that could push it to page 2 would break the "whole rotation
-       on ONE sheet" constraint this file's print section is built around. It has always started at
-       the top of page 1 and nothing here changes that. */
+    /* A CARD THAT FITS A SHEET MAY NOT STRADDLE TWO: split, the heat map put Sunday on another piece
+       of paper. The GRID card deliberately does not get this: it is the masthead's sheet and starts
+       page 1, and a rule that could push it to page 2 works against the one-sheet constraint. */
     #coverageCard { break-inside: avoid; page-break-inside: avoid; }
 
-    /* The triage block is a heading and the list it introduces — it was splitting between them, so
-       "4 definitions still to confirm" arrived at the top of the next sheet with nothing above it
-       saying what it was one of. Short enough to keep whole (106px measured). */
+    /* The triage heading and its list stay together. */
     .check-triage { break-inside: avoid; page-break-inside: avoid; }
 
     /* Masthead on the printed sheet (hidden on screen): which design, which version, printed when */
@@ -1938,9 +1577,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .print-design-title { font-size: var(--type-body); font-weight: 700; }
     .print-design-meta  { font-size: var(--type-badge); color: var(--text-mid); }
 
-    /* The grid card's own header is redundant on paper — the masthead above names the sheet, and
-       those ~64px are what push the rotation onto a second sheet. Coverage and Design checks
-       KEEP their headers: they are separate sections a reader needs named. */
+    /* The grid card's header is redundant on paper (the masthead names the sheet) and costs the
+       one-sheet fit. Coverage and Design checks keep theirs. */
     #linksGridCard > .card-header-toggle { display: none !important; }
     #linksGridCard { border: none; }
     #linksGridCard .card-body { padding: 0 !important; }
@@ -1948,46 +1586,30 @@ body:not(.auth-ready) .app-header { display: none; }
     .links-grid-wrapper { overflow: visible; margin: 0; padding: 0; }
     .links-grid { min-width: 0; }
     .links-grid tr { break-inside: avoid; }
-    /* Row height is what decides whether the whole rotation lands on ONE sheet, which is the
-       point of printing it — you cannot judge a rotation split across two pages. MEASURED
-       (v19.45): A4 landscape at 1cm margins is 718px of printable height; at 26px rows the grid
-       card came to 903px, so it always broke, and the comment here claimed it fitted "or close
-       to". 21px is the smallest height that still clears two 8px lines at 1.2 (19.2px + padding)
-       and, with the card chrome above dropped, brings the sheet inside 718. Re-measure if the
-       cell font changes.
-
-       ⚠️ THAT MEASUREMENT WAS TAKEN AT 28 ROWS, and the rotation has been shorter since v19.98.
-       So the fit is now looser than it was, not tighter — this height is safe, it is simply no
-       longer proven to be the SMALLEST one needed. Do not read the 718 as a live constraint on
-       today's rotation without re-measuring; and note the prose said 22px while the rule below
-       said 21, which is the same class of drift and is why the number is restated here at all. */
+    /* Row height decides whether the whole rotation fits ONE sheet (718px printable at 1cm margins):
+       21px is the smallest that clears two 8px lines. Measured on a longer rotation, so the fit is
+       looser now, not tighter; re-measure if the cell font or the rotation changes. */
     .links-grid .shift-cell { height: 21px; }
     .shift-cell-btn { font-size: 8px; line-height: 1.15; padding: 0 2px; }
     /* Sticky positioning confuses print pagination — flatten it */
     .links-grid thead th,
     .links-grid .pos-num { position: static !important; }
-    /* The totals go on the paper (v21.09): "what does line 11 work?" is the question in the room,
-       and the sheet is read away from the app. Three short columns — the widest string is "36h 20m"
-       — so the day columns keep ample room at this size. The print constraint on this grid has
-       always been HEIGHT, not width; see the measurement note above. */
+    /* The totals print: "what does line 11 work?" is the question in the room. The constraint here
+       is height, not width. */
     .links-grid td.tot-cell,
     .links-grid th.col-total { font-size: 8px; padding: 0 3px; }
     .col-total-sub, .tot-avg-note { font-size: 7px; }
 }
 
-/* ---- "Nothing to report" disclosure in the fatigue panel (v19.57) ----
-   Native <details>, so it needs no JS and no focus management of its own. Styled as a quiet row in
-   the same family as the checks it holds, NOT as a card header — it is a row that opens, not a
-   section. */
+/* ---- "Nothing to report" disclosure in the fatigue panel ----
+   Native <details>: a quiet row that opens, not a section header. */
 .check-quiet {
     border: 1px solid var(--border-light);
     border-radius: var(--radius);
     background: var(--surface-sunken);
     margin: 6px 0 2px;
 }
-/* A flex <summary> loses its ::marker in Chromium — measured: the row rendered with no triangle at
-   all and read as a static line rather than something you could open. The chevron is drawn
-   explicitly and matches the card-collapse chevron used everywhere else on the page. */
+/* A flex <summary> loses its ::marker in Chromium, so the chevron is drawn. */
 .check-quiet-summary {
     display: flex;
     align-items: baseline;
@@ -2012,35 +1634,19 @@ body:not(.auth-ready) .app-header { display: none; }
 @media (prefers-reduced-motion: reduce) { .check-quiet-summary::before { transition: none; } }
 .check-quiet-summary:focus-visible { outline: var(--focus-outline); outline-offset: -2px; border-radius: var(--radius); }
 .check-quiet-label { font-weight: 700; color: var(--text-dark); }
-/* THE FAMILY HEADINGS APPEAR TWICE IN THIS CARD, AND THAT IS BY DESIGN (v20.00). The panel groups
-   by ORR family and then splits by status, so a family with both a finding and a clear factor —
-   Time of day, Recovery time and Cumulative all do — renders a heading above the fold and again
-   inside this disclosure. Measured: three of them, every time.
-   The grouping is right (it is what makes the code column read as deliberate rather than shuffled),
-   so the fix is to make the NESTING legible instead. A left rule is the ordinary idiom for it and
-   costs nothing semantically: everything inside visibly hangs off the row that opened it, and the
-   second "Recovery time" reads as a continuation rather than a repeat.
-   The print block below already relied on the summary LABEL to carry this on paper — it says so in
-   its own comment. On screen the label alone was not enough, because the reader arrives at the
-   headings by scrolling past it rather than reading it first. */
+/* The family headings appear twice in this card BY DESIGN (grouped by family, then split by status),
+   so the body hangs off a left rule and a second "Recovery time" reads as a continuation. */
 .check-quiet-body {
     padding: 0 8px 8px 10px;
     margin-left: 10px;
     border-left: 2px solid var(--border-light);
 }
-/* On paper the panel is a record, so every factor prints — a collapsed disclosure would silently
-   drop 14 checks from a sheet somebody is assessing a proposal against. */
+/* On paper every factor prints: a collapsed disclosure would drop checks from the assessed sheet. */
 @media print {
     .check-quiet { border: none; background: none; margin: 0; display: block; }
-    /* The screen's nesting rule is reset here, not inherited. Print deliberately FLATTENS the
-       disclosure — no border, no fill, every factor open — so a left rule and an indent would be
-       the one piece of the collapsed-on-screen treatment surviving onto a sheet that has no
-       collapsed state, and the sheet is width-tight already. On paper the summary LABEL carries the
-       second run of family headings, exactly as the comment below says. */
+    /* Print flattens the disclosure, so the screen's nesting rule and indent are reset. */
     .check-quiet-body { padding: 0; margin-left: 0; border-left: none; display: block !important; }
-    /* The LABEL stays — it is the only thing introducing the second run of family headings, and
-       without it the printed panel reads as though Time of day / Cumulative / Circadian had each
-       been printed twice for no reason. Only the chevron and the on-screen hint go. */
+    /* The LABEL stays: it introduces the second run of family headings. Only the chevron and hint go. */
     .check-quiet-summary {
         display: block;
         padding: 12px 0 4px;
@@ -2054,10 +1660,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .check-family, .check-section-head, .check-quiet-summary { break-after: avoid; } /* never alone at a sheet's foot (print audit, 18 Nov 2026) */
 }
 
-/* Generator column/row notes (v19.58). Two facts a designer has to have in view while setting
-   targets, both of which they would otherwise have to remember: Sunday is not contracted (a Sunday
-   duty is agreed RDW, so that column is cover you hope to fill, not cover you can require), and a
-   spare line is a whole WEEK of which four days Mon–Sat are worked. */
+/* Generator notes: Sunday is not contracted (agreed RDW, cover you hope to fill), and a spare line is
+   a whole WEEK, four days of it worked Mon–Sat. */
 .gen-th-note,
 .gen-td-note {
     display: block;
@@ -2071,10 +1675,8 @@ body:not(.auth-ready) .app-header { display: none; }
 .gen-td-spare .gen-input { margin-right: 8px; }
 .gen-td-spare .gen-td-note { display: inline; }
 
-/* ---- Line-order objectives (v19.58) ----
-   Four switches over one scarce resource: which line follows which. They cannot cost coverage
-   (permuting rows leaves each day's multiset identical), so they compete only with each other —
-   which is why they are switches with a stated cost rather than a single blended score. */
+/* ---- Line-order objectives ---- switches with a stated cost, never a blended score: they cannot
+   cost coverage, so they compete only with each other. */
 .gen-objectives {
     border: 1px solid var(--border-light);
     border-radius: var(--radius);
@@ -2082,8 +1684,7 @@ body:not(.auth-ready) .app-header { display: none; }
     padding: 10px 14px 12px;
     margin: 14px 0 0;
 }
-/* The legend wears the shared `.field-eyebrow`'s values (shared.css): size, weight, colour, case
-   and tracking. */
+/* The legend wears the shared `.field-eyebrow`'s values. */
 .gen-objectives legend {
     font-size: var(--type-micro);
     font-weight: 700;
@@ -2099,11 +1700,8 @@ body:not(.auth-ready) .app-header { display: none; }
     line-height: 1.5;
 }
 .gen-obj {
-    /* An OPTION ROW, mirroring paycalc's `.bp-mode-opt`/`.hpp-mode-opt` (v19.63). These shipped at
-       v19.58 as five bare browser checkboxes with text beside them — which is precisely the
-       complaint that pattern was built to answer ("the design system instead of two bare browser
-       radios floating in space"), and it read as unstyled next to every other control in the app.
-       Same 2px border in BOTH states so switching one on causes no reflow. */
+    /* An OPTION ROW, mirroring paycalc's `.bp-mode-opt`/`.hpp-mode-opt`. The same 2px border in both
+       states, so a toggle causes no reflow. */
     display: flex;
     align-items: flex-start;
     gap: 10px;
@@ -2119,24 +1717,12 @@ body:not(.auth-ready) .app-header { display: none; }
                 background-color var(--dur-fast) var(--ease-standard),
                 box-shadow var(--dur-fast) var(--ease-standard);
 }
-/* Rows need air between them or two adjacent checked ones read as one tall box with a line through
-   it — the same 8px `.bp-mode-toggle` uses. Sibling margin rather than a flex `gap` on the fieldset,
-   because a `<legend>` inside a flex container lays out unpredictably across engines. */
+/* Air between rows, or two checked ones read as one box. A sibling margin: a `<legend>` in a flex
+   container lays out unpredictably. */
 .gen-obj + .gen-obj { margin-top: 8px; }
-/* ON is legible from the whole row, not just a 17px box in the corner of it.
-   THE FILLS RUN ON-IS-BRIGHTER, AND THAT DIRECTION IS THE WHOLE POINT (v19.65). They shipped the
-   other way round at v19.63 — resting `white`, checked `--bg-faint` — copied from paycalc's
-   `.bp-mode-opt` without noticing that the substrate is different. Measured: this panel is
-   `--surface-sunken` (L 96.3%), so a checked row at `--bg-faint` (L 97.0%) sits **0.7% above its own
-   background** and simply dissolves into it, while an unchecked row at white sits 3.7% above. With
-   all five on — the default — every row was panel-coloured inside a navy outline, so the card read
-   as five empty boxes and the ONE state the fill exists to show was the one you could not see.
-   Turning an option ON also made it 3% DIMMER than leaving it off, which inverts the app's own
-   three-surface cue (css-tokens.md: a control brightens to white when it becomes active).
-   Paycalc is left alone deliberately: its options sit on a `--surface` CARD (98%) and are a
-   two-option radio group where exactly one is ever checked, so the border carries the state and the
-   fill is only a whisper. Here there are five independent switches on a sunken panel. If you ever
-   restyle this, check the two lightnesses against the SUBSTRATE, not against each other. */
+/* ON IS THE BRIGHTER ROW — check it against the SUBSTRATE. This panel is --surface-sunken, so a
+   checked row at --bg-faint dissolved into it, the default (all on) read as five empty boxes, and
+   switching an option on made it dimmer. Paycalc's options sit on a --surface card, hence theirs. */
 .gen-obj:has(input:checked) {
     border-color: var(--primary-blue);
     background-color: white;
@@ -2147,9 +1733,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .gen-obj:hover { border-color: var(--border-mid); }
     .gen-obj:has(input:checked):hover { border-color: var(--primary-blue); }
 }
-/* The ring goes on the ROW, not the box — the row is what you are choosing. The box is drawn by
-   shared.css (v23.50); only its own ring is suppressed here, so a keyboard user sees ONE ring.
-   Named in focus-ring-parity's NO_INDICATOR_EXEMPT for exactly that reason. */
+/* The ring goes on the ROW, the thing chosen, and the box's own is suppressed, so a keyboard user
+   sees ONE (focus-ring-parity's NO_INDICATOR_EXEMPT). */
 .gen-obj:has(input:focus-visible) { outline: var(--focus-outline); outline-offset: 2px; }
 .gen-obj input[type="checkbox"] { margin-top: 1px; }
 .gen-obj input[type="checkbox"]:focus-visible { outline: none; box-shadow: none; }
@@ -2163,49 +1748,30 @@ body:not(.auth-ready) .app-header { display: none; }
 .gen-input-inline { width: 52px; margin: 0 2px; }
 @media (min-width: 1024px) { .gen-obj-note { max-width: 72ch; } }
 
-/* ═══ Generator polish (v19.61) — read the WHY before changing any of this ═══ */
+/* ═══ Generator polish — read the WHY before changing any of this ═══
 
-/* 1. THE iOS FOCUS-ZOOM GUARD, WHICH HAD NEVER WORKED.
-   A `@media (pointer: coarse)` block near the top of this file set these two to 16px, with the
-   correct comment about iOS zooming a page whose focused field is under 16px. It did nothing: the
-   base `.gen-input, .gen-select` rule is declared ~230 lines LATER at equal specificity, so source
-   order handed the win to 13px. Measured on a coarse-pointer device: 13px. Its neighbour in that
-   same block, `.shift-cell-select`, worked — because ITS base rule happened to sit earlier. That
-   was the whole difference between the two, and nothing about the code said so. (Both that
-   neighbour and the block are gone at v23.38: the cell editor no longer builds a `<select>` at
-   all, so the guard it needed went with it. The lesson it taught stands, which is why this
-   paragraph does.)
-   Declared after its base rule, so it beats it; and an e2e now measures the computed size
-   on a real coarse-pointer device rather than trusting the cascade to have gone the way it reads.
-
-   2. TOUCH TARGETS. The app's rule is that a coarse pointer keeps 44px regardless of width
-   (css-tokens.md — density is gated on `pointer: fine`, never on width alone). These were 28px
-   fields, a 20px ✕ and 15px text links. */
+   1. THE iOS FOCUS-ZOOM GUARD comes AFTER the base `.gen-input, .gen-select` rule it beats: placed
+   ~230 lines above it at equal specificity, it did nothing for two versions while reading correct.
+   An e2e measures the computed size on a coarse pointer.
+   2. TOUCH TARGETS: on a coarse pointer, 40px fields and 44px controls, whatever the width. */
 @media (pointer: coarse) {
     .gen-input, .gen-select {
         font-size: var(--type-medium);
         padding: 8px 6px;
         min-height: 40px;
     }
-    /* `:not(.gen-input-inline)` because this block sits AFTER `.gen-input-inline`'s own width at
-       equal specificity — the very trap that left the font-size guard above dead for two versions.
-       A bare `.gen-input` here would silently widen the two in-sentence number boxes as well. */
+    /* `:not(.gen-input-inline)`: this sits after that rule's width at equal specificity, the same
+       trap, and would widen the in-sentence boxes too. */
     .gen-input:not(.gen-input-inline) { width: 60px; }
     .gen-input-inline { width: 56px; }
     .gen-remove-btn { padding: 12px 10px; min-height: 44px; }
     .btn-text-link { padding: 12px 2px; min-height: 44px; }
-    /* The ROW is the touch target — clicking a label toggles it, and the row clears 44px — so the
-       box itself only needs to be comfortably aimable, not 44px. At 22px it dominated the sentence. */
+    /* The ROW is the touch target for a checkbox, so the box needs only to be aimable, not 44px. */
 }
 
-/* 3. THE SHIFT-TIME COLUMN STAYS PUT WHILE THE COUNTS SCROLL.
-   At 390px the target table is 443px wide inside a 306px wrapper — 137px hidden, which is the whole
-   SUNDAY column and the remove ✕, with nothing on screen to say so. Sunday is a required input, not
-   a nice-to-have view: a designer on a phone could not set it without discovering a scroll nobody
-   had told them about. (Compare mode's clipping is documented as accepted; that is a read-only
-   view, so it is not the same call.)
-   Making the time column sticky solves both halves at once — the row stays identified while you
-   type, and content visibly sliding under a fixed column IS the affordance. */
+/* 3. THE SHIFT-TIME COLUMN STAYS PUT WHILE THE COUNTS SCROLL. On a phone the table hides the Sunday
+   column and the ✕; sticky identifies the row while you type, and content sliding under it is the
+   scroll cue. */
 @media (max-width: 767px) {
     .gen-th-time,
     .gen-td-time,
@@ -2215,28 +1781,21 @@ body:not(.auth-ready) .app-header { display: none; }
         position: sticky;
         left: 0;
         z-index: 2;
-        /* A real edge, not a hairline: content sliding under a 1px rule reads as a rendering glitch
-           rather than as a layer, and the sliced-in-half input it leaves behind looks broken. */
+        /* A real edge, not a hairline, which reads as a rendering glitch. */
         box-shadow: 6px 0 6px -5px rgba(0, 30, 60, 0.18);
     }
-    /* EVERY sticky cell needs an OPAQUE fill. The spare row's own background is
-       `color-mix(gold 10%, transparent)` — 90% see-through — so the label sat there with the
-       scrolled input showing straight through it. A sticky cell you can see through is worse than no
-       sticky cell at all: it looks like a fault rather than a feature. */
+    /* EVERY sticky cell needs an OPAQUE fill: the spare row's own tint is 90% see-through. */
     .gen-th-time, .gen-td-time { background: var(--surface); }
     .gen-slot-table thead .gen-th-time { background: var(--surface-sunken); }
     .gen-spare-row .gen-td-label { background: color-mix(in srgb, var(--accent-gold) 10%, var(--surface)); }
     .gen-total-row td:first-child { background: var(--surface-sunken); }
     .gen-select { min-width: 104px; }
-    /* The counts are what scrolls, so they must not each claim a third of the viewport. */
+    /* The counts scroll, so they must not each claim a third of the viewport. */
     .gen-slot-table th:not(.gen-th-time), .gen-slot-table td:not(.gen-td-time) { padding: 4px 4px; }
-    /* `nowrap` is fine in a cell that sizes to its content; in a STICKY one it just overflows the
-       opaque fill, so the spare-row caption ran straight over the scrolled column beside it. */
+    /* `nowrap` in a STICKY cell just overflows its fill. */
     .gen-td-label { white-space: normal; }
 
-    /* The right-edge cue: a shadow that is there while more table remains and gone at the end.
-       `local` gradients mask it out as you reach each edge, `scroll` pins it to the wrapper — the
-       standard CSS-only technique, and it needs no JS scroll listener to stay accurate. */
+    /* The right-edge cue, the grid's recipe. */
     .gen-slot-table-wrap {
         background:
             linear-gradient(to left, var(--surface), rgba(255, 255, 255, 0)) right / 24px 100% no-repeat local,
@@ -2244,85 +1803,36 @@ body:not(.auth-ready) .app-header { display: none; }
     }
 }
 
-/* 4. DESKTOP: the table stops sprawling.
-   At 1280px it filled all 1036px of the card, which put a 90px shift time in a 477px cell and a
-   58px number box in a 174px one — a table mostly made of gap. Capping it is the same move the app
-   already makes for the usage/speed bar charts (~540px), and for the same reason: a control reads
-   as one object when its parts are near each other. */
+/* 4. DESKTOP: THE FORM USES THE FULL CARD (owner: "still not using the full width"). Capping the form
+   left 40% of the card as gutter; capping the select instead left a void in its cell, which looked
+   worse. The intro keeps a reading measure on the SAME left edge (`margin-inline: 0`, never centred),
+   or the card has two left edges; the left-edge e2e asserts both. */
 @media (min-width: 768px) {
-    /* ONE measure for the whole form, not three. The table was capped first and that alone left a
-       620px table under a 1036px objectives box under a 1036px button — a card reading as three
-       unrelated widths. Capping the FORM lines every part of it up, and 660px sits right beside the
-       ~72ch the intro prose above is already held to. */
-    /* THE FORM USES THE FULL CARD (v19.82, owner: "still not using the full width"). It was capped
-       at 660px and centred from v19.61, which measured out as 220px of dead gutter on EACH side at
-       every desktop width — 440px, 40% of an 1100px card, with the actual control a narrow strip
-       down the middle of a very large white slab.
-
-       The cap's stated reason was that widening "just puts a 90px shift time in a 477px cell". That
-       reasoning was misapplied: the shift time is not 90px of TEXT sitting in a cell, it is a
-       `<select>` that stretches to fill it. Measured uncapped at 1280px, the cell is 491px and the
-       select is 478px of it — a full-width field, which reads as a control rather than as gap.
-       Rendered side by side, capping the select instead (300px in a 491px cell) looked WORSE than
-       not capping it: 190px of visible void inside a bordered cell is far more obviously wrong than
-       a wide dropdown. The number columns land at ~180px, which is symmetric and reads as ordinary
-       table spacing.
-
-       ⚠️ THE INTRO MUST NOT BE CENTRED WHEN THE FORM IS FULL WIDTH. The v19.67 fix put both in one
-       660px centred column to stop the card having TWO left edges. Removing the cap from the form
-       alone recreates that defect the other way round — measured on the prototype, the prose ran
-       250→790 against a table at 15→1040. So the prose keeps a reading measure and is pinned to the
-       SAME left edge (`margin-inline: 0`), not centred. Both are asserted by the left-edge e2e. */
     #generatorCard .links-desc { max-width: 72ch; margin-inline: 0; }
-    /* A number box sized for a thumb on a phone looks lost in a 180px desktop cell. Widening the
-       INPUT rather than narrowing the cell: the target grows, which is the right direction. */
+    /* Widen the box rather than narrow the cell: the target grows. */
     .gen-slot-table .gen-input { width: 88px; }
     .gen-th-time, .gen-td-time { width: 46%; }
 }
 
-/* THE 28-ROW TARGET TABLE KEEPS ITS COLUMN HEADERS — AT ≥768px ONLY (v19.66). Seeded from the
-   roster it renders 28 rows of near-identical time dropdowns against three unlabelled number
-   columns, and the header row scrolled away after the first six, so for most of the table nothing
-   on screen said which column was Mon–Fri, which Sat and which Sun. They are three different
-   commitments (Sunday is not even contracted), so typing into the wrong one is a real error with
-   nothing to catch it.
-
-   ⚠️ THIS IS INERT BELOW 768px, AND THAT IS NOT A CHOICE — IT IS A CSS CONSTRAINT. `position:
-   sticky` resolves against the nearest SCROLL CONTAINER, and below 768px `.gen-slot-table-wrap`
-   sets `overflow-x: auto` (above) so the 443px table scrolls inside a 306px card. Per spec, when
-   one overflow axis is not `visible` the other computes to `auto` too — measured: `overflow-y`
-   reports `auto` at 390px. So the wrapper becomes a vertical scroll container as tall as its own
-   content, the header sticks to a box that never scrolls vertically, and it moves with the page
-   exactly as before. At ≥768px the wrapper is `overflow-x: visible`, it is not a scroll container,
-   and the sticky offset is the page — which is why it works there and only there.
-
-   Making it work on a phone means giving the wrapper a `max-height` so it scrolls vertically too,
-   i.e. a nested scrollbox around the primary creation path on touch. That is a UX decision, not a
-   tidy-up; do not add it without one. Do NOT "fix" this by setting `overflow-y: visible` — that is
-   the declaration the spec overrides, and it will read as correct while changing nothing.
-   `z-index` keeps the header above the cells' own backgrounds as they pass under it. */
+/* THE TARGET TABLE'S HEADERS STICK FROM 768px ONLY, by a CSS constraint, not a choice. Below it the
+   wrapper is `overflow-x: auto`, and per spec the other axis then computes to `auto` too, so the header
+   sticks to a box that never scrolls. Do NOT "fix" it with `overflow-y: visible`: that is the
+   declaration the spec overrides, so it reads correct and changes nothing. A phone fix needs a
+   `max-height`, a nested scrollbox round the creation path: a UX decision, not a tidy-up. */
 .gen-slot-table thead th {
     position: sticky;
     top: 0;
     z-index: 3;
-    /* The header's own `--surface-sunken` is opaque, but the CELL BORDERS are not covered by it and
-       a row passing underneath showed through as a hairline across the header. A shadow on the
-       header rather than a border on the row, so nothing shifts when it un-sticks. */
+    /* The cell borders are not under the header's fill, so a shadow, which shifts nothing when it
+       un-sticks. */
     box-shadow: 0 2px 4px -2px rgba(0, 30, 60, 0.28);
 }
 
-/* 5. THE OBJECTIVE LABELS NO LONGER COME APART AROUND THEIR NUMBER BOX.
-   Two of the five carry an inline number ("at most [3] weeks the same"), and at 390px the tail wrapped
-   onto its own line flush with the CHECKBOX — left of the label it belonged to, so it read as a
-   sixth objective. The text is one element so it wraps as a block; GRID is wrong here, because every
-   child of a grid container becomes an item and the number box leaves its own sentence. */
+/* 5. THE OBJECTIVE LABELS. The text is ONE element, so it wraps as a block: as a GRID every child
+   became an item and the number box dropped into the checkbox's column. */
 .gen-obj-text { flex: 1; min-width: 0; }
 .gen-obj-title { display: block; }
-/* The two objectives that carry a number get it on its OWN line rather than inline in the sentence.
-   A 16px field is 40px tall on a coarse pointer (the touch-target floor), and a 40px box inside a
-   sentence in a 260px column forces the line box open and breaks the phrase at whatever word
-   happens to land there — "at most [3] / weeks the same". Its own line is also simply clearer:
-   the label says what the objective IS, the line under it says what it is set to. */
+/* A number gets its own line: a 40px box inside a sentence breaks the phrase wherever it lands. */
 .gen-obj-num {
     display: flex;
     align-items: center;
@@ -2332,46 +1842,21 @@ body:not(.auth-ready) .app-header { display: none; }
     font-size: var(--type-small);
     color: var(--text-mid);
 }
-/* The number box takes the SHARED field styling — no override (v19.65). It used to be forced to
-   `white`, reasoned from the checked row also being `--bg-faint`; with the fills the right way round
-   that premise is gone, and forcing white cost two things. It flattened the row (white field on a
-   white row, so the control had only its hairline border), and it killed the app-wide
-   "field brightens to white on focus" cue described in css-tokens.md — a field already at white
-   cannot brighten. `.gen-input`'s own `--field-bg` resting fill now does both jobs.
-
-   THE NUMBER AND ITS UNIT ARE ONE UNBREAKABLE GROUP. `at most [3] weeks the same` is three flex
-   children in a ~194px column, and it overflowed by ~8px — so it wrapped to THREE lines and left
-   "weeks the same" sitting alone, flush under "at most", reading as a separate statement rather
-   than the tail of the sentence it belongs to. Widening the column is not available (390px is the
-   design target) and shrinking the box is not either (16px/40px is the iOS-zoom + touch-target
-   floor). So the fix is to make the only legal break point the one that still reads: the box and
-   the words that qualify it never separate, and the phrase wraps ahead of them or not at all. */
+/* THE NUMBER AND ITS UNIT ARE ONE UNBREAKABLE GROUP, or at 360px the unit wraps away and reads as a
+   separate statement. The box keeps the shared field fill (no `white` override), so it can still
+   brighten on focus. */
 .gen-obj-numctl {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     white-space: nowrap;
 }
-/* GRID WAS TRIED HERE AND IS WRONG: two of the five labels carry an inline number input, and as a
-   grid container every child becomes an item — so the number box left the sentence it belongs to and
-   dropped into the checkbox's column on a row of its own ("Vary the shift type, at most" / "3 |
-   weeks the same"). The text has to be ONE element for it to wrap as one. */
 
-/* ---- Import a design (v20.97) ----
-   The paste box and its two-step confirm. It borrows the dialog family from shared.css for the
-   panel, title, message and buttons — a page-local dialog recipe is what `.notice-lb-content`
-   and `.dialog-lb-content` exist to prevent — and adds only the three things that family has no
-   opinion about: a monospace paste area, a name field, and the status line the check writes into.
-   THE PANEL CLASS WAS MISSPELLED FROM v20.97 TO THE SEP 2026 POLISH PASS: the markup said
-   `dialog-content`, which no stylesheet defines, so the dialog rendered exactly as the Recently
-   deleted panel once did (see `#designBinContent`) — a transparent box, the title and prose on the
-   dimmed backdrop, the fields running edge to edge at 390px. Behaviour tests passed throughout. */
-/* What the dialog family brings that this one has to answer. Its message is `pre-line` (for the
-   conflict dialog's paragraph break), and this message is hand-wrapped in the markup, so it broke
-   at every source newline — "(Sunday to / Saturday)", "RD and / SP". And the panel is a flex column
-   with a 12px gap, so the label and status margins below are set against that gap rather than
-   added to it: a label sits nearer its field than the field above it, and an empty status line
-   costs only the one gap. */
+/* ---- Import a design ---- the dialog family from shared.css (panel, title, message, buttons), plus
+   the paste area, a name field and the status line. The panel class must be one shared.css defines:
+   misspelled, it rendered as a transparent box and every behaviour test passed.
+   The family's message is `pre-line`, and this one is hand-wrapped, so `normal`. The panel is a flex
+   column with a 12px gap, so these margins are set against it. */
 #linksImportContent .dialog-message { white-space: normal; }
 #linksImportContent .li-paste-label { margin: 4px 0 -6px; }
 #linksImportContent .li-status { margin: 0; }
@@ -2385,32 +1870,24 @@ body:not(.auth-ready) .app-header { display: none; }
     color: var(--text-mid);
 }
 
-/* MONOSPACE, and it is not decoration: a pasted rotation is columns, and in a proportional face a
-   misaligned row looks identical to a correctly aligned one — which is precisely the fault the
-   reader is being asked to spot before pressing Save. `nowrap` + horizontal scroll for the same
-   reason; a wrapped row reads as two rows. */
+/* MONOSPACE: a pasted rotation is columns, and in a proportional face a misaligned row looks the same
+   as an aligned one. `pre` and a scroll for the same reason: a wrapped row reads as two rows. */
 .li-paste {
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    /* The app's field skin, as .pt-paste wears it: a hairline and the panel's corner made the one
-       place you paste a design read as a different kind of control from the field under it. */
+    /* the app's field skin, as .pt-paste wears it */
     border: var(--field-border);
     border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    /* 14px on a mouse, for the density; 16px on touch, below — iOS force-zooms the page when a
-       focused field is smaller (css-tokens.md). This comment said "16px floor" over a 14px value
-       until the test audit (7 Nov 2026); the parity test could not see it, because it recognised a
-       text field only by a selector saying `input` or `textarea`. */
+    /* 14px on a mouse, for density; 16px on touch, below (iOS focus-zoom). */
     font-size: var(--type-body);
     line-height: 1.4;
     white-space: pre;
     overflow: auto;
-    /* No OS resize grip (v23.50): the box grows with what is pasted into it, to a cap, and Safari
-       — which has no `field-sizing` yet — keeps the six-row box and scrolls. Either is usable;
-       neither hands a corner of the app to the platform to draw. */
+    /* No OS resize grip: it grows with the paste, to a cap; Safari, without `field-sizing`, scrolls. */
     resize: none;
     field-sizing: content;
     min-height: 6lh;
@@ -2420,8 +1897,7 @@ body:not(.auth-ready) .app-header { display: none; }
     background-color: white; border-color: var(--primary-blue);
     outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring);
 }
-/* Directly after the base rule, as .pt-paste's is (paycalc.css): at equal specificity the later rule
-   wins, and an override placed above its base has silently lost in this repo three times. */
+/* Directly after the base rule: an override placed above its base has lost here three times. */
 @media (pointer: coarse) {
     .li-paste { font-size: var(--type-medium); }
 }
@@ -2437,15 +1913,13 @@ body:not(.auth-ready) .app-header { display: none; }
     font-family: inherit;
     font-size: var(--type-body);
 }
-/* The design-name box beside it is a text field too, and had the same 14px with nothing to raise it
-   on touch — found by the markup-aware 16px check the moment it could see the class (7 Nov 2026). */
+/* The name box is a text field too. */
 @media (pointer: coarse) {
     .li-name { font-size: var(--type-medium); }
 }
 
-/* The status line carries three states and they must not look alike — a refusal and a summary of
-   what is about to be written are opposite messages, and this is the one screen where the reader
-   is deciding whether to trust the paste. */
+/* Three states that must not look alike: a refusal and a summary of what will be written are
+   opposite messages, on the screen where the reader decides whether to trust the paste. */
 .li-status {
     margin: var(--space-3) 0 0;
     font-size: var(--type-small);
@@ -2457,22 +1931,15 @@ body:not(.auth-ready) .app-header { display: none; }
 .li-status--warn { color: var(--warning-amber); }
 .li-status--ok   { color: var(--success-text); font-weight: 600; }
 
-/* The saved-set list's retry, shown only when the read FAILED (v22.57). `[hidden]` needs the
-   !important because `.btn-set` sets a `display`, which out-specifies the attribute — the
-   page-visibility-parity trap, where the control draws in every state and nothing throws. */
+/* The setups' retry, shown only when the read FAILED. `.btn-set` sets a `display`, which beats the
+   `hidden` attribute, so the !important. */
 .gen-sets-retry { margin-top: 6px; }
 .gen-sets-retry[hidden] { display: none !important; }
 
 
-/* THE TRIAGE BLOCK (v22.60) — what to do next, above the evidence for it.
-   Not a card of its own: it is the first thing inside `.check-rows`, so it reads as the panel's
-   opening rather than as a separate verdict. The "nothing to fix" state is deliberately NOT green
-   and carries no tick — this card exists to stop a quiet panel reading as an approval. */
-/* NO RULE OF ITS OWN (Sep 2026 polish). It carried a bottom hairline, and the section head that
-   always follows it carries a top one — so the panel opened on two parallel rules 40px apart
-   (measured at 1280: 2498 and 2538), a double line with a void between. The head's rule is the one
-   every other section uses, so it stays; with the triage's gone the gap to it is the same 26px as
-   between any two sections (the list's 8px gap + the head's 18px margin). */
+/* THE TRIAGE BLOCK — what to do next, above its evidence: the panel's opening, not a verdict. The
+   nothing-to-fix state is NOT green and has no tick. No rule of its own: the section head after it
+   has one, and two made a double line. */
 .check-triage {
     display: flex;
     flex-direction: column;
@@ -2495,10 +1962,8 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 .check-triage-list li { margin-bottom: 2px; }
 
-/* COMPARE SUMMARY (v22.60) — the difference in figures, above the two grids that evidence it.
-   Sits inside `.compare-grids-wrap`, which is only shown in compare mode, so it needs no state of
-   its own. `--same` mutes an unchanged figure without hiding it: showing only what moved would
-   leave the reader unable to tell "identical" from "not measured". */
+/* COMPARE SUMMARY — the difference in figures, above the grids that evidence it. `--same` mutes an
+   unchanged figure without hiding it, or "identical" and "not measured" look alike. */
 .compare-summary {
     grid-column: 1 / -1;
     background: var(--surface-sunken);
@@ -2518,11 +1983,8 @@ body:not(.auth-ready) .app-header { display: none; }
 .compare-sum-val { font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 .compare-sum-val--same { font-weight: 600; color: var(--text-light); }
 
-/* COMPARE ANALYSIS (v24.25) — what the difference MEANS: cover against the service, the hard limits
-   and the fatigue factors, for both designs. The same surface as the strip above and the same
-   row grammar (`label  A → B`), so it reads as one continuous comparison rather than a second
-   panel. One group per question, each with a small heading; nothing is tinted good or bad — the
-   fatigue panel's rule (present / standing / clear, never a verdict) holds here too. */
+/* COMPARE ANALYSIS — what the difference MEANS, in the strip's row grammar (`label  A → B`). One
+   group per question; nothing tinted good or bad, as on the fatigue panel. */
 .compare-analysis {
     grid-column: 1 / -1;
     background: var(--surface-sunken);
@@ -2543,11 +2005,8 @@ body:not(.auth-ready) .app-header { display: none; }
     text-transform: uppercase;
     color: var(--text-mid);
 }
-/* The claim beside "Company limits" — `LIMIT_CLAIM`, a sentence about the SOURCE of the limit. It
-   had no rule, so it inherited the heading's uppercase and ran straight on from it ("COMPANY LIMITS
-   CONFIGURED CHILTERN LIMIT — POLICY SOURCE OUTSTANDING"), reading as one long title. The Design
-   checks card sets the same claim in sentence case beside its heading (`.check-section-head
-   .check-note`); this mirrors it, so the two surfaces state the claim in the same voice. */
+/* The claim beside "Company limits" is a sentence about the source, in sentence case as on the Design
+   checks card; in the heading's uppercase it ran on as one long title. */
 .compare-an-claim { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); }
 .compare-an-list {
     margin: 0; padding: 0; list-style: none;
@@ -2571,33 +2030,11 @@ body:not(.auth-ready) .app-header { display: none; }
 .compare-an-more summary { cursor: pointer; font-size: var(--type-small); color: var(--text-mid); }
 .compare-an-more[open] summary { margin-bottom: 4px; }
 
-/* ═══ THE ROW-OF-BUTTONS FAMILIES GET A THUMB-SIZED TARGET TOO (v22.65) ═══════════════════════════
-
-   v22.61 measured the paint chips at 30x22 / 27x20 / 53x22 on a phone and gave them a 30px floor
-   under `pointer: coarse`, because they are the primary control on the page. This finishes that
-   pass one row over: the design actions and the saved-set actions were left at 25px — measured by
-   probing `elementFromPoint` outward from each centre, not by reading the box, since this app
-   expands several targets with a pseudo-element and a box measurement cannot see it.
-
-   25px CLEARS the app's enforced floor — 24px, WCAG 2.2 SC 2.5.8 AA, pinned by the `@a11y` tap
-   target test — by a single pixel, so this is not a defect being fixed. It is the smallest
-   un-expanded target on the page, in a row of identically sized neighbours, and one of them is
-   **Delete**: a destructive act on a design a colleague may also be editing, with no bin behind it
-   for a saved SET. A mis-tap there costs more than the 5px it costs to prevent.
-
-   AT THE END OF THE FILE, BY CONVENTION AND NOT BY NECESSITY — and the difference is worth stating,
-   because the first version of this comment got it wrong. This file's recorded bug, twice, is a
-   `@media (pointer: coarse)` block placed ABOVE the rule it meant to beat, at equal specificity,
-   which changed nothing and read as though it worked (the iOS focus-zoom note above). That trap is
-   NOT live here: the base rules declare `padding`, not `min-height` or `display`, so there is no
-   same-property conflict for source order to decide. Moving this block above them changes nothing
-   — measured, by moving it and re-running the guard, which still passed.
-   It stays at the end anyway, because the moment somebody adds a `min-height` or a `display` to
-   either base rule the trap becomes live, and by then nobody will re-derive this.
-
-   `min-height` with flex centring rather than more padding: padding would widen them too, and four
-   of these used to sit in a row that had to fit 320px. Height is the axis with room. (The
-   picker-strip buttons left this list at v23.30 — the masthead's controls carry their own floors.) */
+/* ═══ THE ROW-OF-BUTTONS FAMILIES GET A THUMB-SIZED TARGET TOO ═══
+   The setup buttons measured 25px, one of them Delete, with no bin behind a setup. At the END by
+   convention: the base rules set `padding`, not `min-height` or `display`, so source order decides
+   nothing today, but it will the moment one of them does. `min-height` with flex centring, not more
+   padding, which would widen them. */
 @media (pointer: coarse) {
     .btn-set {
         display: inline-flex;
@@ -2605,26 +2042,14 @@ body:not(.auth-ready) .app-header { display: none; }
         justify-content: center;
         min-height: 30px;
     }
-    /* Compare mode's "Compare with:" names, 22.5px drawn: the same floor. A <button> centres its own
-       words, so no flex here — that would cost the name its ellipsis. */
+    /* The compare-with names: a <button> centres its own words, so no flex (it would cost the
+       ellipsis). */
     .design-chip-name { min-height: 30px; }
 }
 
-/* ═══ COMPARE: ONLY THE LINES THAT DIFFER (v22.77) ════════════════════════════════════════════════
-
-   A rotation runs to `ROTATING_LINES` lines and a real proposal changes three or four, so the reader's job was to
-   find those among 168 cells of agreement. The rows are always RENDERED and hidden here, so the
-   markup stays a complete picture of the design — `Ctrl+F`, print and a screenshot all keep working
-   on the whole thing, and the filter is a view rather than a truncation.
-
-   A CLASS, NOT THE `hidden` ATTRIBUTE, deliberately. `[hidden]` is a UA rule at the lowest weight
-   and this file's own recorded trap is an author `display` beating it (`.win-editor[hidden]`); a
-   `<tr>` in a table is exactly where somebody later writes `display: table-row`.
-   `page-visibility-parity.test.mjs` would not catch it either — it names loop-assigned elements as
-   one of the three shapes it cannot see, and these rows are a loop. So the attribute is not used.
-
-   The print sheet is deliberately UNFILTERED: `.compare-grids-wrap` is already `display: none` in
-   print (see the print block above), so nothing here reaches paper. */
+/* ═══ COMPARE: ONLY THE LINES THAT DIFFER ═══ The rows are always rendered and hidden here, so the
+   markup stays the whole design. A CLASS, not `[hidden]`: an author `display` on a `<tr>` beats the
+   attribute, and page-visibility-parity cannot see loop-made rows. Print never shows compare mode. */
 .compare-diff-only .links-grid--compare tbody tr.row-same { display: none; }
 
 .compare-filter {
@@ -2635,10 +2060,9 @@ body:not(.auth-ready) .app-header { display: none; }
     flex-wrap: wrap;
     margin: -6px 0 12px;
 }
-/* Load-bearing: `display: flex` above out-specifies the UA `[hidden]` rule, which is the trap this
-   file has hit twice. Same fix as `.card-member-for[hidden]` on the admin page. */
+/* `display: flex` out-specifies the `[hidden]` attribute. */
 .compare-filter[hidden] { display: none !important; }
-.compare-filter-btn[aria-pressed="true"] {   /* on: the page's purple (v25.16 — was a gold tint) */
+.compare-filter-btn[aria-pressed="true"] {   /* on: the page's colour */
     background: var(--page-accent);
     border-color: var(--page-accent);
     color: var(--page-accent-ink);
