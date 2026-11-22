@@ -67,12 +67,16 @@ paths:
   (`LEGACY_REDIRECTS`, `page-contract-parity.test.mjs`). **A future guide rename needs the same pair** —
   the Firebase redirect and the stub — or it breaks old links for the larger half of the staff.
 - Guide pages use **no inline `<script>` or `onclick` handlers** — Firebase Hosting CSP
-  (`script-src 'self'`) blocks them. All guide JS is in external files: `guide-back.js` and
-  `guide-print.js` (loaded by every guide), and the chip bar's script — the shared `guide-chips.js` on
-  the Railcard, Rangers, Staff and Pay Calculator guides, and `fip-guide.js`, which also opens the
-  target country `<details>` on jump/deep-link. **Every guide has a chip bar and exactly one of those
-  two drives it**: nothing else measures a guide's sticky stack, and two would bind every chip twice
-  (`page-contract-parity.test.mjs`). **Only `guide-print.js` prints**: a second `window.print()` handler
+  (`script-src 'self'`) blocks them. All guide JS is in external files, and every guide loads the same
+  three: `guide-back.js`, `guide-print.js` and the chip bar's `guide-chips.js`. The FIP guide alone
+  loads a fourth, `fip-guide.js`, AFTER `guide-chips.js`: its country finder, the opening of a country's
+  `<details>` on a jump or deep link, and its print preparation. **Every guide has a chip bar and
+  `guide-chips.js` alone drives it**: nothing else measures a guide's sticky stack, and a second copy
+  would bind every chip twice. `fip-guide.js` carried one until Nov 2026, held to the shared one by four
+  exact strings; it carries none now, and `guide-chips.js` is wrapped in a function so the two scripts
+  share no globals. `page-contract-parity.test.mjs` requires all of it: the three tags on every guide,
+  the FIP guide's order, no chip-bar calls in `fip-guide.js`, no top-level code in `guide-chips.js`,
+  and a `#savePdfBtn.btn-print`. **Only `guide-print.js` prints**: a second `window.print()` handler
   would open two sheets or bypass the iOS 27 guard.
 - **Back buttons** link to `./` (not `./admin.html`) — guides are accessed from the nav panel;
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
@@ -160,7 +164,7 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
 - **One top gap:** `--guide-top` (20px) from the bottom of the header and chips to a guide's first
   line, on all five, at every width. Pinned by "every guide starts its first line the same space below
   the header and chips", at 390 and 1280px.
-- **The chip bar's hold** (`guide-chips.js` header has the argument; `fip-guide.js` mirrors it). On the
+- **The chip bar's hold** (`guide-chips.js` header has the argument, on all five guides). On the
   document guides' two columns (from 641px) no scroll position says which section is being read, so a
   chip is lit only by a jump or a link to it, until the reader moves ON (the SECTION moving, so a
   reflow lets go too); on one column the bar follows the reader. **A link holds its chip the way a tap
@@ -170,9 +174,9 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
   Staff Guide's Admin Guide) starts at its banner, for the bar as for the landing. **A tap's jump is
   judged when it ENDS** — at `scrollend` where the browser has it; the 1.5 s timer judges only where it
   does not (run everywhere, it judged a slow jump in flight and let the chip go, Nov 2026).
-  `page-contract-parity.test.mjs` keeps the two scripts in step, and `e2e/guides.spec.js` proves each
-  in a browser: "a jump is judged when it ends…" pauses the shared script's clock mid-jump, and the FIP
-  test waits out a slow jump. A test that taps a chip waits for `scrollend` (`jumpTo`), never a set time.
+  `e2e/guides.spec.js` proves it in a browser: "a jump is judged when it ends…" pauses the page's
+  clock mid-jump on the Pay Calculator and FIP guides, and the FIP test waits out a slow jump. A test
+  that taps a chip waits for `scrollend` (`jumpTo`), never a set time.
 - **A bar too long for its window WRAPS** from 641px in a window at least 600px tall, and from 1024px at
   any height — a desktop bar hides its scrollbar, so a chip past the edge would never be found, and a
   window snapped to half a laptop screen is 683–768px wide (`guide-shell.css` has the figures). The page

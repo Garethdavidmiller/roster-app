@@ -615,48 +615,53 @@ test('guides: a chip near the end of a page stays lit after its jump, though its
         .toHaveAttribute('aria-current', 'true');
 });
 
-// …AND THE SHARED SCRIPT JUDGES A JUMP WHEN IT ENDS, NOT WHEN 1.5 s HAVE PASSED (17 Nov 2026). The FIP guide's
-// test below proves it for that page's own script; this proves it for guide-chips.js, which the other four guides
-// share. Its 1.5 s timer used to judge every jump, so one that outlasted it — CI's Safari engine drew a tall window
-// that slowly — was judged in flight, as though the reader had stopped it, and its chip let go. A slow machine
-// cannot be ordered up, so the timer is made to fire mid-jump instead: the page's clock is paused, the chip tapped,
-// and 1.6 s of the page's time passed at once while the real scroll is still moving. Where scrollend exists the
-// timer is now only a net, so nothing is judged until the jump ends.
-test('guides: a jump is judged when it ends, not when 1.5 s of the page\'s time have passed', async ({ page }) => {
-    await page.clock.install();   // runs with real time until paused below
-    await page.setViewportSize({ width: 375, height: 800 });
-    await page.goto('/paycalc-guide.html');
-    await page.waitForFunction(() => document.fonts.status === 'loaded');
-    const room = await page.evaluate(() => {
-        const doc = document.documentElement.scrollHeight;
-        const top = /** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top + scrollY;
-        return { doc, below: Math.ceil(doc - top),
-            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+// …AND THE SHARED SCRIPT JUDGES A JUMP WHEN IT ENDS, NOT WHEN 1.5 s HAVE PASSED (17 Nov 2026). Its 1.5 s timer used
+// to judge every jump, so one that outlasted it — CI's Safari engine drew a tall window that slowly — was judged in
+// flight, as though the reader had stopped it, and its chip let go. A slow machine cannot be ordered up, so the timer
+// is made to fire mid-jump instead: the page's clock is paused, the chip tapped, and 1.6 s of the page's time passed
+// at once while the real scroll is still moving. Where scrollend exists the timer is now only a net, so nothing is
+// judged until the jump ends. Run on a document guide and on the FIP guide, which loads its own page script beside
+// guide-chips.js (it carried a copy of the bar of its own until Nov 2026, and the slow jump was first seen there).
+for (const { file, id, width } of [
+    { file: 'paycalc-guide.html', id: 'pg-pay-rise-back-pay', width: 375 },
+    { file: 'fip-guide.html', id: 'sec-ferries', width: 1280 },
+]) {
+    test(`guides: a jump is judged when it ends, not when 1.5 s of the page's time have passed (${file})`, async ({ page }) => {
+        await page.clock.install();   // runs with real time until paused below
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto(`/${file}`);
+        await page.waitForFunction(() => document.fonts.status === 'loaded');
+        const room = await page.evaluate((sec) => {
+            const doc = document.documentElement.scrollHeight;
+            const top = /** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top + scrollY;
+            return { doc, below: Math.ceil(doc - top),
+                bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom) };
+        }, id);
+        const height = room.below + room.bar + 200;
+        expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
+        await page.setViewportSize({ width, height });
+        await settleFrames(page);
+        await page.evaluate(() => {
+            /** @type {any} */ (window).__ended = false;
+            addEventListener('scrollend', () => { /** @type {any} */ (window).__ended = true; }, { once: true });
+        });
+        const chip = page.locator(`.chip-bar .chip[data-target="${id}"]`);
+        await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 100);
+        await chip.click();
+        await page.clock.runFor(1600);   // the old 1.5 s timer would fire here, with the jump still moving
+        expect(await page.evaluate(() => /** @type {any} */ (window).__ended), 'premise: the jump was still moving at 1.6 s of page time').toBe(false);
+        await page.clock.resume();
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__ended), { message: 'the jump never ended', timeout: 10_000 }).toBe(true);
+        const geo = await page.evaluate((sec) => ({
+            bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
+            top: Math.round(/** @type {HTMLElement} */ (document.getElementById(sec)).getBoundingClientRect().top),
+            bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
+        }), id);
+        expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
+        expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
+        await expect(chip, 'judged in flight, the chip let go and the last one was lit').toHaveAttribute('aria-current', 'true');
     });
-    const height = room.below + room.bar + 200;
-    expect(height, 'premise: in that window the page still has a long way to scroll').toBeLessThan(room.doc - 1000);
-    await page.setViewportSize({ width: 375, height });
-    await settleFrames(page);
-    await page.evaluate(() => {
-        /** @type {any} */ (window).__ended = false;
-        addEventListener('scrollend', () => { /** @type {any} */ (window).__ended = true; }, { once: true });
-    });
-    const backPay = page.locator('.chip-bar .chip[data-target="pg-pay-rise-back-pay"]');
-    await page.clock.pauseAt(await page.evaluate(() => Date.now()) + 100);
-    await backPay.click();
-    await page.clock.runFor(1600);   // the old 1.5 s timer would fire here, with the jump still moving
-    expect(await page.evaluate(() => /** @type {any} */ (window).__ended), 'premise: the jump was still moving at 1.6 s of page time').toBe(false);
-    await page.clock.resume();
-    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__ended), { message: 'the jump never ended', timeout: 10_000 }).toBe(true);
-    const geo = await page.evaluate(() => ({
-        bottom: Math.ceil(innerHeight + scrollY) >= document.documentElement.scrollHeight - 2,
-        top: Math.round(/** @type {HTMLElement} */ (document.getElementById('pg-pay-rise-back-pay')).getBoundingClientRect().top),
-        bar: Math.round(/** @type {HTMLElement} */ (document.querySelector('.chip-bar')).getBoundingClientRect().bottom),
-    }));
-    expect(geo.bottom, 'premise: the page bottomed out before the section reached the line').toBe(true);
-    expect(geo.top, 'premise: and the section is still well below the bar').toBeGreaterThan(geo.bar + 20);
-    await expect(backPay, 'judged in flight, the chip let go and the last one was lit').toHaveAttribute('aria-current', 'true');
-});
+}
 
 // THE CHOSEN CHIP IS GOLD, WITH NAVY WORDS, ON EVERY GUIDE (owner, 12 Nov 2026 — v25.83). It was navy, the app's
 // colour for a button that DOES something; the guides take their own gold accent instead (guide-shell.css). Read

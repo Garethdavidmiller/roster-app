@@ -114,7 +114,7 @@ gone, and that no card outgrows its cap.
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.css` |
 | Print button for every guide, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, every guide) | `guide-back.js` |
-| The "Jump to section" chip bar — jump, scrollspy, sticky offsets, a deep link landing below them (Railcard, Rangers, Staff and Pay Calculator guides) | `guide-chips.js` |
+| The "Jump to section" chip bar — jump, scrollspy, sticky offsets, a deep link landing below them (all five guides) | `guide-chips.js` |
 | An old guide address (`guide.html`, `fip.html`) keeping its `#fragment` and `?query` on the Pages mirror | `legacy-redirect.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (every guide) | `guide-shell.css` |
 | Page-specific styles for staff-guide.html | `staff-guide.css` |
@@ -1020,11 +1020,11 @@ The pure override rules shared by the Calendar, Team Week View, Admin and the pa
 - **Exports:** `nextLeaveYear` · `isRestShift` · `LEGACY_OVERRIDE_TYPES` · `CONTRACTED_WORK_TYPES` · `VOLUNTARY_WORK_TYPES` · `isContractedWorkOverride` · `contractEvidence` · `isOverrideDisplaySuppressed` · `isChristmasOrBoxingDay` · `mergeBookedPeriods` · `tsToMillis` · `isBeforeMemberStart` · `toOverrideRecord` · `collectOverrideRecords` · `buildOverrideWrite` · `buildOverrideCacheRecord` · `nextReplacedType` · `shouldReplaceOverride` · `withOutrankedManualCopies` · `reconcileRangeIntoCache` · `computePeriodDeleteIds` · `OTHER_FLAVOURS` · `OTHER_RDW_DEFAULT_MINS` · `isOtherValue` · `parseOtherValue` · `composeOtherValue` · `resolveOtherPay` · `resolveEffectiveShift` · `SUNDAY_FORBIDDEN_TYPES` · `isForbiddenOnSunday` · `manualCellValue` · `sundaySafeValue` · `chunkByWrites`
 
 ### `guide-chips.js`
-The "Jump to section" chip bar on four guides — Railcard, Rangers & Rovers, the Staff & Admin Guide and the Pay Calculator Guide: the jump, the scrollspy, the sticky stack and the deep-link landing. A classic `defer` script with no exports, one copy for all four; its header and block comments carry each rule (`fip-guide.js` keeps its own copy, woven into its finder). The ⤓ PDF button is `guide-print.js`'s and the ← arrow `guide-back.js`'s. `page-contract-parity.test.mjs` requires every guide to carry a bar, exactly one script driving it, and chips that lead to an id in `<main>`.
+The "Jump to section" chip bar on all five guides: the jump, the scrollspy, the sticky stack and the deep-link landing. A classic `defer` script with no exports, one copy for all five, wrapped in a function so it shares no globals with `fip-guide.js`; its header and block comments carry each rule. The ⤓ PDF button is `guide-print.js`'s and the ← arrow `guide-back.js`'s. `page-contract-parity.test.mjs` requires every guide to load it once, chips that lead to an id in `<main>`, and no copy of the bar in `fip-guide.js`.
 - **Exports:** none
 
 ### `fip-guide.js`
-The FIP guide's behaviour — a classic `defer` script, all progressive enhancement (with JS off every country is visible): the country finder, opening a country's `<details>` on a jump or deep link, the sticky chip bar and scrollspy (mirroring `guide-chips.js`), and print — the whole guide as on screen, or one country — prepared so it survives an engine that sends no print events. Each block's comment carries its rules; the page's own decisions are `.claude/rules/guide-pages.md` → FIP guide. Printing itself is `guide-print.js`'s.
+The FIP guide's behaviour — a classic `defer` script, all progressive enhancement (with JS off every country is visible): the country finder, opening a country's `<details>` on a jump or deep link, and print — the whole guide as on screen, or one country — prepared so it survives an engine that sends no print events. Loaded after `guide-chips.js`, which draws this guide's chip bar as it does every guide's. Each block's comment carries its rules; the page's own decisions are `.claude/rules/guide-pages.md` → FIP guide. Printing itself is `guide-print.js`'s.
 - **Exports:** none
 
 ### `guide-print.js`
@@ -1032,7 +1032,7 @@ The ⤓ PDF button on every guide, and the FIP guide's per-country buttons — a
 - **Exports:** none
 
 ### `guide-back.js`
-Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>`; this resolves it through an allowlist of the app's own pages, never as a url, and leaves the authored href alone otherwise. Why the arrow needs retargeting, and why the hand-kept allowlist is pinned by `page-contract-parity.test.mjs`, are its header. It measures nothing: the sticky stack is `guide-chips.js`'s or `fip-guide.js`'s.
+Points a guide's ← arrow at the page you came FROM — a classic `defer` script on all five guides, no exports. `nav-panel.js` appends `?from=<page>`; this resolves it through an allowlist of the app's own pages, never as a url, and leaves the authored href alone otherwise. Why the arrow needs retargeting, and why the hand-kept allowlist is pinned by `page-contract-parity.test.mjs`, are its header. It measures nothing: the sticky stack is `guide-chips.js`'s.
 - **Exports:** none
 
 ### `legacy-redirect.js`

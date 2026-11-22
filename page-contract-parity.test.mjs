@@ -785,29 +785,34 @@ test('every app page can be returned to from a guide', () => {
         + 'will notice is wrong.');
 });
 
-test('every guide has a chip bar, driven by exactly one script, whose chips all lead somewhere (v25.80)', () => {
+test('every guide has a chip bar, driven by the one shared script, whose chips all lead somewhere (v25.80)', () => {
     /**
      * Since v25.80 all five guides carry the "Jump to section" bar, and nothing else measures a guide's
      * sticky stack: guide-back.js's header-only measurement went with the last guide that had no bar.
      * So a guide without a bar, or with a bar and no script, lands every search result under its
-     * header. One script per bar, too: the FIP guide's own script carries the same blocks woven into
-     * its finder, and a page loading it AND the shared one would bind every chip twice — two scrolls,
-     * two focus moves, two observers writing the margins.
+     * header. ONE script drives every bar, guide-chips.js, loaded once: twice would bind every chip
+     * twice — two scrolls, two focus moves, two observers writing the margins.
+     *
+     * The FIP guide also loads its own page script, AFTER the shared one (Nov 2026). That script used
+     * to carry its own copy of the bar, held to this one by four exact strings; it now carries none,
+     * and the second half of this check keeps it so — a copy that came back would bind every chip
+     * twice on that page.
      *
      * And a chip whose target id is missing is not an error anywhere: the script quietly leaves it out
      * of the scrollspy and its click does nothing, so a mistyped id ships as a dead button.
      */
-    const OWN_SCRIPT = { 'fip-guide.html': './fip-guide.js' };
+    const PAGE_SCRIPT = { 'fip-guide.html': './fip-guide.js' };
     for (const { file } of GUIDE_PAGES) {
         const html = read(`./${file}`);
         const bar = html.match(/<nav class="chip-bar" aria-label="Jump to section">([\s\S]*?)<\/nav>/);
         assert.ok(bar, `${file} has no "Jump to section" chip bar`);
 
-        const scripts = ['./guide-chips.js', ...Object.values(OWN_SCRIPT)]
-            .filter(src => html.includes(`<script src="${src}" defer></script>`));
-        const expected = OWN_SCRIPT[/** @type {keyof typeof OWN_SCRIPT} */ (file)] ?? './guide-chips.js';
-        assert.deepEqual(scripts, [expected],
-            `${file} must load exactly one chip-bar script, ${expected}; it loads ${JSON.stringify(scripts)}`);
+        const own = PAGE_SCRIPT[/** @type {keyof typeof PAGE_SCRIPT} */ (file)];
+        const expected = own ? ['./guide-chips.js', own] : ['./guide-chips.js'];
+        const scripts = [...html.matchAll(/<script src="(\.\/[^"]+)" defer><\/script>/g)].map(m => m[1])
+            .filter(src => src !== './guide-back.js');
+        assert.deepEqual(scripts, expected,
+            `${file} must load ${expected.join(' and then ')}, once each; it loads ${JSON.stringify(scripts)}`);
 
         const targets = [...bar[1].matchAll(/<button class="chip" type="button" data-target="([^"]+)">/g)].map(m => m[1]);
         const chips = (bar[1].match(/<button\b/g) || []).length;
@@ -831,25 +836,25 @@ test('every guide has a chip bar, driven by exactly one script, whose chips all 
     }
 });
 
-test('the two chip-bar scripts judge a tap\'s jump the same way: when it ends (Nov 2026)', () => {
+test('the chip bar is written once: the FIP guide\'s script keeps no copy, and the shared one keeps no globals (Nov 2026)', () => {
     /**
-     * fip-guide.js mirrors guide-chips.js's chip hold (.claude/rules/guide-pages.md). Only the FIP copy has a
-     * browser test that a slow jump keeps its chip (e2e/guides.spec.js, in Safari's engine, which draws a tall
-     * window slowly), so the shared copy is held to it here: a jump is judged at scrollend where the browser has
-     * it, the timer is the judge only where it does not, and a jump with nowhere to go stands at once. Both used
-     * to run a 1.5 s timer everywhere, which judged a long jump in flight and let its chip go.
+     * This replaced a test that held two copies of the bar together by four exact strings, which a
+     * change of one copy's arrival tolerance from `<= 2` to `<= 2000` passed. There is one copy now,
+     * and what the browser does with it is e2e/guides.spec.js's to prove — "a jump is judged when it
+     * ends…" runs on more than one guide, the FIP guide among them.
+     *
+     * Two things keep it one. fip-guide.js must not grow the bar back: the calls only the bar makes are
+     * named here. And guide-chips.js keeps its names off `window`: a classic script's top-level `var`
+     * and `function` are globals shared with every other classic script, and the FIP guide loads two.
      */
-    const LINES = [
-        "var jumpCeilingMs = 'onscrollend' in window ? 5000 : 1500;",
-        'var settled = reduceMotion || jumpArrived(target);',
-        'spyTimer = setTimeout(resumeSpy, jumpCeilingMs);',
-        'if (settled) jumpTop = heldTop();',
-    ];
-    for (const file of ['./guide-chips.js', './fip-guide.js']) {
-        const src = read(file);
-        for (const line of LINES) assert.ok(src.includes(line), `${file} no longer has: ${line}`);
-        assert.doesNotMatch(src, /setTimeout\(resumeSpy,\s*\d/, `${file} judges a jump at a fixed time again`);
+    const fip = read('./fip-guide.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    for (const bar of ["'.chip-bar'", "'scrollend'", 'scrollMarginTop', 'ResizeObserver']) {
+        assert.ok(!fip.includes(bar), `fip-guide.js uses ${bar} again — the chip bar is guide-chips.js's alone`);
     }
+    const chips = read('./guide-chips.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const topLevel = chips.split('\n').filter(l => /^\S/.test(l));
+    assert.deepEqual(topLevel, ['(function () {', '}());'],
+        'guide-chips.js has code outside its wrapping function, so its names are globals the FIP guide\'s script shares');
 });
 
 test('a legacy redirect page is a redirect, and points somewhere real', () => {
