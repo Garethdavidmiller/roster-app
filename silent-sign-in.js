@@ -26,10 +26,13 @@
  * The flag is set only on a wrong-password-class rejection of the SURNAME candidate — never on
  * `auth/user-not-found`, where the account simply doesn't exist yet and a later provisioning would
  * make the surname valid (`remembersRefusal`). The reset probe in front of the sign-in is a sign-in
- * too, and its refusal sets the flag without the SDK being asked (session.js): it cannot tell "no
- * account" apart unless email-enumeration protection is off, and a device it wrongly flags costs no
- * more than the rule below, because provisioning stamps a reset the old session predates anyway
- * (AUTH_AND_SESSIONS 23). It is cleared the moment any sign-in SUCCEEDS with the
+ * too, and ANY refusal of it sets the flag without the SDK being asked (session.js) — a wrong
+ * password, but also no such account (EMAIL_NOT_FOUND, sent only with email-enumeration protection
+ * off) and a DISABLED account (USER_DISABLED), which it records as `auth/invalid-credential` as well.
+ * That is deliberate: neither can take the surname until an admin acts, and creating, re-enabling or
+ * resetting an account all stamp a reset the old session predates anyway (AUTH_AND_SESSIONS 23), so a
+ * device flagged for either costs no more than the rule below (`isRestCredentialRejection`,
+ * auth-identity.js). It is cleared the moment any sign-in SUCCEEDS with the
  * surname (the admin break-glass reset returns an account to the default, and the member's next typed
  * surname both signs them in and re-arms the silent recovery). A stale flag therefore costs exactly
  * one typed sign-in, ever. Typed passwords are NEVER gated by it — it suppresses only the implicit,
