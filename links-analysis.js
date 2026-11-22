@@ -319,6 +319,19 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
     }
 
     /**
+     * Staffed hours with NOBODY on at any point in them — the card's red 0s, counted the way
+     * `renderCoverageChart` counts them (every hour the window staffs, against the hourly cells).
+     * @param {Record<string, any>} patterns
+     * @param {any} win - a normalised window
+     */
+    function staffedEmptyHours(patterns, win) {
+        const hourly = calcHourlyCoverage(patterns, TOTAL_POS);
+        let n = 0;
+        for (const d of DAYS) for (let h = 0; h < 24; h++) if (isHourStaffed(win, d, h) && !hourly[d].hours[h]) n++;
+        return n;
+    }
+
+    /**
      * The live summary in the grid card's sticky bar (v19.57) — four figures and a way down. The
      * fourth, hours a week, came later and is argued beside its chip.
      *
@@ -403,15 +416,23 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // figures in one label when there is a second figure to carry.
             // "WITH TRAINS" is in both forms (whole-app review, Nov 2026): the card's red 0s count
             // every staffed hour with nobody on, and "No gaps in staffed hours" once sat above one.
+            // THE CLEAN FORM IS SHORT ONLY WHEN IT IS TRUE OF BOTH COUNTS (owner, Nov 2026): the long
+            // label wrapped the phone save bar to four rows, so "Every staffed hour covered" is used
+            // when no staffed hour has trains and nobody on AND no staffed hour is a red 0 on the
+            // card. A train-less red 0 keeps the long form, which is the one that cannot contradict it.
             + (sum.uncovered.length
                 ? chip('bad', '⛔', sum.uncovered.length,
                     sum.uncovered.length === 1 ? 'staffed hour with trains and nobody on' : 'staffed hours with trains and nobody on')
-                : chip('ok', '✓', 'No', 'staffed hours with trains and nobody on'))
+                : staffedEmptyHours(design.patterns, win)
+                    ? chip('ok', '✓', 'No', 'staffed hours with trains and nobody on')
+                    : chip('ok', '✓', 'Every', 'staffed hour covered'))
+            // "N fatigue factors present · M standing" (Nov 2026): "to act on" told the designer what
+            // to do with an advisory finding, which this panel never does (invariant 2).
             + (fat.present
                 ? chip('warn', '⚠', fat.present,
-                    `to act on${fat.standing ? ` · ${fat.standing} standing` : ''}`)
-                : chip('ok', '✓', fat.standing ? '0' : 'No',
-                    fat.standing ? `to act on · ${fat.standing} standing` : 'fatigue findings'))
+                    `fatigue factor${fat.present === 1 ? '' : 's'} present${fat.standing ? ` · ${fat.standing} standing` : ''}`)
+                : chip('ok', '✓', 'No',
+                    `fatigue factors present${fat.standing ? ` · ${fat.standing} standing` : ''}`))
             // HOURS BELONGS IN THE STRIP, not only in the panel (v20.04). This bar exists because
             // the analysis sits ~1,600px below the fold and an edit's effect was otherwise invisible
             // without scrolling two screens away and back. "Does this give people a contracted week"
@@ -645,8 +666,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 `<span class="check-note"> (contracted: ${CONTRACTED_HOURS_PER_WEEK}h, Sundays excluded)</span>` +
                 (onTarget ? '' :
                     `<div class="check-sub">${off < 0
-                        ? `<strong>${hm(Math.abs(off))} a week short of contract.</strong> The same work spread over more lines gives each person less of it — adding lines without adding duties does this.`
-                        : `<strong>${hm(off)} a week over contract.</strong> The surplus has to be paid as overtime or absorbed by adding lines.`}</div>`) +
+                        // The line count is fixed, so neither remedy may be "change the lines" (Nov 2026).
+                        ? `<strong>${hm(Math.abs(off))} a week short of contract.</strong> Add duties or lengthen them — or fill any line not yet designed.`
+                        : `<strong>${hm(off)} a week over contract.</strong> A permanent surplus is overtime nobody has agreed to — remove or shorten duties.`}</div>`) +
                 `<div class="check-sub">Individual weeks vary — the average is what the contract asks for. ` +
                 `Sundays are not contracted, so they are left out of it` +
                 (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday dut${wh.sundayDuties === 1 ? 'y' : 'ies'}, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
@@ -745,7 +767,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         );
 
         fatRows.push(
-            `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR good practice, p3</span></span>` +
+            `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR Fatigue Factors (good-practice guidelines, December 2021)</span></span>` +
             `<span class="check-section-meta">${escapeHtml(meta)}</span></div>`,
             `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
             `<div class="check-body check-prose">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
@@ -881,7 +903,14 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (!stretchOk)           triage.discuss.push(`${longestStretch} working days in a row, over the ${DEFAULT_MAX_RUN}-day design target`);
         if (fat.present)          triage.discuss.push(`${fat.present} ORR fatigue factor${fat.present === 1 ? '' : 's'} present in this design`);
         if (fat.standing)         triage.discuss.push(`${fat.standing} standing factor${fat.standing === 1 ? '' : 's'} — from the operation, not from this design`);
-        if (fat.confirmNeeded)    triage.discuss.push(`${fat.confirmNeeded} definition${fat.confirmNeeded === 1 ? '' : 's'} still to confirm with the assessing manager`);
+        // Not "with the assessing manager" (Nov 2026): the workspace decides nothing and names no
+        // decider. The codes are read from the rows that carry the flag, never typed.
+        if (fat.confirmNeeded) {
+            const codes = fat.results.filter(r => r.confirm).map(r => r.code).join(', ');
+            triage.discuss.push(fat.confirmNeeded === 1
+                ? `A definition still to confirm (ORR's wording is stricter — see ${codes})`
+                : `${fat.confirmNeeded} definitions still to confirm (ORR's wording is stricter — see ${codes})`);
+        }
         const triageRow = (/** @type {string} */ cls, /** @type {string} */ icon,
             /** @type {string} */ head, /** @type {string[]} */ items) => items.length
             ? `<div class="check-triage-group ${cls}"><span class="check-triage-head">` +

@@ -218,10 +218,13 @@ at 1280.
   each scrolling inside its own wrapper.
 - **Accepted phone constraints** (KNOWN_LIMITATIONS.md → Links): below 768px the grid and the
   generator table lose their sticky headers (Sticky headers, below), and the sticky save row and the
-  brush bar take a large share of the screen. Two further trims were costed and refused: hiding
-  `.links-save-meta` below 1024px — who last saved a SHARED design, and when, is exactly what you want
-  while editing on a phone — and shortening "staffed hours with trains and nobody on", which this file
-  forbids softening.
+  brush bar take a large share of the screen. Hiding `.links-save-meta` below 1024px was costed and
+  refused — who last saved a SHARED design, and when, is exactly what you want while editing on a
+  phone. **The clean cover chip was shortened instead** (owner, Nov 2026: the long label wrapped the
+  phone save bar to four rows): it reads "Every staffed hour covered" only when no staffed hour has
+  trains and nobody on AND no staffed hour is a red 0 on the card. A train-less red 0 keeps the long
+  "No staffed hours with trains and nobody on", the form that cannot contradict it (the reason "with
+  trains" was added); the finding form is never shortened.
 - **Do not design against the iPhone SE** (owner, Sep 2026): no designer has a device that narrow, so a
   320px column in any measurement here is hypothetical.
 
