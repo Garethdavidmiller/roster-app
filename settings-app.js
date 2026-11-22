@@ -398,9 +398,6 @@ export function init() {
             // happens. `lsKeys` is the iOS-safe enumerator (ls.js); a private-mode SecurityError
             // returns an empty list rather than throwing.
             setPaycalcNamespace(currentUser || undefined);
-            // `periods` is the payslip count; `taxYears` is a LIST, not a count — naming the
-            // years is what answers "is my old year in here?", which is why that module returns
-            // them rather than a number.
             // `selectBackupKeys` is the ONE selector — it filters to this member's prefix and
             // drops the device-level flags. Handing `inventoryOf` unfiltered keys would slice
             // every unrelated key by the prefix length and classify the wreckage as 'unknown',
@@ -843,22 +840,14 @@ export function init() {
             /** Where the caret goes after a refusal — never left on the page (sign-in check, 11 Nov 2026). */
             let refocus = /** @type {HTMLElement|null} */ (null);
             try {
-                // Wait for the session like every OTHER write on this page does (the contact card's
-                // save/remove and refreshStatus all await it; this handler didn't — v18.84). initApp()
-                // runs while ensureNamedSession is still in flight, so a save fired before it settled
-                // could (a) hit a null auth.currentUser — reauthenticateWithPassword throws a plain
-                // 'Not signed in' with no .code, which fell through to "couldn't verify your current
-                // password" for a CORRECT password — or (b) on a shared device mid-identity-switch,
-                // reauthenticate and updatePassword against the PREVIOUSLY persisted member while
-                // stamping passwordStatus for this one.
+                // Wait for the session like every other write here (v18.84): initApp() runs while
+                // ensureNamedSession is in flight, so an early save could meet a null auth.currentUser
+                // ("Not signed in", read as a wrong CORRECT password) or, on a shared device mid-switch,
+                // the PREVIOUS member's account.
                 await sessionReady;
-                // The sequence is own-password.js's (`runPasswordSave`, shared with the forced change):
-                // both calls TIME-BOXED (v18.95 — a promise that never settles skips `catch` and `finally`
-                // and left the button on "Saving…" for good); the re-auth as a plain failure, since it
-                // changes nothing; the WRITE as "pending" rather than "failed", because Promise.race stops
-                // WAITING and does not CANCEL (v18.97), and timed ALONE (settings-ops-2). The write is
-                // COUNTED while it runs, past the deadline too, so `writesInFlight` sees it: the update
-                // reload holds for it and signing out asks first (settings review, Nov 2026).
+                // The sequence is own-password.js's (`runPasswordSave`, shared with the forced change, whose
+                // header says why each call is time-boxed as it is). The write is COUNTED while it runs, so
+                // `writesInFlight` sees it: the update reload holds and signing out asks (settings review).
                 const outcome = await runPasswordSave({ member, current, next,
                     reauthenticate: reauthenticateWithPassword, change: changeOwnPassword, track: trackBackgroundWrite });
                 if (outcome.status === 'pending') { onIndeterminate(outcome.settled); return; }
