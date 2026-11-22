@@ -144,7 +144,7 @@ export function createDesignLibrary(ctx) {
     async function openImport() {
         // An import ends in `_activateDesign`, so it replaces the working copy like the other paths
         // that ask first — and asks here, before any typing, as `createDesign` does.
-        if (ctx.isDirty() && !await confirmDialog({ message: 'You have unsaved changes in the current design. Import a new one anyway? Your changes will be lost.', confirmLabel: 'Import' })) return;
+        if (ctx.isDirty() && !await confirmDialog({ message: 'You have unsaved changes in the current design. Import a new one anyway? Your changes will be lost.', confirmLabel: 'Import', danger: true })) return;
         const text = _importEl('linksImportText');
         const name = _importEl('linksImportName');
         if (!text) return;

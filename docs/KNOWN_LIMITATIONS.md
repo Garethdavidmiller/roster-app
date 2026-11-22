@@ -242,10 +242,19 @@ not everybody's. Fresh pages, offline-then-online, two tabs and reloads were all
 
 - **The diagnostic line now says how that wait went** (v26.52): "own-saves wait 8.0s, ran out" means
   the eight seconds were spent there; "drained" with a small figure means the wait was not the cause;
-  no field means the save did not wait (`trackOwnWritesWaits`, slow-save.js).
-- **Every sign-out of the PIN viewer first gives its queued writes up to two seconds to leave**
-  (v26.52, `letViewerWritesGo`, firebase-client.js), so a new leftover is not made while online. It
-  does nothing for a device that already holds one, or for a viewer ended offline.
+  no field means the save did not wait (`trackOwnWritesWaits`, slow-save.js). **When two saves
+  overlap, the figure can be the OTHER save's wait**: the line reports the waits that ended while
+  this save ran, so "(2 waits)" counts waits heard, not saves made.
+- **Each sign-out that ends the PIN for a member first gives the viewer's queued writes up to two
+  seconds to leave** (v26.52, `letViewerWritesGo`, firebase-client.js): End staff PIN, a member
+  signing in over the PIN, and the clean-up of an identity that outlived its session. So a new
+  leftover is not made while online. It does nothing for a device that already holds one, or for a
+  viewer ended offline. Two kinds do not wait: `clearSession()`, and the PIN unlock's own
+  sign-outs — harmless, the viewer's one account either signs straight back in or has queued nothing.
+- **On a device that already holds another account's leftover, ending the PIN can take the whole two
+  seconds** (`VIEWER_WRITES_GRACE_MS`): the viewer's own wait meets the same SDK fault. A typed
+  sign-in from a PIN-unlocked device then has about six of its eight seconds left for the sign-in
+  itself. Accepted: the bound is kept, and the device is cleared as below.
 - **To clear an affected device today:** enter the staff PIN once with a signal, then sign back in.
 - **Not done (owner, 22 Nov 2026):** falling back to a per-record check when the wait runs out, which
   would rescue affected devices at the cost of a sixteen-second wait on a save with no data

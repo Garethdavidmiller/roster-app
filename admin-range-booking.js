@@ -60,11 +60,11 @@ import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim
  *   sundayNote?: string }) => string} cfg.renderReady  Ready-state innerHTML. `sundays` are the Sundays
  *   this save will set as rest days (`rangeSundayCorrections`) — counted in `restCount`/`skipped`, but
  *   not skipped — and `sundayNote` says so in words, or is '' when there are none.
- * @param {(recorded: number, member: string, alreadyBooked: number, free: number) => string} cfg.successFeedback  Inline ✓
+ * @param {(recorded: number, member: string, alreadyBooked: number, free: number, capFreed: number) => string} cfg.successFeedback  Inline ✓
  *   feedback text. `recorded` is the days charged plus `alreadyBooked`, the written days that already
  *   held leave, and `free` the days written at no cost (`projection`'s, only when the writer wrote
  *   exactly the days the plan did; otherwise the writer's own count, 0 and 0).
- * @param {(recorded: number, member: string, alreadyBooked: number, free: number) => string} cfg.successToast     Bottom-toast text.
+ * @param {(recorded: number, member: string, alreadyBooked: number, free: number, capFreed: number) => string} cfg.successToast     Bottom-toast text.
  * @param {() => (string|null)} cfg.getCurrentUser  Live getter for the logged-in user name.
  * @param {Function}          [cfg.showInChangeAShift] Jumps Change a Shift to a member + date.
  * @param {Function}          [cfg.showSuccess]   Scroll-independent bottom success toast.
@@ -420,18 +420,20 @@ export function createRangeBookingSection(cfg) {
             const heldSet = new Set(proj?.alreadyBooked ?? []);
             const lieu = new Set(proj?.lieuLost ?? []);
             // An Absence card's projection has no leave lists: nothing written there is "at no cost".
-            const free = Array.isArray(proj?.freeWritten) ? proj.freeWritten.filter((/** @type {string} */ d) => !heldSet.has(d) && !lieu.has(d)).length : 0;
+            // …with a new day charged that only moved its Spare week's four, free on balance (`capFreed`).
+            const capFreed = typeof proj?.capFreed === 'number' ? proj.capFreed : 0;
+            const free = (Array.isArray(proj?.freeWritten) ? proj.freeWritten.filter((/** @type {string} */ d) => !heldSet.has(d) && !lieu.has(d)).length : 0) + capFreed;
             const recorded = proj && typeof proj.charged === 'number' ? proj.charged + held : workingCount;
             _say('success');
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
-            _showSaved(cfg.successFeedback(recorded, member, held, free), member, lines);
+            _showSaved(cfg.successFeedback(recorded, member, held, free, capFreed), member, lines);
             // A receipt that names days does not time out — the week grid's rule (v21.38): a manager
             // checking it against a paper request can outlast any number picked here.
             if (!lines.length) fadeFeedback(feedbackEl, 'feedback', 7000);
             // The form resets and Change-a-Shift scrolls into view below, so also fire
             // the bottom toast — confirmation must be visible regardless of scroll.
-            cfg.showSuccess?.(cfg.successToast(recorded, member, held, free));
+            cfg.showSuccess?.(cfg.successToast(recorded, member, held, free, capFreed));
 
             // A SAVE THAT LANDS LATE MAY FIND THE PAGE MOVED ON (review, 21 Nov 2026): slow, or held
             // offline until the signal came back, while the admin went on to somebody else. The range

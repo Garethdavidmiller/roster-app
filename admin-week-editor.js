@@ -32,7 +32,7 @@ import { formatDisplay } from './admin-period-dates.js';
 import { isChristmasLeaveDay, isChristmasClosureDate, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
 import { TYPES, PILL_TYPES, typePillHtml } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
-import { isBoxingDay, christmasDayName, weekStepAllowed } from './admin-shift-rules.js';
+import { christmasDayName, weekStepAllowed } from './admin-shift-rules.js';
 import { restrictDayPills } from './admin-day-pills.js';
 import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-override-store.js';
 // The row's own appearance rules (admin-week-row-state.js), under the same names.
@@ -189,7 +189,7 @@ export function buildWeekGridInto(container, dateStr) {
         // (admin-shift-rules.js → checkDayRules, the backstop at Save): before the member's start date,
         // which the Calendar never shows, and an Other day or a Spare turn on Christmas Day or Boxing Day
         // (owner: Jul, 19 Nov and 21 Nov 2026; admin-day-pills.js).
-        const beforeStart = isBeforeMemberStart(member, date), boxing = isBoxingDay(dateISO) && !isSunday(dateISO);
+        const beforeStart = isBeforeMemberStart(member, date);
         // CHRISTMAS LEAVE — the Base roster column shows it as the Calendar does, AL, and the row says why
         // (rules: christmas-leave.js). The column used to show the rest day `getBaseShift` makes both
         // Christmas days, with only this row's note to say the member is on leave; on a phone that note
@@ -272,9 +272,9 @@ export function buildWeekGridInto(container, dateStr) {
         container.appendChild(row);
 
         // What this day cannot take is turned off at its pills, with the reason — the Sunday rule's layer 1,
-        // Boxing Day, and before the start date; Other offers Spare alone on an ordinary Sunday (never on
-        // 25 or 26 December, which take no Spare turn).
-        restrictDayPills(row, { sunday: isSunday(dateISO), boxing, beforeStart, christmas: christmasDayName(dateISO) });
+        // 25 and 26 December, and before the start date; Other offers Spare alone on an ordinary Sunday
+        // (never on 25 or 26 December, which take no Spare turn or Other day).
+        restrictDayPills(row, { sunday: isSunday(dateISO), beforeStart, christmas: christmasDayName(dateISO) });
 
         const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
         const pills    = row.querySelectorAll('.type-pill-btn');

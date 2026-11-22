@@ -1507,30 +1507,35 @@ test.describe('trains — the page turns as a whole, and a station computer is s
 
 // ── THE WORDS REVIEW (Nov 2026): the lookup and the cards through the real page ───────────────────────────────
 test.describe('trains: the words review', () => {
-    // "5.15pm" passes through "5.15p", which is no time: the box put up "Type a time like…" between the
-    // two answers, and the polite live region read it out. The answer stands until the p.m. is finished.
-    test('typing a p.m. keeps the answer on screen until it is finished, and never shows the hint', async ({ page }) => {
+    // "5 pm" passes through "5 ", which is no time: the box put up "Type a time like…" between the two answers, and
+    // the polite live region read it out. The answer stands while the a.m. or p.m. is still to come — and a tail begun
+    // is a time (24-hour check, 22 Nov 2026): kept as pending, "5.15p" left the 05:15 answer up beneath it.
+    test('typing a p.m. keeps the answer on screen until it is begun, answers it then, and never shows the hint', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, 'G. Miller');
         await page.clock.setFixedTime(new Date('2026-11-18T09:00:00Z'));
         await page.goto('/trains.html');
         await openLookup(page);
         const input = page.locator('#trLookupInput'), result = page.locator('#trLookupResult');
+        const first = result.locator('.tr-answer').first();
         await input.fill('5.15');
         await expect(result).toContainText('05:15');
         const held = await result.innerHTML();
-        // Each keystroke of the tail, as the box receives it — one input event with the value it leaves.
-        for (const value of ['5.15p', '5.15', '5.15 ', '5.15 p']) {
+        // A space, as the box receives it — one input event with the value it leaves: the p.m. is still to come.
+        await input.fill('5.15 ');
+        await page.waitForTimeout(400);   // past any debounce: what stands is what the box decided
+        expect(await result.innerHTML(), '"5.15 " changed the answer').toBe(held);
+        // Each way of beginning the tail is a time, answered as one: never the 05:15 answer under it.
+        for (const value of ['5.15p', '5.15 p', '515p', '5.15pm']) {
             await input.fill(value);
-            await page.waitForTimeout(400);   // past any debounce: what stands is what the box decided
-            expect(await result.innerHTML(), `"${value}" changed the answer`).toBe(held);
+            await expect(first, `"${value}"`).toContainText('The 17:15 to');
             await expect(result).not.toContainText('Type a time like');
         }
-        await input.pressSequentially('m');
-        await expect(result).toContainText('17:15');
-        await expect(result).not.toContainText('Type a time like');
+        await input.fill('515a');
+        await expect(result).toContainText('05:15');
+        await expect(result).not.toContainText('The 17:15 to');
         // A day pressed while the p.m. is pending answers for that day, not the kept one.
-        await input.fill('5.15p');
+        await input.fill('5 ');
         await page.locator('[data-day="SO"]').click();
         await expect(result).toContainText('Type a time like');
         expect(errors, errors.join('\n')).toEqual([]);
@@ -1707,6 +1712,28 @@ test.describe('trains — Back, the station card and the boxes, wired', () => {
         await page.locator('[data-view="grid"]').click();
         await page.locator('#trPattern [data-col="0"]').click();
         await expect(status).toHaveText(/^Only where the :\d\d to .+ stops\.$/);
+    });
+
+    test('a station chosen inside the typing pause keeps its card\'s line: the match count is never said over it', async ({ page }) => {
+        // The count is said once typing in the station box pauses (300 ms). Enter straight after typing opened the card,
+        // whose line was said, and then the count replaced it: "1 station to choose from: Amersham" (24-hour check).
+        await open(page);
+        const status = page.locator('#trStatus');
+        await page.locator('[data-view="stations"]').click();
+        await page.locator('#trStationInput').fill('amer');
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Amersham');
+        const line = /^Weekdays, London Marylebone to Amersham\. \S/;
+        await expect(status).toHaveText(line);
+        await page.evaluate(() => new Promise(r => setTimeout(r, 600)));   // past the pause
+        await expect(status).toHaveText(line);
+        // And a chip tapped inside the pause, the same.
+        await page.locator('#trStationChange').click();
+        await page.locator('#trStationInput').fill('chal');
+        await page.locator('#trStationPicks button[data-station]').first().click();
+        await expect(page.locator('#trStationTitle')).toHaveText('Chalfont & Latimer');
+        await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+        await expect(status).toHaveText(/^Weekdays, London Marylebone to Chalfont & Latimer\. \S/);
     });
 
     test('the time lookup answers once typing pauses: "5.15pm", typed, never shows 05:15', async ({ page }) => {

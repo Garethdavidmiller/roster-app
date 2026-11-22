@@ -1,5 +1,5 @@
 // @ts-check
-import { costsWithoutSpareCap, spareUnderneath, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
+import { costsWithoutSpareCap, spareUnderneath, rosteredSpareDay, spareWeekDays, SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 // admin-al-spare-note.js — the one sentence the AL booking preview says about Spare days.
 //
 // ── WHY A MODULE FOR ONE SENTENCE ──────────────────────────────────────────────────────────────
@@ -49,6 +49,12 @@ import { costsWithoutSpareCap, spareUnderneath, SPARE_WEEK_MAX_DAYS } from './al
 // cap reads, so the note and the count can never call one day two things (21 Nov 2026; it asked
 // `resolveEffectiveShift` before, which could not see a Spare day under leave already booked).
 //
+// …BUT THE CAP IS THE WEEK AS ROSTERED (owner, 22 Nov 2026), so the cap sentence counts every day the
+// booking holds in a base Spare week, assigned or not (`spareWeekDaysOf`, `rosteredSpareDay`): counted
+// over the still-Spare days alone, a week with one assigned day read "5 of these days are Spare days …
+// so they use 3 days" under a headline of 4. And a booking whose days are ALL assigned, where the cap
+// still frees one, says so too — it had no line, and "+ 1 day recorded at no cost" came with no reason.
+//
 // It is also written in the THIRD PERSON. A manager books leave on somebody else's behalf from this
 // same card, so "you're on standby" would be addressed to the wrong person half the time.
 
@@ -59,28 +65,41 @@ import { costsWithoutSpareCap, spareUnderneath, SPARE_WEEK_MAX_DAYS } from './al
  * @param {number} totalDays  how many days the booking covers, so a one-day booking can say
  *                            "This is…" rather than "1 of these days is…", which has no "these"
  *                            to be one of
- * @param {number} [charged]  how many of those Spare days the booking actually charges — fewer when
- *                            a Spare week reaches its four (`projectAlBooking`); omitted, all of them
+ * @param {number} [charged]  how many of the booking's Spare-WEEK days it actually charges, on balance —
+ *                            fewer when a Spare week reaches its four (`projectAlBooking`); omitted, all
+ * @param {{ days: number, weeks?: number }|null} [week] the booking's days in a Spare week as ROSTERED,
+ *                            assigned ones included (`spareWeekDaysOf`), and how many weeks they span —
+ *                            what `charged` is a share of. Omitted, the week is the Spare days alone.
  * @returns {string} plain text, no markup — the caller decides how to wrap it
  */
-export function spareShiftNote(spareCount, totalDays, charged = spareCount) {
-    if (!Number.isFinite(spareCount) || spareCount < 1) return '';
+export function spareShiftNote(spareCount, totalDays, charged = spareCount, week = null) {
+    const spare = Number.isFinite(spareCount) && spareCount > 0 ? spareCount : 0;
+    const inWeek = week && Number.isFinite(week.days) ? Math.max(week.days, spare) : spare;
+    if (inWeek < 1) return '';
 
     const MEANING = 'on standby, with the shift not yet assigned';
-    // A SPARE WEEK USES AT MOST FOUR (owner, 21 Nov 2026): when the booking's Spare days are more
+    // A SPARE WEEK USES AT MOST FOUR (owner, 21 Nov 2026): when the booking's Spare-week days are more
     // than its weeks charge, the note says the cap and the true figure — never "each still uses 1".
-    if (Number.isFinite(charged) && charged < spareCount) {
+    if (Number.isFinite(charged) && charged < inWeek) {
         const cap = `A Spare week uses at most ${SPARE_WEEK_MAX_DAYS} days of annual leave`;
-        if (spareCount === 1) {
-            const subject = totalDays === 1 ? 'This is a Spare day' : '1 of these days is a Spare day';
-            return `📋 ${subject} — ${MEANING}. ${cap}, and this week's ${SPARE_WEEK_MAX_DAYS} are already booked, so it uses none.`;
-        }
+        const several = (week?.weeks ?? 1) > 1;
+        // What the day IS: a Spare day while its shift is unassigned; otherwise only a day OF a Spare week,
+        // whose shift the roster has since given — still one of the week's four (owner, 22 Nov 2026).
+        const one = totalDays === 1;
+        const subject = spare === 1 ? `${one ? 'This is a Spare day' : '1 of these days is a Spare day'} — ${MEANING}.`
+            : spare > 1 ? `${spare} of these days are Spare days — ${MEANING}.`
+            : inWeek === 1 ? `${one ? 'This day is' : '1 of these days is'} in a Spare week, with its shift since assigned.`
+            : `${inWeek} of these days are in ${several ? 'Spare weeks' : 'a Spare week'}, with their shifts since assigned.`;
+        if (inWeek === 1) return `📋 ${subject} ${cap}, and this week's ${SPARE_WEEK_MAX_DAYS} are already booked, so it uses none.`;
         const uses = charged === 0 ? 'none' : `${charged} day${charged === 1 ? '' : 's'}`;
         // Fewer than four of them and still not all charged: the rest of the week's four were booked
         // earlier, and the note says so — a lower figure with no reason reads like a mistake.
-        const why = spareCount <= SPARE_WEEK_MAX_DAYS ? ', counting the days already booked that week' : '';
-        return `📋 ${spareCount} of these days are Spare days — ${MEANING}. ${cap}${why}, so they use ${uses}.`;
+        const why = inWeek <= SPARE_WEEK_MAX_DAYS ? `, counting the days already booked ${several ? 'in those weeks' : 'that week'}` : '';
+        // "They" while the days counted are the days named; with assigned days among them, the count is named.
+        const who = spare === 0 || spare === inWeek ? 'they' : `the ${inWeek} days booked in ${several ? 'those weeks' : 'that week'}`;
+        return `📋 ${subject} ${cap}${why}, so ${who} use ${uses}.`;
     }
+    if (spare < 1) return '';
     // The cost sentence is the point of the note and is never omitted or softened: it is the
     // question the old wording left open.
     if (spareCount === 1) {
@@ -115,7 +134,20 @@ export function countSpareDays(memberObj, dates, ovByDate) {
  */
 export function spareDaysOf(memberObj, dates, ovByDate) {
     if (!memberObj) return [];
-    // ONE "is this day Spare" (review, 21 Nov 2026): the cap's own `spareUnderneath`, which reads what a
-    // record replaced — so a day already on leave over a Spare day is counted here as the cap counts it.
+    // ONE "is this day Spare" (review, 21 Nov 2026): `spareUnderneath`, which reads what a record replaced —
+    // so a day already on leave over a Spare day is still called Spare, and an assigned one is not.
     return dates.filter(d => costsWithoutSpareCap(memberObj, d, ovByDate) && spareUnderneath(memberObj, d, ovByDate));
+}
+
+/**
+ * The booking's days that the Spare week's cap COUNTS — every day of a Spare week as the base roster has
+ * it that would cost on its own, assigned or not (`rosteredSpareDay`, owner 22 Nov 2026) — with how many
+ * weeks they span, so the note's cap sentence counts what the headline charges.
+ * @param {any} memberObj @param {string[]} dates @param {Map<string, any>|null} ovByDate
+ * @returns {{ dates: string[], weeks: number }}
+ */
+export function spareWeekDaysOf(memberObj, dates, ovByDate) {
+    if (!memberObj) return { dates: [], weeks: 0 };
+    const inWeek = dates.filter(d => costsWithoutSpareCap(memberObj, d, ovByDate) && rosteredSpareDay(memberObj, d));
+    return { dates: inWeek, weeks: new Set(inWeek.map(d => spareWeekDays(d)[0])).size };
 }

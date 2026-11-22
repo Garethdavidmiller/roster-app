@@ -41,7 +41,7 @@
 
 import { serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, routeKey, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
-import { REAL_DAY, WEEKDAYS, aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords } from './trains-weekdays.js';
+import { REAL_DAY, WEEKDAYS, aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords, daysCode } from './trains-weekdays.js';
 import { verdictFor } from './trains-verdict.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
@@ -399,6 +399,14 @@ export function stationTrains(nowRows, decRows, crs, dir, routes = compareRoutes
         listed.add(k);
         return true;
     });
+    // EVERY DECEMBER TRAIN ON EVERY WEEKDAY IT RUNS. A row runs on its current train's days, so December's 07:40
+    // from High Wycombe, paired (`uncross`) with a Tue-to-Thu train, was on no row on a Monday or Friday, which the
+    // card still counted (24-hour check, 22 Nov 2026). On the days nothing carries it, it is a new train there.
+    for (const d of decRows.filter(calls)) {
+        const missing = WEEKDAYS.filter(w => runsOn(d[3], w) && !once.some(s => s.dec === d[0] && s.decTo === d[1] && runsOn(s.days, w)));
+        if (missing.length) once.push({ now: null, dec: d[0], decTo: d[1], kind: 'new', shift: 0, days: daysCode(missing), via: d[2],
+            decAt: boardingTime(d, crs, dir), ...(dir === 'arr' ? { decIn: d[0] } : {}) });
+    }
     const at = (/** @type {StationTrain} */ s) => serviceMinutes(/** @type {string} */ (s.nowAt ?? s.decAt ?? s.now ?? s.dec));
     return once.sort((a, b) => at(a) - at(b));
 }

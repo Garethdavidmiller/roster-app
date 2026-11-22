@@ -18,12 +18,12 @@ import {
     stationView, busiestStations, matchStations, stoppingGrid, orderStations, pairColumns,
     boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
-import { aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords, WEEKDAYS, REAL_DAY } from './trains-weekdays.js';
+import { aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords, daysCode, WEEKDAYS, REAL_DAY } from './trains-weekdays.js';
 import { verdictFor, minutesWords, hourWords, hourNote, rateWords, balanceFacts, EDGE_SHIFT_MIN, JOURNEY_SHIFT_MIN } from './trains-verdict.js';
 import { headlineChanges } from './trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks,
     leadWords, changesTitle, renderFurtherChanges, SIGN_IN_ABOUT } from './trains-render.js';
-import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL, daysLabel, serviceMinutes } from './trains-change.js';
+import { changeLabel, timetablePhase, dateWords, JOURNEY_PLANNER_URL, daysLabel, serviceMinutes, parseTypedTime } from './trains-change.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { lastTrains } from './trains-stations.js';
 import { TIMETABLES, STATIONS, STATION_ORDER, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from './trains-data.js';
@@ -1245,6 +1245,17 @@ describe('the days a figure is true of, and the rest of what changed (external r
         for (const code of ['MFO', 'MFX', 'WO']) assert.equal(daysLabel(code), `${weekdayWords(WEEKDAYS.filter(d => runsOn(code, d)), { short: true })} only`, code);
     });
 
+    test('daysCode: some weekdays as a train\'s days — the books\' own code where one fits, else the days, which runsOn reads', () => {
+        // A station card lists a December train on the days nothing else carries it (`stationTrains`).
+        assert.deepEqual([daysCode(['Mon', 'Fri']), daysCode(['Tue', 'Wed', 'Thu']), daysCode(['Wed']), daysCode([...WEEKDAYS])], ['MFO', 'MFX', 'WO', '']);
+        const rest = daysCode(['Mon', 'Tue', 'Thu', 'Fri']);
+        assert.equal(rest, 'Mon Tue Thu Fri', 'no code names every weekday but Wednesday');
+        assert.deepEqual(WEEKDAYS.filter(d => runsOn(rest, d)), ['Mon', 'Tue', 'Thu', 'Fri']);
+        assert.equal(daysLabel(rest), 'Mon, Tue, Thu and Fri only');
+        assert.equal(daysLabel(daysCode(['Tue', 'Thu'])), 'Tue and Thu only');
+        assert.equal(daysLabel('XYZ'), '', 'a code nobody knows is no label');
+    });
+
     test('every day code in the books is one runsOn knows, and only a weekday table carries one', () => {
         for (const side of /** @type {const} */ (['now', 'dec'])) for (const day of /** @type {const} */ (['SX', 'SO', 'SU'])) for (const dir of /** @type {const} */ (['dep', 'arr'])) {
             for (const r of TIMETABLES[side][day][dir]) {
@@ -1462,17 +1473,67 @@ describe('the Trains review (Nov 2026): counts, pairings at the station, and the
         assert.ok(pairs > 1000, `premise: kept trains read (${pairs})`);
     });
 
+    test('every train calling at a station, today\'s and December\'s, is on its card once on every weekday it runs', () => {
+        // December's 07:40 from High Wycombe runs every weekday, and the swap that uncrossed it gave it to a Tuesday-to-
+        // Thursday train: on a Monday or Friday it was on no row of the card, whose sentence counted it (24-hour check,
+        // 22 Nov 2026). Read on each weekday, in both directions, for every station either timetable calls at.
+        const line = (/** @type {import('./trains-change.js').TrainRow} */ r) => `${r[0]} ${r[1]}`;
+        const sorted = (/** @type {string[]} */ xs) => [...xs].sort();
+        let checked = 0;
+        for (const d of DAYS) for (const dir of DIRS) {
+            const nowRows = TIMETABLES.now[d][dir], decRows = TIMETABLES.dec[d][dir];
+            const places = new Set([...nowRows, ...decRows].flatMap(callsOf));
+            for (const crs of places) {
+                const v = stationView(nowRows, decRows, crs, dir, { change: CHANGE_DATE });
+                if (!v.trains) {
+                    assert.ok(!v.ending || v.ending.through >= 0, `${d} ${dir} ${crs}: ${v.ending?.through} through`);
+                    continue;
+                }
+                for (const w of d === 'SX' ? WEEKDAYS : [REAL_DAY]) {
+                    const on = v.trains.filter(t => runsOn(t.days, w));
+                    const where = `${d} ${dir} ${crs} ${w}`;
+                    assert.deepEqual(sorted(on.filter(t => t.now).map(t => `${t.now} ${t.nowTo}`)),
+                        sorted(callingAt(onWeekday(nowRows, w), crs).map(line)), `${where}: today's trains`);
+                    assert.deepEqual(sorted(on.filter(t => t.dec).map(t => `${t.dec} ${t.decTo}`)),
+                        sorted(callingAt(onWeekday(decRows, w), crs).map(line)), `${where}: December's trains`);
+                    checked++;
+                }
+            }
+        }
+        assert.ok(checked > 400, `premise: station days read (${checked})`);
+    });
+
+    test('a December train left without a partner on some weekdays is listed on those days as new — High Wycombe, coming back', () => {
+        const hwy = stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'HWY', 'arr', { change: CHANGE_DATE });
+        const rows = (/** @type {import('./trains-weekdays.js').Weekday} */ w) => (hwy.trains ?? []).filter(t => runsOn(t.days, w) && t.decAt === '07:40')
+            .map(t => `${t.nowAt ?? '—'}>${t.decAt} ${changeLabel(t, STATIONS, 'arr', { withTime: false, here: 'HWY' })}`);
+        assert.deepEqual(rows('Tue'), ['07:33>07:40 7 mins later, will start here']);
+        assert.deepEqual(rows('Mon'), ['—>07:40 New train']);
+        assert.deepEqual(rows('Fri'), rows('Mon'));
+        // The card marks the row's days under the December time, as it does under today's for a train that has them.
+        const html = renderStation(hwy, { stations: STATIONS, dir: 'arr', showTrains: true, allTrains: true, started: false });
+        assert.match(html, /<\/td><td>07:40<span class="tr-days">Mon and Fri only<\/span>/);
+        // Its sentence is a Tuesday's, which the Monday-and-Friday row does not join.
+        assert.equal(hwy.verdict.text, 'Tuesday to Thursday, 2 more trains a day: 87, was 85.');
+    });
+
     test('two pairings cross only on a day both trains run, and a swap says what the train now is', () => {
         // Hand-made, leaving Marylebone: today's 10:00 to Oxford and 10:05 to High Wycombe both call at Gerrards
         // Cross; December's Oxford train is ten minutes later and its Wycombe one seven minutes earlier.
         const now = (/** @type {string} */ a, /** @type {string} */ b) => [row('10:00', 'OXF', '', a, 'GER1020 OXF1100'), row('10:05', 'HWY', '', b, 'GER1025 HWY1040')];
         const dec = [row('10:10', 'OXF', '', '', 'GER1030 OXF1110'), row('09:58', 'HWY', '', '', 'GER1018 HWY1033')];
-        const words = (/** @type {any[]} */ ts) => ts.map(t => `${t.nowAt}>${t.decAt} ${changeLabel(t, STATIONS, 'dep', { withTime: false })}`);
-        // A Mondays-and-Fridays train and a Tuesday-to-Thursday one never run on one day: nothing crosses.
-        assert.deepEqual(words(stationTrains(now('MFO', 'MFX'), dec, 'GER', 'dep')), ['10:00>10:10 10 mins later', '10:05>09:58 7 mins earlier']);
+        const words = (/** @type {any[]} */ ts) => ts.map(t => `${t.nowAt ?? '—'}>${t.decAt} ${changeLabel(t, STATIONS, 'dep', { withTime: false })}${t.days ? ` (${daysLabel(t.days)})` : ''}`);
+        // A Mondays-and-Fridays train and a Tuesday-to-Thursday one never run on one day: nothing crosses. And each
+        // December train, which runs every weekday, is new on the days its partner does not run.
+        assert.deepEqual(words(stationTrains(now('MFO', 'MFX'), dec, 'GER', 'dep')), ['—>09:58 New train (Mon and Fri only)',
+            '10:00>10:10 10 mins later (Mon and Fri only)', '10:05>09:58 7 mins earlier (Tue to Thu only)', '—>10:10 New train (Tue to Thu only)']);
         // Every day: uncrossed, each train goes where the other's December train goes.
         assert.deepEqual(words(stationTrains(now('', ''), dec, 'GER', 'dep')),
             ['10:00>09:58 2 mins earlier, will run to High Wycombe', '10:05>10:10 5 mins later, will run to Oxford']);
+        // Crossed on the days both run, Tuesday to Thursday (High Wycombe's 07:21 and 07:33, 24-hour check): swapped,
+        // and on a Monday or Friday the December train the swap gave the Tue-to-Thu train is listed, as new.
+        assert.deepEqual(words(stationTrains(now('', 'MFX'), dec, 'GER', 'dep')), ['10:00>09:58 2 mins earlier, will run to High Wycombe',
+            '10:05>10:10 5 mins later, will run to Oxford (Tue to Thu only)', '—>10:10 New train (Mon and Fri only)']);
     });
 
     test('no station card\'s train list names the card\'s own station: it says "here"', () => {
@@ -1637,10 +1698,13 @@ describe('the lookup and the cards as the words review read them (Nov 2026)', ()
         assert.doesNotMatch(renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'HWY', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: false }), /journey-planner/);
     });
 
-    // "5.15pm" passes through "5.15p", which is no time, so the box put up its hint and the live region read it.
-    test('a.m. or p.m. still being typed is recognised, for an hour that can take one', async () => {
+    // "5 pm" passes through "5 ", which is no time, so the box put up its hint and the live region read it. A tail begun
+    // ("5.15p") is a time now, answered as one: kept pending, it left the last answer up beneath it (24-hour check).
+    test('a.m. or p.m. still to come is recognised, for an hour that can take one — and a tail begun is a time', async () => {
         const { amPmPending } = await import('./trains-cards.js');
-        for (const v of ['5 ', '5.15 ', '5.15p', '5.15 p', '5.15p.', '515a', '12 ', '12p']) assert.equal(amPmPending(v), true, v);
-        for (const v of ['', '5', '5.', '5.1', '5.15', '5.15pm', '5.15 a.m.', '1715 ', '17:15p', '0.15 ', '13p', 'abc ']) assert.equal(amPmPending(v), false, v);
+        for (const v of ['5 ', '5.15 ', '515 ', '12 ', '12.15  ']) assert.equal(amPmPending(v), true, v);
+        for (const v of ['', '5', '5.', '5.1', '5.15', '5.15pm', '5.15 a.m.', '1715 ', '17:15p', '0.15 ', '13p', 'abc ',
+            '5.15p', '5.15 p', '5.15p.', '515a', '12p', '10.15p']) assert.equal(amPmPending(v), false, v);
+        for (const v of ['5.15p', '5.15 p', '5.15p.', '515a', '12p', '10.15p']) assert.ok(parseTypedTime(v), `${v} is answered as a time`);
     });
 });

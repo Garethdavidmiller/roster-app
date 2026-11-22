@@ -58,8 +58,9 @@ export const CARD_TIPS = {
                 // The preview is a COUNT and a span, not a list of days: never invite a check of what is not on screen.
                 { icon: '👀', html: 'Before you save you are told <strong>how many days of leave</strong> the range uses and the dates it spans. Sundays are never in that count; a rest day is in it only where you have said it was a swapped working day. Check the number against what you meant to book.' },
                 // Owner, 21 Nov 2026: a Spare week (CEA and CES) uses at most four days of leave (SPARE_WEEK_MAX_DAYS,
-                // al-entitlement.js) — a whole week, and a part week past its fourth day, alike.
-                { icon: '📋', html: 'A <strong>Spare</strong> day — on standby, shift not yet assigned — uses one day of leave. For a CEA or CES a Spare week never uses more than <strong>4</strong>: a whole Spare week off uses 4 days, not 6, and a fifth or sixth day in that week uses none. A Dispatcher’s Spare days use one each.' },
+                // al-entitlement.js) — a whole week, and a part week past its fourth day, alike — and owner, 22 Nov
+                // 2026: the week as rostered, so days the roster upload has given shifts are in the four too.
+                { icon: '📋', html: 'A <strong>Spare</strong> day — on standby, shift not yet assigned — uses one day of leave. For a CEA or CES a Spare week never uses more than <strong>4</strong>: a whole Spare week off uses 4 days, not 6, and a fifth or sixth day in that week uses none — even when the roster has since given some of its days a shift. A Dispatcher’s Spare days use one each.' },
                 { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
                 { icon: '🗓️', html: 'Leave in <strong>January</strong> comes out of that year’s allowance. When some is booked, a <strong>Which year’s allowance</strong> panel appears under the Record button, and a day can come out of the year before instead, while that year still has days left.' },
                 // christmas-leave.js: both days are skipped by the range (admin-al.js names them in the preview), a member

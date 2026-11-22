@@ -2919,7 +2919,9 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.locator('.ot-submit').click();
         await expect(page.locator('.ot-feedback')).toContainText('Saving');
         await page.locator('[data-openweek="2026-09-12"]').click();
-        await page.getByRole('button', { name: 'Leave without saving', exact: true }).click();
+        // Another week is a move within the page, so the in-page question, not the leave one (review, 22 Nov 2026).
+        await expect(page.getByText('Discard your unsaved changes?', { exact: true })).toBeVisible();
+        await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
         await expect(page.locator('.ot-form-week')).toContainText('12 September 2026');
         await expect(page.locator('.ot-back-to-list')).toBeVisible();
         release();
@@ -2948,7 +2950,7 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
             expect(await armed(), 'the answer on screen is guarded').toBe(true);
             await hold(true);
             await leave();
-            await page.getByRole('button', { name: 'Leave without saving', exact: true }).click();
+            await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
             await expect(page.locator('#otMineContent')).toContainText('Loading your roster');
             expect(await armed(), 'left by choice, so nothing is guarded while the next form loads').toBe(false);
             await hold(false);

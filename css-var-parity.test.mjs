@@ -178,3 +178,88 @@ test('the extraction sees declarations, uses, fallbacks, JS-set tokens and the s
         html: '', sheets: { 'x.css': '/* var(--navy) */ :root{--a:1} b{c:var(--a)}' }, jsTokens: new Set(),
     }), []);
 });
+
+// ── A DYNAMIC-VIEWPORT TOKEN CARRIES ITS OWN FALLBACK (v26.53) ─────────────────────────────────
+// v26.52 moved every overlay cap to `max-height: 86vh; max-height: var(--modal-max-h);` with the
+// token set to `86dvh`. The `86vh` line looked like a fallback and was not one: a declaration that
+// holds a `var()` always parses, so it replaces the line above it, and where `dvh` is unknown
+// (Chrome and Android WebView before 108) the token is invalid at computed-value time and the cap
+// computes to `none`. So a token whose value uses a dynamic viewport unit (dvh/svh/lvh and their
+// width and logical twins) must be declared ONLY inside an `@supports` block that tests the unit,
+// and must also be declared, in the same file, with a value that uses none of them.
+
+const DYNAMIC_UNIT = /\d(?:[dsl]v(?:h|w|i|b|min|max))\b/;
+
+/**
+ * Every `@supports` block's body span, by brace matching.
+ * @param {string} css comment-stripped
+ * @returns {{ start: number, end: number, condition: string }[]}
+ */
+export function supportsBlocks(css) {
+    const out = [];
+    for (const m of css.matchAll(/@supports\s+([^{]*)\{/g)) {
+        let depth = 1;
+        let i = /** @type {number} */ (m.index) + m[0].length;
+        const start = i;
+        for (; i < css.length && depth > 0; i++) {
+            if (css[i] === '{') depth++;
+            else if (css[i] === '}') depth--;
+        }
+        out.push({ start, end: i, condition: m[1] });
+    }
+    return out;
+}
+
+/**
+ * The dynamic-viewport tokens in one stylesheet that have no working fallback.
+ * @param {string} rawCss
+ * @param {string} file
+ * @returns {string[]}
+ */
+export function dynamicViewportTokenProblems(rawCss, file) {
+    const css = stripCss(rawCss);
+    const blocks = supportsBlocks(css);
+    /** @type {Map<string, { dynamic: number[], plain: boolean }>} */
+    const seen = new Map();
+    const problems = [];
+    for (const m of css.matchAll(/(--[\w-]+)\s*:\s*([^;}]*)/g)) {
+        const name = m[1];
+        const entry = seen.get(name) ?? { dynamic: [], plain: false };
+        seen.set(name, entry);
+        if (!DYNAMIC_UNIT.test(m[2])) { entry.plain = true; continue; }
+        const at = /** @type {number} */ (m.index);
+        const guarded = blocks.some((b) => at >= b.start && at < b.end && DYNAMIC_UNIT.test(b.condition));
+        if (!guarded) {
+            problems.push(`${file}: ${name}: ${m[2].trim()} is declared outside an @supports block that ` +
+                `tests the unit — in a browser without it every var(${name}) computes to the property's ` +
+                `initial value (for max-height, none), and a plain-unit line above the var() does not help.`);
+        }
+        entry.dynamic.push(at);
+    }
+    for (const [name, e] of seen) {
+        if (e.dynamic.length && !e.plain) {
+            problems.push(`${file}: ${name} has no declaration without a dynamic viewport unit, so a ` +
+                `browser without one has no value for it at all.`);
+        }
+    }
+    return problems;
+}
+
+test('a token defined with a dynamic viewport unit (dvh, svh, lvh…) degrades where the unit is unknown', () => {
+    const problems = rootFiles('.css').flatMap((f) => dynamicViewportTokenProblems(read(f), f));
+    assert.deepEqual(problems, [], '\n' + problems.join('\n'));
+
+    // The guard is not vacuous: shared.css's cap is the case it exists for.
+    const shared = stripCss(read('shared.css'));
+    assert.match(shared, /--modal-max-h\s*:\s*86vh/, 'the --modal-max-h fallback declaration has gone');
+    assert.ok(supportsBlocks(shared).some((b) => /--modal-max-h\s*:\s*86dvh/.test(shared.slice(b.start, b.end))),
+        'the @supports half of --modal-max-h has gone — the cap no longer follows the dynamic viewport');
+
+    // The v26.52 shape, replayed, fails both ways; the fixed shape passes.
+    assert.equal(dynamicViewportTokenProblems(':root{--cap:86dvh} .p{max-height:86vh;max-height:var(--cap)}', 'x.css').length, 2);
+    assert.deepEqual(dynamicViewportTokenProblems(
+        ':root{--cap:86vh} @supports (height: 1dvh) { :root { --cap: 86dvh; } }', 'x.css'), []);
+    // An @supports block that tests something else does not count.
+    assert.equal(dynamicViewportTokenProblems(
+        ':root{--cap:86vh} @supports (display: grid) { :root { --cap: 86dvh; } }', 'x.css').length, 1);
+});

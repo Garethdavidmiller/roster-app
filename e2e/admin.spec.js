@@ -393,8 +393,8 @@ async function openAdminOnDecember(page) {
 }
 
 // THE KEYBOARD IS NOT LEFT ON <body> WHEN A BAR GOES FROM UNDER IT (review, 21 Nov 2026). The sticky
-// bar's Save and the unsaved banner's "Leave without saving" both hid the very button that was pressed.
-test('admin: after the sticky bar\'s Save, and after the banner\'s "Leave without saving", focus is somewhere real', async ({ page }) => {
+// bar's Save and the unsaved banner's "Discard changes" both hid the very button that was pressed.
+test('admin: after the sticky bar\'s Save, and after the banner\'s "Discard changes", focus is somewhere real', async ({ page }) => {
     await openAdminOnDecember(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.authUser = true; });
     const absent = () => page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="sick"]:not([disabled])') }).first();
@@ -408,6 +408,13 @@ test('admin: after the sticky bar\'s Save, and after the banner\'s "Leave withou
     await page.locator('#nextWeekBtn').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#unsavedBanner')).toBeVisible();
+    // Another week is a move WITHIN the page: the member leaves nothing, so it is not the leave question
+    // (review, 22 Nov 2026) — and "Keep editing" is still the safe answer, with the focus.
+    await expect(page.getByRole('alertdialog', { name: 'Discard your unsaved changes?' })).toBeVisible();
+    await expect(page.locator('#unsavedBannerMsg')).toHaveText('Discard your unsaved changes? They will be lost if you move on now.');
+    await expect(page.locator('#unsavedDiscardBtn')).toHaveText('Discard changes');
+    await expect(page.locator('#unsavedKeepBtn')).toHaveText('Keep editing');
+    await expect(page.locator('#unsavedKeepBtn')).toBeFocused();
     await page.locator('#unsavedDiscardBtn').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#unsavedBanner')).toBeHidden();
@@ -4219,7 +4226,7 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
     await page.locator('#bulkApplyBtn').click();
     // Also reveal the per-row "Other" sub-controls (flavour chips + optional times) on a
     // weekday row — the most width-hungry revealed control set, now reached only per-row.
-    // Not a Sunday or Boxing Day row: there Other offers Spare alone, which hides the times (admin-day-pills.js).
+    // Not a Sunday row: there Other offers Spare alone, which hides the times (admin-day-pills.js).
     const otherPill = page.locator('.day-row:not([data-spare-only="1"]) .pill-other:not([disabled])').first();
     if (await otherPill.count()) await otherPill.click();
     await page.waitForTimeout(200);
@@ -4244,7 +4251,7 @@ test('admin: the Other submenu\'s chips and tick clear the 24px tap floor on tou
     await seedSession(page);
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    // Not a Sunday or Boxing Day row: Other presses Spare there, which hides the RDW tick measured below.
+    // Not a Sunday row: Other presses Spare there, which hides the RDW tick measured below.
     const row = page.locator('.day-row:not([data-spare-only="1"])').filter({ has: page.locator('.pill-other:not([disabled])') }).first();
     // A row's pills are offered once its day is ticked.
     await row.locator('.day-cb').check();
@@ -5009,6 +5016,100 @@ test('admin: booking a whole Spare week off previews four days, and says why', a
     await expect(preview).toContainText('6 of these days are Spare days');
     await expect(preview).toContainText('A Spare week uses at most 4 days of annual leave, so they use 4 days.');
     await expect(preview).not.toContainText('Each still uses 1 day');
+});
+
+// ONE DAY OF A SPARE WEEK WHOSE FOUR ARE ALREADY BOOKED (review, 22 Nov 2026). The Monday is the week's
+// first, so it takes one of the four and the Saturday stops costing: the balance does not move. The
+// headline said "No days" while the Spare line said "It still uses 1 day", and the receipt said
+// "Recorded 0 days" of a day it had written. All three now say the day is recorded at no cost, and why.
+/** The first CEA or CES Monday-to-Saturday Spare week inside one month in the next 200 days, found from the
+ *  roster in Node — never by name, and before the page loads, so saved leave can be seeded into its first
+ *  load (a save's receipt needs the session that load establishes). */
+function nextSpareWeek() {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const pick = teamMembers.map(m => {
+        if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) return null;
+        for (let i = 1; i <= 200; i++) {
+            const mon = new Date(today); mon.setDate(mon.getDate() + i);
+            if (mon.getDay() !== 1) continue;
+            const week = Array.from({ length: 6 }, (_, k) => { const d = new Date(mon); d.setDate(d.getDate() + k); return d; });
+            if (week[5].getMonth() !== mon.getMonth()) continue;
+            if (!week.every(d => getBaseShift(m, d) === 'SPARE' && !isBankHoliday(d))) continue;
+            return { name: m.name, week: week.map(d => formatISO(d)),
+                monthsAhead: (mon.getFullYear() - today.getFullYear()) * 12 + (mon.getMonth() - today.getMonth()) };
+        }
+        return null;
+    }).find(Boolean);
+    expect(pick, 'no CEA/CES member has a whole Spare week inside one month in the next 200 days').toBeTruthy();
+    return /** @type {any} */ (pick);
+}
+
+/** Open Admin on `p`'s leave card at its Spare week, with `docs` saved, and pick `from`–`to`.
+ *  @param {import('@playwright/test').Page} page @param {any} p @param {any[]} docs @param {string} from @param {string} to */
+async function bookInSpareWeek(page, p, docs, from, to) {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((rows) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true, docs: rows });
+    }, docs);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
+    await page.locator(`#alRpGrid .rp-day[data-iso="${from}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${to}"]`).click();
+}
+
+test('admin: booking one day of a Spare week whose four are booked says it costs nothing, and why', async ({ page }) => {
+    const p = nextSpareWeek();
+    // Wednesday to Saturday already booked: four days, the week's whole cost.
+    const docs = p.week.slice(2).map((/** @type {string} */ date, /** @type {number} */ i) =>
+        ({ id: `sw${i}`, memberName: p.name, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    await bookInSpareWeek(page, p, docs, p.week[0], p.week[0]);
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('No days of Annual Leave');
+    await expect(preview).toContainText('1 day recorded at no cost');
+    await expect(preview).toContainText('This is a Spare day');
+    await expect(preview).toContainText('this week\'s 4 are already booked, so it uses none.');
+    await expect(preview).not.toContainText('It still uses 1 day');
+
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect(page.locator('#alFeedback')).toContainText(
+        `Recorded 1 day of Annual Leave for ${p.name} at no cost — this Spare week’s 4 days were already booked`, { timeout: 10000 });
+    await expect(page.locator('#alFeedback')).not.toContainText('Recorded 0 days');
+});
+
+// THE SPARE LINE COUNTS THE WEEK AS ROSTERED, AS THE HEADLINE DOES (owner, 22 Nov 2026). A week the roster
+// upload had partly assigned read "5 of these days are Spare days … so they use 3 days" under "4 days",
+// because the line counted only the days still Spare while the cap counts the whole week.
+test('admin: a partly assigned Spare week booked whole — the Spare line\'s figure is the headline\'s', async ({ page }) => {
+    const p = nextSpareWeek();
+    const tue = { id: 'ri1', memberName: p.name, date: p.week[1], type: 'shift', value: '06:00-14:00', note: '', source: 'roster_import' };
+    await bookInSpareWeek(page, p, [tue], p.week[0], p.week[5]);
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('4 days of Annual Leave');
+    await expect(preview).toContainText('5 of these days are Spare days');
+    await expect(preview).toContainText('A Spare week uses at most 4 days of annual leave, so the 6 days booked in that week use 4 days.');
+    await expect(preview).not.toContainText('use 3 days');
+});
+
+// …AND A DAY THE ROSTER HAD ASSIGNED, FREED BY THE CAP, SAYS WHY (owner, 22 Nov 2026): the preview said
+// "+ 1 day recorded at no cost" with no line, because the day was not a Spare day any more.
+test('admin: one assigned day of a Spare week whose four are booked says why it costs nothing', async ({ page }) => {
+    const p = nextSpareWeek();
+    const docs = [
+        { id: 'ri1', memberName: p.name, date: p.week[0], type: 'shift', value: '06:00-14:00', note: '', source: 'roster_import' },
+        ...p.week.slice(2).map((/** @type {string} */ date, /** @type {number} */ i) =>
+            ({ id: `sw${i}`, memberName: p.name, date, type: 'annual_leave', value: 'AL', replacedType: 'shift', note: '', source: 'manual' })),
+    ];
+    await bookInSpareWeek(page, p, docs, p.week[0], p.week[0]);
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('No days of Annual Leave');
+    await expect(preview).toContainText('1 day recorded at no cost');
+    await expect(preview).toContainText('This day is in a Spare week, with its shift since assigned. A Spare week uses at most 4 days of annual leave, and this week\'s 4 are already booked, so it uses none.');
+    await expect(preview).not.toContainText('on standby');
 });
 
 // OWNER-REPORTED (v24.44): a Spare week that a roster upload had turned into real shifts was still

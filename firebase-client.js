@@ -370,8 +370,13 @@ export const whenOwnWritesSent = (ms) => ownWritesSent(() => waitForPendingWrite
 /** How long the staff PIN's unsent writes get to leave before it is signed out (22 Nov 2026). */
 export const VIEWER_WRITES_GRACE_MS = 2000;
 /**
- * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT (22 Nov 2026). Every sign-out of the viewer
- * awaits this first. A viewer write still queued when it was signed out (its page views, speed
+ * LET THE STAFF PIN'S WRITES GO BEFORE IT IS SIGNED OUT (22 Nov 2026). Each sign-out that ends the
+ * PIN for a member awaits this first: End staff PIN (`lockCalendar`, calendar-access.js;
+ * `signOutStaffPin`, session.js), a member signing in over it (`shedCalendarViewer`, viewer-shed.js)
+ * and the expired-identity reconcile (session.js). Two kinds do NOT: `clearSession()`, and the unlock
+ * path's own sign-outs (calendar-access.js) — harmless there: the viewer has ONE fixed account, which
+ * either signs straight back in, so the queue is its own again, or has only just signed in and has
+ * queued nothing. A viewer write still queued when it was signed out (its page views, speed
  * samples) stays in Firestore's on-device queue until the viewer signs in again — and the SDK's
  * `waitForPendingWrites` for the next member WAITS ON IT (its IndexedDB queue looks up the highest
  * unsent batch, `getHighestUnacknowledgedBatchId`, without bounding it to the signed-in account:
@@ -637,8 +642,9 @@ export async function getPasswordStatus(memberName) {
  * @param {string} memberName
  * @param {number} timeoutMs  for the two requests together
  * @returns {Promise<number|null|'credential'|'throttled'>} ms (0 = never reset); null = could not be
- *   confirmed; 'credential' = password rejected (the ordinary sign-in fails and handles it);
- *   'throttled' = Google's rate limit, which the caller does NOT retry
+ *   confirmed; 'credential' = the sign-in was REFUSED (`isRestCredentialRejection`: a wrong password,
+ *   and also no such account and a disabled one) — the caller STOPS there, without the SDK sign-in,
+ *   and remembers it (session.js); 'throttled' = Google's rate limit, which the caller does NOT retry
  */
 export async function probeResetAtMs(email, password, memberName, timeoutMs) {
     const deadline = Date.now() + timeoutMs;

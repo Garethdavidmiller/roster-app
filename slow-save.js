@@ -221,8 +221,10 @@ export function trackHiddenTime({ isHidden = _pageHidden, subscribe = _onVisibil
  *
  * WHICH WAITS: those that END inside the save's span, not those that start in it. The wait is the
  * first thing a checked save does, synchronously, while its promise is being built — BEFORE it is
- * handed to withSlowSaveNotice — so a start-based match would miss the very wait it is for. Two
- * saves at once can each hear the other's wait; the summary is a diagnostic, and says how many.
+ * handed to withSlowSaveNotice — so a start-based match would miss the very wait it is for. THE
+ * PRICE: when two saves overlap, each hears the other's wait too, so the reported wait can be the
+ * OTHER save's, and `count` is the number of waits heard in the span — not a number of saves. The
+ * summary is a diagnostic; read a count above one as "another save overlapped".
  *
  * THE SUMMARY: a wait that RAN OUT wins (the longest of them), because it alone puts eight seconds
  * into a save; otherwise the longest. `count` is how many ended in the span. `null` when none did —

@@ -189,11 +189,14 @@ describe('looking up a time', () => {
         for (const [typed, want] of [['17:15', '17:15'], ['1715', '17:15'], ['715', '07:15'], ['7.05', '07:05'], [' 9:30 ', '09:30'],
             // …and the way people SAY one (v24.79): an a.m./p.m. tail decides the half of the day.
             ['5.15pm', '17:15'], ['515pm', '17:15'], ['5:15 pm', '17:15'], ['5pm', '17:00'], ['7am', '07:00'],
-            ['12pm', '12:00'], ['12am', '00:00'], ['12.30am', '00:30'], ['9.05 a.m.', '09:05'], ['17 15', '17:15'], ['17.15', '17:15']]) {
+            ['12pm', '12:00'], ['12am', '00:00'], ['12.30am', '00:30'], ['9.05 a.m.', '09:05'], ['17 15', '17:15'], ['17.15', '17:15'],
+            // …or write one short (24-hour check, Nov 2026): refused, "5.15p" left a 05:15 answer up beneath it.
+            ['5.15p', '17:15'], ['5.15a', '05:15'], ['12.15a', '00:15'], ['12.15p', '12:15'], ['515a', '05:15'], ['10.15p', '22:15'],
+            ['5.15 p', '17:15'], ['5.15p.', '17:15'], ['5p', '17:00'], ['12a', '00:00']]) {
             assert.equal(parseTypedTime(typed), want, typed);
         }
         // A bare hour needs am or pm ("5" is 05:00 to a parser and 17:00 to the person); "13pm" is nobody's time.
-        for (const bad of ['', '25:00', '17:60', 'noon', '1', '17:1', '5', '13pm', '0pm', '17:15pm', 'pm', '5.15xm']) assert.equal(parseTypedTime(bad), null, bad);
+        for (const bad of ['', '25:00', '17:60', 'noon', '1', '17:1', '5', '13pm', '0pm', '17:15pm', 'pm', '5.15xm', '17:15p', '13p', 'p', 'a.', '5.15ap', '5.15amp']) assert.equal(parseTypedTime(bad), null, bad);
     });
 
     test('trainsNear returns both timetables within the window, in time order', () => {

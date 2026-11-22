@@ -12,7 +12,7 @@
 import { serviceMinutes, compareRoutes } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
 import { callsOf, decemberKnown, endingAt, summarise, lineOf, stationTrains } from './trains-stations.js';
-import { aRealDay, onWeekday, WEEKDAYS } from './trains-weekdays.js';
+import { aRealDay, onWeekday, runsOn, WEEKDAYS } from './trains-weekdays.js';
 import { hourChanged, sameRegularity, rateWords, minutesWords, andList, EDGE_SHIFT_MIN } from './trains-verdict.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
@@ -52,9 +52,12 @@ export function headlineChanges(nowRows, decRows, stations) {
     // Thursday partner, are one train — counted twice, they put Haddenham's weekday at 44 trains.
     // The days a fold must hold on: each weekday, its exceptions settled, where the rows have any — a
     // headline names no day, so a station joins another's sentence only if its trains are that
-    // station's on every one of them (see `sig` below). One day where they have none.
+    // station's on every one of them (see `sig` below). One day where they have none — and each set of trains read
+    // once: a Monday runs the trains a Friday does, and read on all five days the list took half as long again.
+    const runs = (/** @type {typeof WEEKDAYS[number]} */ d) => [...nowRows, ...decRows].map(r => runsOn(r[3], d) ? 1 : 0).join('');
     const days = [...nowRows, ...decRows].some(r => r[3])
-        ? WEEKDAYS.map(d => [onWeekday(nowRows, d), onWeekday(decRows, d)]) : [[nowRows, decRows]];
+        ? WEEKDAYS.filter((d, i) => WEEKDAYS.findIndex(e => runs(e) === runs(d)) === i).map(d => [onWeekday(nowRows, d), onWeekday(decRows, d)])
+        : [[nowRows, decRows]];
     const paired = days.map(([n, d]) => compareRoutes(n, d));
     nowRows = aRealDay(nowRows);
     decRows = aRealDay(decRows);

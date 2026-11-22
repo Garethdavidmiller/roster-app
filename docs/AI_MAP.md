@@ -537,7 +537,7 @@ A member's CONTRACT leave allowance for a year: the grade that decides it ("role
 
 ### `al-entitlement.js`
 Which annual-leave days spend a member's allowance (a CEA's or CES's Spare week at most `SPARE_WEEK_MAX_DAYS`), and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
-- **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
+- **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 The leave file: the one contract between Stage 1 (`scripts/make-leave-file.mjs`, a session reading the clerks' workbook) and Stage 2 (the Operations card) — what a valid file is, and the seal that proves it is the file that was made (docs/AL_UPLOADER_PLAN.md §3). Pure, with no app import, so it loads in Node and the browser; refusals are returned, never thrown. Tested by `al-leave-file.test.mjs`.
@@ -596,7 +596,7 @@ The Trains page (`trains.html`): what changes at Marylebone when the December 20
 - **Exports of `trains-cards.js`:** `DEC_STOPS_KNOWN` · `phase` · `LAST_STATION_KEY` · `renderOverview` · `renderChanges` · `renderPattern` · `renderStationPicks` · `renderLast` · `renderStationCard` · `amPmPending` · `renderLookup` · `setText` · `el`
 - **Exports of `trains-change.js`:** `MAX_SHIFT_MIN` · `MAX_REROUTE_MIN` · `LINES` · `lineDepth` · `PATTERN_HOURS` · `serviceMinutes` · `routeKey` · `alignTimes` · `foldWeekdayVariants` · `compareRoutes` · `relinkAcrossRoutes` · `NEAR_WINDOW_MIN` · `trainsNear` · `parseTypedTime` · `railwayToday` · `daysUntil` · `minsWords` · `changeLabel` · `timetablePhase` · `dateWords` · `monthWords` · `holidaysWithin` · `daysLabel` · `routeName` · `JOURNEY_PLANNER_URL`
 - **Exports of `trains-stations.js`:** `boardingTime` · `parseStops` · `stopsKnown` · `callsOf` · `lineOf` · `callingAt` · `endingAt` · `knowableWithoutStops` · `decemberKnown` · `summarise` · `stationView` · `stationTrains` · `stopChanges` · `busiestStations` · `matchStations` · `stationBands` · `stoppingGrid` · `orderStations` · `pairColumns` · `lastTrains`
-- **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
+- **Exports of `trains-weekdays.js`:** `WEEKDAYS` · `REAL_DAY` · `runsOn` · `daysCode` · `aRealDay` · `onWeekday` · `weekdayGroups` · `weekdayWords`
 - **Exports of `trains-verdict.js`:** `EDGE_SHIFT_MIN` · `JOURNEY_SHIFT_MIN` · `verdictFor` · `balanceFacts` · `hourChanged` · `rateWords` · `sameRegularity` · `hourWords` · `hourNote` · `minutesWords` · `andList`
 - **Exports of `trains-headlines.js`:** `headlineChanges`
 - **Exports of `trains-render.js`:** `DAY_NAMES` · `DAYTIME` · `changesTitle` · `leadWords` · `renderFurtherChanges` · `SIGN_IN_ABOUT` · `renderHeadlines` · `endWords` · `renderStation` · `renderGrid` · `renderTotals` · `renderPicks` · `renderLookup` · `renderLastTrains`
@@ -678,7 +678,7 @@ What ONE week-grid save does about the annual leave in it — the batch to write
 
 ### `admin-al-spare-note.js`
 The one sentence the Annual Leave booking preview says about Spare days, and the days that are still Spare and cost a day. A day is a day (owner decision): a Spare day costs one, and a CEA's or CES's Spare week at most four, which the note then says (header). Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
-- **Exports:** `spareShiftNote` · `countSpareDays` · `spareDaysOf`
+- **Exports:** `spareShiftNote` · `countSpareDays` · `spareDaysOf` · `spareWeekDaysOf`
 
 ### `admin-period-dates.js`
 What a run of booked dates is and what it reads as: the pure helpers the Recorded-dates lists are built from, the names a refused save gives its days (`namedDays`), and `formatDisplay`. The rule worth knowing — a gap is not the same as a day off (`isRestGap`) — is in the header. Tested by `admin-period-dates.test.mjs`.
@@ -973,7 +973,7 @@ The pure write-safety rules, every dependency injected: one refresh-and-retry fo
 
 ### `page-session.js`
 How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
-- **Exports:** `LEAVE_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
+- **Exports:** `LEAVE_QUESTION` · `DISCARD_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page; a swipe back asks nothing) and offered to the same member on the next load. Its six rules are the header: never applied silently, never across members, a mirror of the unsaved state at the last hide that deletes only its own copy, a day then gone, a draft is work and not a decision, and work a save has since landed is not unsaved. Written through `keepDraftWhenHidden` (`page-session.js`); used by Admin and Links. Tested in `page-session.test.mjs`.

@@ -14,7 +14,8 @@ import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
-import { spareShiftNote, spareDaysOf } from './admin-al-spare-note.js';
+import { spareShiftNote, spareDaysOf, spareWeekDaysOf } from './admin-al-spare-note.js';
+import { SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 
 const esc = escapeHtml;
 
@@ -23,11 +24,21 @@ const esc = escapeHtml;
  * were already leave, so not new (the preview's own count, renderReady); `free` written at no cost.
  * "Recorded 5 days" over three already booked said 5 where the balance fell by 2.
  * @param {number} n @param {string} m @param {number} held @param {number} [free]
+ * @param {number} [capFreed] how many of `free` are free because their Spare week's four were already
+ *        booked (`projectAlBooking`) — the reason a save that charged nothing still wrote a day
  */
-function recordedWords(n, m, held, free = 0) {
+function recordedWords(n, m, held, free = 0, capFreed = 0) {
     // Days recorded at no cost are named as the preview names them (21 Nov 2026): "Recorded 6 days"
     // over a Spare week the preview had called "4 days (+ 2 days recorded at no cost)" contradicted it.
     const noCost = free > 0 ? `${free} day${free > 1 ? 's' : ''} at no cost` : '';
+    // NOTHING CHARGED IS NOT NOTHING RECORDED (review, 22 Nov 2026). The Monday of a Spare week whose
+    // other four days were booked is written and costs nothing on balance, and "Recorded 0 days of
+    // Annual Leave" said no day was written. It says what was written, at no cost, and — when the
+    // Spare week is the whole reason — why, in the words the preview's Spare line uses.
+    if (!held && n === 0 && free > 0) {
+        const why = capFreed === free ? ` — this Spare week’s ${SPARE_WEEK_MAX_DAYS} days were already booked` : '';
+        return `Recorded ${free} day${free > 1 ? 's' : ''} of Annual Leave for ${m} at no cost${why}`;
+    }
     if (!held) return `Recorded ${n} day${n !== 1 ? 's' : ''} of Annual Leave for ${m}${noCost ? ` (+ ${noCost})` : ''}`;
     const fresh = n - held;
     return `${fresh ? `Recorded ${fresh} new day${fresh > 1 ? 's' : ''} of Annual Leave` : 'No new days of Annual Leave'} for ${m} (${[`${held} already booked`, noCost].filter(Boolean).join(', ')})`;
@@ -134,8 +145,14 @@ export function initALSection({
     function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, projection, sundays = [], sundayNote = '' }) {
         // A day that is STILL Spare — not one a roster upload has since assigned (admin-al-spare-note.js).
         const spareDays = spareDaysOf(memberObj, dates, memberOvByDate);
-        // …and how many of them it CHARGES: a Spare week stops costing at four (owner, 21 Nov 2026).
-        const spareCharged = spareDays.filter(d => projection.consuming.includes(d)).length;
+        // …the days of a Spare week AS ROSTERED, assigned ones included — what the week's cap counts
+        // (owner, 22 Nov 2026), so the note's figure is the headline's…
+        const spareWeek = spareWeekDaysOf(memberObj, dates, memberOvByDate);
+        // …and how many of those it CHARGES: a Spare week stops costing at four (owner, 21 Nov 2026) — on
+        // BALANCE (review, 22 Nov 2026): a day charged that frees a day of the week already booked
+        // (`capFreed`) costs nothing, and the note said "It still uses 1 day" under "No days".
+        const capFreed = projection.capFreed ?? 0;
+        const spareCharged = Math.max(0, spareWeek.dates.filter(d => projection.consuming.includes(d)).length - capFreed);
         const c = projection.counts;
         // DAYS THAT ALREADY HOLD LEAVE ARE NOT NEW DAYS (review, Nov 2026). The save writes them again,
         // at the cost they already had, so "5 days" over three days already booked was booked where the
@@ -166,7 +183,8 @@ export function initALSection({
             // A Dispatcher's worked bank holiday is the same, and its leave is NOT free (7 Nov 2026
             // review), so only a lieu day that is also free comes out of "at no cost".
             const lieuDays = /** @type {string[]} */ (projection.lieuLost ?? []);
-            const free = projection.freeWritten.filter(/** @param {string} d */ d => !lieuDays.includes(d) && !held.has(d)).length;
+            // …and a new day charged that only moves the week's four (`capFreed`), which is free on balance.
+            const free = projection.freeWritten.filter(/** @param {string} d */ d => !lieuDays.includes(d) && !held.has(d)).length + capFreed;
             if (free > 0) parts.push(`${free} day${free > 1 ? 's' : ''} recorded at no cost`);
             if (lieuDays.length) parts.push(lieuGoesWords(lieuDays));
             // Christmas Day and Boxing Day are named as themselves (v25.37): never counted, and for a
@@ -191,7 +209,8 @@ export function initALSection({
         // Wording, and why a Spare day costs one and a Spare week at most four: admin-al-spare-note.js's header.
         // Upright, not italic (review, 21 Nov 2026): it is information to read, and a whole italic
         // sentence on a phone is the hardest line on the card to read.
-        const noteText  = isSpareRole ? spareShiftNote(spareDays.length, dates.length, spareCharged) : '';
+        const noteText  = isSpareRole
+            ? spareShiftNote(spareDays.length, dates.length, spareCharged, { days: spareWeek.dates.length, weeks: spareWeek.weeks }) : '';
         const spareNote = noteText ? `<br>${esc(noteText)}` : '';
         return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }
@@ -211,8 +230,8 @@ export function initALSection({
             : null,
         renderReady,
         // A day that already held leave is written again but is not a new day (renderReady says why).
-        successFeedback: (n, m, held = 0, free = 0) => `✓ ${recordedWords(n, m, held, free)}`,
-        successToast:    (n, m, held = 0, free = 0) => recordedWords(n, m, held, free),
+        successFeedback: (n, m, held = 0, free = 0, capFreed = 0) => `✓ ${recordedWords(n, m, held, free, capFreed)}`,
+        successToast:    (n, m, held = 0, free = 0, capFreed = 0) => recordedWords(n, m, held, free, capFreed),
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
         // ASK ABOUT REST DAYS IN THE RANGE, AND REFUSE TO SAVE UNTIL EACH IS ANSWERED (v23.75).

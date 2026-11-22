@@ -441,6 +441,31 @@ test('a slow save reports its own-saves wait — the REAL wait (claim-retry.js o
     }
 });
 
+test('a QUICK save stops listening for own-saves waits when it settles — no watcher outlives it (24-hour check)', async () => {
+    // A save that never went slow has no 'done' to stop its tracker, so `settle` is the only place it
+    // stops; without it every quick save left a watcher on claim-retry.js's list, for the life of the page.
+    // The list is private, so it is found the one way it can be from here: as the Set a watcher joins.
+    const { watchOwnWritesWaits } = await import('./claim-retry.js');
+    const add = Set.prototype.add;
+    /** @type {Set<any>|null} */ let watchers = null;
+    const probe = () => {};
+    Set.prototype.add = function (/** @type {any} */ v) { if (v === probe) watchers = this; return add.call(this, v); };
+    try { watchOwnWritesWaits(probe)(); } finally { Set.prototype.add = add; }
+    assert.ok(watchers, 'premise: the watcher list was found');
+    const list = /** @type {Set<any>} */ (/** @type {unknown} */ (watchers));
+    const prevDoc = globalThis.document;
+    globalThis.document = /** @type {any} */ ({ getElementById: () => null, createElement: () => ({ setAttribute() {}, style: {} }), body: { appendChild() {} } });
+    try {
+        const before = list.size;
+        for (let i = 0; i < 3; i++) await withSlowSaveNotice(Promise.resolve(i));
+        await withSlowSaveNotice(Promise.reject(new Error('refused'))).catch(() => {});
+        await tick();
+        assert.equal(list.size, before, 'a quick save left its own-saves watcher behind');
+    } finally {
+        globalThis.document = prevDoc;
+    }
+});
+
 test('the notice: batched wording wins while any batched write waits, and it clears on the last', async () => {
     // A minimal document — enough for the notice's one element — so the reference counting is
     // exercised through the real exported wrapper rather than restated here.

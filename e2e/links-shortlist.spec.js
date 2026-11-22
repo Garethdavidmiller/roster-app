@@ -178,3 +178,26 @@ test('links: Keep only the shortlist keeps the edits made while its moves were l
     await expect(page.locator('.shift-cell-btn').first()).toHaveText(/** @type {string} */ (edited));
     await expect(page.locator('#linksSaveBtn'), 'still unsaved work').toBeEnabled();
 });
+
+// …AND THE DESIGN OPENED IN ITS PLACE IS NEVER ONE WHOSE SAVE IS STILL IN FLIGHT (24-hour check, Nov 2026). Opened
+// then, it was built from its list entry — the version from BEFORE that save — and its next save met the one in flight
+// as a colleague's, in the designer's own name. A shortlisted proposal opens instead, as `selectDesign` refuses it.
+test('links: Keep only the shortlist does not open a design whose save is still in flight', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_links_active_design', 'new1'));
+    await openWith(page, 'G. Miller', [twoOlder[0], recentOne]);
+    await expect(activeDesignName(page)).toHaveText('Even Step — tweaked');
+    await editOpenDesign(page);
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = true; });   // its save stays in flight
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+    await page.locator('#designPickerBtn').click();
+    await page.locator('#designPickList .picker-opt[data-id="old1"]').click();
+    await page.locator('.dialog-overlay.visible .dialog-btn-confirm').click();      // its edit is unsaved until it lands
+    await expect(activeDesignName(page)).toHaveText('Closing Time — copy');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = false; });  // the moves go straight through
+    await sheetAction(page, 'keepShortlistBtn');
+    await clickDialogConfirm(page);
+    await expect(page.locator('#linksSaveStatus')).toContainText('The older design is in Recently deleted');
+    await expect(activeDesignName(page), 'not the design still saving').toHaveText(proposalDisplayName(PROPOSALS[0]));
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());
+});

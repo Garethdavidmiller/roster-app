@@ -105,7 +105,9 @@ everywhere else (`AL on a rest day is ASKED about, never defaulted`) just becaus
   UNTICKED "Clear old" row, as a printed rest day's is — so a stale draft shift there can be removed.
 - **An Other day (Training, Meeting and the rest) printed on 25 or 26 December is held the same way**,
   under `christmas-other` (owner, 21 Nov 2026: "There cannot be training or meeting on December 25th or 26th"), times or not,
-  and the entry control does not offer the Other pill on them.
+  and the entry control does not offer the Other pill on them. **On a Sunday 25 or 26 December too** (Boxing Day 2027):
+  the guard reads the PRINTED value, because the Sunday guard has already turned a timed Other day into worked hours by
+  the time it runs, and the Christmas reason wins over the Sunday one (review, 22 Nov 2026).
 - **Do not point this row at Change a Shift**: there a bare absence on a base rest day is hidden
   unless a swapped-in shift is saved first.
 - **A day before the member's `startDate` writes nothing** (`isBeforeMemberStart`): anything but a

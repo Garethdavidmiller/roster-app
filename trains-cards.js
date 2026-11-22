@@ -136,15 +136,17 @@ export function renderStationCard(state) {
 }
 
 /**
- * A time with its a.m. or p.m. still being typed: "5.15p", "5.15 p.", "515a", "5.15 " (words review,
- * Nov 2026). The answer the box gave a keystroke ago stands until the tail is finished — typing "5.15pm"
- * otherwise put the hint, "Type a time like…", up between "5.15" and "5.15pm" and the polite live region
- * read it out. Only an hour that CAN take a.m. or p.m. (1 to 12): "17:15 " is not waiting for anything.
+ * A time with its a.m. or p.m. still to come: "5.15 ", "5 " (words review, Nov 2026). The answer the box
+ * gave a keystroke ago stands until the tail is typed — "5 " otherwise put the hint, "Type a time like…",
+ * up on the way to "5 pm" and the polite live region read it out. A tail begun, "5.15p" or "515a", is no
+ * longer pending: it is a time (`parseTypedTime`), answered as one — kept pending, "5.15p" left the last
+ * answer up beneath it indefinitely, a 05:15 one (24-hour check, 22 Nov 2026). Only an hour that CAN
+ * take a.m. or p.m. (1 to 12): "17:15 " is not waiting for anything.
  * @param {string} raw  the box's value, untrimmed — a trailing space is part of the question
  * @returns {boolean}
  */
 export function amPmPending(raw) {
-    const m = String(raw).trimStart().match(/^(\d{1,2})(?:[:.]?\d{2})?(\s+|\s*[ap]\.?)$/i);
+    const m = String(raw).trimStart().match(/^(\d{1,2})(?:[:.]?\d{2})?\s+$/);
     if (!m) return false;
     const h = Number(m[1]);
     return h >= 1 && h <= 12;
