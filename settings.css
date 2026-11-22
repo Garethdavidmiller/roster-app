@@ -193,7 +193,6 @@ body {
 }
 
 /* Password card (PASSWORD_DESIGN.md) */
-.pw-req { font-weight: 400; color: var(--text-mid); }
 .pw-nudge {
     background: color-mix(in oklch, var(--accent-gold) 16%, white);
     border: 1px solid color-mix(in oklch, var(--accent-gold) 45%, white);
@@ -378,8 +377,9 @@ body {
     }
 }
 
-/* The forgotten-password line, where forgetting it actually stops you. */
-.pw-forgot {
+/* The forgotten-password line, where forgetting it actually stops you, and the new password's rule under
+   its field (as the forced overlay's `.login-hint` sits): the same quiet help line under a field. */
+.pw-forgot, .pw-help {
     font-size: var(--type-small);
     color: var(--text-mid);
     margin: -4px 0 12px;

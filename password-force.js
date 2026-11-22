@@ -121,7 +121,7 @@ function _mount() {
         <div id="pwForceContent">
             <img src="icon-192.png" alt="" aria-hidden="true">
             <div class="login-app-name">Set your own password</div>
-            <div class="login-subtitle">Your password is still your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
+            <div class="login-subtitle">Your password is your surname, which anyone who knows your name could guess. Choose one only you know — you’ll need it the next time you sign in on any device.</div>
             <!-- A REAL FORM, FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026) — the sign-in card's shape
                  and its display:contents class (login-overlay.js). With no form and no username,
                  iCloud Keychain filed the new password under nobody. The username is the member's
@@ -144,7 +144,7 @@ function _mount() {
             <div class="login-field" id="pwfCurrentWrap" hidden>
                 <label for="pwfCurrent">Current password</label>
                 <input type="password" id="pwfCurrent" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false">
-                <div class="login-hint">Your surname in lowercase, unless you’ve already changed it.</div>
+                <div class="login-hint">Your surname, unless you’ve set your own since the admin last reset it.</div>
             </div>
             <div aria-live="polite"><div id="pwfError" class="login-error"></div></div>
             <button type="button" id="pwfSave">Set password →</button>
@@ -346,7 +346,7 @@ function _show(member) {
             _indeterminate = true;
             saveBtn.disabled = true;                 // no racing second write
             saveBtn.textContent = 'Still saving…';
-            setError('We couldn’t confirm whether your password was updated. Keep the password you just entered and try it first next time you sign in.');
+            setError('We couldn’t confirm whether your password was updated. Remember the new password you just entered: try it first the next time you sign in, and your old one if it doesn’t work.');
             offerEscape();
             settled.then(late => {
                 if (!overlay.isConnected) return;    // they left; nothing to update

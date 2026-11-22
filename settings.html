@@ -207,9 +207,12 @@
                          the last place somebody looks when the thing in front of them has failed. -->
                     <p class="pw-forgot">Forgotten it? Ask the admin — they can reset it to your surname, and you then choose a new one.</p>
 
-                    <label class="contact-label" for="pwNew">New password <span class="pw-req">(at least 8 characters, and not your surname)</span></label>
-                    <input type="password" id="pwNew" class="contact-email-input"
+                    <label class="contact-label" for="pwNew">New password</label>
+                    <input type="password" id="pwNew" class="contact-email-input" aria-describedby="pwNewHint"
                            autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
+                    <!-- The rule UNDER the field, as the forced overlay has it (settings review, Nov 2026). "Not your
+                         surname" alone read as "so miller1 is fine": validateNewPassword compares letters only. -->
+                    <p class="pw-help" id="pwNewHint">Use at least 8 characters, and not your surname — even with numbers added.</p>
                     <label class="contact-label" for="pwConfirm">Confirm new password</label>
                     <input type="password" id="pwConfirm" class="contact-email-input"
                            autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
@@ -286,7 +289,7 @@
         <div class="card-header">
             <div>
                 <h2><span aria-hidden="true">📱</span> Install on this device</h2>
-                <span class="hint">Put the roster on your home screen</span>
+                <span class="hint">Open the roster like an app, from its own icon</span>
             </div>
         </div>
         <div class="card-body">
@@ -294,9 +297,11 @@
                  installing "keeps this device's saved pay data safe from being cleared", and on an
                  iPhone the figures ALREADY saved stay in the browser: a Home Screen app keeps its own
                  storage. The iPhone steps below say so, and carry the figures across first. -->
-            <p class="install-note" id="installNote">Installing puts the roster on your home screen. Pay figures
-                you save in the installed app are far less likely to be cleared to free up space.</p>
-            <button type="button" class="btn-action btn-secondary" id="installBtn">Install the app</button>
+            <!-- A computer has no home screen (settings review, Nov 2026): the note names both places. The iPhone
+                 line is shown only there (settings-app.js), where installing is what notifications need. -->
+            <p class="install-note" id="installNote">Installing gives the roster its own icon, on your home screen or desktop.<span id="installNoteIos" hidden> On an iPhone it is also the only way to get notifications.</span> Pay figures
+                you save once it is installed are far less likely to be cleared to free up space.</p>
+            <button type="button" class="btn-action btn-secondary" id="installBtn">Install the roster</button>
             <!-- WebKit fires no install event, so on iPhone the app says what to tap instead.
                  Hidden by default and revealed only on that path — the same two-mode shape the
                  calendar's install strip already uses. -->
@@ -316,7 +321,7 @@
             <ol class="install-steps" id="installSteps" hidden>
                 <li id="installStepPay" hidden>Copy your Pay Calculator figures first, with 💾&nbsp;<strong>Move Your Pay Data</strong> on the Pay page — the Home Screen app starts without them.</li>
                 <li id="installStepSafari">Opened this from an email or a chat? Open it in <strong>Safari</strong> first — those apps cannot add it.</li>
-                <li id="installStepMain" hidden>Open the app’s main address, <a href="https://myb-roster.web.app/">myb-roster.web.app</a>, in <strong>Safari</strong> — the app is added from there, not from this address.</li>
+                <li id="installStepMain" hidden>Open the roster’s main address, <a href="https://myb-roster.web.app/">myb-roster.web.app</a>, in <strong>Safari</strong> — the roster is added from there, not from this address.</li>
                 <li>Tap your browser’s <strong>Share</strong> button — on iOS 26 or later it is under <strong>•••</strong>.</li>
                 <li>Choose <strong>Add to Home Screen</strong>.</li>
                 <li>Open the roster from your Home Screen from now on, and sign in there once.</li>
@@ -334,7 +339,7 @@
         <div class="card-header card-header-toggle" id="payDataToggleHeader">
             <div>
                 <h2><span aria-hidden="true">💾</span> Pay Calculator Data</h2>
-                <span class="hint">Saved in this browser only — keep a copy before you switch</span>
+                <span class="hint">Saved in this browser only — keep a copy before you change phone</span>
             </div>
             <div class="card-header-actions">
                 <span class="card-year-chip" id="payDataStatusChip"></span>
@@ -349,8 +354,9 @@
                      device-specific too. Naming what DOES follow the account is both accurate and
                      the thing the member needs to know. -->
                 <p class="card-explainer">Your roster and account details follow your account. Your
-                pay calculator history does not — it stays on <strong>this device</strong>, so it
-                will not appear on a new phone or at a different web address.</p>
+                pay calculator history does not — it stays <strong>in this browser on this device</strong>, so it
+                will not appear on a new phone, in another browser or from a different link. On an iPhone,
+                Safari and the Home Screen app each keep their own copy.</p>
                 <p class="pay-data-inventory" id="payDataInventory"></p>
                 <a class="btn-action btn-secondary" href="./paycalc.html#payTransferCard">Move your pay&nbsp;data →</a>
             </div>

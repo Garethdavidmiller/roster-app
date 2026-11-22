@@ -122,7 +122,7 @@ describe('false alarm — the noisy failure', () => {
         const s = summarise(iphoneInBrowser);
         assert.equal(s.tone, 'todo');
         assert.equal(s.headline, '1 thing to finish');
-        assert.deepEqual(s.items, ['Add the app to your Home Screen']);
+        assert.deepEqual(s.items, ['Add the roster to your Home Screen']);
     });
 
     test('installing is a to-do for an iPhone in a browser, and an offer everywhere else', () => {
@@ -142,7 +142,7 @@ describe('false alarm — the noisy failure', () => {
         assert.deepEqual(mirror, { state: 'action', from: 'main-address' });
         const s = summarise({ ...ALL_OK, install: mirror.state, notifications: 'n/a' });
         assert.notEqual(s.tone, 'all-set');
-        assert.deepEqual(s.items, ['Add the app to your Home Screen']);
+        assert.deepEqual(s.items, ['Add the roster to your Home Screen']);
     });
 
     test('pay data can never appear in the summary at all', () => {
@@ -165,8 +165,8 @@ describe('the list itself', () => {
         const b = summarise(Object.fromEntries(Object.entries(all).reverse()));
         assert.deepEqual(a.items, b.items);
         assert.deepEqual(a.items, [
-            'Set your own password', 'Add your work email',
-            'Add the app to your Home Screen', 'Turn on notifications',
+            'Set your own password', 'Save your work email',
+            'Add the roster to your Home Screen', 'Turn on notifications',
         ]);
     });
 

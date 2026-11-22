@@ -50,8 +50,8 @@ const CARD_TIPS = {
         sections: [
             { items: [
                 { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
-                { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven’t changed it yet), then a new one of <strong>at least 8 characters</strong> that isn’t your surname.' },
-                { icon: '↩️', html: 'Forgotten it? On the sign-in card select <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
+                { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, unless you’ve set your own since your last reset), then a new one of <strong>at least 8 characters</strong> that isn’t your surname — even with numbers added.' },
+                { icon: '↩️', html: 'Forgotten it? Ask the admin — or, when you’re signed out, select <strong>“Can’t get in?”</strong> on the sign-in card, which asks them for you. They reset it to your surname, and you choose a new one as you sign in.' },
                 { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
             ]},
         ],
@@ -62,8 +62,8 @@ const CARD_TIPS = {
             { items: [
                 // The field takes the part before the @ (placeholder firstname.surname) and shows the domain beside it (settings.html).
                 { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong>. Type only the part before the @ — firstname.surname — and the rest is already shown beside the box.' },
-                { icon: '🔑', html: 'It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet. For now, ask the admin if you forget your password: select <strong>“Can’t get in?”</strong> on the sign-in card, and it asks them for you.' },
-                { icon: '🔒', html: 'Only you and the admin can see this email. It is not shown to your manager or to anyone else.' },
+                { icon: '🔑', html: 'It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet. For now, ask the admin if you forget your password — or, when you’re signed out, select <strong>“Can’t get in?”</strong> on the sign-in card, which asks them for you. They reset it to your surname, and you choose a new one as you sign in.' },
+                { icon: '🔒', html: 'Only you and the admin can see this email. It is not shown to your manager or to anyone else. It doesn’t change how you sign in.' },
             ]},
         ],
     },
@@ -83,11 +83,11 @@ const CARD_TIPS = {
             { heading: 'How it works', items: [
                 { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
                 { icon: '🔕', html: 'Select <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
-                { icon: '🚫', html: 'If you chose <strong>Don’t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone’s own settings.' },
+                { icon: '🚫', html: 'If you chose <strong>Don’t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn them back on in your phone’s or browser’s settings — the card shows you where.' },
             ]},
             { heading: 'iPhone users', items: [
                 // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
-                { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> — tap your browser’s Share button (under ••• on iOS 26 or later), then Add to Home Screen.' },
+                { icon: '🍎', html: 'Notifications only work on iPhone if the roster has been <strong>added to your Home Screen</strong> — tap your browser’s Share button (under ••• on iOS 26 or later), then Add to Home Screen, then open the roster from your Home Screen and turn notifications on there.' },
             ]},
         ],
     },
@@ -99,7 +99,7 @@ const CARD_TIPS = {
         title: 'Pay Calculator Data',
         sections: [
             { heading: 'Why this card exists', items: [
-                { icon: '💾', html: 'Your pay calculator figures are saved <strong>on this device</strong>, not to your account — so they do not follow you to a new phone, and they do not appear at a different web address.' },
+                { icon: '💾', html: 'Your pay calculator figures are saved <strong>in this browser on this device</strong>, not to your account — so they do not follow you to a new phone, to another browser or to a different link. On an iPhone, Safari and the Home Screen app each keep their own copy.' },
                 { icon: '🔒', html: 'That is deliberate: <strong>pay data is never sent to the server</strong>. The trade is that moving it is something you have to do yourself.' },
             ]},
             { heading: 'Moving it', items: [
@@ -555,7 +555,8 @@ export function init() {
             } catch (err) {
                 console.warn('[staffContact] Save failed:', err);
                 setFeedback(
-                    unconfirmedWriteLine(err, 'your email', 'it is saved') ? /** @type {string} */ (unconfirmedWriteLine(err, 'your email', 'it is saved'))
+                    // The app never verifies an email, so the check is the member's: is it SAVED (settings review).
+                    unconfirmedWriteLine(err, 'the save', 'that your email is saved') ? /** @type {string} */ (unconfirmedWriteLine(err, 'the save', 'that your email is saved'))
                     : (/** @type {any} */ (err))?.code === 'permission-denied'
                         ? 'Couldn’t save — please sign out and sign back in.'
                         : 'Couldn’t save — check your connection and try again.',
@@ -682,8 +683,9 @@ export function init() {
                 if (chip) setStatus(chip, migrated ? '✓ Password set' : 'Using surname');
                 if (nudge) {
                     nudge.hidden = migrated;
+                    // "Still" was wrong after an admin reset, when the surname is the password AGAIN (settings review).
                     if (!migrated) nudge.textContent =
-                        'You’re still using your surname as your password — anyone who knows your name could guess it. Set a password only you know below.';
+                        'Your password is your surname — anyone who knows your name could guess it. Set one only you know below.';
                 }
                 // THE FORM IS BEHIND A DOOR ONCE THERE IS NOTHING TO FIX (v22.37, owner review).
                 // A migrated member met three empty password fields on every visit, which reads as
@@ -763,7 +765,7 @@ export function init() {
             _pwIndeterminate = true;
             saveBtn.disabled = true;                  // no racing second write
             saveBtn.textContent = 'Still saving…';
-            setFeedback('We couldn’t confirm whether your password was updated. Keep the password you just entered and try it first next time you sign in.', 'err');
+            setFeedback('We couldn’t confirm whether your password was updated. Remember the new password you just entered: try it first the next time you sign in, and your old one if it doesn’t work.', 'err');
             settled.then(late => {
                 _pwIndeterminate = false;
                 _passwordSaving = false;
@@ -928,6 +930,8 @@ function initDeviceCard(/** @type {(state: import('./settings-status.js').CardSt
 
     if (need.from) {
         btn.hidden   = true;         // WebKit fires no event, so there is nothing to press
+        const iosLine = document.getElementById('installNoteIos');   // …and here installing is what notifications need
+        if (iosLine) iosLine.hidden = false;
         steps.hidden = false;        // say what to tap instead
         // …starting with the figures, where there are any: the Home Screen app keeps its own storage.
         const payStep = document.getElementById('installStepPay');

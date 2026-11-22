@@ -77,8 +77,8 @@ export const CARD_ORDER = ['password', 'work-email', 'install', 'notifications']
  *  @type {Record<string, string>} */
 const TODO_LABEL = {
     'password':      'Set your own password',
-    'work-email':    'Add your work email',
-    'install':       'Add the app to your Home Screen',
+    'work-email':    'Save your work email',   // the button's own word
+    'install':       'Add the roster to your Home Screen',
     'notifications': 'Turn on notifications',
 };
 
@@ -172,7 +172,7 @@ export function summarise(states) {
     // fine, it has told us nothing. Saying "all set" over the top of that is the same lie as saying
     // it over silence, arriving one step later.
     if (CARD_ORDER.some(id => at(id) === 'error')) {
-        return { tone: 'error', headline: 'Some settings could not be checked', ...none };
+        return { tone: 'error', headline: 'Some settings couldn’t be checked — check your connection, then reopen Settings.', ...none };
     }
 
     return { tone: 'all-set', headline: '✓ You’re all set', ...none };

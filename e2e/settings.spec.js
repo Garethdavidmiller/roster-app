@@ -98,7 +98,7 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     // "✓ You're all set", hiding the one instruction that would change the answer (v22.39 review).
     await openSettings(page, { configured: true, iphone: true });
     await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
-    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the app to your Home Screen']);
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the roster to your Home Screen']);
 
     // The card that says how must be VISIBLE and showing the taps, not the button WebKit can't fire.
     await expect(page.locator('#deviceCard')).toBeVisible();
@@ -149,8 +149,8 @@ for (const [label, payKeys, payStep] of [['with pay figures, the first step carr
         await expect(steps).toContainText('Open it in Safari first');                  // an email or chat app cannot add it
         await expect(steps).toContainText('on iOS 26 or later it is under •••');        // where Share is now
         await expect(shown.last()).toContainText('sign in there once');                 // the Home Screen app is signed out
-        // The promise covers what is saved in the installed app — never what is already saved here.
-        await expect(page.locator('#installNote')).toContainText('Pay figures you save in the installed app');
+        // The promise covers what is saved once installed — never what is already saved here.
+        await expect(page.locator('#installNote')).toContainText('Pay figures you save once it is installed');
         await expect(page.locator('#deviceCard')).not.toContainText('saved pay data safe');
     });
 }
@@ -176,7 +176,7 @@ test('settings: an iPhone on the Pages mirror is sent to the main address to ins
     await asMirror(page);
     await openSettings(page, { configured: true, iphone: true });
     await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
-    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the app to your Home Screen']);
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the roster to your Home Screen']);
     await expect(page.locator('#deviceCard')).toBeVisible();
     await expect(page.locator('#installBtn')).toBeHidden();
     const main = page.locator('#installStepMain');
@@ -255,7 +255,7 @@ for (const [label, missingId, chipId, noPush, forcePush] of [
 
         await expect(page.locator('#settingsSummaryLine')).not.toHaveText(/Checking/i);
         await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'error');
-        await expect(page.locator('#settingsSummaryLine')).toContainText(/could not be checked/i);
+        await expect(page.locator('#settingsSummaryLine')).toHaveText('Some settings couldn’t be checked — check your connection, then reopen Settings.');
         await expect(page.locator(`#${chipId}`)).toHaveText(/couldn/i);
     });
 }
@@ -300,7 +300,7 @@ test('settings: a card that needs attention opens ITSELF, and is named at the to
     await openSettings(page, { configured: false, noPush: true });
     await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
     await expect(page.locator('#settingsSummaryItems li')).toHaveText([
-        'Set your own password', 'Add your work email',
+        'Set your own password', 'Save your work email',
     ]);
     expect(await cardOpen(page, 'passwordBody'), 'the password card must open itself').toBe(true);
     expect(await cardOpen(page, 'contactBody'), 'and so must the work email card').toBe(true);
@@ -1131,7 +1131,7 @@ test('settings: on a desktop the to-dos run along the strip, and each one opens 
     await openSettings(page, { configured: false, noPush: true });   // two to-dos: password, work email
     await page.setViewportSize({ width: 1366, height: 768 });
     const items = page.locator('#settingsSummaryItems a');
-    await expect(items).toHaveText(['Set your own password', 'Add your work email']);
+    await expect(items).toHaveText(['Set your own password', 'Save your work email']);
     const tops = [...await items.evaluateAll(as => as.map(a => Math.round(a.getBoundingClientRect().top))),
         await page.locator('#settingsSummaryLine').evaluate(el => Math.round(el.getBoundingClientRect().top))];
     expect(Math.max(...tops) - Math.min(...tops), 'the count and its to-dos share one row').toBeLessThanOrEqual(6);
