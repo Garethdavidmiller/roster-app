@@ -1007,11 +1007,9 @@ export function init() {
         if (_switchStatus) _switchStatus.textContent = '';
         dearmBrush();
         renderDesignPicker();
-        renderGrid();
+        renderGrid();   // the Coverage card and its window editor with it
         renderBrushBar();
         renderDesignChecks();
-        renderCoverageCard();
-        paintWindowEditor();
         compare.renderCompare();
         updateSaveBtn();
         updateLastSaved(d.updatedBy, lastSaveTime(d));

@@ -508,10 +508,10 @@ an edit's effect was out of sight.
   and `assessFatigue` returns `present` beside `standing`. The strip never claims full cover, only that
   no STAFFED hour is uncovered, and never says "no fatigue factors" while standing ones exist (pinned in
   `links-analysis.test.mjs`).
-- **`renderSummary` recomputes rather than reading the other renderers' results.** That duplicates
-  WORK, not LOGIC — each figure still comes from the one function that owns it — and it buys
-  order-independence: shared state would make the strip silently wrong whenever the renderers ran in a
-  different order.
+- **`renderSummary` never reads the other renderers' results.** Shared state would make the strip
+  silently wrong whenever the renderers ran in a different order. Every panel — and compare mode —
+  asks `analyse` (`links-analyse.js`), one reading keyed on the design's CONTENT, so whichever asks
+  first computes it and each figure still comes from the one function that owns it.
 - **`sticky` needs no scroll container**, because `.card` is `overflow: clip`, which does not create one.
   **The bar can cover the last grid lines while it is pinned** — a sticky element keeps its flow
   position only once it comes to rest — but only in passing: every line reaches full view at some scroll

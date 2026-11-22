@@ -31,11 +31,9 @@
  *    the uncovered-hours figure is where that would otherwise hide.
  */
 import { ROTATING_LINES } from './links-design.js';
-import { assessFatigue } from './links-fatigue.js';
-import { assessHardLimits } from './links-limits.js';
 import { windowsDiffer } from './links-window.js';
 import { DEC_2026_DEMAND, DAY_CLASSES, peakHours } from './links-demand.js';
-import { readAgainstService } from './links-analyse.js';
+import { analyse } from './links-analyse.js';
 
 /** The five days the weekday demand class stands for. */
 const WEEKDAYS = Object.freeze(['mon', 'tue', 'wed', 'thu', 'fri']);
@@ -54,7 +52,10 @@ const WEEKDAYS = Object.freeze(['mon', 'tue', 'wed', 'thu', 'fri']);
  * @param {{ lines?: number }} [opts]
  */
 export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
-    const sa = readAgainstService(a, lines), sb = readAgainstService(b, lines);
+    // The panels' own reading of each design (links-analyse.js), so the comparison and the single-design cards are
+    // one computation, not two that could disagree.
+    const ra = analyse(a, lines), rb = analyse(b, lines);
+    const sa = ra.service, sb = rb.service;
 
     // THE BUSIEST HOUR OF EACH DAY CLASS, BY TRAIN LENGTH — the measure the heat map's demand row is
     // shaded by. Taken from the profile, not from either design, so both are asked about the same
@@ -85,7 +86,7 @@ export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
 
     // Hard limits, check by check. Both designs run the same list, so the ids pair up; a check only
     // one side reports (an empty design reports `unknown`) is still shown, with the other side blank.
-    const la = assessHardLimits(a.patterns, lines), lb = assessHardLimits(b.patterns, lines);
+    const la = ra.limits, lb = rb.limits;
     const ids = [...new Set([...la.checks.map(c => c.id), ...lb.checks.map(c => c.id)])];
     const limits = ids.map((id) => {
         const x = la.checks.find(c => c.id === id), y = lb.checks.find(c => c.id === id);
@@ -98,7 +99,7 @@ export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
 
     // Fatigue, factor by factor. A factor CHANGES when its status or its value moves; the rest are
     // counted, and those present in BOTH are named (rule 3).
-    const fa = assessFatigue(a.patterns, lines), fb = assessFatigue(b.patterns, lines);
+    const fa = ra.fatigue, fb = rb.fatigue;
     // Paired on code AND title, never code alone: MRSF is three rows under one code (the most
     // restrictive, the second and the third), and a Map keyed on the code keeps only the last, so each
     // MRSF row in A would be compared with B's THIRD.

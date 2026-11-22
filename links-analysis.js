@@ -32,10 +32,10 @@
  * sheet. Not keyed on the section's name — a section that renamed itself would slip a hardcoded
  * list while making the identical claim.
  */
-import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, runDesignChecks,
-    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours, hoursFigure, SPARE_WORKED_DAYS } from './links-design.js';
-import { assessFatigue, COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
-import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
+import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES,
+    CONTRACTED_HOURS_PER_WEEK, hmFromHours, hoursFigure, SPARE_WORKED_DAYS } from './links-design.js';
+import { COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
+import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_SOURCE, DAY_CLASSES,
@@ -43,7 +43,7 @@ import {
 } from './links-demand.js';
 import { escapeHtml } from './roster-data.js';
 import { COMPARE_ACTIVE_FALLBACK } from './links-compare.js';
-import { readAgainstService } from './links-analyse.js';
+import { analyse } from './links-analyse.js';
 
 // Presentation constant. The rotation LENGTH is imported (v19.38) — it used to be a local copy of
 // 28 alongside links-app.js's own pair, with a comment claiming they "stay in step without a shared
@@ -107,7 +107,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
 
         // Read the design against the service ONCE, and hand the same result to the rows and the prose: two
         // calls would be two chances for the cells and the sentence under them to disagree.
-        const { hourly, sum } = readAgainstService(design, TOTAL_POS);
+        const { hourly, sum } = analyse(design, TOTAL_POS).service;
         const win = normaliseWindow(design.window);
 
         // Span and gaps both come from the WINDOW now, not from the design's own extremes (v19.54).
@@ -325,11 +325,10 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
      *      unchaseable.
      * Deliberately NOT a score. Same rule as the panels it summarises: show, do not decide.
      *
-     * IT RECOMPUTES rather than reading what the other two renderers worked out. That is duplicated
-     * WORK, not duplicated LOGIC — every figure still comes from the one pure function that owns it —
-     * and it buys order-independence: sharing state between the three would make the strip silently
-     * wrong whenever a caller ran them in a different order, which is exactly the kind of bug that
-     * renders fine and tells nobody. Over a couple of dozen lines the cost is microseconds.
+     * IT ASKS `analyse` rather than reading what the other two renderers worked out. Shared state
+     * between the three would make the strip silently wrong whenever they ran in a different order;
+     * the reading is keyed on the design's CONTENT (links-analyse.js), so whichever asks first computes
+     * it and every panel reads the same figures, in any order.
      */
     function renderSummary() {
         const el = document.getElementById('linksSummary');
@@ -338,9 +337,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (!design) { el.hidden = true; el.innerHTML = ''; return; }
         el.hidden = false;
 
-        const checks = runDesignChecks(design.patterns, ROTATING_LINES);
-        const { sum } = readAgainstService(design, TOTAL_POS);
-        const fat = assessFatigue(design.patterns, ROTATING_LINES);
+        const reading = analyse(design, ROTATING_LINES);
+        const checks = reading.checks, { sum } = reading.service, fat = reading.fatigue;
 
         const chip = (/** @type {string} */ state, /** @type {string} */ icon,
             /** @type {string|number} */ value, /** @type {string} */ label) =>
@@ -410,7 +408,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // row while scrolling, which resolves itself (see the note in links.css). Taken
             // deliberately: a figure nobody could see anywhere is worth more than 34px.
             + (() => {
-                const wh = weeklyHours(design.patterns, TOTAL_POS);
+                const wh = reading.hours;
                 if (wh.exSunday === null) return '';
                 const off = wh.exSunday - CONTRACTED_HOURS_PER_WEEK;
                 // Same gate as the full row below (v20.08): the chip is the only version of this
@@ -443,7 +441,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             return;
         }
 
-        const checks = runDesignChecks(design.patterns, ROTATING_LINES);
+        const reading = analyse(design, ROTATING_LINES);
+        const checks = reading.checks;
         const { weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
         const { early, late, spare, worked, coverWeeks } = balance;
         const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
@@ -603,7 +602,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         /** The hours row's own verdict, for the triage block. Null when there is nothing to average.
          *  @type {{onTarget: boolean, off: number, hm: string}|null} */
         let hoursVerdict = null;
-        const wh = weeklyHours(design.patterns, TOTAL_POS);
+        const wh = reading.hours;
         if (wh.exSunday !== null) {
             // A THRESHOLD IS DEFENSIBLE HERE, unlike the ORR factors — 35 is the contract, not
             // guidance, so short IS short. Half an hour of slack absorbs the rounding that comes
@@ -654,7 +653,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // prescriptive limits. The greatest risk in this panel is a design showing nothing and being
         // read as approved, so clear and not-applicable factors are listed too — silence must not be
         // the same shape as compliance.
-        const fat = assessFatigue(design.patterns, ROTATING_LINES);
+        const fat = reading.fatigue;
         const base = getBaseline();
         const fatRows = [];
 
@@ -695,7 +694,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // fails, because "the limit was checked and met" has to be visible on the sheet that
         // goes to the assessing manager rather than hidden behind a disclosure.
         // Its counts are deliberately NOT added to the fatigue heading's tally. See links-limits.js.
-        const limits = assessHardLimits(design.patterns, ROTATING_LINES);
+        const limits = reading.limits;
         const LIMIT_ICON = { ok: tick, breach: `<span class="check-icon check-cross" aria-hidden="true">✕</span>`, unknown: info };
         const LIMIT_CLS  = { ok: 'check-good', breach: 'check-bad', unknown: 'check-neutral' };
         // ── THE CLAIM'S STRENGTH IS DERIVED, NEVER TYPED (v20.08, external review P1) ────────────

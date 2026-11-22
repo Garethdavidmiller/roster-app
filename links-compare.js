@@ -14,10 +14,11 @@
  * design collection + a few render callbacks and local helpers (all defined in links-app.js).
  */
 import { escapeHtml } from './roster-data.js';
-import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hoursFigure } from './links-design.js';
-import { assessFatigue, COVER_DUTY_WORDS } from './links-fatigue.js';
+import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, classifyShift, calcCoverage, hoursFigure } from './links-design.js';
+import { COVER_DUTY_WORDS } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 import { compareDesigns } from './links-compare-analysis.js';
+import { analyse } from './links-analyse.js';
 import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { describeHours } from './links-demand.js';
 import { emptyPattern, isUnfilledPattern, compareCellHtml, coverCellsHtml } from './links-grid-cells.js';
@@ -195,9 +196,8 @@ export function initLinksCompare(deps) {
                 if ((p[d] ?? 'RD') !== (q[d] ?? 'RD')) { cells++; lines.add(pos); }
             }
         }
-        const ca = runDesignChecks(a.patterns, TOTAL_POS), cb = runDesignChecks(b.patterns, TOTAL_POS);
-        const fa = assessFatigue(a.patterns, TOTAL_POS),   fb = assessFatigue(b.patterns, TOTAL_POS);
-        const ha = weeklyHours(a.patterns, TOTAL_POS),     hb = weeklyHours(b.patterns, TOTAL_POS);
+        const ra = analyse(a, TOTAL_POS), rb = analyse(b, TOTAL_POS);   // the panels' own reading (links-analyse.js)
+        const ca = ra.checks, cb = rb.checks, fa = ra.fatigue, fb = rb.fatigue, ha = ra.hours, hb = rb.hours;
         // `weeklyHours().exSunday` is DECIMAL HOURS, and `hmFromHours` is the one formatter for it —
         // its own header says so, having been written after three hand-rolled copies rendered
         // "34h 60m". This was a fourth copy and it read the figure as MINUTES: a 35-hour week

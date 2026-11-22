@@ -405,8 +405,8 @@ What one cell of a Links grid says — its label, its accessible name, and the m
 - **Exports:** `DAY_LABELS` · `shiftLabel` · `cellName` · `emptyPattern` · `isUnfilledPattern` · `cellAriaName` · `editCellHtml` · `compareCellHtml` · `coverCellsHtml`
 
 ### `links-analyse.js`
-One reading of a Links design, shared by the Coverage card, the Design checks, the summary strip and compare mode: `readAgainstService` reads a design against the December 2026 service on its own window. Pure; tested by `links-analyse.test.mjs`.
-- **Exports:** `readAgainstService`
+One reading of a Links design, shared by the Coverage card, the Design checks, the summary strip and compare mode: `analyse` keys it on the design's CONTENT and computes each part once, on first ask; `readAgainstService` reads a design against the December 2026 service on its own window. Pure; tested by `links-analyse.test.mjs`.
+- **Exports:** `readAgainstService` · `analyse`
 
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s `?` panels: pure data, rendered by `tips-lightbox.js`, shape pinned by `tips-content.test.mjs`. Its generator panel restates `links-default-targets.js`'s header, and no test can see that rule.
