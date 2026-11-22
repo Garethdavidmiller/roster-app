@@ -83,7 +83,7 @@ export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
  * checks window and the generator output are necessarily the SAME number — there is no reading of
  * this app where they differ.
  *
- * ── 28 → 22 → 24 (v19.98 then v20.01; the December 2026 plan, twice) ───────────────────────────
+ * ── 28 → 22 → 24 → today's length (v19.98, v20.01, v24.47; the December 2026 plan) ─────────────
  *
  * It was **28 = the main 20-week cycle + the bilingual 8**, because the design modelled both as one
  * rotation. That is no longer what is being built. The new link **excludes the bilingual roster
@@ -92,7 +92,10 @@ export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
  * simply out of scope.
  *
  * The LENGTH then moved again: 22 at v19.98, corrected to **24** at v20.01 (owner — the earlier
- * figure was misremembered). Both are business figures with **no document behind them**, which makes
+ * figure was misremembered) — and once more at v24.47 (owner, 1 Oct 2026, with five cover weeks) to
+ * the length declared below, which is deliberately not written in this comment: a comment giving the
+ * CURRENT length is one more copy to drift (links-design.md, invariant 1). Every one of these is a
+ * business figure with **no document behind it**, which makes
  * this evidence class C by ROADMAP.md's scale: fine as a design parameter, and it must NOT be
  * rendered to a manager as a requirement without a source. See KNOWN_LIMITATIONS.md → Links.
  *
@@ -785,7 +788,7 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * line to be resting the following day, and the lap is distributed in proportion to
  * those caps. When the caps cannot sum to a full lap the targets leave less than one
  * rest day per line per week; the generator REFUSES rather than shipping the phantom
- * guarantee (`restFeasible`).
+ * guarantee (`fail('no-rest')` in `generateLink`).
  *
  * Daily targets are met EXACTLY by both constructions (the window size equals the
  * target headcount for that day).
