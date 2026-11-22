@@ -984,21 +984,25 @@ export function init() {
         // THE BUTTON'S IDLE STATE IS admin-booked-periods.js's, restored when this promise settles.
         if (!deleteIds.length) return;
         const idSet = new Set(deleteIds);
-        // Wait for the session, as executeSave() does: auth.currentUser is briefly null while a returning
-        // session restores, and a delete then would report a false "Delete failed".
-        await sessionReady;
-        if (!auth.currentUser) {
-            if (feedbackEl) {
-                holdFeedback(feedbackEl);
-                setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
-                feedbackEl.className = 'feedback error';
-            }
-            feedbackEl?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-            return;
-        }
+        // IN FLIGHT FROM THE CONFIRMING TAP, BEFORE ANYTHING IS AWAITED (review, 22 Nov 2026). Marked only after
+        // the session wait, a second confirming tap during that wait still found the control armed and
+        // enabled, passed `twoTap`, and started a second delete of the same days. A disabled control takes no
+        // tap, and the `finally` below gives it back on every path, the signed-out one included.
         btn.disabled    = true;
         btn.textContent = '…';
         try {
+            // Wait for the session, as executeSave() does: auth.currentUser is briefly null while a returning
+            // session restores, and a delete then would report a false "Delete failed".
+            await sessionReady;
+            if (!auth.currentUser) {
+                if (feedbackEl) {
+                    holdFeedback(feedbackEl);
+                    setStatus(feedbackEl, "⚠ You've been signed out — please sign in again.");
+                    feedbackEl.className = 'feedback error';
+                }
+                feedbackEl?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+                return;
+            }
             // The rows this card LISTED are compared with the server and deleted in ONE transaction.
             await withSlowSaveNotice(writeWithClaimRetry(() => deleteIfUnchanged(allForDelete.filter(o => idSet.has(o.id)))), { held: false });
             removeFromCache(idSet);   // drops the deleted rows; does NOT widen coverage
