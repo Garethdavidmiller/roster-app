@@ -17,7 +17,13 @@
     --shift-late-text:  color-mix(in oklch, var(--blue-sky) 78%, black);
     --shift-spare-text: #705600;
     --shift-night-text: #3d1a5c;
-    --unfilled-flag:    #7a3800;   /* amber line-number flag for an all-rest (undesigned) row */
+    --unfilled-flag:    #7a3800;
+    /* THE RIGHT-EDGE CUE for a sideways-scrolling table. CSS only: `local` masks the fade at the end,
+       `scroll` pins the shadow to the wrapper, so no scroll listener can go stale. It shows only
+       through TRANSLUCENT cells, which is why the heat map uses its sticky day column instead. */
+    --scroll-cue:
+        linear-gradient(to left, var(--surface), rgba(255, 255, 255, 0)) right 0 top 0 / 28px 100% no-repeat local,
+        radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll;   /* amber line-number flag for an all-rest (undesigned) row */
 }
 
 body {
@@ -336,6 +342,19 @@ body:not(.auth-ready) .app-header { display: none; }
     padding: 0 6px;
     width: 34px;
 }
+/* ON A PHONE THE DAY COLUMN STICKS, with the generator's edge shadow, which is also the scroll cue: the
+   bucket fills are opaque, so a gradient behind them never shows. Its gutter is painted, as the grid's
+   (the demand rows' full-width heading is left out: it cannot stick). */
+@media screen and (max-width: 767px) {
+    .cov-heat tr:not(.dem-head-row) > .cov-heat-day { position: sticky; left: 0; z-index: 1; }
+    .cov-heat tr:not(.dem-head-row) > .cov-heat-day::before {
+        content: ''; position: absolute; top: -1px; bottom: -1px; right: 100%; width: 18px; background: var(--surface);
+    }
+    .cov-heat tr:not(.dem-head-row) > .cov-heat-day::after {
+        content: ''; position: absolute; top: 0; bottom: 0; left: 100%; width: 6px;
+        background: linear-gradient(to right, rgba(0, 30, 60, 0.16), rgba(0, 30, 60, 0));
+    }
+}
 .cov-heat-cell {
     font-size: var(--type-micro);
     font-weight: 700;
@@ -496,17 +515,8 @@ body:not(.auth-ready) .app-header { display: none; }
     margin: 0 -16px;
     padding: 0 16px;
 }
-/* THE RIGHT-EDGE CUE on the grid and the heat map, which otherwise give no sign that Friday,
-   Saturday, the evening hours or the spare column exist. CSS only: `local` masks the fade at the end,
-   `scroll` pins the shadow to the wrapper, so no scroll listener can go stale. */
-@media (max-width: 767px) {
-    .links-grid-wrapper,
-    .cov-heat-wrap {
-        background:
-            linear-gradient(to left, var(--surface), rgba(255, 255, 255, 0)) right 0 top 0 / 28px 100% no-repeat local,
-            radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll;
-    }
-}
+/* The grid otherwise gives no sign that Friday and Saturday exist. */
+@media (max-width: 767px) { .links-grid-wrapper { background: var(--scroll-cue); } }
 /* 768px, NOT 1024. `overflow-x: auto` makes the wrapper a scroll container whether or not anything
    overflows, and a sticky header inside one is inert, so it stops scrolling as soon as the table
    fits. The wrapper against the 675px the table needs (10 Nov 2026):
@@ -568,6 +578,16 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 /* The corner cell belongs to both sticky axes, so it must sit above both. */
 .links-grid thead th.col-pos { z-index: 3; }
+.links-grid tfoot td.col-pos { position: sticky; left: 0; z-index: 1; }
+/* THE GUTTER IS PAINTED. While the wrapper scrolls inside the card's 16px side padding, the sticky
+   column sticks at the padding's inner edge, and the cells passing under showed through the gutter to
+   its left. A strip in the card's own colour covers it: a pseudo-element, because Chromium paints no
+   box-shadow on a cell of a collapsed-border table. Screen only, as paper has no gutter. */
+@media screen and (max-width: 1023px) {
+    :is(.links-grid .pos-num, .links-grid thead th.col-pos, .links-grid tfoot td.col-pos)::before {
+        content: ''; position: absolute; top: -1px; bottom: -1px; right: 100%; width: 18px; background: var(--surface);
+    }
+}
 
 /* Position number cell */
 .links-grid .pos-num {
@@ -1518,27 +1538,33 @@ body:not(.auth-ready) .app-header { display: none; }
    (`aria-labelledby`). The single grid's cells ARE buttons, so it needs none of this. */
 .compare-grid-scroll:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 
-/* Each column scrolls on its own, on desktop too: two min-width tables cannot both fit. */
+/* Each column scrolls on its own, and wears the right-edge cue at EVERY width: on a laptop Saturday was
+   cut off with nothing to say so. Its cells are translucent, so the shade shows through them. */
 .compare-grid-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin: 0 -16px;
     padding: 0 16px;
+    background: var(--scroll-cue);
 }
+/* From 1024px each half holds all seven days: the cells give up their phone minimum (a half is about
+   480px at 1024, so a day is about 63px, room for a 12px time). Below it the halves stack. */
 @media (min-width: 1024px) {
     .compare-grid-scroll { margin: 0; padding: 0; }
+    .links-grid--compare, .links-grid--compare .shift-cell { min-width: 0; }
+    .links-grid--compare { table-layout: fixed; }   /* seven equal days, not sized by their words */
 }
 
 /* Read-only compare grid — no interactive feedback */
 .links-grid--compare { pointer-events: none; }
+/* Its cells are spans, which (unlike a button) do not centre their words: RD and SP sat at the top. */
+.links-grid--compare .shift-cell-btn { display: grid; place-items: center; }
 
 /* Diff marker: the DARK gold, 5.4:1 or more on every cell fill (the brand gold was 1.2–1.4:1). Not a
    focus token: these cells take no focus. */
 .cell-diff .shift-cell-btn {
     outline: 2px solid var(--gold-text);
     outline-offset: -2px;
-    position: relative;
-    z-index: 1;
 }
 
 /* Slightly larger touch targets on coarse-pointer devices */

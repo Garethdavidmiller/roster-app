@@ -4380,8 +4380,9 @@ test('links compare: scrolling one column moves the other to the same day', asyn
     const cols = page.locator('.compare-grid-scroll');
     await expect(cols).toHaveCount(2);
     // Narrow enough that the 560px-minimum tables genuinely overflow their columns — without real
-    // overflow `scrollLeft` stays 0 and the assertion below would pass on a broken sync.
-    await page.setViewportSize({ width: 1024, height: 1000 });
+    // overflow `scrollLeft` stays 0 and the assertion below would pass on a broken sync. A phone
+    // width: from 1024px each half holds all seven days, so nothing there scrolls.
+    await page.setViewportSize({ width: 480, height: 1000 });
     const room = await cols.first().evaluate(el => el.scrollWidth - el.clientWidth);
     expect(room, 'the columns must actually overflow, or this test proves nothing').toBeGreaterThan(0);
 
