@@ -75,12 +75,11 @@ const CARD_TIPS = {
             // on agrees to this list. It named two kinds while four were sent, then four while the card
             // said five — so tips-content.test.mjs now holds the two lists to each other.
             { heading: 'What you’ll get', items: [
-                { icon: '📋', html: '<strong>Daily Huddle</strong> — when the day’s Huddle has been uploaded.' },
+                { icon: '📋', html: '<strong>Daily Huddle</strong> — when a new Huddle is uploaded, usually the evening before the day it covers.' },
                 { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
                 { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
                 { icon: '💷', html: '<strong>Pay reminder</strong> — for CEA and CES colleagues: on the cut-off Saturday, six days before payday, to enter your hours.' },
-                // Listed only while a change is scheduled — the card hides it after the send (notif-card-core.js).
-                ...(timetableListed() ? [{ icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' }] : []),
+                { icon: '🚆', html: '<strong>Timetable changes</strong> — the evening before Chiltern’s timetable changes, with what changes at Marylebone.' },
             ]},
             { heading: 'How it works', items: [
                 { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
@@ -124,6 +123,8 @@ const CARD_TIPS = {
         ],
     },
 };
+// Timetable changes are listed only while one is scheduled, as the card lists them (notif-card-core.js).
+if (!timetableListed()) for (const s of CARD_TIPS.notifications?.sections ?? []) s.items = s.items.filter(it => it.icon !== '🚆');
 
 /**
  * Phase 4a.2 (AUTH_ARCHITECTURE.md): the coordinator body is an exported init() invoked by
