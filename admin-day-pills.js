@@ -16,25 +16,28 @@
  *   `buildWeekGridInto`), what an enabled pill does, or the backstops at Save (`checkDayRules`,
  *   admin-shift-rules.js, and the single-row save in admin-app.js).
  *
- * ── SPARE ON A SUNDAY OR BOXING DAY: THE OTHER PILL OFFERS SPARE ALONE (owner decision, Nov 2026) ──
- *    (except where that day is ALSO Christmas Day or Boxing Day — never a Spare turn, owner 19 Nov
- *    2026 — so Boxing Day, and a Sunday 25 December, have no Other pill at all: the branch above it)
+ * ── SPARE ON A SUNDAY: THE OTHER PILL OFFERS SPARE ALONE (owner decision, Nov 2026) ──────────────
+ *    (except where the Sunday is ALSO Christmas Day or Boxing Day — never a Spare turn, owner 19 Nov
+ *    2026 — so it has no Other pill at all: the branch above it)
  *
  * Spare lives in the Other submenu (`PILL_TYPES`, admin-shift-types.js) but is its OWN type,
  * `spare_shift` — a standby turn, not an Other day. Neither Sunday rule forbids it
- * (`SUNDAY_FORBIDDEN_TYPES` leaves it out; the single-row save lets a Sunday Spare through) and the
- * Boxing Day backstop refuses only `other`, so the saves already took a Spare on either day. The grid
- * turned the whole Other pill off there, so the one route to a Spare was closed while the saves
- * allowed it. Now the pill stays on, every Other-family chip is off with its reason, and the row is
- * marked `spareOnly`, so picking Other there presses Spare at once (`_activateRow`,
- * admin-week-row-state.js) — one choice is not a decision to ask for. Training, Induction,
- * Assessment, Team Day, Union and Meeting stay refused on both days (confirmed by the owner).
+ * (`SUNDAY_FORBIDDEN_TYPES` leaves it out; the single-row save lets a Sunday Spare through), so the
+ * save already took a Spare there. The grid turned the whole Other pill off, so the one route to a
+ * Spare was closed while the save allowed it. Now the pill stays on, every Other-family chip is off
+ * with its reason, and the row is marked `spareOnly`, so picking Other there presses Spare at once
+ * (`_activateRow`, admin-week-row-state.js) — one choice is not a decision to ask for. Training,
+ * Induction, Assessment, Team Day, Union and Meeting stay refused (confirmed by the owner). Boxing Day
+ * was the rule's other day until it lost Spare too (19 Nov 2026), and Christmas Day its Other days
+ * (21 Nov 2026).
  *
- * ── …EXCEPT ON 25 OR 26 DECEMBER, WHICH CANNOT BE SPARE DAYS (owner, 19 Nov 2026) ───────────────────
+ * ── 25 AND 26 DECEMBER, ANY WEEKDAY: NO OTHER PILL (owner, 19 and 21 Nov 2026) ─────────────────────
  *
- * With Spare refused as well, neither day has anything left under Other, so the pill itself is turned
- * off with the reason. (Until 21 Nov 2026 a weekday Christmas Day kept its Other days and lost the
- * Spare chip alone; the owner then ruled out training and meetings on both days.)
+ * Neither day can be a Spare day (19 Nov 2026) or an Other day (21 Nov 2026: "There cannot be training
+ * or meeting on December 25th or 26th"), so nothing is left under Other on either, weekday or Sunday,
+ * and the pill itself is turned off with the reason. (Until 21 Nov 2026 a weekday Christmas Day kept
+ * its Other days and lost the Spare chip alone.) The day is named by `christmas`, which the caller
+ * passes as `christmasDayName` for every row, so the Sunday branch below never sees either day.
  *
  * ── WHY IT IS ITS OWN MODULE ───────────────────────────────────────────────────────────────────
  *
@@ -48,10 +51,10 @@ import { TYPES } from './admin-shift-types.js';
 /**
  * Turn off what `row`'s day cannot take, and say why on each control turned off.
  * @param {HTMLElement} row a `.day-row` as `buildWeekGridInto` draws it
- * @param {{ sunday: boolean, boxing: boolean, beforeStart: boolean, christmas?: string|null }} day
+ * @param {{ sunday: boolean, beforeStart: boolean, christmas?: string|null }} day
  *   `christmas` names the day when it is Christmas Day or Boxing Day (`christmasDayName`), else null.
  */
-export function restrictDayPills(row, { sunday, boxing, beforeStart, christmas = null }) {
+export function restrictDayPills(row, { sunday, beforeStart, christmas = null }) {
     /** Disabled buttons drop out of the tab order, so the reason goes in the accessible name — and in
      *  a line in the row, for sighted readers (a `title` was a hover surface no phone shows, v23.50).
      *  @param {Element|null} el @param {string} label */
@@ -84,8 +87,8 @@ export function restrictDayPills(row, { sunday, boxing, beforeStart, christmas =
         off(row.querySelector('.pill-other'), `Other — unavailable on ${christmas}: no Other day or Spare turn`);
         row.querySelectorAll('.other-flavour-btn').forEach(b =>
             off(b, `${(b.textContent ?? '').trim()} — unavailable on ${christmas}`));
-    } else if (sunday || boxing) {
-        const where = sunday ? 'on Sundays' : 'on Boxing Day';
+    } else if (sunday) {
+        const where = 'on Sundays';
         row.dataset.spareOnly = '1';
         row.querySelector('.pill-other')?.setAttribute('aria-label', `Other — only Spare ${where}`);
         row.querySelectorAll('.other-flavour-btn:not([data-flavour="SPARE"])').forEach(b =>

@@ -71,7 +71,7 @@ function drawRow() {
 const pill = (/** @type {any} */ row, /** @type {string} */ t) => row.querySelector(`.pill-${t}`);
 const chips = (/** @type {any} */ row) => row.querySelectorAll('.other-flavour-btn');
 const spare = (/** @type {any} */ row) => row.querySelector('.other-flavour-btn[data-flavour="SPARE"]');
-const ordinary = { sunday: false, boxing: false, beforeStart: false };
+const ordinary = { sunday: false, beforeStart: false };
 
 describe('a Sunday: no leave, absence or plain shift, and Other offers Spare alone', () => {
     const row = drawRow();
@@ -132,7 +132,7 @@ describe('the words that say what a Sunday offers name what its row leaves on', 
 
 describe('Boxing Day: no Other day and no Spare turn, so no Other pill (owner, 19 Nov 2026)', () => {
     const row = drawRow();
-    restrictDayPills(row, { ...ordinary, boxing: true, christmas: 'Boxing Day' });
+    restrictDayPills(row, { ...ordinary, christmas: 'Boxing Day' });
 
     test('leave, absence and shifts are not refused — the Sunday rule is not Boxing Day\'s', () => {
         for (const t of PILL_TYPES.filter(t => t !== 'other')) assert.equal(pill(row, t).disabled, false, t);
@@ -178,7 +178,7 @@ describe('before the start date: nothing at all', () => {
     test('every pill is off and says so — a Sunday before the start date too', () => {
         for (const sunday of [false, true]) {
             const row = drawRow();
-            restrictDayPills(row, { sunday, boxing: false, beforeStart: true });
+            restrictDayPills(row, { sunday, beforeStart: true });
             for (const t of PILL_TYPES) {
                 assert.equal(pill(row, t).disabled, true, t);
                 assert.match(pill(row, t).getAttribute('aria-label'), /before the start date$/, t);
@@ -238,9 +238,8 @@ describe('choosing Other where Spare is the only choice (admin-week-row-state.js
     });
 });
 
-test('the week grid asks this module about every row, with the day\'s four facts', () => {
+test('the week grid asks this module about every row, with the day\'s three facts', () => {
     // The wiring, not the rule: the grid's own fake DOM cannot see a disabled pill, so this reads the call.
     const src = readFileSync(new URL('./admin-week-editor.js', import.meta.url), 'utf8');
-    assert.match(src, /restrictDayPills\(row, \{ sunday: isSunday\(dateISO\), boxing, beforeStart, christmas: christmasDayName\(dateISO\) \}\);/);
-    assert.match(src, /boxing = isBoxingDay\(dateISO\) && !isSunday\(dateISO\)/);
+    assert.match(src, /restrictDayPills\(row, \{ sunday: isSunday\(dateISO\), beforeStart, christmas: christmasDayName\(dateISO\) \}\);/);
 });

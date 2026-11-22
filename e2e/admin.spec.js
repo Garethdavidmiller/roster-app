@@ -4219,7 +4219,7 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
     await page.locator('#bulkApplyBtn').click();
     // Also reveal the per-row "Other" sub-controls (flavour chips + optional times) on a
     // weekday row — the most width-hungry revealed control set, now reached only per-row.
-    // Not a Sunday or Boxing Day row: there Other offers Spare alone, which hides the times (admin-day-pills.js).
+    // Not a Sunday row: there Other offers Spare alone, which hides the times (admin-day-pills.js).
     const otherPill = page.locator('.day-row:not([data-spare-only="1"]) .pill-other:not([disabled])').first();
     if (await otherPill.count()) await otherPill.click();
     await page.waitForTimeout(200);
@@ -4244,7 +4244,7 @@ test('admin: the Other submenu\'s chips and tick clear the 24px tap floor on tou
     await seedSession(page);
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    // Not a Sunday or Boxing Day row: Other presses Spare there, which hides the RDW tick measured below.
+    // Not a Sunday row: Other presses Spare there, which hides the RDW tick measured below.
     const row = page.locator('.day-row:not([data-spare-only="1"])').filter({ has: page.locator('.pill-other:not([disabled])') }).first();
     // A row's pills are offered once its day is ticked.
     await row.locator('.day-cb').check();
