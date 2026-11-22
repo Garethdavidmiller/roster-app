@@ -329,7 +329,7 @@ body:not(.auth-ready) .app-header { display: none; }
     padding: 0;
 }
 .cov-heat-hour {
-    font-size: 9px;
+    font-size: var(--type-micro);
     font-weight: 700;
     color: var(--text-mid);
     background: var(--surface-sunken);
@@ -626,6 +626,8 @@ body:not(.auth-ready) .app-header { display: none; }
     touch-action: manipulation;
 }
 .shift-cell-btn:active { transform: scale(var(--press-scale)); }
+/* Inside the cell: an outside ring on line 1 was cut off by the sticky day header above it. */
+.shift-cell-btn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
 
 /* Cell background by shift type */
 .shift-cell-btn.type-rd    { background: var(--surface-sunken); color: var(--text-light); }
@@ -654,11 +656,11 @@ body:not(.auth-ready) .app-header { display: none; }
 .links-grid tfoot td.col-pos {
     text-align: center;
     padding: 3px 4px;
-    font-size: 9px;
+    font-size: var(--type-micro);
     font-weight: 700;
     color: var(--text-mid);
 }
-.cov-cell { font-size: 9px; line-height: 1.4; vertical-align: middle; }
+.cov-cell { font-size: var(--type-micro); line-height: 1.4; vertical-align: middle; }
 .cov-cell .cov-num {
     display: block;
     font-weight: 700;
@@ -695,7 +697,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .col-total-sub {
     display: block;
     font-weight: 400;
-    font-size: 9px;
+    font-size: var(--type-micro);
     color: var(--text-light);
     text-transform: none;
     letter-spacing: 0;
@@ -731,7 +733,7 @@ body:not(.auth-ready) .app-header { display: none; }
 /* The divisor, on every average: hours over the whole rotation, days over the working lines. */
 .tot-avg-note {
     display: block;
-    font-size: 9px;
+    font-size: var(--type-micro);
     font-weight: 400;
     color: var(--text-light);
 }
@@ -1382,6 +1384,9 @@ body:not(.auth-ready) .app-header { display: none; }
 .dm-sheet-head { display: flex; align-items: center; gap: 12px; padding: 12px 40px 12px 12px; border-bottom: 1px solid var(--border-light); }
 .dm-sheet-title { min-width: 0; }
 .dm-sheet-title b { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ONE TITLE on the page's four sheets: More, the picker, Import and Recently deleted take the shared
+   picker sheet's head (`.picker-head`), not two other families' larger titles. */
+#linksImportContent .dialog-title, #designBinContent .tips-lb-title { font-size: var(--type-medium); font-weight: 800; letter-spacing: -0.2px; }
 .dm-sheet-title span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
 .dm-menu { display: grid; gap: 2px; padding: 4px 0; }
 .dm-menu-btn {
@@ -1448,6 +1453,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .bin-restore:focus-visible, .bin-purge:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .bin-empty { font-size: var(--type-small); color: var(--text-mid); margin: 0; }
 .bin-status { font-size: var(--type-small); margin: 12px 0 0; min-height: 1em; }
+.bin-status:empty { margin: 0; min-height: 0; }   /* in flow, so the live region stays in the tree */
 .bin-status.ok  { color: var(--success-green); }
 .bin-status.err { color: var(--error-red); }
 
@@ -1632,6 +1638,8 @@ body:not(.auth-ready) .app-header { display: none; }
     /* The grid card's header is redundant on paper (the masthead names the sheet) and costs the
        one-sheet fit. Coverage and Design checks keep theirs. */
     #linksGridCard > .card-header-toggle { display: none !important; }
+    /* A card's header never ends a sheet without its body ("Design checks" did, its rows overleaf). */
+    .card > :is(.card-header-toggle, .card-header--row) { break-after: avoid; page-break-after: avoid; }
     #linksGridCard { border: none; }
     #linksGridCard .card-body { padding: 0 !important; }
 
@@ -1651,6 +1659,8 @@ body:not(.auth-ready) .app-header { display: none; }
     .links-grid td.tot-cell,
     .links-grid th.col-total { font-size: 8px; padding: 0 3px; }
     .col-total-sub, .tot-avg-note { font-size: 7px; }
+    /* Paper keeps the 9px it was composed at; the screen took the scale's smallest step. */
+    .cov-heat-hour, .links-grid tfoot td.col-pos, .cov-cell { font-size: 9px; }
 }
 
 /* ---- "Nothing to report" disclosure in the fatigue panel ----
@@ -1923,8 +1933,9 @@ body:not(.auth-ready) .app-header { display: none; }
     color: var(--text-mid);
 }
 
-/* MONOSPACE: a pasted rotation is columns, and in a proportional face a misaligned row looks the same
-   as an aligned one. `pre` and a scroll for the same reason: a wrapped row reads as two rows. */
+/* A pasted rotation is columns, read in the app's Inter with EVEN-WIDTH DIGITS (owner, 22 Nov 2026),
+   as Admin's and Pay's paste boxes, so the times still line up. `pre` and a scroll: a wrapped row
+   reads as two rows. */
 .li-paste {
     width: 100%;
     box-sizing: border-box;
@@ -1934,7 +1945,8 @@ body:not(.auth-ready) .app-header { display: none; }
     border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
     /* 14px on a mouse, for density; 16px on touch, below (iOS focus-zoom). */
     font-size: var(--type-body);
     line-height: 1.4;
