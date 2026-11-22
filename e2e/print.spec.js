@@ -29,6 +29,7 @@
 import { test, expect, forcePasswordSet } from './fixtures.js';
 import { seedSession, seedMember, seedMemberSession, seedViewerAccess, waitForPageSettled, signInThroughOverlay } from './helpers.js';
 import zlib from 'node:zlib';
+import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
 const A4_W = 595, A4_H = 842;
@@ -58,7 +59,7 @@ async function inPrint(page, fn) {
 // computed against a page that is not the sheet in the tray. Four of these five guides had no
 // `@page` at all until v23.20, and the failure is invisible from the screen.
 test.describe('every printable document states A4', () => {
-    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of GUIDE_PAGES.map(p => p.file.replace(/\.html$/, ''))) {
         test(`${guide} prints A4 portrait @print`, async ({ page, browserName }) => {
             test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
             await page.goto(`/${guide}.html`);
@@ -207,7 +208,7 @@ test('a collapsed Settings card still prints its values @print', async ({ page }
 // and railcard's was simply missed, printing 38px tall. Asserted across all five rather than the
 // one that broke — a per-guide element is exactly the kind that gets added again.
 test('no guide prints a website navigation link @print', async ({ page }) => {
-    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of GUIDE_PAGES.map(p => p.file.replace(/\.html$/, ''))) {
         await page.goto(`/${guide}.html`);
         const visible = await inPrint(page, () =>
             [...document.querySelectorAll('a')]

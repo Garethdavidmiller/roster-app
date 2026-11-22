@@ -190,7 +190,11 @@ test('no test or script writes out a whole family of pages again', () => {
         const code = read(`./${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
         for (const lit of code.match(/\[[^[\]]*\]/g) || []) {
             for (const [name, members] of Object.entries(families)) {
-                if (members.every(m => lit.includes(`'${m}'`) || lit.includes(`'/${m}'`))) offenders.push(`${f}: ${name}`);
+                // …or written without its `.html` (Nov 2026): the browser suites spelt the five guides out
+                // as `'staff-guide'` and the rest, which went past this check four times in one file.
+                const named = (/** @type {string} */ m) => lit.includes(`'${m}'`) || lit.includes(`'/${m}'`)
+                    || lit.includes(`'${m.replace(/\.html$/, '')}'`);
+                if (members.every(named)) offenders.push(`${f}: ${name}`);
             }
         }
     }
@@ -214,6 +218,35 @@ test('every app page has at least one visual-regression baseline', () => {
     const shots = readdirSync(new URL('./e2e/visual-baselines/', import.meta.url));
     assert.ok(shots.some(f => f.startsWith('overtime-')),
         'no committed Overtime baseline — the spec references one that does not exist on disk');
+});
+
+test('every guide has a visual-regression baseline too', () => {
+    // The guide visits in e2e/visual.spec.js are written out one by one, deliberately: each has its own
+    // width, its own ready selector and a committed baseline named after it. So the list is checked from
+    // here rather than replaced by a loop.
+    const suite = read('./e2e/visual.spec.js');
+    const missing = GUIDE_PAGES.map(p => p.file).filter(f => !suite.includes(`goto('/${f}')`));
+    assert.deepEqual(missing, [], 'guides with no baseline in e2e/visual.spec.js');
+});
+
+test('each guide\'s declared shape is true of its page, and the guide suites read the list (Nov 2026)', () => {
+    // scripts/app-pages.mjs now says which guides are DOCUMENT-style and where each one's content column
+    // is, so the browser suites loop over it instead of spelling the guides out. A field nobody checks is
+    // a list that can be wrong without failing, so each is read against the page here.
+    for (const { file, documentStyle, column } of GUIDE_PAGES) {
+        const html = read(`./${file}`);
+        assert.equal(html.includes('href="./guide-doc.css"'), documentStyle,
+            `${file}: declared ${documentStyle ? '' : 'not '}document-style, and ${documentStyle ? 'does not load' : 'loads'} guide-doc.css`);
+        assert.equal((html.match(/class="guide-back-link"/g) || []).length, documentStyle ? 0 : 1,
+            `${file}: a card guide ends with ONE footer back link, a document guide with none`);
+        const present = column === 'main' ? /<main\b/.test(html)
+            : new RegExp(`class="(?:[^"]*\\s)?${column.slice(1)}(?:\\s[^"]*)?"`).test(html);
+        assert.ok(/^(main|\.[a-z-]+)$/.test(column) && present, `${file}: its content column ${column} is not on the page`);
+    }
+    for (const suite of ['./guide-sources.test.mjs', './e2e/guides.spec.js', './e2e/print.spec.js']) {
+        assert.ok(readsThePageList(read(suite), 'GUIDE_PAGES').imports,
+            `${suite} no longer takes its guides from scripts/app-pages.mjs (GUIDE_PAGES)`);
+    }
 });
 
 test('every app page carries the noindex meta', () => {
