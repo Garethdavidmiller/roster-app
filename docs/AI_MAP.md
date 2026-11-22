@@ -665,7 +665,7 @@ What a run of booked dates is and what it reads as: the pure helpers the Recorde
 
 ### `admin-booked-periods.js`
 The Recorded Annual Leave dates and Recorded Absence dates sub-cards on `admin.html` — one renderer for both lists — and which YEAR of the list is on screen; also what a row's ✕ deletes (`periodDelete`) and the two-tap ✕ and feedback fade it shares with Saved Changes and the range cards. It states no total: the AL banner owns the figures. The owner's year-end rule is in the header. Tested by `admin-booked-periods.test.mjs`.
-- **Exports:** `periodDelete` · `armConfirm` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
+- **Exports:** `periodDelete` · `TWO_TAP_MIN_MS` · `twoTap` · `disarmConfirm` · `holdFeedback` · `fadeFeedback` · `splitAtYearEnd` · `bookedYears` · `pickBookedYear` · `createBookedPeriods`
 
 ### `admin-sick.js`
 The Record Absence card on `admin.html`: a thin config over `createRangeBookingSection` (`admin-range-booking.js`) with the one-year range cap and the 🪑 preview. Absence is not capped and never asks the swapped-day question, but over a day whose work earned a day in lieu it lowers the leave allowance, so the card names those days and raises the shared over-allowance bar (`projectAbsenceRange`). A rest day holding Rest Day Working or free leave is left as it is, and named in the preview and the receipt, because an absence there would never show. Nothing on it is scoped to a year (header). Exercised by `e2e/admin.spec.js`.

@@ -33,6 +33,7 @@ import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
 import { resetQuestion, resetFailure, resetOutcome } from './operations-reset.js';
+import { twoTap, disarmConfirm } from './admin-booked-periods.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
@@ -299,7 +300,7 @@ export function init() {
         const say = (btn, text, name) => { btn.textContent = text; btn.setAttribute('aria-label', name); };
         const sayEmail = (/** @type {Element} */ btn, /** @type {string} */ nm) => (emailMap.has(nm)
             ? say(btn, 'Edit', `Edit email for ${nm}`) : say(btn, 'Set email', `Set email for ${nm}`));
-        const sayReset = (/** @type {Element} */ btn, /** @type {string} */ nm) => say(btn, 'Reset', `Reset ${nm}'s password to their surname default`);
+        const sayReset = (/** @type {Element} */ btn, /** @type {string} */ nm) => say(btn, 'Reset', `Reset ${nm}’s password to their surname default`);
         const sayRemove = (/** @type {Element} */ btn, /** @type {string} */ nm) => say(btn, 'Remove', `Remove email for ${nm}`);
 
         // Close every open email form and restore each Set/Edit button to its resting label.
@@ -466,17 +467,10 @@ export function init() {
         }
 
         async function removeEmail(/** @type {any} */ m, /** @type {HTMLButtonElement} */ removeBtn) {
-            // Two-tap confirm (no dialog — keeps the inline row flow); auto-reverts after 3s.
-            if (removeBtn.dataset.confirm !== 'pending') {
-                removeBtn.dataset.confirm = 'pending';
-                say(removeBtn, 'Confirm?', `Confirm? Press again to remove the email for ${m.name}`);
-                setTimeout(() => {
-                    if (removeBtn.dataset.confirm === 'pending') { removeBtn.dataset.confirm = ''; sayRemove(removeBtn, m.name); }
-                }, 3000);
-                return;
-            }
-            // Disarmed as the delete starts, or the revert above fires into it ("Removing…" → "Remove").
-            removeBtn.dataset.confirm = ''; removeBtn.disabled = true; say(removeBtn, 'Removing…', `Removing the email for ${m.name}`);
+            // Admin's two-tap (no dialog — keeps the inline row flow): five seconds, and a double tap is not a yes.
+            if (!twoTap(removeBtn, 'Remove?', 'Remove', `Remove? Press again to remove the email for ${m.name}`)) return;
+            // Disarmed as the delete starts, or its timer would put "Remove" back over "Removing…".
+            disarmConfirm(removeBtn, 'Remove'); removeBtn.disabled = true; say(removeBtn, 'Removing…', `Removing the email for ${m.name}`);
             try {
                 await withSlowSaveNotice(deleteStaffContact(m.name));
                 emailMap.delete(m.name);
@@ -486,7 +480,7 @@ export function init() {
                 console.error('[AccountStatus] email remove failed', e);
                 // Never silent: it says which kind of failure.
                 const unknown = unconfirmedWriteLine(e, 'this removal', 'this list');
-                removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; sayRemove(removeBtn, m.name);
+                removeBtn.disabled = !!unknown; sayRemove(removeBtn, m.name);
                 const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: unknown || 'Couldn’t remove — check your connection and try again' });
                 msg.setAttribute('role', 'alert'); msg.dataset.removeError = '';
                 // Only ITS OWN earlier line: the first in the row may be the open edit form's.
@@ -521,7 +515,7 @@ export function init() {
             // each outcome — is operations-reset.js's, beside the reasoning for what each one may claim.
             const { confirmed, option: lostDevice } = await confirmWithOption(resetQuestion(name));
             if (!confirmed) return;
-            btn.disabled = true; say(btn, 'Resetting…', `Resetting ${name}'s password`);
+            btn.disabled = true; say(btn, 'Resetting…', `Resetting ${name}’s password`);
             /** @type {any} */ let result;
             try {
                 result = await resetMemberPassword(name, { lostDevice });
@@ -530,7 +524,7 @@ export function init() {
                 // A timeout or a refusal offers no Retry: one may have landed, the other cannot change.
                 const { retry, note } = resetFailure(name, e);
                 btn.disabled = false;
-                if (retry) say(btn, 'Retry', `Retry resetting ${name}'s password`); else sayReset(btn, name);
+                if (retry) say(btn, 'Retry', `Retry resetting ${name}’s password`); else sayReset(btn, name);
                 if (note) report(name, note);
                 return;
             }

@@ -7,7 +7,7 @@
 import { test, expect, isoDaysAgo } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
 import AxeBuilder from '@axe-core/playwright';
-import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject, pastDoubleTap } from './helpers.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
 import { LOST_PHONE } from '../operations-reset.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
@@ -1122,7 +1122,8 @@ test('operations account status: a work-email Remove of unknown outcome says so,
     await page.goto('/operations.html');
     await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
     const remove = page.locator('.email-set-btn--remove').first();
-    await remove.click();          // arms ("Confirm?")
+    await remove.click();          // arms ("Remove?")
+    await pastDoubleTap(page);
     await remove.click();          // removes
     await expect(page.locator('.acct-row .email-set-error').first()).toHaveText(/signed out before this removal was confirmed/);
     await expect(remove).toBeDisabled();
@@ -1130,7 +1131,7 @@ test('operations account status: a work-email Remove of unknown outcome says so,
 
 // ── EVERY OPERATIONS WRITE EXPLAINS A WAIT (Nov 2026 review) ────────────────────────────────────
 // Admin (v24.21) and Settings (v24.38) say when a write is waiting on the server; Operations' saves sat
-// on a bare "Saving…" or a silently disabled button. And Remove's three-second "Confirm?" timer, armed
+// on a bare "Saving…" or a silently disabled button. And Remove's "Confirm?" timer (now Admin's shared two-tap), armed
 // by the first tap, went on running through the delete and turned "Removing…" back into "Remove".
 const ACCT_EMAIL_ROWS = { staffContact: [{ id: 'A. Hared', memberName: 'A. Hared', workEmail: 'a.hared@chilternrailways.co.uk' }], passwordStatus: [], resetRequests: [] };
 
@@ -1144,10 +1145,11 @@ test('operations account status: a Remove waiting on the server says so, and kee
     await page.clock.runFor(2000);
     await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
     const remove = page.locator('.email-set-btn--remove').first();
-    await remove.click();                       // arms "Confirm?" — and its three-second revert
+    await remove.click();                       // arms "Remove?" — and its five-second revert
+    await page.clock.runFor(600);               // past the double-tap minimum (TWO_TAP_MIN_MS)
     await remove.click();                       // removes; the harness holds the delete for five seconds
     await expect(remove).toHaveText('Removing…');
-    await page.clock.runFor(3500);              // past the revert
+    await page.clock.runFor(4500);              // past the revert, five seconds from arming; the delete is still held
     await expect(remove, 'the arming timer fired into the delete').toHaveText('Removing…');
     await expect(page.locator('#slowSaveNotice')).toBeVisible();
     await page.clock.runFor(2000);              // the delete is refused
@@ -1227,8 +1229,9 @@ test('operations account status: every row button\'s name holds its visible word
 
     const remove = page.locator('.email-set-btn--remove').first();
     await remove.click();
-    await expect(remove).toHaveText('Confirm?');
-    expect(await nameMismatches(page), 'Remove armed: Confirm?').toEqual([]);
+    await expect(remove).toHaveText('Remove?');
+    expect(await nameMismatches(page), 'Remove armed: Remove?').toEqual([]);
+    await pastDoubleTap(page);
     await remove.click();
     await expect(remove).toHaveText('Removing…');
     expect(await nameMismatches(page), 'Remove under way: Removing…').toEqual([]);
@@ -1322,6 +1325,7 @@ test('operations account status: a failed Remove leaves the open edit form its o
     await expect(row.locator('.email-set-form')).toBeVisible();
     const remove = row.locator('.email-set-btn--remove');
     await remove.click();
+    await pastDoubleTap(page);
     await remove.click();                                                       // the Remove fails
     await expect(row.locator('.email-set-error').last()).toHaveText(/Couldn’t remove/);
     await row.locator('.email-set-save').click();                               // and the form's save fails
@@ -1878,9 +1882,9 @@ test('operations: a reset whose sign-out failed still says nobody told them, and
     const { row, name } = await openForReset(page, { answer: { ok: true, revoked: false, revokeFailed: true, stamped: true, notified: false } });
     await pressReset(page, row);
     const dialog = page.locator('.lb-overlay.open');
-    await expect(dialog.locator('.dialog-title')).toHaveText('Password reset — other devices not signed out yet');
-    await expect(dialog).toContainText('when they next renew, within the hour — reset again to sign them out now');
-    await expect(dialog).toContainText(`No reset notice reached ${name}'s devices, so they have NOT been told. Let them know their password is now their surname.`);
+    await expect(dialog.locator('.dialog-title')).toHaveText('Password reset — not signed out yet');
+    await expect(dialog).toContainText('when it next renews, within the hour — reset again to sign them out now');
+    await expect(dialog).toContainText(`No reset notice reached ${name}’s devices, so they have NOT been told. Let them know their password is now their surname.`);
     await expect(dialog, 'they are not signed out yet, so nothing may say they are').not.toContainText('and they are signed out');
 });
 

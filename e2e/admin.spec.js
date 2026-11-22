@@ -6,7 +6,7 @@
  */
 import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand } from './helpers.js';
+import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, clickInView, seedMemberSession, isTouchProject, scaleText, waitForReadsToLand, pastDoubleTap } from './helpers.js';
 import { SUNDAY_FORBIDDEN_TYPES, isRestShift } from '../override-utils.js';
 import { teamMembers, getBaseShift, getPatternShift, parseISODate, CONFIG, isBankHoliday, formatISO } from '../roster-data.js';
 import { fmtPeriodDate, formatDisplay } from '../admin-period-dates.js';
@@ -1534,6 +1534,7 @@ test('admin: a leave preview is redrawn when a recorded period under it is delet
     await page.locator('#alBookedToggle').click();
     const del = page.locator('#alBookedBody .btn-period-delete[aria-label*="7 Sep"]');
     await del.click();
+    await pastDoubleTap(page);
     await del.click();
     await expect(page.locator('#saveToast')).toHaveText(/Deleted 1 AL day for G\. Miller/);
     await expect(preview, 'a bare rest day now: asked about again').toContainText('rest day to answer');
@@ -1566,7 +1567,8 @@ test('admin: a Recorded Absence dates ✕ deletes the older leave copy under the
     const del = page.locator('#sickBookedBody .btn-period-delete');
     await expect(del, 'premise: one recorded absence, one ✕').toHaveCount(1);
     await clickInView(del);
-    await expect(del).toHaveText('Confirm?');
+    await expect(del).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await clickInView(del);
     await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 absence day for ${who.name}, and an earlier entry for ${fmtPeriodDate(day)}`);
     const deleted = await page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || []).map((/** @type {string} */ p) => p.split('/').pop()));
@@ -2844,6 +2846,7 @@ for (const staged of [true, false]) {
         await page.locator('#alBookedToggle').click();
         const del = page.locator('#alBookedBody .btn-period-delete').first();
         await del.click();
+        await pastDoubleTap(page);
         await del.click();
         const toast = page.locator('#saveToast');
         await expect(toast, 'premise: the delete raised the toast').toHaveClass(/\bvisible\b/);
@@ -3044,7 +3047,8 @@ test('admin: a refused delete leaves the ✕ as a ✕, not the word it used to b
     const btn = page.locator('#alBookedBody .btn-period-delete').first();
     await expect(btn).toHaveText('✕');
     await btn.click();
-    await expect(btn, 'first tap asks').toHaveText('Confirm?');
+    await expect(btn, 'first tap asks').toHaveText('Delete?');
+    await pastDoubleTap(page);
     await btn.click();
     // The refusal is what proves the path was the refused one and not a silent success.
     await expect(page.locator('#alFeedback')).toContainText(/signed out/i);
@@ -3261,7 +3265,8 @@ test('admin: deleting a recorded booking confirms in the toast, not only at the 
 
     const btn = page.locator('#alBookedBody .btn-period-delete').first();
     await btn.click();
-    await expect(btn).toHaveText('Confirm?');
+    await expect(btn).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await btn.click();
 
     const toast = page.locator('#saveToast');
@@ -3398,6 +3403,7 @@ test('admin: a booked period a colleague has since changed is not deleted, and t
     await page.locator('#alBookedToggle').click();
     const btn = page.locator('#alBookedBody .btn-period-delete').first();
     await btn.click();
+    await pastDoubleTap(page);
     await btn.click();
     await expect(page.locator('#alFeedback')).toContainText(/Someone else has changed this/);
     expect(await page.evaluate(() => (window.__E2E?.deletedPaths || []).length), 'something was deleted').toBe(0);
@@ -3433,6 +3439,7 @@ async function deleteSavedChange(page, id) {
     const del = page.locator(`#overrideTableBody .btn-delete[data-id="${id}"]`);
     await clickInView(del);
     await expect(del).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await clickInView(del);
 }
 /** Book Annual Leave for Mon 24 – Tue 25 Aug on the leave card, and keep editing the week. @param {import('@playwright/test').Page} page */
@@ -3648,7 +3655,8 @@ test('admin: a Recorded dates delete over a day with a staged edit clears that e
     await page.locator('#alBookedToggle').click();
     const del = page.locator('#alBookedBody .btn-period-delete').first();
     await clickInView(del);
-    await expect(del).toHaveText('Confirm?');
+    await expect(del).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await clickInView(del);
     // The receipt names the seeded member, read from the session rather than written beside its count.
     const me = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_admin_session') ?? '{}').name);
@@ -3715,6 +3723,7 @@ test('admin: a refused delete straight after a delete stays on screen past the f
     await page.locator('#alBookedToggle').click();
     const dels = page.locator('#alBookedBody .btn-period-delete');
     await dels.first().click();
+    await pastDoubleTap(page);
     await dels.first().click();
     const line = page.locator('#alFeedback');
     await expect(line).toContainText('Deleted 1 AL day');
@@ -3722,6 +3731,7 @@ test('admin: a refused delete straight after a delete stays on screen past the f
     await page.evaluate((d) => { /** @type {any} */ (window).__E2E.txDocs = [{ id: 'k1', memberName: 'G. Miller', date: d, type: 'rdw', value: '09:00-17:00' }]; }, days[1]);
     await page.clock.fastForward(3_000);
     await dels.first().click();
+    await pastDoubleTap(page);
     await dels.first().click();
     await expect(line).toContainText(/Someone else has changed this/);
     await page.clock.fastForward(4_000);   // past the first delete's six seconds
@@ -3749,6 +3759,7 @@ test('admin: a period delete the rules refuse says so, not "check your connectio
         throw Object.assign(new Error('Missing or insufficient permissions'), { code: 'permission-denied' }); } }; });
     const btn = page.locator('#alBookedBody .btn-period-delete').first();
     await btn.click();
+    await pastDoubleTap(page);
     await btn.click();
     await expect(page.locator('#alFeedback')).toContainText('you may have been signed out');
     await expect(page.locator('#alFeedback')).not.toContainText('check your connection');
@@ -3832,13 +3843,15 @@ test('admin: a Recorded dates ✕ pressed from the keyboard hands focus on, neve
 
     await dels.first().focus();
     await page.keyboard.press('Enter');
-    await expect(dels.first()).toHaveText('Confirm?');
+    await expect(dels.first()).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await page.keyboard.press('Enter');
     await expect(dels).toHaveCount(1);
     await expect(dels.first(), 'the ✕ that took its place').toBeFocused();
 
     await page.keyboard.press('Enter');
-    await expect(dels.first()).toHaveText('Confirm?');
+    await expect(dels.first()).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await page.keyboard.press('Enter');
     await expect(dels).toHaveCount(0);
     // No ✕ left, but the list stays — it still shows the year's Christmas leave — so focus goes to
@@ -3869,12 +3882,14 @@ test('admin: a Saved Changes ✕ pressed from the keyboard hands focus on, never
     await dels.first().focus();
     await page.keyboard.press('Enter');
     await expect(dels.first()).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await page.keyboard.press('Enter');
     await expect(dels).toHaveCount(1);
     await expect(dels.first(), 'the ✕ that took its place').toBeFocused();
 
     await page.keyboard.press('Enter');
     await expect(dels.first()).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await page.keyboard.press('Enter');
     await expect(dels).toHaveCount(0);
     await expect(page.locator('#listFeedback'), 'none left: the line that says what happened').toBeFocused();
@@ -3901,6 +3916,7 @@ for (const [line, list] of [['listFeedback', 'Saved Changes'], ['alFeedback', 'R
         const del = page.locator(line === 'alFeedback' ? '#alBookedBody .btn-period-delete' : '#overrideTableBody .btn-delete').first();
         await del.focus();
         await page.keyboard.press('Enter');
+        await pastDoubleTap(page);
         await page.keyboard.press('Enter');
         await expect(page.locator(`#${line}`), 'premise: the delete handed focus to the line').toBeFocused();
         const ring = await page.evaluate((id) => {

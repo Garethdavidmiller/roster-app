@@ -369,7 +369,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // axe 4.14 checks WCAG 2.5.3 Label in Name, and #1678 fixed every state this file scanned. The
     // Team view was never opened here, and its week bar said "Previous week" under "← Prev" and its
     // toggle "Switch back to monthly calendar" under "Month"; an ARMED delete was never scanned, and
-    // the bulk one said "Confirm delete selected changes" under "⚠ Delete 2?". Each is a word a voice
+    // the bulk one said "Confirm delete selected changes" under "Delete 2?". Each is a word a voice
     // user says that the name did not contain.
 
     test('calendar — Team view: the week bar and the Month toggle', async ({ page }) => {
@@ -401,7 +401,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // Armed by the real clicks, so the words and names are the app's own.
         await page.locator('#selectAllOverrides').check();
         await page.locator('#bulkDeleteBtn').click();
-        await expect(page.locator('#bulkDeleteBtn')).toHaveText('⚠ Delete 2?');
+        await expect(page.locator('#bulkDeleteBtn')).toHaveText('Delete 2?');
         await page.locator('.override-card .btn-delete').first().click();
         await expect(page.locator('.override-card .btn-delete').first()).toHaveText('Delete?');
         // An armed confirm lapses after five seconds, and a scan can take longer than that on a slow
@@ -410,7 +410,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             .forEach(b => clearTimeout(/** @type {any} */ (b).armTimer)));
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
-        await expect(page.locator('#bulkDeleteBtn'), 'still armed when scanned').toHaveText('⚠ Delete 2?');
+        await expect(page.locator('#bulkDeleteBtn'), 'still armed when scanned').toHaveText('Delete 2?');
     });
 
     test('paycalc (signed in)', async ({ page }) => {
