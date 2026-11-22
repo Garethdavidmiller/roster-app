@@ -5,8 +5,7 @@
  * Owns: the page gate, the working copy and its `dirty` state, what a grid cell MEANS and the paint
  *   bar's brush (links-grid-input.js operates the grid), every path that can replace or discard the
  *   working copy and the question each one asks, the Build press, and the wiring of the modules
- *   below. It makes no Firestore write of its own — designs go through links-design-store.js — and
- *   one direct read remains, `loadDesigns`, which needs `metadata.fromCache`.
+ *   below. It makes no Firestore read or write of its own: designs go through links-design-store.js.
  * Does NOT own: the masthead and its sheets (links-design-header.js), compare mode (links-compare.js),
  *   the analysis panels (links-analysis.js), the generator's targets (links-generator-targets.js), the
  *   bin, import and shortlist (links-design-library.js), or any of the maths (links-design.js and its
@@ -2125,17 +2124,26 @@ export function init() {
         const openId = activeDesignId, act = activation;
         try {
             // The load's own split (links-design-load.js), with the refresh's one difference: it shows in the bin only a move this page started.
-            const { named, binned } = splitDesignDocs(await store.loadAll(), { binOld: binOldOnRefresh(binMoves), currentUser });
-            // A save only this browser has — queued, or refused and kept (links-queued-saves.js rule 4) — keeps its row.
-            designs = mergeListAnswer(designs, named, listed, (id) => !!queuedSaves.get(id)); _sortDesigns();
-            library.setBin(sortByDeleted(mergeListAnswer(library.binList(), binned, binnedThen)));
-            // A CLEAN open design follows a newer save of it (Nov 2026): the masthead and the printed sheet read the
-            // entry, so a grid left on the older version went out under the colleague's name. Edited, it stays as it
-            // is, on its own baseline, so its next Save still asks.
-            const entry = openId && act === activation && !dirty && !savingKeys.has(openId) ? designs.find(x => x.id === openId) : null;
-            if (entry && listRowSig(entry) !== listed.get(openId)) _followEntry(entry);
+            const { docs, fromCache } = await store.loadAll();
+            const split = splitDesignDocs(docs, { binOld: binOldOnRefresh(binMoves), currentUser });
+            // A cached answer holding no live design cannot say the list is empty: applied, it would empty the picker.
+            if (readCannotAnswer(fromCache, split)) console.warn('[Links] List refresh skipped: a cached read holds no live design');
+            else _applyListAnswer(split, listed, binnedThen, openId, act);
         } catch (err) { console.error('[Links] List refresh failed:', err); }
         renderDesignPicker(); library.renderBinList(); compare.renderCompare();
+    }
+    /** @param {{ named: any[], binned: any[] }} split @param {Map<string, string>} listed @param {Map<string, string>} binnedThen
+     *  @param {string|null} openId @param {number} act  the open design and the activation when the read went out */
+    function _applyListAnswer({ named, binned }, listed, binnedThen, openId, act) {
+        // A save only this browser has — queued, or refused and kept (links-queued-saves.js rule 4) — keeps its row.
+        designs = mergeListAnswer(designs, named, listed, (id) => !!queuedSaves.get(id)); _sortDesigns();
+        library.setBin(sortByDeleted(mergeListAnswer(library.binList(), binned, binnedThen)));
+        // A CLEAN open design follows a newer save of it (Nov 2026): the masthead and the printed sheet read the
+        // entry, so a grid left on the older version went out under the colleague's name. Edited, it stays as it
+        // is, on its own baseline, so its next Save still asks.
+        if (!openId || act !== activation || dirty || savingKeys.has(openId)) return;
+        const entry = designs.find(x => x.id === openId);
+        if (entry && listRowSig(entry) !== listed.get(openId)) _followEntry(entry);
     }
 
     /** The open design becomes its entry's version, baseline included — nothing on it is unsaved. @param {any} entry */
@@ -2169,24 +2177,19 @@ export function init() {
         }
     }
 
-    /**
-     * Load every named design — the page's one direct Firestore read, because it needs
-     * `metadata.fromCache` — and migrate the legacy `combined-28` document into a named design the
-     * first time a collection that has never held one is read.
-     */
+    /** Load every named design (the store's `loadAll`, which says whether the cache answered), and migrate the legacy
+     *  `combined-28` document into a named design the first time a collection that has never held one is read. */
     async function loadDesigns() {
         listLoading = true;
         loadFailed = false;
         /** @type {any} */ let open = null;   // what the working copy becomes once the list is in
         try {
             await sessionReady;
-            const snap = await getDocs(DESIGNS_COL);
+            const { docs, fromCache } = await store.loadAll();
             // What the answer MEANS is links-design-load.js's, and the refresh reads it the same way: which designs
             // are live, which binned, which old-length ones move (none on a cached answer), and whether a cached
             // answer can be trusted at all — an empty one is the FAILED state, never "No designs yet" (links-app-5).
-            const fromCache = !!snap.metadata?.fromCache;
-            const split = splitDesignDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })),
-                { binOld: binOldOnLoad(fromCache, binFailed), currentUser });
+            const split = splitDesignDocs(docs, { binOld: binOldOnLoad(fromCache, binFailed), currentUser });
             if (readCannotAnswer(fromCache, split)) throw new Error('a cached read holds no live design, so whether any exist is unknown');
             const { named, binned, legacyData, toBin } = split;
             _binPre26(toBin);

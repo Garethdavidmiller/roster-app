@@ -65,8 +65,8 @@ list.
 
 | Module | Owns |
 |--------|------|
-| `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore write of its own — designs go through `links-design-store.js` — and one direct read remains, `loadDesigns`, which needs `metadata.fromCache` (+ `links-boot.js`, the CSP bootstrap) |
-| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and the refresh's read (`createDesignStore`) |
+| `links-app.js` | coordinator: grid, paint, dialogs, dirty state. It makes no Firestore read or write of its own — designs go through `links-design-store.js` (+ `links-boot.js`, the CSP bootstrap) |
+| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and every read of the collection, which says whether the cache answered it (`loadAll`; `createDesignStore`) |
 | `links-queued-saves.js` | the saves only this browser's queue holds until the server answers: which copy is kept as the draft, on which baseline, whether an answer still counts (v26.03), and whether the server ever made the design |
 | `links-design-library.js` | the import panel, the Recently deleted bin and its list, and Keep only the shortlist (`createDesignLibrary`). Rename, duplicate and delete stay in `links-app.js`, because they change the open design's baseline |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the picker sheet, the Save buttons' label and the ··· More sheet |

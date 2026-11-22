@@ -1419,3 +1419,20 @@ describe('rule 5 — every transaction waits for this device\'s own queued write
         assert.throws(() => createDesignStore(api), /ownWritesSent is required/);
     });
 });
+
+// THE LIST READ SAYS WHERE ITS ANSWER CAME FROM (Nov 2026). The coordinator kept a getDocs of its own for the load
+// because only it read `metadata.fromCache`, and the refresh — which had no way to know — applied a cached answer
+// with no live design in it as an empty list. One read now serves both, and says whether it was the cache.
+describe('loadAll', () => {
+    test('every document, as { id, data }, and whether the answer came from this device\'s cache', async () => {
+        for (const fromCache of [false, true]) {
+            const { api } = makeDb({ initial: { name: 'A', patterns: {} } });
+            api.getDocs = async () => ({ docs: [{ id: ID, data: () => ({ name: 'A' }) }], metadata: { fromCache } });
+            assert.deepEqual(await createDesignStore(api).loadAll(), { docs: [{ id: ID, data: { name: 'A' } }], fromCache });
+        }
+    });
+    test('an answer with no metadata is not called cached', async () => {
+        const { api } = makeDb();
+        assert.deepEqual(await createDesignStore(api).loadAll(), { docs: [], fromCache: false });
+    });
+});

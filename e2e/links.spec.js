@@ -4567,6 +4567,26 @@ test('links: a list refresh brings a clean open design up to a colleague\'s newe
     await expect(page.locator('.dialog-overlay.visible'), 'no question about the version on screen').toHaveCount(0);
 });
 
+// A REFRESH THAT ONLY THE CACHE ANSWERED, WITH NO LIVE DESIGN IN IT, CHANGES NOTHING (Nov 2026) — the load's own rule
+// (`readCannotAnswer`): such an answer cannot tell "none" from "never read here", and applied, it emptied the picker.
+test('links: a list refresh the cache answered with no live design leaves the list alone', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await expect(designOptions(page)).toHaveCount(1);
+    await page.evaluate(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => ({ ...d, deletedAt: undefined, deletedBy: undefined }));
+        w.__E2E.docs = [];             // what this device's cache happens to hold
+        w.__E2E.docsFromCache = true;
+    });
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(designOptions(page), 'the cached read emptied nothing').toHaveCount(1);
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+});
+
 test('links: …but an EDITED open design keeps its edits through that refresh, and its next Save still asks', async ({ page }) => {
     await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
         updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
