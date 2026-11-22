@@ -95,13 +95,18 @@ export const formatDayMonth = d => (usable(d) ? `${d.getDate()} ${MONTH_ABB[d.ge
  * staff — is "18 September 2026". The year is what marks a date as one a reader may keep, quote or
  * act on (a payslip, a start date, a saved change, a printed sheet), and that is where an
  * abbreviation costs most. The short register stays where there is no year: "18 Sep" in a calendar
- * cell, a week label, a deadline line, where the month is already in view.
+ * cell, an Admin day row, a deadline line, where the month is already in view.
  *
  * Every surface that calls this was re-measured with the full month at 320px (the longest is
  * "30 September 2026", seven characters more than "30 Sep 2026"). A surface that genuinely cannot
  * fit it takes a SEPARATELY NAMED short helper with a comment saying why — never a flag here, which
- * would let the short form back in by default. `formatDayMonthYear2` ("18 Sep 26") is that kind of
- * helper already: the Pay Calculator's dense columns.
+ * would let the short form back in by default. There are three, each with its measurements beside it
+ * ("All of them", owner, 22 Nov 2026, with a fit check at 320px for each):
+ *   · `formatDayMonthYear2` ("18 Sep 26") — the Pay Calculator's dense columns.
+ *   · `shortWeekLabel` (admin-week-editor.js) — Admin's week navigator, "30 Aug–5 Sep 2026".
+ *   · `formatTeamWeekLabel` (calendar-team-view.js) — Team View's week, between its two arrows.
+ * The date picker's trigger took the full month that day (`formatWeekdayDate` with the year), and the
+ * Operations rows it sits in let it take a line of its own instead.
  * @param {Date} d
  */
 export const formatDayMonthYear = d => (usable(d) ? `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` : NO_DATE);

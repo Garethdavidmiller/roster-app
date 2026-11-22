@@ -17,7 +17,7 @@ import {
 import { getBankHolidays } from './roster-data.js';
 import { periodsInTaxYear } from './paycalc-hpp-schedule.js';
 import { fdLong, fdShort } from './paycalc-format.js';
-import { MONTH_ABB } from './date-format.js';
+import { MONTH_NAMES } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
@@ -412,7 +412,8 @@ export function buildPeriodSelect() {
     // cover it, which is usually paid the month after (periodPaidInMonth, owner 10 Nov 2026).
     const _matched = periodPaidInMonth(periods, _my, _mm, today);
     if (_matched) defPNum = _matched.num;
-    else if (_my && _mm >= 1 && _mm <= 12) _askedFor = `${MONTH_ABB[_mm - 1]} ${_my}`;
+    // "June 2027" in full, as the paydays in the same sentence are (`fdLong`) — owner, 22 Nov 2026.
+    else if (_my && _mm >= 1 && _mm <= 12) _askedFor = `${MONTH_NAMES[_mm - 1]} ${_my}`;
   }
   const _note = document.getElementById('periodLinkNote');
   if (_note) { _note.textContent = periodLinkMissNote(_askedFor, periods); _note.hidden = !_note.textContent; }
