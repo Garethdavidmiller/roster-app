@@ -4095,7 +4095,7 @@ test('paycalc: at large text an open card is never cut short — Save settings s
 test('paycalc: a notice sheet\'s two answers are one width, from tablet up', async ({ page }, info) => {
     // From 768px every `.btn-primary` stopped at 280px — a cap written for the cards, whose two
     // buttons were then exempted by name. What it still reached was the first answer in each notice
-    // sheet: "Yes, it's mine" 280px wide over a 290px "No — start fresh", the mismatched pair the
+    // sheet: "Yes, it's mine" 280px wide over a 290px "No — start fresh" (its label then), the mismatched pair the
     // cap's own comment called a fault.
     test.skip(isTouchProject(info), 'tablet and desktop widths');
     await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
@@ -4115,7 +4115,7 @@ test('paycalc: a notice sheet\'s two answers are one width, from tablet up', asy
         await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
         await settle();
         const [mine, fresh] = await boxes(['dataOwnerMine', 'dataOwnerFresh']);
-        expect(mine, `${width}px: "Yes, it's mine" against "No — start fresh" under it`).toEqual(fresh);
+        expect(mine, `${width}px: "Yes, it's mine" against "No — delete it" under it`).toEqual(fresh);
 
         await page.locator('#dataOwnerClose').click();   // decide later
         await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
@@ -4150,7 +4150,7 @@ test('paycalc: a primary button and the secondary under it are drawn by one reci
     await page.goto('/paycalc.html');
     await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
     const [mine, fresh] = await shape(['dataOwnerMine', 'dataOwnerFresh']);
-    expect(mine, '"Yes, it\'s mine" against "No — start fresh"').toBe(fresh);
+    expect(mine, '"Yes, it\'s mine" against "No — delete it"').toBe(fresh);
     await page.locator('#dataOwnerClose').click();
     await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
     if (!await page.locator('#payTransferBody').evaluate(el => el.classList.contains('open'))) {

@@ -1301,11 +1301,15 @@
       <div class="lightbox-app-name">Is this your pay data?</div>
     </div>
     <div class="notice-main">
-      <p class="notice-body">This device already has saved Pay Calculator data (tax code, Year to Date figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it stays in this browser on this device, kept as yours. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
+      <!-- SAYS WHAT "NO" DOES (review R3-2, Nov 2026). "Start fresh" deletes every pay figure on this device
+           that is not tied to a member, hours included, and closes the question for everyone on it
+           (resolveLegacyMigration, paycalc-migrations.js) — on a shared phone, one colleague's "No" was
+           another's data gone, and nothing here said so. Closing is the safe answer, and is named. -->
+      <p class="notice-body">This device has Pay Calculator data saved before each person&rsquo;s was kept apart &mdash; hours, tax code, Year to Date figures or settings. If it&rsquo;s <strong>yours</strong>, choose &ldquo;Yes&rdquo; to keep it as yours. &ldquo;No&rdquo; <strong>deletes it from this device</strong> &mdash; if it could be a colleague&rsquo;s, close this so they can claim it when they sign in. Closing leaves it untouched and asks again next time.</p>
     </div>
     <div class="notice-actions">
       <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>
-      <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; start fresh</button>
+      <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; delete it</button>
     </div>
   </div>
 </div>

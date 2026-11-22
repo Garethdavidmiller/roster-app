@@ -293,7 +293,7 @@ describe('hidden (leaver) member data is never treated as claimable legacy', () 
 // removed outright) leaves their pay data under a slug the roster no longer holds, and it was classed
 // as legacy: offered to whoever signed in next, re-keyed by "Yes, it's mine" to `myb_pc_<new>_<old>_…`
 // — keys nothing reads, so the calculator opened empty and the question never came back — and
-// deleted outright by another member's "No — start fresh". It is somebody's namespaced data: its
+// deleted outright by another member's "No — delete it". It is somebody's namespaced data: its
 // remainder is a key this app writes, while the whole tail is not one. So it is never claimable, and
 // it stays where it is until a rename has a carry-over of its own.
 describe('a member namespace the roster no longer names is never claimable', () => {
@@ -315,7 +315,7 @@ describe('a member namespace the roster no longer names is never claimable', () 
         assert.equal(hasPendingLegacyMigration('G. Miller'), false, 'a former member\'s pay data was offered to somebody else');
     });
 
-    test('"Yes, it\'s mine" never re-keys it, and "No — start fresh" never deletes it', () => {
+    test('"Yes, it\'s mine" never re-keys it, and "No — delete it" never deletes it', () => {
         global.localStorage = makeLocalStorage({ ...FORMER, 'myb_pc_rate': '99' });   // genuine legacy alongside
         resolveLegacyMigration('G. Miller', 'mine');
         const moved = global.localStorage.dump();
@@ -327,7 +327,7 @@ describe('a member namespace the roster no longer names is never claimable', () 
         resolveLegacyMigration('A. Panchal', 'fresh');
         const kept = global.localStorage.dump();
         assert.equal(kept['myb_pc_rate'], undefined, 'premise: genuine legacy data is still cleared');
-        for (const [k, v] of Object.entries(FORMER)) assert.equal(kept[k], v, `${k} was deleted by somebody else's "start fresh"`);
+        for (const [k, v] of Object.entries(FORMER)) assert.equal(kept[k], v, `${k} was deleted by somebody else's "No — delete it"`);
     });
 
     test('CONTROL: every genuine legacy key shape is still legacy', () => {
