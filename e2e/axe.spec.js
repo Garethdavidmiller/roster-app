@@ -1189,45 +1189,11 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
-    test('the new-timetable notice open (calendar) — the Trains badge on the glass (v24.82)', async ({ page }) => {
-        // The same shell as the scan above, and one thing that scan cannot see: this notice's section
-        // badge is the Trains pill's raspberry under white type, a pairing no other notice carries.
-        // Members only, and alive from its 21 Oct posting to the end of 31 October — so a named
-        // identity and a clock inside that life, the re-enable registered after the seeders.
-        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
-        await seedSession(page, 'G. Miller');
-        await seedMemberSession(page, 'G. Miller');
-        await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
-        await page.goto('/');
-        await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#timetableNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        // The fade is waited out by scan() itself, which lets running CSS transitions finish before it
-        // measures — a 600ms sleep here stood in for that (test audit, 7 Nov 2026).
-        const v = await scan(page, { exclude: ['.other-month'] });
-        expect(v.length, report(v)).toBe(0);
-    });
-
-    test('the Year to Date notice open (calendar) — the Pay badge on the glass (v24.86)', async ({ page }) => {
-        // The green Pay badge under white type had never been scanned on any page — the Pay page's own
-        // notices are suppressed in this suite. Members only, and only on a load AFTER the timetable
-        // notice was dismissed: the seeders mark that one done, so clearing this notice's flag alone
-        // is the whole setup. A CEA, because the notice is offered only where the Pay Calculator prices.
-        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
-        await seedSession(page, 'G. Miller');
-        await seedMemberSession(page, 'G. Miller');
-        await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_ytd_figures_2026_done']);
-        await page.goto('/');
-        await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#ytdNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        // The fade is waited out by scan() itself, which lets running CSS transitions finish before it
-        // measures — a 600ms sleep here stood in for that (test audit, 7 Nov 2026).
-        const v = await scan(page, { exclude: ['.other-month'] });
-        expect(v.length, report(v)).toBe(0);
-    });
-
     test('the timetable notice open (calendar) — in its final week (v24.96; up from 16 November since v26.21)', async ({ page }) => {
+        // THE TRAINS BADGE'S SCAN TOO since the October timetable notice was retired (22 Nov 2026): its
+        // raspberry pill under white type is this notice's as well, so the pairing is still scanned here.
+        // (The Year to Date notice's green Pay badge went with that notice, unscanned on any page now —
+        // the Pay page's own notices are suppressed in this suite.)
         // NEVER SCANNED until the test audit (7 Nov 2026 — UI-23): `timetable-soon-2026` was then the
         // one notice with a START date, still to open on the real clock, and nothing here pinned a clock
         // inside its life. Members only, 16 November to 12 December; the clock is pinned to the Monday of

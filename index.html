@@ -205,53 +205,8 @@
         </div>
     </div>
 
-    <!-- One-time notice: the new timetable, and where to learn it (v24.82; calendar-notices.js) -->
-    <div id="timetableNoticeLb" class="lb-overlay" role="dialog" aria-label="A new timetable starts on 13 December" aria-modal="true">
-        <div id="timetableNoticeContent" class="lb-content notice-lb-content">
-            <button id="timetableNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
-            <div class="notice-head">
-                <div class="notice-badge notice-badge--trains">🚆 Trains</div>
-                <div class="lightbox-app-name">A new timetable starts on 13 December</div>
-                <div class="notice-date">Posted 21 Oct 2026</div>
-            </div>
-            <div class="notice-main">
-                <p class="notice-body">Chiltern’s new timetable starts on <strong>Sunday 13&nbsp;December</strong>. Some trains leave Marylebone at different times, some run further than they do now, and some stations get more trains.</p>
-                <p class="notice-body">Customers will ask about it. The <strong>Trains</strong> page shows what changes, station by station, beside today’s times — get to know it before the day.</p>
-                <p class="notice-body">You can open it any time from the menu: ☰&nbsp;then 🚆&nbsp;Trains.</p>
-            </div>
-            <div class="notice-actions">
-                <a href="./trains.html" id="timetableNoticeGo" class="notice-cta">See what’s changing &rarr;</a>
-                <button id="timetableNoticeLater" class="notice-later" type="button">Not now</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- One-time notice: the Pay Calculator's Year to Date figures (v24.86). Opens only on a load
-         AFTER the timetable notice has been dismissed, to CEA/CES members — calendar-notices.js. -->
-    <div id="ytdNoticeLb" class="lb-overlay" role="dialog" aria-label="Make your pay estimates more accurate" aria-modal="true">
-        <div id="ytdNoticeContent" class="lb-content notice-lb-content">
-            <button id="ytdNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
-            <div class="notice-head">
-                <div class="notice-badge notice-badge--pay">💷 Pay</div>
-                <div class="lightbox-app-name">Make your pay estimates more accurate</div>
-                <div class="notice-date">Posted 22 Oct 2026</div>
-            </div>
-            <div class="notice-main">
-                <p class="notice-body">The Pay Calculator’s tax figure usually gets much closer to your payslip once it knows your <strong>Year to Date</strong> figures — what you have earned, and the tax taken from it, so far this tax year.</p>
-                <p class="notice-body">First, check the tax code in <strong>Your Settings</strong> matches your payslip — with a wrong one, these figures make the estimate worse.</p>
-                <p class="notice-body">Then copy <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> from the Year to Date box at the bottom left of your latest payslip into the <strong>📊 Year to Date Figures</strong> card, and check it names the payslip they came from.</p>
-                <p class="notice-body">Update them each time a new payslip arrives.</p>
-            </div>
-            <div class="notice-actions">
-                <a href="./paycalc.html#payslipCard" id="ytdNoticeGo" class="notice-cta">Open Year to Date Figures &rarr;</a>
-                <button id="ytdNoticeLater" class="notice-later" type="button">Not now</button>
-            </div>
-        </div>
-    </div>
-
     <!-- One-time notice: put the roster on your home screen (v24.91; owner, 22 Oct 2026). Phones and
-         tablets in a browser only, on a load after the Year to Date notice — or after the timetable
-         one, for a member the Year to Date notice is not for. calendar-notices.js. ALL ITS COPY IS
+         tablets in a browser only. calendar-notices.js. ALL ITS COPY IS
          HERE, as with the install strip further down: which of the "how" lines show is decided as it
          opens, from install-prompt.js's `installRoute()`, and the module only toggles `hidden`. -->
     <div id="installNoticeLb" class="lb-overlay" role="dialog" aria-label="Put the roster on your home screen" aria-modal="true">

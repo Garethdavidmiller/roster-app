@@ -142,11 +142,18 @@ mock.module('./calendar-access.js', {
     },
 });
 
+/** The default expiry answer since the two October notices were retired (22 Nov 2026): their shared end, the
+ *  whole of 31 October, has passed once the (mocked) clock passes it — as the real `isNoticeExpired` would say,
+ *  and what lets the install notice stop waiting for them (`FOLLOWED_ENDS`). Every other notice is live unless a
+ *  test says otherwise. On PINNED_NOW, 22 October, this is the same answer `false` gave. */
+const OCTOBER_OVER_BY_THE_CLOCK = (/** @type {string} */ day, /** @type {number} */ days) =>
+    day === '31 Oct 2026' && days === 1 && Date.now() >= new Date(2026, 10, 1).getTime();
+
 let _n = 0;
 /** Wire the notices with the timers under test control, then let the access decision land.
  *  A named access carries a member's session — a CEA, whom the Pay Calculator prices — and the PIN
  *  and a locked page carry none, which is what each of those really holds. */
-async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = /** @type {typeof _expired} */ (false),
+async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = /** @type {typeof _expired} */ (OCTOBER_OVER_BY_THE_CLOCK),
                       session = accessType === 'named' ? { name: 'G. Miller' } : null,
                       route = /** @type {typeof _route} */ ({ how: 'menu', mirror: false }) } = {}) {
     _present = new Set(present);
@@ -184,6 +191,9 @@ async function drain() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
 // Moved on (v24.82) from 10 Sep 2026, when timetable-2026 was posted on 21 Oct. install-app-2026 was
 // posted on the 22nd, the day this already reads, so every live notice is in the matrix.
 const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's posting and on install-app-2026's
+/** The timetable notice's first day, after the October notices ended: a day on which a fresh device is offered
+ *  a live notice (blocks 2 and 3). */
+const LIVE_DAY = new Date(2026, 10, 16, 9, 0).getTime();
 
 /** Every notice this module carries, as the pairing that decides who sees it. Read from the source
  *  so a notice added later joins the matrix instead of being missed by it. A notice may pass the gate
@@ -198,6 +208,15 @@ const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_o
     .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]), followsPay: FOLLOWS_PAY_OF(m[1]),
                  followsInstall: FOLLOWS_INSTALL_OF(m[1]), followsNewlink: FOLLOWS_NEWLINK_OF(m[1]),
                  starts: STARTS_OF(m[1]), finalWeek: FINAL_WEEK_OF(m[1]) }));
+
+/** The two October notices' done keys (`timetable-2026`, `ytd-figures-2026`). Both were RETIRED on 22 Nov 2026 —
+ *  markup and code gone, three weeks after they went inert — so no IIFE declares them any more; the install notice
+ *  still names them (`FOLLOWS`, `FOLLOWS_PAY`) and their ends stay in `FOLLOWED_ENDS` (block 12), which is what
+ *  lets every device stop waiting for them. Read from that table, never restated. */
+const FOLLOWED_ENDS_SRC = /const FOLLOWED_ENDS = \{([\s\S]*?)\n\};/.exec(SOURCE)?.[1] ?? '';
+const OCT_TIMETABLE_KEY = /** @type {string} */ (/(myb_notice_timetable_2026_done):/.exec(FOLLOWED_ENDS_SRC)?.[1]);
+const OCT_YTD_KEY       = /** @type {string} */ (/(myb_notice_ytd_figures_2026_done):/.exec(FOLLOWED_ENDS_SRC)?.[1]);
+assert.ok(OCT_TIMETABLE_KEY && OCT_YTD_KEY, 'FOLLOWED_ENDS no longer records the two October notices the install notice follows');
 
 /** The IIFE that declares a notice's overlay — its own scope, so a key read from it is that notice's.
  *  (This was an 800-character window before the overlay line, which is right until a notice with a
@@ -373,6 +392,9 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
 
 
 describe('2 · a notice arriving at the wrong moment', () => {
+    // On 22 October nothing live opens on a fresh device any more — the install notice waited for the two
+    // October notices, retired since — so these run on 16 November, when the October notices have ended.
+    beforeEach(() => { mock.timers.setTime(LIVE_DAY); });
     test('nothing opens before the access decision lands', async () => {
         await wire({ accessType: SHOWING_ACCESS });
         mock.timers.tick(10_000);                          // all the defer in the world
@@ -421,6 +443,7 @@ describe('2 · a notice arriving at the wrong moment', () => {
 
 
 describe('3 · one notice silencing another', () => {
+    beforeEach(() => { mock.timers.setTime(LIVE_DAY); });   // block 2 says why
     // THE BEHAVIOURAL FORM OF THIS NEEDS TWO NOTICES, and since v23.23 there is one. It is kept as
     // a contract on the STRUCTURE that makes it true, which is the same move the module header's
     // own promise takes: each notice bails with `return`, so as plain blocks those returns would
@@ -452,6 +475,8 @@ describe('3 · one notice silencing another', () => {
         // The shape the IIFE contract above guards, driven for real now that two notices are live:
         // the first is dismissed on this device, and the second must still open.
         assert.ok(NOTICES.length >= 2, `needs two notices to be about anything, found ${NOTICES.length}`);
+        // On 16 November the October notices have ended (their ends are in FOLLOWED_ENDS), so the install notice
+        // waits for nothing but the timetable notice's turn, dismissed here.
         const [first, second] = NOTICES;
         await wire({ accessType: 'named', store: { [DONE_KEY_OF(first)]: '1' } });
         await settleAccess();
@@ -464,7 +489,10 @@ describe('3 · one notice silencing another', () => {
         // With one notice this proves the skip is clean — no open, no write, no throw. With two or
         // more it proves the stronger thing: the notice whose markup IS present still runs.
         const [first] = NOTICES;
-        await wire({ accessType: SHOWING_ACCESS, present: [first.overlay] });   // any rest's markup absent
+        // Whatever it waits for answered on earlier loads, so its own markup is the only thing that decides.
+        const waitedFor = Object.fromEntries([first.follows, first.followsPay, first.followsInstall, first.followsNewlink]
+            .filter(Boolean).map(k => [/** @type {string} */ (k), '1']));
+        await wire({ accessType: SHOWING_ACCESS, present: [first.overlay], store: waitedFor });   // any rest's markup absent
         await settleAccess();
         assert.equal(_openedViaHelper.length, noticeAudienceAllows(first.audience, SHOWING_ACCESS) ? 1 : 0,
             'the notice whose markup IS present is unaffected by the ones that are not');
@@ -530,15 +558,13 @@ describe('5 · the install notice: a phone browser, third in line, and the right
     // on the address the app is moving staff off. And a wrong "how" tells a member to press something
     // that is not there — the one failure they cannot work around from the notice itself.
     const INST  = /** @type {{ overlay: string, audience: string, follows: string|null, followsPay: string|null }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
-    const TT    = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
-    const YTD   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
     const DONE  = DONE_KEY_OF(INST);
     const IIFE  = IIFE_OF('installNoticeLb');
     /** The lines it chooses between as it opens — read from the module, so a line added there is in. */
     const LINES = [...SOURCE.matchAll(/^\s+(installNotice\w+):\s/gm)].map(m => m[1]);
     /** A member's phone browser whose earlier loads dismissed the timetable and Year to Date notices. */
     const SHOWN = { accessType: /** @type {const} */ ('named'), present: [INST.overlay, ...LINES, 'installNoticeLater'],
-                    store: { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' } };
+                    store: { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' } };
     const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === INST.overlay));
     /** Its lines that are showing, once it has opened. */
     const showing = () => LINES.filter(id => _els.get(id)?.hidden === false).sort();
@@ -549,8 +575,8 @@ describe('5 · the install notice: a phone browser, third in line, and the right
         assert.match(DONE, /^myb_notice_install_app_2026_done$/);
         assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
         // Restated keys: a rename on either side would leave this notice waiting for a flag nothing writes.
-        assert.equal(INST.follows, DONE_KEY_OF(TT));
-        assert.equal(INST.followsPay, DONE_KEY_OF(YTD));
+        assert.equal(INST.follows, OCT_TIMETABLE_KEY);
+        assert.equal(INST.followsPay, OCT_YTD_KEY);
         assert.match(IIFE, /isNoticeExpired\(NOTICE_DATE, 90\)/, '90 days — it does not end with the October notices');
     });
 
@@ -561,31 +587,17 @@ describe('5 · the install notice: a phone browser, third in line, and the right
         assert.deepEqual(_writes, []);
     });
 
-    test('NOT on the load the Year to Date notice is dismissed — that flag is read at wiring time', async () => {
-        await wire({ ...SHOWN, present: [...SHOWN.present, YTD.overlay], store: { [DONE_KEY_OF(TT)]: '1' } });
-        await settleAccess();
-        const ytd = /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === YTD.overlay));
-        assert.ok(ytd, 'the Year to Date notice comes first');
-        assert.equal(opened(), undefined, 'and this one is not decided on that load');
-        ytd._cfg.onClose();                                   // dismissed: its flag is written now…
-        mock.timers.tick(10_000);                             // …and nothing follows it up this visit
-        await drain();
-        assert.equal(opened(), undefined);
-        assert.deepEqual(_writes, [[DONE_KEY_OF(YTD), '1']], 'this notice is not flagged — it comes next time');
-        assert.deepEqual(_installCalls, [], 'and the strip keeps its place on this visit');
-    });
-
     test('for a member the Year to Date notice is not for, it waits for the timetable one alone', async () => {
         // A Dispatcher never gets the Year to Date notice, so waiting for its flag would hold this one
         // back until that notice expires and is flagged on 1 November.
         assert.equal(rosterRole('D. Minto'), 'Dispatcher', 'precondition: D. Minto is no longer a Dispatcher — name a current one');
-        await wire({ ...SHOWN, store: { [DONE_KEY_OF(TT)]: '1' }, session: { name: 'D. Minto' } });
+        await wire({ ...SHOWN, store: { [OCT_TIMETABLE_KEY]: '1' }, session: { name: 'D. Minto' } });
         await settleAccess();
         assert.ok(opened());
     });
 
     test('never before the timetable notice has been dismissed', async () => {
-        await wire({ ...SHOWN, store: { [DONE_KEY_OF(YTD)]: '1' } });
+        await wire({ ...SHOWN, store: { [OCT_YTD_KEY]: '1' } });
         await settleAccess();
         assert.equal(opened(), undefined);
         assert.deepEqual(_installCalls, [], 'not decided, so the strip is left alone');
@@ -834,216 +846,6 @@ describe('5 · the install notice: a phone browser, third in line, and the right
 });
 
 
-/** The last day the October notices are offered, as the module declares it. */
-const OCTOBER_LAST_DAY = /** @type {RegExpExecArray} */ (/const OCTOBER_LAST_DAY = '([^']+)'/.exec(SOURCE))[1];
-
-describe('6 · the timetable notice: a one-off from the start, offered to the end of October (v24.82; v24.86)', () => {
-    // Owner request, 21 Oct 2026: tell members a new timetable is coming and send them to the Trains
-    // page to learn it. One-off on the rule the owner set for the leave reminder (10 Sep 2026; that
-    // notice was retired at v24.91), so the costs are the same two: coming back nags, never showing
-    // means nobody is told.
-    const TT    = /** @type {{ overlay: string, audience: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
-    const DONE  = DONE_KEY_OF(TT);
-    const GO_ID = 'timetableNoticeGo';
-    const SHOWN = { accessType: /** @type {const} */ ('named'), present: [TT.overlay, GO_ID] };
-    const IIFE  = (() => {
-        const start = SOURCE.indexOf("NOTICE_ID   = 'timetable-2026'");
-        return SOURCE.slice(start, SOURCE.indexOf('}());', start));
-    })();
-
-    test('it is in the matrix, addressed to members, with its own key and no snooze', () => {
-        assert.ok(TT, 'found by the same pattern as every other notice');
-        assert.equal(TT.audience, 'members', 'the Trains page signs people in — on the PIN its link would meet only a sign-in');
-        assert.match(DONE, /^myb_notice_timetable_2026_done$/);
-        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
-    });
-
-    test('it is offered to the end of 31 October, the Year to Date notice\'s last day too (owner, 22 Oct 2026)', () => {
-        // It shipped running 53 days to 13 December, the day the timetable starts; the owner brought
-        // it forward to end with the notice that waits behind it. A DATE, not a count from posting —
-        // the clocks go back on 25 October, and a count from the 21st would have ended at 23:00 on
-        // the 31st. That `isNoticeExpired(day, 1)` keeps all of that day is pinned in notice-archive.test.mjs.
-        assert.equal(OCTOBER_LAST_DAY, '31 Oct 2026');
-        assert.match(IIFE, /isNoticeExpired\(OCTOBER_LAST_DAY, 1\)/, 'the shared last day, not a count of its own');
-        assert.doesNotMatch(IIFE, /isNoticeExpired\(NOTICE_DATE/, 'no second end date beside the shared one');
-    });
-
-    test('a member who has not seen it gets it, and nothing is flagged until they act', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        assert.equal(_openedViaHelper.length, 1);
-        assert.deepEqual(_writes, []);
-    });
-
-    test('every close — the ×, the backdrop, Escape, "Not now" — marks it done, and nothing else', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        _openedViaHelper[0]._cfg.onClose();
-        assert.deepEqual(_writes, [[DONE, '1']]);
-    });
-
-    test('taking the link to the Trains page marks it done too', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        const go = _listeners.get(`${GO_ID}:click`);
-        assert.ok(go, `the link (#${GO_ID}) has a click handler`);
-        go({ type: 'click', button: 0 });
-        assert.deepEqual(_writes, [[DONE, '1']]);
-        assert.deepEqual(_followed.map(f => f.lb), [_openedViaHelper[0]], 'followed by replacing the notice\'s own history entry');
-    });
-
-    test('archived on OPEN, so the drawer keeps it after the link has taken the member away', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        _openedViaHelper[0]._cfg.onOpen();
-        assert.deepEqual(_archived.map(n => [n.id, n.section, n.date]), [['timetable-2026', 'Trains', '21 Oct 2026']]);
-    });
-
-    test('past its life, a device that never saw it is flagged and shown nothing', async () => {
-        await wire({ ...SHOWN, expired: true });
-        await settleAccess();
-        assert.equal(_openedViaHelper.length, 0);
-        assert.deepEqual(_writes, [[DONE, '1']]);
-    });
-
-    test('once done, it stays done', async () => {
-        await wire({ ...SHOWN, store: { [DONE]: '1' } });
-        await settleAccess();
-        assert.equal(_openedViaHelper.length, 0);
-        assert.deepEqual(_writes, []);
-    });
-});
-
-
-describe('7 · the Year to Date notice: the load AFTER the timetable one, to members the Pay Calculator prices (v24.86)', () => {
-    // Owner request, 22 Oct 2026: teach the Pay Calculator's Year to Date figures, link to the card,
-    // and only "the time after the trains app notice". Organised by what a wrong answer costs:
-    // arriving on the SAME load stacks two notices on one visit (what the owner asked to avoid);
-    // arriving at a Dispatcher or a manager advertises a page that refuses them; never arriving at
-    // all means the colleague who would gain most from the figures is never told they exist.
-    const YTD   = /** @type {{ overlay: string, audience: string, follows: string|null }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
-    const TT    = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
-    const DONE  = DONE_KEY_OF(YTD);
-    const GO_ID = 'ytdNoticeGo';
-    const IIFE  = IIFE_OF('ytdNoticeLb');
-    /** A device whose earlier load dismissed the timetable notice, with a CEA signed in. */
-    const SHOWN = { accessType: /** @type {const} */ ('named'), present: [YTD.overlay, GO_ID],
-                    store: { [DONE_KEY_OF(TT)]: '1' } };
-    const ytdOpened = () => _openedViaHelper.some(lb => lb._cfg.overlay.id === YTD.overlay);
-
-    test('it is in the matrix, addressed to members, with its own key, no snooze, behind the REAL timetable key', () => {
-        assert.ok(YTD, 'found by the same pattern as every other notice');
-        assert.equal(YTD.audience, 'members', 'it is about your pay — on the PIN it addresses nobody');
-        assert.match(DONE, /^myb_notice_ytd_figures_2026_done$/);
-        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
-        // FOLLOWS restates the timetable notice's key. A renamed key on either side would leave this
-        // notice waiting for a flag nothing writes — silently, for as long as it is live.
-        assert.equal(YTD.follows, DONE_KEY_OF(TT));
-        assert.match(IIFE, /isNoticeExpired\(OCTOBER_LAST_DAY, 1\)/, 'it ends with the timetable notice');
-    });
-
-    test('NOT on the load that dismisses the timetable notice — even after that notice is closed', async () => {
-        await wire({ accessType: 'named', present: [TT.overlay, YTD.overlay, GO_ID] });
-        await settleAccess();
-        const tt = _openedViaHelper.find(lb => lb._cfg.overlay.id === TT.overlay);
-        assert.ok(tt, 'the timetable notice opens first');
-        tt._cfg.onClose();                                   // dismissed: its flag is written now…
-        assert.deepEqual(_writes, [[DONE_KEY_OF(TT), '1']]);
-        mock.timers.tick(10_000);                            // …and nothing follows it up this visit
-        await drain();
-        assert.equal(ytdOpened(), false, 'the follower was never wired on this load');
-    });
-
-    test('the load after, it opens — and nothing is flagged until the member acts', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        assert.equal(ytdOpened(), true);
-        assert.deepEqual(_writes, []);
-    });
-
-    test('for a CES too: the grade the Pay Calculator prices is the test, not one role', async () => {
-        assert.equal(rosterRole('F. Mohamed'), 'CES', 'precondition: F. Mohamed is no longer a CES — name a current one');
-        await wire({ ...SHOWN, session: { name: 'F. Mohamed' } });   // a CES on the roster
-        await settleAccess();
-        assert.equal(ytdOpened(), true);
-    });
-
-    test('never to a member the Pay Calculator turns away — and never flagged for them', async () => {
-        // Its own refusal is `payCalculatorPrices` (pay-audience.js); the same function decides here. A refused member is left
-        // unflagged, like an out-of-audience device: the notice is not theirs to have seen.
-        // A CURRENT manager (48-hour review): S. Stewart left the roster at v25.05, which quietly turned
-        // the manager case into a second "not on the roster" one — green whatever the manager rule did.
-        assert.equal(rosterRole('D. Minto'), 'Dispatcher', 'precondition: D. Minto is no longer a Dispatcher — name a current one');
-        assert.equal(rosterRole('D. Watts'), 'Management', 'precondition: D. Watts is no longer a manager on the roster — name a current one');
-        assert.ok(CONFIG.MANAGER_NAMES.includes('D. Watts'), 'precondition: D. Watts is no longer a manager — name a current one');
-        assert.equal(rosterRole('Z. Nobody'), undefined, 'precondition: the third case must be nobody on the roster');
-        for (const name of ['D. Minto', 'D. Watts', 'Z. Nobody']) {            // Dispatcher · manager · not on the roster
-            await wire({ ...SHOWN, session: { name } });
-            await settleAccess();
-            assert.equal(ytdOpened(), false, `${name}: not offered`);
-            assert.deepEqual(_writes, [], `${name}: not flagged`);
-        }
-    });
-
-    test('whose calculator it is, is read when the notice OPENS — a front-door sign-in on this load', async () => {
-        // At wiring time a member signing in at the Calendar's front door has no session yet. Read
-        // then, the notice would be refused on exactly the load they signed in on.
-        await wire({ ...SHOWN, session: null });
-        _session = { name: 'G. Miller' };                    // signed in before access is decided
-        await settleAccess();
-        assert.equal(ytdOpened(), true);
-    });
-
-    test('every close — the ×, the backdrop, Escape, "Not now" — marks it done, and nothing else', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === YTD.overlay))._cfg.onClose();
-        assert.deepEqual(_writes, [[DONE, '1']]);
-    });
-
-    test('taking the link to the Year to Date card marks it done too', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        const go = _listeners.get(`${GO_ID}:click`);
-        assert.ok(go, `the link (#${GO_ID}) has a click handler`);
-        go({ type: 'click', button: 0 });
-        assert.deepEqual(_writes, [[DONE, '1']]);
-        assert.deepEqual(_followed.map(f => f.lb), [_openedViaHelper[0]], 'followed by replacing the notice\'s own history entry');
-    });
-
-    test('archived on OPEN, so the drawer keeps it after the link has taken the member away', async () => {
-        await wire(SHOWN);
-        await settleAccess();
-        /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === YTD.overlay))._cfg.onOpen();
-        assert.deepEqual(_archived.map(n => [n.id, n.section, n.date]), [['ytd-figures-2026', 'Pay', '22 Oct 2026']]);
-    });
-
-    test('past 31 October, a device that never saw it is flagged and shown nothing', async () => {
-        await wire({ ...SHOWN, expired: true });
-        await settleAccess();
-        assert.equal(ytdOpened(), false);
-        assert.deepEqual(_writes, [[DONE, '1']]);
-    });
-
-    test('once done, it stays done', async () => {
-        await wire({ ...SHOWN, store: { ...SHOWN.store, [DONE]: '1' } });
-        await settleAccess();
-        assert.equal(ytdOpened(), false);
-        assert.deepEqual(_writes, []);
-    });
-
-    test('its link names the card the Pay Calculator opens by that name', () => {
-        // The journey itself is e2e (paycalc.spec.js); this catches a rename on either page.
-        const page = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-        const href = /id="ytdNoticeGo"/.test(page) && /href="\.\/paycalc\.html#(\w+)" id="ytdNoticeGo"/.exec(page)?.[1];
-        assert.equal(href, 'payslipCard');
-        assert.match(readFileSync(new URL('./paycalc.html', import.meta.url), 'utf8'), /id="payslipCard"/);
-        assert.match(readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8'),
-            /openCardNamedByHash\('payslipCard', 'payslipCardBody', 'payslipCardToggle'\)/);
-    });
-});
-
-
 describe('8 · the timetable notice: from 16 November behind the install and New link notices, first from 6 December, gone on the 13th, members only (v24.94; v26.21)', () => {
     // Owner, 23 Oct 2026: the October notice ended six weeks before the change, and from then nothing in the app said
     // the day was coming. It was to be offered 6–12 December; on 16 Nov 2026 the owner brought it forward to that day,
@@ -1057,8 +859,6 @@ describe('8 · the timetable notice: from 16 November behind the install and New
     const SOON = /** @type {{ overlay: string, audience: string, follows: string|null, followsInstall: string|null, followsNewlink: string|null, starts: number|null, finalWeek: number|null }} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb'));
     const INST = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
     const NL   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'newlinkNoticeLb'));
-    const TT   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
-    const YTD  = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
     const DONE = DONE_KEY_OF(SOON);
     const IIFE = IIFE_OF('timetableSoonNoticeLb');
     /** The notice for this overlay, if it asked for the screen on this load. @param {string} overlay */
@@ -1073,7 +873,7 @@ describe('8 · the timetable notice: from 16 November behind the install and New
 
     /** A device after October: the two October notices ended on the 31st and flagged themselves as they did. The
      *  harness answers every expiry question with one flag, so a case later in the year carries their flags instead. */
-    const AFTER_OCTOBER = { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' };
+    const AFTER_OCTOBER = { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' };
     /** A member the New link page lets in (the e2e admin seed), and one it turns away — FOUND, so a leaver cannot
      *  quietly turn one case into the other (the test audit's lesson, 7 Nov 2026). Asked of the page's real door. */
     const FOR_NEWLINK = 'G. Miller';
@@ -1301,7 +1101,7 @@ describe('9 · every notice key is pre-dismissed by the browser suites\' session
         'e2e/calendar-pin.spec.js': { text: readFileSync(new URL('./e2e/calendar-pin.spec.js', here), 'utf8'), atLeast: 1 },  // heldSessionWithReset
     };
     test('the scan is reading real keys', () => {
-        assert.ok(KEYS.length >= 4, `found ${KEYS.length} DONE_KEYs in calendar-notices.js`);
+        assert.ok(KEYS.length >= 3, `found ${KEYS.length} DONE_KEYs in calendar-notices.js`);
         assert.ok(KEYS.every(k => /^myb_notice_[a-z0-9_]+_done$/.test(k)), KEYS.join(', '));
     });
     for (const [file, { text, atLeast }] of Object.entries(SEEDERS)) {
@@ -1351,8 +1151,6 @@ describe('11 · the New link notice: only where the page would let them in, afte
     // device that should see it never does.
     const NL     = /** @type {{ overlay: string, audience: string, follows: string|null, followsInstall: string|null, starts: number|null }} */ (NOTICES.find(n => n.overlay === 'newlinkNoticeLb'));
     const INST   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
-    const TT     = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
-    const YTD    = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
     const DONE   = DONE_KEY_OF(NL);
     const IIFE   = IIFE_OF('newlinkNoticeLb');
     const NOV_10 = new Date(2026, 10, 10, 9, 0).getTime();
@@ -1459,7 +1257,7 @@ describe('11 · the New link notice: only where the page would let them in, afte
     test('NOT on the load the install notice is answered — that flag is read at wiring time', async () => {
         mock.timers.setTime(NOV_10);
         await wire({ ...DESK, route: { how: 'menu', mirror: false }, present: [...DESK.present, INST.overlay],
-                     store: { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' } });
+                     store: { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' } });
         await settleAccess();
         const install = /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === INST.overlay));
         assert.ok(install, 'the install notice comes first');
@@ -1565,8 +1363,6 @@ describe('12 · a follower never waits on a retired notice\'s code (16 Nov 2026)
         return re.exec(scope)?.[1] ?? re.exec(SOURCE)?.[1] ?? null;
     };
     const INST = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
-    const TT   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
-    const YTD  = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
     const LINES = [...SOURCE.matchAll(/^\s+(installNotice\w+):\s/gm)].map(m => m[1]);
     /** Past the end of 31 October, and nothing else: the two October notices are over, the install notice is not. */
     const PAST_OCTOBER = (/** @type {string} */ day, /** @type {number} */ days) => day === '31 Oct 2026' && days === 1;
@@ -1605,7 +1401,7 @@ describe('12 · a follower never waits on a retired notice\'s code (16 Nov 2026)
         await settleAccess();
         assert.equal(opened(), false);
         await wire({ accessType: 'named', present: [INST.overlay, ...LINES, 'installNoticeLater'], expired: false,
-                     store: { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' } });
+                     store: { [OCT_TIMETABLE_KEY]: '1', [OCT_YTD_KEY]: '1' } });
         await settleAccess();
         assert.ok(opened(), 'premise: with both flags it opens');
     });

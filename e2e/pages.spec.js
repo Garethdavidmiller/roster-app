@@ -864,8 +864,9 @@ async function tabToRing(page, selector, presses = 10) {
 
 test('keyboard focus is visible on the navy surfaces the shared code draws', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    // Inside the new-timetable notice's life (21–31 Oct), so the Calendar puts one up to Tab through.
-    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    // Inside the timetable notice's final week (6–12 Dec), when it waits for no other notice, so the
+    // Calendar puts one up to Tab through.
+    await page.clock.setFixedTime(new Date('2026-12-07T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([
         { id: 'timetable-2026', title: 'A new timetable starts on 13 December', section: 'Trains', date: '21 Oct 2026', body: 'Some trains leave Marylebone at different times.', archivedAt: '2026-10-21T09:00:00.000Z' },
@@ -901,14 +902,14 @@ test('keyboard focus is visible on the navy surfaces the shared code draws', asy
     await expect(page.locator('#navNoticesLightbox')).toBeHidden();
 
     // A one-time notice on the Calendar: its ✕, its call to action and "Not now".
-    await page.addInitScript(() => localStorage.removeItem('myb_notice_timetable_2026_done'));
+    await page.addInitScript(() => localStorage.removeItem('myb_notice_timetable_soon_2026_done'));
     await page.goto('/');
-    await expect(page.locator('#timetableNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-    for (const [sel, name] of [['#timetableNoticeClose', 'the notice ✕'], ['#timetableNoticeGo', 'the call to action'], ['#timetableNoticeLater', '"Not now"']]) {
+    await expect(page.locator('#timetableSoonNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    for (const [sel, name] of [['#timetableSoonNoticeClose', 'the notice ✕'], ['#timetableSoonNoticeGo', 'the call to action'], ['#timetableSoonNoticeLater', '"Not now"']]) {
         expect(await tabToRing(page, sel), name).toEqual({ style: 'solid', width: '2px', colour: gold });
     }
-    await page.locator('#timetableNoticeLater').click();
-    await expect(page.locator('#timetableNoticeLb')).toBeHidden();
+    await page.locator('#timetableSoonNoticeLater').click();
+    await expect(page.locator('#timetableSoonNoticeLb')).toBeHidden();
 
     // The About panel — the Calendar's carries every row kind: ✕, Print, the guide and the bug report.
     await page.locator('.title-icon').first().click();

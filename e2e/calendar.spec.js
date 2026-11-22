@@ -2220,38 +2220,6 @@ test('install notice: never on a desktop — and not flagged there, so the membe
     expect(errors).toHaveLength(0);
 });
 
-test('the Calendar\'s three notices come one per load — timetable, Year to Date, then install (v24.91)', async ({ page }, info) => {
-    // The order the owner confirmed for the first two, carried to the third, on a real page across
-    // real reloads. The session is seeded WITHOUT the seeders' notice flags: here the flags are the
-    // subject, and each must survive a reload exactly as a dismissal leaves it.
-    test.skip(!isTouchProject(info), 'the third is offered only on a touch screen');
-    test.setTimeout(90_000);
-    const errors = collectFatalErrors(page);
-    await page.clock.setFixedTime(INSTALL_NOTICE_DAY);
-    await page.addInitScript(() => {
-        localStorage.setItem('myb_admin_session', JSON.stringify({
-            name: 'G. Miller', ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
-        }));
-        localStorage.setItem('myb_roster_selected_member', 'G. Miller');
-        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true });
-    });
-    await page.goto('/');
-    for (const [lb, answer] of [['#timetableNoticeLb', '#timetableNoticeLater'],
-                                ['#ytdNoticeLb', '#ytdNoticeLater'],
-                                ['#installNoticeLb', '#installNoticeClose']]) {
-        await expect(page.locator(lb)).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        await page.locator(answer).click();
-        await expect(page.locator(lb)).not.toHaveClass(/\bopen\b/);
-        await page.waitForTimeout(2500);                      // past the defer: nothing follows on this load
-        await expect(page.locator('.notice-lb-content:visible'), `nothing after ${lb} on its own load`).toHaveCount(0);
-        await page.reload();
-    }
-    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
-    await page.waitForTimeout(2500);
-    await expect(page.locator('.notice-lb-content:visible'), 'all three answered: nothing more').toHaveCount(0);
-    expect(errors).toHaveLength(0);
-});
-
 // ── The New link notice: only where the page would let them in, after the install notice (v25.61) ───
 //
 // What calendar-notices.test.mjs cannot see, because it fakes the page: that a real colleague's real

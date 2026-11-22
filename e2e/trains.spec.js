@@ -763,32 +763,6 @@ test.describe('trains', () => {
         });
     }
 
-    test('the Calendar\'s one-time notice tells a member, and its link opens this page (v24.82)', async ({ page }) => {
-        // The rest of the notice — every dismissal marks it done, it ends with 31 October (v24.86),
-        // it is refused to the station PC — is pinned in calendar-notices.test.mjs. This is the half
-        // only a browser can prove: it opens on the real Calendar, and its link is the right link.
-        // (The seeders re-mark it done on every load, so the done flag cannot be read after the
-        // link has navigated; the archive is the store nothing re-seeds.)
-        const errors = collectFatalErrors(page);
-        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
-        await seedSession(page, 'C. Reen');
-        await seedMemberSession(page, 'C. Reen');
-        await seedMember(page, 'C. Reen');
-        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
-        await page.goto('/');
-        const notice = page.locator('#timetableNoticeLb');
-        await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        await expect(notice).toContainText('A new timetable starts on 13 December');
-        await expect(notice).toContainText(/☰\s+then\s+🚆\s+Trains/);    // non-breaking spaces keep each half together
-        await page.locator('#timetableNoticeGo').click();
-        await expect(page).toHaveURL(/trains\.html/);
-        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
-        const archived = await page.evaluate(() =>
-            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map((/** @type {{ id: string }} */ n) => n.id));
-        expect(archived, 'kept in the drawer\'s App Notices once it has been shown').toContain('timetable-2026');
-        expect(errors).toHaveLength(0);
-    });
-
     test('every member is offered the pill, and the pill opens the page (live for everyone, v24.81)', async ({ page }) => {
         // C. Reen holds no role at all: what they get, every member gets. Until v24.81 the pill was
         // the admin's only and this same visit was sent back to the roster.

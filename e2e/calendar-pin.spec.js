@@ -1487,17 +1487,17 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
 // rule rather than hardcode one, which is the shape a members-only regression would take.
 // **The next `'signed-out'` notice restores this test** — `.claude/skills/new-notice/` says so.
 test.describe('one-time notices and the PIN unlock', () => {
-    // Inside the timetable notice's life (posted 21 Oct 2026, offered to the end of 31 October), or
-    // it silently retires and these would pass by testing nothing. Pinned rather than removed with
-    // the notice: what is under test is the audience gate, and the next members-only notice inherits
-    // it — as this one did at v24.91, from the leave reminder retired that day.
+    // Inside the timetable notice's FINAL WEEK (6–12 Dec 2026), or it silently retires and these
+    // would pass by testing nothing. Pinned rather than removed with a notice: what is under test is
+    // the audience gate, and the next members-only notice inherits it — as this one did on 22 Nov
+    // 2026, from the October timetable notice retired that day.
     //
-    // WHY THIS NOTICE AND NOT THE YEAR TO DATE ONE, though that is the more obviously personal: the
-    // audience must be the ONLY thing standing between the notice and the station. The Year to Date
-    // notice also asks whose Pay Calculator this is, which a PIN unlock never answers — so it stays
-    // off the station even when declared `'everyone'`, and the mutation this block exists to catch
-    // would pass. The timetable notice has no second condition.
-    const BEFORE_CUTOFF = new Date('2026-10-22T09:00:00Z');
+    // WHY ITS FINAL WEEK: the audience must be the ONLY thing standing between the notice and the
+    // station. Before 6 December it also waits for the install and New link notices, conditions a
+    // PIN unlock may meet or not for reasons of their own, so it could stay off the station even when
+    // declared `'everyone'`, and the mutation this block exists to catch would pass. In its final
+    // week it has no second condition.
+    const IN_FINAL_WEEK = new Date('2026-12-07T09:00:00Z');
     // The notices open 1500ms after access is granted. Proving an ABSENCE means waiting past that,
     // and the first test below is what makes this number credible rather than hopeful: it shows a
     // permitted notice is already on screen by then, on the same session, through the same path.
@@ -1511,16 +1511,16 @@ test.describe('one-time notices and the PIN unlock', () => {
     // reported bug — sailed through it.
     test('...and NOT one addressed to members', async ({ page }) => {
         const errors = collectFatalErrors(page);
-        await page.clock.setFixedTime(BEFORE_CUTOFF);
+        await page.clock.setFixedTime(IN_FINAL_WEEK);
         await seedViewerAccess(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_timetable_soon_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
         await page.waitForTimeout(PAST_THE_DEFER);
-        await expect(page.locator('#timetableNoticeLb')).not.toHaveClass(/open/);
+        await expect(page.locator('#timetableSoonNoticeLb')).not.toHaveClass(/open/);
         // ...and NOT flagged seen, or it would never arrive on the day that device signs in.
-        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_timetable_2026_done'));
+        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_timetable_soon_2026_done'));
         expect(flagged, 'a suppressed notice must be left untouched, not marked seen').toBeNull();
 
         // ...and NOT in the ARCHIVE either, which is the half the report was actually about: the
@@ -1531,20 +1531,20 @@ test.describe('one-time notices and the PIN unlock', () => {
         const archived = await page.evaluate(() =>
             JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id));
         expect(archived, 'a notice the station was not addressed by must not reach its drawer')
-            .not.toContain('timetable-2026');
+            .not.toContain('timetable-soon-2026');
         expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
     });
 
     test('a signed-in member on the same device does get it', async ({ page }) => {
         const errors = collectFatalErrors(page);
-        await page.clock.setFixedTime(BEFORE_CUTOFF);
+        await page.clock.setFixedTime(IN_FINAL_WEEK);
         await seedSession(page);
         await seedMemberSession(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_timetable_soon_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
-        await expect(page.locator('#timetableNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
+        await expect(page.locator('#timetableSoonNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
         expect(errors, 'Uncaught JS exceptions on a member calendar').toHaveLength(0);
     });
 });
