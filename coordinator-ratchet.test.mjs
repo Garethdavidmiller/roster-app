@@ -160,7 +160,10 @@ const CAPS = {
     // and legacy gates, the list's one order, which design opens — went to links-design-load.js, 2,773 measured lines
     // to 2,744. The formula gives 2800, a raise, so it is clamped to the round number below the old cap, as admin-app.js
     // was at v23.54: six lines of room. The save conversation in `saveChanges` is the next seam.
-    'links-app.js':            2750,   // ← 18 Nov 2026 (2773 after the second whole-app check; 2380 at v25.27)
+    // 2750 → 2550: brought DOWN with what left (Nov 2026): the Build press's words and bookkeeping (links-build-press.js) and what the page reads from today's roster (links-today.js), 2,744 measured lines to 2,483; the measured size plus 50, rounded up.
+    // 2550 → 2400: brought DOWN again (Nov 2026): the grid's cells (links-grid-cells.js), the one working-copy setter, one read of the collection and the print net (links-print.js), 2,483 measured lines to 2,348; the measured size plus 50, rounded.
+    // 2400 → 1950: brought DOWN (Nov 2026), by cutting comments to their reasons: the changelog went — git log keeps it — and every why an edit could break stayed, 2,348 measured lines to 1,860; the measured size plus 50, rounded up. The next Links rule still goes in a domain module.
+    'links-app.js':            1950,   // ← Nov 2026, extractions and comment cuts (2750 on 18 Nov 2026)
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap
@@ -269,7 +272,10 @@ const CAPS = {
     // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
     // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
     // cover week as its duties — each pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
-    'links-design.js':         1503,   // a DOMAIN module: large is less alarming here, but still capped
+    // 1503 → 1513 (Nov 2026), a RAISE, said so: two rules where rules belong — `lineTotals` counts a lone spare day as a
+    // floor (`loneSpare`), and `hoursFigure` is the one way a weeklyHours average is stated ("(partial)" included), both
+    // pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
+    'links-design.js':         1513,   // a DOMAIN module: large is less alarming here, but still capped
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same

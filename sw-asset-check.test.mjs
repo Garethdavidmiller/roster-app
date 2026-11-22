@@ -623,9 +623,6 @@ test('no unused CSS custom properties defined in :root', () => {
         '--type-xl',
         // Mid-range navy reference colour; no component uses it yet.
         '--navy-mid',
-        // Night-shift coverage colour in links.css palette. No night column in current
-        // links workspace UI — kept for consistency with the other --cov-* tokens.
-        '--cov-night',
         // Hover variants for raspberry and indigo UI elements. No interactive
         // raspberry/indigo elements exist yet.
         '--raspberry-hover',

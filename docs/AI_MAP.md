@@ -392,13 +392,33 @@ Compare mode on `links.html`: two designs side by side, a strip of what differs,
 How the design grid on `links.html` is operated — one Tab stop and the arrow keys, a mouse stroke that paints every cell it crosses — while `links-app.js` keeps what a cell means. Tested by `links-grid-input.test.mjs`; the wiring by `e2e/links.spec.js`.
 - **Exports:** `cellAfterKey` · `createGridInput` · `trackPaintBarHeight`
 
+### `links-build-press.js`
+What the Build press on `links.html` says and remembers: why a table was refused, the question before a build replaces a design, the line it reports and which build of these inputs it is. Pure; the press itself (the confirm, the held button, the scroll anchor) stays in `links-app.js`. Tested by `links-build-press.test.mjs`.
+- **Exports:** `overCapacityLine` · `refusalLine` · `buildConfirm` · `withSurplusLines` · `createBuildCounter` · `builtStatusLine`
+
+### `links-today.js`
+What `links.html` reads from today's roster: the shift times its cell sheet offers (the main roster's, never the bilingual one's) and today's link measured against the fatigue factors for the Design checks card's comparison — once per roster, each factor at its own threshold. Pure; tested by `links-today.test.mjs`.
+- **Exports:** `shiftOptionLists` · `currentLinkBaseline`
+
+### `links-grid-cells.js`
+What one cell of a Links grid says — its label, its accessible name, and the markup the editable grid, the compare grids and their cover rows are drawn from — so a name fixed once reaches every grid. Pure; tested by `links-grid-cells.test.mjs`.
+- **Exports:** `DAY_LABELS` · `shiftLabel` · `cellName` · `emptyPattern` · `isUnfilledPattern` · `cellAriaName` · `editCellHtml` · `compareCellHtml` · `coverCellsHtml`
+
+### `links-analyse.js`
+One reading of a Links design, shared by the Coverage card, the Design checks, the summary strip and compare mode: `analyse` keys it on the design's CONTENT and computes each part once, on first ask; `readAgainstService` reads a design against the December 2026 service on its own window. Pure; tested by `links-analyse.test.mjs`.
+- **Exports:** `readAgainstService` · `analyse`
+
+### `links-print.js`
+Preparing `links.html` for paper and putting it back: every disclosure opened, the masthead stamped on every prepare, and the print ended by `afterprint`, the page becoming visible or the reader's next touch, key or scroll, since iOS AirPrint sends no `afterprint`. Tested by `links-print.test.mjs`.
+- **Exports:** `createPrintPrep`
+
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s `?` panels: pure data, rendered by `tips-lightbox.js`, shape pinned by `tips-content.test.mjs`. Its generator panel restates `links-default-targets.js`'s header, and no test can see that rule.
-- **Exports:** `CARD_TIPS`
+- **Exports:** `DEFAULT_TABLE_FIGURES` · `CARD_TIPS`
 
 ### `links-design.js`
 The pure link-design maths — reading a shift, coverage, hours, the generator and its rest repair, and the design checks — with no DOM, no Firebase and no imports. `ROTATING_LINES` is the one declaration of the rotation length. `.claude/rules/links-design.md` defers its export list to this entry. Tested by `links-design.test.mjs` and `links-contract.test.mjs`.
-- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
+- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `hoursFigure` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
 
 ### `links-target-sets-store.js`
 The Firestore half of the saved staffing setups, with every Firebase handle injected so it loads in Node; used by `links-generator-targets.js`. Its two rules are in the header. Tested by `links-target-sets-store.test.mjs`.
@@ -441,7 +461,7 @@ The design masthead on `links.html`: which design is open, whose, whether it is 
 
 ### `links-design-naming.js`
 What a design or a staffing setup may be CALLED: one rule for new, import, duplicate, rename and save-a-setup-as-new, refusing a duplicate case- and space-insensitively rather than renaming it silently. Pure; the header says why what it guarantees is narrower than "no duplicates exist". Tested by `links-design-naming.test.mjs`.
-- **Exports:** `MAX_DESIGN_NAME` · `nameKey` · `nameConflict` · `checkName` · `proposeCopyName`
+- **Exports:** `MAX_DESIGN_NAME` · `nameKey` · `nameConflict` · `checkName` · `checkDesignName` · `proposeCopyName`
 
 ### `rangers-guide.css`
 The Rangers & Rovers guide's stylesheet: the ranger and rover area passes staff accept or refuse at the gateline, drawn as a dialect of the Railcard guide. A static page with no app modules; its chip bar is `guide-chips.js` and its ⤓ PDF button `guide-print.js`. The page's rules are `.claude/rules/guide-pages.md` → "Rangers & Rovers guide"; each product's evidence is a `GUIDE_SOURCES.md` row, held to the page by `guide-sources.test.mjs`.
@@ -460,7 +480,7 @@ Named, shared snapshots of the generator's target table (`linkTargetSets`, staff
 
 ### `links-limits.js`
 The HARD limits a link design meets or cannot be run — the consecutive-days run limit and the contracted-days ceiling — kept apart from the advisory fatigue factors on purpose. It fails to `unknown`, never to `ok`, and `POLICY_SOURCE_CONFIRMED` is the one switch every visible claim derives from. Pure; the header holds whose limit this is and the three rules every edit keeps. Bound by `.claude/rules/links-design.md` invariant 2 and → Hard limits vs advisory factors. Tested by `links-limits.test.mjs`.
-- **Exports:** `MAX_CONSECUTIVE_WORKED_DAYS` · `POLICY_SOURCE_CONFIRMED` · `LIMIT_CLAIM` · `CONTRACTED_DAYS_CEILING` · `contractedDaysPerYear` · `assessHardLimits`
+- **Exports:** `MAX_CONSECUTIVE_WORKED_DAYS` · `POLICY_SOURCE_CONFIRMED` · `LIMIT_CLAIM` · `CONTRACTED_DAYS_CEILING` · `contractedDaysPerYear` · `contractedDaysFromCounts` · `assessHardLimits`
 
 ### `links-fatigue.js`
 The ORR good-practice fatigue factors (December 2021 guide) assessed against a link design. Pure. It reports factors PRESENT and never passes or fails a design, and every rule laps the rotation; the header and the comment beside each row carry the reasoning. Bound by `.claude/rules/links-design.md` invariants 2–3 and → Fatigue factors. Tested by `links-fatigue.test.mjs`.
@@ -875,7 +895,7 @@ The DOM half of the "Move Your Pay Data" card: the itemised list of what is on t
 - **Exports:** `initTransferCard`
 
 ### `paycalc-help.js`
-The pay calculator's `?` panel text, keyed by each `.help-btn`'s `data-help`, in the shared Tips panel's sections-and-items shape (`initTipsLightbox` renders it). Pure data; the rates, London Allowance and contracted hours in its tips are read from `paycalc-calc.js`, so no figure is typed here.
+The pay calculator's help-panel text, keyed by each `.help-btn`'s `data-help`. Pure data; the rates, London Allowance and contracted hours in its tips are read from `paycalc-calc.js`, so no figure is typed here.
 - **Exports:** `HELP_CONTENT`
 
 ### `paycalc-migrations.js`
@@ -1195,7 +1215,7 @@ WHO a notice for the admin may reach — one rule for the reset-request doorbell
 - **Exports:** `enabledAdminUids`
 
 ### `functions/account-lifecycle.js`
-The pure rules Set up accounts and the admin reset apply at the edges of an account's life: whether a failed password write proves nothing changed and what the admin is then told, which elevated claims a re-stamp takes away, which leavers are already disabled, and which a confirmed sweep may disable against its preview. The header carries the reasoning; `auth-endpoints.js` is the orchestration. Tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`.
+The pure rules Set up accounts and the admin reset apply at the edges of an account's life: whether a failed password write proves nothing changed and what the admin is then told, which elevated claims a re-stamp takes away, and which leavers are already disabled. The header carries the reasoning; `auth-endpoints.js` is the orchestration. Tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`.
 - **Exports:** `passwordWriteRefused` · `unwrittenResetAnswer` · `elevatedClaimsLost` · `ELEVATED_CLAIMS` · `disabledLeaverUids` · `sweepAgainstPreview`
 
 ### `functions/reset-request.js`

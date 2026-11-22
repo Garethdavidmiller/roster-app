@@ -23,7 +23,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } from './links-design.js';
+import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, WEEKENDS_OFF_AIM_PCT } from './links-design.js';
+import { DEFAULT_TABLE_FIGURES } from './links-tips.js';
 // trains-tips.js reads its dates and numbers from the page's own modules (v24.83), so it is evaluated
 // with the same values.
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
@@ -46,7 +47,7 @@ const PAGES = [
     { js: 'admin-tips.js',     html: 'admin.html' },
     { js: 'operations-tips.js', html: 'operations.html', scope: { LEAVE_FILE_MAX_AGE_DAYS } },
     { js: 'settings-app.js',   html: 'settings.html' },
-    { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } },
+    { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, DEFAULT_TABLE_FIGURES, WEEKENDS_OFF_AIM_PCT } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
     { js: 'trains-tips.js',    html: 'trains.html', scope: { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, DAYTIME, JOURNEY_PLANNER_URL, renderFurtherChanges } },
 ];
@@ -459,10 +460,40 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
         const { CARD_TIPS } = await import('./links-tips.js');
         const gen = src('links-design.js');
         for (const reason of ['short-hours', 'over-hours']) assert.ok(gen.includes(`'${reason}'`), `generateLink no longer refuses with ${reason}`);
-        const tip = words(CARD_TIPS, 'links-grid');
-        assert.match(tip, /does not pay the contracted week exactly — under it or over it/);
-        assert.match(tip, /more duties, longer ones, or more spare weeks/);
-        assert.match(tip, /fewer duties, shorter ones, or fewer spare weeks/);
+        // The generator's panel, since Nov 2026: the refusal is the generator's, of a table of targets.
+        const tip = words(CARD_TIPS, 'links-generator');
+        assert.match(tip, /refuses a table of targets that does not pay the contracted week exactly — under it or over it/);
+        assert.match(tip, /more duties, longer ones, or more cover weeks/);
+        assert.match(tip, /fewer duties, shorter ones, or fewer cover weeks/);
+        // The line count is fixed, so spreading the work over more lines is no remedy and is not offered.
+        assert.doesNotMatch(words(CARD_TIPS, 'links-grid') + tip, /more lines never can|over more lines/);
+    });
+
+    // THE DEFAULT TABLE'S FIGURES ARE READ, NOT TYPED (Nov 2026), and the panel's claim that the
+    // shortlisted designs staff the same duties each day is checked against every shortlisted grid.
+    test('the default table: its figures are the table\'s, and the shortlist claim holds', async () => {
+        const { CARD_TIPS } = await import('./links-tips.js');
+        const { PROPOSALS } = await import('./links-proposals.js');
+        const { isCoverWeek } = await import('./links-design.js');
+        const F = DEFAULT_TABLE_FIGURES;
+        const tip = words(CARD_TIPS, 'links-generator');
+        assert.ok(tip.includes(`${F.weekday} on each weekday, ${F.sat} on a Saturday, ${F.sun} on a Sunday, with ${F.cover} cover weeks`));
+        assert.ok(tip.includes(`at ${F.days} contracted days a year — under the ${F.ceiling} ceiling`));
+        assert.match(tip, /no longer on the shortlist — the shortlisted designs staff the same number of duties each day/);
+        assert.ok(PROPOSALS.length > 0, 'premise: there is a shortlist');
+        for (const p of PROPOSALS) {
+            /** @type {Record<string, number>} */ const n = {};
+            let cover = 0;
+            for (const row of Object.values(p.patterns)) {
+                if (isCoverWeek(row)) cover++;
+                for (const [d, v] of Object.entries(row)) if (/^\d/.test(String(v))) n[d] = (n[d] ?? 0) + 1;
+            }
+            for (const d of ['mon', 'tue', 'wed', 'thu', 'fri']) assert.equal(n[d], F.weekday, `${p.name}: ${d}`);
+            assert.equal(n.sat, F.sat, `${p.name}: Saturday`);
+            assert.equal(n.sun, F.sun, `${p.name}: Sunday`);
+            assert.equal(cover, F.cover, `${p.name}: cover weeks`);
+        }
+        assert.ok(words(CARD_TIPS, 'links-checks').includes(`Aim for at least ${WEEKENDS_OFF_AIM_PCT}% of weeks`));
     });
 
     test('Design checks: every section the card draws is explained', async () => {
@@ -493,7 +524,7 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
     // rest tip and the line-order card's load-bearing note each TYPED "12 hours". Both are 12 today, so
     // the tip is evaluated with a stand-in minimum, and the note must be a stamped span, never a figure.
     test('the minimum rest is read from MIN_REST_MINUTES in the tip, and stamped into the page\'s note', () => {
-        const tip = (/** @type {number} */ min) => words(readCardTips('links-tips.js', { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES: min }), 'links-checks');
+        const tip = (/** @type {number} */ min) => words(readCardTips('links-tips.js', { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES: min, DEFAULT_TABLE_FIGURES, WEEKENDS_OFF_AIM_PCT }), 'links-checks');
         assert.match(tip(MIN_REST_MINUTES), new RegExp(`for less than ${MIN_REST_MINUTES / 60} hours rest`));
         assert.match(tip(11 * 60), /for less than 11 hours rest/, 'a moved minimum moves the tip');
         const note = src('links.html').match(/<p class="gen-obj-note">([\s\S]*?)<\/p>/)?.[1] ?? '';

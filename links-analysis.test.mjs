@@ -631,6 +631,8 @@ test('the cover chip says WITH TRAINS in both forms, so it cannot contradict a r
     assert.ok(cover, 'the cover chip did not render');
     assert.match(cover, /with trains/, `the cover chip claims more than its figure counts: "${cover}"`);
     assert.doesNotMatch(els.linksSummary.innerHTML, /gaps in staffed hours/i);
+    assert.doesNotMatch(els.linksSummary.innerHTML, /Every<\/strong> staffed hour covered/,
+        'the short clean form sat over a red 0 on the card');
 
     // …and the other form says the same thing about the same figure.
     resetDom();
@@ -664,15 +666,17 @@ test('the summary never says "no fatigue factors" while standing factors exist',
         + 'a design with early starts rather than deleting the assertion');
     initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderSummary();
     const strip = els.linksSummary.innerHTML;
-    assert.doesNotMatch(strip, /No<\/strong> fatigue/i,
+    // "No fatigue factors present · 2 standing" is allowed (Nov 2026): it carries both counts. The
+    // bare "No fatigue factors" / "No fatigue findings" is what this forbids.
+    assert.doesNotMatch(strip, /No<\/strong> fatigue (?!factors present · \d+ standing)/i,
         `the strip says "No fatigue factors" over ${standing} standing one(s). The fatigue model is `
         + 'right that standing characteristics are not design findings — but ordinary English does '
         + 'not carry that distinction, and the reader takes the chip at its word.');
     assert.match(strip, new RegExp(`${standing} standing`),
         'the strip does not state the standing count, so the two numbers are still one number');
     if (!present) {
-        assert.match(strip, /0<\/strong> to act on/,
-            'with nothing to act on the chip should say so explicitly rather than saying "No"');
+        assert.match(strip, new RegExp(`No</strong> fatigue factors present · ${standing} standing`),
+            'with nothing present the chip says so, and still carries the standing count');
     }
 });
 
@@ -1117,3 +1121,60 @@ test('a stored cell with markup in it is counted as unreadable, and none of it r
     assert.match(words, /1 worked cell could not be read as a time/, 'the unreadable cell is said, never dropped in silence');
 });
 
+
+// ── A LONE SPARE DAY IS A WORKED DAY OF UNKNOWN TIME (Nov 2026, review bug 3) ───────────────────
+// Run through the real renderers, not only `weeklyHours`: the row and the strip are where a figure
+// counted as zero hours went on wearing its tick.
+test('a lone SPARE day marks the hours row and the strip partial, and says why', () => {
+    const patterns = fullPatterns();
+    patterns['3'].sat = 'SPARE';
+    resetDom();
+    const a = initLinksAnalysis({ getDesign: () => ({ patterns }) });
+    a.renderDesignChecks();
+    const text = els.checksContent.innerHTML;
+    assert.match(text, /Hours a week<\/strong> — [^<]*<strong>\(partial\)<\/strong>/, 'the hours row does not say it is partial');
+    assert.match(text, /1 spare day on a working week has no time yet/, 'the row does not say why it is partial');
+    a.renderSummary();
+    assert.match(els.linksSummary.innerHTML, /a week \(partial\)/, 'the strip does not say the figure is partial');
+});
+
+// ── THE SHORT CLEAN COVER CHIP (owner, Nov 2026) ────────────────────────────────────────────────
+// "No staffed hours with trains and nobody on" wrapped the phone save bar to four rows. The short
+// "Every staffed hour covered" is used only when it is true of BOTH counts: no staffed hour with
+// trains and nobody on, and no red 0 on the card (the test above has the red-0 case).
+test('a fully covered design gets the short clean chip; a red 0 keeps the long one', async () => {
+    const { PROPOSALS } = await import('./links-proposals.js');
+    resetDom();
+    const a = initLinksAnalysis({ getDesign: () => ({ patterns: PROPOSALS[0].patterns }) });
+    a.renderCoverageChart();
+    assert.doesNotMatch(els.coverageHeatmap.innerHTML, /staffed hours? with nobody on duty/, 'premise: no red 0 on the card');
+    a.renderSummary();
+    assert.match(els.linksSummary.innerHTML, /sum-chip--ok"><span aria-hidden="true">✓<\/span><strong>Every<\/strong> staffed hour covered/);
+});
+
+test('the fatigue chip says "present", singular and plural, never "to act on"', () => {
+    resetDom();
+    const patterns = fullPatterns();
+    const { present, standing } = assessFatigue(patterns, ROTATING_LINES);
+    initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderSummary();
+    const strip = els.linksSummary.innerHTML;
+    assert.doesNotMatch(strip, /to act on/);
+    if (present) assert.match(strip, new RegExp(`${present}</strong> fatigue factors? present${standing ? ` · ${standing} standing` : ''}`));
+});
+
+// ── FF2 NAMES THE DESIGN'S OWN OPENING (Nov 2026) ───────────────────────────────────────────────
+// The row said "the day starts at 06:20" whatever window the design was drawn against. Run through
+// the real renderer, because the window reaches `assessFatigue` only from here.
+test('FF2 states the opening from the design\'s window, and claims "unavoidable" only for an early one', () => {
+    const patterns = fullPatterns();     // 06:00 starts, so FF2 is standing
+    const render = (/** @type {any} */ window) => {
+        resetDom();
+        initLinksAnalysis({ getDesign: () => ({ patterns, window }) }).renderDesignChecks();
+        return els.checksContent.innerHTML;
+    };
+    assert.match(render(undefined), /Unavoidable on this link — the station opens at 06:20 Monday to Saturday/);
+    const late = render({ monSat: { start: '07:30', end: '23:55' }, sun: { start: '07:15', end: '23:25' } });
+    assert.match(late, /The staffed window opens at 07:30 Monday to Saturday, so these starts come before the opening/);
+    assert.doesNotMatch(late, /Unavoidable on this link/);
+    assert.match(render({ monSat: { start: '06:00', end: '23:55' }, sun: { start: '07:15', end: '23:25' } }), /opens at 06:00 Monday/);
+});

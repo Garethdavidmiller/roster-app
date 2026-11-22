@@ -64,6 +64,11 @@
     <link rel="modulepreload" href="./links-adjacency.js">
     <link rel="modulepreload" href="./links-analysis.js">
     <link rel="modulepreload" href="./links-grid-input.js">
+    <link rel="modulepreload" href="./links-print.js">
+    <link rel="modulepreload" href="./links-analyse.js">
+    <link rel="modulepreload" href="./links-grid-cells.js">
+    <link rel="modulepreload" href="./links-today.js">
+    <link rel="modulepreload" href="./links-build-press.js">
     <link rel="modulepreload" href="./links-app.js">
     <link rel="modulepreload" href="./links-compare.js">
     <link rel="modulepreload" href="./links-concurrency.js">
@@ -159,7 +164,7 @@
              carries a taller line box — measured, this row rendered 35px between two 33px
              neighbours with identical padding, font-size and line-height. An emoji goes through the
              same colour font as the 🔧 and 🐛 either side of it, so the three rows are one height. -->
-        <button type="button" id="linksHowBtn" class="lightbox-bug-link"><span aria-hidden="true">ℹ️</span> How this workspace works</button>
+        <button type="button" id="linksHowBtn" class="lightbox-bug-link"><span aria-hidden="true">ℹ️</span> How Links works</button>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
 </div>
@@ -183,9 +188,9 @@
         <button id="linksImportClose" class="lb-close" type="button" aria-label="Close">✕</button>
         <h2 class="dialog-title">Import a design</h2>
         <p class="dialog-message">One row per line of the rotation, seven day columns (Sunday to
-            Saturday). Paste straight from a spreadsheet, or type times, <strong>RD</strong> and
-            <strong>SP</strong> separated by commas. A week number at the start and an hours total
-            at the end are both fine.</p>
+            Saturday). Paste straight from a spreadsheet, or type times, <strong>RD</strong> (rest
+            day) and <strong>SP</strong> (cover week) separated by commas. An empty cell is a rest
+            day. A line number at the start and an hours total at the end are both fine.</p>
         <label class="li-paste-label" for="linksImportText">Paste the design</label>
         <textarea id="linksImportText" class="li-paste" rows="6" spellcheck="false"
                   autocomplete="off" placeholder="1&#9;14:00-22:00&#9;11:00-19:30&#9;…"></textarea>
@@ -215,8 +220,9 @@
             <div class="lightbox-app-name">How Links works</div>
         </div>
         <div class="notice-main">
-            <p class="notice-body">Changes here only affect the link-design document — never the live roster. Best used on a desktop or tablet; the grid is tight on a phone.</p>
-            <p class="notice-body">Design checks include the ORR's fatigue factors. They report which factors a pattern <strong>features</strong> — they do not pass or fail a design, and no result here approves one.</p>
+            <p class="notice-body">A link is the rota everyone works through in turn: <span class="js-rotating-lines">26</span> lines, one week each, line 1 then line 2, all the way round.</p>
+            <p class="notice-body">Changes here affect only the designs saved in this workspace — never the live roster. Best used on a desktop or tablet; the grid is tight on a phone.</p>
+            <p class="notice-body">Design checks include the fatigue factors of the Office of Rail and Road (ORR). They report which factors a pattern <strong>features</strong> — they do not pass or fail a design, and no result here approves one.</p>
             <p class="notice-body">Designs are shared: any designer can edit or delete any of them. A deleted design goes to <strong>Recently deleted</strong> and stays there until someone removes it for good.</p>
         </div>
     </div>
@@ -226,7 +232,7 @@
 <div id="designBinLightbox" class="lb-overlay" role="dialog" aria-label="Recently deleted designs" aria-modal="true">
     <div id="designBinContent" class="lb-content">
         <button id="designBinClose" class="lb-close" type="button" aria-label="Close">✕</button>
-        <h2 class="tips-lb-title">🗑 Recently deleted</h2>
+        <h2 class="tips-lb-title">Recently deleted</h2>
         <p class="bin-intro">A deleted design is kept here until someone removes it for good. Nothing is deleted automatically.</p>
         <div id="designBinList" class="bin-list"></div>
         <p id="designBinStatus" class="bin-status" role="status" aria-live="polite"></p>
@@ -275,7 +281,7 @@
                  shortlist stays read-only. Hidden by inline style, like the bin row below it, because
                  `.dm-menu-btn` sets a display that out-specifies `[hidden]`; links-design-library.js
                  shows it when the sheet opens. The reasoning: links-shortlist.js. -->
-            <button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none"><span class="dm-menu-ic" aria-hidden="true">★</span><span>Keep only the shortlist<small>Older saved designs move to Recently deleted</small></span></button>
+            <button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none"><span class="dm-menu-ic" aria-hidden="true">★</span><span>Keep only the shortlist<small>Designs last saved before 2 November 2026 move to Recently deleted</small></span></button>
             <button class="dm-menu-btn" id="designBinBtn" type="button" style="display:none"><span class="dm-menu-ic" aria-hidden="true">🗑</span><span>Recently deleted</span></button>
             <hr class="dm-menu-rule">
             <button class="dm-menu-btn dm-menu-btn--danger" id="designDeleteBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">✕</span><span>Delete this design<small>Goes to Recently deleted, not gone for good</small></span></button>
@@ -382,7 +388,7 @@
                     <p class="links-empty-title">Loading your designs…</p>
                     <p class="links-empty-msg" id="linksEmptyMsg">Reading the saved designs. Starting or building a new one waits until the list is in, so nothing is made twice.</p>
                     <div class="links-empty-actions" style="display:none">
-                        <button type="button" class="btn-save" id="linksEmptyGenerate">Go to Auto-generate</button>
+                        <button type="button" class="btn-save" id="linksEmptyGenerate">Go to Build a link</button>
                         <button type="button" class="btn-text-link" id="linksEmptyProposals">Open a shortlisted proposal</button>
                         <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
                     </div>
@@ -436,7 +442,7 @@
                     </table>
                     <!-- What the three total-cell styles MEAN (v23.50). These were `title` tooltips on the
                          cells — a hover surface, so a designer on a phone never saw them. -->
-                    <p class="tot-legend"><span class="lg-assumed">Italic</span> — a cover week, counted as the contracted week &middot; <span class="lg-same">Muted</span> — the same in both hour columns, no Sunday duty &middot; <span class="lg-uncertain">Orange</span> — some duty times couldn’t be read, so the total is a floor, marked “+”</p>
+                    <p class="tot-legend"><span class="lg-assumed">Italic</span> — a cover week, counted as the contracted week &middot; <span class="lg-same">Muted</span> — the same in both hour columns, no Sunday duty &middot; <span class="lg-uncertain">Orange</span> — a duty time couldn’t be read, or a spare day carries no times, so the total is a floor, marked “+”</p>
                 </div>
 
                 <!-- Compare mode: two read-only grids with diff highlighting -->
@@ -519,11 +525,11 @@
     <div class="card" id="generatorCard">
         <div class="card-header card-header-toggle" id="generatorToggleHeader">
             <div>
-                <h2><span aria-hidden="true">⚡</span> Auto-generate a link</h2>
+                <h2><span aria-hidden="true">⚡</span> Build a link</h2>
                 <span class="hint">Build a rotating pattern automatically from staffing targets</span>
             </div>
             <div class="card-header-actions">
-                <button type="button" class="btn-card-tips" data-card="links-generator" aria-label="Tips for the auto-generator">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-generator" aria-label="Tips for building a link">?</button>
                 <span class="collapse-chevron" id="generatorChevron">▾</span>
             </div>
         </div>
@@ -567,12 +573,12 @@
                                      per-day headcount. The real roster is built this way: main lines
                                      1, 7, 12 and 17 are SPARE on all seven days. -->
                                 <tr class="gen-spare-row">
-                                    <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines; <span class="js-spare-worked-days">4</span> days worked Mon–Sat</span></td>
-                                    <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="25" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of <span class="js-rotating-lines">26</span> lines</span></td>
+                                    <td class="gen-td-label">Cover weeks<span class="gen-td-note">whole lines marked SP; <span class="js-spare-worked-days">4</span> days worked Mon–Sat</span></td>
+                                    <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="25" value="0" aria-label="How many whole lines are cover weeks"><span class="gen-td-note">of <span class="js-rotating-lines">26</span> lines</span></td>
                                     <td></td>
                                 </tr>
                                 <tr class="gen-total-row">
-                                    <td class="gen-td-label">Total on duty</td>
+                                    <td class="gen-td-label">Lines used<span class="gen-td-note">duties + cover weeks</span></td>
                                     <td id="genTotWeekday">0</td>
                                     <td id="genTotSat">0</td>
                                     <td id="genTotSun">0</td>
@@ -616,7 +622,7 @@
                              be refused with the gap named. Neither label says "reset targets"
                              without saying to WHAT: with two of them, that word alone is the one
                              thing a designer cannot act on. -->
-                        <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Use the Dec 2026 staffing</button>
+                        <button class="btn-text-link" id="genDefaultBtn" type="button">↺ Use the starting table (Short Run’s duties)</button>
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Copy staffing from today's roster</button>
                     </div>
                     <!-- SAVED SETS (v21.04). Named snapshots of the target table, shared between the
@@ -678,7 +684,7 @@
                              week-to-week step is no step at all — so with variety off the reorder
                              produces months on the same shift. Measured: 11 weeks against the live
                              roster's 3. -->
-                        <label class="gen-obj"><input type="checkbox" id="objVariety" checked><span class="gen-obj-text"><span class="gen-obj-title">Vary the shift type</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objBlockTarget" class="gen-input gen-input-inline" min="1" max="14" value="3" aria-label="Vary the shift type: at most this many weeks in a row"> weeks</span></span><span class="gen-obj-hint">Stops long blocks of earlies or lates — the live roster's longest is 3</span></span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objVariety" checked><span class="gen-obj-text"><span class="gen-obj-title">Vary the shift type</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objBlockTarget" class="gen-input gen-input-inline" min="1" max="14" value="3" aria-label="Vary the shift type: at most this many weeks in a row"> weeks</span></span><span class="gen-obj-hint">Stops long blocks of earlies or lates — the box starts at the live roster’s own longest</span></span></label>
                         <!-- The run cap (v20.02). Sits directly under "Vary the shift type" because the
                              two are the design's hard shape constraints; the three below are the
                              comforts arranged inside them. A cover week counts as its SPARE_WORKED_DAYS
@@ -687,7 +693,7 @@
                              so the hint says "up to" one more. Both figures are stamped from the constant. -->
                         <label class="gen-obj"><input type="checkbox" id="objMaxRun" checked><span class="gen-obj-text"><span class="gen-obj-title">Most shifts in a row</span><span class="gen-obj-num">at most <span class="gen-obj-numctl"><input type="number" id="objMaxRunTarget" class="gen-input gen-input-inline" min="1" max="14" value="6" aria-label="Most shifts in a row: at most this many days"> days</span></span><span class="gen-obj-hint">Consecutive working days, counted across the line boundary. A cover week counts as up to <span class="js-cover-week-run">5</span> — <span class="js-spare-worked-days">4</span> duties and its Sunday</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objGentle" checked><span class="gen-obj-text"><span class="gen-obj-title">Gentle week-to-week change</span><span class="gen-obj-hint">Keeps your working day from jumping when you move line</span></span></label>
-                        <label class="gen-obj"><input type="checkbox" id="objWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Full weekends off</span><span class="gen-obj-hint">Saturday rest followed by Sunday rest</span></span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Full weekends off</span><span class="gen-obj-hint">Saturday rest followed by Sunday rest on the next line</span></span></label>
                         <!-- "of N" is ONE span (v19.98). `.gen-obj-numctl` is inline-flex with a 6px
                              gap, so "of" and the count as two items would space wider than the same
                              phrase elsewhere on the card. The comment lives OUT here, not between the
@@ -746,9 +752,9 @@
                     </div>
                     <div class="win-row">
                         <span class="win-label">Mon–Sat</span>
-                        <input type="text" id="winMonSatStart" class="win-time" inputmode="numeric" maxlength="5" placeholder="06:20" aria-label="Mon to Saturday start, 24-hour">
+                        <input type="text" id="winMonSatStart" class="win-time" inputmode="numeric" maxlength="5" placeholder="06:20" aria-label="Monday to Saturday start, 24-hour">
                         <span class="win-dash" aria-hidden="true">–</span>
-                        <input type="text" id="winMonSatEnd" class="win-time" inputmode="numeric" maxlength="5" placeholder="23:55" aria-label="Mon to Saturday finish, 24-hour">
+                        <input type="text" id="winMonSatEnd" class="win-time" inputmode="numeric" maxlength="5" placeholder="23:55" aria-label="Monday to Saturday finish, 24-hour">
                     </div>
                     <div class="win-row">
                         <span class="win-label">Sunday</span>
