@@ -561,8 +561,12 @@ const resetMemberPassword = onRequest(
                         // THE CREDENTIAL IS NEVER IN THE PAYLOAD. A push renders on a LOCK SCREEN,
                         // so naming the new password would show it to whoever picks the phone up —
                         // and this app's default is derived from a surname that is on the roster.
-                        // What the member needs is that it changed and where to fix it.
-                        body: 'The admin reset your password. Open Settings to choose your own.',
+                        // What the member needs is that it changed and where to fix it — and, since a
+                        // reset signs every device out (AUTH_AND_SESSIONS 23), that they must sign in
+                        // again first (22 Nov 2026). It does not say WHAT with: "your surname" is the
+                        // rule for deriving the credential, which is as much a leak on a lock screen
+                        // as the credential itself (auth-endpoints.test.mjs refuses it).
+                        body: 'The admin reset your password. Sign in again, then choose your own.',
                         baseUrl: STAFF_SITE_URL,
                     }),
                     [user.uid],

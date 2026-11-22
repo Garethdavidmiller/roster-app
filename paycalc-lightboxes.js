@@ -189,7 +189,7 @@ export function initPaycalcLightboxes() {
           section: 'Pay',
           date:    NOTICE_DATE,
           body:    'This January’s Holiday Pay Premium is for the 2025/26 tax year. '
-                 + 'Your 13\u00a0Mar\u00a02026 payslip gives a rough figure: copy its Year to Date Taxable Pay into '
+                 + 'Your 13\u00a0March\u00a02026 payslip gives a rough figure: copy its Year to Date Taxable Pay into '
                  + '📊\u00a0Year to Date Figures, then choose the rough estimate in 🏖️\u00a0Holiday Pay Premium.',   // no name or date breaks
         });
       },

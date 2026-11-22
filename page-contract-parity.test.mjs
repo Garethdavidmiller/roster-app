@@ -1121,18 +1121,10 @@ test('every page with a busy check holds an update while a write is unconfirmed'
     assert.ok(checked >= 4, `only ${checked} pages declare a busy check — this test is checking almost nothing`);
 });
 
-test('Settings holds an update while a password save, or its "own password" record, is on its way (sign-in check, 11 Nov 2026)', () => {
-    // The record was dropped by a reload in the moment after "updated", and the card then said "still on
-    // your surname". It is counted where it STARTS (review, 11 Nov 2026: the forced change, on any page,
-    // was not counted) — `changeOwnPassword` registers it, and `writesInFlight` counts what is registered;
-    // both halves are behaviour-tested (firebase-client.test.mjs, slow-save.test.mjs). This pins the page.
-    const src = codeOf('settings-app.js');
-    const busy = src.match(/const _busy = ([^;]*);/)?.[1] ?? '';
-    assert.match(busy, /_passwordSaving/, 'the busy check forgot the password save itself');
-    assert.match(busy, /writesInFlight\(\) > 0/, 'the busy check does not count writes on their way, the record among them');
-    const reg = swRegistrationProps(src) ?? {};
-    for (const k of ['beforeReload', 'isBusy']) assert.match(reg[k] ?? '', /_busy/, `${k} does not ask the shared busy check`);
-});
+// Settings' own hold — a password save, at each of its two stages, keeps an update and a notification tap
+// waiting and makes signing out ask — is a BEHAVIOUR test now (e2e/settings.spec.js → "settings: while a
+// password save is on its way…"), not a read of `const _busy = …` (settings review, Nov 2026): that regex
+// passed on a page whose busy check was right and whose password write was never counted at all.
 
 test('Operations: an update waits for the Annual leave sheet card; a notification tap waits only for its UNSAVED answers', () => {
     // The card's answer is a long read, so an UPDATE holds while it is running or on screen

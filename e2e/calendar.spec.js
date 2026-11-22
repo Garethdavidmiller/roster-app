@@ -5768,7 +5768,7 @@ test('the Pay button opens the payslip paid in the month on screen, not the mont
     const picker = page.locator('#periodSelect');
     await expect(picker.locator('option').first()).toBeAttached();
     await expect.poll(() => picker.evaluate(s => /** @type {HTMLSelectElement} */ (s).selectedOptions[0]?.textContent),
-        'November\'s payslip, still to be paid — the ● one — not 18 Dec').toBe('● Paid 20 Nov 2026 · P36');
+        'November\'s payslip, still to be paid — the ● one — not 18 Dec').toBe('● Paid 20 November 2026 · P36');
 });
 
 // CAL2 — the desktop controls are ONE centred row, and Team view used to remove the month's half of

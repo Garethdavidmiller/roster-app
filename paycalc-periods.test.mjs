@@ -236,12 +236,12 @@ describe('getPeriods', () => {
 describe('periodLinkMissNote', () => {
     const periods = [{ payday: new Date(2025, 3, 11, 12) }, { payday: new Date(2027, 2, 12, 12) }];
     test('names what was asked for and the range on offer', () => {
-        assert.equal(periodLinkMissNote('9 Apr 2027', periods),
-            "There's no payslip for 9 Apr 2027 in the calculator — it covers payslips paid 11 Apr 2025 to 12 Mar 2027.");
+        assert.equal(periodLinkMissNote('9 April 2027', periods),
+            "There's no payslip for 9 April 2027 in the calculator — it covers payslips paid 11 April 2025 to 12 March 2027.");
     });
     test('says nothing when the link matched, or when there is no list', () => {
         assert.equal(periodLinkMissNote('', periods), '');
-        assert.equal(periodLinkMissNote('9 Apr 2027', []), '');
+        assert.equal(periodLinkMissNote('9 April 2027', []), '');
     });
 });
 
@@ -503,8 +503,8 @@ describe('appendPayslipOptions', () => {
         const sel = el('select');
         appendPayslipOptions(sel, [P(48), P(49), P(50)]);
         assert.deepEqual(shape(sel), [
-            ['optgroup', 'Tax year 2025/26', [['48', 'Paid 13 Feb 2026 · P48'], ['49', 'Paid 13 Mar 2026 · P52']]],
-            ['optgroup', 'Tax year 2026/27', [['50', 'Paid 10 Apr 2026 · P4']]],
+            ['optgroup', 'Tax year 2025/26', [['48', 'Paid 13 February 2026 · P48'], ['49', 'Paid 13 March 2026 · P52']]],
+            ['optgroup', 'Tax year 2026/27', [['50', 'Paid 10 April 2026 · P4']]],
         ]);
     });
 
@@ -513,7 +513,7 @@ describe('appendPayslipOptions', () => {
         // was the last list worded its own way, and there is no longer an option to do so.
         const sel = el('select');
         appendPayslipOptions(sel, [P(57), P(58)], { currentPNum: 58 });
-        assert.deepEqual(shape(sel), [['optgroup', 'Tax year 2026/27', [['57', 'Paid 23 Oct 2026 · P32'], ['58', '● Paid 20 Nov 2026 · P36']]]]);
+        assert.deepEqual(shape(sel), [['optgroup', 'Tax year 2026/27', [['57', 'Paid 23 October 2026 · P32'], ['58', '● Paid 20 November 2026 · P36']]]]);
     });
 
     test('it APPENDS: an option the select already holds stays first', () => {
@@ -916,7 +916,7 @@ describe('bpStoryHtml', () => {
     test('decided future award, computed: payslip date-first, April year, "roughly £"', () => {
         const h = bpStoryHtml({ ...decided, amount: 460.12, state: 'computed' });
         assert.match(h, /2026\/27 pay award/);
-        assert.match(h, /28 Aug 2026 payslip<\/strong> \(P20\)/); // date-first payslip identity
+        assert.match(h, /28 August 2026 payslip<\/strong> \(P20\)/); // date-first payslip identity
         assert.match(h, /1 April 2026/);                          // April derives from the label
         assert.match(h, /is paid from/);                          // future tense (payday ahead)
         assert.match(h, /roughly .*£460\.12/);                    // computed = estimate framing

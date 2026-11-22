@@ -283,7 +283,7 @@ export function init() {
       /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `Hours worked ${startStr} – ${cutLongStr}`;
       /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `Tax year ${ty.label}`;
       /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${payslipPeriodNum(p)}`;
-      // fdLong, not fd: the picker above says "Paid 28 Aug 2026", and the most-read line of the page
+      // fdLong, not fd: the picker above says "Paid 28 August 2026", and the most-read line of the page
       // must not spell the same date "28 Aug 26" a foot below it.
       /** @type {HTMLElement} */ (document.getElementById('netPeriod')).textContent   = `Paid ${fdLong(p.payday)}`;
 

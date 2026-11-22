@@ -573,7 +573,8 @@ narrow FOR ITS TEXT?" An em in a container query is the container's own font siz
 phone gives a row 21.4em at the normal size and 16.5em at 1.3 times: the query answers for width AND
 text size, where a width query sees neither the text nor the box. Set each threshold BELOW what a 320px
 phone measures at 1 times, and the normal-size page cannot change (prove it by screenshot). The first
-use, with the measurements, is `trains.css` → "A phone's larger text"; the tests ask in both engines,
+use, with the measurements, is `trains.css` → "A phone's larger text"; the second is every card header
+(`shared.css` → "LARGER TEXT: A CHIP NEVER SITS ON ITS TITLE", 18em); the tests ask in both engines,
 because Safari's engine draws a 1.5px border at full width and Chromium's test browser rounds it to
 1px. `text-scale.js` stays the Calendar's answer — it stamps a tier on `<html>` — and is not a pattern
 to copy: a container query needs no probe and no script.

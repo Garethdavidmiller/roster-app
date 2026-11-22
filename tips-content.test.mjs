@@ -301,12 +301,12 @@ describe('settings — the ? panel says who the pay reminder is for', () => {
 // ── …AND SO DOES EVERY OTHER PLACE THAT PROMISES IT (whole-app check, 17 Nov 2026) ──────────────────
 // The ? panel was put right on 10 Nov; the card's subtitle and list, its two status lines, the Calendar's
 // notification strip and the Staff Guide still promised the reminder to everybody. A page that knows the
-// member shows it only to a member it is sent to — the card's pay pieces start hidden, and huddle.js and
+// member shows it only to a member it is sent to — the card's pay pieces start hidden, and notif-card.js and
 // calendar-notif-prompt.js show them (each driven in its own tests: e2e/settings.spec.js and
 // calendar-notif-prompt.test.mjs) — and a page that cannot know, the guide, says who it is for.
 describe('the pay reminder is promised only to the grades it is sent to, everywhere', () => {
     const settings = readFileSync('settings.html', 'utf8');
-    const huddle = readFileSync('huddle.js', 'utf8');
+    const card = readFileSync('notif-card-core.js', 'utf8');
     const guide = readFileSync('staff-guide.html', 'utf8').replace(/\s+/g, ' ');
     const server = readFileSync('functions/pay-reminder.js', 'utf8');
     const grades = [...(/PAY_REMINDER_GRADES\s*=\s*Object\.freeze\(\[([^\]]*)\]\)/.exec(server)?.[1] ?? '').matchAll(/'(\w+)'/g)].map(m => m[1].toUpperCase());
@@ -318,9 +318,13 @@ describe('the pay reminder is promised only to the grades it is sent to, everywh
         assert.match(settings, /<span class="hint">Get alerts for staff updates<span id="notifHintPay" hidden> and pay reminders<\/span><\/span>/);
         assert.match(settings, /<span class="notif-kind" id="notifKindPay" hidden>Pay reminder ·<\/span>/);
     });
-    test('Settings: the status lines promise the pay cut-off only through the member\'s own answer', () => {
-        assert.doesNotMatch(huddle, /'[^'\n]*before the pay cut-off[^'\n]*'\s*;/, 'a fixed sentence promises the reminder to everybody');
-        assert.match(huddle, /payReminders \? 'when a new document arrives and before the pay cut-off' : 'when a new document arrives'/);
+    // Since 22 Nov 2026 the status lines name no kind at all: they point at the list above them, which is
+    // the member's own (the pay reminder shown only to those it is sent to, the timetable change only
+    // while one is due). A line that named the pay reminder would promise it to everybody again.
+    test('Settings: the status lines promise nothing the member\'s own list does not', () => {
+        assert.doesNotMatch(card, /pay cut-off|pay reminder/i, 'a status line names the pay reminder, which only some members are sent');
+        assert.match(card, /'Notifications are on for this device — you’ll get each alert listed above\.'/);
+        assert.match(card, /'Select “Enable notifications” to get the alerts listed above\.'/);
     });
     test('the Staff Guide, which cannot know who reads it, says whom the reminder is for', () => {
         const line = /<strong>Notifications<\/strong>[^<]*(?:<[^>]+>[^<]*)*?Settings/.exec(guide)?.[0] ?? '';

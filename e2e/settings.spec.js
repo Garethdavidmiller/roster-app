@@ -98,17 +98,24 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     // "✓ You're all set", hiding the one instruction that would change the answer (v22.39 review).
     await openSettings(page, { configured: true, iphone: true });
     await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
-    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the app to your Home Screen']);
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the roster to your Home Screen']);
 
-    // The card that says how must be VISIBLE and showing the taps, not the button WebKit can't fire.
+    // The card that says how must be VISIBLE and showing the taps, not the button WebKit can't fire —
+    // OPEN, with the to-do's amber chip, so the summary and the card it leads to say one thing.
     await expect(page.locator('#deviceCard')).toBeVisible();
+    await expect(page.locator('#deviceStatusChip')).toHaveText('Not installed');
+    await expect(page.locator('#deviceStatusChip')).toHaveAttribute('data-tone', 'action');
+    expect(await cardOpen(page, 'deviceBody'), 'a to-do opens its card').toBe(true);
+    await expect(page.locator('#installNoteIos')).toBeVisible();
     await expect(page.locator('#installSteps')).toBeVisible();
     await expect(page.locator('#installSteps')).toContainText('Add to Home Screen');
     await expect(page.locator('#installBtn')).toBeHidden();
 
-    // Notifications is still honestly unavailable — the fix names the prerequisite, it does not
-    // pretend the card can be turned on.
-    await expect(page.locator('#notifStatusChip')).toHaveText(/not available/i);
+    // Notifications are not available HERE, and will be once installed (22 Nov 2026: "After install",
+    // not "Not available", which is kept for a device that truly cannot). The list it shows is the
+    // installed app's, so the card promises nothing this browser tab can receive.
+    await expect(page.locator('#notifStatusChip')).toHaveText('After install');
+    await expect(page.locator('#notifKindsLead')).toHaveText('In the Home Screen app, you’ll get:');
 
     // …and POINTS at the Install card rather than restating its steps (polish round 2). The pointer
     // is checked against the card's REAL heading, so renaming that card cannot leave this line
@@ -149,8 +156,8 @@ for (const [label, payKeys, payStep] of [['with pay figures, the first step carr
         await expect(steps).toContainText('Open it in Safari first');                  // an email or chat app cannot add it
         await expect(steps).toContainText('on iOS 26 or later it is under •••');        // where Share is now
         await expect(shown.last()).toContainText('sign in there once');                 // the Home Screen app is signed out
-        // The promise covers what is saved in the installed app — never what is already saved here.
-        await expect(page.locator('#installNote')).toContainText('Pay figures you save in the installed app');
+        // The promise covers what is saved once installed — never what is already saved here.
+        await expect(page.locator('#installNote')).toContainText('Pay figures you save once it is installed');
         await expect(page.locator('#deviceCard')).not.toContainText('saved pay data safe');
     });
 }
@@ -160,13 +167,15 @@ for (const [label, payKeys, payStep] of [['with pay figures, the first step carr
 // notifications "not available" the summary said "✓ You're all set" to a phone that can never receive
 // one. It is a to-do there too, and the steps start at the main address. The mirror is the host the
 // page tests for (`github.io`); this serves the page as if it were there, LOUD if that test moves.
+// notif.js's `onPagesMirror` is the app's one copy of the test and MUST be found. settings-app.js still
+// carries copies of its own; they are rewritten too while they last, and may go (to `onPagesMirror`).
 async function asMirror(page) {
-    for (const file of ['settings-app.js', 'huddle.js']) {
+    for (const [file, required] of /** @type {const} */ ([['notif.js', true], ['settings-app.js', false]])) {
         await page.route(`**/${file}`, async route => {
             const res = await route.fetch();
             const src = await res.text();
             const host = '/github\\.io$/i.test(window.location.hostname)';
-            if (!src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
+            if (required && !src.includes(host)) throw new Error(`${file}: the mirror test moved — update asMirror`);
             await route.fulfill({ response: res, contentType: 'text/javascript', body: src.replaceAll(host, 'true') });
         });
     }
@@ -176,7 +185,7 @@ test('settings: an iPhone on the Pages mirror is sent to the main address to ins
     await asMirror(page);
     await openSettings(page, { configured: true, iphone: true });
     await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
-    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the app to your Home Screen']);
+    await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the roster to your Home Screen']);
     await expect(page.locator('#deviceCard')).toBeVisible();
     await expect(page.locator('#installBtn')).toBeHidden();
     const main = page.locator('#installStepMain');
@@ -184,6 +193,14 @@ test('settings: an iPhone on the Pages mirror is sent to the main address to ins
     await expect(main.locator('a')).toHaveAttribute('href', 'https://myb-roster.web.app/');
     await expect(page.locator('#installStepSafari'), 'the step for opening THIS address gives way to it').toBeHidden();
     await expect(page.locator('#installSteps li:visible').last()).toContainText('sign in there once');
+    // ONE set of instructions (22 Nov 2026): the Notifications card on the mirror gave its own steps to
+    // the main address while the Install card gave them too. It points at that card, as off the mirror.
+    const heading = await page.locator('#deviceCard h2').evaluate(h =>
+        [...h.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim());
+    const notif = page.locator('#notifStatusMsg');
+    await expect(notif).toContainText(heading);
+    await expect(notif).not.toContainText(/web\.app|Add to Home Screen|Share/);
+    await expect(page.locator('#notifStatusChip')).toHaveText('After install');
 });
 
 test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
@@ -198,6 +215,20 @@ test('settings: a saved work email says so before it offers to remove it', async
     await expect(remove).toBeVisible();
     const [f, r] = [await feedback.boundingBox(), await remove.boundingBox()];
     expect(f.y + f.height, 'the confirmation must sit above the Remove action').toBeLessThanOrEqual(r.y);
+});
+
+// "✓ Saved" answers the address it was said about (settings review, Nov 2026): typing a different one left the
+// tick beside it, as though the new address were saved before Save was pressed.
+test('settings: typing a different address takes the "✓ Saved" away; the saved one, retyped, does not', async ({ page }) => {
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#contactChevron').click();
+    const feedback = page.locator('#contactFeedback');
+    await expect(feedback).toHaveText('✓ Saved');
+    await page.locator('#workEmailInput').fill('g.miller@chilternrailways.co.uk');   // the same address, typed whole
+    await expect(feedback).toHaveText('✓ Saved');
+    await page.locator('#workEmailInput').fill('g.millerx');
+    await expect(feedback).toHaveText('');
+    await expect(page.locator('#contactStatusChip'), 'the address on record is still saved').toHaveText('✓ Saved');
 });
 
 // TYPED BEFORE THE SAVED ADDRESS LOADED (18 Nov 2026). On a slow first read the card keeps what the member has typed,
@@ -241,7 +272,7 @@ for (const [label, missingId, chipId, noPush, forcePush] of [
 
         await expect(page.locator('#settingsSummaryLine')).not.toHaveText(/Checking/i);
         await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'error');
-        await expect(page.locator('#settingsSummaryLine')).toContainText(/could not be checked/i);
+        await expect(page.locator('#settingsSummaryLine')).toHaveText('Some settings couldn’t be checked — check your connection, then reopen Settings.');
         await expect(page.locator(`#${chipId}`)).toHaveText(/couldn/i);
     });
 }
@@ -286,7 +317,7 @@ test('settings: a card that needs attention opens ITSELF, and is named at the to
     await openSettings(page, { configured: false, noPush: true });
     await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
     await expect(page.locator('#settingsSummaryItems li')).toHaveText([
-        'Set your own password', 'Add your work email',
+        'Set your own password', 'Save your work email',
     ]);
     expect(await cardOpen(page, 'passwordBody'), 'the password card must open itself').toBe(true);
     expect(await cardOpen(page, 'contactBody'), 'and so must the work email card').toBe(true);
@@ -327,7 +358,7 @@ for (const [label, configured, stripTone, chipTone, chips] of [
 test('settings: notifications switched off on purpose are not coloured as good news', async ({ page }) => {
     // The one `ok` chip whose words are not good news (v25.14). Switched off HERE is `ok` to the
     // summary — nothing to do, the member decided — but a green "Off" would have the colour and
-    // the word disagree. huddle.js says so at the source ('plain'); this pins that it arrives.
+    // the word disagree. notif-card-core.js says so at the source ('plain'); this pins that it arrives.
     // Permission is pinned to 'default' for the same reason openSettings pins the platform: a
     // headless engine's own answer is not the state under test.
     await page.addInitScript(() => {
@@ -514,6 +545,63 @@ test('settings: a change refused AFTER the current password was accepted is not 
     await page.locator('#pwConfirm').fill('a-real-password-9');
     await page.locator('#pwSaveBtn').click();
     await expect(page.locator('#pwFeedback')).toHaveText('Your password wasn’t updated — try again shortly.');
+});
+
+// ── A PASSWORD SAVE ON ITS WAY HOLDS THE PAGE (settings review, Nov 2026) ───────────────────────────────
+// The save has two stages: the re-authentication, which writes nothing (`_passwordSaving` holds it), then
+// the change, which `writesInFlight` must count. Settings never counted the change, and signing out
+// mid-save asked nothing at all. Replaces a regex over `const _busy = …`, which passed throughout.
+/** What the page answers the worker's "busy?" when a notification is tapped (sw-register.js →
+ *  answerNotificationTaps) — the page's own busy check, as the update reload also reads it.
+ *  @param {import('@playwright/test').Page} page */
+const tapIsHeld = (page) => page.evaluate(() => new Promise(resolve => {
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (e) => resolve(e.data?.busy);
+    navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'myb-busy?' }, ports: [ch.port2] }));
+}));
+/** Fill the open password form with a valid change and press Set password. @param {import('@playwright/test').Page} page */
+async function startPasswordSave(page) {
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwNew').fill('a-real-password-9');
+    await page.locator('#pwConfirm').fill('a-real-password-9');
+    await page.locator('#pwSaveBtn').click();
+    await expect(page.locator('#pwSaveBtn')).toHaveText('Saving…');
+}
+
+test('settings: while a password CHANGE is on its way, a tap waits and signing out asks — the change is counted', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', hangPasswordWrite: true }; });
+    await openSettings(page, { configured: false, noPush: true });
+    expect(await tapIsHeld(page), 'premise: nothing on its way, nothing held').toBe(false);
+    await startPasswordSave(page);
+    await expect.poll(() => page.evaluate(() => typeof /** @type {any} */ (window).__E2E_releasePasswordWrite),
+        { message: 'premise: the change was sent' }).toBe('function');
+    expect(await tapIsHeld(page), 'a notification tap would take the page away mid-change').toBe(true);
+
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    // "A change is still saving" is the `writesInFlight` question: without the change counted, it was
+    // "unsaved changes" at best, and nothing at all before this page passed a `beforeSignOut`.
+    const dialog = page.getByRole('alertdialog', { name: 'Sign out now?' });
+    await expect(dialog).toContainText('A change is still saving');
+    await expect(dialog, 'a password on its way is not "unsaved changes"').not.toContainText('unsaved');
+    await dialog.getByRole('button', { name: 'Stay signed in' }).click();
+    expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'a declined sign-out keeps the session').not.toBeNull();
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E_releasePasswordWrite(true));
+    await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+    await expect.poll(() => tapIsHeld(page), { message: 'still held once the change had landed' }).toBe(false);
+});
+
+test('settings: while the current password is being checked, before anything is written, the page is held too', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+        authUser: true, authUserEmail: 'g.miller@myb-roster.local', reauthDelayMs: 4000 }; });
+    await openSettings(page, { configured: false, noPush: true });
+    await startPasswordSave(page);
+    expect(await tapIsHeld(page), 'between Set password and the change, a tap or an update could take the page away').toBe(true);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    await expect(page.getByRole('alertdialog', { name: 'Sign out without saving?' })).toBeVisible();
 });
 
 test('forced password overlay: a change refused after sign-in says it was not updated, not that a password was wrong', async ({ page }) => {
@@ -712,7 +800,7 @@ test('settings: the pay data card counts what is actually on the device', async 
     await openSettings(page, { configured: true, payKeys: 3, noPush: true });
     await expect(page.locator('#payDataStatusChip')).toHaveText('3 payslips');
     await expect(page.locator('#payDataInventory')).toContainText('3 payslips');
-    await expect(page.locator('#payDataInventory')).toContainText('saved on this device');
+    await expect(page.locator('#payDataInventory')).toHaveText('3 payslips — saved in this browser on this device');
 });
 
 test('settings: a shared device does not count a colleague’s payslips as yours', async ({ page }) => {
@@ -737,8 +825,19 @@ test('settings: a shared device does not count a colleague’s payslips as yours
 
 test('settings: a device with no pay data says so, rather than saying nothing', async ({ page }) => {
     await openSettings(page, { configured: true, payKeys: 0, noPush: true });
-    await expect(page.locator('#payDataInventory')).toHaveText('No pay calculator history saved yet');
+    await expect(page.locator('#payDataInventory')).toHaveText('No pay calculator history saved in this browser yet');
     await expect(page.locator('#payDataStatusChip')).toHaveText('None saved');
+});
+
+// FIGURES WITH NO PAYSLIP ARE STILL FIGURES (settings review, Nov 2026). The card counted payslips and
+// tax years only: pension history on its own read "None saved", and on an iPhone the Install card hid
+// the step that carries the figures across — from the member who had figures to lose.
+test('settings: pension history alone is saved figures — the card says so, and an iPhone is told to copy it first', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_pension_timeline', '[]'));
+    await openSettings(page, { configured: true, iphone: true });
+    await expect(page.locator('#payDataStatusChip')).toHaveText('Saved');
+    await expect(page.locator('#payDataInventory')).toHaveText('Pension — saved in this browser on this device');
+    await expect(page.locator('#installStepPay')).toBeVisible();
 });
 
 test('settings: the install card exists only while there is an install to offer', async ({ page }) => {
@@ -752,9 +851,142 @@ test('settings: the install card exists only while there is an install to offer'
         window.dispatchEvent(e);
     });
     await expect(page.locator('#deviceCard')).toBeVisible();
+    // An OFFER, so a neutral chip on a shut card — the same header as its siblings (settings review, Nov 2026).
+    await expect(page.locator('#deviceStatusChip')).toHaveText('Not installed');
+    await expect(page.locator('#deviceStatusChip')).toHaveAttribute('data-tone', 'n/a');
+    expect(await cardOpen(page, 'deviceBody'), 'an offer does not open itself').toBe(false);
+    await page.locator('#deviceChevron').click();
+    await expect(page.locator('#installNoteIos'), 'the iPhone line is for an iPhone').toBeHidden();
     await page.locator('#installBtn').click();
     expect(await page.evaluate(() => window.__promptFired)).toBe(true);
     await expect(page.locator('#deviceCard')).toBeHidden();
+});
+
+// ── THE LOOK PASS (settings review, Nov 2026) ─────────────────────────────────────────────────────
+
+// Change password opened a door with no way back but a reload.
+test('settings: Cancel puts the settled password state back, and takes what was typed with it', async ({ page }) => {
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#passwordChevron').click();
+    await expect(page.locator('#pwCancelBtn'), 'nothing to cancel until Change password is pressed').toBeHidden();
+    await page.locator('#pwChangeBtn').click();
+    await expect(page.locator('#pwCancelBtn')).toBeVisible();
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwShowAll').check();
+    await page.locator('#pwCancelBtn').click();
+    await expect(page.locator('#pwForm')).toBeHidden();
+    await expect(page.locator('#pwSettled')).toBeVisible();
+    await expect(page.locator('#pwChangeBtn')).toBeFocused();
+    await page.locator('#pwChangeBtn').click();
+    await expect(page.locator('#pwCurrent'), 'what was typed went with the Cancel').toHaveValue('');
+    await expect(page.locator('#pwCurrent'), 'and it is masked again').toHaveAttribute('type', 'password');
+});
+
+test('settings: a member on the surname default has nothing to cancel back to', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });
+    await expect(page.locator('#pwForm')).toBeVisible();
+    await expect(page.locator('#pwCancelBtn')).toBeHidden();
+});
+
+// The joined email field is focused as ONE control beside the domain, and the domain is plain text when stacked.
+test('settings: the work email and its domain are focused as one field, and stacked the domain is text', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard focus ring');
+    await openSettings(page, { configured: true, noPush: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator('#contactChevron').click();
+    await page.locator('#workEmailSaveBtn').focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.locator('#workEmailInput')).toBeFocused();
+    const joined = await page.evaluate(() => {
+        const cs = (/** @type {string} */ id) => getComputedStyle(/** @type {HTMLElement} */ (document.getElementById(id)));
+        const row = getComputedStyle(/** @type {HTMLElement} */ (document.querySelector('.contact-email-row')));
+        return { rowOutline: row.outlineStyle, inputOutline: cs('workEmailInput').outlineStyle,
+            inputEdge: cs('workEmailInput').borderTopColor, domainEdge: cs('workEmailDomain').borderTopColor,
+            domainRing: cs('workEmailDomain').boxShadow !== 'none', domainFill: cs('workEmailDomain').backgroundColor };
+    });
+    expect(joined.rowOutline, 'the outline goes round the row').toBe('solid');
+    expect(joined.inputOutline, 'not round the input alone').toBe('none');
+    expect(joined.domainEdge, 'the domain\'s edge takes the focus colour with the input\'s').toBe(joined.inputEdge);
+    expect(joined.domainRing, 'the ring carries on round the domain').toBe(true);
+    await page.setViewportSize({ width: 360, height: 800 });
+    const stacked = await page.locator('#workEmailDomain').evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { border: cs.borderTopStyle, fill: cs.backgroundColor };
+    });
+    expect(stacked, 'stacked under the field, the domain is the rest of the address, not a second box').toEqual({ border: 'none', fill: 'rgba(0, 0, 0, 0)' });
+});
+
+test('settings: a settled card ends where its siblings do — no empty line reserved at its foot', async ({ page }) => {
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#passwordChevron').click();
+    await expect(page.locator('#pwSettled')).toBeVisible();
+    expect(await page.locator('#pwFeedback').evaluate(el => el.getBoundingClientRect().height)).toBe(0);
+});
+
+test('settings: under a thumb each to-do in the summary is a 44px target', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'a coarse pointer');
+    await openSettings(page, { configured: false, noPush: true });
+    const heights = await page.locator('#settingsSummaryItems a').evaluateAll(as => as.map(a => Math.round(a.getBoundingClientRect().height)));
+    expect(heights.length).toBe(2);
+    for (const h of heights) expect(h).toBeGreaterThanOrEqual(44);
+});
+
+test('settings: on a desktop the cards are 16px apart, as on Admin and Operations', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop layout');
+    await openSettings(page, { configured: true, noPush: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const gap = await page.evaluate(() => {
+        const a = /** @type {HTMLElement} */ (document.getElementById('contactCard')).getBoundingClientRect();
+        const b = /** @type {HTMLElement} */ (document.getElementById('passwordCard')).getBoundingClientRect();
+        return Math.round(b.top - a.bottom);
+    });
+    expect(gap).toBe(16);
+});
+
+// THE WORK EMAIL, START TO FINISH (settings review, Nov 2026): no test saved an address and then removed it,
+// so the one write and the one delete this card makes were each reached only by their failure paths.
+test('settings: a work email saved and then removed — what is written, what the card says, and what the summary counts', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });
+    await expect(page.locator('#contactStatusChip')).toHaveText('Not saved');
+    await page.locator('#workEmailInput').fill('g.miller');
+    await page.locator('#workEmailSaveBtn').click();
+    const today = await page.evaluate(() => import('/date-format.js').then(m => m.formatDayMonthYear(new Date())));
+    await expect(page.locator('#contactFeedback')).toHaveText(`✓ Saved — last updated ${today}`);
+    await expect(page.locator('#contactStatusChip')).toHaveText('✓ Saved');
+    await expect(page.locator('#contactHint'), 'the collapsed card names the address').toHaveText('g.miller@chilternrailways.co.uk');
+    await expect(page.locator('#settingsSummaryItems')).not.toContainText('work email');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => /staffContact/.test(w.path)));
+    expect(written.map((/** @type {any} */ w) => [w.path, w.data.memberName, w.data.workEmail]),
+        'the whole address, on this member\'s own record').toEqual([['staffContact/G. Miller', 'G. Miller', 'g.miller@chilternrailways.co.uk']]);
+
+    await page.locator('#workEmailRemoveBtn').click();
+    const dialog = page.getByRole('alertdialog', { name: 'Remove your work email?' });
+    await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect(page.locator('#contactStatusChip')).toHaveText('Not saved');
+    await expect(page.locator('#workEmailRemoveBtn')).toBeHidden();
+    await expect(page.locator('#contactFeedback')).toHaveText('');
+    await expect(page.locator('#workEmailInput')).toHaveValue('');
+    await expect(page.locator('#settingsSummaryItems')).toContainText('Save your work email');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths), 'the record itself was deleted').toContain('staffContact/G. Miller');
+});
+
+// A token minted before the member's `name` claim is refused until it refreshes. Operations' reads of
+// these collections refresh it once and retry (withClaimRetry); Settings' did not, and both cards read
+// "Couldn't check" for a member whose email and password were both in order (settings review, Nov 2026).
+test('settings: a stale token refused on each account read is refreshed once, and both cards still answer', async ({ page }) => {
+    await page.addInitScript(() => {
+        const e = /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E, authUser: true, authUserEmail: 'g.miller@myb-roster.local' };
+        const data = { workEmail: 'g.miller@chilternrailways.co.uk', passwordSetAt: { toMillis: () => Date.parse('2026-08-01') } };
+        let reads = 0;   // the first read of EACH document is refused, as a stale token's is
+        Object.defineProperty(e, 'getDocData', { configurable: true, get() {
+            if (++reads <= 2) throw Object.assign(new Error('e2e: stale token'), { code: 'permission-denied' });
+            return data;
+        } });
+    });
+    await openSettings(page, { noPush: true });
+    await expect(page.locator('#contactStatusChip')).toHaveText('✓ Saved');
+    await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+    await expect(page.locator('#settingsSummaryLine')).toHaveText('✓ You’re all set');
 });
 
 test('settings: login overlay renders with JS-populated grade options', async ({ page }) => {
@@ -895,6 +1127,25 @@ test('settings (signed in): a card whose wiring throws takes nothing else down w
     await expect(page.locator('#tipsLbTitle')).toHaveText('Work Email');
 });
 
+// ONE CARD'S THROW COSTS THAT CARD ALONE (settings review, Nov 2026). The cards were wired in one run, so the
+// Work Email card throwing stopped Password, Notifications, Pay data and Install from being wired at all, and
+// the summary — waiting for all of them — said "Checking…" for the life of the page.
+test('settings (signed in): a card that throws while it is set up says so, and every card after it still works', async ({ page }) => {
+    await page.route('**/settings-app.js', async route => {
+        const res = await route.fetch();
+        const anchor = '    function initContactCard() {\n';
+        const src = await res.text();
+        if (!src.includes(anchor)) throw new Error('settings-app.js: the initContactCard() anchor moved — update this test');
+        await route.fulfill({ response: res, contentType: 'text/javascript',
+            body: src.replace(anchor, `${anchor}        throw new Error('e2e: the Work Email card threw');\n`) });
+    });
+    await openSettings(page, { configured: true, payKeys: 2, noPush: true });
+    await expect(page.locator('#contactStatusChip')).toHaveText('Couldn’t check');
+    await expect(page.locator('#passwordStatusChip'), 'the card after it was never wired').toHaveText('✓ Password set');
+    await expect(page.locator('#payDataStatusChip')).toHaveText('2 payslips');
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'error');
+});
+
 // THE TIPS ✕ IS READ AS TEXT (whole-app review, Nov 2026). It is the panel's only visible way out, and it was
 // black at 35% on white — 2.43:1, under the 3:1 a control's own glyph needs as well as the text floor — with
 // only a mouse's hover ever lifting it. Shared by the six pages with a Tips panel; measured as painted: the
@@ -973,6 +1224,41 @@ test('settings: the forced overlay\'s success updates the chip without a reload'
     await expect(page.locator('#passwordStatusChip')).toHaveText(/password set/i);
 });
 
+// A LATE FIRST READ CANNOT UNDO A CHANGE (settings review, Nov 2026). The page's first passwordStatus
+// read can be the slow one, and the read after a successful change is answered at once. Painted as they
+// landed, the first — arriving last, and still saying "surname" — took "✓ Password set" away again.
+for (const [label, late] of /** @type {const} */ ([['a stale answer', 'surname'], ['a failed read', 'fail']])) {
+    test(`settings: ${label} from the page's first status read, landing after a password change, does not undo it`, async ({ page }) => {
+        await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { .../** @type {any} */ (window).__E2E,
+            authUser: true, authUserEmail: 'g.miller@myb-roster.local', getDocHold: true }; });
+        await page.setViewportSize({ width: 390, height: 844 });
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/settings.html');
+        // The first reads are out and held; every read after this one is answered at once.
+        await expect.poll(() => page.evaluate(() => typeof /** @type {any} */ (window).__E2E.releaseGetDoc)).toBe('function');
+        await page.evaluate(() => { /** @type {any} */ (window).__E2E.getDocHold = false; });
+        await page.locator('#passwordChevron').click();   // nothing has reported yet, so the card is still shut
+        await page.locator('#pwCurrent').fill('miller');
+        await page.locator('#pwNew').fill('a-real-password-9');
+        await page.locator('#pwConfirm').fill('a-real-password-9');
+        await page.locator('#pwSaveBtn').click();
+        await expect(page.locator('#pwFeedback')).toContainText('Password updated');
+        await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+
+        // …and now the first read lands, saying what was true before the change, or failing.
+        await page.evaluate((late) => {
+            const e = /** @type {any} */ (window).__E2E;
+            // The held answer is built on release, so a getter that throws there fails exactly that read.
+            if (late === 'fail') Object.defineProperty(e, 'getDocData', { get() { throw new Error('e2e: the first read failed'); } });
+            e.releaseGetDoc();
+        }, late);
+        await expect(page.locator('#settingsSummary')).not.toHaveAttribute('data-tone', 'checking');
+        await expect(page.locator('#passwordStatusChip')).toHaveText('✓ Password set');
+        await expect(page.locator('#passwordNudge')).toBeHidden();
+        await expect(page.locator('#settingsSummaryItems')).not.toContainText('password');
+    });
+}
+
 test('settings (signed in): the Pay Calculator Data pointer card renders and links to the backup card', async ({ page }) => {
     // A POINTER, not a second copy of the controls — see paycalc-transfer-card.js.
     await seedSession(page);
@@ -995,9 +1281,12 @@ test('settings: on a desktop the to-dos run along the strip, and each one opens 
     await openSettings(page, { configured: false, noPush: true });   // two to-dos: password, work email
     await page.setViewportSize({ width: 1366, height: 768 });
     const items = page.locator('#settingsSummaryItems a');
-    await expect(items).toHaveText(['Set your own password', 'Add your work email']);
-    const tops = [...await items.evaluateAll(as => as.map(a => Math.round(a.getBoundingClientRect().top))),
-        await page.locator('#settingsSummaryLine').evaluate(el => Math.round(el.getBoundingClientRect().top))];
+    await expect(items).toHaveText(['Set your own password', 'Save your work email']);
+    // The WORDS' tops, not the boxes': under a thumb each link is a 44px target round its line of text.
+    const tops = await page.locator('#settingsSummaryLine, #settingsSummaryItems a').evaluateAll(els => els.map(el => {
+        const r = document.createRange(); r.selectNodeContents(el); return Math.round(r.getBoundingClientRect().top);
+    }));
+    expect(tops.length, 'premise: the line and its two to-dos').toBe(3);
     expect(Math.max(...tops) - Math.min(...tops), 'the count and its to-dos share one row').toBeLessThanOrEqual(6);
 
     await page.locator('#contactChevron').click();   // the card opened itself; the member shuts it
@@ -1117,9 +1406,8 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
         await expect(page.locator('#notifToggleHeader .hint')).toHaveText(
             gets ? 'Get alerts for staff updates and pay reminders' : 'Get alerts for staff updates', { useInnerText: true });
         await expect(page.locator('#notifKindPay')).toBeVisible({ visible: gets });
-        await expect(page.locator('#notifStatusMsg')).toHaveText(gets
-            ? 'Select “Enable notifications” to get an alert when a new document arrives and before the pay cut-off.'
-            : 'Select “Enable notifications” to get an alert when a new document arrives.');
+        // The status line points at the list, which is the member's own — so it never names the pay reminder.
+        await expect(page.locator('#notifStatusMsg')).toHaveText('Select “Enable notifications” to get the alerts listed above.');
     });
 }
 
@@ -1129,13 +1417,30 @@ for (const [grade, gets] of /** @type {const} */ ([['CEA', true], ['CES', true],
 // Chrome drew it as two sliders from 2023 (18 Nov 2026).
 for (const [where, installed, says] of /** @type {const} */ ([
     ['the home screen app', true, 'On Android: open your phone’s Settings → Apps, find this app by its home screen name, and turn on Notifications.'],
-    ['a browser tab', false, 'On Android: tap the icon at the left of Chrome’s address bar (a padlock or two sliders) → Site settings → Notifications → Allow.'],
+    ['a browser tab', false, 'On Android: tap the icon at the left of the address bar (a padlock or two sliders) → Site settings → Notifications → Allow.'],
 ])) {
     test(`settings: blocked on Android, ${where} is told the route that exists there`, async ({ page }) => {
         await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied', installed });
         await expect(page.locator('#notifDeniedMsg')).toHaveText(says);
+        await expect(page.locator('#notifStatusMsg')).toHaveText('Notifications are blocked on this device, so the button can’t turn them on. To allow them:');
     });
 }
+
+// ALLOWED IN THE PHONE'S SETTINGS, THEN BACK TO THE PAGE (22 Nov 2026). The card read once, at open, so a
+// member who followed its own steps came back to "Blocked" until they reloaded. It re-reads when the page
+// is visible again (and on a back/forward-cache restore, and a permission change — notif-card.test.mjs).
+test('settings: notifications allowed outside the page are seen on coming back, without a reload', async ({ page }) => {
+    await settingsWithPush(page, /** @type {string} */ (aMemberOf('CEA')), { permission: 'denied' });
+    await expect(page.locator('#notifStatusChip')).toHaveText('Blocked');
+    await expect(page.locator('#notifEnableBtn')).toBeHidden();
+    await page.evaluate(() => {
+        /** @type {any} */ (window.Notification).permission = 'default';     // allowed again in the phone's settings
+        document.dispatchEvent(new Event('visibilitychange'));                // …and the member comes back
+    });
+    await expect(page.locator('#notifStatusChip')).toHaveText('Off');
+    await expect(page.locator('#notifEnableBtn')).toBeVisible();
+    await expect(page.locator('#notifDeniedMsg')).toBeHidden();
+});
 
 // A BLOCKED BELL SAYS SO WHEN TAPPED (whole-app check, 17 Nov 2026). It wore 🔕 — the same as "off" — and a tap did
 // nothing: the browser will not ask again, and only a screen reader heard "blocked". It now says where it is fixed:
@@ -1162,7 +1467,7 @@ test('settings: the drawer\'s bell, blocked, says where notifications are allowe
 
 // The blocked-notification route on a laptop (laptop polish, 13 Nov 2026): "Site settings → Notifications
 // → Allow" broke after "Site settings", so the next line began "→ Notifications", which reads as a stray
-// arrow. The route is one unit now (`.nav-path`, huddle.js), so no line of the message starts with one.
+// arrow. The route is one unit now (`.nav-path`, notif-card.js), so no line of the message starts with one.
 // Lines are read the way a reader meets them: each character's own box, grouped by the line it sits on.
 test('settings: a blocked notification\'s route never starts a line with an arrow on a laptop', async ({ page }, info) => {
     test.skip(isTouchProject(info), 'the desktop browser\'s route; a phone gets its own');

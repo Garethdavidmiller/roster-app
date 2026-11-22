@@ -389,8 +389,11 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
 // shared edge and corner — invisible at the 390px most specs use, and exactly what a 360 or 375px phone,
 // the commonest two, showed: an email box squarer than the password boxes under it, and a domain whose
 // left edge was fainter than its other three.
+// STACKED, THE DOMAIN IS TEXT, NOT A SECOND BOX (Settings review, 22 Nov 2026): beneath the field, a domain
+// with its own border, corner and fill read as a second empty field to fill in. The email box keeps the
+// password boxes' corner and edge; the domain under it has neither.
 for (const width of [360, 375]) {
-    test(`settings @${width}px: the work email field and its domain wear the password boxes' edge and corner`, async ({ page }) => {
+    test(`settings @${width}px: the work email field wears the password boxes' edge and corner, and its domain beneath it is plain text`, async ({ page }) => {
         await page.setViewportSize({ width, height: 800 });
         await seedSession(page, 'G. Miller');
         await page.goto('/settings.html');
@@ -400,16 +403,17 @@ for (const width of [360, 375]) {
             const email = cs('workEmailInput'), pw = cs('pwNew'), dom = cs('workEmailDomain');
             return {
                 stacked: getComputedStyle(/** @type {Element} */ (document.querySelector('.contact-email-row'))).flexDirection,
-                email: email.borderTopLeftRadius, pw: pw.borderTopLeftRadius, dom: dom.borderTopLeftRadius,
-                domLeft: `${dom.borderLeftWidth} ${dom.borderLeftStyle} ${dom.borderLeftColor}`,
-                domTop: `${dom.borderTopWidth} ${dom.borderTopStyle} ${dom.borderTopColor}`,
+                email: email.borderTopLeftRadius, pw: pw.borderTopLeftRadius,
+                emailEdge: `${email.borderTopWidth} ${email.borderTopStyle} ${email.borderTopColor}`,
                 pwEdge: `${pw.borderTopWidth} ${pw.borderTopStyle} ${pw.borderTopColor}`,
+                domBorder: [dom.borderTopStyle, dom.borderRightStyle, dom.borderBottomStyle, dom.borderLeftStyle],
+                domFill: dom.backgroundColor,
             };
         });
         expect(m.stacked, 'below 381px the domain sits beneath the field').toBe('column');
         expect(m.email, 'the email box has the password boxes\' corner').toBe(m.pw);
-        expect(m.dom, 'and so does its domain').toBe(m.pw);
-        expect(m.domLeft, 'the domain\'s left edge matches its other three').toBe(m.domTop);
-        expect(m.domTop, 'and is the field edge').toBe(m.pwEdge);
+        expect(m.emailEdge, 'and their edge').toBe(m.pwEdge);
+        expect(m.domBorder, 'the domain beneath it draws no box').toEqual(['none', 'none', 'none', 'none']);
+        expect(m.domFill, 'and no fill').toBe('rgba(0, 0, 0, 0)');
     });
 }

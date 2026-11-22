@@ -341,8 +341,8 @@ describe('a member promoted OUT of a priced grade: CES payslips priced, the rest
     test('a refused payslip says why, and where the member\'s figures are', () => {
         asManager([], () => {
             assert.equal(unpricedLineFor(BEFORE), '', 'a payslip that can be priced says nothing');
-            assert.equal(unpricedLineFor(ACROSS), 'No estimate for this payslip. From Sun 22 Nov 2026 the roster lists you as '
-                + 'Management, and this calculator only has rates for CEA and CES. The nearest payslip it can estimate is the one paid Fri 20 Nov 2026.');
+            assert.equal(unpricedLineFor(ACROSS), 'No estimate for this payslip. From Sun 22 November 2026 the roster lists you as '
+                + 'Management, and this calculator only has rates for CEA and CES. The nearest payslip it can estimate is the one paid Fri 20 November 2026.');
             assert.match(unpricedLineFor(AFTER), /^No estimate for this payslip\. For this payslip's days the roster lists you as Management,/);
             assert.equal(settingsSummary(TY, ACROSS), '✓ 2026/27 — no rate for this payslip');
             assert.equal(settingsSummary(TY, BEFORE), `✓ 2026/27 — £${rate2627('ces').toFixed(2)}/hr`);

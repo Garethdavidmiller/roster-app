@@ -740,7 +740,7 @@ describe('a payslip on record that the list no longer offers is kept (paycalc-3-
         S.loadSettings();
         assert.equal(card.slPaidOffFrom.value, String(RECORDED),
             'the control came up blank — and calculate() reads a blank loan stop as "still deducted"');
-        assert.match(chosenText(card.slPaidOffFrom), /^Paid \d{1,2} \w{3} \d{4} · P\d+$/, 'named the way every payslip list names one');
+        assert.match(chosenText(card.slPaidOffFrom), /^Paid \d{1,2} [A-Z][a-z]+ \d{4} · P\d+$/, 'named the way every payslip list names one');
         S.saveSettings();                    // one keystroke in the tax code box
         assert.equal(_ls.get(SK.slPaidOff), String(RECORDED), 'the next save erased the stop');
     });

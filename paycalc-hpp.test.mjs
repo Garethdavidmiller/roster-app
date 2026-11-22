@@ -660,7 +660,7 @@ describe('last year\'s chosen source, with nothing in it, gets no figure from ho
         assert.equal(_els.priorHppAmt.textContent, '£–');
         assert.equal(_els.priorHppAmtLabel.textContent, 'Estimated');
         assert.equal(_els.priorHppBasis.textContent, 'No figure yet — you chose a rough estimate from your 2025/26 Year to '
-            + 'Date pay. Open your 13 Mar 2026 payslip and copy its Year to Date Taxable Pay into Year to Date Figures.');
+            + 'Date pay. Open your 13 March 2026 payslip and copy its Year to Date Taxable Pay into Year to Date Figures.');
         assert.equal(_ls.get(hppEstKey(TY25)), undefined);
         _resetDom();
         updatePriorHpp(TY26);
@@ -798,7 +798,7 @@ describe('the rough Year to Date premium takes the back-pay lump\'s arrears out 
         const taxable = plain + 1000;                        // £1,000 of premium pay and arrears together
         runYtd(t, carrier.num + 3, String(carrier.num + 2), taxable);
         assert.match(_els.hppBasis.textContent, /This may include back pay/);
-        assert.match(_els.hppBasis.textContent, /pay-rise lump on your \d{1,2} \w{3} 2025 payslip/);
+        assert.match(_els.hppBasis.textContent, /pay-rise lump on your \d{1,2} [A-Z][a-z]+ 2025 payslip/);
         // Nothing was taken out: the figure is 7.69% of all £1,000.
         assert.equal(_els.hppAmount.textContent, `£${(1000 * HPP_FRACTION).toFixed(2)}`);
     });
@@ -916,7 +916,7 @@ describe('knownYtdLumps — the award lump only once its payslip is covered', ()
 
 const { readFileSync } = await import('node:fs');
 const { hppTaxYearForPayslip, periodsInTaxYear } = await import('./paycalc-hpp-schedule.js');   // hppPayslipForTaxYear: above
-const { fdLong: _fdLong } = await import('./paycalc-format.js');
+const { fdLong: _fdLong, fdShort: _fdShort } = await import('./paycalc-format.js');
 
 describe('premiumStillToEstimate — the reader the January notice is for (v26.22)', () => {
     beforeEach(reset);
@@ -1003,7 +1003,7 @@ describe('premiumStillToEstimate — the reader the January notice is for (v26.2
 describe('the rough 2025/26 premium names last January\'s premium, which no record holds (v26.22)', () => {
     beforeEach(reset);
     const SAYS = 'This may be a little high: your Year to Date pay includes any Holiday Pay Premium on your '
-        + '16 Jan 2026 payslip, and the calculator has no record of that to take out.';
+        + '16 January 2026 payslip, and the calculator has no record of that to take out.';
 
     test('covered by the figure, it is counted in, never guessed out — and said', (t) => {
         // A member with no premium pay at all but £600 of last year's premium on the 16 Jan 2026 payslip,
@@ -1043,7 +1043,7 @@ describe('the rough 2025/26 premium names last January\'s premium, which no reco
         // as £0 — nothing came out, and nothing was said: the figure ran high with no word of it.
         runYtd(t, 61, '60', 45000);
         assert.ok(_els.hppBasis.textContent.includes('This may be a little high: your Year to Date pay includes any Holiday Pay '
-            + 'Premium on your 15 Jan 2027 payslip, and the calculator has no record of that to take out.'), _els.hppBasis.textContent);
+            + 'Premium on your 15 January 2027 payslip, and the calculator has no record of that to take out.'), _els.hppBasis.textContent);
         // A member not employed in 2025/26 had none to record, so there is nothing to say.
         _proRate = (/** @type {any} */ p) => (p.num - 48 >= TY26.first ? 1 : 0);
         _resetDom(); t.mock.timers.reset();
@@ -1053,9 +1053,9 @@ describe('the rough 2025/26 premium names last January\'s premium, which no reco
 
     test('the rough line says what it covers — and, for a year that has ended, that a part of it may be low', (t) => {
         runYtd(t, 49, '46', 40000);                           // 19 Dec 2025's figures, viewed on 10 Nov 2026
-        assert.match(_els.hppBasis.textContent, /^Rough estimate from your Year to Date pay up to your 19 Dec 2025 payslip:/);
+        assert.match(_els.hppBasis.textContent, /^Rough estimate from your Year to Date pay up to your 19 December 2025 payslip:/);
         assert.ok(_els.hppBasis.textContent.includes('It covers 2025/26 only up to that payslip, so it may be low — the Year to '
-            + 'Date pay on your 13 Mar 2026 payslip covers the whole year.'), _els.hppBasis.textContent);
+            + 'Date pay on your 13 March 2026 payslip covers the whole year.'), _els.hppBasis.textContent);
         _resetDom(); t.mock.timers.reset();
         runYtd(t, 49, '49', 40000);                           // the year's LAST payslip: the whole year
         assert.doesNotMatch(_els.hppBasis.textContent, /may be low/);
@@ -1085,12 +1085,12 @@ describe('the January notice\'s dates and link are the payslip grid\'s own (v26.
         assert.equal(iso, '2026-03-13', 'premise: the grid\'s last 2025/26 payday');
         assert.ok(NOTICE.includes(`href="./paycalc.html?payday=${iso}#payslipCard"`), 'the link opens that payslip, at the Year to Date card');
         // Words, not spacing: the dates are held together with &nbsp; (and \u00a0 in App Notices) so a
-        // phone never breaks "13 Mar 2026" across a line, and that must not hide which payslip is named.
+        // phone never breaks "13 March 2026" across a line, and that must not hide which payslip is named.
         const words = (/** @type {string} */ s) => s.replace(/&nbsp;|\u00a0|\\u00a0/g, ' ');
         const day = _fdLong(last.payday);
         assert.ok(words(NOTICE).includes(`your <strong>${day}</strong> payslip`), `the body names it: ${day}`);
         // The button names its day and month and keeps to one line on a 360px phone; the year is in the
-        // sentence above it, and inside the notice's window (16 Nov – 8 Jan) "13 Mar" has only one past.
+        // sentence above it, and inside the notice's window (16 Nov – 8 Jan) "13 March" has only one past.
         const button = words(NOTICE.match(/id="noticeHppGo"[^>]*>([^<]+)<\/a>/)?.[1] ?? '');
         assert.equal(button, `Open your ${day.replace(/ \d{4}$/, '')} payslip &rarr;`, 'and so does the button');
         assert.ok(words(IIFE).includes(`Your ${day} payslip gives a rough figure`), 'and App Notices');
@@ -1099,7 +1099,10 @@ describe('the January notice\'s dates and link are the payslip grid\'s own (v26.
     test('it ends the day before that January payslip can be in hand', (t) => {
         const dayBefore = new Date(carrier.cutoff);
         dayBefore.setDate(dayBefore.getDate() - 1);
-        assert.equal(literal('LAST_DAY'), _fdLong(dayBefore), 'LAST_DAY is the eve of the January payslip\'s cut-off');
+        // LAST_DAY is never shown: it is read by `isNoticeExpired`, whose parser takes the notice system's
+        // "8 Jan 2027" form — so it is checked in that form, not in the full one the copy uses.
+        assert.equal(literal('LAST_DAY'), `${_fdShort(dayBefore)} ${dayBefore.getFullYear()}`,
+            'LAST_DAY is the eve of the January payslip\'s cut-off');
         // Asked of the app's own rule (`payslipMayBeInHand`, from the cut-off — noon, the grid's anchor
         // hour): not in hand at any moment of the notice's last day, so it never runs beside the box that
         // takes the real figure; in hand from the cut-off on the 9th.
