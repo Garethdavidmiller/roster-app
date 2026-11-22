@@ -631,8 +631,7 @@ export function init() {
         if (!open || !design) queuedSaves.refused(id);   // a first save's copy, where there is one, stays kept and marked (rule 4)
         else {
             queuedSaves.acked(id);   // forgotten: the work is on screen, unsaved, and a hide keeps that copy
-            activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, ''); activation++;   // an old save in flight lands elsewhere
-            design = { ...design, id: null, name: '' }; dirty = true;   // no name until its first save (header rule 3)
+            _setWorkingCopy(null, { copy: { ...design, id: null, name: '' } });   // no name until its first save (header rule 3)
             updateLastSaved(null, null);
         }
         renderDesignPicker(); if (open) updateSaveBtn();   // before the line: it clears a dirty design's status
@@ -942,7 +941,7 @@ export function init() {
             // Edited while its own delete was in flight: the design is in the bin, and the edits are kept
             // as an unsaved NEW design rather than thrown away with it.
             if (wasOpen && design) _openAsNew(design.patterns, design.window);
-            renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); renderCoverageCard(); compare.renderCompare(); updateSaveBtn();
+            _renderAll();
             _designActionStatus(wasOpen
                 ? `${outcome} What you changed while it was being deleted is still here, not saved — Save keeps it as a new design.`
                 : outcome, wasOpen || found !== 'deleted' ? '' : 'ok');
@@ -975,38 +974,35 @@ export function init() {
     }
 
     /**
-     * Internal: set a design as active and refresh all UI.
-     * @param {any} d
+     * The ONE way the working copy is replaced. `entry` — a saved design or a proposal — opens CLEAN on the baseline
+     * `baselineFromEntry` derives (never `baselineUnknown = false` beside a possibly-null stamp: the v17.18 bug); a
+     * proposal opens with no saved id, so every write path treats it as new (links-proposals.js). With no entry, `copy`
+     * is a NEW unsaved design — no id, no name until its first save — on the baseline already held. `activation` moves,
+     * so a write in flight knows the page no longer shows what it wrote. The caller renders (`_renderAll`).
+     * @param {any} entry @param {{ copy?: any, remember?: boolean }} [o]  `remember`: open it again on the next visit
      */
+    function _setWorkingCopy(entry, { copy = null, remember = true } = {}) {
+        activation++;
+        activeProposalId = entry && isProposalId(entry.id) ? entry.id : null;
+        activeDesignId = entry && !activeProposalId ? entry.id : null;
+        if (remember) lsSet(ACTIVE_KEY, entry?.id ?? '');
+        design = entry ? workingCopy(entry) : copy;
+        if (entry) ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(entry));
+        dirty = !entry && !!copy;
+    }
+    /** Draw everything the working copy feeds: the masthead, the grid (and the Coverage card with it), the paint bar,
+     *  the checks, compare mode and the Save buttons. */
+    function _renderAll() { renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); compare.renderCompare(); updateSaveBtn(); }
+
+    /** Open a saved design or a proposal, clean. @param {any} d */
     function _activateDesign(d) {
         if (!d) return;
-        activation++;
-        // A proposal opens as an UNSAVED working copy — no saved-design id, so save/rename/delete
-        // all treat it as new and its first save creates a copy (links-proposals.js).
-        activeProposalId = isProposalId(d.id) ? d.id : null;
-        activeDesignId  = activeProposalId ? null : d.id;
-        lsSet(ACTIVE_KEY, d.id);
-        design          = workingCopy(d);
-        // Derive the baseline through the tested rule rather than hardcoding `baselineUnknown =
-        // false` beside a possibly-null timestamp — that pair is precisely the v17.18 bug
-        // (neither a known baseline nor a flag saying it is unknown, so conflictOf reads it as
-        // "safe to overwrite"). It was harmless while every entry came from the server snapshot or
-        // from create/duplicate, both of which arm a real timestamp; v19.41's RESTORE added a third
-        // producer whose entry can carry null, and selecting it then switched the guard off.
-        ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(d));
-        dirty           = false;
-        // Clear a prior design's "✓ Saved" / "Save failed" status — updateSaveBtn only clears it
-        // while dirty, so without this it carried over to the newly selected design, falsely
-        // implying that design's save state (v16.19).
+        _setWorkingCopy(d);
+        // A prior design's "✓ Saved" or "Save failed" is not this design's (v16.19): updateSaveBtn clears it only while dirty.
         const _switchStatus = document.getElementById('linksSaveStatus');
         if (_switchStatus) _switchStatus.textContent = '';
         dearmBrush();
-        renderDesignPicker();
-        renderGrid();   // the Coverage card and its window editor with it
-        renderBrushBar();
-        renderDesignChecks();
-        compare.renderCompare();
-        updateSaveBtn();
+        _renderAll();
         updateLastSaved(d.updatedBy, lastSaveTime(d));
         refreshGenTargetsForDesign();   // targets are per design (v19.38)
         // ITS LAST SAVE WAS REFUSED (store rule 6, v26.03): the entry holds what that save wrote, which the server does
@@ -1032,7 +1028,7 @@ export function init() {
             if (activeDesignId) ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = draftBaseline(kept.data.baseline));
             dirty = true;
         } else _openAsNew(patterns, window);
-        renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); renderCoverageCard(); compare.renderCompare(); updateSaveBtn();
+        _renderAll();
     }
 
     /** A kept draft its design now holds exactly is not unsaved work — a queued save that landed (links-queued-saves.js
@@ -1048,11 +1044,8 @@ export function init() {
      * @param {any} patterns @param {any} window
      */
     function _openAsNew(patterns, window) {
-        activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
-        activation++;
+        _setWorkingCopy(null, { copy: { id: null, name: '', patterns, window } });
         compare.resetCompare();
-        design = { id: null, name: '', patterns, window };
-        dirty = true;
         updateLastSaved(null, null);
         refreshGenTargetsForDesign();
     }
@@ -1650,9 +1643,8 @@ export function init() {
 
             if (_asNew || !design) {
                 // A proposal is not yours to overwrite: a NEW unsaved design, named on its first save (header rule 3).
-                design = { id: null, name: '', patterns: _final, window: design?.window };
-                activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
-                activation++;   // a DIFFERENT design now: a first save in flight must not stamp its id on it (Oct 2026)
+                // A DIFFERENT design now: a first save in flight must not stamp its id on it (Oct 2026).
+                _setWorkingCopy(null, { copy: { id: null, name: '', patterns: _final, window: design?.window } });
             } else {
                 // Lines past the rotation an older, longer design holds are kept, as its notice promises (rule 6).
                 design = { ...design, patterns: withSurplusLines(_final, design.patterns, TOTAL_POS) };
@@ -1661,12 +1653,7 @@ export function init() {
             dirty = true;
             compare.resetCompare();
             dearmBrush();
-            renderDesignPicker();
-            renderGrid();
-            renderBrushBar();
-            renderDesignChecks();
-            compare.renderCompare();
-            updateSaveBtn();
+            _renderAll();
             // HOLD THE BUTTON STILL THROUGH THE REFLOW (v20.54): the first build grows the card above by a whole
             // grid. The dialog's unlock ends in `window.scrollTo(0, saved)` after this handler, so the loop
             // VERIFIES rather than trusts — measure, shift, repeat to 1px — with two budgets, one to wait for the
@@ -2107,7 +2094,7 @@ export function init() {
             const edited = ids.has(activeDesignId) && dirty && !!design && !!mark && (mark.act !== activation || mark.before !== _contentKey());
             if (edited && design) _openAsNew(design.patterns, design.window);
             if (ids.has(activeDesignId) && !edited) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]);
-            else { renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); compare.renderCompare(); updateSaveBtn(); }
+            else _renderAll();
             return edited;
         },
     });
@@ -2220,40 +2207,15 @@ export function init() {
             console.error('[Links] Load failed:', err);
             loadFailed = true;
         }
-        // The working copy is replaced HERE, so this is where `activation` moves (links-app-1) — not
-        // before the awaits, where it told anything in flight that the page had moved on while the
-        // page still showed exactly what it had before.
-        activation++;
-        if (open) {
-            activeProposalId = isProposalId(open.id) ? open.id : null;
-            activeDesignId  = activeProposalId ? null : open.id;
-            lsSet(ACTIVE_KEY, open.id);
-            design          = workingCopy(open);
-            ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(open));
-            updateLastSaved(open.updatedBy, lastSaveTime(open));
-        } else {
-            design = null;
-            activeDesignId = null; activeProposalId = null;
-        }
-        dirty = false;
+        // The working copy is replaced HERE, after the awaits, so this is where `activation` moves (links-app-1):
+        // before them it told anything in flight that the page had moved on while it still showed what it had.
+        _setWorkingCopy(open, { remember: !!open });
+        if (open) updateLastSaved(open.updatedBy, lastSaveTime(open));
         listLoading = false;
         const genErr = document.getElementById('genError');
         if (genErr?.textContent === STILL_LOADING) genErr.textContent = '';
-        renderDesignPicker();
-        renderGrid();
-        renderBrushBar();
-        renderDesignChecks();
-        // loadDesigns sets the active design INLINE rather than through _activateDesign, so the
-        // paint hook there does not cover a fresh page open — exactly the gap the generator targets
-        // hit at v19.38 (see the note below). Without this the window editor stayed hidden and
-        // empty until the designer switched design.
-        paintWindowEditor();
-        updateSaveBtn();
-        // Show the ACTIVE design's remembered generator targets (v19.38). loadDesigns sets the
-        // active design inline rather than through _activateDesign, so the hook there does not cover
-        // the initial load — without this the table always showed the roster seed on a fresh page
-        // and the remembered targets only appeared after switching design and back.
-        refreshGenTargetsForDesign();
+        _renderAll();
+        refreshGenTargetsForDesign();   // the open design's remembered generator targets (v19.38)
     }
 
     // The rotation length appears in static markup too (the grid card's title, the empty-state
