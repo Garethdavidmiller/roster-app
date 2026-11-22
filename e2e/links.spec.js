@@ -578,11 +578,11 @@ test('links: the demand note names every movement past the staffed finish, to th
     // made in `links-demand.test.mjs` and fixed there; this second copy was missed.
     //
     // What must hold whatever the status is: the note names the timetable, identifies the exact
-    // FILES it was measured from, and says ECS is excluded — so a printed proposal can always be
+    // FILES it was measured from, and says empty-stock moves are left out — so a printed proposal can always be
     // traced back to the data behind it. "(provisional)" is allowed to come and go with the flag.
     expect(note).toContain('December 2026 timetable');
     expect(note, 'the exact source files must be identifiable').toContain('10 of 13');
-    expect(note).toContain('ECS excluded');
+    expect(note).toContain('empty-stock moves left out');
 });
 
 test('links: an hour whose service is not fully staffed is marked on the demand row', async ({ page }) => {

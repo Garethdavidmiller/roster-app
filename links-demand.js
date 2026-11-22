@@ -57,8 +57,10 @@ import { DAYS, ROTATING_LINES, dayClass, startMinutes, endMinutesAbs } from './l
  */
 export const DEC_2026_SOURCE = Object.freeze({
     label: 'December 2026 timetable',
-    detail: 'Marylebone simplifiers — SX “10 of 13”, SO and Su “Final”; all three confirmed final. '
-        + 'Passenger movements only; ECS excluded. Measured Aug 2026.',
+    // Plain words (Nov 2026): "SX / SO / Su", "simplifiers" and "ECS" are the roster office's
+    // shorthand. The file versions stay, for the reason above.
+    detail: 'Marylebone simplified timetables — weekdays (version “10 of 13”), Saturdays and Sundays (“Final”), '
+        + 'all three confirmed final. Passenger trains only; empty-stock moves left out. Measured August 2026.',
     provisional: false,
 });
 
