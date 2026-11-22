@@ -45,7 +45,7 @@ describe('too kind — the tick must never be greener than the gate', () => {
         // The value string, not just the tone. Asserting only the tone let a mutation that divided
         // the average by the WORKING lines survive — it kept the tick green and quietly printed
         // "44h 13m each" beside it, which is the card contradicting itself in one row.
-        assert.equal(targetHoursLines(a).value, `${CONTRACTED_HOURS_PER_WEEK}h 00m each`);
+        assert.equal(targetHoursLines(a).value, `${CONTRACTED_HOURS_PER_WEEK}h 00m average`);
     });
 
     test('the average divides by the WHOLE rotation — the Design-checks row\'s figure', () => {
@@ -174,7 +174,7 @@ describe('too harsh — it must not refuse or alarm where there is nothing wrong
 
     test('every line spare is its own message, not a shortfall', () => {
         const a = assessTargetHours([], { spareLines: ROTATING_LINES, totalLines: ROTATING_LINES });
-        assert.equal(targetHoursLines(a).note, 'every line is a spare week');
+        assert.equal(targetHoursLines(a).note, 'every line is a cover week');
     });
 });
 
@@ -192,7 +192,7 @@ describe('the words a designer acts on', () => {
         // working line per weekday, missing five days a week = 95h across the table.
         const missingHours = 1 * t.slots[0].weekday * 5;
         assert.equal(note,
-            `${missingHours}h 00m short in total — Generate needs it exact · over ${t.slots[0].weekday} working lines`);
+            `${missingHours}h 00m of duty short in total — Build needs it exact · averaged over all ${ROTATING_LINES} lines, cover weeks at ${CONTRACTED_HOURS_PER_WEEK}h`);
     });
 
     test('over and short are named as themselves', () => {
@@ -203,10 +203,16 @@ describe('the words a designer acts on', () => {
         assert.match(targetHoursLines(short).note, /short in total/);
     });
 
-    test('the working-line count is stated, and singular reads correctly', () => {
+    // The figure is an AVERAGE over the whole rotation (Nov 2026): "over 21 working lines" named a
+    // divisor the figure does not use, and "each" a figure no single line works.
+    test('the divisor is the whole rotation, with cover weeks at the contracted week', () => {
         const t = exactTable({ spareLines: ROTATING_LINES - 1 });
         const a = assessTargetHours(t.slots, t);
-        assert.match(targetHoursLines(a).note, /over 1 working line\b/);
+        assert.match(targetHoursLines(a).note, new RegExp(`averaged over all ${ROTATING_LINES} lines, cover weeks at ${CONTRACTED_HOURS_PER_WEEK}h$`));
+        assert.doesNotMatch(targetHoursLines(a).note, /working line/);
+        const none = exactTable({ spareLines: 0 });
+        assert.doesNotMatch(targetHoursLines(assessTargetHours(none.slots, none)).note, /cover weeks/,
+            'with no cover weeks it does not mention them');
     });
 
     test('unreadable shifts are declared rather than silently dropped', () => {
@@ -221,7 +227,7 @@ describe('the words a designer acts on', () => {
     test('the on-target line names the contract figure', () => {
         const t = exactTable();
         assert.equal(targetHoursLines(assessTargetHours(t.slots, t)).note,
-            `on target (${CONTRACTED_HOURS_PER_WEEK}h) · over ${ROTATING_LINES - 5} working lines`);
+            `on target (${CONTRACTED_HOURS_PER_WEEK}h) · averaged over all ${ROTATING_LINES} lines, cover weeks at ${CONTRACTED_HOURS_PER_WEEK}h`);
     });
 });
 
@@ -233,14 +239,14 @@ describe('the provenance note', () => {
 
     test('a loaded SET is named, because "remembered" tells the designer nothing', () => {
         const note = targetProvenanceNote({ fromMemory: true, differsFromDefault: true, setName: 'Set A' });
-        assert.match(note, /saved set “Set A”/);
+        assert.match(note, /saved staffing setup “Set A”/);
     });
 
     test('without a set it says where the table came from, and both forms offer the way back', () => {
         const note = targetProvenanceNote({ fromMemory: true, differsFromDefault: true });
         assert.match(note, /your device remembers/);
         for (const n of [note, targetProvenanceNote({ fromMemory: true, differsFromDefault: true, setName: 'X' })]) {
-            assert.match(n, /Use the Dec 2026 staffing/);
+            assert.match(n, /Use the starting table \(Short Run’s duties\)/);
             // A table that has to LAST is a saved staffing setup (iPhone audit, Nov 2026): the remembered table is
             // only this browser's localStorage, so the note names the control that keeps one, and promises nothing
             // of its own. "Anything you change here is kept" was the promise iOS did not keep.

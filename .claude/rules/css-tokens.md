@@ -497,8 +497,10 @@ the colliding surfaces are rarely co-visible, and new hues would cost more than 
 
 - **paycalc pay badges deliberately borrow the roster's shift colours** — Saturday Early orange,
   Sunday Late blue, Bank Holiday the AL teal; the labels carry the meaning.
-- **`--purple` = Spare shift AND the Links page identity** — Links is visible to the members of
-  `CONFIG.LINKS_DESIGNERS` only, so the pairing is effectively never co-visible for ordinary staff.
+- **`--purple` = Spare shift AND the Links page identity** — co-visible on Links itself since 22 Nov
+  2026, when Spare there took the app's purple (owner: Spare looks the same on every page, and purple
+  had meant Night on Links). The page identity is only the header badge and the drawer pill; every
+  Spare cell is labelled SP, so the label carries the meaning. Ordinary staff never see Links.
 - **`--blue-sky` = Late shift AND assorted admin accents** (source pill, overwrite-active) — labelled,
   low co-visibility.
 

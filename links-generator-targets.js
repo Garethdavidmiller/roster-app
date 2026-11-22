@@ -406,7 +406,7 @@ export function createTargetPanel(deps) {
             const slot = genSlots[+(select.dataset.slot ?? '')];
             if (!slot) return;
             if (select.value === '__custom__') {
-                const raw = await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' });
+                const raw = await promptDialog({ title: 'Custom shift', message: 'Type the shift as start–finish in 24-hour time, e.g. 06:00-14:00. It must start between 04:00 and 20:59 and finish the same day.', defaultValue: slot.time, placeholder: '09:30-17:30', confirmLabel: 'Set' });
                 const typed = normaliseCustomShift(raw);
                 // A REFUSED time says why, as the grid's Custom… does (17 Nov 2026): it closed exactly as Cancel did, so a
                 // refusal could not be told from a slip. The sentence is `customShiftRefusal`'s, written once; it goes on the
@@ -490,7 +490,7 @@ export function createTargetPanel(deps) {
             });
         };
         document.getElementById('genDefaultBtn')?.addEventListener('click', async () => {
-            if (await _confirmDiscard('The Dec 2026 staffing')) _resetTargets(buildDefaultTargets(), 'default');
+            if (await _confirmDiscard('The starting table')) _resetTargets(buildDefaultTargets(), 'default');
         });
         document.getElementById('genSeedBtn')?.addEventListener('click', async () => {
             if (await _confirmDiscard("Today's roster")) _resetTargets(buildRosterTargets(), 'seed');
@@ -578,7 +578,7 @@ export function createTargetPanel(deps) {
             if (saveBtn) saveBtn.disabled = !state.canWrite || !list.usable || held;
             if (delBtn) {
                 delBtn.disabled = !state.canDelete || !list.usable || held;
-                const label = set ? `Delete “${set.name}”` : 'Delete this set';
+                const label = set ? `Delete “${set.name}”` : 'Delete this staffing setup';
                 delBtn.setAttribute('aria-label', label);   // the word alone does not say WHICH set
             }
             // Save as new is deliberately NOT gated on `usable`: it creates a document, needs
@@ -674,7 +674,7 @@ export function createTargetPanel(deps) {
             if (!set || setWriteInFlight || !describeSetState(set, { userName: currentUser, isAdmin: isAdmin }).canDelete) return;
             if (_offline()) { if (_setHint) _setHint.textContent = _offlineLine(`deleting “${set.name}”`); return; }
             const sure = await confirmDialog({
-                title: 'Delete this set?',
+                title: 'Delete this staffing setup?',
                 message: `“${set.name}” will be removed for every designer. The table above is not affected.`,
                 confirmLabel: 'Delete',
                 danger: true,
@@ -696,7 +696,7 @@ export function createTargetPanel(deps) {
                 // row, so setting the message before it wrote a sentence nobody ever saw — the
                 // refusal would have looked like a button that did nothing.
                 await loadTargetSets(set.id);
-                if (_setHint) _setHint.textContent = `“${set.name}” was changed by someone else just now — reload and check before deleting it.`;
+                if (_setHint) _setHint.textContent = `“${set.name}” was changed by someone else just now — choose Use setup to see the new version before deleting it.`;
                 return;
             }
             // The table itself stays exactly as it is — deleting the SET does not take the shift
@@ -716,7 +716,7 @@ export function createTargetPanel(deps) {
             if (!set || setWriteInFlight || !describeSetState(set, { userName: currentUser, isAdmin: isAdmin }).canWrite) return;
             if (_offline()) { if (_setHint) _setHint.textContent = _offlineLine(`overwriting “${set.name}”`); return; }
             const sure = await confirmDialog({
-                title: 'Overwrite this set?',
+                title: 'Overwrite this staffing setup?',
                 message: `Replace “${set.name}” with the table above? Everyone who loads it will get this version.`,
                 confirmLabel: 'Overwrite',
             });
@@ -744,7 +744,7 @@ export function createTargetPanel(deps) {
                 const gone = setsStatus === 'ready' && !targetSets.some(t => t.id === set.id);
                 if (_setHint) _setHint.textContent = gone
                     ? `“${set.name}” was deleted by someone else just now — Save as new keeps the table above as a new setup.`
-                    : `“${set.name}” was changed by someone else just now — reload it and try again if you still want to overwrite.`;
+                    : `“${set.name}” was changed by someone else just now — choose Use setup to see it, then try again if you still want to overwrite it.`;
                 return;
             }
             // The table IS this set again — an overwrite is the other way of making them match, so
@@ -773,7 +773,7 @@ export function createTargetPanel(deps) {
             }
             const name = await promptDialog({
                 title: 'Save as a new staffing setup',
-                message: 'Name these staffing numbers — e.g. Winter cover. Every designer can see it; only you can overwrite it.',
+                message: 'Name these staffing numbers — e.g. Winter cover. Every designer can see it; only you or the admin can change or delete it.',
                 placeholder: 'Setup name',
                 maxLength: MAX_SET_NAME,
             });

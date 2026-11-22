@@ -122,9 +122,8 @@ describe('the move (the store\'s binIfStill, asked with isOlderDesign)', () => {
     });
 });
 
-describe('the wiring (links-design-library.js, links-app.js, links.html)', () => {
+describe('the wiring (links-design-library.js, links.html)', () => {
     const lib = readFileSync(new URL('./links-design-library.js', import.meta.url), 'utf8');
-    const app = readFileSync(new URL('./links-app.js', import.meta.url), 'utf8');
     const html = readFileSync(new URL('./links.html', import.meta.url), 'utf8');
     /**
      * A source fragment as a pattern that survives a REFORMAT (test audit, 7 Nov 2026): any whitespace between tokens,
@@ -152,12 +151,25 @@ describe('the wiring (links-design-library.js, links-app.js, links.html)', () =>
         assert.doesNotMatch(press, /store\.(create|save)\b|docPayload|addDesign/, 'saving a copy of the shortlist is what the owner said no to');
     });
 
-    test('the row is wired in the library, starts hidden, and the coordinator lends ONE hook', () => {
+    test('the row is wired in the library, and starts hidden', () => {
         assert.match(lib, code("getElementById('designMoreBtn')?.addEventListener('click', () => { if (keepRow) keepRow.style.display = keepOffered() ? '' : 'none'; });"));
         assert.match(lib, code("keepRow?.addEventListener('click', () => { const h = ctx.getHeader(); if (h) h.viaSheet(keepOnlyShortlist); else keepOnlyShortlist(); });"));
         assert.match(html, code('<button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none">'));
-        // Compare is reset either way, so the page is DRAWN again either way (links-app-10): with the
-        // picker alone, Keep only the shortlist in compare mode left the two compare grids up.
-        assert.match(app, code('removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else { renderDesignPicker(); renderGrid(); renderBrushBar(); compare.renderCompare(); } },'));
+        // What the coordinator's `removeDesigns` does with them — compare reset and the page drawn again
+        // (links-app-10), edits made meanwhile kept — is BEHAVIOUR, pinned in a browser:
+        // e2e/links.spec.js "links compare: Keep only the shortlist ends compare mode and puts the grid back"
+        // and e2e/links-shortlist.spec.js "keeps the edits made while its moves were landing". The ids it is
+        // handed, and the mark, are links-design-library.test.mjs's.
     });
+});
+
+// ── THE ··· MORE ROW STATES THE CUT-OFF, AND IT IS THIS CONSTANT (Nov 2026) ─────────────────────
+// "Older saved designs" did not say older than WHAT. The row now names the date, and a date typed
+// into markup is a second copy of `OLDER_BEFORE` — so the two are tied here.
+test('the Keep only the shortlist row names OLDER_BEFORE as its date', () => {
+    const html = readFileSync(new URL('./links.html', import.meta.url), 'utf8');
+    const said = html.match(/Keep only the shortlist<small>Designs last saved before ([^<]+) move to Recently deleted<\/small>/)?.[1];
+    assert.ok(said, 'the row no longer states its cut-off date');
+    const expected = new Date(OLDER_BEFORE).toLocaleDateString('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
+    assert.equal(said, expected, `the row says "${said}", but OLDER_BEFORE is ${expected}`);
 });

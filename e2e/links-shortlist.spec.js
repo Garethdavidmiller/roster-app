@@ -156,3 +156,25 @@ test('links: offline, Keep only the shortlist moves nothing and says so', async 
     expect(await writes(page)).toEqual([]);
     await expect(designOptions(page)).toHaveCount(2);
 });
+
+// EDITS MADE WHILE THE MOVES RUN ARE KEPT (Nov 2026). Each move is a transaction, so on a slow server the
+// designer carries on in the open design — and when the moves landed, the open design gave way to the next
+// one unasked, taking the edits with it. They stay now, as an unsaved new design, as after a delete that lands
+// late, and the line says so.
+test('links: Keep only the shortlist keeps the edits made while its moves were landing', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_links_active_design', 'old1'));
+    await openWith(page, 'G. Miller', [twoOlder[0], recentOne]);
+    await expect(activeDesignName(page)).toHaveText('Closing Time — copy');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.txHold = true; });   // the server is slow to answer
+    await sheetAction(page, 'keepShortlistBtn');
+    await expect(keepDialog(page).locator('.dialog-message'), 'nothing is unsaved yet').not.toContainText('unsaved changes');
+    await clickDialogConfirm(page);
+    await editOpenDesign(page);   // the designer carries on while the move is in flight
+    const edited = await page.locator('.shift-cell-btn').first().textContent();
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());
+    await expect(page.locator('#linksSaveStatus')).toContainText('The older design is in Recently deleted');
+    await expect(page.locator('#linksSaveStatus')).toContainText('What you changed in the open design while they moved is still here, not saved');
+    await expect(activeDesignName(page), 'not the next design, opened over the edit').toHaveText('Untitled design');
+    await expect(page.locator('.shift-cell-btn').first()).toHaveText(/** @type {string} */ (edited));
+    await expect(page.locator('#linksSaveBtn'), 'still unsaved work').toBeEnabled();
+});

@@ -24,7 +24,7 @@ import {
     normalisePatterns,
     ROTATING_LINES,
     weeklyHours,
-    lineTotals,
+    lineTotals, hoursFigure,
     isCoverWeek,
     repairShortRest, restBetween,
     dutyMinutes,
@@ -838,6 +838,27 @@ describe('weeklyHours', () => {
         assert.equal(wh.coverLines, 4, 'premise: the main cycle has four spare weeks');
     });
 
+    // Nov 2026 (review, bug 3): a lone SPARE day on a working week was skipped as if it were rest —
+    // no hours, and the average kept its tick — while the run checks counted it as a worked day.
+    // It is a worked day of unknown time, so the figure is a floor and must say so.
+    test('a lone SPARE day on a working week makes the figure PARTIAL, never zero hours', () => {
+        const six = rowOf({ mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00',
+            thu: '09:00-16:00', fri: '09:00-16:00' });
+        const exact = weeklyHours({ 1: six }, 1);
+        assert.equal(exact.complete, true, 'premise: five timed days is a complete figure');
+        assert.equal(exact.loneSpareDays, 0);
+        const wh = weeklyHours({ 1: { ...six, sat: 'SPARE' } }, 1);
+        assert.equal(wh.loneSpareDays, 1);
+        assert.equal(wh.complete, false, 'a day with no time cannot be measured, so the figure is partial');
+        assert.equal(wh.exSunday, 35, 'and the timed days are still counted');
+        // A whole cover week is not "lone" — it is the contracted week, and complete.
+        const cover = weeklyHours({ 1: SPARE }, 1);
+        assert.equal(cover.loneSpareDays, 0);
+        assert.equal(cover.complete, true);
+        // A Sunday SPARE is not contracted, so it leaves the Mon–Sat figure exact.
+        assert.equal(weeklyHours({ 1: { ...six, sun: 'SPARE' } }, 1).complete, true);
+    });
+
     test('SUNDAYS ARE EXCLUDED — counting them would flatter every design', () => {
         // One line: 5 × 7h Mon–Fri = 35 exactly, plus a 7h Sunday on top. Ex-Sunday must stay 35;
         // an implementation that folds Sunday in reports 42 and calls an over-run a healthy week.
@@ -978,6 +999,23 @@ describe('hmFromHours — the one hours-a-week formatter', () => {
 });
 
 
+// ── hoursFigure: one way to state a weeklyHours average ───────────────────────────────────────────
+describe('hoursFigure', () => {
+    test('a complete average is the bare figure; one that leaves a line out says "(partial)"', () => {
+        assert.deepEqual(hoursFigure({ exSunday: 35, all: 37.5, complete: true }), { hm: '35h 00m', partial: false, text: '35h 00m' });
+        assert.deepEqual(hoursFigure({ exSunday: 34.5, all: 36, complete: false }), { hm: '34h 30m', partial: true, text: '34h 30m (partial)' });
+        assert.equal(hoursFigure({ exSunday: 34.5, all: 36, complete: false }, 'all').text, '36h 00m (partial)');
+    });
+    test('nothing to average is a dash, never "0h 00m", and is not called partial', () => {
+        assert.deepEqual(hoursFigure({ exSunday: null, all: null, complete: false }), { hm: null, partial: false, text: '—' });
+    });
+    test('it is the real weeklyHours reading: a line with no readable time makes it partial', () => {
+        const wh = weeklyHours({ 1: { mon: '06:20-14:20' }, 2: { mon: 'TBC' } }, 2);
+        assert.equal(wh.complete, false);
+        assert.match(hoursFigure(wh).text, / \(partial\)$/);
+    });
+});
+
 // ── lineTotals (v21.09) ─────────────────────────────────────────────────────────────────────────
 //
 // The grid's right-hand columns. Organised around the THREE line states whose totals cannot be read
@@ -1049,6 +1087,19 @@ describe('lineTotals', () => {
         assert.equal(t.rows[0].unreadable, 1);
         assert.equal(t.rows[0].exSundayMinutes, 420, 'the figure is a floor');
         assert.equal(t.rows[0].days, 1, 'and so is the day count');
+    });
+
+    test('a LONE spare day is a duty with no times — a floor, like an unreadable one, never a light week', () => {
+        // Mon–Sat SPARE on a line that is not a whole cover week. Skipped as rest, the line read as
+        // two fewer working days with nothing to say why (Nov 2026).
+        const t = lineTotals({ 1: row({ mon: SEVEN, tue: 'SPARE', wed: 'SPARE' }), 2: row({ tue: 'SPARE' }), 3: row({ sun: 'SPARE' }) }, 3);
+        assert.equal(t.rows[0].loneSpare, 2);
+        assert.equal(t.rows[0].exSundayMinutes, 420, 'the figure is a floor');
+        assert.equal(t.rows[0].assumed, false, 'it is not a cover week');
+        assert.equal(t.rows[1].loneSpare, 1);
+        assert.equal(t.rows[1].unfilled, false, 'a line with a spare day on it is designed');
+        assert.equal(t.rows[2].loneSpare, 0, 'a Sunday is not contracted, so a spare one is not a missing duty');
+        assert.equal(lineTotals({ 1: SPARE_ROW }, 1).rows[0].loneSpare, 0, 'a whole cover week is counted as the contracted week, not as spare days');
     });
 
     test('THE DAYS AVERAGE IS OVER THE WORKING LINES, NOT THE ROTATION', () => {

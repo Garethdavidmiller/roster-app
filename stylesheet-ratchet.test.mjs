@@ -67,7 +67,9 @@ const CAPS = {
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).
     // 2650 → 2600 (16 Nov 2026 (tidy-up), at 2,506): comments that had become a changelog cut to their reasons.
     'admin.css':      2600,
-    'links.css':      2650,
+    // 2650 → 2150 (22 Nov 2026, at 2,074): comments that had become a changelog cut to their reasons; no rule
+    // changed (the sheet with its comments stripped is identical).
+    'links.css':      2150,
     // 2150 → 2300 (14 Nov 2026, at 2,244), a deliberate RAISE: the Annual leave sheet card is a new
     // surface and this page's alone — a summary, a fold per person, chips and day rows, in 112 compact
     // lines; the Save's questions, boxes and receipt brought it to 2,288 (v26.13). A dead-rule sweep
