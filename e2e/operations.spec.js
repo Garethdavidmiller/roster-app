@@ -5476,6 +5476,7 @@ test('operations annual leave sheet: unsaved answers ask before Clear, and befor
     await openAlSheet(page, fx.records, { writesLand: true });
     await confirmA(page, fx);
     await page.locator('#alSheetClearBtn').click();
+    await expect(page.locator('.lb-overlay.open .dialog-title')).toHaveText(SAVE_WORDS.clearTitle);
     await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText(SAVE_WORDS.clearAsk);
     await page.locator('.lb-overlay.open .dialog-btn-cancel').click();
     await expect(page.locator('#alSheetResult'), 'Cancel keeps the review').toBeVisible();
@@ -5485,13 +5486,13 @@ test('operations annual leave sheet: unsaved answers ask before Clear, and befor
     // A drawer link asks, and a Cancel stays.
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
-    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText('You have unsaved changes. Leave this page anyway?');
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText('Your unsaved changes on this page will be lost.');
     await page.locator('.lb-overlay.open .dialog-btn-cancel').click();
     await expect(page).toHaveURL(/operations\.html/);
     // Signing out asks too, and a Cancel keeps the session and the answers.
     if (!(await page.locator('#navSignOutBtn').isVisible())) await page.locator('#navMenuBtn').click();
     await page.locator('#navSignOutBtn').click();
-    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText('You have unsaved changes. Sign out anyway?');
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText('You have unsaved changes. If you sign out now they will be lost.');
     await page.locator('.lb-overlay.open .dialog-btn-cancel').click();
     expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'a declined sign-out keeps the session').not.toBeNull();
     const a = personRow(page, fx.A.name);
@@ -5558,7 +5559,7 @@ test('operations annual leave sheet: the header logo asks before leaving unsaved
     await openAlSheet(page, fx.records, { writesLand: true });
     const a = await confirmA(page, fx);
     await page.locator('#appIcon').click();
-    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText('You have unsaved changes. Leave this page anyway?');
+    await expect(page.locator('.lb-overlay.open .dialog-message')).toHaveText('Your unsaved changes on this page will be lost.');
     await page.locator('.lb-overlay.open .dialog-btn-cancel').click();
     await expect(page).toHaveURL(/operations\.html/);
     await expect(a.getByRole('checkbox', { name: confirmWords({ name: fx.A.name, add: 2, swap: 0 }) }), 'Cancel keeps the review').toBeChecked();

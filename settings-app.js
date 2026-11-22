@@ -537,7 +537,8 @@ export function init() {
 
         if (removeBtn) {
             removeBtn.addEventListener('click', async () => {
-                if (!await confirmDialog({ message: 'Remove your saved work email address?', confirmLabel: 'Remove', danger: true })) return;
+                if (!await confirmDialog({ title: 'Remove your work email?', message: 'Only you and the admin can see it. You can save it again at any time.',
+                    confirmLabel: 'Remove', danger: true })) return;
                 removeBtn.disabled = true;
                 try {
                     await sessionReady;
