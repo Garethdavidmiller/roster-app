@@ -48,14 +48,14 @@ const { createDesignLibrary } = await import('./links-design-library.js');
 const { PROPOSALS, proposalDisplayName } = await import('./links-proposals.js');
 
 /** A recording store and context.
- *  @param {{ restore?: Function, create?: Function, purge?: Function, binIfStill?: Function, activeId?: () => any }} [over] */
+ *  @param {{ restore?: Function, create?: Function, purge?: Function, binIfStill?: Function, activeId?: () => any, kept?: boolean }} [over] */
 function setup(over = {}) {
     _els = {};
     _confirmAnswer = true;
     _confirmed = [];
     // `seq` is the ORDER of the calls that matter to the masthead: whether a design is recorded as
     // queued before or after the open (or the picker repaint) that draws it.
-    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [], tone: [], removed: [], queued: [], seq: [] });
+    const calls = /** @type {Record<string, any[]>} */ ({ restore: [], purge: [], create: [], add: [], activate: [], picker: [], status: [], tone: [], removed: [], marks: [], queued: [], seq: [] });
     /** @type {any[]} */ const designs = [];
     let open = false;
     let dirty = false;
@@ -63,7 +63,7 @@ function setup(over = {}) {
         restore: over.restore ?? (async (/** @type {string} */ id) => { calls.restore.push(id); return { status: 'ok', updatedAt: null, revision: 2 }; }),
         purge: over.purge ?? (async (/** @type {string} */ id) => { calls.purge.push(id); return 'removed'; }),
         create: over.create ?? (async (/** @type {any} */ payload) => { calls.create.push(payload); return { id: 'new1', updatedAt: null, baseline: { loadedRevision: 1 } }; }),
-        binIfStill: over.binIfStill ?? (async () => 'moved'),
+        binIfStill: over.binIfStill ?? (async () => { calls.seq.push('move'); return 'moved'; }),
     };
     const lib = createDesignLibrary({
         store, currentUser: 'G. Miller',
@@ -76,7 +76,8 @@ function setup(over = {}) {
         refreshLists: async () => {},
         actionStatus: (msg, tone) => { calls.status.push(msg); calls.tone.push(tone); },
         getHeader: () => null,
-        removeDesigns: (ids) => { calls.removed.push([...ids]); },
+        removeDesigns: (ids, mark) => { calls.removed.push([...ids]); calls.marks.push(mark); calls.seq.push('removed'); return over.kept ?? false; },
+        snapshot: () => { calls.seq.push('snapshot'); return { taken: calls.seq.length }; },
         markQueued: (id) => { calls.queued.push(id); calls.seq.push(`queued:${id}`); },
         ...(over.activeId ? { activeId: over.activeId } : {}),
     });
@@ -414,5 +415,44 @@ describe('Keep only the shortlist warns about unsaved work only when the open de
     });
     test('with no way to tell which design is open, it still warns — the safe direction', async () => {
         assert.match(await press(undefined), /will be lost/);
+    });
+});
+
+// EDITS MADE WHILE THE MOVES RUN ARE KEPT (Nov 2026). The moves are transactions, and on a slow server the
+// designer carries on editing the open design; `removeDesigns` then replaced the working copy unasked. The
+// coordinator decides from where the page stood as the moves BEGAN — so the snapshot is taken after the
+// question and before the first move, and handed to the removal — and the line says what was kept.
+describe('Keep only the shortlist keeps edits made while its moves run', () => {
+    const OLD = { id: 'old1', name: 'Old', updatedBy: 'S. Silva', updatedAt: { toMillis: () => Date.UTC(2026, 8, 1) } };
+    test('the page is marked after the question and before the first move, and the mark reaches the removal', async () => {
+        const s = setup({ activeId: () => 'old1' });
+        s.designs.push(OLD);
+        await fire('keepShortlistBtn', 'click');
+        await settle();
+        assert.deepEqual(s.calls.seq, ['snapshot', 'move', 'removed']);
+        assert.deepEqual(s.calls.marks, [{ taken: 1 }], 'the removal is told where the page stood');
+    });
+    test('the removal is handed exactly the designs that MOVED — a skipped one stays in the list', async () => {
+        const s = setup({ activeId: () => null, binIfStill: async (/** @type {string} */ id) => (id === 'old1' ? 'moved' : 'skipped') });
+        s.designs.push(OLD, { ...OLD, id: 'old2', name: 'Old two' });
+        await fire('keepShortlistBtn', 'click');
+        await settle();
+        assert.deepEqual(s.calls.removed, [['old1']]);
+    });
+    test('kept edits are said, in the neutral voice — they are not saved', async () => {
+        const s = setup({ activeId: () => 'old1', kept: true });
+        s.designs.push(OLD);
+        await fire('keepShortlistBtn', 'click');
+        await settle();
+        assert.match(s.calls.status.at(-1), /is in Recently deleted.*still here, not saved — Save keeps it as a new design/);
+        assert.equal(s.calls.tone.at(-1), '');
+    });
+    test('…and nothing is claimed when nothing was kept', async () => {
+        const s = setup({ activeId: () => 'old1' });
+        s.designs.push(OLD);
+        await fire('keepShortlistBtn', 'click');
+        await settle();
+        assert.doesNotMatch(s.calls.status.at(-1), /still here/);
+        assert.equal(s.calls.tone.at(-1), 'ok');
     });
 });

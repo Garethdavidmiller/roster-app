@@ -2424,11 +2424,16 @@ export function init() {
         // "Keep only the shortlist" (v25.09, links-shortlist.js): the moved designs leave the live list; an open one gives way to the next, else to the first built-in design (Balanced V6, A to Z), read-only.
         // Compare is reset either way, so the page is DRAWN again either way (links-app-10): with the picker alone, the
         // two compare grids stayed up under a button reading "Compare with…", with no paint bar and the grid hidden.
-        removeDesigns: (/** @type {Set<string>} */ ids) => {
+        // Edited while the moves ran: the edits stay, as an unsaved new design, as after a delete that lands late.
+        snapshot: () => ({ act: activation, before: _contentKey() }),
+        removeDesigns: (/** @type {Set<string>} */ ids, /** @type {any} */ mark) => {
             designs = designs.filter(d => !ids.has(d.id));
             compare.resetCompare();
-            if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]);
-            else { renderDesignPicker(); renderGrid(); renderBrushBar(); compare.renderCompare(); }
+            const edited = ids.has(activeDesignId) && dirty && !!design && !!mark && (mark.act !== activation || mark.before !== _contentKey());
+            if (edited && design) _openAsNew(design.patterns, design.window);
+            if (ids.has(activeDesignId) && !edited) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]);
+            else { renderDesignPicker(); renderGrid(); renderBrushBar(); renderDesignChecks(); compare.renderCompare(); updateSaveBtn(); }
+            return edited;
         },
     });
 
