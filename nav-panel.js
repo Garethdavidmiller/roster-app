@@ -193,11 +193,9 @@ export function resetNavPanel() {
  *   onLockCalendar (the Calendar and Trains) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
- *   canReadDocuments — a THUNK: may the drawer's two document links read? The Calendar, Overtime, Pay
- *   and Trains pass their own. With none it is "is there a named session?" — `memberName` — and never
- *   "yes" (review, 22 Nov 2026): a drawer wired for nobody read the documents anyway, and offline the
- *   device's cache answers without asking a rule (calendar-doc-access.js), so the link opened what an
- *   earlier visitor's session had left behind.
+ *   canReadDocuments — a THUNK: may the two document links read? Calendar, Overtime, Pay and Trains pass
+ *   their own; with none it is `!!memberName`, never "yes" (22 Nov 2026): offline the cache answers with no
+ *   rule asked (calendar-doc-access.js), so a drawer wired for nobody opened an earlier visitor's document.
  *   authReady — resolves once a Firebase session exists; awaited before the Circular/Newsletter
  *   read (AUTH_PLAN.md → E1). Each page passes its own (calendar: `calendarAuthReady`; the
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
