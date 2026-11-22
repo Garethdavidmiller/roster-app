@@ -13,7 +13,7 @@ import { formatDayMonthYear } from './date-format.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, changeOwnPassword } from './firebase-client.js';
 import { isPasswordMigrated, validateNewPassword, newPasswordProblemField, passwordChangeFailure } from './auth-identity.js';
 import { initNavPanel } from './nav-panel.js';
-import { initHuddleNotifications } from './huddle.js';
+import { initNotificationsCard } from './notif-card.js';
 import { isIOS } from './notif.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -307,7 +307,7 @@ export function init() {
 
     // ── Main app init (runs when authenticated) ───────────────────────────────────
     function initApp() {
-        // notif card collapse is wired by initHuddleNotifications() below.
+        // notif card collapse is wired by initNotificationsCard() below.
 
         // Work Email card
         initContactCard();
@@ -315,11 +315,13 @@ export function init() {
         // Password card (PASSWORD_DESIGN.md — chosen password + migration status)
         initPasswordCard();
 
-        // Notifications card. It reports its own state — huddle.js's words are the authority, and a second `peekNotifState`
-        // read here could disagree with the screen. It names the pay reminder only to CEA and CES (functions/pay-reminder.js).
-        _cardHandles['notifications'] = initHuddleNotifications({
+        // Notifications card. It reports its own state — notif-card-core.js's words are the authority, and a second
+        // `peekNotifState` read here could disagree with the screen. It names the pay reminder only to CEA and CES
+        // (functions/pay-reminder.js), and re-registers this device once `sessionReady` is true (notif-card.js).
+        _cardHandles['notifications'] = initNotificationsCard({
             onState: (state, chip, tone) => reportSetting('notifications', state, chip, tone),
             payReminders: payCalculatorPrices(teamMembers.find(m => m.name === currentUser) ?? null),
+            sessionReady,
         });
         // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has. Read
         // BEFORE the Install card (Nov 2026): on an iPhone its first step copies the figures across
