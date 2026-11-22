@@ -241,7 +241,7 @@ test('paycalc: the payslip check is there while the payslip is in hand, and name
 
     // The NEXT payslip has not been cut off yet, so it cannot be in anybody's hand.
     const next = await page.locator('#periodSelect option').evaluateAll(os =>
-        os.find(o => /20 Nov 2026/.test(o.textContent ?? ''))?.getAttribute('value') ?? null);
+        os.find(o => /20 November 2026/.test(o.textContent ?? ''))?.getAttribute('value') ?? null);
     expect(next, 'the 20 Nov payslip is on the list').not.toBeNull();
     await page.locator('#periodSelect').selectOption(/** @type {string} */ (next));
     await expect(page.locator('#checkActualWrap')).toBeHidden();
@@ -291,7 +291,7 @@ test('paycalc: a link to a payday outside the calculator says so, and a covered 
     await page.goto('/paycalc.html?payday=2027-04-09');
     const note = page.locator('#periodLinkNote');
     await expect(note).toBeVisible();
-    await expect(note).toContainText("There's no payslip for 9 Apr 2027 in the calculator");
+    await expect(note).toContainText("There's no payslip for 9 April 2027 in the calculator");
     await page.goto('/paycalc.html?month=2027-06');
     await expect(note).toContainText('Jun 2027');
     await page.goto('/paycalc.html?payday=2026-10-23');
@@ -1063,7 +1063,7 @@ test('paycalc: the premium notice\'s link opens the last 2025/26 payslip, and it
     await expect(amount).toHaveText(/^£\d/);
     const figure = /** @type {string} */ (await amount.textContent());
     // And it says what it cannot take out: last January's premium is inside that Taxable Pay too.
-    await expect(page.locator('#hppBasis')).toContainText('Holiday Pay Premium on your 16 Jan 2026 payslip');
+    await expect(page.locator('#hppBasis')).toContainText('Holiday Pay Premium on your 16 January 2026 payslip');
 
     // Back on this year's payslip, "Last year (2025/26)" carries that figure to January, and names it.
     await page.goto('/paycalc.html');
@@ -2096,7 +2096,7 @@ test('paycalc: the take-home £ is the pay engine\'s figure for the payslip on s
     await page.addInitScript(LUMP_QUIET);
     await page.goto('/paycalc.html');
     await expect(page.locator('#pensionAmt')).toBeVisible();
-    await expect(page.locator('#periodSelect option:checked')).toContainText('23 Oct 2026');
+    await expect(page.locator('#periodSelect option:checked')).toContainText('23 October 2026');
 
     const TY = /** @type {any} */ (TAX_YEARS.find(t => t.label === '2026/27'));
     const th = getThresholds('2026/27');
@@ -2705,8 +2705,8 @@ test('paycalc: between cut-off and payday the new payslip can be picked as the Y
     await page.fill('#ytdTax', '3266.20');
     await page.dispatchEvent('#ytdTax', 'input');
     const offered = await page.locator('#ytdSrcSelect option').evaluateAll(os => os.map(o => o.textContent));
-    expect(offered.some(t => /25 Sep 2026/.test(t ?? '')), 'the payslip in hand must be offered').toBe(true);
-    expect(offered.some(t => /28 Aug 2026/.test(t ?? ''))).toBe(true);
+    expect(offered.some(t => /25 September 2026/.test(t ?? '')), 'the payslip in hand must be offered').toBe(true);
+    expect(offered.some(t => /28 August 2026/.test(t ?? ''))).toBe(true);
     expect(errors).toHaveLength(0);
 });
 
@@ -2981,8 +2981,8 @@ test('paycalc: a CES promoted into management keeps the CES payslips — and a p
     await clickInView(page.locator('#nextBtn'));
     await expect(page.locator('#unsupportedGradeBanner')).toBeHidden();
     await expect(page.locator('#netDisplay'), 'no figure — never one at the CEA rate').toHaveText('£–');
-    await expect(page.locator('#unpricedPayslipNote')).toHaveText('No estimate for this payslip. From Sun 22 Nov 2026 the roster '
-        + 'lists you as Management, and this calculator only has rates for CEA and CES. The nearest payslip it can estimate is the one paid Fri 20 Nov 2026.');
+    await expect(page.locator('#unpricedPayslipNote')).toHaveText('No estimate for this payslip. From Sun 22 November 2026 the roster '
+        + 'lists you as Management, and this calculator only has rates for CEA and CES. The nearest payslip it can estimate is the one paid Fri 20 November 2026.');
     await expect(page.locator('#hourlyRate')).toHaveValue('–');
     // Every hours row keeps its multiplier and no £ figure — not the last payslip's, not CEA's
     // (invariant 13: never another rate in its place, on any surface).
@@ -3240,7 +3240,7 @@ async function openAsPromoted(/** @type {import('@playwright/test').Page} */ pag
     await page.goto(path);
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
 }
-const SPLIT_LINE = 'Your grade changed on Sun 22 Nov 2026, part-way through this payslip: 7 days at the CEA rate '
+const SPLIT_LINE = 'Your grade changed on Sun 22 November 2026, part-way through this payslip: 7 days at the CEA rate '
     + '(£21.49/hr) and 21 at the CES rate (£22.60/hr), so its hours are priced at £22.32/hr — the two rates weighted by their days.';
 
 test('paycalc: a promotion dated 22 Nov 2026 — each payslip at the grade held on its days, nothing asked', async ({ page }) => {
@@ -3300,7 +3300,7 @@ test('paycalc: the change of grade is said once — before the day, then never a
     const note = page.locator('#gradeNote');
     await expect(note).toBeVisible();
     await expect(page.locator('#gradeNoteText')).toHaveText('Your grade on the roster changes from CEA to CES on '
-        + 'Sun 22 Nov 2026. Each payslip is priced at the grade you held while you worked it, so there is nothing for you to change.');
+        + 'Sun 22 November 2026. Each payslip is priced at the grade you held while you worked it, so there is nothing for you to change.');
     await note.getByRole('button', { name: 'OK' }).click();
     const done = page.locator('#gradeNoteDone');
     await expect(done).toHaveText("✓ Your grade's dates are in Your Settings, under Grade.");
@@ -3312,7 +3312,7 @@ test('paycalc: the change of grade is said once — before the day, then never a
     await expect(note, 'said once: this device has been told').toBeHidden();
     // The dates stay where the note said they would be.
     await page.locator('#settingsToggle .card-toggle-arrow').click();
-    await expect(page.locator('#gradeRosterLine')).toHaveText('The roster lists you as CEA until 21 Nov 2026, then CES from 22 Nov 2026.');
+    await expect(page.locator('#gradeRosterLine')).toHaveText('The roster lists you as CEA until 21 November 2026, then CES from 22 November 2026.');
     expect(errors).toHaveLength(0);
 });
 
@@ -4323,7 +4323,7 @@ test('paycalc: the rate badges print in their own colours, RDW included', async 
     expect(paper).toEqual(screen);
 });
 
-// The sheet's header names the payslip as the page does — "Paid 20 Nov 2026" — never "20 Nov 26"
+// The sheet's header names the payslip as the page does — "Paid 20 November 2026" — never "20 Nov 26"
 // (17 Nov 2026): the result card and the picker both spell the year out.
 test('paycalc: the printed header names the payday with its whole year', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-11-17T09:00:00Z'));
@@ -4331,7 +4331,7 @@ test('paycalc: the printed header names the payday with its whole year', async (
     await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
     await page.goto('/paycalc.html?payday=2026-11-20');
     await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
-    await expect(page.locator('.app-header')).toHaveAttribute('data-print-line', /^Paid 20 Nov 2026 \(P\d+\) · /);
+    await expect(page.locator('.app-header')).toHaveAttribute('data-print-line', /^Paid 20 November 2026 \(P\d+\) · /);
 });
 
 // ── THE IPHONE AUDIT (7 Nov 2026) ─────────────────────────────────────────────────────────────────

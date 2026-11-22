@@ -20,7 +20,7 @@ const QUIET = () => {
 /** Parse a rendered "£3,122.27" into a number. */
 const poundsOf = (/** @type {string|null} */ s) => parseFloat(String(s ?? '').replace(/[^0-9.]/g, ''));
 
-/** Show the payslip whose option reads `paid` (e.g. "15 Jan 2027"), the way a member picks one. */
+/** Show the payslip whose option reads `paid` (e.g. "15 January 2027"), the way a member picks one. */
 async function showPayslip(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ paid) {
     await expect(page.locator('#periodSelect option').first()).toBeAttached();
     const value = await page.locator('#periodSelect').evaluate((s, label) =>
@@ -51,7 +51,7 @@ test('paycalc: confirming last year\'s premium reprices the January take-home it
         localStorage.setItem('myb_pc_gmiller_hpp_inc_2025_26', '1');   // ticked into the take-home
     });
     await page.goto('/paycalc.html');
-    await showPayslip(page, '15 Jan 2027');
+    await showPayslip(page, '15 January 2027');
     await expect(page.locator('#hppBannerText')).toContainText('Includes estimated Holiday Pay Premium of £1,700.00');
     const before = poundsOf(await page.locator('#netDisplay').textContent());
 
@@ -148,7 +148,7 @@ test('paycalc: with no estimate, confirming last year\'s premium offers it on th
     await seedSession(page);
     await page.addInitScript(QUIET);
     await page.goto('/paycalc.html');
-    await showPayslip(page, '15 Jan 2027');
+    await showPayslip(page, '15 January 2027');
     await expect(page.locator('#hppActiveBanner')).toBeHidden();
 
     await page.locator('#hppCardToggle').click();
@@ -184,7 +184,7 @@ test('paycalc: Move Your Pay Data lists the payslips entered since the page open
     await expect(list, 'opening the card reads what is saved now').toContainText('1 payslip of entered figures');
 
     // And with the card open, an entry elsewhere on the page reaches it too.
-    await showPayslip(page, '25 Sep 2026');
+    await showPayslip(page, '25 September 2026');
     await page.locator('#otH').fill('3');
     await expect(list).toContainText('2 payslips of entered figures');
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
