@@ -49,7 +49,7 @@
     gap: 8px;
     padding: 7px 9px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;   /* the guides' card corner (guide-pages.md); paper keeps 6px */
     background: var(--card);
     box-shadow: 0 1px 3px rgba(0, 30, 60, 0.05);   /* subtle lift (v18.80) */
 }
@@ -92,7 +92,7 @@
     gap: 8px;
     padding: 8px 10px;
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 12px;   /* the guides' card corner; paper keeps 6px */
     font-size: 11.5px;
     color: var(--mid);
     background: var(--card);
@@ -228,4 +228,7 @@
 @media screen {
     .feature-desc, .badge-desc, .nav-tip, .install-steps, .marker { font-size: var(--type-label); }
     .install-os { font-size: var(--type-small); }
+    /* The tips' grid ran straight into the paragraph under it, the one grid here with no gap below it
+       (Nov 2026). Screen only: the printed sheets have ~7px to spare. */
+    .nav-grid + p { margin-top: 8px; }
 }

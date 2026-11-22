@@ -236,7 +236,10 @@ td strong { color: var(--navy); }
 /* ── Body copy ───────────────────────────────────────── */
 p { font-size: 12.5px; color: var(--mid); margin-bottom: 8px; line-height: 1.55; }
 p strong, li strong { color: var(--text); }
-code { background: var(--card-fill); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; border: 1px solid var(--border); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--navy); }
+/* A code chip is Inter, its figures one width ("1257L", "06:20", "@1.25"), in the chip it always had (owner,
+   Nov 2026): a system monospace is Consolas on the station PC — a second typeface on a one-typeface app, and
+   paycalc.css's paste box made the same move. */
+code { background: var(--card-fill); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; border: 1px solid var(--border); font-family: inherit; font-variant-numeric: tabular-nums; color: var(--navy); }
 
 /* ── Mobile: single column (screen only — print keeps two cols) ── */
 @media screen and (max-width: 640px) {
