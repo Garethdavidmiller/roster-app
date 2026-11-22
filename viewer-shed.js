@@ -17,7 +17,7 @@
  * session.js), or the viewer's own persistence at unlock (`setViewerPersistence`, firebase-client.js).
  */
 
-import { auth, signOut as firebaseSignOut, restoreMemberPersistence } from './firebase-client.js';
+import { auth, signOut as firebaseSignOut, restoreMemberPersistence, letViewerWritesGo } from './firebase-client.js';
 import { isViewerUser } from './calendar-access-core.js';
 
 /**
@@ -70,6 +70,9 @@ export async function shedCalendarViewer() {
     // viewer into IndexedDB — where it outlives the browser session, which is the one property that
     // makes unlocking a shared office PC safe in the first place. This is the ONLY ordering that is
     // correct here and it is not obvious from either call on its own.
+    // The viewer's queued writes get a moment to leave first (`letViewerWritesGo`, which says why).
+    await letViewerWritesGo();
+    if (auth.currentUser !== u) return shedCalendarViewer();   // the identity moved during the wait: decide afresh
     try {
         await firebaseSignOut(auth);
     } catch (err) {

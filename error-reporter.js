@@ -166,12 +166,28 @@ function _hiddenText(ms) {
 }
 
 /**
+ * The own-saves half of the diagnostic line, for one save (22 Nov 2026): whether the save waited for
+ * this device's earlier saves to reach the server first, how long, and how that ended
+ * (`trackOwnWritesWaits`, slow-save.js; the wait is `ownWritesSent`, claim-retry.js). "ran out" is the
+ * eight-second limit: the save was then held as a batch, or refused if it removed something. Nothing
+ * at all when no wait ended during the save — a save that checks nothing never waits — so the
+ * field's absence is a finding too. Begins with its own separator for that reason.
+ * @param {unknown} w  `{ ms, outcome, count }`, or null
+ */
+function _ownWritesText(w) {
+    const o = /** @type {any} */ (w);
+    if (!o || typeof o.ms !== 'number' || !Number.isFinite(o.ms)) return '';
+    const several = typeof o.count === 'number' && o.count > 1 ? ` (${o.count} waits)` : '';
+    return ` · own-saves wait ${(o.ms / 1000).toFixed(1)}s, ${o.outcome}${several}`;
+}
+
+/**
  * Record a save the SERVER took longer than SLOW_SAVE_MS to confirm while the browser said it was
  * ONLINE (v24.54). Not an error: a DIAGNOSTIC, written to the one log the admin can already read.
  * It exists because an installed iPhone app took longer than that on every week-grid save with full
  * signal, and nothing recorded which part was slow or on what. An offline-when-slow save is the
  * expected case and is not recorded. Same fields as any error, so the rules need nothing new.
- * @param {{ id?: number, ms?: number, hiddenMs?: number|null, onlineWhenSlow?: boolean, batched?: boolean, ok?: boolean }} d
+ * @param {{ id?: number, ms?: number, hiddenMs?: number|null, ownWrites?: unknown, onlineWhenSlow?: boolean, batched?: boolean, ok?: boolean }} d
  */
 function _reportSlowSave(d) {
     try {
@@ -181,6 +197,6 @@ function _reportSlowSave(d) {
         _slowSavesLogged++;
         const installed = !!(window.matchMedia?.('(display-mode: standalone)')?.matches || /** @type {any} */ (navigator).standalone);
         // "fail", not "refuse" (v24.57): a save can also end on the device — abandoned by a sign-out.
-        _report(`${DIAGNOSTIC_PREFIX}: the save took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'fail' : 'be confirmed'} — a ${d.batched ? 'batched ' : ''}save while the phone said it was online · ${_hiddenText(d.hiddenMs)} · ${token} · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
+        _report(`${DIAGNOSTIC_PREFIX}: the save took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'fail' : 'be confirmed'} — a ${d.batched ? 'batched ' : ''}save while the phone said it was online · ${_hiddenText(d.hiddenMs)} · ${token}${_ownWritesText(d.ownWrites)} · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
     } catch { /* never surface a secondary error from the reporter */ }
 }

@@ -1650,11 +1650,13 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     // …and it LEFT A RECORD (v24.54): a save slower than the threshold while the browser said it was
     // online is written to the admin's Error Log, so a phone whose every save is slow says so — and it
     // says how much of the wait the page spent in the background (v25.87): this one never left the
-    // screen, so the wait was the server's, the reading an iPhone report could not give.
+    // screen, so the wait was the server's, the reading an iPhone report could not give. And it says how
+    // the checked save's wait for this device's own earlier saves went (22 Nov 2026): nothing queued
+    // here, so it drained at once — three iPhone reports of exactly 8.1s could not say whether it had.
     await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => /^Slow save \(diagnostic\)/.test(w.data?.message ?? ''))
         .map((/** @type {any} */ w) => w.data.message)), { timeout: 5000 })
-        .toEqual([expect.stringMatching(/took \d+\.\ds to be confirmed — a save while the phone said it was online · on screen throughout · sign-in token \d+\.\ds · /)]);
+        .toEqual([expect.stringMatching(/took \d+\.\ds to be confirmed — a save while the phone said it was online · on screen throughout · sign-in token \d+\.\ds · own-saves wait 0\.\ds, drained · installed app: /)]);
 });
 
 test('admin: a slow save says "Waiting for signal" only when the browser reports being offline (v24.54)', async ({ page, context }) => {
