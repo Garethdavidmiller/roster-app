@@ -251,6 +251,26 @@ export function canOpenNewlink(member) {
 }
 
 /**
+ * The drawer's pill gates for this member — the four `initNavPanel` options `PILL_GATES`
+ * (nav-destinations.js) reads. EVERY page spreads this rather than building its own: ten pages built
+ * the four by hand in four styles, which is how one page once passed `canOpenOvertime: !!member` and
+ * drew the paused Overtime pill for every member. One answer, here, beside the page policy it must
+ * agree with — `nav-gates.test.mjs` holds the pills it draws to what `requirePage` admits, for every
+ * member and both directions. `null` (signed out, or the staff PIN) gets every gate false. UX only.
+ * @param {string|null|undefined} member
+ * @returns {{ isAdmin: boolean, isLinksDesigner: boolean, canOpenOvertime: boolean, canOpenNewlink: boolean }}
+ */
+export function navGatesFor(member) {
+    const r = rolesFor(member);
+    return {
+        isAdmin:         r.admin,
+        isLinksDesigner: r.designer,
+        canOpenOvertime: canOpenOvertime(member),
+        canOpenNewlink:  canOpenNewlink(member),
+    };
+}
+
+/**
  * Is Overtime switched on at all? `CONFIG.OVERTIME_ENABLED` (paused, owner, Nov 2026).
  *
  * The ONE reading of the switch on the client: `canOpenOvertime` consults it, so the pill leaves

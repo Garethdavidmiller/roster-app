@@ -62,7 +62,7 @@ describe('calendarDrawerOptions — the drawer a session gets', () => {
         assert.equal(o?.isAdmin, false);
         assert.equal(o?.isLinksDesigner, false);
         assert.equal(o?.currentPage, 'calendar');
-        assert.equal(o?.onLockCalendar?.isViewer, deps.isViewer, 'the PIN\'s Lock Calendar is offered either way, read at open');
+        assert.equal(o?.onLockCalendar?.isViewer, deps.isViewer, 'the PIN\'s End staff PIN is offered either way, read at open');
     });
 
     test('a member: their name, and a Sign out that runs the page\'s own sign-out', () => {

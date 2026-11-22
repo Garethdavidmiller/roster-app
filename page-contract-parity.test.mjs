@@ -40,7 +40,8 @@ const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.ur
 // (service worker, auth policy, nav, rules, reports, guide back-arrow), which cannot read the list
 // because the app has no build step.
 import { APP_PAGES as APP_PAGE_ENTRIES, GUIDE_PAGES, REDIRECT_PAGES, servedFiles, cardPageFiles, appPage } from './scripts/app-pages.mjs';
-import { admitsStaffPin } from './auth-policy.js';
+import { admitsStaffPin, PAGE_POLICIES } from './auth-policy.js';
+import { NAV_PAGES, PILL_GATES } from './nav-destinations.js';
 
 const GUIDES = new Set(GUIDE_PAGES.map(p => p.file));
 const LEGACY_REDIRECTS = new Set(REDIRECT_PAGES.map(p => p.file));
@@ -487,10 +488,9 @@ test('paycalc\'s local barrier is itself driven by the session, not merely named
 test('every app page has a nav pill, so the drawer is a complete map', () => {
     // The drawer renders the CURRENT page as an inert pill rather than omitting it, which is what
     // keeps the row the same shape everywhere. A page with no entry breaks that on its own surface.
-    const nav = read('./nav-panel.js');
     const pageIds = APP_PAGES.map(pageIdOf);
-    const missing = pageIds.filter(id => !nav.includes(`id: '${id}'`));
-    assert.deepEqual(missing, [], 'page ids with no NAV_PAGES entry');
+    const missing = pageIds.filter(id => !NAV_PAGES.some(p => p.id === id));
+    assert.deepEqual(missing, [], 'page ids with no NAV_PAGES entry (nav-destinations.js)');
 });
 
 test('the station PIN is asked for where the policy admits it, and nowhere else (v24.84)', () => {
@@ -517,62 +517,40 @@ test('the station PIN is asked for where the policy admits it, and nowhere else 
 
 test('a role-gated pill is gated from EVERY coordinator, not just its own page', () => {
     // The bug this exists for, found by the owner rather than by this suite. `NAV_PAGES` filters the
-    // Overtime pill on an `isOvertimeReviewer` option — and exactly one of the seven coordinators
-    // that call `initNavPanel` passed it. Everywhere else it defaulted to false, so the pill showed
-    // only on the Overtime page itself: the one page you are already on. The feature was reachable
-    // by typing its URL and by nothing else.
+    // Overtime pill on an option — and exactly one of the seven coordinators that call `initNavPanel`
+    // passed it. Everywhere else it defaulted to false, so the pill showed only on the Overtime page
+    // itself: the one page you are already on. Ten pages then built the four gates by hand, in four
+    // styles, and one handed Trains `canOpenOvertime: !!member` — the paused pill for every member.
     //
-    // The test above passes on precisely that code, because a pill EXISTING and a pill being
-    // REACHABLE are different claims and it only ever checked the first. That is the same shape as
-    // every other defect this suite was written for — a hand-maintained list going green by not
-    // being looked at — so the miss belongs here rather than in a comment somewhere.
-    const nav = read('./nav-panel.js');
-    // Derive the gate names from the filter chain itself, so a fourth gate added later is covered
-    // without anyone remembering to extend this list.
-    const gates = [...nav.matchAll(/\.filter\(p => !p\.(\w+) \|\| (\w+)\)/g)].map(m => ({ flag: m[1], option: m[2] }));
-    assert.ok(gates.length >= 3, `expected the NAV_PAGES gate chain, found ${gates.length}`);
+    // Now the gates are ONE function, `navGatesFor` (auth-policy.js), and every drawer a page draws
+    // spreads it. What the function ANSWERS is nav-gates.test.mjs's (the pills drawn against what the
+    // page policy admits, for every member); this checks that every call HANDS IT OVER, and that no
+    // call then overrides a gate by hand after the spread.
+    const gateOptions = Object.values(PILL_GATES);
+    assert.ok(gateOptions.length >= 4, `expected the four pill gates, read ${gateOptions}`);
+    const overrides = new RegExp(`(^|[\\s,{])(${gateOptions.join('|')})\\s*[:,}]`);
 
-    /**
-     * The OPTIONS OBJECT of each `initNavPanel({ … })` call, by brace-matching from the call.
-     *
-     * Not a file-wide regex. The first cut searched the whole module for `option:` and reported
-     * links-app.js as a hole — where `isAdmin` is passed as ES6 property SHORTHAND and is perfectly
-     * correct. A guard that cries wolf on valid code gets an exemption list and then stops guarding,
-     * which is the failure mode this whole suite exists to avoid.
-     */
-    const callers = readdirSync(new URL('.', import.meta.url))
-        .filter(f => f.endsWith('-app.js'))
-        .map(f => ({ file: f, src: read(`./${f}`) }))
-        .filter(c => c.src.includes('initNavPanel({'))
-        // EVERY call in the file, not the first (7 Nov 2026 review). The Pay Calculator draws its
-        // drawer twice — a rare unsupported-role path first, then the one every member gets — and
-        // reading only the first left the second unguarded: removing a gate from it stayed green.
-        .flatMap(c => optionsObjectsAfter(c.src, 'initNavPanel({').map((opts, i) => ({ file: i ? `${c.file} (call ${i + 1})` : c.file, opts })));
-    assert.ok(new Set(callers.map(c => c.file.split(' ')[0])).size >= 7, `expected every page coordinator, found ${callers.length}`);
-
-    // An option that NAMES a policy function must be handed that function's ANSWER (test audit,
-    // 7 Nov 2026). Passing the key was all this checked, so `canOpenOvertime: !!member` on Trains — the
-    // pill drawn for any signed-in member while Overtime is paused — stayed green, and so would the
-    // shorthand `canOpenOvertime,`, which hands over the function itself: always truthy.
-    const policyFns = new Set([...read('./auth-policy.js').matchAll(/^export function (\w+)\(/gm)].map(m => m[1]));
-    assert.ok(gates.filter(g => policyFns.has(g.option)).length >= 2,
-        'no gate option is an auth-policy function any more — the value check below would check nothing');
+    /** @type {Array<{ file: string, opts: string }>} */
+    const drawers = [];
+    for (const file of readdirSync(new URL('.', import.meta.url)).filter(f => f.endsWith('-app.js') || f === 'calendar-drawer.js').sort()) {
+        const src = codeOnly(read(`./${file}`));
+        const calls = src.split('initNavPanel(').length - 1;
+        if (!src.includes('initNavPanel(')) continue;
+        // A literal options object at the call, or — the Calendar — one built by calendarDrawerOptions.
+        const literal = optionsObjectsAfter(src, 'initNavPanel({');
+        const built = (src.match(/initNavPanel\(calendarDrawerOptions\(/g) || []).length;
+        assert.equal(literal.length + built, calls, `${file}: an initNavPanel call that is neither a literal options object nor calendarDrawerOptions — read it`);
+        literal.forEach((opts, i) => drawers.push({ file: i ? `${file} (call ${i + 1})` : file, opts }));
+        if (built) drawers.push({ file: `${file} (calendarDrawerOptions)`, opts: optionsObjectAfter(src, 'return {', src.indexOf('export function calendarDrawerOptions')) });
+    }
+    assert.ok(new Set(drawers.map(d => d.file.split(' ')[0])).size >= 9, `expected every page's drawer, found ${drawers.map(d => d.file)}`);
 
     /** @type {string[]} */
     const holes = [];
-    for (const { flag, option } of gates) {
-        // Every coordinator needs the option, not only the gated page's own: ANY page can render the
-        // drawer that contains the gated pill, so a coordinator that omits it hides the destination
-        // from its own surface.
-        assert.ok(nav.includes(`${flag}: true`), `no NAV_PAGES entry uses ${flag}`);
-        for (const { file, opts } of callers) {
-            // `key:` or bare shorthand `key,` / `key }` — both are passing it.
-            if (!new RegExp(`(^|[\\s,{])${option}\\s*[:,}]`).test(opts)) {
-                holes.push(`${file} never passes \`${option}\` — the ${flag} pill is invisible there`);
-            } else if (policyFns.has(option) && !new RegExp(`(^|[\\s,{])${option}\\s*:\\s*${option}\\(`).test(opts)) {
-                holes.push(`${file} passes \`${option}\` without calling \`${option}(…)\` — the ${flag} pill no longer asks the policy`);
-            }
-        }
+    for (const { file, opts } of drawers) {
+        if (!/\.\.\.navGatesFor\(/.test(opts)) holes.push(`${file} does not spread navGatesFor(…) — its gated pills are invisible there, or hand-built`);
+        const own = overrides.exec(opts);
+        if (own) holes.push(`${file} sets \`${own[2]}\` itself — the pill gates are navGatesFor's (auth-policy.js) alone`);
     }
     assert.deepEqual(holes, [], `\n  ${holes.join('\n  ')}\n`);
 });
@@ -666,23 +644,16 @@ test("a pill's GATE and the page policy's ROLE agree — in both directions", ()
     // Deliberately checks the CORRESPONDENCE, not the values: which role maps to which gate is a
     // product decision that changes (Overtime's list collapses at full launch), but "role-gated
     // page ⇔ gated pill" is the invariant underneath it and does not.
-    const nav    = read('./nav-panel.js');
-    const policy = read('./auth-policy.js');
-
     // Page ids that carry a role in PAGE_POLICIES — i.e. not every named member may be there.
-    const policiesBlock = policy.slice(policy.indexOf('PAGE_POLICIES = Object.freeze({'));
-    const roleGated = new Set(
-        [...policiesBlock.matchAll(/^\s{4}(\w+):\s*\{[^}]*role:\s*\[/gm)].map(m => m[1]));
+    const roleGated = new Set(Object.keys(PAGE_POLICIES).filter(id => PAGE_POLICIES[id].role?.length));
     assert.ok(roleGated.size >= 3,
         `expected several role-gated pages in PAGE_POLICIES, found ${[...roleGated]}`);
 
-    // Page ids whose NAV_PAGES entry carries one of the flags the filter chain applies.
-    const gateFlags = [...nav.matchAll(/\.filter\(p => !p\.(\w+) \|\| \w+\)/g)].map(m => m[1]);
-    assert.ok(gateFlags.length >= 3, `expected the NAV_PAGES gate chain, found ${gateFlags.length}`);
-    const navEntries = [...nav.matchAll(/\{\s*id:\s*'(\w+)'[^}]*\}/g)];
-    const navIds   = new Set(navEntries.map(m => m[1]));
-    const navGated = new Set(navEntries.filter(m => gateFlags.some(f => m[0].includes(`${f}: true`)))
-                                       .map(m => m[1]));
+    // Page ids whose NAV_PAGES entry carries one of the gate flags (nav-destinations.js → PILL_GATES).
+    const gateFlags = Object.keys(PILL_GATES);
+    assert.ok(gateFlags.length >= 3, `expected the NAV_PAGES gate flags, found ${gateFlags.length}`);
+    const navIds   = new Set(NAV_PAGES.map(p => p.id));
+    const navGated = new Set(NAV_PAGES.filter(p => gateFlags.some(f => /** @type {any} */ (p)[f])).map(p => p.id));
     assert.ok(navGated.size >= 3, `expected several gated pills, found ${[...navGated]}`);
 
     // `guides` and `paycalc` have policies but no pill of their own, so only ids present in BOTH

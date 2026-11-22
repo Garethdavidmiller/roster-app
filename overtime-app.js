@@ -20,7 +20,7 @@ import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every in
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay, sayStaffPinEndedIn } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer, canOpenOvertime, canOpenNewlink, overtimeEnabled } from './auth-policy.js';
+import { requirePage, isOvertimeReviewer, navGatesFor, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -123,9 +123,7 @@ export function init() {
             canReadDocuments: () => !!currentUser,
             currentPage: 'overtime',
             memberName: currentUser,
-            isAdmin: !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser),
-            isLinksDesigner: !!currentUser && CONFIG.LINKS_DESIGNERS.includes(currentUser),
-            canOpenOvertime: canOpenOvertime(currentUser), canOpenNewlink: canOpenNewlink(currentUser),
+            ...navGatesFor(currentUser),   // the pill gates (auth-policy.js); all false signed out
             // An unsaved availability form is asked about BEFORE anything is released (page-session.js).
             beforeSignOut: currentUser ? askBeforeSignOut(() => !!currentForm?.isDirty()) : null,
             onSignOut: currentUser ? () => signOutAndLeave() : null,

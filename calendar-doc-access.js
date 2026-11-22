@@ -18,7 +18,7 @@
  *   · It opens on a FULL access grant — `named` or `viewer`. (A third, anonymous `open` grant
  *     existed while the staff PIN could be switched off; that switch was retired v24.34.)
  *   · It closes when access is LOST mid-session (a permission-denied override read, an expired
- *     viewer session). A deliberate "Lock Calendar" reloads the page, so the default applies.
+ *     viewer session). A deliberate "End staff PIN" reloads the page, so the default applies.
  *
  * Those are the moments the roster reads open and close too, and that is by construction: THIS
  * MODULE KEEPS NO ANSWER OF ITS OWN, AND CANNOT CHANGE THE ONE THERE IS. `hasDocumentAccess` asks

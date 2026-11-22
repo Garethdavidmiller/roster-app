@@ -173,7 +173,7 @@ function _recordOrigin(identity) {
  * unlike the active-account metric. Item ids (also allowlisted in firestore.rules):
  *   'huddle' | 'circular' | 'newsletter'
  *   'guide-staff' | 'guide-paycalc' | 'guide-railcard' | 'guide-rangers' | 'guide-fip'
- * The guide ids come from NAV_GUIDES in nav-panel.js, which stamps each one onto its own
+ * The guide ids come from NAV_GUIDES in nav-destinations.js; nav-panel.js stamps each one onto its own
  * link — never matched from the href here: './paycalc-guide.html'.includes('guide.html') is true,
  * `guide.html` was the Staff Guide's filename until v22.47, and a substring test therefore counted
  * the Pay Calculator Guide as the Staff Guide. The rename ended that particular collision; the id

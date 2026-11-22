@@ -29,13 +29,12 @@
  * Who is signed in is read from the SAVED SESSION, never from the name chosen in the picker: on the
  * station PC the picker is whichever row was chosen last, and the drawer's identity is also the
  * usage counters' admin exclusion (usage-reporter.js has the reasoning). A PIN viewer has no session,
- * so the drawer has no name, no Sign out and no admin pills — "Lock Calendar" is theirs instead.
+ * so the drawer has no name, no Sign out and no admin pills — "End staff PIN" is theirs instead.
  */
 
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { getSession } from './session.js';
-import { CONFIG } from './roster-data.js';
-import { canOpenOvertime, canOpenNewlink } from './auth-policy.js';   // pill gating only — never a boundary
+import { navGatesFor } from './auth-policy.js';   // pill gating only — never a boundary
 
 /**
  * The page hooks the drawer is wired to. They do not depend on who is signed in, so a rebuild reuses
@@ -47,7 +46,7 @@ import { canOpenOvertime, canOpenNewlink } from './auth-policy.js';   // pill ga
  * @property {() => void} onSignOut     the page's sign-out (`signOutAndLeave`)
  * @property {() => boolean} isViewer   the shared staff PIN is open — read when the drawer OPENS,
  *                                      because access resolves after the drawer is built
- * @property {() => void|Promise<void>} lock   "Lock Calendar"
+ * @property {() => void|Promise<void>} lock   "End staff PIN"
  * @property {() => boolean} canReadDocuments  may the drawer's two document links read? (v23.17)
  */
 
@@ -65,14 +64,11 @@ export function calendarDrawerOptions(session, deps) {
         // Also the drawer's open-counter exclusion identity: the SESSION only, never the selected
         // member (v25.00) — see the module header.
         memberName: name,
-        isAdmin: !!name && CONFIG.ADMIN_NAMES.includes(name),
-        isLinksDesigner: !!name && CONFIG.LINKS_DESIGNERS.includes(name),
-        canOpenOvertime: canOpenOvertime(name ?? undefined),
-        canOpenNewlink: canOpenNewlink(name ?? undefined),
+        ...navGatesFor(name),   // the pill gates (auth-policy.js); all false locked or on the staff PIN
         onLogoClick: deps.onLogoClick,
         // No session, no Sign out: the drawer then renders no member footer at all.
         onSignOut: name ? () => deps.onSignOut() : null,
-        // "Lock Calendar" — PIN viewers only, and the drawer is the right home for it: it is a
+        // "End staff PIN" — PIN viewers only, and the drawer is the right home for it: it is a
         // leaving-the-desk action, not a Calendar control, and in the header every member would have a
         // button they can never use. `isViewer` is a thunk read when the drawer opens.
         onLockCalendar: { isViewer: deps.isViewer, lock: deps.lock },

@@ -63,7 +63,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, holdsStaffPin, signOutStaffPin } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
-import { requirePage, canOpenOvertime, canOpenNewlink, admitsStaffPin } from './auth-policy.js';
+import { requirePage, navGatesFor, admitsStaffPin } from './auth-policy.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
@@ -159,9 +159,7 @@ function start(member) {
         authReady: member ? sessionReady : Promise.resolve(),
         currentPage: 'trains',
         memberName: member,
-        isAdmin,
-        isLinksDesigner: !!member && CONFIG.LINKS_DESIGNERS.includes(member),
-        canOpenOvertime: canOpenOvertime(member), canOpenNewlink: canOpenNewlink(member),
+        ...navGatesFor(member),   // the pill gates (auth-policy.js); all false for the staff PIN
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut: member ? () => signOutAndLeave({ to: './' }) : null,
         onLockCalendar: member ? null : { isViewer: () => true, lock: lockStaffPin },

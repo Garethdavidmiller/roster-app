@@ -31,7 +31,6 @@ import { hasPendingUpdate } from './sw-register.js';
  *
  * @param {object} [opts]
  * @param {string}   [opts.appLabel='Marylebone Roster'] - App name used in the bug-report subject/body
- * @param {string}   [opts.bugLinkId='bugReportLink'] - id of the bug-report <a> in this page's markup
  * @param {Function} [opts.getUserName] - Returns who is reporting, for the bug report's User line:
  *                                        the signed-in user's name (the Calendar also says how it was
  *                                        opened without one); omit on pages without a session (no
@@ -45,13 +44,14 @@ import { hasPendingUpdate } from './sw-register.js';
  *                                        #lightboxPrintBtn (e.g. calendar's landscape team print)
  * @returns {{ open: () => void, close: () => void }|null}
  */
-export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 'bugReportLink', getUserName, getReportLines, onOpen, printFn } = {}) {
+export function initAboutLightbox({ appLabel = 'Marylebone Roster', getUserName, getReportLines, onOpen, printFn } = {}) {
     const lightbox = document.getElementById('iconLightbox');
     if (!lightbox) return null;
     const content  = document.getElementById('iconLightboxContent');
     const closeBtn = document.getElementById('iconLightboxClose');
     const statusEl = document.getElementById('lightboxUpdateStatus');
-    const bugLink  = /** @type {HTMLAnchorElement|null} */ (document.getElementById(bugLinkId));
+    // Every page's panel uses the same ids (about-markup-parity.test.mjs holds them to this list).
+    const bugLink  = /** @type {HTMLAnchorElement|null} */ (document.getElementById('bugReportLink'));
 
     const versionEl = document.getElementById('lightboxVersion');
     if (versionEl) versionEl.textContent = APP_VERSION;
@@ -120,7 +120,7 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
     // Bug link opens the mail app — must not bubble to the backdrop close check.
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 
-    // A PAGE LINK REPLACES THE PANEL'S HISTORY ENTRY (18 Nov 2026) — "View staff roster", a guide, Admin,
+    // A PAGE LINK REPLACES THE PANEL'S HISTORY ENTRY (18 Nov 2026) — "Calendar" (it read "View staff roster" until 21 Nov 2026), a guide, Admin,
     // Operations: followed as plain links, the page they opened sat on top of the panel's own entry, and one
     // Back from it landed on a step of this page that nothing answered (`followLinkOutOf`, overlay.js, says
     // why). On the PANEL, so every page's links are covered. The unsaved-work question still comes first: it

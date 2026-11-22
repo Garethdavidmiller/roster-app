@@ -249,7 +249,7 @@ describe('signing out', () => {
         inFlight = 1;
         confirmAnswer = false;
         assert.equal(await ps.askBeforeSignOut(() => false)(), false, 'a Cancel keeps the session so the save can land');
-        assert.match(lastConfirm, /still be on its way/);
+        assert.match(lastConfirm, /A change is still saving — if you sign out now it may be lost/);
         assert.doesNotMatch(lastConfirm, /unsaved/);
         await ps.askBeforeSignOut(() => true)();
         assert.match(lastConfirm, /unsaved changes/, 'with both, the one question names both');
@@ -453,7 +453,7 @@ describe('back/forward cache', () => {
 
 // ── LEAVING BY A LINK THE APP DRAWS (iPhone audit, Nov 2026) ─────────────────────────────────────
 // A phone never shows the browser's "Leave site?", so these are the only question an iPhone gets.
-// The About panel's links joined the drawer's: Admin's "View staff roster" left staged edits behind
+// The About panel's links joined the drawer's: Admin's "Calendar" link (once "View staff roster") left staged edits behind
 // without one, because the guard looked for `.nav-panel` alone.
 describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', () => {
     /** A tap on a link at `href`, inside `zone` ('.nav-panel', '#iconLightbox', or neither). `click`

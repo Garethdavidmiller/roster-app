@@ -325,8 +325,9 @@ describe('the callers hand over the SESSION as the identity that excludes (v25.0
         assert.doesNotMatch(call[1], /getCurrentMember/, 'never the selected member');
         assert.match(call[2], /getCurrentMember\(\)/, 'the selection is the dedup key, second');
     });
-    test('the drawer, the document viewer and the Huddle viewer count opens against the session', () => {
-        assert.match(src('nav-panel.js'), /const _usageId = memberName;/);
+    // The drawer's own opens are pinned by BEHAVIOUR: nav-panel.test.mjs records `recordOpen` and asserts a
+    // Circular opened from the drawer is counted once, against the signed-in name, and a failed open not at all.
+    test('the document viewer and the Huddle viewer count opens against the session', () => {
         for (const f of ['calendar-doc-viewer.js', 'calendar-huddle-viewer.js']) {
             const calls = [...src(f).matchAll(/recordOpen\([^,]+,\s*([^)]*\)[^)]*)\)/g)].map(m => m[1]);
             assert.ok(calls.length, `${f}: no recordOpen call found`);

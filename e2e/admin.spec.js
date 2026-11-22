@@ -524,7 +524,7 @@ test('admin: the Calendar pill opens the Calendar on the month being edited, a f
 });
 
 // ── THE ABOUT PANEL'S LINKS ASK TOO (iPhone audit, Nov 2026) ─────────────────────────────────────
-// "View staff roster" and "Staff & Admin Guide" sit in the About panel (#iconLightbox), outside the
+// "Calendar" and "Staff & Admin Guide" sit in the About panel (#iconLightbox), outside the
 // drawer, and the in-page question looked for drawer links alone — so on an iPhone, where the browser
 // never asks, either one left staged rows behind without a word. Report a bug is mail, and leaves
 // nothing behind, so it never asks.
@@ -540,16 +540,16 @@ test('admin: with staged edits, the About panel\'s links ask before leaving — 
     await expect(about).toBeVisible();
 
     // Report a bug: no question. The mail app is kept shut and the tap is recorded as having arrived.
-    await page.locator('#adminBugReportLink').evaluate((el) => el.addEventListener('click', (e) => {
+    await page.locator('#bugReportLink').evaluate((el) => el.addEventListener('click', (e) => {
         e.preventDefault(); /** @type {any} */ (window).__bugTapped = true;
     }));
-    await page.locator('#adminBugReportLink').click();
+    await page.locator('#bugReportLink').click();
     expect(await page.evaluate(() => /** @type {any} */ (window).__bugTapped), 'the tap reached the link').toBe(true);
     await expect(page.locator('.dialog-overlay'), 'mail leaves the page where it is').toHaveCount(0);
 
-    // View staff roster: asked, and Cancel keeps the page and the edit.
+    // Calendar: asked, and Cancel keeps the page and the edit.
     const question = page.getByText('You have unsaved changes. Leave this page anyway?');
-    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await about.getByRole('link', { name: 'Calendar', exact: true }).click();
     await expect(question).toBeVisible();
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(question).toBeHidden();
@@ -559,7 +559,7 @@ test('admin: with staged edits, the About panel\'s links ask before leaving — 
     // Leave goes — stopped at the network and read from the request, as the drawer test above does.
     const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
     await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
-    await about.getByRole('link', { name: 'View staff roster' }).click();
+    await about.getByRole('link', { name: 'Calendar', exact: true }).click();
     await page.getByRole('button', { name: 'Leave', exact: true }).click({ noWaitAfter: true });
     expect(new URL((await leaving).url()).pathname, 'Leave follows the link').toBe('/');
 });

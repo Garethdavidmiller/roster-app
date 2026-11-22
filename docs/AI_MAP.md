@@ -354,8 +354,8 @@ The auth store: the one identity state, reduced by `auth-state-core.js`. Only `s
 - **Exports:** `getAuthSnapshot` · `subscribeAuth` · `dispatchAuth` · `_resetAuthStateForTest`
 
 ### `auth-policy.js`
-Page authorisation — may this identity be on this page? — from one policy map, and the one answer to where the staff PIN may go. Client UX only: Firestore rules and the Functions' claim checks are the boundary. Holds `isOvertimeReviewer` and `canOpenOvertime` apart (`AUTH_AND_SESSIONS.md` 14). Tested by `auth-policy.test.mjs`, `newlink-config.test.mjs` and `page-contract-parity.test.mjs`.
-- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `admitsStaffPin` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `overtimeEnabled` · `requirePage`
+Page authorisation — may this identity be on this page? — from one policy map, and the one answer to where the staff PIN may go. Client UX only: Firestore rules and the Functions' claim checks are the boundary. Holds `isOvertimeReviewer` and `canOpenOvertime` apart (`AUTH_AND_SESSIONS.md` 14), and answers the drawer's pill gates for every page (`navGatesFor`). Tested by `auth-policy.test.mjs`, `newlink-config.test.mjs`, `nav-gates.test.mjs` and `page-contract-parity.test.mjs`.
+- **Exports:** `DECISIONS` · `PAGE_POLICIES` · `admitsStaffPin` · `requirePageAuth` · `rolesFor` · `isOvertimeReviewer` · `canOpenOvertime` · `canOpenNewlink` · `navGatesFor` · `overtimeEnabled` · `requirePage`
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin only): the access gate, the session, the deep-linked cards, the update hold while work is in flight, and the wiring of every Operations card. Owns two cards itself, Account status and Password reset requests. Capped by `coordinator-ratchet.test.mjs`.
@@ -788,8 +788,8 @@ The two opt-in money banners on the result card, back pay and the Holiday Pay Pr
 - **Exports:** `backPayBannerCopy` · `hppBannerCopy` · `paintBanner`
 
 ### `paycalc-lightboxes.js`
-The overlays on `paycalc.html`: About, Help, the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). Tested by `paycalc-notice-order.test.mjs`.
-- **Exports:** `initPaycalcLightboxes`
+The overlays on `paycalc.html`: About, Help, the decimal hours converter, the data-ownership prompt (`.claude/rules/paycalc.md` invariant 3), the developer-only payslip actuals import, and the page's two one-time notices, Year to Date and then the Holiday Pay Premium, opened LAST through one deferred opener (`showPayNotice`). The About panel and the header logo are also their own call (`initPaycalcAbout`), which the unsupported-role card makes too. Tested by `paycalc-notice-order.test.mjs`; the refusal card's chrome by `e2e/paycalc.spec.js`.
+- **Exports:** `initPaycalcAbout` · `initPaycalcLightboxes`
 
 ### `paycalc-periods.js`
 Period arithmetic and the payslip lists for `paycalc.html`: the period grid (`p.num` is an internal id, never the printed number), the new-starter clamp, the one builder of every payslip list, deep links by payday or month, navigation, and the Year to Date source rules: which payslip may be in hand, offered, stamped, in use, or asked for. Rules: `.claude/rules/paycalc.md` → New-starter visibility clamp and "Year to Date figures are ANCHORED". Tested by `paycalc-periods.test.mjs`.
@@ -991,16 +991,20 @@ The Annual leave sheet's Save on Operations (docs/AL_UPLOADER_PLAN.md §4.7–4.
 What the Weekly Retail Circular and Marylebone Newsletter upload cards on `operations.html` are configured with. The picker, the checks, the upload, the one-at-a-time lock and every outcome's words are `doc-upload.js`'s; why the two configurations left `operations-app.js` is its header.
 - **Exports:** `initDocumentUploadCards`
 
+### `nav-destinations.js`
+Where the drawer can take you, as DATA: the page pills (`NAV_PAGES`), the Latest documents (`NAV_INFORMATION`), the Reference guides (`NAV_GUIDES`), the App Notices section colours (`SECTION_MODS`), the gate each pill flag reads (`PILL_GATES`) and the one pill filter (`visiblePills`). Imports nothing, so the tests IMPORT the lists rather than reading them out of `nav-panel.js` as text; the header says why. The gate values come from `navGatesFor` (`auth-policy.js`). Tested by `nav-gates.test.mjs`, and read by the parity tests that hold the guides, the page colours and the analytics ids to it.
+- **Exports:** `NAV_PAGES` · `NAV_INFORMATION` · `NAV_GUIDES` · `SECTION_MODS` · `PILL_GATES` · `visiblePills`
+
 ### `nav-panel.js`
-The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). Its decisions — the three zones, pills filtered rather than refused, sign-out's order, the bell, App Notices and the drawer's one history entry shared by its two lightboxes — are `.claude/rules/nav-drawer.md`; the reasoning is the header and beside the code. It re-exports the App Notices calls from `notice-archive.js`. Tested by `nav-panel.test.mjs`; capped by `coordinator-ratchet.test.mjs`.
-- **Exports:** `archiveNotice` · `isNoticeExpired` · `resetNavPanel` · `initNavPanel`
+The slide-out drawer every app page carries: it injects the overlay and drawer, wires the burger (`#navMenuBtn`), and renders the footer (initials badge, notification bell, Sign out). What it lists is `nav-destinations.js`'s; its decisions — the three zones, pills filtered rather than refused, sign-out's order, the bell, App Notices and the drawer's one history entry shared by its two lightboxes (one lifecycle, `_drawerLightbox`) — are `.claude/rules/nav-drawer.md`; the reasoning is the header and beside the code. Tested by `nav-panel.test.mjs`; capped by `coordinator-ratchet.test.mjs`.
+- **Exports:** `resetNavPanel` · `initNavPanel`
 
 ### `newsletter-recency.js`
 Whether the ☰ menu offers the Marylebone Newsletter: only while its latest issue is under six weeks old (owner, 14 Nov 2026). The Calendar asks once per load and the latest issue's date is kept on the device for every page; the rule, and why only the Calendar asks, are its header. Pure apart from `ls.js` — the read is handed in. Tested by `newsletter-recency.test.mjs`; the wiring by `e2e/calendar.spec.js` and `e2e/operations.spec.js`.
 - **Exports:** `NEWSLETTER_RECENT_DAYS` · `NEWSLETTER_LATEST_KEY` · `isRecentIssue` · `newsletterInMenu` · `recordLatestNewsletter` · `noteNewsletterUploaded` · `checkLatestNewsletter`
 
 ### `notice-archive.js`
-The App Notices archive's rules: what a seen one-time notice leaves behind on this device, for how long, and when a notice is too old to show. The drawer only renders it, and `nav-panel.js` re-exports the two calls the pages make; the pattern for using them is the `/new-notice` skill. Imports only `ls.js`. Tested by `notice-archive.test.mjs`, and through the re-export by `nav-panel.test.mjs`.
+The App Notices archive's rules: what a seen one-time notice leaves behind on this device, for how long, and when a notice is too old to show. The drawer only renders it; the pages that archive a notice import the two calls from here, and the pattern for using them is the `/new-notice` skill. Imports only `ls.js`. Tested by `notice-archive.test.mjs`.
 - **Exports:** `isNoticeExpired` · `archiveNotice` · `readArchivedNotices`
 
 ### `notif.js`

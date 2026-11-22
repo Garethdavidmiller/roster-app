@@ -497,7 +497,7 @@ the colliding surfaces are rarely co-visible, and new hues would cost more than 
   low co-visibility.
 
 **Box-shadows are deliberately NOT routed through `--shadow-1/2/3`**: the app stylesheets
-(`shadow-parity.test.mjs` reads them from `scripts/app-pages.mjs`) carry **27** hand-rolled `rgba()` shadows with varied values,
+(`shadow-parity.test.mjs` reads them from `scripts/app-pages.mjs`) carry **26** hand-rolled `rgba()` shadows with varied values,
 and forcing them onto the three presets would visibly restyle depth across the app — a redesign, not
 hygiene. Use the `--shadow-*` tokens for NEW shadows; leave existing ones unless intentionally
 redesigning that surface. **The figure is measured, not remembered** — `shadow-parity.test.mjs` fails

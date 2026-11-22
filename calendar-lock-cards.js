@@ -251,7 +251,7 @@ export function showLockPanel() {
                            inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*"
                            maxlength="${PIN_LENGTH}" enterkeyhint="go" spellcheck="false"
                            aria-describedby="calLockHint" autocapitalize="off">
-                    <p class="login-hint" id="calLockHint">One code for everyone at Marylebone. It opens the live roster — annual leave, absence and shift changes included — in this tab. On a shared computer, choose Lock Calendar in the menu before you leave.</p>
+                    <p class="login-hint" id="calLockHint">One code for everyone at Marylebone. It opens the live roster — annual leave, absence and shift changes included — in this tab. On a shared computer, choose End staff PIN in the menu before you leave.</p>
                 </div>
                 <div role="status" aria-live="polite"><div class="login-error" id="calLockMsg"></div></div>
                 <button id="calLockSubmit" type="submit" disabled>${SUBMIT_LABEL}</button>

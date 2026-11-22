@@ -1651,7 +1651,7 @@ test('guide search: a provisional claim carries its evidence state INTO the resu
 test('guide search: no matches says so, in words', async ({ page }) => {
     const input = await openGuideSearch(page);
     await input.fill('zzzqxv');
-    await expect(page.locator('#navGuideSearchStatus')).toHaveText('No matches in the guides');
+    await expect(page.locator('#navGuideSearchStatus')).toHaveText('No matches in the guides — try a different word');
     await expect(page.locator('#navGuideSearchResults')).toBeHidden();
 });
 
@@ -4428,7 +4428,7 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--newsletter').click();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText("Couldn't connect", { timeout: 10_000 });
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Couldn’t connect', { timeout: 10_000 });
     await expect(page.locator('#navComingSoonLightbox')).not.toContainText('has been uploaded yet');
 });
 
@@ -5629,7 +5629,7 @@ test('App Notices with nothing on this device says where notices appear, not tha
     await page.locator('.nav-panel-link--notices').first().click();
     const empty = page.locator('#navNoticesEmpty');
     await expect(empty).toBeVisible();
-    await expect(empty).toHaveText('Notices you’ve read on this device appear here.');
+    await expect(empty).toHaveText('Notices shown on this device appear here.');
     await expect(empty).not.toContainText('No notices');
 });
 

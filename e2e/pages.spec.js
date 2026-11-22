@@ -982,7 +982,7 @@ test('App Notices: an empty archive shows its message, with no empty list left i
     expect(m.hidden, 'premise: nav-panel.js hides the list of an empty archive').toBe(true);
     expect(m.boxes, 'the hidden list is still laid out').toBe(0);
     expect(Math.round(m.under), 'the message sits one gap under the heading, not two').toBe(m.gap);
-    await expect(page.getByRole('group', { name: /Notices you.ve read on this device/ }),
+    await expect(page.getByRole('group', { name: /Notices shown on this device/ }),
         'an empty group is still offered to a screen reader').toHaveCount(0);
 });
 
@@ -1144,7 +1144,7 @@ test('drawer: a REFUSED document read blames the session, not the signal', async
     // outside the viewport. What is under test is the handler's CHOICE OF WORDS, not the tap.
     await page.locator('.nav-panel-link--circular').waitFor();
     await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.nav-panel-link--circular'))?.click());
-    await expect(page.locator('#navComingSoonBody')).toHaveText(/signed out/i, { timeout: 12_000 });
+    await expect(page.locator('#navComingSoonBody')).toHaveText(/sign-in or staff PIN may have ended/i, { timeout: 12_000 });
     await expect(page.locator('#navComingSoonBody')).not.toHaveText(/signal/i);
 });
 

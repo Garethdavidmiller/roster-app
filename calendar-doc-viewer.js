@@ -30,7 +30,7 @@ import { getSession } from './session.js';
  */
 const DOCS = {
     circular:   { emoji: '📰',  label: 'Weekly Retail Circular', fetch: getLatestCircular,
-                  empty: "No Weekly Retail Circular has been uploaded yet — it's usually available on Friday." },
+                  empty: 'No Weekly Retail Circular has been uploaded yet — a new one usually arrives on a Friday.' },
     newsletter: { emoji: '🗞️', label: 'Marylebone Newsletter',  fetch: getLatestNewsletter,
                   empty: 'No Marylebone Newsletter has been uploaded yet.' },
 };
