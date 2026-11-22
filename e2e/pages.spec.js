@@ -766,7 +766,8 @@ test('About panel: one order, one corner, and the tips line up with the keyboard
     // A tip every pointer reads names no one input — Team Week View's set included. A touch-only
     // tip may still say "Swipe".
     const said = await page.locator('#iconLightbox .lightbox-tip:not(.touch-only)').allTextContents();
-    expect(said.length, 'premise: both tip sets, the month\'s and Team Week View\'s').toBeGreaterThan(5);
+    // Team Week View's set is one line since 22 Nov 2026 — a pointer to its ? panel, which holds the tips.
+    expect(said.length, 'premise: both tip sets, the month\'s and Team Week View\'s').toBeGreaterThanOrEqual(5);
     expect(said.filter(t => /^\s*(Tap|Click)\b/.test(t)), 'a tip a mouse reads too says "Select", not "Tap"').toEqual([]);
 
     await page.goto('/paycalc.html');

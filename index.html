@@ -185,9 +185,10 @@
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
                 <div class="lightbox-tip"><span>Select the month to jump to another</span></div>
-                <div class="lightbox-tip keyboard-only"><span>Keyboard: change month</span><span class="lightbox-tip-key">← →</span></div>
-                <div class="lightbox-tip keyboard-only"><span>Change month from a day in the grid</span><span class="lightbox-tip-key">PgUp PgDn</span></div>
-                <div class="lightbox-tip keyboard-only"><span>Open the day in focus</span><span class="lightbox-tip-key">Enter</span></div>
+                <!-- ← → change the month only while no day has focus: inside the grid they move between days, and
+                     PgUp/PgDn change the month (calendar-keyboard.js). One row, so About still fits a short
+                     laptop window (e2e/pages.spec.js, 1280×593). -->
+                <div class="lightbox-tip keyboard-only"><span>Change month (in the grid: PgUp PgDn)</span><span class="lightbox-tip-key">← →</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
