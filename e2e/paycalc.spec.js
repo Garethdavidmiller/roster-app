@@ -293,7 +293,7 @@ test('paycalc: a link to a payday outside the calculator says so, and a covered 
     await expect(note).toBeVisible();
     await expect(note).toContainText("There's no payslip for 9 April 2027 in the calculator");
     await page.goto('/paycalc.html?month=2027-06');
-    await expect(note).toContainText('Jun 2027');
+    await expect(note).toContainText("There's no payslip for June 2027 in the calculator");
     await page.goto('/paycalc.html?payday=2026-10-23');
     await expect(page.locator('#pensionAmt')).toBeVisible();
     await expect(note).toBeHidden();
