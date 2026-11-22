@@ -311,8 +311,11 @@ nothing** — `A → B`, and the reader decides.
   below).
 - With two or more designs: two read-only grids side by side from 1024px and stacked below, gold
   outlines on differing cells, and the two columns kept on the same day as either scrolls. The outline
-  is the DARK gold, `--gold-text`, at 5.4:1 or more on every cell fill: the brand gold measured
-  1.2–1.4:1, under the 3:1 a marker needs. Each column keeps `overflow-x: auto`. The main grid stays **rendered** in compare mode, hidden on screen only
+  is the DARK gold, `--gold-text`, at 5.0:1 or more on every cell fill (spare and night the lowest,
+  measured 22 Nov 2026): the brand gold measured 1.2–1.4:1, under the 3:1 a marker needs. Each column
+  keeps `overflow-x: auto`, and **from 1024px each half holds all seven days** in equal columns (the
+  cells give up their phone minimum), so on a laptop nothing is cut off; below that the halves stack
+  and scroll. The main grid stays **rendered** in compare mode, hidden on screen only
   (`body.links-compare-on` inside `@media screen`), so print always outputs the active design;
   `#printDesignName` names the sheet.
 
@@ -389,11 +392,22 @@ kept, because the reload's hide keeps the copy above.
   carries **no status tint** — a coloured chip would read as one more finding. Naming the design was
   chosen over hiding the strip: a designer comparing options still wants live analysis of the one they
   are editing.
-- **Compare columns carry the same right-edge cue as the single grid.** Each column is a
-  `.links-grid-wrapper`, so on a phone it wears the same `local`/`scroll` gradient. Its cells are
-  transparent, so the shade shows through them at the visible end of a column while more remains, and
-  that shade is the cue. The `local` layer masks it once the column's end is reached, and the gold
-  outlines stay intact. Rendered with and without the gradient, 10 November 2026.
+- **Compare columns carry the right-edge cue at every width** (`--scroll-cue`, the single grid's
+  `local`/`scroll` gradient). Their cells are translucent, so the shade shows through them at the
+  visible end of a column while more remains, and that shade is the cue; the `local` layer masks it
+  once the end is reached. Where nothing overflows it never shows. **A gradient cue needs translucent
+  cells**: the heat map's bucket fills are opaque, so on a phone its day column sticks instead, with
+  the generator's edge shadow as the cue.
+- **A sticky first column paints the gutter to its left.** A wrapper that scrolls inside the card's
+  16px padding sticks its first column at the padding's inner edge, and scrolled cells showed through
+  the strip beside it; a pseudo-element paints it the card's colour (Chromium draws no `box-shadow` on
+  a cell of a collapsed-border table, so a shadow does nothing there).
+- **Spare and night wear the app's colours** (owner, 22 Nov 2026): spare is the Calendar's purple —
+  `--purple` words on a 16% purple tint, the paint chip edged in `--purple` — in the grid, the compare
+  grids, the paint bar, the heat map's SP column, the cover row's `SP:` and the generator's spare row;
+  night is the Calendar's dark wash (`--night-cell-bg`, `--night-cell-border`) with dark text. Spare
+  was gold, the hue of the compare outline that marks a differing cell; night was a purple of its own.
+  The fills stay translucent so the scroll cue shows through them.
 
 ### Paint mode
 

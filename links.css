@@ -4,7 +4,6 @@
     /* Coverage palette — this page's own; no shared token exists for these. */
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
-    --cov-night: #6b3fa0;
     /* Shift cells MATCH the app's roster language (early orange, late blue) and FORWARD the app
        tokens: restated hex copies drifted measurably from the colours they mirrored
        (guide-colour-parity.test.mjs). The heat ramp keeps --cov-early: headcount, not shift identity.
@@ -15,8 +14,12 @@
     --shift-early-text: var(--orange-text);
     /* Dark-blue TEXT derived from the fill (no token exists), so it tracks the brand blue. */
     --shift-late-text:  color-mix(in oklch, var(--blue-sky) 78%, black);
-    --shift-spare-text: #705600;
-    --shift-night-text: #3d1a5c;
+    /* SPARE AND NIGHT ARE THE APP'S (owner, 22 Nov 2026): spare the Calendar's purple on its 16% tint,
+       translucent so the scroll cue shows through, and night the Calendar's dark wash. Spare was gold,
+       the hue of the compare outline that marks a differing cell. */
+    --shift-spare-fill: color-mix(in oklch, var(--purple) 16%, transparent);
+    --shift-spare-text: var(--purple);
+    --shift-night-text: var(--text-dark);
     --unfilled-flag:    #7a3800;
     /* THE RIGHT-EDGE CUE for a sideways-scrolling table. CSS only: `local` masks the fade at the end,
        `scroll` pins the shadow to the wrapper, so no scroll listener can go stale. It shows only
@@ -492,7 +495,7 @@ body:not(.auth-ready) .app-header { display: none; }
 .cov-heat-spare, .cov-heat-spare-h {
     font-size: var(--type-micro);
     font-weight: 700;
-    background: color-mix(in srgb, var(--accent-gold) 18%, transparent);
+    background: var(--shift-spare-fill);
     color: var(--shift-spare-text);
     min-width: 26px;
     padding: 4px 2px;
@@ -626,10 +629,10 @@ body:not(.auth-ready) .app-header { display: none; }
 
 /* Cell background by shift type */
 .shift-cell-btn.type-rd    { background: var(--surface-sunken); color: var(--text-light); }
-.shift-cell-btn.type-spare { background: color-mix(in srgb, var(--accent-gold) 22%, transparent); color: var(--shift-spare-text); }
+.shift-cell-btn.type-spare { background: var(--shift-spare-fill); color: var(--shift-spare-text); }
 .shift-cell-btn.type-early { background: color-mix(in srgb, var(--shift-early-fill) 16%, transparent); color: var(--shift-early-text); }
 .shift-cell-btn.type-late  { background: color-mix(in srgb, var(--shift-late-fill) 16%, transparent); color: var(--shift-late-text); }
-.shift-cell-btn.type-night { background: color-mix(in srgb, var(--cov-night) 18%, transparent); color: var(--shift-night-text); }
+.shift-cell-btn.type-night { background: var(--night-cell-bg); color: var(--shift-night-text); box-shadow: inset 0 0 0 1px var(--night-cell-border); }
 
 /* Unfilled row — a line that is still all rest days needs designing, not
    muting. A faint amber line-number cell flags it without hiding the cells. */
@@ -795,7 +798,7 @@ body:not(.auth-ready) .app-header { display: none; }
     touch-action: manipulation; /* arm/disarm taps must never trigger double-tap zoom */
 }
 .brush-chip.type-rd    { background: var(--surface); color: var(--text-light); border: 1px solid var(--border-light); }
-.brush-chip.type-spare { background: color-mix(in srgb, var(--accent-gold) 22%, transparent); color: var(--shift-spare-text); }
+.brush-chip.type-spare { background: var(--shift-spare-fill); color: var(--shift-spare-text); border: 1px solid var(--purple); }
 .brush-chip.type-early { background: color-mix(in srgb, var(--shift-early-fill) 16%, transparent); color: var(--shift-early-text); }
 .brush-chip.type-late  { background: color-mix(in srgb, var(--shift-late-fill) 16%, transparent); color: var(--shift-late-text); }
 .brush-chip--custom    { background: var(--surface); color: var(--text-mid); border: 1px dashed var(--border-light); font-style: italic; }
@@ -996,7 +999,7 @@ body:not(.auth-ready) .app-header { display: none; }
 }
 .gen-remove-btn:active { opacity: 0.6; }
 .gen-remove-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
-.gen-spare-row td { background: color-mix(in srgb, var(--accent-gold) 10%, transparent); }
+.gen-spare-row td { background: color-mix(in oklch, var(--purple) 8%, transparent); }
 .gen-total-row td {
     background: var(--surface-sunken);
     font-size: var(--type-small);
@@ -1560,7 +1563,7 @@ body:not(.auth-ready) .app-header { display: none; }
 /* Its cells are spans, which (unlike a button) do not centre their words: RD and SP sat at the top. */
 .links-grid--compare .shift-cell-btn { display: grid; place-items: center; }
 
-/* Diff marker: the DARK gold, 5.4:1 or more on every cell fill (the brand gold was 1.2–1.4:1). Not a
+/* Diff marker: the DARK gold, 5.0:1 or more on every cell fill (the brand gold was 1.2–1.4:1). Not a
    focus token: these cells take no focus. */
 .cell-diff .shift-cell-btn {
     outline: 2px solid var(--gold-text);
@@ -1836,7 +1839,7 @@ body:not(.auth-ready) .app-header { display: none; }
     /* EVERY sticky cell needs an OPAQUE fill: the spare row's own tint is 90% see-through. */
     .gen-th-time, .gen-td-time { background: var(--surface); }
     .gen-slot-table thead .gen-th-time { background: var(--surface-sunken); }
-    .gen-spare-row .gen-td-label { background: color-mix(in srgb, var(--accent-gold) 10%, var(--surface)); }
+    .gen-spare-row .gen-td-label { background: color-mix(in oklch, var(--purple) 8%, var(--surface)); }
     .gen-total-row td:first-child { background: var(--surface-sunken); }
     /* In em, so the column grows with the text: a px minimum held at large text and cut the end time. */
     .gen-select { min-width: 7.5em; }
