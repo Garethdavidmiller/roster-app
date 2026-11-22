@@ -1766,3 +1766,63 @@ test.describe('trains — Back, the station card and the boxes, wired', () => {
         expect(await reloaded, 'the page reloaded for the member it was just signed in for').toBe(false);
     });
 });
+
+test.describe('trains — the totals and the header, measured', () => {
+    test('on a desktop each day\'s change sits beside its figure, and the changes line up', async ({ page }) => {
+        await page.setViewportSize({ width: 1366, height: 900 });
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await seedSession(page, 'A. Person');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trTotals .tr-totals-days')).toBeVisible();
+        const rows = await page.locator('#trTotals .tr-total').evaluateAll(lis => lis.map(li => {
+            const n = /** @type {Element} */ (li.querySelector('.tr-total-n')).getBoundingClientRect();
+            const chip = li.querySelector('.tr-delta')?.getBoundingClientRect();
+            return { gap: chip ? Math.round(chip.left - n.right) : null, chipLeft: chip ? Math.round(chip.left) : null };
+        }));
+        const chips = rows.filter(r => r.gap !== null);
+        expect(chips.length, 'premise: the days carry a change').toBeGreaterThan(1);
+        for (const r of chips) expect(/** @type {number} */ (r.gap), 'a change chip far from its figure').toBeLessThanOrEqual(40);
+        expect(new Set(chips.map(r => r.chipLeft)).size, `the change chips line up: ${JSON.stringify(rows)}`).toBe(1);
+    });
+
+    test('on a touch screen the two small pills are drawn small, and still take a thumb', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'a coarse pointer is what sizes them');
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await seedSession(page, 'A. Person');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="stations"]').click();
+        await page.locator('#trStationInput').fill('amersham');
+        await page.locator('#trStationInput').press('Enter');
+        await page.locator('[data-view="grid"]').click();
+        await page.locator('#trPattern [data-col="0"]').click();
+        for (const [name, sel, view] of [['Change station', '#trStationChange', 'stations'], ['Show every station', '#trGridAll', 'grid']]) {
+            await page.locator(`[data-view="${view}"]`).click();
+            const pill = page.locator(sel);
+            await expect(pill).toBeVisible();
+            const b = /** @type {{ x: number, y: number, width: number, height: number }} */ (await pill.boundingBox());
+            expect(b.height, `${name}: drawn as a capsule twice the height of its words`).toBeLessThanOrEqual(38);
+            // 44px of target: a touch 3.5px above or below the pill's drawn edge still lands on it.
+            const lands = await page.evaluate(({ b, sel }) => [b.y - 3.5, b.y + b.height + 3.5].every(y =>
+                !!document.elementFromPoint(b.x + b.width / 2, y)?.closest(sel)), { b, sel });
+            expect(lands, `${name}: a thumb just off its edge misses it`).toBe(true);
+        }
+    });
+
+    test('on a 320px phone the app\'s name keeps clear of the page badge', async ({ page }) => {
+        await page.setViewportSize({ width: 320, height: 640 });
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await seedSession(page, 'A. Person');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trainsBadge')).toBeVisible();
+        const look = await page.evaluate(() => {
+            const h1 = /** @type {HTMLElement} */ (document.querySelector('.app-header h1'));
+            // The words' own width, to a fraction of a pixel: an ellipsis is drawn for the smallest overflow.
+            const words = document.createRange();
+            words.selectNodeContents(h1);
+            return { gap: /** @type {Element} */ (document.getElementById('trainsBadge')).getBoundingClientRect().left - h1.getBoundingClientRect().right,
+                     whole: words.getBoundingClientRect().width <= h1.getBoundingClientRect().width + 0.01 };
+        });
+        expect(look.gap, 'the name runs up against the badge').toBeGreaterThanOrEqual(6);
+        expect(look.whole, 'beside Trains\' badge the name still fits whole').toBe(true);
+    });
+});
