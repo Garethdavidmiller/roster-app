@@ -84,8 +84,11 @@ paths:
 
 All five guide pages share one chrome for consistent behaviour on iOS, Android, desktop and print.
 It lives in **`guide-shell.css`** (linked by every guide, before each page's CSS) — edit it there once,
-do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (`--navy`,
-`--navy-dark`, `--navy-mid`, `--gold`) in its own `:root`; guide pages do not redefine them. Each
+do not re-inline it. `guide-shell.css` defines the whole shared guide palette in its own `:root` —
+the brand tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`), the status fills and borders, the
+greys, `--white` and `--shadow-card` — with the Railcard guide's values (owner, 22 Nov 2026), plus the
+source banner (`.source-banner`, `.draft-title`). Guide pages do not redefine them; the two document
+guides keep their own four greys on purpose, and `--bg` means the page background on every guide. Each
 "ONE …" rule below has its reasoning in the matching `guide-shell.css` block.
 
 **In `guide-shell.css` (shared — change once):**
