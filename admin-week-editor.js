@@ -29,6 +29,7 @@ import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, isBeforeMemberStart, OTHER_FLAVOURS, isChristmasOrBoxingDay } from './override-utils.js';
 import { isWorkingDate } from './al-entitlement.js';
 import { formatDisplay } from './admin-period-dates.js';
+import { formatDayMonth } from './date-format.js';
 import { isChristmasLeaveDay, isChristmasClosureDate, resolveDayShift, allowanceForBoxingDay } from './christmas-leave.js';
 import { TYPES, PILL_TYPES, typePillHtml } from './admin-shift-types.js';
 import { bulkApplyWaitingFor, bulkSkippedLine } from './admin-bulk-apply.js';
@@ -108,6 +109,32 @@ function getSundayOfWeek(dateStr) {
     return d;
 }
 
+/**
+ * The week navigator's words — "19–25 Jul 2026", "30 Aug–5 Sep 2026", "27 Dec 2026–2 Jan".
+ *
+ * A DELIBERATE SHORT HELPER, kept short when every other date with a year went to the full month
+ * (owner, 22 Nov 2026 — date-format.js → `formatDayMonthYear` requires a surface that cannot fit the
+ * full month to say so by name, here). Re-measured with full months that day, every week 2026–2030,
+ * in the real label: at 320px its box is 120px, and the full form ("29 November–5 December 2026",
+ * 249px) would ellipsise 260 weeks of 261 on one line — or, allowed to wrap, need THREE lines for 63
+ * of them beside 44px arrows. At 375px it would ellipsise 70 weeks, the 📅's own row included. The
+ * short form fits every week at 375px (`e2e/responsive.spec.js`). The words are the same week the
+ * full form would name: the label is a control between two arrows, not a date to quote.
+ *
+ * Same-month ranges collapse, as `formatTeamWeekLabel` does, and both forms use a tight en-dash: at
+ * 375px a few pixels more ellipsise the label and cut the date picker's 📅. The week across New Year
+ * names the year it STARTS in, "27 Dec 2026–2 Jan": "27 Dec–2 Jan 2027" put 27 December in 2027. Team
+ * View names both years; here both measured 22px over the 375px box, and a January after a December
+ * needs no year of its own.
+ * @param {Date} sunday @param {Date} saturday
+ */
+function shortWeekLabel(sunday, saturday) {
+    if (sunday.getMonth() === saturday.getMonth()) return `${sunday.getDate()}–${formatDayMonth(saturday)} ${saturday.getFullYear()}`;
+    return sunday.getFullYear() !== saturday.getFullYear()
+        ? `${formatDayMonth(sunday)} ${sunday.getFullYear()}–${formatDayMonth(saturday)}`
+        : `${formatDayMonth(sunday)}–${formatDayMonth(saturday)} ${saturday.getFullYear()}`;
+}
+
 /** The type currently armed on the bulk bar. */
 let _bulkActiveType = '';
 
@@ -123,16 +150,7 @@ export function updateWeekNavLabel(dateStr) {
     saturday.setDate(sunday.getDate() + 6);
     const label = document.getElementById('weekNavLabel');
     if (label) {
-        // Same-month ranges collapse to "19–25 Jul 2026", as formatTeamWeekLabel does, and both forms use
-        // a tight en-dash: at 375px a few pixels more ellipsise the label and cut the date picker's 📅.
-        // The week across New Year names the year it STARTS in, "27 Dec 2026–2 Jan": "27 Dec–2 Jan 2027" put
-        // 27 December in 2027. Team View names both years; here both measured 22px over the 375px box, and
-        // a January after a December needs no year of its own.
-        label.textContent = sunday.getMonth() === saturday.getMonth()
-            ? `${sunday.getDate()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`
-            : sunday.getFullYear() !== saturday.getFullYear()
-                ? `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} ${sunday.getFullYear()}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]}`
-                : `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]}–${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
+        label.textContent = shortWeekLabel(sunday, saturday);
         // The NAME leads with the week it shows (WCAG 2.5.3 Label in Name), written beside the text so
         // the two cannot describe different weeks.
         label.setAttribute('aria-label', `${label.textContent} — jump to week containing date`);
