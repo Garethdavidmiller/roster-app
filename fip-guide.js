@@ -1,14 +1,22 @@
 // @ts-check
-// FIP Travel Guide — country finder + open-on-jump behaviour.
+// FIP Travel Guide — country finder, open-on-jump and print preparation.
 //
-// Two jobs, both progressive enhancement (CSP blocks inline scripts, so this is a `defer`-loaded
-// external file like guide-chips.js; with JS off the page still works — every country visible):
+// Three jobs, all progressive enhancement (CSP blocks inline scripts, so this is a `defer`-loaded
+// external file; with JS off the page still works — every country visible):
 //   1. Country finder (v17.64): a search box live-filters the country cards AND the A–Z jump
 //      list by country name or operator/train text, so a long country reference is navigable at work.
 //   2. Open-on-jump: the jump/popular links (#country-fr, …) point at native <details>. A bare
 //      anchor-scroll lands ON the row but leaves it COLLAPSED (double taps). We open the target
 //      <details> on a deep link, on every in-page jump, and — if it was filtered out — clear the
 //      search first so the jump actually lands (C1).
+//   3. Print: open every country for the PDF, print what the finder is showing, and the per-country
+//      "⤓ Print <country>" buttons; guide-print.js does the printing.
+//
+// THE CHIP BAR IS NOT THIS FILE'S (Nov 2026). It is guide-chips.js's, as on every other guide, loaded
+// before this one. This file used to carry its own copy of the bar, woven between the finder and the
+// jump and held to the shared one only by four exact strings, so a change to one copy's arrival
+// tolerance passed with the other untouched. Nothing here needs the bar's internals: a chip
+// jumps to a section heading, never to a country, and the country links open their card below.
 
 /** decodeURIComponent that never throws — a malformed hash (e.g. a lone "%") would otherwise raise an
  *  uncaught URIError on load / hashchange. Falls back to the raw string (which matches no id → no-op). */
@@ -39,8 +47,6 @@ var noMatchEl    = document.getElementById('countryNoMatch');
 var countryCards = Array.prototype.slice.call(document.querySelectorAll('[id^="country-"]'));
 // A–Z jump chips, kept in lockstep with their target card's visibility.
 var jumpChips = Array.prototype.slice.call(document.querySelectorAll('.country-jump a[href^="#country-"]'));
-
-function norm(/** @type {string} */ s) { return (s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
 /**
  * The WORDS of a text, accents folded — the way the drawer's cross-guide search reads it
@@ -90,10 +96,14 @@ function describePrintScope(shown) {
 describePrintScope(null);
 
 /** Filter the country cards + jump chips to the query (matched against each card's full text, so an
- *  operator/train name like "ÖBB" or "Railjet" finds its country too). Empty query resets. */
+ *  operator/train name like "ÖBB" or "Railjet" finds its country too). A query with no words resets. */
 function applyCountryFilter(/** @type {string} */ raw) {
-    var q = norm(raw);
     var terms = foldWords(raw);
+    // FILTERING MEANS A WORD WAS TYPED, not that the box holds something. A query of only punctuation or
+    // an emoji ("-", "/", "&", a flag) has no words, so it matches every card — and while it counted as
+    // a filter it showed the ✕, a count of every card out of every card, and turned ⤓ PDF into a print of the cards
+    // alone, all for a search that had filtered nothing. filterShowsCards (print) asks the same question.
+    var q = terms.length > 0;
     var shown = 0;
     countryCards.forEach(function (card, i) {
         // Every typed word must START a word of the card — accents folded on both sides.
@@ -117,7 +127,7 @@ function applyCountryFilter(/** @type {string} */ raw) {
         // The second clause is the VISIBLE half of describePrintScope. The accessible name carries
         // the scope for a screen reader, but a sighted reader filtering to one country has nothing
         // on screen saying the ⤓ PDF button will follow their filter — and the whole reason that
-        // behaviour exists is a traveller who wants one country, not 25 pages. It states the RULE
+        // behaviour exists is a traveller who wants one country, not the whole book. It states the RULE
         // rather than repeating the number, so it reads correctly at one country and at twelve.
         countEl.textContent = showCount
             ? ('Showing ' + shown + ' of ' + countryCards.length + ' cards · the PDF saves these, with what to carry and the key rules')
@@ -148,291 +158,6 @@ if (searchInput) {
 if (clearBtn && searchInput) {
     const si = searchInput;
     clearBtn.addEventListener('click', function () { si.value = ''; applyCountryFilter(''); si.focus(); });
-}
-
-// ── Section chip-bar: sticky quick-nav + scrollspy (chip-bar v17.66, scrollspy v17.68) ─────────
-var chipBar = /** @type {HTMLElement|null} */ (document.querySelector('.chip-bar'));
-var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-
-// [{ chip, section }] for the chipped sections, in document (== chip-bar) order.
-var chipTargets = chipBar
-    ? Array.prototype.slice.call(chipBar.querySelectorAll('.chip')).map(function (c) {
-        var chip = /** @type {HTMLElement} */ (c);
-        return { chip: chip, section: document.getElementById(chip.dataset.target || '') };
-    }).filter(function (t) { return t.section; })
-    : [];
-
-/** @type {HTMLElement|null} */
-var activeChip = null;
-
-/** Mark exactly one chip current (idempotent) and reveal it within the horizontally-scrollable bar. */
-function setActiveChip(/** @type {HTMLElement|null} */ chip) {
-    if (chip === activeChip) return;
-    if (activeChip) activeChip.removeAttribute('aria-current');
-    activeChip = chip;
-    if (!chip || !chipBar) return;
-    chip.setAttribute('aria-current', 'true');
-    // Centre the active chip; this scrolls ONLY the bar's own horizontal overflow, never the page.
-    var left = chip.offsetLeft - (chipBar.clientWidth - chip.offsetWidth) / 2;
-    var max = chipBar.scrollWidth - chipBar.clientWidth;
-    chipBar.scrollTo({ left: Math.max(0, Math.min(left, max)), behavior: reduceMotion ? 'auto' : 'smooth' });
-}
-
-// Scrollspy: the current section is the LAST chipped section whose top has scrolled below the sticky
-// header + chip-bar. Above the first section the first chip wins (covers the page-intro); at the page
-// bottom the last chip wins (a short final section may never reach the line). Non-chipped sections
-// fall naturally into the zone of the preceding chipped section.
-//
-// A JUMP'S CHIP HOLDS UNTIL THE READER MOVES ON, AND A LINK'S HOLDS THE SAME WAY (guide-chips.js has
-// the argument; this mirrors it). This page had only the rule above, so in a window tall enough that
-// the end of the page arrives before a late section reaches the line — measured at 1920×2600 — a tap
-// on Ferries or Mistakes lit Apply, the last chip (whole-app check, Nov 2026). The chip a tap or a
-// #fragment link chose stays lit while what it put in place stays where it was put; the section
-// moving more than 2px, or a jump the reader stopped, hands the bar back to the rule. The guide's
-// single column needs nothing of guide-chips.js's two-column rule. A tap's jump is judged when it ENDS,
-// as there: at scrollend where the browser has it, so the 1.5 s timer no longer judges a long jump in
-// flight — this page's jump to Ferries outlasted it in CI's Safari engine (Nov 2026).
-var spyPaused = false;
-var spyTimer = 0;
-var spyTicking = false;
-var spyThreshold = 106;   // header + chip-bar + margin; measured for real once the header lays out
-/** @type {HTMLElement|null} */
-var jumpChip = null;      // the chip a jump or a link holds lit
-/** @type {Element|null} */
-var jumpEl = null;        // what the jump or link put in place: the chip's heading, or the linked element
-var jumpTop = NaN;        // where that was left, in viewport pixels; NaN while still in flight
-var jumpByLink = false;   // the hold is a link's: the landing settles it, not the tap's arrival rule
-/** How long a tap's jump may take before it is judged anyway, in ms: a net where scrollend exists, the guess where it does not. */
-var jumpCeilingMs = 'onscrollend' in window ? 5000 : 1500;
-
-/** The top of what a jump or link put in place, in viewport pixels; NaN once it has gone or is hidden. */
-function heldTop() {
-    return jumpEl && jumpEl.isConnected && jumpEl.getClientRects().length ? jumpEl.getBoundingClientRect().top : NaN;
-}
-
-/** Cache the sticky-stack height so the scroll handler never forces a layout read per frame. */
-function measureThreshold() {
-    var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
-    spyThreshold = (hdr ? hdr.offsetHeight : 54) + (chipBar ? chipBar.offsetHeight : 40) + 12;
-}
-
-/** @returns {HTMLElement|null} */
-function currentChip() {
-    if (!chipTargets.length) return null;
-    if (jumpChip) {
-        if (isNaN(jumpTop) || Math.abs(heldTop() - jumpTop) <= 2) return jumpChip;
-        jumpChip = null;   // the reader has moved on; the jump's answer does not come back
-    }
-    // At (or a hair from) the very bottom, the last chip wins — a short final section may never scroll
-    // its top up to the trigger line. Math.ceil absorbs sub-pixel scroll heights; the margin covers
-    // browser-zoom / mobile-toolbar rounding that a tight `- 2` could miss (leaving the last chip unlit).
-    if (Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2) {
-        return chipTargets[chipTargets.length - 1].chip;
-    }
-    var chosen = chipTargets[0].chip;   // default: first chip (page-intro sits above section 1)
-    for (var i = 0; i < chipTargets.length; i++) {
-        var sec = /** @type {HTMLElement} */ (chipTargets[i].section);
-        if (sec.getBoundingClientRect().top <= spyThreshold) chosen = chipTargets[i].chip;
-        else break;
-    }
-    return chosen;
-}
-function updateSpy() { if (!spyPaused) setActiveChip(currentChip()); }
-
-/**
- * Did the jump ARRIVE? Its section sits at the line it was sent to (its own scroll margin), or the page
- * ran out below it. A scroll that settled anywhere else was the reader's, not the jump's.
- * @param {Element} target
- */
-function jumpArrived(target) {
-    var top = target.getBoundingClientRect().top;
-    var line = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-    var atBottom = Math.ceil(window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 2;
-    return Math.abs(top - line) <= 2 || (atBottom && top > line);
-}
-
-/** Lift the post-click pause, note where an arrived jump settled, and reconcile the active chip there. */
-function resumeSpy() {
-    spyPaused = false;
-    if (spyTimer) { clearTimeout(spyTimer); spyTimer = 0; }
-    // A link's hold is the landing's to settle (endLanding), whose own scrolls end too.
-    if (jumpChip && !jumpByLink && isNaN(jumpTop)) {
-        var top = heldTop();
-        if (!isNaN(top) && jumpArrived(/** @type {Element} */ (jumpEl))) jumpTop = top;
-        else jumpChip = null;
-    }
-    updateSpy();
-}
-
-if (chipTargets.length) {
-    measureThreshold();
-    window.addEventListener('scroll', function () {
-        if (spyTicking) return;
-        spyTicking = true;
-        // finally: a throw in updateSpy must never latch spyTicking true (that would kill the spy).
-        requestAnimationFrame(function () { try { updateSpy(); } finally { spyTicking = false; } });
-    }, { passive: true });
-    window.addEventListener('resize', function () { measureThreshold(); updateSpy(); }, { passive: true });
-    // scrollend lifts the click pause EXACTLY when the smooth scroll settles (no fixed-time guess), so
-    // a long jump can't unpause mid-flight and flicker; harmless on a user's own free-scroll.
-    window.addEventListener('scrollend', resumeSpy);
-    updateSpy();   // initial highlight (re-run once fonts settle the header height, below)
-}
-
-// Chip click → smooth-scroll to the section, focus it, mark it active. While a NON-instant scroll is
-// in flight, pause the spy so mid-flight frames don't flicker a different chip; scrollend (or the
-// fallback timer, for engines without it) resumes it on landing. A reduced-motion (instant) jump
-// lands immediately, so it needs no pause.
-if (chipBar) {
-    chipBar.addEventListener('click', function (e) {
-        var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
-        if (!chip) return;
-        var target = document.getElementById(chip.dataset.target || '');
-        if (!target) return;
-        setActiveChip(chip);
-        jumpChip = chip;
-        jumpEl = target;
-        jumpTop = NaN;
-        jumpByLink = false;
-        var settled = reduceMotion || jumpArrived(target);   // instant, or nowhere to go: no scrollend comes
-        if (!settled) {
-            spyPaused = true;
-            if (spyTimer) clearTimeout(spyTimer);
-            spyTimer = setTimeout(resumeSpy, jumpCeilingMs);
-        }
-        target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
-        if (settled) jumpTop = heldTop();   // nothing is in flight: the jump stands where it is
-        // Land focus on the section (keyboard / screen-reader users).
-        target.setAttribute('tabindex', '-1');
-        target.focus({ preventScroll: true });
-    });
-}
-
-// ── Deep-link landing (mirrors guide-chips.js, which has the reasoning) ───────────────────────
-// The browser lands a #fragment with the stylesheet's FALLBACK scroll-margin and stops re-applying
-// it once the page has loaded, which on a cached phone is usually before adjustFipOffsets has
-// measured the real stack: a heading arrived 21px under the chip bar (40px at 320px). Each
-// measurement re-lands the fragment while the page is still landing — until it has loaded and
-// measured with its fonts, or the reader touches, clicks, scrolls with a wheel or types. A reload or
-// Back/Forward restores the reader's own position and is left alone.
-var landingId = '';
-(function () {
-    var nav = /** @type {PerformanceNavigationTiming|undefined} */ (
-        window.performance && performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : undefined);
-    if (nav && nav.type !== 'navigate') return;
-    landingId = safeDecode(location.hash.slice(1));
-})();
-
-/**
- * The chip of the section an element sits in: the last chipped heading at or before it in the page.
- * A link can name a card inside a section (a country, a ferry); one before the first section has none.
- * @param {Element} el
- */
-function chipFor(el) {
-    /** @type {HTMLElement|null} */
-    var found = null;
-    for (var i = 0; i < chipTargets.length; i++) {
-        var heading = /** @type {HTMLElement} */ (chipTargets[i].section);
-        if (heading !== el && !(heading.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
-        found = chipTargets[i].chip;
-    }
-    return found;
-}
-// The link's chip holds from the first paint: the spy above has run once, so it is asked again now.
-(function () {
-    var target = landingId ? document.getElementById(landingId) : null;
-    var chip = target ? chipFor(target) : null;
-    if (!chip) return;
-    jumpChip = chip;
-    jumpEl = target;
-    jumpTop = NaN;
-    jumpByLink = true;
-    updateSpy();
-})();
-
-/** The landing is over. A link's hold now stands where the landing left its target — if the reader can see it. */
-function endLanding() {
-    landingId = '';
-    if (jumpChip && jumpByLink && isNaN(jumpTop)) {
-        var top = heldTop();
-        if (top >= 0 && top < window.innerHeight) jumpTop = top;
-        else { jumpChip = null; updateSpy(); }
-    }
-}
-['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (type) {
-    window.addEventListener(type, endLanding, { capture: true, passive: true });
-});
-// A hash changed in place — an A–Z or popular-country link on this page — is not the link the page
-// opened on, so that link's answer goes with it, and the bar follows the reader.
-window.addEventListener('hashchange', function () {
-    if (jumpByLink) jumpChip = null;
-    endLanding();
-    updateSpy();
-});
-
-/**
- * While the page is still landing on a deep link, move the target back out from under the sticky
- * stack. Only a target that STARTS under the stack is moved: one the page cannot scroll to the top
- * (near its end) sits lower and is left there, and so is one the reader has scrolled past.
- * @param {number} stickyH the measured header + chip bar, which a landed target must clear
- */
-function keepLandingClear(stickyH) {
-    if (!landingId) return;
-    var target = document.getElementById(landingId);
-    if (!target) { landingId = ''; return; }
-    var top = target.getBoundingClientRect().top;
-    if (top >= 0 && top < stickyH - 1) target.scrollIntoView({ block: 'start' });
-}
-
-// Sit the sticky chip-bar directly under the sticky header, then set scroll-margin-top on every id
-// in the page body so a jump isn't hidden under header + chip-bar. Runs after fonts load so the
-// header height is measured accurately (mirrors guide-chips.js).
-function adjustFipOffsets() {
-    if (!chipBar) return;
-    var hdr = /** @type {HTMLElement|null} */ (document.querySelector('.page-header'));
-    if (!hdr) return;
-    var hdrH = hdr.offsetHeight;
-    chipBar.style.top = hdrH + 'px';
-    var stickyH = hdrH + chipBar.offsetHeight + 8;
-    // EVERY id, not the section labels and country cards: the booking table, the multi-country
-    // card and the three ferry cards are search results too, and they kept the stylesheet's 100px
-    // against a 121px stack (whole-app review, Nov 2026).
-    document.querySelectorAll('main [id]').forEach(function (el) {
-        /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
-    });
-    keepLandingClear(stickyH);
-    measureThreshold();   // keep the cached scrollspy threshold in step with the real header height
-    updateSpy();          // re-evaluate with the accurate header height
-}
-if (document.fonts && document.fonts.ready) { document.fonts.ready.then(adjustFipOffsets); }
-else { requestAnimationFrame(adjustFipOffsets); }
-// The landing ends with one last measurement once the page has loaded AND its fonts are ready.
-Promise.all([
-    document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
-    document.readyState === 'complete' ? Promise.resolve()
-        : new Promise(function (resolve) { window.addEventListener('load', resolve, { once: true }); }),
-]).then(function () {
-    requestAnimationFrame(function () { adjustFipOffsets(); endLanding(); });
-});
-// The header's HEIGHT can change after that one-shot measurement (late font swap re-wrapping the
-// subtitle, a device font-scale change, rotation) — leaving the chip-bar's sticky `top` stale, so a
-// slit of page content scrolled through the gap between header and bar (staff screenshot, v18.82).
-// A ResizeObserver on the header re-syncs the whole sticky stack whenever its box actually changes
-// (RAF-throttled; observing the header itself, so page scrolling never triggers it). The chip BAR is
-// watched too, as guide-chips.js watches it: a bar that wraps (guide-shell.css) gains or loses a row
-// without the header changing at all, and margins measured for one row land a jump under the second.
-if (typeof ResizeObserver === 'function') {
-    var _hdrEl = document.querySelector('.page-header');
-    if (_hdrEl) {
-        var _roScheduled = false;
-        var _stackObserver = new ResizeObserver(function () {
-            if (_roScheduled) return;
-            _roScheduled = true;
-            requestAnimationFrame(function () { _roScheduled = false; adjustFipOffsets(); });
-        });
-        _stackObserver.observe(_hdrEl);
-        if (chipBar) _stackObserver.observe(chipBar);
-    }
 }
 
 // ── Open-on-jump ──────────────────────────────────────────────────────────────────────────────
@@ -473,7 +198,7 @@ openHashTarget();   // first load: honour a deep link (defer → the DOM is alre
 // IT PRINTS WHAT IS ON SCREEN (v23.27). Until now the prepare also UN-HID every card the finder had
 // filtered out, on the reasoning that paper should carry the whole reference. That reasoning ignores
 // why anybody presses this button: a traveller has searched "Belgium", is looking at one country,
-// and gets 25 pages. Opening a collapsed card is a RENDERING repair — the content is on screen and
+// and gets the whole book. Opening a collapsed card is a RENDERING repair — the content is on screen and
 // the print engine would drop it. Un-hiding a filtered one is not; it overrides a choice the reader
 // made deliberately, in the one direction that costs them a stack of paper at a station.
 // The button now SAYS which it will do, from the same count the finder already computes.
@@ -511,7 +236,8 @@ var _fipPrepared = false;
 // restore. A search that matches nothing still prints the whole guide without countries: there are no
 // cards to print, and the key rules alone would be a sheet with nothing it is about.
 function filterShowsCards() {
-    return !!(searchInput && searchInput.value.trim())
+    // A query with no WORDS filters nothing (applyCountryFilter), so it prints the whole guide.
+    return !!searchInput && foldWords(searchInput.value).length > 0
         && countryCards.some(function (c) { return !c.hidden; });
 }
 function expandAllForPrint() {
@@ -530,13 +256,54 @@ function expandAllForPrint() {
         _fipOpenRestore.push([det, det.open]);
         det.open = true;
     });
+    armPrintEnd();
 }
 function restoreAfterPrint() {
     if (!_fipPrepared) return;         // afterprint can fire twice, or without a prepare at all
     _fipPrepared = false;
+    disarmPrintEnd();
     document.body.removeAttribute('data-print-filtered');
     _fipOpenRestore.forEach(function (p) { p[0].open = p[1]; });
     _fipOpenRestore = [];
+}
+
+// A PRINT IS OVER WHEN THE READER IS BACK (Nov 2026). The restore routes below are events an engine
+// may never send: `afterprint` is the one iOS does not send for AirPrint, and its print sheet need not
+// change the page's visibility either. Until something else happened — the header button, another
+// country's button — the page stayed as the prepare left it: every country open, and after a search
+// or "⤓ Print <country>" a print state on <body>. But the print sheet is MODAL, so any touch, key or
+// scroll the page receives after a prepare means the sheet has gone, and the print with it.
+//
+// The prepare's own effects must not end it. Opening every country above the reader moves the page
+// (scroll anchoring), and that scroll is dispatched in a later frame, so a scroll counts only if the page
+// has moved from where it stood once the cards were open — read after they open, which lays the page
+// out with the move already made. And only on screen: an engine laying the page out for paper fires
+// `scroll` without the reader (the sheet of one country is shorter than the page, so the position is
+// clamped). The pointerdown and keydown that START a print come before its click, so they cannot end
+// it; and while a blocking `window.print()` (Chromium) has its dialog open, nothing reaches the page.
+var PRINT_END_EVENTS = ['pointerdown', 'keydown', 'scroll'];
+var _fipPrintEndArmed = false;
+var _fipPrintEndY = 0;
+/** @param {Event} e */
+function onReaderBack(e) {
+    if (e.type === 'scroll' && (window.matchMedia('print').matches || Math.abs(window.scrollY - _fipPrintEndY) <= 2)) return;
+    resetStalePrint();
+}
+/** Called at the END of a prepare, once every card is open. */
+function armPrintEnd() {
+    _fipPrintEndY = window.scrollY;
+    if (_fipPrintEndArmed) return;
+    _fipPrintEndArmed = true;
+    PRINT_END_EVENTS.forEach(function (type) {
+        window.addEventListener(type, onReaderBack, { capture: true, passive: true });
+    });
+}
+function disarmPrintEnd() {
+    if (!_fipPrintEndArmed) return;
+    _fipPrintEndArmed = false;
+    PRINT_END_EVENTS.forEach(function (type) {
+        window.removeEventListener(type, onReaderBack, { capture: true });
+    });
 }
 window.addEventListener('beforeprint', expandAllForPrint);
 window.addEventListener('afterprint', restoreAfterPrint);
@@ -571,13 +338,13 @@ document.addEventListener('guide:print-refused', resetStalePrint);
 // ── PRINT THIS COUNTRY (v24.06) ────────────────────────────────────────────────────────────────
 //
 // The print review, item 1 (ROADMAP_HISTORY.md), and the row states the case: "Most readers want France, not the book."
-// The full guide is 25 sheets and a traveller checking one coupon before a trip needs one card.
+// The full guide runs to many sheets, and a traveller checking one coupon before a trip needs one card.
 //
 // A BUTTON PER CARD, not one control in the header. A header control would have to know which
-// country the reader means, and the only honest answers to that are a picker (a second list of 32
-// names, beside the finder and the jump chips that are already two) or "whichever is open", which
+// country the reader means, and the only honest answers to that are a picker (a second list of every
+// country, beside the finder and the jump chips that are already two) or "whichever is open", which
 // is wrong the moment two are. Inside the card there is no question to answer: the country is the
-// one you are reading. It is injected rather than written into 32 cards by hand — the same reason
+// one you are reading. It is injected rather than written into every card by hand — the same reason
 // the drawer builds its own pills.
 //
 // PRINTING ONE CARD IS A CSS STATE, NOT A DOM EDIT. `body[data-print-country]` plus a marker class
@@ -585,8 +352,8 @@ document.addEventListener('guide:print-refused', resetStalePrint);
 // so an interrupted print cannot leave the page missing a country — which is the failure the
 // restore machinery above exists to prevent, reached a different way.
 //
-// IT REUSES THE EXPAND, DELIBERATELY. `expandAllForPrint` opens every <details>, including the 31
-// this print will hide, and that is cheaper than a second narrower path: the hidden ones cost
+// IT REUSES THE EXPAND, DELIBERATELY. `expandAllForPrint` opens every <details>, including every
+// one this print will hide, and that is cheaper than a second narrower path: the hidden ones cost
 // nothing on paper, and one prepare/restore pair means one thing to keep idempotent rather than
 // two. The restore is chained onto the existing one for the same reason.
 var PRINT_COUNTRY_MARK = 'is-print-country';
@@ -620,8 +387,8 @@ countryCards.forEach(function (card) {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn-print-country';
-    // The country is NAMED in the label. "Print this country" on a sheet of 32 identical buttons
-    // reads fine in place and badly in a screen reader's element list, where they would be 32
+    // The country is NAMED in the label. "Print this country" on a page of identical buttons
+    // reads fine in place and badly in a screen reader's element list, where they would be
     // copies of one string with nothing to tell them apart.
     btn.textContent = '⤓ Print ' + name.replace(/^\S+\s/, '');
     btn.addEventListener('click', function () {

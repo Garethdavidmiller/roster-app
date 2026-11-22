@@ -29,6 +29,7 @@
 import { test, expect, forcePasswordSet } from './fixtures.js';
 import { seedSession, seedMember, seedMemberSession, seedViewerAccess, waitForPageSettled, signInThroughOverlay } from './helpers.js';
 import zlib from 'node:zlib';
+import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
 const A4_W = 595, A4_H = 842;
@@ -58,7 +59,7 @@ async function inPrint(page, fn) {
 // computed against a page that is not the sheet in the tray. Four of these five guides had no
 // `@page` at all until v23.20, and the failure is invisible from the screen.
 test.describe('every printable document states A4', () => {
-    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of GUIDE_PAGES.map(p => p.file.replace(/\.html$/, ''))) {
         test(`${guide} prints A4 portrait @print`, async ({ page, browserName }) => {
             test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
             await page.goto(`/${guide}.html`);
@@ -207,7 +208,7 @@ test('a collapsed Settings card still prints its values @print', async ({ page }
 // and railcard's was simply missed, printing 38px tall. Asserted across all five rather than the
 // one that broke — a per-guide element is exactly the kind that gets added again.
 test('no guide prints a website navigation link @print', async ({ page }) => {
-    for (const guide of ['staff-guide', 'paycalc-guide', 'railcard-guide', 'rangers-guide', 'fip-guide']) {
+    for (const guide of GUIDE_PAGES.map(p => p.file.replace(/\.html$/, ''))) {
         await page.goto(`/${guide}.html`);
         const visible = await inPrint(page, () =>
             [...document.querySelectorAll('a')]
@@ -989,6 +990,72 @@ test('the header PDF after an un-restored country print prints the whole guide @
     // And the restore still lands on the page as the reader left it, not on the expanded snapshot.
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
     expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length)).toBe(closedBefore);
+});
+
+// …and with neither event, the reader coming back ends the print (Nov 2026). The print sheet is modal, so a
+// touch, a key or a scroll the page receives after a prepare means the sheet has gone. Each of the three ends
+// a "Print <country>" and a search's PDF alike; the prepare's own effects — the cards opening, the frames
+// after it — must not.
+test('a FIP print with no afterprint ends at the reader\'s next touch, key or scroll @print', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => { window.print = () => {}; });
+    const state = () => page.evaluate(() => ({
+        country: document.body.hasAttribute('data-print-country'),
+        filtered: document.body.hasAttribute('data-print-filtered'),
+        marked: document.querySelectorAll('.is-print-country').length,
+        open: document.querySelectorAll('main details[open]').length,
+    }));
+    const settled = await state();
+    /** @type {Array<[string, () => Promise<unknown>]>} */
+    const endings = [
+        ['a touch', () => page.locator('.page-header h1').dispatchEvent('pointerdown')],
+        ['a key', () => page.keyboard.press('Shift')],
+        ['a scroll', () => page.evaluate(() => window.scrollBy(0, 200))],
+    ];
+    for (const [how, end] of endings) {
+        // A country's print. Its button is in a closed card, so the card is opened first — by script, so
+        // the test's own pointer is not what ends the print.
+        await page.evaluate(() => { /** @type {HTMLDetailsElement} */ (document.getElementById('country-fr')).open = true; });
+        const before = await state();
+        await page.locator('#country-fr .btn-print-country').evaluate(b => /** @type {HTMLElement} */ (b).click());
+        await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+        const printing = await state();
+        expect({ country: printing.country, marked: printing.marked }, `${how}: premise — the country print is in force, its own frames past`)
+            .toEqual({ country: true, marked: 1 });
+        expect(printing.open, `${how}: premise — every card was opened for the print`).toBeGreaterThan(before.open);
+        await end();
+        await expect.poll(state, { message: `${how} ends the country print` }).toEqual(before);
+        await page.evaluate(() => { /** @type {HTMLDetailsElement} */ (document.getElementById('country-fr')).open = false; });
+        await page.evaluate(() => window.scrollTo(0, 0));
+    }
+    // Printed from far down the page, opening every card above the reader moves the page (scroll anchoring),
+    // and that scroll is the prepare's own: it must not end the print it belongs to.
+    await page.evaluate(() => {
+        const card = /** @type {HTMLDetailsElement} */ (document.getElementById('country-ba'));
+        card.open = true;
+        card.scrollIntoView({ block: 'start' });
+    });
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const y = await page.evaluate(() => scrollY);
+    await page.locator('#country-ba .btn-print-country').evaluate(b => /** @type {HTMLElement} */ (b).click());
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+    expect((await state()).country, 'the prepare\'s own scroll leaves the print in force').toBe(true);
+    expect(await page.evaluate(() => scrollY), 'premise: opening the cards above moved the page').not.toBe(y);
+    await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+    await page.evaluate(() => {
+        /** @type {HTMLDetailsElement} */ (document.getElementById('country-ba')).open = false;
+        window.scrollTo(0, 0);
+    });
+    // A search's PDF, ended by a scroll.
+    await page.locator('#countrySearch').fill('Belgium');
+    await page.locator('.btn-print').evaluate(b => /** @type {HTMLElement} */ (b).click());
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r)))));
+    expect((await state()).filtered, 'premise: the search prints its cards').toBe(true);
+    await page.evaluate(() => window.scrollBy(0, 200));
+    await expect.poll(async () => (await state()).filtered, { message: 'a scroll ends the search\'s print' }).toBe(false);
+    await page.locator('#countryClear').click();
+    expect(await state(), 'and the page is as it was').toEqual(settled);
 });
 
 // The summary is the only place a card says which country it is, and the full print hid every one:
