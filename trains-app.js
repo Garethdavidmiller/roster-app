@@ -365,7 +365,7 @@ function wire(state) {
     el('trStationInput')?.addEventListener('input', () => {   // the chips at once; how many match is SAID once typing pauses
         if (!turnIfNewDay(state)) renderStationPicks(state);
         clearTimeout(counted);
-        counted = window.setTimeout(() => announce(matchesLine()), SETTLE_MS);
+        counted = window.setTimeout(() => { const line = matchesLine(); if (line !== null) announce(line); }, SETTLE_MS);
     });
     // Enter takes the first match — with one station left, it is the one meant. An EMPTY box has no match (its chips are the busiest).
     el('trStationInput')?.addEventListener('keydown', (e) => {

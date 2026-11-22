@@ -18,7 +18,7 @@
  * nothing (the tab coming back into view) says nothing, because the line is the same.
  *
  * trains-app.js calls `announce(statusLine(state))` after every draw, and `announce(matchesLine())`
- * once typing in the station box pauses; proven by e2e/trains.spec.js ("a screen reader is told…").
+ * once typing in the station box pauses, unless a station has been chosen meanwhile; proven by e2e/trains.spec.js ("a screen reader is told…").
  */
 
 /** @typedef {import('./trains-cards.js').PageState} PageState */
@@ -58,8 +58,14 @@ export function statusLine(state) {
     return answer ? `${journey}. ${answer}` : journey;
 }
 
-/** How many stations the typed search offers — '' while the box is empty. @returns {string} */
+/**
+ * How many stations the typed search offers — '' while the box is empty — or null, say nothing, once the picker
+ * has folded away under a chosen station. Enter or a chip inside the typing pause left the count to be said after
+ * the card's own line, and "1 station to choose from: Amersham" replaced it (24-hour check, 22 Nov 2026).
+ * @returns {string|null}
+ */
 export function matchesLine() {
+    if (document.getElementById('trStationPicker')?.hidden) return null;
     if (!(/** @type {HTMLInputElement|null} */ (document.getElementById('trStationInput'))?.value.trim())) return '';
     const chips = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('#trStationPicks button[data-station]')]);
     return chips.length === 1 ? `1 station to choose from: ${chips[0].textContent}`

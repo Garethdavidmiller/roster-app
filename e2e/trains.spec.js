@@ -1709,6 +1709,28 @@ test.describe('trains — Back, the station card and the boxes, wired', () => {
         await expect(status).toHaveText(/^Only where the :\d\d to .+ stops\.$/);
     });
 
+    test('a station chosen inside the typing pause keeps its card\'s line: the match count is never said over it', async ({ page }) => {
+        // The count is said once typing in the station box pauses (300 ms). Enter straight after typing opened the card,
+        // whose line was said, and then the count replaced it: "1 station to choose from: Amersham" (24-hour check).
+        await open(page);
+        const status = page.locator('#trStatus');
+        await page.locator('[data-view="stations"]').click();
+        await page.locator('#trStationInput').fill('amer');
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Amersham');
+        const line = /^Weekdays, London Marylebone to Amersham\. \S/;
+        await expect(status).toHaveText(line);
+        await page.evaluate(() => new Promise(r => setTimeout(r, 600)));   // past the pause
+        await expect(status).toHaveText(line);
+        // And a chip tapped inside the pause, the same.
+        await page.locator('#trStationChange').click();
+        await page.locator('#trStationInput').fill('chal');
+        await page.locator('#trStationPicks button[data-station]').first().click();
+        await expect(page.locator('#trStationTitle')).toHaveText('Chalfont & Latimer');
+        await page.evaluate(() => new Promise(r => setTimeout(r, 600)));
+        await expect(status).toHaveText(/^Weekdays, London Marylebone to Chalfont & Latimer\. \S/);
+    });
+
     test('the time lookup answers once typing pauses: "5.15pm", typed, never shows 05:15', async ({ page }) => {
         await open(page);
         await openLookup(page);
