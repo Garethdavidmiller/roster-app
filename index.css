@@ -2793,6 +2793,11 @@
             font-size: 0.95rem;
             line-height: 1.55;
             color: var(--text-dark);
+            /* A long unbroken string in a Word Huddle (a pasted link, a row of dashes) breaks inside
+               the line rather than widening it: the body scrolls vertically, and a line too long for
+               it dragged the whole plan sideways (review, 22 Nov 2026). The table cells below keep
+               `break-word`, which they restate: `anywhere` there crushes a column (their comment). */
+            overflow-wrap: anywhere;
         }
         /* On a laptop the Huddle sits in every page's band, not 1504px across (laptop polish, 13 Nov 2026);
            the padded box still scrolls, so the scrollbar keeps the edge. The centred loading line is left out. */

@@ -491,7 +491,12 @@ export function buildDocumentClient({
         subscribeToLatestHuddle: (onData, onError) => {
             // Single-field orderBy — Firestore auto-indexes this; no composite index needed.
             const q = query(collection(db, collections.huddles), orderBy('date', 'desc'), limit(1));
-            return onSnapshot(q, /** @param {any} snap */ (snap) => {
+            // WITH METADATA CHANGES (22 Nov 2026), so the server CONFIRMING the cached Huddle is an answer
+            // too. Without it the SDK raises nothing when the server merely agrees with the cache
+            // (QueryListener.shouldRaiseEvent withholds a sync-state change alone), and the viewer — which
+            // holds a waiting tap for the server rather than open yesterday's Huddle as the latest — could
+            // not tell "the cache was right" from "the server has not answered" (calendar-huddle-viewer.js).
+            return onSnapshot(q, { includeMetadataChanges: true }, /** @param {any} snap */ (snap) => {
                 const fromCache = !!snap.metadata?.fromCache;
                 if (snap.empty) { onData(null, fromCache); return; }
                 const data = snap.docs[0].data();
