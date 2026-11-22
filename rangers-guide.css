@@ -335,8 +335,11 @@ h2.section:first-of-type { margin-top: 4px; }
 .gotcha-title { font-weight: 800; color: var(--amber); margin-bottom: 6px; }
 .gotcha p { font-size: 13px; margin-bottom: 6px; }
 .gotcha p:last-child { margin-bottom: 0; }
+/* Inter, with its figures set to one width so a date lines up like a ticket's (owner, Nov 2026): a
+   system monospace is Consolas on the station PC, a second typeface on a one-typeface app. */
 .gotcha code {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
     background: rgb(0 0 0 / 0.06);
     padding: 1px 5px;
     border-radius: 3px;
@@ -431,6 +434,10 @@ h2.section:first-of-type { margin-top: 4px; }
        tint on paper would read as confirmed. The pill carries it instead, which is text. */
     .rr-card--draft, .rr-card--conflict { background: #fff; }
     h2.section { break-after: avoid; }
+    /* …and nor is a section's one-line introduction (Nov 2026): "Valid at Marylebone" and "Valid on Chiltern
+       — but not at Marylebone" printed their heading and the note under it alone at the foot of a sheet,
+       their cards overleaf. The note goes with the first card, so the heading goes with both. */
+    h2.section + .rr-notes { break-after: avoid; }
     .rr-notes h3 { font-size: 13px; font-weight: 800; color: var(--navy); }   /* paper keeps its sub-heading; screen: guide-shell.css */
     /* A shadow is a screen's edge; on paper the stripe is the card's, as on the Railcard guide's print. */
     .rr-card, .rr-no-item, .check-item, .rr-notes, .key { box-shadow: none; }
