@@ -197,10 +197,12 @@ export function spareUnderneath(member, date, ovByDate) {
  *
  * CEA AND CES ONLY, BY THE GRADE HELD ON THE DAY (owner, 21 Nov 2026). Their Spare week is four days'
  * work of 35 hours, which is what the cap is for; a Dispatcher's Spare days each cost one day.
+ *
+ * Exported so the booking preview's Spare line counts the same days the cap does (admin-al-spare-note.js).
  * @param {any} member @param {string} date
  * @returns {boolean}
  */
-function rosteredSpareDay(member, date) {
+export function rosteredSpareDay(member, date) {
     const d = parseISODate(date);
     const role = roleOn(member, d);
     if (role !== 'CEA' && role !== 'CES') return false;

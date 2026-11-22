@@ -14,7 +14,7 @@ import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
-import { spareShiftNote, spareDaysOf } from './admin-al-spare-note.js';
+import { spareShiftNote, spareDaysOf, spareWeekDaysOf } from './admin-al-spare-note.js';
 import { SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 
 const esc = escapeHtml;
@@ -145,11 +145,14 @@ export function initALSection({
     function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, projection, sundays = [], sundayNote = '' }) {
         // A day that is STILL Spare — not one a roster upload has since assigned (admin-al-spare-note.js).
         const spareDays = spareDaysOf(memberObj, dates, memberOvByDate);
-        // …and how many of them it CHARGES: a Spare week stops costing at four (owner, 21 Nov 2026) — on
+        // …the days of a Spare week AS ROSTERED, assigned ones included — what the week's cap counts
+        // (owner, 22 Nov 2026), so the note's figure is the headline's…
+        const spareWeek = spareWeekDaysOf(memberObj, dates, memberOvByDate);
+        // …and how many of those it CHARGES: a Spare week stops costing at four (owner, 21 Nov 2026) — on
         // BALANCE (review, 22 Nov 2026): a day charged that frees a day of the week already booked
         // (`capFreed`) costs nothing, and the note said "It still uses 1 day" under "No days".
         const capFreed = projection.capFreed ?? 0;
-        const spareCharged = Math.max(0, spareDays.filter(d => projection.consuming.includes(d)).length - capFreed);
+        const spareCharged = Math.max(0, spareWeek.dates.filter(d => projection.consuming.includes(d)).length - capFreed);
         const c = projection.counts;
         // DAYS THAT ALREADY HOLD LEAVE ARE NOT NEW DAYS (review, Nov 2026). The save writes them again,
         // at the cost they already had, so "5 days" over three days already booked was booked where the
@@ -206,7 +209,8 @@ export function initALSection({
         // Wording, and why a Spare day costs one and a Spare week at most four: admin-al-spare-note.js's header.
         // Upright, not italic (review, 21 Nov 2026): it is information to read, and a whole italic
         // sentence on a phone is the hardest line on the card to read.
-        const noteText  = isSpareRole ? spareShiftNote(spareDays.length, dates.length, spareCharged) : '';
+        const noteText  = isSpareRole
+            ? spareShiftNote(spareDays.length, dates.length, spareCharged, { days: spareWeek.dates.length, weeks: spareWeek.weeks }) : '';
         const spareNote = noteText ? `<br>${esc(noteText)}` : '';
         return `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     }

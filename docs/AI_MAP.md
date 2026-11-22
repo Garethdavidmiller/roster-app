@@ -537,7 +537,7 @@ A member's CONTRACT leave allowance for a year: the grade that decides it ("role
 
 ### `al-entitlement.js`
 Which annual-leave days spend a member's allowance (a CEA's or CES's Spare week at most `SPARE_WEEK_MAX_DAYS`), and where that leaves them — taken, booked, remaining — plus `entitlementFor`, the one door to the whole allowance. Pure; one module so the Admin banner, the booking checks and the Calendar's leave panel cannot disagree, and the header has the rules. Bound by CLAUDE.md → AL entitlement and `.claude/rules/admin.md`. Tested by `al-entitlement.test.mjs` and `christmas-leave.test.mjs`.
-- **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
+- **Exports:** `entitlementFor` · `lowersAllowance` · `consumesEntitlement` · `SPARE_WEEK_MAX_DAYS` · `spareUnderneath` · `rosteredSpareDay` · `spareWeekDays` · `costsWithoutSpareCap` · `countedAlDates` · `alPosition` · `leaveYearChoices` · `dispatcherBreakdown` · `entitlementNote` · `winningEntriesOfType` · `isWorkingDate`
 
 ### `al-leave-file.js`
 The leave file: the one contract between Stage 1 (`scripts/make-leave-file.mjs`, a session reading the clerks' workbook) and Stage 2 (the Operations card) — what a valid file is, and the seal that proves it is the file that was made (docs/AL_UPLOADER_PLAN.md §3). Pure, with no app import, so it loads in Node and the browser; refusals are returned, never thrown. Tested by `al-leave-file.test.mjs`.
@@ -678,7 +678,7 @@ What ONE week-grid save does about the annual leave in it — the batch to write
 
 ### `admin-al-spare-note.js`
 The one sentence the Annual Leave booking preview says about Spare days, and the days that are still Spare and cost a day. A day is a day (owner decision): a Spare day costs one, and a CEA's or CES's Spare week at most four, which the note then says (header). Tested by `admin-al-spare-note.test.mjs` and, wired, by `e2e/admin.spec.js`.
-- **Exports:** `spareShiftNote` · `countSpareDays` · `spareDaysOf`
+- **Exports:** `spareShiftNote` · `countSpareDays` · `spareDaysOf` · `spareWeekDaysOf`
 
 ### `admin-period-dates.js`
 What a run of booked dates is and what it reads as: the pure helpers the Recorded-dates lists are built from, the names a refused save gives its days (`namedDays`), and `formatDisplay`. The rule worth knowing — a gap is not the same as a day off (`isRestGap`) — is in the header. Tested by `admin-period-dates.test.mjs`.

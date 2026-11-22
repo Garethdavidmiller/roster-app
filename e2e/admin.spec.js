@@ -5022,9 +5022,10 @@ test('admin: booking a whole Spare week off previews four days, and says why', a
 // first, so it takes one of the four and the Saturday stops costing: the balance does not move. The
 // headline said "No days" while the Spare line said "It still uses 1 day", and the receipt said
 // "Recorded 0 days" of a day it had written. All three now say the day is recorded at no cost, and why.
-test('admin: booking one day of a Spare week whose four are booked says it costs nothing, and why', async ({ page }) => {
-    // Found from the roster, as the test above finds its week, and in Node so the saved leave can be
-    // seeded before the page first loads — the receipt needs the session that load establishes.
+/** The first CEA or CES Monday-to-Saturday Spare week inside one month in the next 200 days, found from the
+ *  roster in Node — never by name, and before the page loads, so saved leave can be seeded into its first
+ *  load (a save's receipt needs the session that load establishes). */
+function nextSpareWeek() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const pick = teamMembers.map(m => {
         if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) return null;
@@ -5040,26 +5041,32 @@ test('admin: booking one day of a Spare week whose four are booked says it costs
         return null;
     }).find(Boolean);
     expect(pick, 'no CEA/CES member has a whole Spare week inside one month in the next 200 days').toBeTruthy();
-    const p = /** @type {any} */ (pick);
-    // Wednesday to Saturday already booked: four days, the week's whole cost.
+    return /** @type {any} */ (pick);
+}
+
+/** Open Admin on `p`'s leave card at its Spare week, with `docs` saved, and pick `from`–`to`.
+ *  @param {import('@playwright/test').Page} page @param {any} p @param {any[]} docs @param {string} from @param {string} to */
+async function bookInSpareWeek(page, p, docs, from, to) {
     await seedSession(page, 'G. Miller');
-    await page.addInitScript(({ name, week }) => {
-        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
-            authUser: true,   // a write needs the signed-in Firebase user, as every save test here
-            docs: week.slice(2).map((/** @type {string} */ date, /** @type {number} */ i) =>
-                ({ id: `sw${i}`, memberName: name, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' })),
-        });
-    }, { name: p.name, week: p.week });
+    await page.addInitScript((rows) => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true, docs: rows });
+    }, docs);
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-
     await page.locator('#fieldMember').selectOption(p.name);
     await page.locator('#alToggleHeader').click();
     await expect(page.locator('#alRangePicker')).toBeVisible();
     for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
-    const monday = page.locator(`#alRpGrid .rp-day[data-iso="${p.week[0]}"]`);
-    await monday.click();
-    await monday.click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${from}"]`).click();
+    await page.locator(`#alRpGrid .rp-day[data-iso="${to}"]`).click();
+}
+
+test('admin: booking one day of a Spare week whose four are booked says it costs nothing, and why', async ({ page }) => {
+    const p = nextSpareWeek();
+    // Wednesday to Saturday already booked: four days, the week's whole cost.
+    const docs = p.week.slice(2).map((/** @type {string} */ date, /** @type {number} */ i) =>
+        ({ id: `sw${i}`, memberName: p.name, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    await bookInSpareWeek(page, p, docs, p.week[0], p.week[0]);
 
     const preview = page.locator('#alPreview');
     await expect(preview).toContainText('No days of Annual Leave');
@@ -5072,6 +5079,37 @@ test('admin: booking one day of a Spare week whose four are booked says it costs
     await expect(page.locator('#alFeedback')).toContainText(
         `Recorded 1 day of Annual Leave for ${p.name} at no cost — this Spare week’s 4 days were already booked`, { timeout: 10000 });
     await expect(page.locator('#alFeedback')).not.toContainText('Recorded 0 days');
+});
+
+// THE SPARE LINE COUNTS THE WEEK AS ROSTERED, AS THE HEADLINE DOES (owner, 22 Nov 2026). A week the roster
+// upload had partly assigned read "5 of these days are Spare days … so they use 3 days" under "4 days",
+// because the line counted only the days still Spare while the cap counts the whole week.
+test('admin: a partly assigned Spare week booked whole — the Spare line\'s figure is the headline\'s', async ({ page }) => {
+    const p = nextSpareWeek();
+    const tue = { id: 'ri1', memberName: p.name, date: p.week[1], type: 'shift', value: '06:00-14:00', note: '', source: 'roster_import' };
+    await bookInSpareWeek(page, p, [tue], p.week[0], p.week[5]);
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('4 days of Annual Leave');
+    await expect(preview).toContainText('5 of these days are Spare days');
+    await expect(preview).toContainText('A Spare week uses at most 4 days of annual leave, so the 6 days booked in that week use 4 days.');
+    await expect(preview).not.toContainText('use 3 days');
+});
+
+// …AND A DAY THE ROSTER HAD ASSIGNED, FREED BY THE CAP, SAYS WHY (owner, 22 Nov 2026): the preview said
+// "+ 1 day recorded at no cost" with no line, because the day was not a Spare day any more.
+test('admin: one assigned day of a Spare week whose four are booked says why it costs nothing', async ({ page }) => {
+    const p = nextSpareWeek();
+    const docs = [
+        { id: 'ri1', memberName: p.name, date: p.week[0], type: 'shift', value: '06:00-14:00', note: '', source: 'roster_import' },
+        ...p.week.slice(2).map((/** @type {string} */ date, /** @type {number} */ i) =>
+            ({ id: `sw${i}`, memberName: p.name, date, type: 'annual_leave', value: 'AL', replacedType: 'shift', note: '', source: 'manual' })),
+    ];
+    await bookInSpareWeek(page, p, docs, p.week[0], p.week[0]);
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('No days of Annual Leave');
+    await expect(preview).toContainText('1 day recorded at no cost');
+    await expect(preview).toContainText('This day is in a Spare week, with its shift since assigned. A Spare week uses at most 4 days of annual leave, and this week\'s 4 are already booked, so it uses none.');
+    await expect(preview).not.toContainText('on standby');
 });
 
 // OWNER-REPORTED (v24.44): a Spare week that a roster upload had turned into real shifts was still
