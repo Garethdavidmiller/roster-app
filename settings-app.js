@@ -438,6 +438,12 @@ export function init() {
         emailInput.addEventListener('blur', () => {
             stripDomain();
         });
+        // "✓ SAVED" ANSWERS THE ADDRESS IT WAS SAID ABOUT (settings review, Nov 2026). Typing a different one
+        // left the tick beside it, reading as though the new address were saved before Save was pressed.
+        let savedEmail = '';   // the full address the card last saw saved; '' when none is
+        emailInput.addEventListener('input', () => {
+            if (feedback.classList.contains('ok') && workEmailFrom(emailInput.value).toLowerCase() !== savedEmail.toLowerCase()) setFeedback('', '');
+        });
 
         function setFeedback(/** @type {any} */ msg, /** @type {any} */ state) {
             feedback.textContent = msg;
@@ -470,12 +476,14 @@ export function init() {
         /** An address IS saved: the card offers to remove it, its subtitle names it, and the summary counts it done.
          *  @param {string} fullEmail */
         function markSaved(fullEmail) {
+            savedEmail = fullEmail || '';
             if (removeBtn) removeBtn.style.display = '';
             if (hintEl && fullEmail) hintEl.textContent = fullEmail;
             reportSetting('work-email', 'ok', '✓ Saved');
         }
 
         function clearSavedState() {
+            savedEmail = '';
             setFeedback('', '');
             if (removeBtn) removeBtn.style.display = 'none';
             if (hintEl) hintEl.textContent = WHY_HINT;

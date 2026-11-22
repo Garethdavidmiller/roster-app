@@ -200,6 +200,20 @@ test('settings: a saved work email says so before it offers to remove it', async
     expect(f.y + f.height, 'the confirmation must sit above the Remove action').toBeLessThanOrEqual(r.y);
 });
 
+// "✓ Saved" answers the address it was said about (settings review, Nov 2026): typing a different one left the
+// tick beside it, as though the new address were saved before Save was pressed.
+test('settings: typing a different address takes the "✓ Saved" away; the saved one, retyped, does not', async ({ page }) => {
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#contactChevron').click();
+    const feedback = page.locator('#contactFeedback');
+    await expect(feedback).toHaveText('✓ Saved');
+    await page.locator('#workEmailInput').fill('g.miller@chilternrailways.co.uk');   // the same address, typed whole
+    await expect(feedback).toHaveText('✓ Saved');
+    await page.locator('#workEmailInput').fill('g.millerx');
+    await expect(feedback).toHaveText('');
+    await expect(page.locator('#contactStatusChip'), 'the address on record is still saved').toHaveText('✓ Saved');
+});
+
 // TYPED BEFORE THE SAVED ADDRESS LOADED (18 Nov 2026). On a slow first read the card keeps what the member has typed,
 // and it told the summary "✓ Saved" — but left Remove hidden and the subtitle asking for an email, so a member with
 // an address saved could neither see which one it was nor remove it.
