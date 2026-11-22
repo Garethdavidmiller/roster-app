@@ -1374,8 +1374,7 @@ body:not(.auth-ready) .app-header { display: none; }
     border-radius: var(--radius-xl);
     padding: 8px;
     width: min(var(--modal-wide), var(--modal-cap));
-    max-height: 85vh;
-    max-height: 85dvh;
+    max-height: var(--modal-max-h);
     box-shadow: var(--shadow-3);
     text-align: left;
 }
@@ -1418,8 +1417,7 @@ body:not(.auth-ready) .app-header { display: none; }
     border-radius: var(--radius-xl);
     padding: 28px 28px 24px;
     width: min(var(--modal-wide), var(--modal-cap));
-    max-height: 85vh;
-    max-height: 85dvh;
+    max-height: var(--modal-max-h);
     box-shadow: var(--shadow-3);
     text-align: left;
 }
