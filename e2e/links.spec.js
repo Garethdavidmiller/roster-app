@@ -4786,6 +4786,43 @@ test('links: deleting the open design does not open one whose save is still in f
     await expect(page.locator('.dialog-overlay.visible'), 'no conflict with its own save').toHaveCount(0);
 });
 
+// EVERY QUESTION THAT DISCARDS UNSAVED WORK OPENS ON ITS SAFE ANSWER (24-hour check, Nov 2026). The header logo asked
+// its own "Leave anyway?" under a plain "Leave", which took the focus, so one stray Enter threw a design's edits away;
+// Create new, Switch and Import did the same. The logo now asks the shared leave question, and the three are `danger`.
+test('links: the questions that discard unsaved work open on Cancel, and the logo asks the shared leave question', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(), updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+    const dialog = page.locator('.dialog-overlay.visible');
+    /** @param {string} confirm */
+    const opensOnCancel = async (confirm) => {
+        await expect(dialog.locator('.dialog-btn-confirm')).toHaveText(confirm);
+        await expect(dialog.locator('.dialog-btn-confirm')).toHaveClass(/danger/);
+        await expect(dialog.locator('.dialog-btn-cancel'), `"${confirm}" is not where the focus opens`).toBeFocused();
+        await dialog.locator('.dialog-btn-cancel').click();
+        await expect(dialog).toHaveCount(0);
+    };
+    await switchToDesign(page, 'Other');
+    await opensOnCancel('Switch');
+    await sheetAction(page, 'newDesignBtn');
+    await opensOnCancel('Create new');
+    await sheetAction(page, 'importDesignBtn');
+    await opensOnCancel('Import');
+    await page.locator('#appIcon').click();
+    await expect(page.getByRole('alertdialog', { name: 'Leave without saving?' })).toContainText('Your unsaved changes on this page will be lost.');
+    await opensOnCancel('Leave without saving');
+    await expect(page).toHaveURL(/links\.html/);
+    await expect(page.locator('#winMonSatEnd'), 'Keep editing keeps the work').toHaveValue('14:20');
+    // Leaving is answered once: the browser's own "Leave site?" does not ask again.
+    /** @type {string[]} */ const browserAsked = [];
+    page.on('dialog', (d) => { browserAsked.push(d.type()); d.accept().catch(() => {}); });
+    await page.locator('#appIcon').click();
+    await dialog.locator('.dialog-btn-confirm').click();
+    await expect(page, 'the logo goes back to the Calendar').not.toHaveURL(/links\.html/);
+    expect(browserAsked, 'no second question from the browser').toEqual([]);
+});
+
 test('links re-review: an offline save says it is in this browser, not "✓ Saved"', async ({ page, context }) => {
     // The store queues the write and returns 'queued'; the page read that as a server-confirmed save.
     // And it promised an upload "when you're back online", which a page iOS has closed cannot make: the

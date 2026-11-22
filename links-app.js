@@ -70,7 +70,7 @@ import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { createQueuedSaves, stillUnsaved, refusedMakeLine } from './links-queued-saves.js';
 import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse, keepDraftWhenHidden, leaveAfterAsking } from './page-session.js';
 import { createDraftSlot, draftBaseline } from './unsaved-draft.js';
 import {
     sortByDeleted, deleteOutcomeLine, renameRefusedLine,
@@ -554,7 +554,8 @@ export function init() {
         making = '';
         try {
             // Unsaved work is asked about FIRST: the decision that might cancel the action must not come last.
-            if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new' })) return;
+            // `danger`: it discards the work, so the dialog opens on Cancel and one stray Enter keeps it.
+            if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Create a new one anyway?', confirmLabel: 'Create new', danger: true })) return;
             const name = (await promptDialog({ title: 'New design', message: 'Name for this design (e.g. “Option A”):', placeholder: 'Option A', maxLength: MAX_DESIGN_NAME, confirmLabel: 'Create' }))?.trim();
             if (!name) return;
             if (_designNameRejected(name)) return;
@@ -762,7 +763,7 @@ export function init() {
         const saving = savingKeys.has(id) ? designs.find(x => x.id === id) : null;
         if (saving) { renderDesignPicker(); _designActionStatus(`“${saving.name}” is still saving — open it again once its save has finished.`, ''); return; }
         // A switch that does NOT happen must put the picker back (links-design-header.js's render, v23.33).
-        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch', danger: true })) { renderDesignPicker(); return; }
         const d = designs.find(x => x.id === id) ?? PROPOSAL_ENTRIES.find(x => x.id === id);
         if (!d) { renderDesignPicker(); return; }
         if (id === compare.getCompareId()) compare.resetCompare();
@@ -1799,12 +1800,9 @@ export function init() {
         const opsLink = document.getElementById('linksOpsLink');
         if (opsLink && isAdmin) opsLink.hidden = false;
 
-        // Header logo: back to the calendar, through the unsaved-changes question (about-lightbox.js).
-        wireHeaderLogo(async () => {
-            if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })) return;
-            dirty = false;   // answered: no second "Leave site?"
-            window.location.href = './';
-        });
+        // Header logo: back to the calendar, through the shared leave question — it opens on "Keep editing", and its
+        // answer stands the unload warning aside (page-session.js), as the drawer's links do.
+        wireHeaderLogo(() => leaveAfterAsking(() => dirty, () => { window.location.href = './'; }));
     })();
 
     initTipsLightbox(CARD_TIPS);   // the `?` panels; the content is links-tips.js
