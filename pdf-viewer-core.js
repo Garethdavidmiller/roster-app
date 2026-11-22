@@ -135,7 +135,10 @@ export function isPlainClick(e) {
 /**
  * What went wrong, in the three kinds a reader can act on differently.
  *  - `connection`: no signal, or the file took too long to arrive — try again with a signal.
- *  - `gone`: the address answered 404 — the page's list is older than the pack, so reload the page.
+ *  - `gone`: the address answered 404 — the page's list is older than the pack, so reload the page. Or NEWER than the
+ *    copy that answered (the New link review, 22 Nov 2026): the GitHub Pages copy publishes a minute or more after the
+ *    release, and a renamed sheet 404s there until it lands — so the words never say the file has gone, only that it
+ *    is not there at the moment, and a reload in a minute is right either way.
  *  - `broken`: anything else (a server error, a file PDF.js could not read) — the admin's problem.
  * @param {{ online?: boolean, status?: number, timedOut?: boolean, networkError?: boolean }} p
  * @returns {'connection'|'gone'|'broken'}
@@ -149,7 +152,7 @@ export function classifyFailure({ online = true, status, timedOut = false, netwo
 /** What each kind of failure says. App problems are the admin's (CLAUDE.md → "the admin" vs "your manager"). */
 export const FAILURE_TEXT = Object.freeze({
     connection: 'This file needs a connection. Check your signal, then try again.',
-    gone: 'This file is no longer in the pack. Reload the page to see the current files.',
+    gone: 'This file isn’t available at the moment. It may have just been updated. Reload the page in a minute to see the current files.',
     broken: 'This file could not be shown. Try again, and tell the admin if it keeps happening.',
 });
 

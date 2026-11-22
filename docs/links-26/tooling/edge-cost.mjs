@@ -14,6 +14,8 @@
 // they moved here with the facts that need them, and the sheet reads them from here.
 import { TC, C, BV, LC, MG, H, first, mins, perYear, claim } from './what-it-means-data.mjs';
 import { h55Worst, assess } from './report-data.mjs';
+import { leaveRuns } from './leave.mjs';
+import { DAYS as GRID_DAYS } from '../../../links-design.js';
 
 /** The margin, named once: the page states it beside the points (newlink-data.mjs → DIFFER_RULE), so it cannot name another. */
 export const MARGIN = 0.05;
@@ -36,12 +38,26 @@ for (const c of [TC, ...C]) {
   c.oneYear = Math.round(first(c.f.oneTurn) * 52 / L);                            // weeks on one shift time a year, as the shortlist's page 2
   c.assessed = assess(c.p, L);                                                    // the Links workspace's own reading of the rotation
   c.mixed = c.assessed.feel.hybrid;                                               // weeks mixing earlies and lates, in the rotation
+  // the rostered Sundays inside the best stretch: leave.mjs's runs, the fewest over the first days that reach the best. Counted
+  // HERE since 22 Nov 2026 (it was glance-sheet.mjs's), because the page's Balanced V6 edge `fewestSundaysLost` needs it
+  const seq = Object.keys(c.p).sort((a, b) => a - b).flatMap(k => GRID_DAYS.map(d => ({ sun: d === 'sun', v: c.p[k][d] })));
+  const runs = leaveRuns(c.p, 14), best = Math.max(...runs), n = seq.length;
+  c.bestRun = best;
+  c.sunsIn = Math.min(...runs.map((r, s) => r < best ? Infinity : Array.from({ length: best }, (_, j) => seq[(s + j) % n]).filter(x => x.sun && x.v !== 'RD' && x.v !== 'SPARE').length));
 }
 
 // ── THE FACTS, design by design, in the order the sheet's cards say them ──────────────────────────────────────────────
 const one = c => c.oneYear, wkOff = c => +c.f.weekendsYear, step = c => H(c.f.step), ffW = c => worstOf(c.f.ff), runW = c => worstOf(c.f.run);
 const opens = c => c.f.open.split(' · ').map(Number);   // at the open: weekday · Saturday · Sunday, the decks' heads
-const fact = (key, ok) => ({ key, ok: !!ok });
+const fact = (key, ok) => ({ key, ok: !!ok, sheet: true });
+// THE PAGE NAMES MORE THAN THE SHEET (owner, 22 Nov 2026: "Add them and reword"). The New link page's review found three
+// differences that pass the 5% rule and that neither place named — Level Crossing's fifth person at the weekday open (while
+// Balanced V6's Saturday one was credited), Balanced V6's weaker weekday fit to the trains and its fewest Sundays lost inside
+// the best leave. The page now names them, and its rule says it lists the MAIN differences rather than all of them. The
+// printed sheet was left as colleagues have it (the owner kept the pack unchanged the same day), and it already prints all
+// three figures in its table — so the page adds points the sheet's cards leave out, and never contradicts one.
+// `sheet: false` marks them: the sheet must word exactly its own facts, the page every fact.
+const pageOnly = (key, ok) => ({ ...fact(key, ok), sheet: false });
 
 /** @type {ReadonlyArray<{ c: any, edge: ReadonlyArray<{ key: string, ok: boolean }>, cost: ReadonlyArray<{ key: string, ok: boolean }> }>} */
 export const EDGE_COST = [
@@ -50,6 +66,7 @@ export const EDGE_COST = [
       fact('shortestRuns', clear(+BV.f.block, others(BV).map(c => +c.f.block)) && clear(+BV.f.blockUpTo, others(BV).map(c => +c.f.blockUpTo))),
       fact('most34Breaks', clear(BV.long34, others(BV).map(c => c.long34), true)),
       fact('fiveAtSatOpen', opens(BV)[1] === 5 && others(BV).every(c => opens(c)[1] === 4)),
+      pageOnly('fewestSundaysLost', clear(BV.sunsIn, others(BV).map(c => c.sunsIn))),
     ],
     cost: [
       fact('fewestOneTime', clear(one(BV), others(BV).map(one)) && BV.mixed > 0 && others(BV).every(c => c.mixed === 0)),
@@ -57,6 +74,7 @@ export const EDGE_COST = [
       fact('mostSingles', clear(BV.singles, others(BV).map(c => c.singles), true)),
       fact('fewestWeekends', clear(wkOff(BV), others(BV).map(wkOff))),
       fact('mostIfCoverBad', clear(ffW(BV), others(BV).map(ffW), true) && clear(runW(BV), others(BV).map(runW), true)),
+      pageOnly('weakestWeekdayFit', clear(+BV.f.fitWk, others(BV).map(c => +c.f.fitWk), true)),
     ] },
   // "however a cover week falls" is the claim: on the set duties all three work five days in a row at most
   { c: LC,
@@ -66,6 +84,7 @@ export const EDGE_COST = [
       fact('gentlestStep', clear(step(LC), others(LC).map(step))),
       fact('fewestSingles', clear(LC.singles, others(LC).map(c => c.singles)) && LC.singles === TC.singles),
       fact('most0620', clear(+LC.f.open0620, others(LC).map(c => +c.f.open0620), true)),
+      pageOnly('fiveAtWeekdayOpen', opens(LC)[0] === 5 && others(LC).every(c => opens(c)[0] === 4)),
     ],
     cost: [
       fact('fewest34Breaks', clear(LC.long34, others(LC).map(c => c.long34))),
@@ -89,10 +108,12 @@ claim('Middle Ground’s leave worst case and shortest Sundays are not edges or 
   !clear(+MG.f.leaveWorst, others(MG).map(c => +c.f.leaveWorst), true) && !clear(H(MG.f.sunHours), others(MG).map(c => H(c.f.sunHours))));
 
 /**
- * Whether a consumer words exactly a design's facts, no more and no fewer.
+ * Whether a consumer words exactly a design's facts, no more and no fewer: the page every fact, the sheet only its own
+ * (`sheet: true` — see `pageOnly`).
  * @param {string} name  the design @param {'edge'|'cost'} side @param {ReadonlyArray<string>} keys  the keys it words
+ * @param {'page'|'sheet'} [who]
  */
-export const wordsExactly = (name, side, keys) => {
-  const want = EDGE_COST.find(e => e.c.name === name)?.[side].map(f => f.key) ?? [];
+export const wordsExactly = (name, side, keys, who = 'page') => {
+  const want = EDGE_COST.find(e => e.c.name === name)?.[side].filter(f => who === 'page' || f.sheet).map(f => f.key) ?? [];
   return [...keys].sort().join() === [...want].sort().join();
 };

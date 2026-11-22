@@ -22,12 +22,13 @@
 // Even Step's beginnings, Short Run's 31 Oct cover-week figure) went with the designs it was about.
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { GROUPS, TC, C, BV, LC, MG, FIG, RATE, claim, tidyText, isBest, hm, H, Hmax, first, timed, mins, MS, SHORTLIST, grid } from './what-it-means-data.mjs';
-import { PROPOSALS } from '../../../links-proposals.js';
+import { GROUPS, TC, C, BV, LC, MG, FIG, RATE, claim, tidyText, isBest, hm, H, Hmax, first, timed, MS, SHORTLIST, grid } from './what-it-means-data.mjs';
+import { PROPOSALS, proposalDisplayName } from '../../../links-proposals.js';
 import { DAYS } from '../../../links-design.js';
 // EACH ONE'S EDGE AND ITS COST (12 Nov 2026): the facts the at-a-glance sheet's cards word, by the same rule — the page's
 // "Where they differ" card words exactly the same facts, so the two cannot list different points
-import { wordsExactly, worstOf, MARGIN } from './edge-cost.mjs';
+import { wordsExactly, worstOf, others, MARGIN } from './edge-cost.mjs';
+const opens = c => c.f.open.split(' · ').map(Number);   // at the open: weekday · Saturday · Sunday, as edge-cost.mjs reads it
 
 // fileURLToPath, never `.pathname`: a checkout whose path holds a space reads as %20 and every file goes missing
 const OUT = fileURLToPath(new URL('../../../newlink-data.js', import.meta.url));
@@ -44,7 +45,7 @@ const NAMES = C.map(c => c.name);
 if (NAMES.join() !== 'Balanced V6,Level Crossing,Middle Ground' || SHORTLIST.join() !== NAMES.join()) throw new Error(`the page's sentences are written for Balanced V6, Level Crossing and Middle Ground, A to Z; the shortlist is ${SHORTLIST}`);
 claim('the three in alphabetical order', [...NAMES].sort().join() === NAMES.join());
 // the page sorts the three A to Z itself (newlink-render.js aToZ), whatever order the built-in list keeps
-claim('the built-in proposals are the shortlist, which the page shows A to Z as COLUMNS lists them', PROPOSALS.map(p => p.name.replace(/ — Dec 2026$/, '')).sort().join() === NAMES.join());
+claim('the built-in proposals are the shortlist, which the page shows A to Z as COLUMNS lists them', PROPOSALS.map(proposalDisplayName).sort().join() === NAMES.join());
 const codeOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).code;
 const refOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).ref;
 
@@ -80,17 +81,20 @@ claim('on all three, two Saturday office lates to 22:30; today’s to 22:00', C.
 // PLAIN WORDS (owner, 12 Nov 2026: "It should be for dummies"): "not counting cover weeks" where the page said "cover weeks
 // aside", and the leave line says what 14 days' leave buys rather than "30 days off for 14 at best"
 const CHANGES = [
-  'The shortlist is new: Balanced V6, Level Crossing and Middle Ground. Short Run is no longer on it.',
+  'The shortlist is new: Balanced V6, Level Crossing and Middle Ground. Short Run, the proposal shown to colleagues first, is no longer on it.',
   'All three keep closing weeks apart: a week of closing shifts is never followed by another, not counting cover weeks. On Short Run three closing weeks fall together.',
   'All three keep today’s leave: 14 days’ leave still buys four full weeks off, Sunday to Saturday, or up to 30 days off in a row. On Short Run four weeks off take 15 days’ leave, and 14 days buy 28 at most.',
   // "ON ONE SHIFT TIME" SAID AS WHAT IT COUNTS (owner, 12 Nov 2026: "for dummies"): report-data.mjs feel()'s oneTurn is a week
   // whose Monday-to-Friday shifts are all the same one AND whose shifts, the weekend included, are all earlies or all lates, so the
   // line says both halves. It said only the first until the 13 Nov review: Balanced V6 has an eighth week with the same shift every
   // weekday that mixes earlies and lates, so "does in 7" read as a week short of what the words described
-  'Level Crossing and Middle Ground keep the same shift every weekday, with no mix of earlies and lates, in 18 of their 21 weeks of set shifts, as Short Run does. Balanced V6 does in 7, so its shift times change more within a week, and its runs of earlies, or of lates, are three weeks at most, or five if a cover week falls badly.',
+  // ONE THING A SENTENCE (the 22 Nov review): the second half said three things in one breath, so it is two sentences
+  'Level Crossing and Middle Ground keep the same shift every weekday, with no mix of earlies and lates, in 18 of their 21 weeks of set shifts, as Short Run does. Balanced V6 does in 7 of its 21, so its shift times change more within a week. Its runs of earlies, or of lates, are 3 weeks at most, or 5 if a cover week falls badly.',
   // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 12 or 20 a year
   'All three keep a shift finishing at 13:45 on every weekday of the rota. Short Run has none.',
-  'On all three, the two Saturday ticket-office lates finish at 22:30, to cash up after the office shuts at 22:10.',
+  // AGAINST TODAY, NOT SHORT RUN (the 22 Nov review): Short Run's two Saturday office lates finish at 22:30 too, so this is a
+  // change from today's link, as the claim below asserts, and the line says so
+  'On all three, the two Saturday ticket-office lates finish at 22:30, not 22:00 as today, to cash up after the office shuts at 22:10.',
 ].map(t);
 
 // ── WHAT ALL THREE GIVE EVERYONE, AND WHAT THEY COST ──────────────────────────────────────────────────────────────────
@@ -112,8 +116,10 @@ claim('if a cover week falls badly, Balanced V6 one day more in a row than today
 const GAINS = [
   `The same ${hours.replace('h', '-hour')} week, so the same basic pay.`,
   `${span(weekends)} full weekends off a year, Saturday and Sunday (today ${TC.f.weekendsYear}).`,
-  `At most ${run} days at work in a row, not counting cover weeks (today ${first(TC.f.run)}). If a cover week falls badly, Balanced V6 can mean ${worstRun(BV)} days in a row, one more than today’s worst.`,
-  `Every closing shift ${cutLo} minutes to an hour shorter.`,
+  // EVERY THREE'S WORST, NOT ONE DESIGN'S (the 22 Nov review): a drawback for one proposal under "What everyone gains" read as
+  // a second point in the line; the range is all three's, and Balanced V6 is named as where it reaches
+  `At most ${run} days at work in a row, not counting cover weeks (today ${first(TC.f.run)}). If a cover week falls badly, ${span(C.map(worstRun))} (today ${worstRun(TC)}): ${worstRun(BV)} on Balanced V6.`,
+  `Every closing shift (the one that works until the station closes) ${cutLo} minutes to an hour shorter than today’s.`,
   `At least ${hm(restLo)} off between shifts, not counting cover weeks (today ${hm(H(TC.f.rest))}).`,
   `No avoidable fatigue warnings, not counting cover weeks (today ${first(TC.f.ff)}).`,
 ].map(t);
@@ -124,13 +130,17 @@ const sat = shared('Saturdays a year', c => +c.f.sat);
 const nt = C.map(newTimes);
 claim('worse than today on all three', late23 > +TC.f.late23 && block.every(b => b > +TC.f.block) && blockUpTo.every(b => b > +TC.f.blockUpTo) && sat > +TC.f.sat
   && C.every(c => +c.f.shortYear < +TC.f.shortYear) && nt.every(n => n > 0));
+claim('new shift times: Balanced V6 has the most, the other two the same', nt[0] > nt[1] && nt[1] === nt[2]);
+const todayTimes = +/^(\d+)/.exec(TC.f.times)[1];
+const newTimesLine = () => `New shift times to learn: ${nt[0]} on Balanced V6, ${nt[1]} on the other two (today has ${todayTimes} shift times in all).`;
 const COSTS = [
   `${late23} finishes a year at 23:00 or later (today ${TC.f.late23}).`,
   `Longer runs of earlies, or of lates: ${span(block)} weeks in a row at most, or ${span(blockUpTo)} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
   `${WORDS[sat - +TC.f.sat]} more Saturdays at work a year (${sat}, today ${TC.f.sat}).`,
   // the three's own figures, not only today's (the review, 2 Nov 2026: a cost with no new figure says nothing)
   `Fewer earlies that finish before 14:00: ${span(C.map(c => +c.f.shortYear))} a year (today ${TC.f.shortYear}).`,
-  `${(v => v.length === 1 ? WORDS[v[0]] : v.length === 2 ? `${WORDS[v[0]]} or ${WORDS[v[1]].toLowerCase()}` : `${WORDS[v[0]]} to ${WORDS[v[v.length - 1]].toLowerCase()}`)([...new Set(nt)].sort((a, b) => a - b))} new shift times to learn.`,
+  // WHICH IS WHICH (the 22 Nov review): "Six or eight" left the reader to guess which proposal had which
+  newTimesLine(),
 ].map(t);
 
 // ── WHAT IT MEANS IF YOU… — the sheet's six bands, as the page's choices ──────────────────────────────────────────────
@@ -163,6 +173,10 @@ const REWORD = [
   // a pound figure says the period it covers, as every other row's label does: the sheet's "against today" alone left it open
   [/^Premium and overtime pay, against today$/g, 'Premium and overtime pay a year, against today'],
   [/^Premium pay, against today$/g, 'Premium pay a year, against today'],
+  // ONE SET OF EARLIES, ONE NAME (the 22 Nov review): the row and the cost line named the same earlies two ways
+  [/^Earlies finishing at 13:35 or 13:45, a year$/g, 'Earlies finishing before 14:00 (at 13:35 or 13:45), a year'],
+  // "for" READ TWO WAYS (the 22 Nov review): as "because of" and as "in exchange for"
+  [/has the most of the three, for (\d+) single/g, 'has the most of the three, and also $1 single'],
 ];
 const reworded = REWORD.map(() => 0);
 const forPage = s => REWORD.reduce((txt, [re, to], k) => { reworded[k] += (txt.match(re) ?? []).length; return txt.replace(re, to); }, s);
@@ -185,27 +199,33 @@ const COLUMNS = ['Today', ...NAMES];
 const DIFFER_WORDS = {
   'Balanced V6': {
     better: [
-      [['shortestRuns'], c => `The shortest runs of earlies, or of lates: ${c.f.block} weeks in a row at most, or ${c.f.blockUpTo} if a cover week falls badly.`],
-      [['most34Breaks'], c => `The most breaks of three or four rest days: about ${c.long34} a year.`],
-      [['fiveAtSatOpen'], () => 'Five people on duty when the station opens on a Saturday, where the other two have four.'],
+      [['shortestRuns'], c => `The shortest runs of earlies, or of lates: ${c.f.block} weeks in a row at most, or ${c.f.blockUpTo} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`],
+      [['most34Breaks'], c => `The most breaks of three or four rest days: about ${c.long34} a year (today ${TC.long34}).`],
+      [['fiveAtSatOpen'], () => 'Five people on duty when the station opens on a Saturday, where the other two have four, as today.'],
+      [['fewestSundaysLost'], c => `The fewest Sunday overtime shifts lost to your longest break: ${c.sunsIn} in the ${c.f.leaveBest} days off that 14 days’ leave buys, where the other two lose ${others(c)[0].sunsIn} (today ${TC.sunsIn}).`],
     ],
     worse: [
-      [['fewestOneTime'], c => `The fewest weeks with the same shift every weekday and no mix of earlies and lates: ${c.oneYear} a year, and the only one with weeks that mix the two.`],
-      [['biggestStep'], c => `The biggest change of start time from one week to the next: ${hm(H(c.f.step))} on average.`],
+      // ONE MEASURE, ONE UNIT (the 22 Nov review): the Changes card counts these weeks "7 of 21", so this line does too, with the year's figure beside it
+      [['fewestOneTime'], c => `The fewest weeks with the same shift every weekday and no mix of earlies and lates: ${first(c.f.oneTurn)} of its ${Object.keys(c.p).length - 5} weeks of set shifts, or ${c.oneYear} a year (the other two ${others(c)[0].oneYear}, today ${TC.oneYear}). The only one with weeks that mix the two.`],
+      [['biggestStep'], c => `The biggest change of start time from one week to the next: ${hm(H(c.f.step))} on average (today ${hm(H(TC.f.step))}).`],
       [['mostSingles'], c => `The most single rest days (a day off on its own): ${c.singles} a year (today ${TC.singles}).`],
-      [['fewestWeekends'], c => `The fewest full weekends off: ${c.f.weekendsYear} a year.`],
-      [['mostIfCoverBad'], c => `If a cover week falls badly, the most avoidable fatigue warnings (${worstOf(c.f.ff)}) and the most days at work in a row (${worstOf(c.f.run)}).`],
+      [['fewestWeekends'], c => `The fewest full weekends off: ${c.f.weekendsYear} a year (today ${TC.f.weekendsYear}).`],
+      [['mostIfCoverBad'], c => `If a cover week falls badly, the most avoidable fatigue warnings (${worstOf(c.f.ff)}, today ${worstOf(TC.f.ff)}) and the most days at work in a row (${worstOf(c.f.run)}, today ${worstOf(TC.f.run)}).`],
+      // "FOLLOWS THE TRAINS" as Middle Ground's Saturday line says it; no figure, as there: the fit's scale (0 = exact) means nothing without the sheet
+      [['weakestWeekdayFit'], () => 'On weekdays, the number of staff on duty through the day matches how busy the trains are less closely than on the other two, though more closely than today.'],
     ] },
   'Level Crossing': {
     better: [
       // "NO WEEK OVER 55 HOURS" WAS SHORTHAND: the figure is the worst SEVEN DAYS IN A ROW, whatever week they straddle (edge-cost.mjs)
-      [['noFatigueOr55', 'fewestDaysInRow'], c => `However a cover week falls: no avoidable fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (${worstOf(c.f.run)} at most).`],
-      [['gentlestStep'], c => `The smallest change of start time from one week to the next: ${hm(H(c.f.step))} on average.`],
+      [['noFatigueOr55', 'fewestDaysInRow'], c => `However a cover week falls: no avoidable fatigue warnings, never more than 55 hours in any seven days, and the fewest days at work in a row (${worstOf(c.f.run)} at most, today ${worstOf(TC.f.run)}).`],
+      [['gentlestStep'], c => `The smallest change of start time from one week to the next: ${hm(H(c.f.step))} on average (today ${hm(H(TC.f.step))}).`],
       [['fewestSingles'], c => `The fewest single rest days (a day off on its own): ${c.singles} a year, as today.`],
-      [['most0620'], c => `The most 06:20 starts, when the station opens: ${c.f.open0620} a year, for those who like them.`],
+      // TODAY BESIDE IT (the 22 Nov review): 58 is the most of the three and still fewer than today's 62, which the line alone hid
+      [['most0620'], c => `The most 06:20 starts, when the station opens: ${c.f.open0620} a year (today ${TC.f.open0620}), for those who like them.`],
+      [['fiveAtWeekdayOpen'], () => 'Five people on duty when the station opens on a weekday, where the other two have four, as today.'],
     ],
     worse: [
-      [['fewest34Breaks'], c => `The fewest breaks of three or four rest days: about ${c.long34} a year.`],
+      [['fewest34Breaks'], c => `The fewest breaks of three or four rest days: about ${c.long34} a year (today ${TC.long34}).`],
     ] },
   'Middle Ground': {
     better: [
@@ -215,11 +235,14 @@ const DIFFER_WORDS = {
       [['closestSatFit'], () => 'On Saturdays, the number of staff on duty through the day best matches how busy the trains are.'],
     ],
     worse: [
-      [['fewestShortEarlies'], c => `The fewest earlies finishing before 14:00: ${c.f.shortYear} a year.`],
-      [['fourAtOpenEveryDay'], () => 'Four people on duty when the station opens, every day, where the other two have more on some days.'],
+      [['fewestShortEarlies'], c => `The fewest earlies finishing before 14:00: ${c.f.shortYear} a year (today ${TC.f.shortYear}).`],
+      [['fourAtOpenEveryDay'], () => 'Four people on duty when the station opens, every day, where the other two have five on one day of the week (today four, and three on a Sunday).'],
       [['leastSundayPay'], c => `The least pay for working your share of Sundays: about £${c.sundayLoss} a year less than today, before tax.`],
     ] },
 };
+claim('the "as today" and today figures the points above lean on', opens(BV)[1] === 5 && opens(TC)[1] === 4 && opens(LC)[0] === 5 && opens(TC)[0] === 4
+  && opens(TC).join() === '4,4,3' && others(BV).every(c => c.sunsIn === others(BV)[0].sunsIn) && others(BV).every(c => c.oneYear === others(BV)[0].oneYear)
+  && +BV.f.fitWk < +TC.f.fitWk && C.every(c => Object.keys(c.p).length === 26) && C.every(c => Object.values(c.p).filter(r => DAYS.every(d => r[d] === 'SPARE')).length === 5));
 const DIFFERS = C.map(c => {
   const w = DIFFER_WORDS[c.name];
   claim(`the page words exactly ${c.name}'s edge and cost, as the at-a-glance sheet does`,
@@ -233,21 +256,29 @@ claim('"Where they differ" names no design it does not show, and recommends none
 // rank the three, which the page never does, so the note under the points says what the count means — and what it does not
 const pct = Math.round(MARGIN * 100);
 claim('the margin is a whole percentage', pct === MARGIN * 100);
-const DIFFER_RULE = t(`Only clear differences are listed: where one is more than ${pct}% better, or worse, than both of the others. The number of points is not a score: one point may matter more to you than several.`);
+// THE MAIN DIFFERENCES, NOT ALL OF THEM (owner, 22 Nov 2026: "Add them and reword"): "Only clear differences are listed" read as
+// a complete list, and it was not one — three clear differences were missing until that day. The page now lists them, and the
+// rule says what it is: the main differences, each a clear one
+const DIFFER_RULE = t(`The main differences are listed. Each is clear: more than ${pct}% better, or worse, than both of the others. The number of points is not a score: one point may matter more to you than several.`);
 
 // ── HOW THE FIGURES ARE WORKED OUT ────────────────────────────────────────────────────────────────────────────────────
 const NOTES = [
   'Every figure is worked out from the rotas by the app’s own tooling. None is typed in.',
-  'One person, over a year, not counting cover weeks. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.',
-  `Pounds are before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. The Pay Calculator estimates a payslip.`,
-  'A swap is counted on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.',
+  // SAID IN FULL (the 22 Nov review): the notes were shorthand a newcomer could not unpack
+  'Each figure is for one person over a year, and leaves out cover weeks unless it says “up to” or “if a cover week falls badly”. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. An early starts before 11:00, a late at 11:00 or after.',
+  `Pounds are before tax, at the CEA rate of £${RATE.toFixed(2)} an hour. The Sunday figure is rounded to £50, the others to £10. To estimate your own payslip, use the Pay Calculator.`,
+  'A swap means swapping your early for a colleague’s late on the same day. The swap figures assume a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip): the most those particular swaps could make, not a forecast.',
   // "THE BEST", NOT "THE CLEAR BEST" (the bug check, 9 Nov 2026): isBest marks the best however small the lead — 8h 06m beside
   // 8h 07m is marked — so "clear" promised a margin the marks do not keep. The sheet's key says the same since v25.61. AND THE
   // SUNDAY ROWS SAY WHY THEY ARE UNMARKED (owner: "Fix"), with the sheet's own sentence: what-it-means-data.mjs asserts it
-  'Bold green marks the best of the three for that person. The swap rows are not marked: which link suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a link pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another.',
+  // THE OTHER UNMARKED ROWS SAY WHY TOO (the 22 Nov review): the runs and the late finishes carry no green by design
+  // (what-it-means-data.mjs), and the note named only three kinds of row
+  'Bold green marks the best of the three for that person. The swap rows are not marked: which proposal suits a swapper depends on which swaps they make. Nor are the no-overtime rows: the three are within one Saturday shift’s hours a year. Nor are the Sunday rows: where a proposal pays a Sunday worker more, it is for more weekend hours at work, which suits one person and not another. Nor are the runs of earlies or lates, or the finishes at 23:00 or later: some prefer more of them, some fewer.',
   // "AVOIDABLE" SAID ONCE, IN FULL (the 13 Nov review): every figure on the page counts the avoidable warnings, as the pack's
   // sheet does, and the page called them plain "fatigue warnings" twice; the sheet's own sentence says which two are left out
-  '“Up to” is the worst place a cover week’s shifts could fall. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail. Two that every link has are left out: starts before 07:00 and a weekly rotation.',
+  // THE SUNDAY TOO (the 22 Nov review): RULES.md §3 counts the cover week's Sunday as worked in every worst case, and Balanced
+  // V6's 10 days in a row needs it
+  '“Up to” is the worst place a cover week’s four shifts could fall, with its Sunday worked as overtime too. Fatigue warnings follow the Office of Rail and Road’s good-practice list, and are never a pass or a fail. They leave out the two that every link has: starts before 07:00, and shifts that change from one week to the next.',
 ].map(t);
 const standing = (/** @type {any} */ c) => c.assessed.fatigue.results.filter((/** @type {any} */ r) => r.status === 'standing').map((/** @type {any} */ r) => r.code).sort().join();
 claim('the two warnings the notes leave out, early starts (FF2) and a weekly rotation (FF18), are on today and all three, and no others', [TC, ...C].every(c => standing(c) === 'FF18,FF2'));

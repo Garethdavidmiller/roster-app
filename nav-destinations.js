@@ -40,8 +40,8 @@ export const NAV_PAGES = Object.freeze([
     // Trains is every member's (owner, 20 Oct 2026). A gate here and the auth-policy role always move
     // together — nav-gates.test.mjs checks it.
     { id: 'trains',     label: '🚆 Trains',        url: './trains.html',     colorClass: 'nav-panel-pill--trains'     },
-    // The new link's shortlisted proposals: the admin's and the named previewers' while it is a preview
-    // (`canOpenNewlink`) — the gate and auth-policy.js's role move together (nav-gates.test.mjs).
+    // The new link's shortlisted proposals: every colleague on a normal CEA contract and the managers since it opened, with
+    // the admin and the named previewers (`canOpenNewlink`) — the gate and auth-policy.js's role move together (nav-gates.test.mjs).
     { id: 'newlink',    label: '🔁 New link', url: './newlink.html',    colorClass: 'nav-panel-pill--newlink',    newlinkAudienceOnly: true },
     // SETTINGS IS A PAGE, SO IT IS A PILL (nav-panel.js's header has why); its badges' indigo (shared.css
     // has why). It comes last, so "work pages first" holds by position.

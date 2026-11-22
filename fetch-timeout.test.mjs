@@ -11,7 +11,7 @@
 
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchWithTimeout, isFetchTimeout, isFetchAborted, serverRefusal, FETCH_TIMEOUT_CODE, FETCH_ABORTED_CODE, DEFAULT_FETCH_TIMEOUT_MS } from './fetch-timeout.js';
+import { fetchWithTimeout, fetchBytesWhileArriving, isFetchTimeout, isFetchAborted, serverRefusal, FETCH_TIMEOUT_CODE, FETCH_ABORTED_CODE, DEFAULT_FETCH_TIMEOUT_MS } from './fetch-timeout.js';
 
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
@@ -338,5 +338,55 @@ describe('serverRefusal', () => {
         assert.equal(serverRefusal(new Error('Server responded 500: {"error":"Reset failed"}')), null);
         assert.equal(serverRefusal(new TypeError('Failed to fetch')), null);
         assert.equal(serverRefusal(null), null);
+    });
+});
+
+/** A response whose body arrives as `chunks`, one every `gapMs`, honouring the request's abort as the platform does. */
+function tricklingFetch(chunks, gapMs, { status = 200 } = {}) {
+    return (_url, opts) => Promise.resolve({
+        ok: status >= 200 && status < 300, status,
+        body: {
+            cancel() {},
+            getReader() {
+                let i = 0;
+                return { read: () => new Promise((resolve, reject) => {
+                    const t = setTimeout(() => resolve(i < chunks.length ? { done: false, value: chunks[i++] } : { done: true, value: undefined }), gapMs);
+                    opts?.signal?.addEventListener('abort', () => { clearTimeout(t); const e = new Error('aborted'); e.name = 'AbortError'; reject(e); });
+                }) };
+            },
+        },
+    });
+}
+
+describe('fetchBytesWhileArriving — a file bounded by silence, not by its length (the New link review, 22 Nov 2026)', () => {
+    test('a slow file that keeps arriving is never cut off, however long the whole takes', async () => {
+        // ten chunks 15ms apart: 150ms in all, three times the 50ms limit — and never 50ms without a byte
+        const chunks = Array.from({ length: 10 }, (_, i) => new Uint8Array([i, i]));
+        globalThis.fetch = tricklingFetch(chunks, 15);
+        const r = await fetchBytesWhileArriving('https://example.test/f.pdf', {}, 50);
+        assert.equal(r.ok, true);
+        assert.deepEqual([...(/** @type {any} */ (r).bytes)], chunks.flatMap(c => [...c]), 'every byte, in order');
+    });
+
+    test('a file that stops arriving is given up after the limit, as a timeout', async () => {
+        globalThis.fetch = tricklingFetch([new Uint8Array([1])], 200);
+        await assert.rejects(() => fetchBytesWhileArriving('https://example.test/f.pdf', {}, 40), (err) => isFetchTimeout(err));
+    });
+
+    test('a server that never answers is a timeout too', async () => {
+        globalThis.fetch = slowFetch(500);
+        await assert.rejects(() => fetchBytesWhileArriving('https://example.test/f.pdf', {}, 30), (err) => isFetchTimeout(err));
+    });
+
+    test('the caller cancelling is a cancel, never a timeout', async () => {
+        globalThis.fetch = tricklingFetch([new Uint8Array([1]), new Uint8Array([2])], 30);
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 10);
+        await assert.rejects(() => fetchBytesWhileArriving('https://example.test/f.pdf', { signal: ctrl.signal }, 1000), (err) => isFetchAborted(err) && !isFetchTimeout(err));
+    });
+
+    test('a refused file says its status, without reading it', async () => {
+        globalThis.fetch = tricklingFetch([], 5, { status: 404 });
+        assert.deepEqual(await fetchBytesWhileArriving('https://example.test/f.pdf', {}, 100), { ok: false, status: 404 });
     });
 });

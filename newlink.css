@@ -2,7 +2,8 @@
    newlink.css — page styles for newlink.html (the new link: three proposals)
    =========================================================================
    Loaded after shared.css, which supplies the cards' headers, chevrons, the header chrome and every design token used
-   below. Nothing here re-declares a colour, radius, type size or focus recipe that shared.css owns.
+   below. Nothing here re-declares a colour, type size or focus recipe that shared.css owns; the only fixed corners are the
+   roster cells' 4px and the key's 3px swatches, smaller than the smallest token (`--radius-xs`, 6px) a 14px square can wear.
 
    THE CONTROLS ARE BUTTONS THAT LOOK LIKE BUTTONS (owner, 2 Nov 2026, of the Trains page's tabs: "they lack pop — don't
    make this mistake with the new page"). Every choice here is a WHITE RAISED tile on the card — Layer 2 of the
@@ -154,6 +155,11 @@ body {
 .nl-differ { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 .nl-differ-one { display: grid; gap: 8px; align-content: start; min-width: 0; }
 .nl-differ-one .nl-sub { margin: 0; }
+/* Stacked on a phone, the persona divider between proposals (the 22 Nov 2026 review): the next name sat 20px under the
+   last red panel, and where one proposal ended and the next began was soft. Side by side from 1024px, none is needed. */
+@media (max-width: 1023px) {
+    .nl-differ-one + .nl-differ-one { padding-top: 16px; border-top: 2px solid var(--border-light); }
+}
 #nlDifferList > .nl-note { margin-top: 12px; }
 #nlDifferList > .nl-files { margin-top: 10px; }
 @media (min-width: 1024px) {
@@ -187,7 +193,15 @@ body {
     margin: 0 -4px 8px;
     padding: 6px 4px;
     background: var(--surface);
+    /* AN EDGE WHERE THE ROWS GO UNDER (the 22 Nov 2026 review): on the card's own colour a cover week sliding beneath was cut
+       through with nothing to say why */
+    box-shadow: 0 1px 0 var(--border-light);
 }
+/* The days of the week, under the tabs once they have stuck (newlink-render.js → renderWeeksTabs; newlink-app.js places
+   each day over its column). Hidden until then: at the top of the card the grid's own headings say the same. */
+.nl-tabs-days { display: none; position: relative; grid-column: 1 / -1; height: 1.6em; overflow: hidden; color: var(--text-mid); font-size: var(--type-micro); font-weight: 700; text-transform: uppercase; }
+.nl-tabs.is-stuck .nl-tabs-days { display: block; }
+.nl-tabs-days span { position: absolute; top: 0; line-height: 1.6em; text-align: center; }
 .nl-tile, .nl-tab {
     display: flex;
     align-items: center;
@@ -283,9 +297,11 @@ body {
    column (newlink-render.js → figureText). Where it fits, it draws exactly as plain text. */
 .nl-fig .nl-nb { display: inline-block; }
 .nl-fig td.nl-today { color: var(--text-light); font-weight: 500; }
+/* 0.3em a side, not 8px (the 22 Nov 2026 review): at 320px the 16px of padding alone pushed "8h 06m" onto two lines while
+   the unmarked figures beside it stayed on one — the one figure singled out looked broken. */
 .nl-fig .nl-best b {
     display: inline-block;
-    padding: 1px 8px;
+    padding: 1px 0.3em;
     border-radius: var(--radius-pill);
     background: var(--success-green-bg);
     color: var(--success-green);
@@ -346,7 +362,16 @@ body {
    sideways swipe at its edge from passing to the page. It is
    `position: relative` so the hidden " to " in each cell (.visually-hidden, absolutely placed) scrolls inside it: with no
    placed ancestor those escaped the frame and widened the document by the grid's overflow (39px at 320px and 1.3 times). */
-.nl-weeks-wrap { padding: 6px; border: 1.5px dashed var(--border-mid); border-radius: var(--radius-md); background: white; overflow-x: auto; overscroll-behavior-x: contain; position: relative; }
+/* THE RIGHT-EDGE CUE (the 22 Nov 2026 review), the Links grid's recipe (links.css → --scroll-cue): at large text Saturday was
+   simply cut off at the frame with nothing to say it scrolls. `local` masks the fade once the end is reached, `scroll` pins
+   the shadow to the frame; it shows in the gaps between cells and the frame's padding, so no listener can go stale. */
+.nl-weeks-wrap {
+    padding: 6px; border: 1.5px dashed var(--border-mid); border-radius: var(--radius-md); overflow-x: auto; overscroll-behavior-x: contain; position: relative;
+    background:
+        linear-gradient(to left, white, rgba(255, 255, 255, 0)) right 0 top 0 / 28px 100% no-repeat local,
+        radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll,
+        white;
+}
 .nl-weeks { width: 100%; min-width: calc(22.2em + 25px); border-collapse: separate; border-spacing: 2px; table-layout: fixed; font-size: var(--type-badge); font-variant-numeric: tabular-nums; }
 .nl-weeks caption {
     padding: 2px 2px 6px;
@@ -377,6 +402,7 @@ body {
 .nl-d span:not(.visually-hidden) { display: block; }
 .nl-d--early { background: var(--early-cell); border-color: var(--early-cell-border); color: var(--text-dark); }
 .nl-d--late { background: var(--blue-light); border-color: var(--blue-sky); color: var(--text-dark); }
+.nl-d--night { background: var(--night-cell-bg); border-color: var(--night-cell-border); color: var(--text-dark); }   /* none of the three has one today: newlink-render.js → dutyKind */
 .nl-d--rest { background: var(--rest-day-bg); border-color: var(--border-light); color: var(--text-light); }
 .nl-d--cover { background: var(--purple-light); border-color: var(--purple); color: var(--purple); font-weight: 700; }
 .nl-wk-cover .nl-d--cover { padding: 6px 0; letter-spacing: 0.3px; }
@@ -465,6 +491,9 @@ body {
        beside a 42px neighbour, and the name balances its lines instead of leaving "page" alone on the second
        (laptop polish, 13 Nov 2026). */
     .nl-files > li { display: grid; grid-template-columns: minmax(0, 1fr); }
+    /* a list of ONE file (the comparison under "Where they differ") fills the band: half of it left a gutter on its right,
+       against the page's one left edge (the 22 Nov 2026 review) */
+    .nl-files > li:only-child { grid-column: 1 / -1; }
     .nl-file-name { text-wrap: balance; }
 }
 
@@ -518,6 +547,8 @@ body {
 }
 /* THE NOTCH FIX, as #huddleViewerClose: the shared .lb-close is absolutely placed for a centred card, which on a full-bleed
    panel puts it under the iPhone's notch. Static returns it to the bar's row, inside the safe-area padding. */
+/* ITS ✕ IS THE HUDDLE VIEWER'S (index.css → #huddleViewerClose, --on-navy-muted): the two full-bleed document viewers are a
+   pair of their own, so neither takes the centred panels' navy ✕ pair (--lb-close-navy) — move both together or neither. */
 .pdf-viewer-close { position: static; flex: none; color: var(--on-navy-muted); }
 .pdf-viewer-meta { flex: 1; min-width: 0; margin: 0; font-size: var(--type-small); color: var(--on-navy-muted); }
 .pdf-viewer-zoom { flex: none; display: flex; align-items: center; gap: 4px; }
@@ -647,6 +678,9 @@ body {
     .app-header h1 { color: var(--primary-blue); }
     .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .btn-burger, .nl-tiles, .nl-tabs, .nl-back-row { display: none !important; }
+    /* A tile's "See its weeks" asks paper to be pressed (the 22 Nov 2026 review): the name prints, on a plain edge. */
+    .nl-name-go { display: none; }
+    .nl-name { border-color: var(--print-muted); }
     /* Paper has no tap-to-expand, so a folded card prints OPEN, as on Links (17 Nov 2026): "What's changed" and "How
        the figures are worked out" — the method notes among them — printed as their headers alone. Its chevron is a
        control, and goes. */
@@ -663,7 +697,16 @@ body {
     /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
     .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
     /* A proposal's two panels stay with its name: a page break between them would leave "Worse" under nobody's name. */
-    .nl-differ-one { break-inside: avoid; }
+    .nl-differ-one, .nl-persona { break-inside: avoid; }
+    /* THE TWO LONG CARDS MAY BREAK, between proposals and between kinds of colleague (the 22 Nov 2026 review): kept whole,
+       each was pushed onto a sheet of its own and left the one before half empty. */
+    #nlDifferCard, #nlMeansCard { break-inside: auto; }
+    /* THE THREE PRINT EVENLY (the same review): Balanced V6's grid, with the heading and key held to it, overran its sheet
+       and left week 26 alone at the top of the next, while the other two printed whole. A tighter grid on paper only lets
+       heading, key and first grid share one sheet. e2e/print.spec.js counts the sheets. */
+    .nl-d { padding: 1px 0; }
+    .nl-weeks { border-spacing: 1px; }
+    .nl-weeks-wrap { padding: 3px; }
     /* Paper does not scroll: a grid wider than its frame (very large text) prints whole rather than clipped. */
     .nl-weeks-wrap { overflow: visible; }
     .nl-inline { color: inherit; text-decoration: none; }

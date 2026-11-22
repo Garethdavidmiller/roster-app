@@ -23,7 +23,6 @@ import { createHash } from 'node:crypto';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { DAYS as GRID_DAYS } from '../../../links-design.js';
 import { TC, C, BV, LC, MG, RATE, H, Hmax, first, hm, perYear, mins, claim, tidyText } from './what-it-means-data.mjs';
-import { leaveRuns } from './leave.mjs';
 import { folderStats } from './report-data.mjs';
 import { longDates } from './link.mjs';
 // EACH ONE'S EDGE AND ITS COST, AND THE COUNTS THEY NEED (12 Nov 2026): shared with the New link page's "Where they differ"
@@ -51,11 +50,7 @@ for (const c of C) { const s = stats.find(x => x.name === c.name); claim(`${c.na
   c.code = s.code; c.fp = fingerprint(c.p);   // the fingerprint its proposal sheet is named by, so the two cannot disagree
   claim(`${c.name}'s fingerprint ${c.fp} names its proposal sheet`, existsSync(fileURLToPath(new URL(`../${s.dir}/${s.file.replace(/\.json$/, '')}-${c.fp}.pdf`, import.meta.url)))); }
 for (const c of COLS) {
-  // the rostered Sundays inside the best stretch: leave.mjs's runs, the fewest over the first days that reach the best
-  const seq = Object.keys(c.p).sort((a, b) => a - b).flatMap(k => GRID_DAYS.map(d => ({ sun: d === 'sun', v: c.p[k][d] })));
-  const runs = leaveRuns(c.p, 14), best = Math.max(...runs), n = seq.length;
-  c.bestRun = best;
-  c.sunsIn = Math.min(...runs.map((r, s) => r < best ? Infinity : Array.from({ length: best }, (_, j) => seq[(s + j) % n]).filter(x => x.sun && x.v !== 'RD' && x.v !== 'SPARE').length));
+  // the rostered Sundays inside the best stretch (`sunsIn`, `bestRun`) are edge-cost.mjs's since 22 Nov 2026: the page needs them too
   // THE WORST SEVEN DAYS, WHATEVER MAKES THEM (the audit, 9 Nov 2026). The first print read the decks' h55, which is filled
   // only where a COVER WEEK adds a 55-hour week, and printed "never" where it was blank. Today's set duties already have one,
   // 60h 45m, so today read "never" and the two designs better than it read worse. hiMin is the worst seven days with the
@@ -178,7 +173,7 @@ const CARDS = [
     keys: { edge: ['noShiftOver830', 'closestSatFit'], cost: ['fewestShortEarlies', 'fourAtOpenEveryDay', 'leastSundayPay'] } },
 ];
 claim('a card for each design the facts are written for, A to Z', CARDS.map(k => k.c.name).join() === EDGE_COST.map(e => e.c.name).join());
-for (const k of CARDS) claim(`${k.c.name}'s edge and cost word exactly its facts`, wordsExactly(k.c.name, 'edge', k.keys.edge) && wordsExactly(k.c.name, 'cost', k.keys.cost));
+for (const k of CARDS) claim(`${k.c.name}'s edge and cost word exactly its facts`, wordsExactly(k.c.name, 'edge', k.keys.edge, 'sheet') && wordsExactly(k.c.name, 'cost', k.keys.cost, 'sheet'));
 
 // ── THE PAGE ────────────────────────────────────────────────────────────────────────────────────────────────────────
 const ICON = {   // 24-unit stroke icons, drawn here so nothing is fetched and a print in black still reads

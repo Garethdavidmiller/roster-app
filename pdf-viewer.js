@@ -54,7 +54,7 @@
  * never retried on its own, because a page PDF.js cannot draw would fail again in a loop.
  */
 import { createLightbox } from './overlay.js';
-import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
+import { fetchBytesWhileArriving, isFetchTimeout } from './fetch-timeout.js';
 import {
     ZOOM_STEPS, zoomAfter, zoomLabel, pageLayout, canOpenOutside, classifyFailure, FAILURE_TEXT, failureAction,
     PAGE_FAILURE_TEXT, pageLabel, pagesLabel,
@@ -65,8 +65,14 @@ const PDFJS_DIR = './pdfjs/4.10.38/';
 const LIBRARY_URL = new URL(`${PDFJS_DIR}pdf.min.mjs`, import.meta.url).href;
 const WORKER_URL = new URL(`${PDFJS_DIR}pdf.worker.min.mjs`, import.meta.url).href;
 
-/** The pack's largest file is about 1.4 MB: generous on a poor signal, and never for ever. */
-const FETCH_BUDGET_MS = 45_000;
+/**
+ * How long a file may go WITHOUT A BYTE before the viewer gives up — not how long the whole file may take (the New link
+ * review, 22 Nov 2026). The pack's sheets are about 1.4 MB, and a 45-second limit on the whole download meant a line below
+ * about 260 kbit/s could never open one, however long the reader waited or however often they tried again. A slow line
+ * still delivering is now never cut off; one that has stopped is, after this long (fetch-timeout.js →
+ * fetchBytesWhileArriving).
+ */
+const STALL_MS = 20_000;
 
 /** @type {Promise<any>|null} */ let _library = null;
 let _libraryAttempts = 0;
@@ -235,9 +241,9 @@ export function initPdfViewer() {
         try {
             const lib = await loadLibrary();
             if (current !== mine) return;
-            const res = await fetchWithTimeout(url, { signal: mine.abort.signal }, FETCH_BUDGET_MS);
+            const res = await fetchBytesWhileArriving(url, { signal: mine.abort.signal }, STALL_MS);
             if (!res.ok) throw Object.assign(new Error(`The file answered ${res.status}`), { status: res.status });
-            const data = new Uint8Array(await res.arrayBuffer());
+            const data = res.bytes;
             if (current !== mine) return;
             mine.task = lib.getDocument({ data, isEvalSupported: false, verbosity: lib.VerbosityLevel.ERRORS });
             const pdf = await mine.task.promise;

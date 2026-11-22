@@ -619,7 +619,7 @@ The New link page (`newlink.html`): the three shortlisted proposals for the new 
 - **Exports of `newlink-boot.js`:** none
 - **Exports of `newlink-config.js`:** `STARTS` · `TIMETABLE_STARTS` · `CONTACT` · `CONTACT_ROLE` · `CHOSEN` · `PHASE` · `CLOSES` · `AUDIENCE` · `audienceNames` · `PACK_BASE` · `HAVE_YOUR_SAY`
 - **Exports of `newlink-data.js`:** `COLUMNS` · `CHANGES` · `GAINS` · `COSTS` · `DIFFERS` · `DIFFER_RULE` · `PERSONAS` · `NOTES` · `PACK`
-- **Exports of `newlink-render.js`:** `designName` · `aToZ` · `closesWords` · `startsWords` · `statusPhase` · `statusHint` · `renderStatus` · `renderList` · `renderCommon` · `renderDiffers` · `ifYou` · `renderFigures` · `figuresKey` · `renderPersonas` · `renderPersonaChips` · `dutyKind` · `renderWeeks` · `renderAllWeeks` · `renderWeeksKey` · `renderWeeksTabs` · `fileRow` · `renderPack`
+- **Exports of `newlink-render.js`:** `designName` · `aToZ` · `closesWords` · `startsWords` · `statusPhase` · `statusHint` · `renderStatus` · `renderList` · `renderCommon` · `renderDiffers` · `ifYou` · `renderFigures` · `figuresKey` · `renderPersonas` · `renderPersonaChips` · `dutyKind` · `renderWeeks` · `renderAllWeeks` · `renderWeeksKey` · `renderWeeksTabs` · `fileRow` · `renderPack` · `glanceFile` · `personaStatus` · `weeksStatus` · `weeksTitle`
 
 ### `pdf-viewer.js` / `pdf-viewer-core.js`
 The in-app PDF viewer: a full-screen panel with a ✕ that draws a PDF's pages with the vendored PDF.js, so a document opens inside the app and closes back to it — built for the New link pack, whose PDFs left an installed iPhone app with no way back (`pdf-viewer-core.js` header). Tested by `pdf-viewer-core.test.mjs` and `e2e/newlink.spec.js`.
@@ -925,7 +925,7 @@ The single Firebase initialisation point: every page takes `db`, `auth` and the 
 
 ### `fetch-timeout.js`
 The bound on every client call to a Cloud Function: `fetch` with a deadline that also covers the body read, a separate code for a caller's own cancel, and `serverRefusal` for a 4xx that is an answer rather than a fault. The header holds the per-endpoint budgets and the two rules every caller keeps: a budget sits above the endpoint's own `timeoutSeconds`, and a timeout on a state-changing call does not mean it did not happen — a write says "may still have gone through", never "failed". Tested by `fetch-timeout.test.mjs`.
-- **Exports:** `FETCH_TIMEOUT_CODE` · `FETCH_ABORTED_CODE` · `DEFAULT_FETCH_TIMEOUT_MS` · `fetchWithTimeout` · `isFetchTimeout` · `isFetchAborted` · `serverRefusal`
+- **Exports:** `FETCH_TIMEOUT_CODE` · `FETCH_ABORTED_CODE` · `DEFAULT_FETCH_TIMEOUT_MS` · `fetchWithTimeout` · `fetchBytesWhileArriving` · `isFetchTimeout` · `isFetchAborted` · `serverRefusal`
 
 ### `error-reporter.js`
 The capture side of the client error log: `error` and `unhandledrejection` listeners that write each distinct message once per page to `clientErrors`, and a capped diagnostic entry for a save that was slow while the device said it was online. Never call `initErrorReporter()` bare — with no auth context every write is refused and the log looks healthy because it is broken; the four call shapes are its header, the rule `AUTH_AND_SESSIONS.md` 13. Filters: `client-errors.js`. Tested by `error-reporter.test.mjs`.

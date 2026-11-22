@@ -158,7 +158,7 @@ test.describe('new link', () => {
         await page.goto('/newlink.html');
 
         const panel = page.locator('#nlPersonaPanel');
-        // nothing chosen: the six one-line answers
+        // nothing chosen: the six short answers
         await expect(panel.locator('.nl-gists li')).toHaveCount(6);
 
         const earlies = page.locator('[data-persona="earlies"]');
@@ -600,7 +600,7 @@ test.describe('new link', () => {
 
         fail = 'gone';
         await retry.click();
-        await expect(status).toHaveText('This file is no longer in the pack. Reload the page to see the current files.');
+        await expect(status).toHaveText('This file isn’t available at the moment. It may have just been updated. Reload the page in a minute to see the current files.');
 
         fail = 'offline';
         await page.locator('#pdfViewerClose').click();
@@ -626,7 +626,7 @@ test.describe('new link', () => {
         await page.evaluate(() => { /** @type {any} */ (window).__beforeReload = true; });
         const file = PACK[PACK.length - 1];
         await page.locator(`#nlPackList a.nl-file[data-file="${file.path}"]`).click();
-        await expect(page.locator('#pdfViewerStatus')).toHaveText('This file is no longer in the pack. Reload the page to see the current files.');
+        await expect(page.locator('#pdfViewerStatus')).toHaveText('This file isn’t available at the moment. It may have just been updated. Reload the page in a minute to see the current files.');
         const retry = page.locator('#pdfViewerRetry');
         await expect(retry).toHaveText('Reload the page');
         await Promise.all([page.waitForEvent('load'), retry.click()]);
