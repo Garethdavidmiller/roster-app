@@ -423,7 +423,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
         test(`${lb.name}: a child's transitionend does not finish the fade; the panel's own does`, () => {
             // transitionend BUBBLES (lightbox review R1-4): the ✕'s press easing back reached the panel's
             // listener and finished its fade early, so the panel vanished instead of fading out.
-            const { $, openFromDrawer } = mountLive();
+            const { $, openFromDrawer } = mountLive(lb.opts);
             openFromDrawer(lb.link);
             $(lb.close).fire('click');
             $(lb.box).fire('transitionend', { target: $(lb.close) });
@@ -437,7 +437,7 @@ describe('the drawer\'s hand-made lightboxes keep the shared lifecycle\'s promis
         test(`${lb.name}: under reduced motion the close finishes at once`, () => {
             // shared.css turns the fade off, so no transitionend comes: waiting for the 500 ms fallback left
             // an invisible layer over the page swallowing every tap, with the scroll still locked (R1-10).
-            const { $, openFromDrawer } = mountLive();
+            const { $, openFromDrawer } = mountLive(lb.opts);
             /** @type {any} */ (global.window).matchMedia = (/** @type {string} */ q) => ({ matches: q.includes('reduced-motion') });
             openFromDrawer(lb.link);
             $(lb.close).fire('click');

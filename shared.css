@@ -397,19 +397,13 @@
     --modal-standard: 340px;
     --modal-wide:     380px;
     --modal-cap:      90vw;
-    /* ONE HEIGHT CAP (lightbox review R1-12, 22 Nov 2026): 78, 80, 85, 86 and 88 were written as
-       literals beside one width vocabulary, and meant nothing apart. 86, the dialog's: the largest any
-       panel had that still leaves the backdrop showing — the way to close a panel the ✕ is not. `dvh`,
-       because on iOS `vh` is the LARGE viewport and a `vh` cap could put a panel's foot under the bar. */
+    /* ONE HEIGHT CAP (lightbox review R1-12): the largest that still leaves the backdrop showing to tap.
+       `dvh`, because on iOS `vh` is the LARGE viewport and could put a panel's foot under the bar. */
     --modal-max-h:    86dvh;
 
     /* ── The ✕ — ONE colour per surface family (lightbox review R1-3) ─────────────────────────
-       It was set seven ways (white at 45 and 50%, --on-navy-faint, --on-navy-muted, --text-light,
-       --text-mid) and on the picker sheet not at all, which left it the BROWSER's button colour:
-       black on Linux and Windows, the system blue in WebKit. `.lb-close` reads `--lb-close-color`, so
-       every ✕ has one; a navy panel sets the navy pair on itself and its ✕ inherits it. The light
-       value is --text-light, 5.3:1 on white; the navy one white at 50%, 4.2:1 at the sheet's lit top
-       and more below it — and a glyph needs 3:1. Hover goes to full ink on both. */
+       It was set seven ways, and on the picker sheet not at all (the browser's own button colour).
+       A navy panel sets the navy pair on itself. Light 5.3:1 on white; navy 4.2:1 at the lit top. */
     --lb-close-ink:        var(--text-light);
     --lb-close-ink-hover:  var(--text-dark);
     --lb-close-navy:       rgba(255, 255, 255, 0.5);
@@ -958,8 +952,7 @@ body.lb-open {
     overflow: hidden;
 }
 body.lb-open #stickyTotal { display: none !important; }
-/* The scrollbar's room is kept while the body is fixed, so the page does not jump sideways on a screen whose
-   scrollbar takes room — overlay.js → `lockBodyScroll` adds the class only where one does (lightbox review R1-13). */
+/* The page does not jump sideways while locked (R1-13): `lockBodyScroll` adds this only where a scrollbar takes room. */
 html.lb-keep-gutter { scrollbar-gutter: stable; }
 /* PAPER HAS NO SCROLL TO LOCK (whole-app review, Nov 2026). Printing with a lightbox, the drawer or the
    Huddle viewer open laid out ONE sheet — a fixed body is one viewport tall, shifted by the scroll — and
@@ -1026,8 +1019,7 @@ html.lb-keep-gutter { scrollbar-gutter: stable; }
     input[type="checkbox"]::before, input[type="radio"]::before { transition: none; }
 }
 
-/* Close button. Its COLOUR is the surface family's (`--lb-close-color`, set by a navy panel on itself —
-   the tokens at the top of this file say why), so no ✕ is ever left to the browser's own button colour. */
+/* Close button. Its colour is the surface family's (`--lb-close-color`; the tokens at the top say why). */
 .lb-close {
     color: var(--lb-close-color, var(--lb-close-ink));
     position: absolute;
@@ -1052,25 +1044,12 @@ html.lb-keep-gutter { scrollbar-gutter: stable; }
 @media (hover: hover) and (pointer: fine) {
     .lb-close:hover { color: var(--lb-close-hover, var(--lb-close-ink-hover)); }
 }
-/* THE ✕ STAYS WHILE A LONG PANEL SCROLLS (lightbox review R1-5, 22 Nov 2026). Placed absolutely inside
-   the panel that scrolls, it scrolled away with the words: on an iPhone SE, or at a large text size, a
-   member reading down About or a notice lost the only close control — and iOS has no system Back.
-
-   STICKY, NOT ABSOLUTE. `createLightbox` adds this class on every open to a ✕ that is a direct child of
-   a scrolling panel and still placed the shared way (overlay.js → `_pinClose`), and hands it three
-   lengths it MEASURED on that panel: `--lb-pin-y` and `--lb-pin-x`, where the ✕ sat less the panel's
-   own padding, and `--lb-pin-after`, what cancels its height (and a flex gap) so the content does not
-   move. So at rest it sits exactly where `top`/`right` put it, on any panel's padding — About's differs
-   by page and by window height — and scrolled it stops at that same spot. Measured, not restated:
-   a copy of each panel's padding here would drift from the panel the first time either changed.
-
-   The ✕ alone, not the title (the Tips' `.tips-lb-top` and the picker's `.picker-top` keep both): on
-   About and the notices the "title" is a masthead — the 100px logo, a badge, the date — and stuck it
-   would hold a fifth of a 667px phone. The close control is what must never be out of reach.
-
-   Scrolled, the panel's words pass beneath it, so it takes a disc of its panel's colour (`--lb-close-disc`,
-   white unless a navy panel says otherwise), drawn only once the panel has scrolled (`.is-scrolled`, set
-   with the fade's `has-more` by `watchScrollFade`): at rest, no disc, and nothing has changed. */
+/* THE ✕ STAYS WHILE A LONG PANEL SCROLLS (lightbox review R1-5): placed absolutely, it scrolled away with
+   the words, and iOS has no system Back.
+   STICKY, NOT ABSOLUTE: `pinCloseButton` (overlay.js) adds this class and hands it lengths MEASURED on
+   the panel (`--lb-pin-y`/`-x`/`-after`), so at rest it sits exactly where it did and nothing moves.
+   The ✕ alone, not the title: on About and the notices the title is a masthead a fifth of a phone tall.
+   Scrolled, words pass beneath it, so it takes a disc of its panel's colour (`.is-scrolled` only). */
 .lb-close.lb-close--pinned {
     position: sticky;
     top: var(--lb-pin-y);
@@ -1928,8 +1907,6 @@ button.lightbox-bug-link {
     .notice-cta,
     .notice-later { transition: none; }
 }
-
-/* Every ✕ on the opaque navy sheet takes the navy pair the sheet sets above (`--lb-close-color`; "The ✕ — ONE colour" at the top says why). */
 
 /* Focus on the navy sheet (desktop audit, Nov 2026): the fallback ring is navy, invisible here. Gold,
    as in the drawer; the 2px offset puts it on the navy, so it serves the gold CTA too. The ✕ only on
@@ -2805,8 +2782,7 @@ button.nav-panel-link--notices {
     padding: 40px var(--space-5) 32px;
     width: min(var(--modal-compact), var(--modal-cap));
     text-align: center;
-    /* CAPPED (lightbox review R1-5): it had none, so with large text on a phone on its side the top —
-       the ✕ — could sit off the screen with no way to scroll to it. Capped, it scrolls inside itself. */
+    /* CAPPED (R1-5): uncapped, large text on a phone on its side put the ✕ off the screen for good. */
     max-height: 86vh;
     max-height: var(--modal-max-h);
 }
