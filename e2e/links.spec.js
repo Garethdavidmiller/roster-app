@@ -820,14 +820,14 @@ test('links: the line-order switches change the design, and say what each one co
         await page.locator('#genApplyBtn').click({ force: true });
         const ok = page.locator('.dialog-btn-confirm');
         if (await ok.count()) await ok.first().click();
-        await expect(page.locator('#linksSaveStatus')).toContainText('Link generated');
+        await expect(page.locator('#linksSaveStatus')).toContainText('Link built');
         return (await page.locator('#linksSaveStatus').textContent()).trim();
     }
 
     // Switches ON: the reorder runs and reports before→after for each objective.
     const on = await generate(page);
-    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/week-to-week \d+→\d+ min/);
-    expect(on).toMatch(/weekends off \d+→\d+/);
+    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/average week-to-week move \d+ → \d+ min/);
+    expect(on).toMatch(/full weekends off \d+ → \d+/);
 });
 
 // THE LINE-ORDER NOTE STATES THE MINIMUM REST FROM THE CONSTANT (links-analysis-14's twin, routed here).
@@ -1538,7 +1538,7 @@ test('links: the generator fills every line and names what it replaces', async (
     const dialog = page.locator('.lb-overlay.visible');
     await expect(dialog).toContainText('Option A');
     await expect(dialog).toContainText(new RegExp(`replaces all ${ROTATING_LINES} lines`, 'i'));
-    await dialog.getByRole('button', { name: new RegExp(`Replace all ${ROTATING_LINES} lines`, 'i') }).click();
+    await dialog.getByRole('button', { name: 'Build', exact: true }).click();
 
     await expect(page.locator('tr.row-unfilled')).toHaveCount(0);   // every line now designed
     await expect(page.locator('#linksSaveBtn')).toBeEnabled();
@@ -1706,13 +1706,13 @@ test('links memory: a remembered spare count that leaves no working line is refu
     await openLinksWithMemory(page, { slots: [{ time: '06:20-14:20', weekday: 0, sat: 0, sun: 0 }], spareLines: ROTATING_LINES });
     const error = page.locator('#genError');
     await page.locator('#genApplyBtn').click();
-    await expect(error).toContainText(`${ROTATING_LINES} spare weeks leaves no working lines`);
+    await expect(error).toContainText(`${ROTATING_LINES} cover weeks leaves no working lines`);
 
     const box = page.locator('#genSpareLines');
     await box.fill(String(ROTATING_LINES));
     await box.dispatchEvent('input');
     await page.locator('#genApplyBtn').click();
-    await expect(error, 'a typed count is clamped short of it').toContainText('Can\'t generate');
+    await expect(error, 'a typed count is clamped short of it').toContainText('Can\'t build the link');
     await expect(error).not.toContainText('leaves no working lines');
 });
 
@@ -1722,9 +1722,9 @@ test('links memory: a remembered spare count that leaves no working line is refu
 // crossing them would tell the designer to make it worse. Until now the only refused press driven in a
 // browser was the spare count above and the over-capacity one.
 for (const [label, weekday, gap, remedy, notRemedy] of /** @type {Array<[string, number, string, string, string]>} */ ([
-    ['short of', 1, 'a week of duty missing across the rotation', 'Add duties, lengthen them, or use more spare weeks',
+    ['short of', 1, 'a week of duty missing across the rotation', 'Add duties, lengthen them, or use more cover weeks',
         'Remove duties'],
-    ['over', ROTATING_LINES, 'a week of duty more than the rotation is paid for', 'Remove duties, shorten them, or use fewer spare weeks',
+    ['over', ROTATING_LINES, 'a week of duty more than the rotation is paid for', 'Remove duties, shorten them, or use fewer cover weeks',
         'Add duties'],
 ])) {
     test(`links generator: a table ${label} the contracted week is refused, with its own remedy`, async ({ page }) => {
@@ -1733,12 +1733,12 @@ for (const [label, weekday, gap, remedy, notRemedy] of /** @type {Array<[string,
         await openLinksWithMemory(page, { slots: [{ time: '06:20-14:20', weekday, sat: 0, sun: 0 }], spareLines: 0 });
         await page.locator('#genApplyBtn').click();
         const error = page.locator('#genError');
-        await expect(error).toContainText(`Can't generate — These targets average`);
+        await expect(error).toContainText(`Can't build the link — These targets average`);
         await expect(error).toContainText(`the contract is ${CONTRACTED_HOURS_PER_WEEK}h`);
         await expect(error).toContainText(gap);
         await expect(error).toContainText(remedy);
         await expect(error, 'the opposite remedy would make it worse').not.toContainText(notRemedy);
-        await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
+        await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link built');
     });
 }
 
@@ -1757,10 +1757,10 @@ test('links generator: a table no arrangement can give the minimum rest is refus
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').click();
     const error = page.locator('#genError');
-    await expect(error).toContainText('Can\'t generate — one turn would follow another with only');
+    await expect(error).toContainText('Can\'t build the link — one shift would follow another with only');
     await expect(error).toContainText('rest, and the minimum is 20h 00m. No arrangement of these lines fixes it.');
     await expect(error).toContainText('Move a late finish earlier or a following start later.');
-    await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link generated');
+    await expect(page.locator('#genStatus'), 'nothing was generated').not.toContainText('Link built');
 });
 
 // ── Saved target sets (v21.04) ──────────────────────────────────────────────────────────────────
@@ -2109,7 +2109,7 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     // on the old design or mid-redraw (48-hour review, Nov 2026 — one intermittent red under load).
     // Its FINISHED line, not the mirror's visibility: since links-app-21 the mirror reads "Building the
     // link…" for a frame before the search runs, and the old design is still on screen in that frame.
-    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
+    await expect(page.locator('#genStatus')).toContainText('Link built', { timeout: 10_000 });
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 
     // Three cells on every line, no exceptions — the renderer indexes rows by position, so a short
@@ -3316,7 +3316,7 @@ test('links: generating names the construction that produced the design', async 
     await page.locator('#generatorToggleHeader').click();
     await page.locator('#genApplyBtn').click();
     await clickDialogConfirm(page);
-    await expect(page.locator('#linksSaveStatus')).toContainText(/settled weeks, \d+ waves?/);
+    await expect(page.locator('#linksSaveStatus')).toContainText(/each line kept to one wave of similar start times \(\d+ waves?\)/);
 });
 
 // ── Pressing Generate again explores (v20.07) ────────────────────────────────────────────────────
@@ -3345,7 +3345,7 @@ test('links: pressing Generate again produces a different, named design', async 
         /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText);
 
     await gen();
-    await expect(page.locator('#linksSaveStatus')).toContainText('Generate again');
+    await expect(page.locator('#linksSaveStatus')).toContainText('Press Build again');
     const first = await gridText();
 
     await gen();
@@ -3387,7 +3387,7 @@ test('links: a generated design that repeats an earlier one says which design it
         // Changed is not finished: since links-app-21 the line reads "Building the link…" from the
         // press until the search has run, and a grid read in that frame is the PREVIOUS design's.
         await expect(status).not.toHaveText(before ?? '');
-        await expect(status).toContainText('Link generated');
+        await expect(status).toContainText('Link built');
         return {
             grid: await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('linksGridBodyRows')).innerText),
             said: await status.textContent() ?? '',
@@ -3441,11 +3441,11 @@ test('links: a zero in a line-order box is the figure used, not the default', as
         await expect(page.locator('.dialog-overlay')).toHaveCount(0);
     };
     await build();
-    await expect(status).toContainText('Generate again');
+    await expect(status).toContainText('Press Build again');
     await page.locator('#objLongTarget').fill('0');
     await page.locator('#objBlockTarget').fill('0');   // under its minimum of 1
     await build();
-    await expect(status, 'new inputs start a new exploration, at design 1').toContainText('Generate again for a different line order');
+    await expect(status, 'new inputs start a new exploration, at design 1').toContainText('Press Build again for a different line order');
     await expect(status).not.toContainText('Design 2');
     await expect(page.locator('#objLongTarget')).toHaveValue('0');
     await expect(page.locator('#objBlockTarget'), 'raised to the minimum it was built with').toHaveValue('1');
@@ -3475,7 +3475,7 @@ test('links: Build the link says it is building, and holds the button until it h
     });
     await page.locator('#genApplyBtn').click();
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
-    await expect(page.locator('#genStatus')).toContainText('Link generated');
+    await expect(page.locator('#genStatus')).toContainText('Link built');
     const seen = await page.evaluate(() => /** @type {any} */ (window).__genSeen);
     expect(seen.some((/** @type {any} */ s) => s.text === 'Building the link…' && s.shown && s.held),
         `"Building the link…" shown, with the button held — states seen: ${JSON.stringify(seen)}`).toBe(true);
@@ -4015,9 +4015,9 @@ test('links: the variety switch is what keeps you off one shift type for months'
         await page.locator('#genApplyBtn').click({ force: true });
         const ok = page.locator('.dialog-btn-confirm');
         if (await ok.count()) await ok.first().click();
-        await expect(page.locator('#linksSaveStatus')).toContainText(/longest block/, { timeout: 10_000 });
+        await expect(page.locator('#linksSaveStatus')).toContainText(/same shift type in a row/, { timeout: 10_000 });
         const txt = await page.locator('#linksSaveStatus').innerText();
-        const m = txt.match(/longest block (\d+)→(\d+) weeks/);
+        const m = txt.match(/same shift type in a row (\d+) → (\d+) weeks/);
         if (!m) throw new Error(`status did not report the block: ${txt}`);
         return { before: Number(m[1]), after: Number(m[2]) };
     };
@@ -5593,7 +5593,7 @@ test('links generator: pressing Generate leaves the button under your finger and
     // VISIBLE no longer says so: since links-app-21 it reads "Building the link…" for a frame before
     // the search runs, and on WebKit that frame stalled long enough for every check below to run
     // inside it (mobile-safari, CI run 42838201900: an 18-character status). The finished line does.
-    await expect(page.locator('#genStatus')).toContainText('Link generated', { timeout: 10_000 });
+    await expect(page.locator('#genStatus')).toContainText('Link built', { timeout: 10_000 });
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.

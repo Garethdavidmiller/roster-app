@@ -392,6 +392,10 @@ Compare mode on `links.html`: two designs side by side, a strip of what differs,
 How the design grid on `links.html` is operated — one Tab stop and the arrow keys, a mouse stroke that paints every cell it crosses — while `links-app.js` keeps what a cell means. Tested by `links-grid-input.test.mjs`; the wiring by `e2e/links.spec.js`.
 - **Exports:** `cellAfterKey` · `createGridInput` · `trackPaintBarHeight`
 
+### `links-build-press.js`
+What the Build press on `links.html` says and remembers: why a table was refused, the question before a build replaces a design, the line it reports and which build of these inputs it is. Pure; the press itself (the confirm, the held button, the scroll anchor) stays in `links-app.js`. Tested by `links-build-press.test.mjs`.
+- **Exports:** `overCapacityLine` · `refusalLine` · `buildConfirm` · `withSurplusLines` · `createBuildCounter` · `builtStatusLine`
+
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s `?` panels: pure data, rendered by `tips-lightbox.js`, shape pinned by `tips-content.test.mjs`. Its generator panel restates `links-default-targets.js`'s header, and no test can see that rule.
 - **Exports:** `CARD_TIPS`

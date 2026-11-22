@@ -42,7 +42,6 @@ import {
     normaliseCustomShift, normalisePatterns,
     calcCoverage,
     generateLink,
-    CONTRACTED_HOURS_PER_WEEK,
     hmFromHours,
     lineTotals,
     weeklyHours,
@@ -57,6 +56,8 @@ import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, PROPOSAL_NAMES, isProposalId, proposalById, proposalCopyName, proposalDisplayName } from './links-proposals.js';
 import { createTargetPanel, customShiftRefusal } from './links-generator-targets.js';
+import { assessTargetHours } from './links-target-hours.js';
+import { overCapacityLine, refusalLine, buildConfirm, createBuildCounter, builtStatusLine } from './links-build-press.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, windowEditRefusal, canonicaliseWindowTime } from './links-window.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
@@ -1715,143 +1716,45 @@ export function init() {
 
     (function initGenerator() {
         if (!document.getElementById('genSlotRows')) return;
-
-        // Attempt state for the explore loop (v20.07). Session-scoped on purpose: reloading and
-        // pressing Generate k times replays the same k designs, so a variant is recoverable, and
-        // two designers who count their presses are looking at the same design.
-        let _genFingerprint = '';
-        let _genAttempt = 0;
-        /** @type {{c: number, n: number}|null} best-so-far on the ticked objectives */
-        let _genBest = null;
-        /** Every line order these inputs have produced → the first design that wore it (links-app-2). An
-         *  attempt whose three seeded starts all fail the spread and rest filters falls back to DESIGN 1's
-         *  order, and a later one can land on an earlier one's — comparing with the PREVIOUS press alone
-         *  missed both, and called design 1 "Design 3". @type {Map<string, number>} */
-        const _genSeen = new Map();
+        // Which build of these inputs this is (links-build-press.js rule 5): one per page life.
+        const builds = createBuildCounter();
 
         document.getElementById('genApplyBtn')?.addEventListener('click', async () => {
             const errEl = document.getElementById('genError');
             if (errEl) errEl.textContent = '';
-            // A failed press must not leave the PREVIOUS success message sitting under the button —
-            // beside a fresh red error it would read as describing this press.
+            // A failed press must not leave the previous success under the button, beside a fresh error.
             const _mirrorEl = document.getElementById('genStatus');
             if (_mirrorEl) { _mirrorEl.hidden = true; _mirrorEl.textContent = ''; }
-            // Not until the designs are in (links-app-1): the load replaces the working copy when it
-            // lands, so a design built before it would vanish under it, unasked.
+            // Not until the designs are in (links-app-1): the load replaces the working copy when it lands.
             if (listLoading) { if (errEl) errEl.textContent = STILL_LOADING; return; }
 
             const { slots: genSlots, spareLines: genSpareLines } = targets.getTable();
-            if (genSlots.length === 0) {
-                if (errEl) errEl.textContent = 'Add at least one shift row first.';
-                return;
-            }
-            const tot = targets.totals();
-            const over = ['weekday', 'sat', 'sun'].filter(c => tot[c] > TOTAL_POS);
-            if (over.length) {
-                if (errEl) {
-                    const names = /** @type {Record<string, any>} */ ({ weekday: 'Mon–Fri', sat: 'Saturday', sun: 'Sunday' });
-                    errEl.textContent = `Can't generate: ${over.map(c => `${names[c]} totals ${tot[c]}`).join(', ')} — ` +
-                        `each day's total (shifts + spare) can't exceed ${TOTAL_POS} lines.`;
-                }
-                return;
-            }
+            if (genSlots.length === 0) { if (errEl) errEl.textContent = 'Add at least one shift row first.'; return; }
+            const overCapacity = overCapacityLine(targets.totals(), TOTAL_POS);
+            if (overCapacity) { if (errEl) errEl.textContent = overCapacity; return; }
 
             const built = generateLink({ slots: genSlots, spareLines: genSpareLines, lines: ROTATING_LINES });
             const generated = built.patterns;
             if (!generated) {
-                // `no-rest` is its own message. It means the targets ask for so much cover that no
-                // arrangement leaves a person a rest day between a late finish and an early start —
-                // a real answer about the targets, not a typo in them, and the generic message would
-                // send the designer hunting for a bad row that does not exist.
-                if (errEl) {
-                    // `short-hours` / `over-hours` name the SIZE of the gap, because that is the only
-                    // actionable fact about either. The gap is arithmetic — the duty in the table
-                    // against the working lines it has to fill — so "add rows" or "take some out" is
-                    // not advice, it is the whole answer, and the designer needs the number.
-                    const asked = built.askedMinutes ?? 0;
-                    const need = built.needMinutes ?? 0;
-                    const working = built.working || 1;
-                    // The SAME reading as every other hours figure on the page: each spare week
-                    // counted as a full contracted week, divided by the whole rotation. A refusal
-                    // quoting a different average from the row it is refusing on behalf of would be
-                    // two numbers for one fact, arriving in the same second.
-                    const avg = (asked + (TOTAL_POS - working) * CONTRACTED_HOURS_PER_WEEK * 60) / 60 / TOTAL_POS;
-                    // One sentence of arithmetic, then the remedies — and the remedies are opposites,
-                    // which is the whole reason the two refusals are not one message with a sign in
-                    // it. A designer reading "add duties" under a surplus would make it worse.
-                    const gap = `These targets average ${hmFromHours(avg)} a week across all `
-                        + `${TOTAL_POS} lines, and the contract is ${CONTRACTED_HOURS_PER_WEEK}h.`;
-                    errEl.textContent = built.reason === 'short-hours'
-                        ? `Can't generate — ${gap} That is `
-                          + `${hmFromHours((need - asked) / 60)} a week of duty missing across the `
-                          + `rotation. Add duties, lengthen them, or use more spare weeks — spreading the `
-                          + `same work over more lines cannot reach it.`
-                        : built.reason === 'over-hours'
-                        ? `Can't generate — ${gap} That is `
-                          + `${hmFromHours((asked - need) / 60)} a week of duty more than the rotation is `
-                          + `paid for. Remove duties, shorten them, or use fewer spare weeks — the surplus `
-                          + `would be permanent overtime nobody has agreed to.`
-                        : built.reason === 'no-rest'
-                        ? `Can't generate — these targets leave no room for rest days, so every line would `
-                          + `finish late and start early the next morning. Reduce a day's headcount or add spare weeks.`
-                        // The one refusal whose remedy is a SHIFT TIME rather than a headcount
-                        // (v21.11). It fires only when no rearrangement can give somebody the
-                        // minimum rest, so it names the gap and the two times that produce it —
-                        // "make the rest work" is not advice a designer can act on, and the pair is.
-                        : built.reason === 'short-rest'
-                        ? `Can't generate — one turn would follow another with only `
-                          + `${hmFromHours((built.shortRest ?? 0) / 60)} rest, and the minimum is `
-                          + `${hmFromHours(MIN_REST_MINUTES / 60)}. No arrangement of these lines fixes it. `
-                          + `Move a late finish earlier or a following start later.`
-                        // Not reachable by typing: the spare box is clamped to its max, one line short
-                        // of the rotation (links-generator-targets.js, v24.38). A REMEMBERED table or a
-                        // saved setup has no such bound, and reaches it with every row at 0 — any other
-                        // count trips the over-capacity check above first. The generic message below
-                        // would send the designer hunting through rows that are all fine.
-                        : built.reason === 'bad-spare-lines'
-                            ? `Can't generate — ${genSpareLines} spare weeks leaves no working lines. `
-                              + `Spare weeks must be fewer than the ${TOTAL_POS} lines.`
-                            : `Can't generate — check every row has a valid time and whole-number targets.`;
-                }
+                if (errEl) errEl.textContent = refusalLine(built, { lines: TOTAL_POS, spareLines: genSpareLines,
+                    hoursPerLine: assessTargetHours(genSlots, { spareLines: genSpareLines, totalLines: TOTAL_POS }).hoursPerLine });
                 return;
             }
 
-            // Name what is at stake (v19.38). The message used to be the same whether the active design
-            // was blank or full of hand-tuned work — and Apply overwrites every line either way.
             const _hasWork = !!design && Object.values(/** @type {Record<string, any>} */ (design.patterns || {}))
                 .some(p => DAYS.some(d => { const v = p?.[d]; return v && v !== 'RD' && v !== 'OFF'; }));
-            // A proposal is not replaced — Apply opens a NEW design beside it — so it gets its own words.
-            const _lose = activeProposalId ? dirty : _hasWork;
-            const _genMsg = activeProposalId ? `A new design opens with the generated pattern. “${design?.name}” stays in the shortlist${dirty ? ' — your unsaved changes to it will be lost' : ''}.`
-                : _hasWork ? `This replaces all ${TOTAL_POS} lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
-                : `Apply the generated pattern to all ${TOTAL_POS} lines?`;
-            // Captured BEFORE the confirm opens, which settles only after its close fade and Back echo:
-            // the button's position (lockBodyScroll fixes the body, so a later read is locked), and
-            // whether Apply opens a NEW design — what the question SAID. A copy's first save landing
-            // meanwhile made the proposal a saved design, and the pattern went OVER it (48-hour review).
+            // Captured BEFORE the confirm, which settles only after its close fade and Back echo: the button's
+            // position (the dialog locks the body's scroll), and whether the build opens a NEW design — what the
+            // question SAID. A copy's first save landing meanwhile made the proposal a saved design (48-hour review).
             const _btnEl = document.getElementById('genApplyBtn');
             const _btnViewTop = _btnEl?.getBoundingClientRect().top;
             const _asNew = !design || !!activeProposalId;
-            if (!await confirmDialog({
-                title: 'Apply pattern',
-                message: _genMsg,
-                confirmLabel: _hasWork && !activeProposalId ? `Replace all ${TOTAL_POS} lines` : 'Apply',
-                danger: _lose,
-            })) return;
+            if (!await confirmDialog(buildConfirm({ lines: TOTAL_POS, name: design?.name ?? '', proposal: !!activeProposalId, dirty, hasWork: _hasWork }))) return;
 
-            // Tune the ORDER of the lines to whichever objectives are switched on. This is free with
-            // respect to coverage — permuting rows cannot change how many people work shift X on day
-            // D — so it can only ever trade the objectives against each other, and the status line
-            // states what that trade actually was rather than leaving the designer to trust it.
-            //
-            // SAY IT, THEN DO IT (links-app-21). The search runs on the main thread, AFTER the confirm
-            // (before it, the button sat dead with nothing to explain it). Measured on a desktop with the
-            // default table: about 0.2 s for the first press and 0.3–0.7 s for each later one — every
-            // later press runs three seeded starts, and one that falls back runs the first press's search
-            // again on top — and several times that on a phone. So the button is HELD and says what is
-            // happening, and a frame is given for that to paint before the search starts. The release is
-            // booked BEFORE the search, for the frame after it: a tap made while it ran lands on the held
-            // button and is dropped, and nothing the search throws can leave the button held.
+            // SAY IT, THEN DO IT (links-app-21): the line-order search runs on the main thread after the confirm,
+            // about 0.2–0.7 s on a desktop and several times that on a phone. So the button is HELD and says so,
+            // a frame is given to paint that, and the release is booked BEFORE the search, so a tap during it is
+            // dropped and nothing the search throws can leave the button held.
             if (_mirrorEl) { _mirrorEl.textContent = 'Building the link…'; _mirrorEl.hidden = false; }
             _designActionStatus('Building the link…', '');
             if (_btnEl) /** @type {HTMLButtonElement} */ (_btnEl).disabled = true;
@@ -1863,11 +1766,9 @@ export function init() {
                 variety: _chk('objVariety'), maxRun: _chk('objMaxRun'), gentle: _chk('objGentle'),
                 weekends: _chk('objWeekends'), longWeekends: _chk('objLongWeekends'),
             };
-            // A box's own figure, never a falsy one swapped for the default (links-app-8): "Long weekends —
-            // at least 0" is a real answer, and `parseInt(…) || dflt` read it as 4 — with that 4 in the
-            // fingerprint, changing the box did not even restart the explore loop. Only a box holding no
-            // number falls back; a figure under the box's minimum is raised to it. Either way the box is
-            // written back, so it never shows a figure the build did not use.
+            // A box's own figure, never a falsy one swapped for the default (links-app-8): "at least 0" is a real
+            // answer. Only a box holding no number falls back; one under its minimum is raised to it. Either way
+            // the box is written back, so it never shows a figure the build did not use.
             const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => {
                 const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
                 const typed = parseInt(el?.value ?? '', 10);
@@ -1878,23 +1779,17 @@ export function init() {
             const _target = _num('objLongTarget', 4);
             const _blockTarget = _num('objBlockTarget', DEFAULT_BLOCK_TARGET, 1);
             const _maxRunTarget = _num('objMaxRunTarget', DEFAULT_MAX_RUN, 1);
-            // PRESSING GENERATE AGAIN EXPLORES (v20.07 — owner: "you press generate and it gives
-            // you the same design each time"). Same targets and switches → the attempt counter
-            // advances and reorderLines starts its search somewhere else; any input change → back
-            // to attempt 0, the canonical design. The fingerprint is the whole input surface, so a
-            // designer who nudges one headcount is not silently handed variant 4 of the new targets.
-            const _fp = JSON.stringify([genSlots, genSpareLines, _on, _target, _blockTarget, _maxRunTarget]);
-            if (_fp === _genFingerprint) { _genAttempt += 1; } else { _genAttempt = 0; _genBest = null; _genSeen.clear(); }
-            _genFingerprint = _fp;
+            // The fingerprint is the whole input surface, so a nudged headcount starts again at the canonical build.
+            const attempt = builds.next(JSON.stringify([genSlots, genSpareLines, _on, _target, _blockTarget, _maxRunTarget]));
             const _ord = reorderLines(generated, {
                 on: _on, longWeekendTarget: _target, blockTarget: _blockTarget,
-                maxRunTarget: _maxRunTarget, attempt: _genAttempt,
+                maxRunTarget: _maxRunTarget, attempt,
             });
             const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
 
             if (_asNew || !design) {
-                // No active design yet (or a proposal open — it is not yours to overwrite) — an unsaved in-memory design
-                design = { id: null, name: '', patterns: _final, window: design?.window };   // named on its FIRST SAVE (links-design-header.js rule 3)
+                // A proposal is not yours to overwrite: a NEW unsaved design, named on its first save (header rule 3).
+                design = { id: null, name: '', patterns: _final, window: design?.window };
                 activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
                 activation++;   // a DIFFERENT design now: a first save in flight must not stamp its id on it (Oct 2026)
             } else {
@@ -1910,23 +1805,13 @@ export function init() {
             renderDesignChecks();
             compare.renderCompare();
             updateSaveBtn();
-            // HOLD THE BUTTON STILL THROUGH THE REFLOW (v20.54). On the FIRST generate the grid card
-            // above grows from a ~160px empty state to the full grid, ~1,500px inserted ABOVE the scroll
-            // position, stranding the presser mid-grid with the button and its feedback off-screen.
-            // Re-anchoring keeps them where they pressed, which also keeps the explore loop pressable.
-            // TIMING IS THE WHOLE TRICK. The dialog's unlockBodyScroll ends in `window.scrollTo(0,
-            // saved)` on transitionend (or the 500ms fallback) — AFTER this handler — and clobbers any
-            // earlier adjustment; a scrollBy in the first frame after the lock lifts also no-ops. So
-            // the loop VERIFIES rather than trusts: measure, shift, repeat until ≤1px residual, bounded
-            // so a stuck lock cannot loop it forever and self-terminating so it never fights the user.
-            // TWO BUDGETS, IN TIME (v21.83). One 120-frame budget was spent WAITING for the unlock on a
-            // loaded CI runner (stranded 1112px) — and a budget Android is the same machine. Waiting
-            // and working now have separate bounds. NOT DIRECTLY GUARDED: on an idle machine the unlock
-            // takes ~30 frames, so the e2e passes either way; a simulation was tried and measured the
-            // harness instead. Reasoned from a real CI failure, covered only in its normal path.
+            // HOLD THE BUTTON STILL THROUGH THE REFLOW (v20.54): the first build grows the card above by a whole
+            // grid. The dialog's unlock ends in `window.scrollTo(0, saved)` after this handler, so the loop
+            // VERIFIES rather than trusts — measure, shift, repeat to 1px — with two budgets, one to wait for the
+            // unlock and one to converge (v21.83: one budget was spent waiting on a loaded runner).
             if (_btnEl && _btnViewTop !== undefined) {
-                const _waitUntil = performance.now() + 3000;   // the unlock is not ours to hurry
-                const _workUntil = performance.now() + 5000;   // ...and then this much to converge
+                const _waitUntil = performance.now() + 3000;
+                const _workUntil = performance.now() + 5000;
                 const _reanchor = () => {
                     if (document.body.classList.contains('lb-open')) {
                         if (performance.now() > _waitUntil) return;
@@ -1941,83 +1826,14 @@ export function init() {
                 _reanchor();
             }
 
-            // State the trade. A reorder that improved one figure at another's expense must say
-            // so — a bare "generated" would let the designer assume everything got better.
-            const b = _ord.before, a = _ord.after;
-            const bits = _ord.changed
-                ? [`longest block ${b.longestBlock}→${a.longestBlock} weeks`,
-                    `shifts in a row ${b.longestRun}→${a.longestRun}`,
-                    `week-to-week ${b.gentleMean}→${a.gentleMean} min`,
-                    `weekends off ${b.weekends}→${a.weekends}`,
-                    `long ${b.longWeekends}→${a.longWeekends}`]
-                : [];
-            // SAY SO WHEN THE CAP WAS NOT MET. The box names a target, and a target the design
-            // silently misses is the phantom guarantee this module has already shipped once —
-            // the rotating construction's "a person's week only moves later", documented and
-            // untrue. Measured on the live seed: with the switch on alone the reorder reaches 6;
-            // with the whole set on it reaches 8, because shortening runs and creating 48-hour
-            // breaks pull against each other. That is a real trade and it belongs on screen.
-            const _missed = _on.maxRun && _ord.changed && a.longestRun > _maxRunTarget
-                ? ` Shifts in a row could not be brought below ${a.longestRun} (target ${_maxRunTarget}) `
-                  + `without giving up more elsewhere — turn other objectives off to push it further.`
-                : '';
-            // Name the construction. The two produce visibly different designs — settled weeks
-            // keep a line inside one wave, the fallback walks it across the whole day — and a
-            // designer who is not told which they got cannot account for the difference.
-            const how = built.mode === 'settled'
-                ? `Link generated — settled weeks, ${built.waves} wave${built.waves === 1 ? '' : 's'}`
-                : 'Link generated — rotating weeks (targets would not fit settled ones)';
-
-            // THE EXPLORE LOOP'S VOICE (v20.07). Three sentences it has to be able to say, and
-            // each earns its place: which design this is (attempt counter — "design 3" means
-            // the same design on every device, since attempts are seeded); whether pressing
-            // again is worth it (the best-so-far note is what turns cycling into IMPROVING —
-            // without it the designer is comparing five status lines from memory); and the
-            // honest dead-end (the constraint filter can fall back to design 1, and a repeat
-            // wearing a new number would read as the tool pretending to explore).
-            //
-            // NOTE this state machine runs UNCONDITIONALLY — until v20.54 it sat inside an
-            // `if (status)` element guard, so a missing element would silently stop the attempt
-            // tracking as well as the display.
-            const _orderKey = _ord.order.join(',');
-            const _c = cost(_ord.after, _on, _target, _blockTarget);
-            const _sameAs = _genSeen.get(_orderKey);   // the first design that wore this order, if any
-            if (_sameAs === undefined) _genSeen.set(_orderKey, _genAttempt + 1);
-            let _explore;
-            if (_genAttempt === 0) {
-                _genBest = { c: _c, n: 1 };
-                _explore = ' Generate again for a different line order — same cover, different arrangement.';
-            } else if (_sameAs !== undefined) {
-                _explore = ` Same arrangement as design ${_sameAs} — generate again to keep exploring.`;
-            } else if (!_genBest || _c < _genBest.c) {
-                _genBest = { c: _c, n: _genAttempt + 1 };
-                _explore = ' The best arrangement so far on the ticked objectives.';
-            } else {
-                _explore = ` Design ${_genBest.n} scored better on the ticked objectives — reload and generate ${_genBest.n} time${_genBest.n === 1 ? '' : 's'} to get it back.`;
-            }
-
-            const _label = _genAttempt > 0 ? `Design ${_genAttempt + 1} — ` : '';
-            const _statusText = _label + how + (bits.length ? ` — ${bits.join(', ')}.` : '. Review and save when ready.') + _missed + _explore;
-
-            // THE FEEDBACK IS WRITTEN WHERE THE PRESSING HAPPENS AS WELL AS WHERE THE SAVING
-            // HAPPENS (v20.54). #linksSaveStatus lives in the grid card's sticky save row, a full
-            // card above this button — measured after a real press it sat 448px above the viewport
-            // at 1280×900 and 569px above at 390×844, so the whole explore-loop voice (the design
-            // numbering, the best-so-far note, the how-to-get-it-back instruction) was invisible
-            // from the one place it is read: beside the button being pressed. The save-row copy
-            // keeps the aria-live (it announced correctly throughout — screen-reader users were
-            // the only ones getting the message); the mirror is aria-hidden so it is not announced
-            // twice.
+            const _statusText = builtStatusLine(built, _ord, { attempt, maxRunOn: _on.maxRun, maxRunTarget: _maxRunTarget,
+                explore: builds.explore(_ord.order.join(','), cost(_ord.after, _on, _target, _blockTarget)) });
+            // Written where the pressing happens as well as where the saving does (v20.54): the save row is a card
+            // above the button. The save row's copy carries the aria-live; the mirror is aria-hidden.
             const status = document.getElementById('linksSaveStatus');
-            if (status) {
-                status.textContent = _statusText;
-                status.className = 'links-save-status ok';
-            }
+            if (status) { status.textContent = _statusText; status.className = 'links-save-status ok'; }
             const mirror = document.getElementById('genStatus');
-            if (mirror) {
-                mirror.textContent = _statusText;
-                mirror.hidden = false;
-            }
+            if (mirror) { mirror.textContent = _statusText; mirror.hidden = false; }
         });
     })();
 
