@@ -479,6 +479,16 @@ describe('links-tips.js — the ? panels describe the page as drawn', () => {
         const tip = words(CARD_TIPS, 'links-generator');
         assert.ok(tip.includes(`${F.weekday} on each weekday, ${F.sat} on a Saturday, ${F.sun} on a Sunday, with ${F.cover} cover weeks`));
         assert.ok(tip.includes(`at ${F.days} contracted days a year — under the ${F.ceiling} ceiling`));
+        // …and the VERDICT words beside those figures are typed, so they are checked here against the table
+        // itself (24-hour check, Nov 2026): a table that moved off the contract, or up to the ceiling, would
+        // otherwise keep "exactly" and "under" while the figures interpolated beside them said otherwise.
+        const { buildDefaultTargets } = await import('./links-default-targets.js');
+        const { assessTargetHours } = await import('./links-target-hours.js');
+        const t = buildDefaultTargets();
+        assert.match(tip, /Mon–Sat pays exactly the contracted week/);
+        assert.equal(assessTargetHours(t.slots, { spareLines: t.spareLines, totalLines: ROTATING_LINES }).onTarget, true,
+            'the default table no longer pays exactly the contracted week — the tip says it does');
+        assert.ok(Number(F.days) < F.ceiling, `${F.days} contracted days a year is not under the ${F.ceiling} ceiling — the tip says it is`);
         assert.match(tip, /no longer on the shortlist — the shortlisted designs staff the same number of duties each day/);
         assert.ok(PROPOSALS.length > 0, 'premise: there is a shortlist');
         for (const p of PROPOSALS) {

@@ -29,7 +29,9 @@
  * So the standing rule for THIS panel is the card's own rule: describe what the generator DOES and
  * point at the Design checks for what it achieved. Never a promise about the result. And when the
  * default table in `links-default-targets.js` changes, the "The default table" section here is a
- * restatement of that module's header and has to change with it — it cannot fail a test.
+ * restatement of that module's header and has to change with it. Its figures are read from the table
+ * and its two verdicts ("exactly", "under the ceiling") are checked against it in tips-content.test.mjs;
+ * the rest of its prose cannot fail a test.
  *
  * The rotation length is `ROTATING_LINES`, imported — never a literal, which
  * `links-rotation-parity.test.mjs` enforces across every `links-*.js` file including this one.
