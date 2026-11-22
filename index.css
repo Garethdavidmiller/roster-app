@@ -1689,7 +1689,7 @@
         @media screen and (min-width: 1024px) and (max-height: 820px) {
             #teamInfoContent { max-height: calc(100vh - 48px); max-height: calc(100dvh - 48px); }
         }
-        /* The navy ✕ pair (shared.css :root). It was white at 45%, about 3.3:1 over Team View's white
+        /* The navy ✕ pair (shared.css, "The ✕ — ONE colour"). It was white at 45%, about 3.3:1 over Team View's white
            cells through the glass — the one ✕ under the rest's 50% (lightbox review R1-3). */
         #teamInfoClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }
         .team-help-title {
@@ -2493,7 +2493,7 @@
         /* The icon sits a shade larger than its label so the chip reads icon-first — that is the
            whole point of the chip, and at matched sizes the emoji disappeared into the word. */
         .ddm-icon { font-size: var(--type-label); line-height: 1; }
-        #dayDetailClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }   /* the navy ✕ pair, shared.css :root */
+        #dayDetailClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }   /* the navy ✕ pair, shared.css → "The ✕ — ONE colour" */
         /* Every ✕ on this page's navy (the glass panels, the Huddle viewer's header) takes the gold
            ring of every control inside a navy panel — the drawer, About, the day panel's own buttons;
            the header's light ring is for the header. The navy fallback was invisible. Inset, in 44px. */
@@ -2604,7 +2604,7 @@
            is zero before it scrolls, and `.al-lb-stats`'s `overflow: hidden` makes it zero (measured at
            667×375). A day-panel zone given `overflow` would need this too; the landscape e2e checks both. */
         #alLightboxContent > * { flex-shrink: 0; }
-        #alLightboxClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }   /* the navy ✕ pair, shared.css :root */
+        #alLightboxClose { --lb-close-color: var(--lb-close-navy); --lb-close-hover: var(--lb-close-navy-hover); --lb-close-disc: var(--primary-blue); }   /* the navy ✕ pair, shared.css → "The ✕ — ONE colour" */
 
         .al-lb-icon   { font-size: 44px; margin-bottom: 4px; }
         .al-lb-title  { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }

@@ -1031,7 +1031,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* Close button. Its COLOUR is the surface family's (`--lb-close-color`, set by a navy panel on itself —
-   the tokens in :root say why), so no ✕ is ever left to the browser's own button colour. */
+   the tokens at the top of this file say why), so no ✕ is ever left to the browser's own button colour. */
 .lb-close {
     color: var(--lb-close-color, var(--lb-close-ink));
     position: absolute;
@@ -1932,7 +1932,7 @@ button.lightbox-bug-link {
     .notice-later { transition: none; }
 }
 
-/* Every ✕ on the opaque navy sheet takes the navy pair the sheet sets above (`--lb-close-color`, :root). */
+/* Every ✕ on the opaque navy sheet takes the navy pair the sheet sets above (`--lb-close-color`; "The ✕ — ONE colour" at the top says why). */
 
 /* Focus on the navy sheet (desktop audit, Nov 2026): the fallback ring is navy, invisible here. Gold,
    as in the drawer; the 2px offset puts it on the navy, so it serves the gold CTA too. The ✕ only on
