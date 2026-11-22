@@ -1051,6 +1051,19 @@ describe('lineTotals', () => {
         assert.equal(t.rows[0].days, 1, 'and so is the day count');
     });
 
+    test('a LONE spare day is a duty with no times — a floor, like an unreadable one, never a light week', () => {
+        // Mon–Sat SPARE on a line that is not a whole cover week. Skipped as rest, the line read as
+        // two fewer working days with nothing to say why (Nov 2026).
+        const t = lineTotals({ 1: row({ mon: SEVEN, tue: 'SPARE', wed: 'SPARE' }), 2: row({ tue: 'SPARE' }), 3: row({ sun: 'SPARE' }) }, 3);
+        assert.equal(t.rows[0].loneSpare, 2);
+        assert.equal(t.rows[0].exSundayMinutes, 420, 'the figure is a floor');
+        assert.equal(t.rows[0].assumed, false, 'it is not a cover week');
+        assert.equal(t.rows[1].loneSpare, 1);
+        assert.equal(t.rows[1].unfilled, false, 'a line with a spare day on it is designed');
+        assert.equal(t.rows[2].loneSpare, 0, 'a Sunday is not contracted, so a spare one is not a missing duty');
+        assert.equal(lineTotals({ 1: SPARE_ROW }, 1).rows[0].loneSpare, 0, 'a whole cover week is counted as the contracted week, not as spare days');
+    });
+
     test('THE DAYS AVERAGE IS OVER THE WORKING LINES, NOT THE ROTATION', () => {
         // The distinction this whole function turns on. Four lines: two worked, two cover. Over
         // the working lines the answer is 4; over the rotation it would be 2 — a rotation built to

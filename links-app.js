@@ -1425,7 +1425,7 @@ export function init() {
                 // No month: the new link starts in January 2027, not December, and the day is not set
                 // (owner, 8 Nov 2026 — newlink-config.js → STARTS). What is true whenever it is read is the length.
                 : state === 'binned' ? `The link is now ${TOTAL_POS} lines, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
-                : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
+                : `Build a rotating pattern from staffing targets with the Build a link card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) emptyActs.style.display = offers ? '' : 'none';
             // An installed app has no reload button, so "refresh the page" was advice with nothing to press.
             if (retry) retry.style.display = state === 'failed' ? '' : 'none';
@@ -1560,7 +1560,7 @@ export function init() {
      * on the lines that have been designed.
      *
      * @param {{exSundayMinutes: number, allMinutes: number, days: number|null, assumed: boolean,
-     *          unreadable: number, unfilled: boolean}|undefined} t
+     *          unreadable: number, loneSpare?: number, unfilled: boolean}|undefined} t
      */
     function _totalCells(t) {
         // The explanation ADDS to the figure (links-app-15). An author's name for a cell takes the place
@@ -1575,14 +1575,17 @@ export function init() {
             return cell(h, ' tot-assumed', why) + cell(all, ' tot-assumed', all === h ? why : 'Cover week — the contracted week, plus its Sunday overtime')
                 + cell('—', ' tot-assumed', 'A cover week does not record which days it works');
         }
-        const flag = t.unreadable ? ' tot-uncertain' : '';
+        // A floor — an unreadable duty, or a lone spare day with no times (lineTotals) — is orange and ends in "+".
+        const floor = t.unreadable + (t.loneSpare ?? 0);
+        const flag = floor ? ' tot-uncertain' : '';
         // A line with no Sunday duty has the same figure in both hour columns, and repeated over
         // twenty rows that identical pair is what the eye has to read past to find the lines that
         // DO work a Sunday. Muting the repeat leaves those standing out on their own.
-        const same = !t.unreadable && t.allMinutes === t.exSundayMinutes ? ' tot-same' : '';
-        const why  = t.unreadable
-            ? `${t.unreadable} duty${t.unreadable === 1 ? '' : ' times'} on this line could not be read, so these totals are a floor`
-            : '';
+        const same = !floor && t.allMinutes === t.exSundayMinutes ? ' tot-same' : '';
+        const why  = floor ? [
+            t.unreadable ? `${t.unreadable} duty time${t.unreadable === 1 ? '' : 's'} on this line could not be read` : '',
+            t.loneSpare ? `${t.loneSpare} spare day${t.loneSpare === 1 ? '' : 's'} on this line carr${t.loneSpare === 1 ? 'ies' : 'y'} no times` : '',
+        ].filter(Boolean).join(', and ') + ', so these totals are a floor' : '';
         return cell(hmFromHours(t.exSundayMinutes / 60), flag, why)
             + cell(hmFromHours(t.allMinutes / 60), flag + same, same ? 'No Sunday duty on this line' : why)
             + cell(String(t.days ?? '—'), flag, why);

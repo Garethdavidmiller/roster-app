@@ -2209,6 +2209,11 @@ const MIXED_DESIGN = (() => {
     return patterns;
 })();
 
+/** MIXED_DESIGN with its spare days rested, so no line's totals are a floor unless a test makes one (a lone spare day
+ *  is a duty with no times, a floor — lineTotals). */
+const MIXED_NO_SPARE = Object.fromEntries(Object.entries(MIXED_DESIGN)
+    .map(([k, row]) => [k, Object.fromEntries(Object.entries(row).map(([d, v]) => [d, v === 'SPARE' ? 'RD' : v]))]));
+
 /** Open Links on MIXED_DESIGN at a desktop size. @param {import('@playwright/test').Page} page */
 async function openMixedDesign(page, size = { width: 1366, height: 768 }) {
     await page.setViewportSize(size);
@@ -2492,7 +2497,7 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000,
             patterns: { ...pats, 2: { ...pats[2], mon: 'TBC' } } }];
-    }, MIXED_DESIGN);
+    }, MIXED_NO_SPARE);
     await page.goto('/links.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     const mark = (/** @type {string} */ sel) => page.locator(sel).evaluateAll(els => els.map(el => getComputedStyle(el, '::after').content));
@@ -2502,6 +2507,24 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
     const plain = await mark('#linksGridBodyRows tr[data-pos="3"] td.tot-cell');
     for (const c of plain) expect(c, 'an ordinary total carries no mark').not.toMatch(/\+/);
     expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
+});
+
+test('links grid: a lone spare day makes its line\'s totals a floor, and the cell says why', async ({ page }) => {
+    // A Mon–Sat SPARE on a line that is not a whole cover week carries no times. It was skipped as rest, so
+    // the line read as a lighter week with nothing to say why (Nov 2026).
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(pats => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000,
+            patterns: { ...pats, 2: { ...pats[2], mon: 'SPARE' } } }];
+    }, MIXED_NO_SPARE);
+    await page.goto('/links.html');
+    const totals = page.locator('#linksGridBodyRows tr[data-pos="2"] td.tot-cell');
+    await expect(totals).toHaveCount(3);
+    for (const c of await totals.all()) await expect(c).toHaveClass(/\btot-uncertain\b/);
+    await expect(totals.first()).toHaveAttribute('aria-label', /1 spare day on this line carries no times, so these totals are a floor$/);
 });
 
 // THE LEGEND'S WORDS NAME WHAT ITS SAMPLE DRAWS (whole-app fix, Nov 2026). The floor sample draws
