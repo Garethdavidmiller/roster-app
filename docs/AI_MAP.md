@@ -1029,7 +1029,7 @@ The App Notices archive's rules: what a seen one-time notice leaves behind on th
 
 ### `notif.js`
 The Web Push module: the client's one copy of the VAPID public key — it must match `functions/index.js`, and a mismatch is silent and permanent (CLAUDE.md → Change impact) — and the subscription lifecycle: the state the bell and the Settings card show, enable and disable, and `releaseDevicePush` at a sign-out. Which reads have side effects and why a deliberate Off is not a lapse are its header and each export's JSDoc. Tested by `notif.test.mjs`; the server side, a rotated endpoint and the fingerprint migration are `.claude/rules/notifications.md`.
-- **Exports:** `notifOffByChoice` · `isIOS` · `notifSupported` · `getNotifState` · `peekNotifState` · `enableNotifications` · `disableNotifications` · `releaseDevicePush`
+- **Exports:** `notifOffByChoice` · `isIOS` · `isStandalonePWA` · `onPagesMirror` · `notifSupported` · `getNotifState` · `peekNotifState` · `enableNotifications` · `disableNotifications` · `releaseDevicePush`
 
 ### `print-guard.js`
 Can `window.print()` do anything here, and what to say when it cannot: in a home-screen web app on iPhone or iPad it silently does nothing. Pure and import-free, so the guides and the app pages share one rule and one wording; every print control goes through `printOrExplain`. The WebKit reference, and why no iOS version is read, are its header. Tested by `print-guard.test.mjs`; the entry points by `e2e/print.spec.js`.
