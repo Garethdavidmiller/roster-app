@@ -34,6 +34,14 @@ let _lbDepth = 0;
 export function lockBodyScroll() {
     if (_lbDepth++ > 0) return;   // already locked by an outer overlay — keep its scroll baseline
     _lbScrollY = window.scrollY;
+    // THE PAGE DOES NOT JUMP SIDEWAYS (lightbox review R1-13, 22 Nov 2026). On a screen with a
+    // permanent scrollbar — the Windows station PC — fixing the body took the scrollbar away and the
+    // page behind moved right by its width, on every lightbox and the drawer. Where a scrollbar is
+    // taking room NOW, its gutter is kept for as long as the lock (shared.css, `html.lb-keep-gutter`).
+    // Only then: a gutter kept always (the reviewer's draft) moved every desktop page that does not
+    // scroll by the gutter's width, and a phone's scrollbar takes no room, so it never gains one.
+    const root = document.documentElement;
+    if (root && window.innerWidth - root.clientWidth > 0) root.classList.add('lb-keep-gutter');
     document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
     document.body.classList.add('lb-open');
 }
@@ -47,6 +55,7 @@ export function unlockBodyScroll() {
     if (_lbDepth === 0) return;
     if (--_lbDepth > 0) return;    // an outer overlay is still open — keep the lock
     document.body.classList.remove('lb-open');
+    document.documentElement?.classList.remove('lb-keep-gutter');
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
 }

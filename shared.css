@@ -859,13 +859,6 @@ html {
     color-scheme: only light; /* 'only light' hard-opts-out of browser force-dark (Chrome auto-dark / WebView algorithmic darkening) as well as dark-mode scrollbars and form controls — the app is a fixed navy-brand design with no dark theme */
     -webkit-text-size-adjust: 100%; /* prevents auto-scaling on orientation change; 100% (not none) preserves user font-size accessibility settings */
     text-size-adjust: 100%;
-    /* THE PAGE DOES NOT JUMP SIDEWAYS WHEN A LIGHTBOX OPENS (lightbox review R1-13, 22 Nov 2026). On a
-       screen with a permanent scrollbar — the Windows station PC — `body.lb-open`'s `position: fixed`
-       took the page's scrollbar away, and the page behind moved right by its width whenever a lightbox
-       or the drawer opened or closed. The gutter is now always kept. A phone's overlay scrollbar takes
-       no room, so nothing changes there; the cost is an empty navy strip, the canvas's own colour, on a
-       desktop page too short to scroll. */
-    scrollbar-gutter: stable;
 }
 
 /* Balance headings and avoid orphan lines in prose; ignored where unsupported. :where() keeps the
@@ -965,6 +958,9 @@ body.lb-open {
     overflow: hidden;
 }
 body.lb-open #stickyTotal { display: none !important; }
+/* The scrollbar's room is kept while the body is fixed, so the page does not jump sideways on a screen whose
+   scrollbar takes room — overlay.js → `lockBodyScroll` adds the class only where one does (lightbox review R1-13). */
+html.lb-keep-gutter { scrollbar-gutter: stable; }
 /* PAPER HAS NO SCROLL TO LOCK (whole-app review, Nov 2026). Printing with a lightbox, the drawer or the
    Huddle viewer open laid out ONE sheet — a fixed body is one viewport tall, shifted by the scroll — and
    Trains printed its Tips panel over it. On paper the body flows and lightboxes go. NOT under a sign-in
@@ -1528,7 +1524,8 @@ button.lightbox-bug-link {
    with the close button starting at 313 — the text ran 9px under the control. 8 + 52 = 60 clears it;
    a title that no longer fits takes a second line, which `text-wrap: balance` keeps even. */
 .picker-head { padding: 12px 52px 12px 12px; border-bottom: 1px solid var(--border-light); }
-.picker-head b    { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; text-wrap: balance; }
+/* Every panel title's size and weight, --type-large at 700 (lightbox review R1-12): the sheet's was 16px at 800. */
+.picker-head b    { display: block; font-size: var(--type-large); font-weight: 700; color: var(--primary-blue); letter-spacing: -0.2px; text-wrap: balance; }
 .picker-head span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
 /* THE FILTER ON A LONG SHEET (v23.68, external review). Only rendered from `SEARCH_FROM` options —
    `select-sheet.js` owns that threshold and the reason for it.

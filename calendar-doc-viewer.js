@@ -289,7 +289,10 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'doc-open-btn';
-                btn.textContent = `📄 Open ${d.label}`;
+                const icon = document.createElement('span');
+                icon.setAttribute('aria-hidden', 'true');   // decoration: the button is named "Open <document>" (R4-7)
+                icon.textContent = '📄';
+                btn.append(icon, ` Open ${d.label}`);
                 // Real user gesture → window.open opens a Custom Tab over the standalone app.
                 // Counted here (not on viewer open) so the count means the document was actually
                 // opened — mirroring the nav-drawer path (v18.20; admin-excluded, anonymous).
