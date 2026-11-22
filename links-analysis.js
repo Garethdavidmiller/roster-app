@@ -33,7 +33,7 @@
  * list while making the identical claim.
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
-    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours, SPARE_WORKED_DAYS } from './links-design.js';
+    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours, hoursFigure, SPARE_WORKED_DAYS } from './links-design.js';
 import { assessFatigue, COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
@@ -431,7 +431,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 const ok = Math.abs(off) <= 0.5 && wh.complete;
                 // "(partial)", the row's own word — a bare "*" pointed at a footnote the strip lacks (17 Nov 2026).
                 return chip(ok ? 'ok' : 'warn', ok ? '✓' : '⚠',
-                    hmFromHours(wh.exSunday), wh.complete ? 'a week' : 'a week (partial)');
+                    hoursFigure(wh).hm ?? '', hoursFigure(wh).partial ? 'a week (partial)' : 'a week');
             })()
             + `<a class="sum-jump btn-text-link" href="#coverageCard">Full analysis ↓</a>`;
     }
@@ -633,8 +633,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             rows.push(
                 `<div class="check-row ${onTarget ? 'check-good' : 'check-warn-row'}">` +
                 `${onTarget ? tick : warn}<div class="check-body">` +
-                `<strong>Hours a week</strong> — ${hm(wh.exSunday)} averaged across all ${wh.lines} lines` +
-                (wh.complete ? '' : ` <strong>(partial)</strong>`) +
+                `<strong>Hours a week</strong> — ${hoursFigure(wh).hm} averaged across all ${wh.lines} lines` +
+                (hoursFigure(wh).partial ? ` <strong>(partial)</strong>` : '') +
                 `<span class="check-note"> (contracted: ${CONTRACTED_HOURS_PER_WEEK}h, Sundays excluded)</span>` +
                 (onTarget ? '' :
                     `<div class="check-sub">${off < 0

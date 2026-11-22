@@ -477,6 +477,17 @@ export function hmFromHours(hours) {
 }
 
 /**
+ * A `weeklyHours` average as every surface states it: `hm` the figure, `partial` when it covers fewer
+ * lines than the design has (`complete` false), `text` the two together — "35h 00m (partial)", or "—"
+ * with nothing to average. One decision, so no surface states the bare figure while another says partial.
+ * @param {{ exSunday: number|null, all?: number|null, complete: boolean }} wh @param {'exSunday'|'all'} [which]
+ */
+export function hoursFigure(wh, which = 'exSunday') {
+    const h = wh[which] ?? null, hm = h === null ? null : hmFromHours(h), partial = hm !== null && !wh.complete;
+    return { hm, partial, text: hm === null ? '—' : hm + (partial ? ' (partial)' : '') };
+}
+
+/**
  * How many hours a week this design actually gives somebody — the question the panel could not
  * answer until v20.04, and the most basic one anybody asks of a roster.
  *

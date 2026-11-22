@@ -2489,6 +2489,24 @@ test('links grid: a total that is only a floor says so with a "+", not by its co
     expect((await mark('.tot-legend .lg-uncertain'))[0], 'the legend shows the same mark').toMatch(/^"\+"/);
 });
 
+// THE FOOTER'S AVERAGES SAY "(partial)" WHERE THE CHECKS ROW AND THE STRIP DO (Nov 2026, `hoursFigure`): a line with no
+// readable time is left out of the average, and the footer stated the bare figure under a grid that showed the line.
+test('links grid: the hours averages in the footer say "(partial)" when a whole line has no readable time', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(pats => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        const tbc = Object.fromEntries(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(d => [d, 'TBC']));
+        w.__E2E.docs = [{ id: 'd1', name: 'Option A', updatedBy: 'S. Silva', updatedAt: 1_750_000_000_000, patterns: { ...pats, 2: tbc } }];
+    }, MIXED_NO_SPARE);
+    await page.goto('/links.html');
+    const avgs = page.locator('#linksCoverageFoot .tot-avg .tot-avg-num');
+    await expect(avgs).toHaveCount(3);
+    await expect(avgs.nth(0)).toHaveText(/^\d+h \d{2}m \(partial\)$/);
+    await expect(avgs.nth(1)).toHaveText(/^\d+h \d{2}m \(partial\)$/);
+});
+
 test('links grid: a lone spare day makes its line\'s totals a floor, and the cell says why', async ({ page }) => {
     // A Mon–Sat SPARE on a line that is not a whole cover week carries no times. It was skipped as rest, so
     // the line read as a lighter week with nothing to say why (Nov 2026).

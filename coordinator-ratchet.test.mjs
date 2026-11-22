@@ -270,7 +270,10 @@ const CAPS = {
     // 1500 → 1503 in the second whole-app check (Nov 2026), a RAISE, said so: two RULES grew where rules belong — the rest
     // repair tries the earlier duty of a short turnaround when no swap of the later one works, and the shift balance counts a
     // cover week as its duties — each pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
-    'links-design.js':         1503,   // a DOMAIN module: large is less alarming here, but still capped
+    // 1503 → 1513 (Nov 2026), a RAISE, said so: two rules where rules belong — `lineTotals` counts a lone spare day as a
+    // floor (`loneSpare`), and `hoursFigure` is the one way a weeklyHours average is stated ("(partial)" included), both
+    // pinned in links-design.test.mjs. Nothing in it is coordination. At the measured size.
+    'links-design.js':         1513,   // a DOMAIN module: large is less alarming here, but still capped
     // NEW at v25.48, a decision rather than a discovery: `chunkByWrites` (the range booking's batches,
     // counted in writes so none crosses Firestore's 500) took it from 900 to 928. It joined the other
     // override WRITE helpers (`buildOverrideWrite`, `buildOverrideCacheRecord`) because it is the same

@@ -24,7 +24,7 @@ import {
     normalisePatterns,
     ROTATING_LINES,
     weeklyHours,
-    lineTotals,
+    lineTotals, hoursFigure,
     isCoverWeek,
     repairShortRest, restBetween,
     dutyMinutes,
@@ -977,6 +977,23 @@ describe('hmFromHours — the one hours-a-week formatter', () => {
     });
 });
 
+
+// ── hoursFigure: one way to state a weeklyHours average ───────────────────────────────────────────
+describe('hoursFigure', () => {
+    test('a complete average is the bare figure; one that leaves a line out says "(partial)"', () => {
+        assert.deepEqual(hoursFigure({ exSunday: 35, all: 37.5, complete: true }), { hm: '35h 00m', partial: false, text: '35h 00m' });
+        assert.deepEqual(hoursFigure({ exSunday: 34.5, all: 36, complete: false }), { hm: '34h 30m', partial: true, text: '34h 30m (partial)' });
+        assert.equal(hoursFigure({ exSunday: 34.5, all: 36, complete: false }, 'all').text, '36h 00m (partial)');
+    });
+    test('nothing to average is a dash, never "0h 00m", and is not called partial', () => {
+        assert.deepEqual(hoursFigure({ exSunday: null, all: null, complete: false }), { hm: null, partial: false, text: '—' });
+    });
+    test('it is the real weeklyHours reading: a line with no readable time makes it partial', () => {
+        const wh = weeklyHours({ 1: { mon: '06:20-14:20' }, 2: { mon: 'TBC' } }, 2);
+        assert.equal(wh.complete, false);
+        assert.match(hoursFigure(wh).text, / \(partial\)$/);
+    });
+});
 
 // ── lineTotals (v21.09) ─────────────────────────────────────────────────────────────────────────
 //

@@ -42,7 +42,7 @@ import {
     normaliseCustomShift, normalisePatterns,
     calcCoverage,
     generateLink,
-    hmFromHours,
+    hmFromHours, hoursFigure,
     lineTotals,
     weeklyHours,
     MIN_REST_MINUTES,
@@ -1526,9 +1526,10 @@ export function init() {
                 : `<span class="tot-avg-num">${escapeHtml(text)}</span>`) +
             `<span class="tot-avg-note">${escapeHtml(note)}</span></td>`;
         const lineWord = (/** @type {number} */ n, /** @type {string} */ w) => `over ${n} ${w}${n === 1 ? '' : 's'}`;
+        // "(partial)" as the checks row and the strip say it, when a whole line had no readable time.
         const avgCells = totals
-            ? avg(wh.exSunday, wh.exSunday === null ? '' : hmFromHours(wh.exSunday), lineWord(TOTAL_POS, 'line'))
-            + avg(wh.all, wh.all === null ? '' : hmFromHours(wh.all), lineWord(TOTAL_POS, 'line'))
+            ? avg(wh.exSunday, hoursFigure(wh).text, lineWord(TOTAL_POS, 'line'))
+            + avg(wh.all, hoursFigure(wh, 'all').text, lineWord(TOTAL_POS, 'line'))
             + avg(totals.daysAverage, String(totals.daysAverage ?? ''), lineWord(totals.daysLines, 'working line'))
             : '';
         tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}${avgCells}</tr>`;
