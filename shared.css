@@ -256,6 +256,10 @@
     /* Unsaved-changes banner */
     --warning-amber: oklch(42.5% 0.1075 53.2deg);
 
+    /* The gold wash — "something here wants doing" (Settings, Operations, Pay): one fill, one edge. */
+    --gold-wash-bg:     color-mix(in oklch, var(--accent-gold) 16%, white);
+    --gold-wash-border: color-mix(in oklch, var(--accent-gold) 45%, white);
+
     /* Roster conflict text */
     --conflict-strong: oklch(41.6% 0.0924 66.4deg);
     --conflict-text:   oklch(47.1% 0.0987 76.3deg);
@@ -2048,6 +2052,9 @@ button.lightbox-bug-link {
     padding: 14px 18px;
     display: flex;
     align-items: center;
+    /* A gap each side of the name (22 Nov 2026): an ellipsised "Mary…" met the badge with 0px between
+       them at 320px. Both sides, so the name stays centred; from 1024px the name is placed absolutely. */
+    gap: 8px;
 }
 
 /* Logo + title group — flex:1 fills the space between burger and badge so
@@ -3478,7 +3485,8 @@ body.auth-ready .boot-placeholder { display: none; }
     align-items: baseline;
     gap: 0.25em;
 }
-.card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
+/* `pretty`: a wrapped hint no longer ends on one word alone (22 Nov 2026). */
+.card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; text-wrap: pretty; }
 /* A "☰ → Daily Huddle" path told to staff is one token, not three words: without this the wrap
    could land between the burger glyph and the arrow, leaving a line starting "→ Daily Huddle" that
    reads as broken punctuation rather than a route. (v18.86) A web address told to staff is the same
@@ -3524,6 +3532,25 @@ body.auth-ready .boot-placeholder { display: none; }
    today, so no test covers it. The wrap also keeps the address READABLE rather than clipped. */
 .card-header-toggle > :first-child { min-width: 0; }
 .card-header .hint { overflow-wrap: anywhere; }
+
+/* ── LARGER TEXT: A CHIP NEVER SITS ON ITS TITLE (22 Nov 2026) ───────────────────────────────────
+   The cluster keeps its width (`flex-shrink: 0`, chip `nowrap`), so under a phone's larger text the
+   title shrank beneath it: Settings' "Password" read "Pas" at 320px from 1.15 times, and Admin's
+   "2026: 32 left" covered its title at 1.5. So the header asks its own width in em (css-tokens.md →
+   "Larger text"). 18em, MEASURED: a 320px phone at 1 times is 19.1em, so no normal-size page reaches
+   it; the widest failure was 16.6em, the narrowest pass 17.7em. Below it a header SHOWING a chip gives
+   its title the first row and the chip, `?` and arrow the second, at the right edge; one with no chip
+   keeps its row. The row may always wrap because the title block is `flex: 1 1 0%` — nothing wraps
+   until the query gives it 100%, and at full width it lays out as before (pixel-identical on every
+   card page at 320, 375 and 1280px). Pinned by e2e/pages.spec.js → "no card's chip covers its title". */
+.card-header-toggle, .card-header--row { container: card-head / inline-size; flex-wrap: wrap; }
+.card-header-toggle > :first-child, .card-header--row > :first-child { flex: 1 1 0%; min-width: 0; }
+@container card-head (max-width: 18em) {
+    :is(.card-header-toggle, .card-header--row):has(> .card-header-actions .card-year-chip:not(:empty):not([hidden])) > :first-child {
+        flex-basis: 100%;
+    }
+    :is(.card-header-toggle, .card-header--row) > .card-header-actions { margin-left: auto; }
+}
 @media (hover: hover) and (pointer: fine) {
     .card-header-toggle:hover { background: var(--bg-faint); }
 }

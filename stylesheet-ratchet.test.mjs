@@ -62,7 +62,10 @@ const CAPS = {
     // of the dialog's own comments that had become a changelog made the room — the ceiling follows the sheet down.
     // 3849 → 3800 (16 Nov 2026, at 3,709): thirty-one comments that had become a changelog cut to their reasons;
     // no rule changed (the sheet with its comments stripped is identical).
-    'shared.css':     3800,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
+    // 3800 → 3830 (22 Nov 2026, at 3,826), a deliberate RAISE: the card header's larger-text rule (an em
+    // container query, the shared header's own — every card page draws it), the app header's gap, the hint's
+    // `text-wrap` and the gold-wash token pair three pages had each copied. The sheet was at 3,799 of 3,800.
+    'shared.css':     3830,   // every page's tokens, controls, overlays, pickers and the drawn checkbox
     // 2700 → 2650 (Nov 2026, at 2,574): the week grid's five-column template and the two blocks that
     // restated the stacked one over it became one rule; dead and inert rules out (css-admin-ops-15).
     // 2650 → 2600 (16 Nov 2026 (tidy-up), at 2,506): comments that had become a changelog cut to their reasons.

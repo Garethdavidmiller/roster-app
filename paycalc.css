@@ -717,8 +717,8 @@
     /* First-run banner */
     /* Settings' "things to finish" gold wash: a 4px left stripe bent round the 18px corner. */
     .setup-banner {
-      background: color-mix(in oklch, var(--accent-gold) 16%, white); border-radius: var(--radius-lg);
-      border: 1px solid color-mix(in oklch, var(--accent-gold) 45%, white);
+      background: var(--gold-wash-bg); border-radius: var(--radius-lg);
+      border: 1px solid var(--gold-wash-border);
       box-shadow: var(--shadow-1); margin-bottom: 16px;
       padding: 14px 16px;
     }
