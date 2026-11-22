@@ -100,8 +100,13 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'todo');
     await expect(page.locator('#settingsSummaryItems li')).toHaveText(['Add the roster to your Home Screen']);
 
-    // The card that says how must be VISIBLE and showing the taps, not the button WebKit can't fire.
+    // The card that says how must be VISIBLE and showing the taps, not the button WebKit can't fire —
+    // OPEN, with the to-do's amber chip, so the summary and the card it leads to say one thing.
     await expect(page.locator('#deviceCard')).toBeVisible();
+    await expect(page.locator('#deviceStatusChip')).toHaveText('Not installed');
+    await expect(page.locator('#deviceStatusChip')).toHaveAttribute('data-tone', 'action');
+    expect(await cardOpen(page, 'deviceBody'), 'a to-do opens its card').toBe(true);
+    await expect(page.locator('#installNoteIos')).toBeVisible();
     await expect(page.locator('#installSteps')).toBeVisible();
     await expect(page.locator('#installSteps')).toContainText('Add to Home Screen');
     await expect(page.locator('#installBtn')).toBeHidden();
@@ -834,9 +839,96 @@ test('settings: the install card exists only while there is an install to offer'
         window.dispatchEvent(e);
     });
     await expect(page.locator('#deviceCard')).toBeVisible();
+    // An OFFER, so a neutral chip on a shut card — the same header as its siblings (settings review, Nov 2026).
+    await expect(page.locator('#deviceStatusChip')).toHaveText('Not installed');
+    await expect(page.locator('#deviceStatusChip')).toHaveAttribute('data-tone', 'n/a');
+    expect(await cardOpen(page, 'deviceBody'), 'an offer does not open itself').toBe(false);
+    await page.locator('#deviceChevron').click();
+    await expect(page.locator('#installNoteIos'), 'the iPhone line is for an iPhone').toBeHidden();
     await page.locator('#installBtn').click();
     expect(await page.evaluate(() => window.__promptFired)).toBe(true);
     await expect(page.locator('#deviceCard')).toBeHidden();
+});
+
+// ── THE LOOK PASS (settings review, Nov 2026) ─────────────────────────────────────────────────────
+
+// Change password opened a door with no way back but a reload.
+test('settings: Cancel puts the settled password state back, and takes what was typed with it', async ({ page }) => {
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#passwordChevron').click();
+    await expect(page.locator('#pwCancelBtn'), 'nothing to cancel until Change password is pressed').toBeHidden();
+    await page.locator('#pwChangeBtn').click();
+    await expect(page.locator('#pwCancelBtn')).toBeVisible();
+    await page.locator('#pwCurrent').fill('miller');
+    await page.locator('#pwShowAll').check();
+    await page.locator('#pwCancelBtn').click();
+    await expect(page.locator('#pwForm')).toBeHidden();
+    await expect(page.locator('#pwSettled')).toBeVisible();
+    await expect(page.locator('#pwChangeBtn')).toBeFocused();
+    await page.locator('#pwChangeBtn').click();
+    await expect(page.locator('#pwCurrent'), 'what was typed went with the Cancel').toHaveValue('');
+    await expect(page.locator('#pwCurrent'), 'and it is masked again').toHaveAttribute('type', 'password');
+});
+
+test('settings: a member on the surname default has nothing to cancel back to', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });
+    await expect(page.locator('#pwForm')).toBeVisible();
+    await expect(page.locator('#pwCancelBtn')).toBeHidden();
+});
+
+// The joined email field is focused as ONE control beside the domain, and the domain is plain text when stacked.
+test('settings: the work email and its domain are focused as one field, and stacked the domain is text', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a keyboard focus ring');
+    await openSettings(page, { configured: true, noPush: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.locator('#contactChevron').click();
+    await page.locator('#workEmailSaveBtn').focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.locator('#workEmailInput')).toBeFocused();
+    const joined = await page.evaluate(() => {
+        const cs = (/** @type {string} */ id) => getComputedStyle(/** @type {HTMLElement} */ (document.getElementById(id)));
+        const row = getComputedStyle(/** @type {HTMLElement} */ (document.querySelector('.contact-email-row')));
+        return { rowOutline: row.outlineStyle, inputOutline: cs('workEmailInput').outlineStyle,
+            inputEdge: cs('workEmailInput').borderTopColor, domainEdge: cs('workEmailDomain').borderTopColor,
+            domainRing: cs('workEmailDomain').boxShadow !== 'none', domainFill: cs('workEmailDomain').backgroundColor };
+    });
+    expect(joined.rowOutline, 'the outline goes round the row').toBe('solid');
+    expect(joined.inputOutline, 'not round the input alone').toBe('none');
+    expect(joined.domainEdge, 'the domain\'s edge takes the focus colour with the input\'s').toBe(joined.inputEdge);
+    expect(joined.domainRing, 'the ring carries on round the domain').toBe(true);
+    await page.setViewportSize({ width: 360, height: 800 });
+    const stacked = await page.locator('#workEmailDomain').evaluate(el => {
+        const cs = getComputedStyle(el);
+        return { border: cs.borderTopStyle, fill: cs.backgroundColor };
+    });
+    expect(stacked, 'stacked under the field, the domain is the rest of the address, not a second box').toEqual({ border: 'none', fill: 'rgba(0, 0, 0, 0)' });
+});
+
+test('settings: a settled card ends where its siblings do — no empty line reserved at its foot', async ({ page }) => {
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#passwordChevron').click();
+    await expect(page.locator('#pwSettled')).toBeVisible();
+    expect(await page.locator('#pwFeedback').evaluate(el => el.getBoundingClientRect().height)).toBe(0);
+});
+
+test('settings: under a thumb each to-do in the summary is a 44px target', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'a coarse pointer');
+    await openSettings(page, { configured: false, noPush: true });
+    const heights = await page.locator('#settingsSummaryItems a').evaluateAll(as => as.map(a => Math.round(a.getBoundingClientRect().height)));
+    expect(heights.length).toBe(2);
+    for (const h of heights) expect(h).toBeGreaterThanOrEqual(44);
+});
+
+test('settings: on a desktop the cards are 16px apart, as on Admin and Operations', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a desktop layout');
+    await openSettings(page, { configured: true, noPush: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const gap = await page.evaluate(() => {
+        const a = /** @type {HTMLElement} */ (document.getElementById('contactCard')).getBoundingClientRect();
+        const b = /** @type {HTMLElement} */ (document.getElementById('passwordCard')).getBoundingClientRect();
+        return Math.round(b.top - a.bottom);
+    });
+    expect(gap).toBe(16);
 });
 
 test('settings: login overlay renders with JS-populated grade options', async ({ page }) => {
@@ -1132,8 +1224,11 @@ test('settings: on a desktop the to-dos run along the strip, and each one opens 
     await page.setViewportSize({ width: 1366, height: 768 });
     const items = page.locator('#settingsSummaryItems a');
     await expect(items).toHaveText(['Set your own password', 'Save your work email']);
-    const tops = [...await items.evaluateAll(as => as.map(a => Math.round(a.getBoundingClientRect().top))),
-        await page.locator('#settingsSummaryLine').evaluate(el => Math.round(el.getBoundingClientRect().top))];
+    // The WORDS' tops, not the boxes': under a thumb each link is a 44px target round its line of text.
+    const tops = await page.locator('#settingsSummaryLine, #settingsSummaryItems a').evaluateAll(els => els.map(el => {
+        const r = document.createRange(); r.selectNodeContents(el); return Math.round(r.getBoundingClientRect().top);
+    }));
+    expect(tops.length, 'premise: the line and its two to-dos').toBe(3);
     expect(Math.max(...tops) - Math.min(...tops), 'the count and its to-dos share one row').toBeLessThanOrEqual(6);
 
     await page.locator('#contactChevron').click();   // the card opened itself; the member shuts it

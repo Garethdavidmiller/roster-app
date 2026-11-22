@@ -128,10 +128,10 @@ describe('false alarm — the noisy failure', () => {
     test('installing is a to-do for an iPhone in a browser, and an offer everywhere else', () => {
         const need = (/** @type {Partial<{ios: boolean, installed: boolean, onMirror: boolean}>} */ d) =>
             installNeed({ ios: false, installed: false, onMirror: false, ...d });
-        assert.deepEqual(need({ ios: true }), { state: 'action', from: 'here' });
+        assert.deepEqual(need({ ios: true }), { state: 'action', from: 'here', chip: 'Not installed' });
         for (const onMirror of [false, true]) {
-            assert.deepEqual(need({ onMirror }), { state: 'n/a', from: null }, 'Android or a desktop: an offer');
-            assert.deepEqual(need({ onMirror, ios: true, installed: true }), { state: 'n/a', from: null }, 'already on the Home Screen');
+            assert.deepEqual(need({ onMirror }), { state: 'n/a', from: null, chip: 'Not installed' }, 'Android or a desktop: an offer');
+            assert.deepEqual(need({ onMirror, ios: true, installed: true }), { state: 'n/a', from: null, chip: 'Installed' }, 'already on the Home Screen');
         }
     });
 
@@ -139,10 +139,25 @@ describe('false alarm — the noisy failure', () => {
         // The reported defect (Nov 2026 review): the mirror's iPhone reported `n/a`, because the app is
         // never installed FROM the mirror, and the summary closed over a phone that can receive nothing.
         const mirror = installNeed({ ios: true, installed: false, onMirror: true });
-        assert.deepEqual(mirror, { state: 'action', from: 'main-address' });
+        assert.deepEqual(mirror, { state: 'action', from: 'main-address', chip: 'Not installed' });
         const s = summarise({ ...ALL_OK, install: mirror.state, notifications: 'n/a' });
         assert.notEqual(s.tone, 'all-set');
         assert.deepEqual(s.items, ['Add the roster to your Home Screen']);
+    });
+
+    // THE INSTALL CARD'S CHIP AND THE SUMMARY ARE ONE REPORT (settings review, Nov 2026). The card gained
+    // its siblings' chip; the chip is coloured by the state it is reported with, so on every device it is
+    // the summary's amber exactly when the summary lists the to-do, and has words whenever the card shows.
+    test('the install chip and the summary cannot disagree, on any device', () => {
+        for (const ios of [false, true]) for (const installed of [false, true]) for (const onMirror of [false, true]) {
+            const need = installNeed({ ios, installed, onMirror });
+            const listed = summarise({ ...ALL_OK, install: need.state }).ids.includes('install');
+            const where = JSON.stringify({ ios, installed, onMirror });
+            assert.equal(need.state === 'action', listed, `${where}: the chip is amber only beside a listed to-do`);
+            assert.ok(need.chip, `${where}: the card has no words for its chip`);
+            assert.equal(shouldOpen(need.state), listed, `${where}: the card opens itself exactly when it is a to-do`);
+            if (installed) assert.equal(need.chip, 'Installed');
+        }
     });
 
     test('pay data can never appear in the summary at all', () => {

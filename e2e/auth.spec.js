@@ -386,6 +386,7 @@ test('in-place sign-in: settings still offers an install the browser offered BEF
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
     await expect(page.locator('#deviceCard')).toBeVisible();
+    await page.locator('#deviceChevron').click();   // an offer is a shut card, like its siblings
     await expect(page.locator('#installBtn')).toBeVisible();
 });
 

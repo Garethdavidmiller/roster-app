@@ -138,7 +138,7 @@
             <div class="card-body">
                 <p class="card-explainer">Self-service recovery isn’t available yet. For now, ask
                 the admin if you forget your password. Only you and the admin can see this email.</p>
-                <label class="contact-label" for="workEmailInput">Work email address</label>
+                <label class="field-eyebrow contact-label" for="workEmailInput">Work email address</label>
                 <!-- The domain is SHOWN rather than silently appended (v22.37, owner review). Every
                      valid address is on the one domain, so the field asked a question it already
                      knew the answer to — "do I type the whole thing?" — and both answers worked,
@@ -199,7 +199,7 @@
                      is cancelled, and only a password that passes the checks is submitted through it. -->
                 <form id="pwForm" action="#" method="post" novalidate>
                     <input type="text" id="pwUsername" name="username" class="visually-hidden" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
-                    <label class="contact-label" for="pwCurrent">Current password</label>
+                    <label class="field-eyebrow contact-label" for="pwCurrent">Current password</label>
                     <input type="password" id="pwCurrent" class="contact-email-input"
                            autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
                     <!-- Where it is needed. Forgetting the current password is the exact moment
@@ -207,13 +207,13 @@
                          the last place somebody looks when the thing in front of them has failed. -->
                     <p class="pw-forgot">Forgotten it? Ask the admin — they can reset it to your surname, and you then choose a new one.</p>
 
-                    <label class="contact-label" for="pwNew">New password</label>
+                    <label class="field-eyebrow contact-label" for="pwNew">New password</label>
                     <input type="password" id="pwNew" class="contact-email-input" aria-describedby="pwNewHint"
                            autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next">
                     <!-- The rule UNDER the field, as the forced overlay has it (settings review, Nov 2026). "Not your
                          surname" alone read as "so miller1 is fine": validateNewPassword compares letters only. -->
                     <p class="pw-help" id="pwNewHint">Use at least 8 characters, and not your surname — even with numbers added.</p>
-                    <label class="contact-label" for="pwConfirm">Confirm new password</label>
+                    <label class="field-eyebrow contact-label" for="pwConfirm">Confirm new password</label>
                     <input type="password" id="pwConfirm" class="contact-email-input"
                            autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
 
@@ -228,6 +228,10 @@
                     </label>
 
                     <button type="button" class="btn-action btn-primary" id="pwSaveBtn">Set password</button>
+                    <!-- A way back to the settled state once Change password has been pressed (settings review,
+                         Nov 2026): the door opened one way only. Shown only on that path — a member still on the
+                         surname has no settled state to return to. -->
+                    <button type="button" class="btn-action btn-secondary" id="pwCancelBtn" hidden>Cancel</button>
                 </form>
                 <div class="contact-feedback" id="pwFeedback" aria-live="polite"></div>
             </div>
@@ -285,13 +289,23 @@
 
          `hidden` is used and MUST actually hide — `.card` carries no author `display`, so the UA
          rule wins; page-visibility-parity.test.mjs is what keeps that true. -->
+    <!-- THE SAME HEADER AS ITS SIBLINGS (settings review, Nov 2026): a chip, a `?` and the chevron. It was
+         the one card with none of them, so it read as a different kind of thing, and an iPhone's to-do in
+         the summary had no chip on the card it led to. Closed like the rest; it opens itself on the one
+         state that is a to-do (an iPhone in a browser — installNeed, settings-status.js). -->
     <div class="card" id="deviceCard" hidden>
-        <div class="card-header">
+        <div class="card-header card-header-toggle" id="deviceToggleHeader">
             <div>
                 <h2><span aria-hidden="true">📱</span> Install on this device</h2>
                 <span class="hint">Open the roster like an app, from its own icon</span>
             </div>
+            <div class="card-header-actions">
+                <span class="card-year-chip" id="deviceStatusChip"></span>
+                <button type="button" class="btn-card-tips" data-card="install" aria-label="Tips for installing">?</button>
+                <span class="collapse-chevron" id="deviceChevron">▾</span>
+            </div>
         </div>
+        <div class="card-collapsible-body" id="deviceBody">
         <div class="card-body">
             <!-- THE PROMISE COVERS WHAT IS SAVED IN THE INSTALLED APP (iPhone audit, Nov 2026). It said
                  installing "keeps this device's saved pay data safe from being cleared", and on an
@@ -326,6 +340,7 @@
                 <li>Choose <strong>Add to Home Screen</strong>.</li>
                 <li>Open the roster from your Home Screen from now on, and sign in there once.</li>
             </ol>
+        </div>
         </div>
     </div>
 

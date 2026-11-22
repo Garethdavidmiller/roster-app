@@ -91,6 +91,18 @@ const CARD_TIPS = {
             ]},
         ],
     },
+    // The Install card gained its siblings' header, `?` included (settings review, Nov 2026).
+    'install': {
+        title: 'Install on this device',
+        sections: [
+            { items: [
+                { icon: '📱', html: 'Installing gives the roster its <strong>own icon</strong>, so it opens like an app — from your home screen, or from a computer’s desktop.' },
+                { icon: '🔔', html: 'On an <strong>iPhone</strong> it is the only way to get notifications: an iPhone sends them only to a roster opened from the Home Screen.' },
+                { icon: '💾', html: 'Pay Calculator figures saved in the installed roster are far less likely to be cleared to free up space. On an iPhone the Home Screen app starts <strong>without</strong> the figures saved in Safari — copy them across first with <strong>Move Your Pay Data</strong> on the Pay page.' },
+                { icon: '🙂', html: 'On an Android phone or a computer, installing is up to you. This card shows only while your browser can offer it.' },
+            ]},
+        ],
+    },
     // ADDED v20.09. This card was the only one of the four with no `?`, which reads as a
     // control that failed to render rather than as a card too simple to need one — and it is
     // not too simple: it is the one place in the app where something does NOT follow your
@@ -145,6 +157,7 @@ export function init() {
         'password':      'passwordStatusChip',
         'notifications': 'notifStatusChip',
         'pay-data':      'payDataStatusChip',
+        'install':       'deviceStatusChip',
     };
 
     /**
@@ -341,9 +354,13 @@ export function init() {
             holdsPayFigures = initPayDataCard();
         });
 
-        // Install. Not collapsible and it has no chip — it is either an offer or, on an iPhone
-        // in a browser, the prerequisite for the card above it. Either way it reports at once.
-        wireCard('install', () => initDeviceCard((state, chip) => reportSetting('install', state, chip), installOffer, holdsPayFigures));
+        // Install. It is either an offer or, on an iPhone in a browser, the prerequisite for
+        // notifications — the one case that is a to-do, and the one case it opens itself. Either way
+        // it reports at once, with its chip, so the chip and the summary are one report.
+        wireCard('install', () => {
+            _cardHandles['install'] = initCardCollapse('deviceToggleHeader', 'deviceBody', 'deviceChevron');
+            initDeviceCard((state, chip) => reportSetting('install', state, chip), installOffer, holdsPayFigures);
+        });
 
         // Icon lightbox
         wireCard(null, initIconLightbox);
@@ -624,13 +641,31 @@ export function init() {
         const settled   = document.getElementById('pwSettled');
         const form      = /** @type {HTMLFormElement|null} */ (document.getElementById('pwForm'));
         const changeBtn = document.getElementById('pwChangeBtn');
+        const cancelBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('pwCancelBtn'));
         let _pwFormOpened = false;
         changeBtn?.addEventListener('click', () => {
             _pwFormOpened = true;
             if (settled) settled.hidden = true;
             if (form)    form.hidden    = false;
+            if (cancelBtn) cancelBtn.hidden = false;
             curEl.focus();
         });
+        // CANCEL PUTS THE SETTLED STATE BACK (settings review, Nov 2026). Change password opened a door
+        // with no way back but a reload. It is offered only on that path, takes what was typed with it
+        // (re-masked, as a save does, for the next person on a shared device), and waits out a save.
+        cancelBtn?.addEventListener('click', () => {
+            if (_passwordSaving) return;
+            _pwFormOpened = false;
+            curEl.value = newEl.value = confEl.value = '';
+            setRevealed(false);
+            setFeedback('');
+            cancelBtn.hidden = true;
+            if (form)    form.hidden    = true;
+            if (settled) settled.hidden = false;
+            changeBtn?.focus();
+        });
+        /** A save is on its way, or no longer — Cancel waits for it. @param {boolean} on */
+        const setSaving = (on) => { _passwordSaving = on; if (cancelBtn) cancelBtn.disabled = on; };
 
         const member = currentUser;
         // THE FORM IS FOR THE PASSWORD MANAGER (iPhone audit, Nov 2026; the sign-in card's shape): it
@@ -768,7 +803,7 @@ export function init() {
             setFeedback('We couldn’t confirm whether your password was updated. Remember the new password you just entered: try it first the next time you sign in, and your old one if it doesn’t work.', 'err');
             settled.then(late => {
                 _pwIndeterminate = false;
-                _passwordSaving = false;
+                setSaving(false);
                 saveBtn.disabled = false; saveBtn.textContent = 'Set password';
                 if (late.status === 'ok') onWriteConfirmed(late.value);   // it landed after all
                 else setFeedback('Your password wasn’t updated — try again.', 'err');
@@ -796,7 +831,7 @@ export function init() {
             setFeedback('');
             const startFocus = document.activeElement;   // see the caret, in `finally`
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
-            _passwordSaving = true;
+            setSaving(true);
             // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"
             // (the old catch mapped every non-rate-limit/weak error to that, so a network blip during the
             // update told the member their correct password was incorrect → needless retries + admin reset).
@@ -844,7 +879,7 @@ export function init() {
             } finally {
                 // Not re-enabled while a write may still be in flight — onIndeterminate owns the
                 // button until the real outcome arrives, so a second save can't race the first.
-                if (!_pwIndeterminate) { _passwordSaving = false; saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
+                if (!_pwIndeterminate) { setSaving(false); saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
                 // Only where the member left it (review, 11 Nov 2026): a save can wait out the re-auth
                 // deadline, and one who moved on meanwhile — a field, the drawer — keeps their place.
                 const here = document.activeElement;
@@ -926,7 +961,7 @@ function initDeviceCard(/** @type {(state: import('./settings-status.js').CardSt
     // browser that never fires it on "Checking your settings…" for ever. WHEN installing is a thing
     // to finish rather than an offer, and where the app is added from, is `installNeed`.
     const need = installNeed({ ios: isIOS(), installed, onMirror });
-    report(need.state);
+    report(need.state, need.chip);
 
     if (need.from) {
         btn.hidden   = true;         // WebKit fires no event, so there is nothing to press
