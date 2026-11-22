@@ -3266,7 +3266,16 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(page.locator('#alLbEntitlement')).toHaveText('33');
     await expect(page.locator('#alLbRemaining')).toHaveText('33');
     await expect(page.locator('#alLbBreakdown')).toBeVisible();
-    await expect(page.locator('#alLbBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day 2026');
+    await expect(page.locator('#alLbBreakdown')).toHaveText('Entitlement 33: includes 1 day in lieu for working Boxing Day 2026');
+    // A FULL-WIDTH LINE UNDER THE FIGURES (lightbox review, 22 Nov 2026), not a caption in the quarter-width
+    // Entitlement cell, where a long note stretched all four figures to its height.
+    const fit = await page.evaluate(() => {
+        const note = /** @type {HTMLElement} */ (document.getElementById('alLbBreakdown')).getBoundingClientRect();
+        const stats = /** @type {HTMLElement} */ (document.querySelector('.al-lb-stats')).getBoundingClientRect();
+        return { below: note.top >= stats.bottom, share: note.width / stats.width };
+    });
+    expect(fit.below, 'the note sits under the four figures').toBe(true);
+    expect(fit.share, 'and has the panel\'s width, not a quarter of it').toBeGreaterThan(0.6);
     await page.locator('#alLightboxClose').click();
 
     // Team Week View says the same about the same days — it asks the same resolver. Two weeks on

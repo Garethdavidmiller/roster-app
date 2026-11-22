@@ -157,8 +157,11 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     remEl.textContent    = String(Math.abs(remaining));
     if (remLblEl) remLblEl.textContent = remaining < 0 ? 'Over' : 'Remaining';
     remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
+    // A footnote under the figures since 22 Nov 2026, not a caption inside the Entitlement cell, so it
+    // names the figure it explains: "Entitlement 33: includes 1 day in lieu for working Boxing Day 2026".
     if (breakdownEl) {
-      breakdownEl.textContent = s.breakdown ?? '';
+      const note = s.breakdown ?? '';
+      breakdownEl.textContent = note ? `Entitlement ${s.entitlement}: ${note.charAt(0).toLowerCase()}${note.slice(1)}` : '';
       breakdownEl.hidden = s.breakdown == null;
     }
     if (carryEl) {

@@ -2708,12 +2708,6 @@
             .al-lb-lbl  { letter-spacing: 0; }
             #alLightboxContent { padding-inline: 14px; }
         }
-        /* Wraps (v24.46 polish): nowrap clipped "22 base + 5 BH lieu" at the card edge at 320px. */
-        .al-lb-breakdown {
-            font-size: var(--type-micro);
-            line-height: 1.25;
-            color: rgba(255,255,255,0.6);
-        }
         .al-lb-link {
             color: rgba(255,255,255,0.9);
             font-size: var(--type-label);
