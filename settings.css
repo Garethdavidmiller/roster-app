@@ -84,7 +84,12 @@ body {
 
     .col-main { grid-column: 1; }
     .col-side { grid-column: 2; }
-    .col-main, .col-side { display: flex; flex-direction: column; }
+    /* Admin's and Operations' 16px between cards, as a flex gap (settings review, Nov 2026): the cards
+       kept their 12px phone margin here, so the page's cards sat closer than its siblings' did. The
+       label sits tight to the card it introduces, indented 2px, as Operations' group labels are. */
+    .col-main, .col-side { display: flex; flex-direction: column; gap: 16px; }
+    .col-main > .card, .col-side > .card { margin-bottom: 0; }
+    .col-main > .settings-section-label, .col-side > .settings-section-label { margin: 0 0 -8px 2px; }
 
     /* Prose measure cap for card descriptions on desktop. 60ch → 68ch (v18.89): the cap sits
        INSIDE an already-narrow card, so at 60ch it was wrapping the hints earlier than the
@@ -104,12 +109,10 @@ body {
 }
 
 /* ---- Work Email card ---- */
-.contact-label {
-    display: block;
-    font-size: var(--type-small);
-    color: var(--text-mid);
-    margin-bottom: 6px;
-}
+/* The field labels are the app's `.field-eyebrow` (shared.css), as Pay, Trains and Links label theirs
+   (settings review, Nov 2026): this card and the password form were the one place a field was named in
+   grey sentence case. `.contact-label` only makes the <label> a block, so the eyebrow's margin lands. */
+.contact-label { display: block; }
 .contact-email-input {
     width: 100%;
     box-sizing: border-box;
@@ -151,6 +154,9 @@ body {
     min-height: 18px;
     font-size: var(--type-small);
 }
+/* An EMPTY line reserves nothing (settings review, Nov 2026): the password card's feedback is its last
+   child, so its 18px sat as a gap under every settled card, and the card bottoms did not match. */
+.contact-feedback:empty { min-height: 0; }
 .contact-feedback.ok  { color: var(--success-green); }
 .contact-feedback.err { color: var(--error-red); }
 
@@ -158,6 +164,7 @@ body {
 /* "You'll get:" — each kind and the "·" after it stay on one line (settings.html says why). */
 .notif-kind { white-space: nowrap; }
 #notifStatusMsg { font-size: var(--type-label); color: var(--text-mid); margin-bottom: 14px; }
+#notifStatusMsg:last-child { margin-bottom: 0; }   /* nothing under it: the card's own padding ends it, as its siblings' does */
 #notifDeniedMsg {
     display: none;
     font-size: var(--type-small);
@@ -193,7 +200,6 @@ body {
 }
 
 /* Password card (PASSWORD_DESIGN.md) */
-.pw-req { font-weight: 400; color: var(--text-mid); }
 .pw-nudge {
     background: color-mix(in oklch, var(--accent-gold) 16%, white);
     border: 1px solid color-mix(in oklch, var(--accent-gold) 45%, white);
@@ -352,7 +358,9 @@ body {
     font-size: var(--type-small);
     font-weight: 600;
     color: var(--text-mid);
-    background: var(--bg-faint);
+    /* The field's own fill, not `--bg-faint` (settings review, Nov 2026): two greys side by side read as
+       two controls, which is the join the row exists to hide. */
+    background: var(--field-bg);
     /* The suffix is the second half of ONE field, so it wears the field's edge and corner (v25.12) —
        a fainter edge here would show the join the row exists to hide. */
     border: var(--field-border);
@@ -367,19 +375,43 @@ body {
    `--radius-sm` and a 1.5px pale left edge after v25.12 moved the fields to `--radius-field` and
    `--field-border`, so at 360 and 375px — the commonest phones — the email box had 8px corners beside
    the password boxes' 12px, and the domain a fainter left edge than its other three (fixed v25.20). */
+/* STACKED, THE SUFFIX IS TEXT (settings review, Nov 2026). A bordered, filled box under the field read as
+   a second field — one that cannot take a caret — at the commonest phone widths. It is the rest of the
+   address, so it reads as the rest of the address: no edge, no fill, aligned with the typed text. */
 @media (max-width: 380px) {
     .contact-email-row { flex-direction: column; }
     .contact-email-row .contact-email-input { border-radius: var(--radius-field); }
     .contact-email-domain {
-        border-left: var(--field-border);
-        border-radius: var(--radius-field);
+        border: none;
+        background: none;
         margin-top: 4px;
-        padding: 4px 10px;
+        padding: 0 14px;
+    }
+}
+/* SIDE BY SIDE, THE JOINED FIELD IS FOCUSED AS ONE (settings review, Nov 2026). The input drew its
+   outline and ring alone, stopping at the join, so the suffix looked like a separate, unfocused control.
+   The OUTLINE is the row's; the ring is the input's own (`.contact-email-input:focus-visible`, which every
+   field keeps — e2e/pages.spec.js measures it) carried on round the suffix, whose edge turns navy. The
+   suffix is lifted over the input so the input's ring stops at the join, and its own ring is clipped on
+   that side, so the two make one band with no seam and no doubled glow. */
+@media (min-width: 381px) {
+    .contact-email-row:has(.contact-email-input:focus-visible) {
+        outline: var(--focus-outline);
+        outline-offset: 2px;
+        border-radius: var(--radius-field);
+    }
+    .contact-email-row .contact-email-input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .contact-email-domain { position: relative; z-index: 1; }
+    .contact-email-row:has(.contact-email-input:focus-visible) .contact-email-domain {
+        border-color: var(--primary-blue);
+        box-shadow: var(--focus-ring);
+        clip-path: inset(-4px -4px -4px 0);
     }
 }
 
-/* The forgotten-password line, where forgetting it actually stops you. */
-.pw-forgot {
+/* The forgotten-password line, where forgetting it actually stops you, and the new password's rule under
+   its field (as the forced overlay's `.login-hint` sits): the same quiet help line under a field. */
+.pw-forgot, .pw-help {
     font-size: var(--type-small);
     color: var(--text-mid);
     margin: -4px 0 12px;
@@ -450,4 +482,8 @@ body {
     }
     /* The row IS the control: a 44px floor here is what makes the 20px box below acceptable. */
     .pw-show-row { min-height: 44px; }
+    /* The summary's to-dos are links that open their card — under a thumb, the app's 44px like every
+       other control on the page (settings review, Nov 2026); they cleared only the 24px floor. */
+    .settings-summary-items a { display: inline-flex; align-items: center; min-height: 44px; padding: 0; }
+    .settings-summary-items li { margin: 0; }
 }

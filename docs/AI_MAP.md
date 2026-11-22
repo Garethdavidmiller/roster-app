@@ -326,7 +326,7 @@ Not a module — the pieces a locked-out member's "ask the admin" request passes
 - `functions/reset-request.js` — the public endpoint, which resets nothing and pushes to the admin's devices only; its bounds are argued in its header.
 
 ### `password-force.js`
-The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run after a confirmed sign-in for a member still on the surname default, gated by a one-shot marker and failing open before and after showing. Also the two deadline helpers the Settings Password card shares. Every coordinator that mounts the sign-in runs it (`page-contract-parity.test.mjs`). Tested by `password-force.test.mjs`.
+The mandatory "set your own password" overlay (PASSWORD_DESIGN.md Phase 2), run after a confirmed sign-in for a member still on the surname default, gated by a one-shot marker and failing open before and after showing. It re-exports the two deadline helpers, now `own-password.js`'s, for the sign-in card. Every coordinator that mounts the sign-in runs it (`page-contract-parity.test.mjs`). Tested by `password-force.test.mjs`.
 - **Exports:** `withTimeout` · `settleOrTimeout` · `shouldForcePasswordSet` · `initPasswordForce`
 
 ### `session.js`
@@ -884,8 +884,8 @@ WHEN a member was in the pension scheme, as a timeline of changes rather than a 
 - **Exports:** `parsePensionTimeline` · `serialisePensionTimeline` · `isOptedOutAt` · `withPensionChange` · `withOptOutStartAt` · `withRejoinAt` · `optOutStartsAt` · `migrateLegacyOptOut`
 
 ### `paycalc-inventory.js`
-What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
-- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines`
+What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list, Settings' Pay Calculator Data line and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
+- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines` · `inventorySummary`
 
 ### `paycalc-transfer.js`
 The pay-data backup format and its import rules. Pay data lives only in this browser's `localStorage` — per address, and kept off the server by decision — so this is how it moves to the other address or a new phone. Pure, because the import decides whether a member's whole pay history is overwritten: key selection, the validation ladder (`validateBackup`, the trust boundary), re-keying and the all-or-nothing replace. The DOM half is `paycalc-transfer-card.js`. Bound by `.claude/rules/paycalc.md` invariant 10; tested by `paycalc-transfer.test.mjs`, key shape by `paycalc-key-parity.test.mjs`.
@@ -1117,8 +1117,8 @@ The Firestore I/O behind the admin's two read-outs of the app itself — the cli
 - **Exports:** `buildAnalyticsClient`
 
 ### `own-password.js`
-Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both. The properties an edit can break — the candidate ladder that stops on a transient failure, a changed password never reported as unchanged, and nothing sent unless the signed-in account is the page member's own — are its header. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.
-- **Exports:** `buildPasswordClient`
+Re-authenticating with, and changing, the signed-in member's OWN password — the two calls Settings → Password and the forced change (`password-force.js`) make. A factory with every Firebase handle injected, so it loads in Node; `firebase-client.js` builds it once and re-exports both. The properties an edit can break — the candidate ladder that stops on a transient failure, a changed password never reported as unchanged, and nothing sent unless the signed-in account is the page member's own — are its header. It also holds the save sequence both password surfaces run (`runPasswordSave`: re-auth, then a separately timed, counted write that may answer "pending") and the one `SAVE_TIMEOUT_MS`. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`, the sequence by `password-force.test.mjs`.
+- **Exports:** `buildPasswordClient` · `SAVE_TIMEOUT_MS` · `withTimeout` · `settleOrTimeout` · `runPasswordSave`
 
 ### `account-calls.js`
 The browser's side of three ACCOUNT endpoints — the admin's Reset, the provisioning audit (which also carries the staff PIN lockout) and the locked-out member's reset request. A factory with `auth` injected, so it makes no import cycle; `firebase-client.js` builds it once and re-exports the three. Its one rule: a deadline above each endpoint's own, and a WRITE that times out says it may still have happened. Tested through the real `firebase-client.js` by `firebase-client.test.mjs`.

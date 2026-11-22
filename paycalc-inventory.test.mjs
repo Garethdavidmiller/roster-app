@@ -26,7 +26,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import {
-    KEY_KINDS, classifyPayKey, inventoryOf, inventoryLines, damagedEntries, describePayKey,
+    KEY_KINDS, classifyPayKey, inventoryOf, inventoryLines, inventorySummary, damagedEntries, describePayKey,
 } from './paycalc-inventory.js';
 
 const P = 'myb_pc_gmiller_';
@@ -216,5 +216,53 @@ describe('naming an entry', () => {
         assert.equal(describePayKey('actuals'), 'payslip comparison');
         assert.equal(describePayKey('hpp_est_2025_26'), 'Holiday Pay Premium 2025/26');
         assert.equal(describePayKey('pension_timeline'), 'your pension history');
+    });
+});
+
+// ── THE ONE-LINE SUMMARY (Settings' Pay Calculator Data card, settings review, Nov 2026) ─────────
+// Settings counted payslips and tax years only, so a member whose only figures were pension history,
+// their settings or back pay was told "None saved" — and the Install card hid its copy-them-first step.
+
+describe('inventorySummary', () => {
+    const sum = (/** @type {string[]} */ tails) => inventorySummary(inventoryOf(tails.map(k), P));
+
+    test('nothing stored reads as nothing — and only then', () => {
+        assert.deepEqual(sum([]), { any: false, line: '', chip: 'None saved' });
+    });
+
+    test('figures with no payslip are still figures: none of them reads "None saved"', () => {
+        for (const tails of [['pension_timeline'], ['code'], ['bp_state_2026_27'], ['actuals'], ['taxcode_2026_27'], ['settings']]) {
+            const s = sum(tails);
+            assert.equal(s.any, true, `${tails}: stored, so the card must say so`);
+            assert.notEqual(s.chip, 'None saved', `${tails}: the chip denies what is stored`);
+            assert.ok(s.line, `${tails}: the line says nothing`);
+        }
+    });
+
+    test('each kind is named in the words the backup card uses for it', () => {
+        assert.equal(sum(['pension_timeline']).line, 'Pension');
+        assert.equal(sum(['code', 'grade']).line, 'Your settings');
+        assert.equal(sum(['bp_state_2026_27']).line, 'Tax year 2026/27 · back pay');
+        assert.equal(sum(['settings']).line, '1 item this version does not recognise');
+        assert.equal(sum(['p40', 'p41', 'hpp_est_2025_26', 'pension_timeline']).line,
+            '2 payslips · tax year 2025/26 · Holiday Pay Premium · pension');
+    });
+
+    test('proper plurals, in the line and the chip', () => {
+        assert.deepEqual([sum(['p40']).line, sum(['p40']).chip], ['1 payslip', '1 payslip']);
+        assert.equal(sum(['p40', 'p41', 'p42']).chip, '3 payslips');
+        assert.equal(sum(['hpp_est_2025_26']).chip, '1 tax year');
+        assert.equal(sum(['hpp_est_2024_25', 'bp_state_2025_26', 'ytd_pay_2026_27']).line,
+            'Tax years 2024/25, 2025/26 and 2026/27 · Holiday Pay Premium · back pay · Year to Date figures');
+        assert.equal(sum(['hpp_est_2024_25', 'bp_state_2025_26']).chip, '2 tax years');
+        assert.equal(sum(['code']).chip, 'Saved');
+        assert.equal(sum(['settings', 'other_thing']).line, '2 items this version does not recognise');
+    });
+
+    test('it says what the itemised list says, one item to one line', () => {
+        // The same device must not be described two ways on two cards.
+        const inv = inventoryOf(['p40', 'p41', 'hpp_est_2025_26', 'pension', 'code', 'mystery'].map(k), P);
+        const lines = inventoryLines(inv).map(l => l.replace(/ of entered figures| \(they will be carried across unchanged\)/, ''));
+        assert.deepEqual(inventorySummary(inv).line.split(' · ').map(s => s.toLowerCase()), lines.map(s => s.toLowerCase()));
     });
 });

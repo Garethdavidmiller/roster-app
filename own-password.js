@@ -10,6 +10,9 @@
  * (coordinator-ratchet.test.mjs), and they are one subject: the member's own credential, changed from
  * the page they are signed in to.
  *
+ * It also holds the SAVE SEQUENCE both pages run around those two calls — `runPasswordSave`, its
+ * deadline helpers `withTimeout` and `settleOrTimeout`, and the one `SAVE_TIMEOUT_MS` (below the factory).
+ *
  * ── THREE PROPERTIES AN EDIT CAN SILENTLY BREAK ────────────────────────────────────────────────
  *
  *   1. RE-AUTHENTICATION TRIES THE NEXT CANDIDATE ONLY ON A DEFINITIVE REJECTION. The candidate list is
@@ -108,4 +111,101 @@ export function buildPasswordClient({ auth, reauthenticateWithCredential, EmailA
     }
 
     return { reauthenticateWithPassword, changeOwnPassword };
+}
+
+// ── THE SAVE SEQUENCE BOTH SURFACES RUN (settings review, Nov 2026) ─────────────────────────────────
+// Settings → Password and the forced change (password-force.js) each wrote the same steps out —
+// re-authenticate inside a deadline, change the password inside a SEPARATE deadline that may answer
+// "we don't know", and say which stage a failure came from — with `SAVE_TIMEOUT_MS` declared twice.
+// The sequence is here, Node-tested (password-force.test.mjs); each caller keeps only what the result
+// means on its own screen. The deadline helpers moved with it; password-force.js re-exports them for
+// the sign-in card, which imports `withTimeout` from there.
+
+/** Ceiling on each password network call — the same 8s budget as sign-in (runNamedSignIn). */
+export const SAVE_TIMEOUT_MS = 8000;
+
+/**
+ * Reject `promise` if it hasn't settled in `ms`. Load-bearing, not defensive padding: a promise that
+ * never settles reaches neither `catch` nor `finally`, so without this a dead-air mobile connection left
+ * the MANDATORY overlay on "Saving…" with its escape hidden — a member who could neither satisfy it nor
+ * dismiss it (v18.94) — and Settings' button disabled on "Saving…" until a reload (v18.95).
+ *
+ * **Use this only for operations that change NOTHING** — a read, or an idempotent re-auth. For a
+ * STATE-CHANGING call, use `settleOrTimeout` below: this one reports a timeout as a rejection, and a
+ * rejection means "it did not happen", which for a password write is a claim we cannot make.
+ * @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>}
+ */
+export function withTimeout(promise, ms) {
+    /** @type {any} */ let timer;
+    return /** @type {Promise<T>} */ (Promise.race([
+        promise,
+        new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('timed out'), { code: 'myb/timeout' })), ms); }),
+    ]).finally(() => clearTimeout(timer)));
+}
+
+/**
+ * Race a promise against a deadline WITHOUT claiming that a slow operation failed.
+ *
+ * `Promise.race` stops *waiting*, it does not *cancel* — Firebase's `updatePassword` keeps going and can
+ * succeed a second after the member was told it failed. They then believe their old password still
+ * works, retry against a credential that has already changed, or walk away from a compulsory overlay
+ * mis-informed: a route into a genuine lockout, caused by the guard added to prevent one (v18.96).
+ *
+ * So this reports THREE outcomes, and hands back a handle on the original work:
+ *   { status: 'ok', value }        — settled in time
+ *   { status: 'failed', error }    — genuinely rejected in time
+ *   { status: 'pending', settled } — deadline passed, STILL RUNNING; `settled` resolves to an 'ok' or a
+ *                                    'failed' record, and never rejects
+ *
+ * The tracked promise absorbs its own rejection at once, so a late failure can never surface as an
+ * unhandled rejection even if the caller stops caring.
+ * @template T @param {Promise<T>} promise @param {number} ms
+ * @returns {Promise<{status:'ok',value:T}|{status:'failed',error:any}|{status:'pending',settled:Promise<{status:'ok',value:T}|{status:'failed',error:any}>}>}
+ */
+export function settleOrTimeout(promise, ms) {
+    /** @type {any} */ let timer;
+    const settled = promise.then(
+        value => /** @type {any} */ ({ status: 'ok', value }),
+        error => /** @type {any} */ ({ status: 'failed', error }),
+    );
+    const deadline = new Promise(resolve => {
+        timer = setTimeout(() => resolve(/** @type {any} */ ({ status: 'pending', settled })), ms);
+    });
+    return /** @type {any} */ (Promise.race([settled, deadline]).finally(() => clearTimeout(timer)));
+}
+
+/**
+ * Re-authenticate (when asked to) and change the member's own password — the sequence both surfaces
+ * run, returning what happened rather than throwing it.
+ *
+ *   · Re-authentication is time-boxed as a plain failure: it changes nothing, so "it did not happen"
+ *     is a true statement about it, and retrying is free.
+ *   · The change is timed ALONE and may come back `pending` (settings-ops-2: timed with the migration
+ *     stamp, a slow stamp turned a changed password into "we couldn't confirm").
+ *   · The change is COUNTED for as long as it runs (`track` — claim-retry.js → trackBackgroundWrite),
+ *     past the deadline too, so every page's update reload and sign-out question can see it (audit E5).
+ *   · A failure carries `reauthed`, the STAGE it came from: a write refused after the current password
+ *     was accepted must never read "Current password incorrect" (`passwordChangeFailure`).
+ *
+ * @param {object} a
+ * @param {string} a.member
+ * @param {string|null} a.current the typed current password, or null to skip re-authentication (the
+ *   forced change straight after a sign-in, until Firebase asks for a recent one)
+ * @param {string} a.next the new password, already validated
+ * @param {(member: string, typed: string) => Promise<void>} a.reauthenticate
+ * @param {(member: string, next: string) => Promise<any>} a.change
+ * @param {<T>(p: Promise<T>) => Promise<T>} a.track
+ * @param {number} [a.ms]
+ * @returns {Promise<{status:'ok', value:any}|{status:'failed', error:any, reauthed:boolean}|{status:'pending', settled:Promise<{status:'ok', value?:any, error?:any}|{status:'failed', value?:any, error:any}>}>}
+ */
+export async function runPasswordSave({ member, current, next, reauthenticate, change, track, ms = SAVE_TIMEOUT_MS }) {
+    let reauthed = false;
+    try {
+        if (current !== null) await withTimeout(reauthenticate(member, current), ms);
+        reauthed = true;
+        const res = await settleOrTimeout(track(change(member, next)), ms);
+        return res.status === 'failed' ? { ...res, reauthed } : res;
+    } catch (error) {
+        return { status: 'failed', error, reauthed };
+    }
 }
