@@ -1472,8 +1472,11 @@ test('paycalc: a long confirm dialog keeps its own buttons on screen', async ({ 
     // the fold; a consequence may not, so both lead the message.
     const msg = page.locator('.dialog-message');
     const top = (await msg.innerText()).slice(0, 260);
-    expect(top, top).toMatch(/Restoring replaces what is here/);
+    expect(top, top).toMatch(/Restoring replaces what is here and can’t be undone/);
+    expect(top, top).toMatch(/choose Cancel and use Download backup/);   // the way out, named (R5-10)
     expect(top, top).toMatch(/damaged and will not open/);
+    await expect(page.locator('.dialog-btn-cancel'), 'the button the message names').toHaveText('Cancel');
+    await expect(confirm).toHaveText('Replace my pay data');
 
     await page.locator('.dialog-btn-cancel').click();
     await expect(page.locator('#ptStatus')).toContainText('Nothing was changed');
@@ -1566,7 +1569,7 @@ test('paycalc: backup → restore round trip survives the reload', async ({ page
     // trigger the reload, so it cannot miss a fast one either.
     const reloaded = page.waitForEvent('load');
     await page.locator('#ptPasteGo').click();
-    await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
+    await page.locator('.dialog-btn-confirm').click();      // "Replace my pay data" — the write is gated on this
     await expect(page.locator('#ptStatus')).toContainText('Restored 1 payslip. Reloading…');
     await reloaded;
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16')))
@@ -1587,7 +1590,7 @@ test('paycalc: a backup with no payslips says it was restored, not "Restored 0 p
     }));
     const reloaded = page.waitForEvent('load');
     await page.locator('#ptPasteGo').click();
-    await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
+    await page.locator('.dialog-btn-confirm').click();      // "Replace my pay data" — the write is gated on this
     await expect(page.locator('#ptStatus')).toHaveText('Restored your backup — it held no payslips. Reloading…');
     await reloaded;
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_code')), 'premise: it was restored').toBe('1257L');
