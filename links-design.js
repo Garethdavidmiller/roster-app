@@ -83,7 +83,7 @@ export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
  * checks window and the generator output are necessarily the SAME number — there is no reading of
  * this app where they differ.
  *
- * ── 28 → 22 → 24 (v19.98 then v20.01; the December 2026 plan, twice) ───────────────────────────
+ * ── 28 → 22 → 24 → today's length (v19.98, v20.01, v24.47; the December 2026 plan) ─────────────
  *
  * It was **28 = the main 20-week cycle + the bilingual 8**, because the design modelled both as one
  * rotation. That is no longer what is being built. The new link **excludes the bilingual roster
@@ -92,7 +92,10 @@ export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
  * simply out of scope.
  *
  * The LENGTH then moved again: 22 at v19.98, corrected to **24** at v20.01 (owner — the earlier
- * figure was misremembered). Both are business figures with **no document behind them**, which makes
+ * figure was misremembered) — and once more at v24.47 (owner, 1 Oct 2026, with five cover weeks) to
+ * the length declared below, which is deliberately not written in this comment: a comment giving the
+ * CURRENT length is one more copy to drift (links-design.md, invariant 1). Every one of these is a
+ * business figure with **no document behind it**, which makes
  * this evidence class C by ROADMAP.md's scale: fine as a design parameter, and it must NOT be
  * rendered to a manager as a requirement without a source. See KNOWN_LIMITATIONS.md → Links.
  *
@@ -167,6 +170,13 @@ export function spareDrawsOnFour(i) {
  * labels it that way and must go on doing so.
  */
 export const DEFAULT_MAX_RUN = 6;
+
+/**
+ * The share of weeks with a full weekend off the Design checks' Weekends off row aims for — an aim,
+ * like `DEFAULT_MAX_RUN`, not a limit. Declared once because the row and its `?` panel
+ * (`links-tips.js`) both quote it, and two literals are two figures waiting to disagree.
+ */
+export const WEEKENDS_OFF_AIM_PCT = 40;
 
 /**
  * The longest run of consecutive worked days a line can be made to carry — the WORST CASE, because
@@ -520,17 +530,24 @@ export function hmFromHours(hours) {
  * @returns {{exSunday: number|null, all: number|null, sundayHours: number, totalHours: number,
  *            exSundayHours: number, workingLines: number, coverLines: number, lines: number,
  *            duties: number, sundayDuties: number, unreadable: number, unreadableLines: number,
- *            complete: boolean, target: number}}
+ *            loneSpareDays: number, complete: boolean, target: number}}
  */
 export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
     let totalMin = 0, sundayMin = 0, duties = 0, sundayDuties = 0, unreadable = 0;
-    let workingLines = 0, coverLines = 0, unreadableLines = 0;
+    let workingLines = 0, coverLines = 0, unreadableLines = 0, loneSpareDays = 0;
 
     for (let w = 1; w <= rotatingLines; w++) {
         const row = /** @type {Record<string, any>} */ (patterns)?.[String(w)] || {};
+        const cover = isCoverWeek(row);
         let lineIsTimed = false, lineHasWork = false;
         for (const d of DAYS) {
             const s = row[d];
+            // A LONE SPARE DAY — Monday to Saturday, on a week that is not a whole cover week — is a
+            // worked day whose time nobody has set (Nov 2026). Skipped as rest, it added no hours and
+            // the figure still wore the tick; the contracted-days ceiling counted it as no day while
+            // the run checks counted it as worked. It is counted here, and it makes the figure
+            // INCOMPLETE — the same `complete: false` an unreadable line gives — never zero hours.
+            if (s === 'SPARE' && !cover && d !== 'sun') { loneSpareDays++; continue; }
             if (!s || s === 'RD' || s === 'OFF' || s === 'SPARE') continue;
             lineHasWork = true;
             const m = dutyMinutes(s);
@@ -542,7 +559,7 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
             duties++; totalMin += m;
             if (d === 'sun') { sundayDuties++; sundayMin += m; }
         }
-        if (isCoverWeek(row)) coverLines++;
+        if (cover) coverLines++;
         else if (lineIsTimed) workingLines++;
         // ── A WHOLE LINE NOBODY COULD READ (v20.08, external review P2) ──────────────────────────
         // A line with worked cells but NOT ONE readable time contributes zero minutes AND drops out
@@ -556,28 +573,8 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
         else if (lineHasWork) unreadableLines++;
     }
 
-    // ── THE AVERAGE IS OVER THE WHOLE ROTATION, AND A COVER WEEK IS A PAID WEEK (v20.98) ────────
-    //
-    // Owner, Aug 2026: 35 hours a week averaged across all the lines, and a spare week counts as a
-    // full contracted week. Individual weeks vary — 22h here, 42h there — and only the average is
-    // the contract.
-    //
-    // Until v20.98 this divided ex-Sunday duty by the WORKING lines and left cover weeks out of
-    // both halves. The reasoning recorded against that was sound as far as it went — dividing by all
-    // the lines charges the average with weeks of zero and reports a week nobody works — but the
-    // conclusion was wrong: the answer is not to exclude a cover week, it is to stop treating it as
-    // zero. A spare week is a person's paid, contracted week; they carry no stored TIMES, which is a
-    // fact about how the design is written down, not about whether the week is worked.
-    //
-    // The two definitions agree on the REQUIREMENT and disagree on the READING, which is why this
-    // was invisible: (D + 35s)/L = 35 is exactly D = 35 x working, so a design that satisfies one
-    // satisfies the other. They diverge on everything that does NOT hit the target — a short design
-    // read the old way looked worse than it is, because the cover weeks that are being paid for were
-    // simply not in the sum.
-    //
-    // An UNFILLED line — no duties, not marked spare — is 0 hours over 1 line, and now drags the
-    // average down instead of being skipped. That is correct: it is a week somebody works with
-    // nothing in it, the design is not finished, and "Lines not yet designed" says so directly.
+    // The average is over the WHOLE rotation and a cover week is a paid week — the argument is the
+    // function's header, stated once (it was stated here a second time until Nov 2026).
     const coverMin = coverLines * CONTRACTED_HOURS_PER_WEEK * 60;
     const exSundayMin = totalMin - sundayMin;
     const hrs = (/** @type {number} */ m) => Math.round((m / 60) * 100) / 100;
@@ -589,10 +586,11 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
         all:      measured ? hrs((totalMin + coverMin) / measured) : null,
         totalHours: hrs(totalMin), exSundayHours: hrs(exSundayMin), sundayHours: hrs(sundayMin),
         workingLines, coverLines, lines: rotatingLines,
-        duties, sundayDuties, unreadable, unreadableLines,
-        // The figure covers only the lines it could measure. `false` is what lets the renderer show
-        // a number without endorsing it — see the note beside `unreadableLines` above.
-        complete: unreadableLines === 0,
+        duties, sundayDuties, unreadable, unreadableLines, loneSpareDays,
+        // The figure covers only the lines and days it could measure. `false` is what lets the
+        // renderer show a number without endorsing it — see the notes beside `unreadableLines` and
+        // `loneSpareDays` above.
+        complete: unreadableLines === 0 && loneSpareDays === 0,
         target: CONTRACTED_HOURS_PER_WEEK,
     };
 }
@@ -797,7 +795,7 @@ export function calcHourlyCoverage(patterns, totalPos = ROTATING_LINES) {
  * line to be resting the following day, and the lap is distributed in proportion to
  * those caps. When the caps cannot sum to a full lap the targets leave less than one
  * rest day per line per week; the generator REFUSES rather than shipping the phantom
- * guarantee (`restFeasible`).
+ * guarantee (`fail('no-rest')` in `generateLink`).
  *
  * Daily targets are met EXACTLY by both constructions (the window size equals the
  * target headcount for that day).

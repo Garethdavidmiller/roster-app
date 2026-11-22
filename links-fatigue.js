@@ -87,6 +87,7 @@ import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_R
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
 import { scoreOrder, GENTLE_THRESHOLD_MINUTES } from './links-adjacency.js';
+import { normaliseWindow, windowMinutes } from './links-window.js';
 
 /** A day key as a reader names it, for the rows that say where something is — FF8b here, and the Design checks'
  *  short turnarounds (links-analysis.js), which printed the stored keys until 17 Nov 2026. */
@@ -522,9 +523,11 @@ function _spareCaveat(worst, certain, what) {
  *
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} [lines=ROTATING_LINES]
+ * @param {{ window?: any }} [opts] - the design's staffed window, which FF2's sentence names; the
+ *   default window when it is not given
  * @returns {{results: FatigueResult[], present: number, standing: number, confirmNeeded: number, hoursAreFloor: boolean}}
  */
-export function assessFatigue(patterns, lines = ROTATING_LINES) {
+export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } = {}) {
     // A missing patterns object reads as all-rest everywhere — `toSequence` already did; the FF18
     // `scoreOrder` and FF13 `runDesignChecks` below dereference it raw, so normalise it once here.
     patterns = patterns || {};
@@ -546,15 +549,22 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         status: nights.length ? 'present' : 'n/a',
         value: nights.length,
         detail: nights.length
-            ? `${nights.length} duty(s) reach into 00:00–05:00 — CEAs do not work nights, so this needs checking`
-            : 'No duty reaches into 00:00–05:00. CEAs do not work nights.' });
+            ? `${nights.length} dut${nights.length === 1 ? 'y reaches' : 'ies reach'} into 00:00–05:00 — this link has no night shifts, so ${nights.length === 1 ? 'it needs' : 'they need'} checking.`
+            : 'No duty reaches into 00:00–05:00. Customer Experience Ambassadors (CEAs) do not work nights.' });
 
     const earlies = seq.filter(x => isEarlyStart(x.shift));
+    // The opening is the DESIGN's window, not a fixed 06:20 (Nov 2026): a design whose window opens
+    // later says so, and the sentence claims "unavoidable" only while the opening itself is early.
+    const opens = normaliseWindow(win).monSat.start;
+    const opensMin = windowMinutes(opens);
+    const opensEarly = opensMin !== null && opensMin >= EARLY_FROM && opensMin < EARLY_TO;
     add({ code: 'FF2', family: 'Time of day', title: 'Early shift starting 05:00–07:00',
         status: earlies.length ? 'standing' : 'clear',
         value: earlies.length,
         detail: earlies.length
-            ? `${earlies.length} of ${timed.length} timed duties. Unavoidable on this link — the day starts at 06:20 — so this is a property of the operation, not of the design.`
+            ? (opensEarly
+                ? `${earlies.length} of ${timed.length} timed duties. Unavoidable on this link — the station opens at ${opens} Monday to Saturday — so this is a property of the operation, not of the design.`
+                : `${earlies.length} of ${timed.length} timed duties. The staffed window opens at ${opens} Monday to Saturday, so these starts come before the opening.`)
             : 'No duty starts between 05:00 and 07:00.' });
 
     const veryEarly = seq.filter(x => isVeryEarlyStart(x.shift));
@@ -571,7 +581,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         status: veryEarlyOver8.length ? 'present' : (veryEarly.length ? 'clear' : 'n/a'),
         value: veryEarly.length ? veryEarlyOver8.length : undefined,
         detail: veryEarly.length
-            ? `${veryEarly.length} duty(s) start before 05:00; ${veryEarlyOver8.length} of them run over 8h.`
+            ? (veryEarly.length === 1
+                ? `1 duty starts before 05:00, and it ${veryEarlyOver8.length ? 'runs' : 'does not run'} over 8h.`
+                : `${veryEarly.length} duties start before 05:00; ${veryEarlyOver8.length} of them ${veryEarlyOver8.length === 1 ? 'runs' : 'run'} over 8h.`)
             : 'No duty starts before 05:00.' });
 
     const over12 = seq.filter(x => (dutyMinutes(x.shift) ?? 0) > 12 * 60);
@@ -602,7 +614,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 13,
         detail: `Longest run between two-day breaks is ${ff11} shifts. A two-day break is two rest days together, always more than 48 hours off. A single rest day does not reset this count, even when the shifts either side leave 48 hours, so it can only overstate a run.`
             + (seq.some(x => x.shift === 'SPARE')
-                ? ` A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, and its Sunday can be worked as overtime on top; its rest days need not fall together — so in the worst case it adds ${SPARE_WORKED_DAYS + 1} shifts and no break.`
+                ? ` A cover week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, and its Sunday can be worked as overtime on top; its rest days need not fall together — so in the worst case it adds ${SPARE_WORKED_DAYS + 1} shifts and no break.`
                 : '') });
 
     // ── Cumulative ───────────────────────────────────────────────────────────

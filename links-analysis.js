@@ -33,7 +33,7 @@
  * list while making the identical claim.
  */
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES, calcHourlyCoverage, runDesignChecks,
-    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours, SPARE_WORKED_DAYS } from './links-design.js';
+    weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours, SPARE_WORKED_DAYS, WEEKENDS_OFF_AIM_PCT } from './links-design.js';
 import { assessFatigue, COVER_DUTY_WORDS, DAY_NAME } from './links-fatigue.js';
 import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, rowMinutes } from './links-window.js';
@@ -311,6 +311,11 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `${escapeHtml(DEC_2026_SOURCE.detail)}</span></p>`;
     }
 
+    /** Any staffed hour with nobody on at all — a red 0 on the card, asked as the card asks it. */
+    const anyRedZero = (/** @type {any} */ patterns, /** @type {any} */ win) => {
+        const hourly = calcHourlyCoverage(patterns, TOTAL_POS);
+        return DAYS.some(d => hourly[d].hours.some((n, h) => !n && isHourStaffed(win, d, h)));
+    };
     /**
      * The live summary in the grid card's sticky bar (v19.57) — four figures and a way down. The
      * fourth, hours a week, came later and is argued beside its chip.
@@ -381,30 +386,25 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 ? chip('bad', '✗', unfilled, unfilled === 1 ? 'line undesigned' : 'lines undesigned')
                 : chip('ok', '✓', ROTATING_LINES, 'lines designed'))
             // ── A CHIP MAY NOT REPORT ONE OF TWO COUNTS (v22.56, external review) ───────────
-            // Both of these summarised a PAIR the domain module returns separately, and both kept
-            // the flattering half. `summariseDemand` splits `uncovered` (staffed hours with nobody
-            // on duty — a finding) from `outside` (trains running while the station is shut — a
-            // fact, because the window is a business decision); the chip read the first and
-            // announced "All service covered", which under the December 2026 service is untrue in
-            // ordinary English on a day with a large `outside` figure. `assessFatigue` returns
-            // `present` beside `standing`, and the chip said "No fatigue factors" over two standing
-            // ones. Neither module is wrong; the strip flattened them — the same mistake as
-            // treating an empty override cache as proof no override exists.
-            //
-            // The fix is to say what the number IS rather than to add a chip. The strip is width-
-            // bound (the note below measures what a fourth costs), so the fatigue chip carries both
-            // figures in one label when there is a second figure to carry.
-            // "WITH TRAINS" is in both forms (whole-app review, Nov 2026): the card's red 0s count
-            // every staffed hour with nobody on, and "No gaps in staffed hours" once sat above one.
+            // `summariseDemand` returns `uncovered` beside `outside`, and `assessFatigue` `present`
+            // beside `standing`; the strip once kept the flattering half of each ("All service
+            // covered", "No fatigue factors"). Say what the number IS — links-design.md → "The sticky
+            // summary bar" has the argument. "WITH TRAINS" (Nov 2026): the card's red 0s count every
+            // staffed hour with nobody on, and "No gaps in staffed hours" once sat above one. The
+            // SHORT clean form (owner, Nov 2026: the long one wrapped the phone bar to four rows)
+            // only with no red 0 on the card either; a train-less red 0 keeps the long form.
             + (sum.uncovered.length
                 ? chip('bad', '⛔', sum.uncovered.length,
                     sum.uncovered.length === 1 ? 'staffed hour with trains and nobody on' : 'staffed hours with trains and nobody on')
-                : chip('ok', '✓', 'No', 'staffed hours with trains and nobody on'))
+                : anyRedZero(design.patterns, win)
+                    ? chip('ok', '✓', 'No', 'staffed hours with trains and nobody on')
+                    : chip('ok', '✓', 'Every', 'staffed hour covered'))
+            // "present", never "to act on" (Nov 2026): an advisory finding is not an instruction.
             + (fat.present
                 ? chip('warn', '⚠', fat.present,
-                    `to act on${fat.standing ? ` · ${fat.standing} standing` : ''}`)
-                : chip('ok', '✓', fat.standing ? '0' : 'No',
-                    fat.standing ? `to act on · ${fat.standing} standing` : 'fatigue findings'))
+                    `fatigue factor${fat.present === 1 ? '' : 's'} present${fat.standing ? ` · ${fat.standing} standing` : ''}`)
+                : chip('ok', '✓', 'No',
+                    `fatigue factors present${fat.standing ? ` · ${fat.standing} standing` : ''}`))
             // HOURS BELONGS IN THE STRIP, not only in the panel (v20.04). This bar exists because
             // the analysis sits ~1,600px below the fold and an edit's effect was otherwise invisible
             // without scrolling two screens away and back. "Does this give people a contracted week"
@@ -507,7 +507,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             );
         }
 
-        const wkendGood = weekendsOffPct >= 40;
+        const wkendGood = weekendsOffPct >= WEEKENDS_OFF_AIM_PCT;
         rows.push(
             `<div class="check-row ${wkendGood ? 'check-good' : 'check-warn-row'}">` +
             `${wkendGood ? tick : warn}` +
@@ -578,7 +578,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // Say what the number is once a spare week can affect it. It is the WORST CASE over
             // every placement of that week's four duties, and a reader who assumes otherwise will
             // read it as a fact about the design rather than a ceiling on it.
-            (hasSpare ? `<div class="check-sub">A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, which can fall on any of them, and its Sunday can be worked as overtime on top, so this is the worst case.</div>` : '') +
+            (hasSpare ? `<div class="check-sub">A cover week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, which can fall on any of them, and its Sunday can be worked as overtime on top, so this is the worst case.</div>` : '') +
             `</div></div>`
         );
 
@@ -598,20 +598,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // shift balance, all of which are about the SHAPE of the week, and never how much of it is
         // work. A design can be beautifully shaped and still under-fill everybody.
         //
-        // SUNDAYS COME OUT. Sunday is not contracted for any grade here, so a Sunday duty sits on
-        // top of the contract; counting it towards 35 would report a design as delivering the
-        // contracted hours using time that is not contracted. It is shown separately instead — it
-        // is real work and real pay, it is just not part of this comparison.
-        //
-        // COVER WEEKS ARE COUNTED AT A FULL CONTRACTED WEEK, and the average is over the WHOLE
-        // rotation (v20.98, owner). They were excluded from both halves until then, on the reasoning
-        // that they carry no times and dividing by all the lines would charge the average with weeks
-        // of zero. The premise was right and the conclusion was not: the answer is to stop treating
-        // a cover week as zero, not to leave it out. It is somebody's paid, contracted week.
-        //
-        // Individual weeks vary widely — 22h on one line, 42h on another — and only the AVERAGE is
-        // the contract. That is what this row states, and it is why it is stated as an average
-        // across all the lines rather than as a figure "on each" of them.
+        // Sundays come out, a cover week counts as a full contracted week, and the average is over
+        // the WHOLE rotation — each argued once, in `weeklyHours`'s header (links-design.js). Only
+        // the AVERAGE is the contract, which is why the row states an average, not a figure "on each".
         /** The hours row's own verdict, for the triage block. Null when there is nothing to average.
          *  @type {{onTarget: boolean, off: number, hm: string}|null} */
         let hoursVerdict = null;
@@ -638,8 +627,8 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 `<span class="check-note"> (contracted: ${CONTRACTED_HOURS_PER_WEEK}h, Sundays excluded)</span>` +
                 (onTarget ? '' :
                     `<div class="check-sub">${off < 0
-                        ? `<strong>${hm(Math.abs(off))} a week short of contract.</strong> The same work spread over more lines gives each person less of it — adding lines without adding duties does this.`
-                        : `<strong>${hm(off)} a week over contract.</strong> The surplus has to be paid as overtime or absorbed by adding lines.`}</div>`) +
+                        ? `<strong>${hm(Math.abs(off))} a week short of contract.</strong> Add duties or lengthen them — or fill any line not yet designed.`
+                        : `<strong>${hm(off)} a week over contract.</strong> A permanent surplus is overtime nobody has agreed to — remove or shorten duties.`}</div>`) +
                 `<div class="check-sub">Individual weeks vary — the average is what the contract asks for. ` +
                 `Sundays are not contracted, so they are left out of it` +
                 (wh.sundayDuties ? ` — ${wh.sundayDuties} Sunday dut${wh.sundayDuties === 1 ? 'y' : 'ies'}, ${hm(wh.sundayHours)} across the rotation, on top` : '') +
@@ -657,6 +646,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                           : '') +
                       `</div>`
                     : '') +
+                (wh.loneSpareDays   // a worked day with no time yet (Nov 2026): the "(partial)" says why
+                    ? `<div class="check-sub">${wh.loneSpareDays} spare day${wh.loneSpareDays === 1 ? '' : 's'} on a working week ${wh.loneSpareDays === 1 ? 'has' : 'have'} no time yet and added no hours — the real figure is higher, and this figure is partial.</div>`
+                    : '') +
                 `</div></div>`
             );
         }
@@ -666,7 +658,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // prescriptive limits. The greatest risk in this panel is a design showing nothing and being
         // read as approved, so clear and not-applicable factors are listed too — silence must not be
         // the same shape as compliance.
-        const fat = assessFatigue(design.patterns, ROTATING_LINES);
+        const fat = assessFatigue(design.patterns, ROTATING_LINES, { window: design.window });
         const base = getBaseline();
         const fatRows = [];
 
@@ -733,7 +725,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         );
 
         fatRows.push(
-            `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR good practice, p3</span></span>` +
+            `<div class="check-section-head"><span>Fatigue factors <span class="check-note">ORR Fatigue Factors (good-practice guidelines, December 2021)</span></span>` +
             `<span class="check-section-meta">${escapeHtml(meta)}</span></div>`,
             `<div class="check-row check-neutral"><span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>` +
             `<div class="check-body check-prose">These are <strong>not pass/fail limits</strong>. The more factors a pattern features, ` +
@@ -869,7 +861,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         if (!stretchOk)           triage.discuss.push(`${longestStretch} working days in a row, over the ${DEFAULT_MAX_RUN}-day design target`);
         if (fat.present)          triage.discuss.push(`${fat.present} ORR fatigue factor${fat.present === 1 ? '' : 's'} present in this design`);
         if (fat.standing)         triage.discuss.push(`${fat.standing} standing factor${fat.standing === 1 ? '' : 's'} — from the operation, not from this design`);
-        if (fat.confirmNeeded)    triage.discuss.push(`${fat.confirmNeeded} definition${fat.confirmNeeded === 1 ? '' : 's'} still to confirm with the assessing manager`);
+        // No decider named (Nov 2026); the codes are read from the flagged rows, never typed.
+        if (fat.confirmNeeded) triage.discuss.push(`${fat.confirmNeeded === 1 ? 'A definition' : `${fat.confirmNeeded} definitions`} still to confirm `
+            + `(ORR's wording is stricter — see ${fat.results.filter(r => r.confirm).map(r => r.code).join(', ')})`);
         const triageRow = (/** @type {string} */ cls, /** @type {string} */ icon,
             /** @type {string} */ head, /** @type {string[]} */ items) => items.length
             ? `<div class="check-triage-group ${cls}"><span class="check-triage-head">` +

@@ -155,9 +155,10 @@ badge lives in.
 
 ### The orientation panel
 
-`#linksWelcomeLb` (`createLightbox`) holds the three things a newcomer cannot work out from the
-screen: changes affect the link-design document only, never the live roster (best on a desktop or
-tablet); the Design checks report which ORR fatigue factors a pattern features, and approve nothing;
+`#linksWelcomeLb` (`createLightbox`) holds the things a newcomer cannot work out from the
+screen: what a link is (the rota everyone works through in turn, its line count a stamped
+`.js-rotating-lines` span); changes affect only the designs saved in the workspace, never the live
+roster (best on a desktop or tablet); the Design checks report which ORR fatigue factors a pattern features, and approve nothing;
 designs are shared, and a deleted one stays in Recently deleted until someone removes it for good.
 The reasoning is the comment above its block in `links-app.js`.
 
@@ -218,10 +219,13 @@ at 1280.
   each scrolling inside its own wrapper.
 - **Accepted phone constraints** (KNOWN_LIMITATIONS.md → Links): below 768px the grid and the
   generator table lose their sticky headers (Sticky headers, below), and the sticky save row and the
-  brush bar take a large share of the screen. Two further trims were costed and refused: hiding
-  `.links-save-meta` below 1024px — who last saved a SHARED design, and when, is exactly what you want
-  while editing on a phone — and shortening "staffed hours with trains and nobody on", which this file
-  forbids softening.
+  brush bar take a large share of the screen. Hiding `.links-save-meta` below 1024px was costed and
+  refused — who last saved a SHARED design, and when, is exactly what you want while editing on a
+  phone. **The clean cover chip was shortened instead** (owner, Nov 2026: the long label wrapped the
+  phone save bar to four rows): it reads "Every staffed hour covered" only when no staffed hour has
+  trains and nobody on AND no staffed hour is a red 0 on the card. A train-less red 0 keeps the long
+  "No staffed hours with trains and nobody on", the form that cannot contradict it (the reason "with
+  trains" was added); the finding form is never shortened.
 - **Do not design against the iPhone SE** (owner, Sep 2026): no designer has a device that narrow, so a
   320px column in any measurement here is hypothetical.
 
@@ -229,7 +233,7 @@ at 1280.
 
 ### Card order
 
-Grid (the primary object) → Auto-generator (collapsed by default) → Coverage (the hourly heat map) →
+Grid (the primary object) → Build a link (the generator, collapsed by default) → Coverage (the hourly heat map) →
 Design checks. The generator sits under the grid because it is the main way to make a new design; New
 blank design, Import and Save a copy as… are the others, and the shortlisted proposals are built in.
 
@@ -536,10 +540,10 @@ an edit's effect was out of sight.
 ### Empty and failed states
 
 - **An empty card says what it is waiting FOR, and the one that can act carries the actions.** The grid
-  card's empty state offers "Go to Auto-generate" (a real `.btn-save`), "Open a shortlisted proposal"
+  card's empty state offers "Go to Build a link" (a real `.btn-save`), "Open a shortlisted proposal"
   and "Start with a blank grid"; nothing is opened for you. The two analysis cards get
   `.links-empty-panel` (centred, with a minimum height), because there is nothing to analyse.
-- **"Go to Auto-generate" scrolls; it does not generate.** Building from an empty card produces a design
+- **"Go to Build a link" scrolls; it does not generate.** Building from an empty card produces a design
   nobody chose. It opens the card through `_openGenerator`, which keeps the chevron and ARIA in step.
 - **The empty checks panel must not wear a green tick** (it shows `📋`): a tick in an empty checks card
   reads as "checks passed" before a single check has run.
@@ -806,8 +810,8 @@ rotation can still be refused.
 
 ### The default table and the roster seed
 
-Two buttons, for two questions: *↺ Use the Dec 2026 staffing* and *↺ Copy staffing from
-today's roster*. A proposal wants both — design tomorrow, measure today. **Neither label may say
+Two buttons, for two questions: *↺ Use the starting table (Short Run’s duties)* and *↺ Copy
+staffing from today's roster*. A proposal wants both — design tomorrow, measure today. **Neither label may say
 "reset" without saying to WHAT**: with two of them, that word alone is the one thing a designer cannot
 act on.
 

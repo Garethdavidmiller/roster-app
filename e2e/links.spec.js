@@ -378,7 +378,9 @@ test('links: a first-time designer gets the orientation, and can always get it b
 
     const panel = page.locator('#linksWelcomeLb');
     await expect(panel).toBeVisible();
-    // The three facts, each one something a newcomer could otherwise get wrong.
+    // The facts, each one something a newcomer could otherwise get wrong — what a link IS first, its
+    // line count stamped from ROTATING_LINES (Nov 2026).
+    await expect(panel).toContainText(`A link is the rota everyone works through in turn: ${ROTATING_LINES} lines, one week each`);
     await expect(panel).toContainText('never the live roster');
     await expect(panel).toContainText('do not pass or fail');
     await expect(panel).toContainText('shared');
@@ -578,11 +580,11 @@ test('links: the demand note names every movement past the staffed finish, to th
     // made in `links-demand.test.mjs` and fixed there; this second copy was missed.
     //
     // What must hold whatever the status is: the note names the timetable, identifies the exact
-    // FILES it was measured from, and says ECS is excluded — so a printed proposal can always be
+    // FILES it was measured from, and says empty-stock moves are left out — so a printed proposal can always be
     // traced back to the data behind it. "(provisional)" is allowed to come and go with the flag.
     expect(note).toContain('December 2026 timetable');
     expect(note, 'the exact source files must be identifiable').toContain('10 of 13');
-    expect(note).toContain('ECS excluded');
+    expect(note).toContain('empty-stock moves left out');
 });
 
 test('links: an hour whose service is not fully staffed is marked on the demand row', async ({ page }) => {
@@ -753,8 +755,8 @@ test('links: today\'s link quotes each factor\'s own threshold, and is measured 
             "status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 12,"],
         ["status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4,",
             "status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 3,"],
-        ['export function assessFatigue(patterns, lines = ROTATING_LINES) {',
-            'export function assessFatigue(patterns, lines = ROTATING_LINES) {\n'
+        ['export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } = {}) {',
+            'export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } = {}) {\n'
             + '    if (lines !== ROTATING_LINES) { const w = /** @type {any} */ (globalThis); w.__todayMeasured = (w.__todayMeasured || 0) + 1; }'],
     ]);
     // A missing anchor THROWS: a silent no-op would leave a green test that had stopped testing anything.
@@ -867,13 +869,13 @@ test('links: the duties a cover week works are stated from SPARE_WORKED_DAYS, no
     }, PROPOSALS[0].patterns);
     await page.goto('/links.html');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
-    await expect(page.locator('.gen-spare-row .gen-td-note').first()).toHaveText('whole lines; 3 days worked Mon–Sat');
+    await expect(page.locator('.gen-spare-row .gen-td-note').first()).toHaveText('whole lines marked SP; 3 days worked Mon–Sat');
     await expect(page.locator('#objMaxRun + .gen-obj-text .gen-obj-hint')).toHaveText(
         'Consecutive working days, counted across the line boundary. A cover week counts as up to 4 — 3 duties and its Sunday');
     const checks = page.locator('#checksContent');
-    // Each sentence by its own words: three rows open "A spare week is N duties on Monday to Saturday".
-    await expect(checks).toContainText('A spare week is 3 duties on Monday to Saturday, which can fall on any of them');   // Longest run
-    await expect(checks).toContainText('A spare week is 3 duties on Monday to Saturday, placed by the roster clerk');     // the run limit
+    // Each sentence by its own words: three rows open "A cover week is N duties on Monday to Saturday".
+    await expect(checks).toContainText('A cover week is 3 duties on Monday to Saturday, which can fall on any of them');   // Longest run
+    await expect(checks).toContainText('A cover week is 3 duties on Monday to Saturday, placed by the roster clerk');     // the run limit
     await expect(checks).toContainText('A cover week counts as the 3 duties it works');     // Shift balance
     await expect(checks).toContainText('its 3 duties on Monday to Saturday');               // the 55-hour row
     await expect(checks).toContainText('a cover week counts 3 days');                       // the contracted-days row
@@ -1656,7 +1658,7 @@ test('links memory: a device holding an INTERMEDIATE default is retired by its v
     stamped.source = 'default';
     stamped.ver = '21.02';                       // any version that is not the running one
     await openLinksWithMemory(page, stamped);
-    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m each');
+    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m average');
     await expect(page.locator('#genMemoryNote')).toBeHidden();
 });
 
@@ -1676,7 +1678,7 @@ test('links memory: a device still holding the OLD auto-seeded table gets the ne
     // The owner's exact state. Nobody wrote that table — the app stored it on its own — so it is
     // superseded by content, the memory is cleared, and the card reads 35h 00m like a fresh device.
     await openLinksWithMemory(page, STALE_SEED);
-    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m each');
+    await expect(page.locator('#genHoursValue')).toHaveText('35h 00m average');
     await expect(page.locator('#genHoursNote')).toContainText('on target');
     await expect(page.locator('#genMemoryNote')).toBeHidden();
 });
@@ -1842,7 +1844,7 @@ test('links generator: on a phone every first-column label stays put while the c
                 .map(s => Math.round(/** @type {Element} */ (wrap.querySelector(s)).getBoundingClientRect().left - edge)) };
     });
     expect(lefts.scrolled, 'the premise: the table scrolls at this width').toBe(true);
-    expect(lefts.labels, 'time head, Spare weeks, Total on duty, Hours a week — each at the left edge').toEqual([0, 0, 0, 0]);
+    expect(lefts.labels, 'time head, Cover weeks, Lines used, Hours a week — each at the left edge').toEqual([0, 0, 0, 0]);
 });
 
 test('links sets: the picker lists every designer\'s sets, and Save follows whose is selected', async ({ page }) => {
@@ -1860,7 +1862,7 @@ test('links sets: the picker lists every designer\'s sets, and Save follows whos
     await expect(page.locator('#genSetHint')).toContainText('saved by S. Silva');
     // …and says whose call it is. The advice about branching arrives when it is relevant — once the
     // set is loaded AND changed — rather than up front, over a table that is not hers yet (v21.08).
-    await expect(page.locator('#genSetHint')).toContainText('Only they can overwrite it');
+    await expect(page.locator('#genSetHint')).toContainText('Only they or the admin can change it');
 
     // My own: Save offered.
     await page.locator('#genSetSelect').selectOption('ts-robson');
@@ -1958,7 +1960,7 @@ test('links generator: the hours row is the generator\'s OWN test, and follows a
     await expect(page.locator('#genHoursValue')).toHaveClass(/gen-hours-off/);
     // And it says what has to reach zero, in the unit that has to reach it.
     await expect(page.locator('#genHoursNote')).toContainText('in total');
-    await expect(page.locator('#genHoursNote')).toContainText('Generate needs it exact');
+    await expect(page.locator('#genHoursNote')).toContainText('Build needs it exact');
 });
 
 test('links generator: a zero target recedes, and each day\'s block is separated', async ({ page }) => {

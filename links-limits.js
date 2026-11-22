@@ -169,12 +169,19 @@ export const LIMIT_CLAIM = POLICY_SOURCE_CONFIRMED
  */
 export const CONTRACTED_DAYS_CEILING = 219;
 
+/**
+ * A row is titled by the RULE, never by the breach (Nov 2026): "More than 13 consecutive days worked"
+ * sat over a green "met" and read as a finding against the design.
+ */
+const RUN_TITLE = `No more than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`;
+
 /** Where the ceiling comes from — the link's own written rules, not yet a company policy document. */
-const CEILING_BASIS = `Chiltern rules for the new link (${ROTATING_LINES} lines, Oct 2026) — company policy source outstanding`;
+const CEILING_BASIS = 'Written rules for the new link (1 October 2026) — no company policy document yet';
 
 /**
- * Contracted days a year for a design: Monday-to-Saturday timed duties plus four days per cover
- * week (`isCoverWeek` — SPARE Monday to Saturday, whatever its Sunday), over the rotation, scaled to a year.
+ * Contracted days a year for a design: Monday-to-Saturday timed duties, plus any lone SPARE day on a
+ * working week (a worked day whose time is not set), plus four days per cover week (`isCoverWeek` —
+ * SPARE Monday to Saturday, whatever its Sunday), over the rotation, scaled to a year.
  * @param {Record<string, Record<string, any>>} patterns
  * @param {number} lines
  * @returns {number}
@@ -184,9 +191,27 @@ export function contractedDaysPerYear(patterns, lines) {
     for (let pos = 1; pos <= lines; pos++) {
         const row = patterns?.[String(pos)] || {};
         if (isCoverWeek(row)) { cover++; continue; }
-        for (const d of DAYS) if (d !== 'sun' && typeof row[d] === 'string' && /^\d/.test(row[d])) duties++;
+        // A lone SPARE day on a working week is a worked day of unknown time, so it is a DAY here,
+        // as it is in the run checks (Nov 2026: it counted as none, and a design over the ceiling
+        // read as within it).
+        for (const d of DAYS) {
+            if (d === 'sun' || typeof row[d] !== 'string') continue;
+            if (/^\d/.test(row[d]) || row[d] === 'SPARE') duties++;
+        }
     }
-    return (duties + SPARE_WORKED_DAYS * cover) / lines * 365 / 7;
+    return contractedDaysFromCounts(duties, cover, lines);
+}
+
+/**
+ * The ceiling's arithmetic on its own, for a table of TARGETS rather than a drawn design — the
+ * generator's `?` panel quotes the default table's figure from this, so the formula has one home.
+ * @param {number} monSatDuties - Monday-to-Saturday duties a week (lone spare days included)
+ * @param {number} coverWeeks
+ * @param {number} lines
+ * @returns {number}
+ */
+export function contractedDaysFromCounts(monSatDuties, coverWeeks, lines) {
+    return (monSatDuties + SPARE_WORKED_DAYS * coverWeeks) / lines * 365 / 7;
 }
 
 /**
@@ -223,7 +248,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
     if (!anyWorked) {
         checks.push({
             id: 'consecutive-days',
-            title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,
+            title: RUN_TITLE,
             status: 'unknown', value: null, limit: MAX_CONSECUTIVE_WORKED_DAYS,
             basis: BASIS,
             detail: 'Nothing to assess yet — this design has no worked days in it.',
@@ -243,7 +268,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
     if (!breach && unfilled.size > 0) {
         checks.push({
             id: 'consecutive-days',
-            title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,
+            title: RUN_TITLE,
             status: 'unknown', value: null, limit: MAX_CONSECUTIVE_WORKED_DAYS,
             basis: BASIS,
             detail: `Longest run so far is ${run} days, against the ${MAX_CONSECUTIVE_WORKED_DAYS} `
@@ -255,7 +280,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
 
     checks.push({
         id: 'consecutive-days',
-        title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,
+        title: RUN_TITLE,
         status: breach ? 'breach' : 'ok',
         value: run,
         limit: MAX_CONSECUTIVE_WORKED_DAYS,
@@ -268,13 +293,13 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
                 ? `This design reaches ${run} consecutive worked days against Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (origin: the legacy Hidden standard). It cannot be run as drawn.`
                 : `Longest possible run is ${run} days, within Chiltern's limit of ${MAX_CONSECUTIVE_WORKED_DAYS} (origin: the legacy Hidden standard).`)
             : (breach
-                ? `This design reaches ${run} consecutive worked days, above the ${MAX_CONSECUTIVE_WORKED_DAYS} configured here from Chiltern practice (origin: the legacy Hidden standard). Confirm the policy before treating that as a decision.`
+                ? `This design reaches ${run} consecutive worked days, above the ${MAX_CONSECUTIVE_WORKED_DAYS} configured here from Chiltern practice (origin: the legacy Hidden standard). Until the policy source is confirmed, this is a measurement, not a ruling.`
                 : `Longest possible run is ${run} days, within the ${MAX_CONSECUTIVE_WORKED_DAYS} configured here from Chiltern practice (origin: the legacy Hidden standard).`))
             // Stated whenever a spare week could move the answer — the figure is what the link
             // PERMITS, not what a given week produces, and a reader who takes it for the latter
             // will read a pass as a guarantee about something it never measured.
             + (hasSpare
-                ? ` A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, placed by the roster clerk, and its Sunday can be worked as overtime on top, so this is the worst case the link allows.`
+                ? ` A cover week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, placed by the roster clerk, and its Sunday can be worked as overtime on top, so this is the worst case the link allows.`
                 : ''),
     });
 
@@ -290,7 +315,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
         const over = days > CONTRACTED_DAYS_CEILING;
         checks.push({
             id: 'contracted-days',
-            title: `More than ${CONTRACTED_DAYS_CEILING} contracted days a year`,
+            title: `No more than ${CONTRACTED_DAYS_CEILING} contracted days a year`,
             status: over ? 'breach' : 'ok',
             value: days,
             limit: CONTRACTED_DAYS_CEILING,
@@ -299,7 +324,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
             // has no company policy document behind it yet, so the row states the measurement and
             // what to check, never "cannot be run".
             detail: over
-                ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Confirm the rule before treating that as a decision.`
+                ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Until the rule's source is confirmed, this is a measurement, not a ruling.`
                 : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Monday to Saturday count; a cover week counts ${SPARE_WORKED_DAYS} days; Sunday is overtime.`,
         });
     }

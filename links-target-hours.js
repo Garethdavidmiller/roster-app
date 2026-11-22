@@ -47,7 +47,8 @@ import { dutyMinutes, targetExSundayMinutes, CONTRACTED_HOURS_PER_WEEK, hmFromHo
 
 /**
  * @typedef {{ time: string, weekday: number, sat: number, sun: number }} TargetSlot
- * @typedef {{ workingLines: number, hoursPerLine: number|null, askedMinutes: number|null,
+ * @typedef {{ workingLines: number, totalLines: number, spareLines: number,
+ *   hoursPerLine: number|null, askedMinutes: number|null,
  *   neededMinutes: number, diffMinutes: number|null, unreadable: number, onTarget: boolean,
  *   empty: 'no-working-lines'|'all-unreadable'|'no-hours'|'no-slots'|null }} TargetHours
  */
@@ -85,7 +86,7 @@ export function assessTargetHours(slots, { spareLines, totalLines }) {
         // empty table — the same mistake `weeklyHours` returns null to avoid. A table holding only
         // Sunday targets lands here too, so the caller must not claim there are no shifts.
         return {
-            workingLines, hoursPerLine: null, askedMinutes: null, neededMinutes,
+            workingLines, totalLines, spareLines, hoursPerLine: null, askedMinutes: null, neededMinutes,
             diffMinutes: null, unreadable, onTarget: false,
             // A table whose rows are ALL unreadable is its own case (v21.31). It used to land on
             // "no Mon–Sat hours in these targets yet", which sends a designer looking for missing
@@ -106,7 +107,7 @@ export function assessTargetHours(slots, { spareLines, totalLines }) {
     const askedMinutes = targetExSundayMinutes(rows);
 
     return {
-        workingLines, hoursPerLine, askedMinutes, neededMinutes,
+        workingLines, totalLines, spareLines, hoursPerLine, askedMinutes, neededMinutes,
         diffMinutes: askedMinutes === null ? null : askedMinutes - neededMinutes,
         unreadable,
         // EQUALITY. See rule 1 — a tolerance here is a promise the generator breaks.
@@ -125,27 +126,30 @@ export function targetHoursLines(a) {
     if (a.empty) {
         return {
             value: '—', tone: 'none',
-            note: a.empty === 'no-working-lines' ? 'every line is a spare week'
+            note: a.empty === 'no-working-lines' ? 'every line is a cover week'
                 : a.empty === 'all-unreadable'   ? `no shift times could be read — check the ${a.unreadable} time${a.unreadable === 1 ? '' : 's'} in the table`
                 : a.empty === 'no-hours'         ? 'no Mon–Sat hours in these targets yet'
                 :                                  'add a shift to see this',
         };
     }
-    const lines = `${a.workingLines} working line${a.workingLines === 1 ? '' : 's'}`;
+    // The figure is an AVERAGE over the whole rotation, with each cover week at the contracted week
+    // (rule 2) — not a figure "each" line works, and not one over the working lines (Nov 2026).
+    const over = `averaged over all ${a.totalLines} lines`
+        + (a.spareLines > 0 ? `, cover weeks at ${CONTRACTED_HOURS_PER_WEEK}h` : '');
     const gap = a.onTarget
         ? `on target (${CONTRACTED_HOURS_PER_WEEK}h)`
         : a.diffMinutes !== null
-            // "Generate needs it exact" is doing real work: it names the EQUALITY, which is what
+            // "Build needs it exact" is doing real work: it names the EQUALITY, which is what
             // stops the next press being a surprise. Do not soften it to "about".
-            ? `${hmFromHours(Math.abs(a.diffMinutes) / 60)} ${a.diffMinutes < 0 ? 'short' : 'over'} in total — Generate needs it exact`
+            ? `${hmFromHours(Math.abs(a.diffMinutes) / 60)} of duty ${a.diffMinutes < 0 ? 'short' : 'over'} in total — Build needs it exact`
             // No readable total to compare, so fall back to the average's distance from contract.
             // Stated without the word "exact": we cannot claim what the gate would do from here.
             : `${hmFromHours(Math.abs((a.hoursPerLine ?? 0) - CONTRACTED_HOURS_PER_WEEK))} `
               + `${(a.hoursPerLine ?? 0) < CONTRACTED_HOURS_PER_WEEK ? 'under' : 'over'} the ${CONTRACTED_HOURS_PER_WEEK}h contract`;
     return {
-        value: `${hmFromHours(a.hoursPerLine ?? 0)} each`,
+        value: `${hmFromHours(a.hoursPerLine ?? 0)} average`,
         tone: a.onTarget ? 'ok' : 'off',
-        note: `${gap} · over ${lines}`
+        note: `${gap} · ${over}`
             + (a.unreadable ? ` · ${a.unreadable} shift${a.unreadable === 1 ? '' : 's'} not counted (unreadable time)` : ''),
     };
 }
@@ -169,7 +173,7 @@ export function targetHoursLines(a) {
 export function targetProvenanceNote({ fromMemory, differsFromDefault, setName = '' }) {
     if (!fromMemory || !differsFromDefault) return null;
     return (setName
-        ? `These hours came from the saved set “${setName}”, not the Dec 2026 staffing. `
-        : 'These hours are from the table your device remembers, not the Dec 2026 staffing. ')
-        + 'Press “Use the Dec 2026 staffing” to load it. To keep a staffing setup for good, use “+ Save as new…”.';
+        ? `These hours came from the saved staffing setup “${setName}”, not the starting table. `
+        : 'These hours are from the table your device remembers, not the starting table. ')
+        + 'Press “Use the starting table (Short Run’s duties)” to load it. To keep a staffing setup for good, use “+ Save as new…”.';
 }

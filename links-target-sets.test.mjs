@@ -18,14 +18,17 @@ import {
     MAX_SET_NAME, MAX_SET_SLOTS, describeSetList, SPARE_WEEKS_CAP, targetSetProblem,
 } from './links-target-sets.js';
 import { readFileSync } from 'node:fs';
+import { ROTATING_LINES } from './links-design.js';
 
 // v24.38 — the save refuses what the rules would refuse, in words that are true.
 test('targetSetProblem names an empty table and too many spare lines; a good table passes', () => {
     const slot = { time: '06:20-14:20', weekday: 1, sat: 1, sun: 0 };
     assert.equal(targetSetProblem({ slots: [slot], spareLines: 4 }), null);
     assert.match(targetSetProblem({ slots: [], spareLines: 0 }) ?? '', /at least one shift row/);
-    assert.match(targetSetProblem({ slots: [slot], spareLines: SPARE_WEEKS_CAP + 1 }) ?? '', /at most/);
-    assert.equal(targetSetProblem({ slots: [slot], spareLines: SPARE_WEEKS_CAP }), null);
+    // The cap a designer is told cannot exceed the rotation (Nov 2026): one line short of it.
+    const cap = Math.min(SPARE_WEEKS_CAP, ROTATING_LINES - 1);
+    assert.equal(targetSetProblem({ slots: [slot], spareLines: cap + 1 }), `Cover weeks can be at most ${cap} — a staffing setup needs at least one working line.`);
+    assert.equal(targetSetProblem({ slots: [slot], spareLines: cap }), null);
     assert.match(targetSetProblem({ slots: Array(MAX_SET_SLOTS + 1).fill(slot), spareLines: 0 }) ?? '', /at most/);
 });
 test('the limits match firestore.rules', () => {
@@ -168,7 +171,7 @@ describe('describeSetState — whose it is', () => {
         assert.match(r.text, /saved by S\. Silva/);
         assert.match(r.text, /as the admin/);
         assert.doesNotMatch(r.text, /yours to change/, 'the shipped bug: claiming a colleague\'s set');
-        assert.doesNotMatch(r.text, /Only they can overwrite/,
+        assert.doesNotMatch(r.text, /Only they or the admin can change/,
             'and its inverse: telling the one person who CAN that nobody can');
     });
 
@@ -177,7 +180,7 @@ describe('describeSetState — whose it is', () => {
         assert.equal(r.owned, false);
         assert.equal(r.canWrite, false);
         assert.equal(r.canDelete, false);
-        assert.match(r.text, /Only they can overwrite it/);
+        assert.match(r.text, /Only they or the admin can change it/);
     });
 
     test('signed out is not ownership, even of a set with an empty creator', () => {

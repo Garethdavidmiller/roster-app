@@ -394,11 +394,11 @@ How the design grid on `links.html` is operated — one Tab stop and the arrow k
 
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s `?` panels: pure data, rendered by `tips-lightbox.js`, shape pinned by `tips-content.test.mjs`. Its generator panel restates `links-default-targets.js`'s header, and no test can see that rule.
-- **Exports:** `CARD_TIPS`
+- **Exports:** `DEFAULT_TABLE_FIGURES` · `CARD_TIPS`
 
 ### `links-design.js`
 The pure link-design maths — reading a shift, coverage, hours, the generator and its rest repair, and the design checks — with no DOM, no Firebase and no imports. `ROTATING_LINES` is the one declaration of the rotation length. `.claude/rules/links-design.md` defers its export list to this entry. Tested by `links-design.test.mjs` and `links-contract.test.mjs`.
-- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
+- **Exports:** `DAYS` · `ROTATING_LINES` · `MIN_REST_MINUTES` · `SPARE_WORKED_DAYS` · `isCoverWeek` · `spareDrawsOnFour` · `DEFAULT_MAX_RUN` · `WEEKENDS_OFF_AIM_PCT` · `worstCaseWorkedRun` · `runLengthsWhere` · `isRest` · `workedRunLengths` · `classifyShift` · `normaliseCustomShift` · `canonicaliseShift` · `normalisePatterns` · `startMinutes` · `endMinutes` · `endMinutesAbs` · `dutyMinutes` · `CONTRACTED_HOURS_PER_WEEK` · `hmFromHours` · `weeklyHours` · `lineTotals` · `calcCoverage` · `dayClass` · `calcHourlyCoverage` · `generatePatterns` · `WAVE_SPAN_MINUTES` · `targetExSundayMinutes` · `groupIntoWaves` · `restBetween` · `repairShortRest` · `generateLink` · `runDesignChecks`
 
 ### `links-target-sets-store.js`
 The Firestore half of the saved staffing setups, with every Firebase handle injected so it loads in Node; used by `links-generator-targets.js`. Its two rules are in the header. Tested by `links-target-sets-store.test.mjs`.
@@ -460,7 +460,7 @@ Named, shared snapshots of the generator's target table (`linkTargetSets`, staff
 
 ### `links-limits.js`
 The HARD limits a link design meets or cannot be run — the consecutive-days run limit and the contracted-days ceiling — kept apart from the advisory fatigue factors on purpose. It fails to `unknown`, never to `ok`, and `POLICY_SOURCE_CONFIRMED` is the one switch every visible claim derives from. Pure; the header holds whose limit this is and the three rules every edit keeps. Bound by `.claude/rules/links-design.md` invariant 2 and → Hard limits vs advisory factors. Tested by `links-limits.test.mjs`.
-- **Exports:** `MAX_CONSECUTIVE_WORKED_DAYS` · `POLICY_SOURCE_CONFIRMED` · `LIMIT_CLAIM` · `CONTRACTED_DAYS_CEILING` · `contractedDaysPerYear` · `assessHardLimits`
+- **Exports:** `MAX_CONSECUTIVE_WORKED_DAYS` · `POLICY_SOURCE_CONFIRMED` · `LIMIT_CLAIM` · `CONTRACTED_DAYS_CEILING` · `contractedDaysPerYear` · `contractedDaysFromCounts` · `assessHardLimits`
 
 ### `links-fatigue.js`
 The ORR good-practice fatigue factors (December 2021 guide) assessed against a link design. Pure. It reports factors PRESENT and never passes or fails a design, and every rule laps the rotation; the header and the comment beside each row carry the reasoning. Bound by `.claude/rules/links-design.md` invariants 2–3 and → Fatigue factors. Tested by `links-fatigue.test.mjs`.

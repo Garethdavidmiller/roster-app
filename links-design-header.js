@@ -205,9 +205,10 @@ function sameDay(when, now) {
 export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now = new Date(), proposal = false, queued = false }) {
     if (saving) return { tone: 'saving', long: 'Saving…', short: 'Saving…' };
     // A built-in proposal, untouched (v24.47): it is not "not saved" — there is nothing of yours to
-    // lose. Once edited it is an unsaved working copy, and says so like any other.
+    // lose. Once edited it is an unsaved working copy, and says so like any other. Not "Read-only"
+    // (Nov 2026): an untouched proposal is editable, and its edits save as a copy.
     if (proposal) return dirty ? { tone: 'dirty', long: 'Unsaved changes — save a copy to keep them', short: 'Unsaved' }
-                               : { tone: 'proposal', long: 'Read-only', short: 'Read-only' };
+                               : { tone: 'proposal', long: 'Built in — edits save as a copy', short: 'Built in' };
     if (!saved)  return { tone: 'new', long: 'Not saved yet', short: 'Not saved' };
     if (dirty)   return { tone: 'dirty', long: 'Unsaved changes', short: 'Unsaved' };
     if (queued)  return { tone: 'queued', long: 'Saved in this browser', short: 'Saved here' };
@@ -427,7 +428,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
                     for (const d of proposals) {
                         wrap.appendChild(pickRow({ id: d.id, name: d.name,
                             meta: isProposal && d.id === proposalId && dirty ? 'Open · edited, not saved'
-                                : d.ref ? `${d.ref} · read-only` : 'Built in · read-only',
+                                : d.ref ? `${d.ref} · built in` : 'Built in',
                             current: isProposal && d.id === proposalId }));
                     }
                     els.pickList.appendChild(wrap);
