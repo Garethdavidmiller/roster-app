@@ -368,6 +368,27 @@ test('About: a double tap on Print prints once @print', async ({ page }) => {
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__prints), { message: 'the next opening prints too' }).toBe(2);
 });
 
+// THE PRINT BUTTON'S EMOJI STAYS DECORATIVE (lightbox review, 22 Nov 2026). The Calendar's About relabels its Print
+// button for the view on screen, and it did so with `textContent`, which wiped the markup's aria-hidden emoji span on
+// the first open: a screen reader then said "printer, Print this calendar". The accessible name is the words alone.
+test('About: the Print button\'s emoji stays hidden from a screen reader, in both views @print', async ({ page }) => {
+    await seedMemberSession(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    const btn = page.locator('#lightboxPrintBtn');
+    for (const [view, words, hint] of [['the month', 'Print this calendar', 'Prints the current month’s calendar'],
+                                       ['Team Week View', 'Print this week’s roster', /A4 landscape/]]) {
+        if (view === 'Team Week View') await page.locator('#teamViewBtn').click();
+        await page.locator('.title-icon').first().click();
+        await expect(page.locator('#iconLightbox')).toHaveClass(/\bopen\b/);
+        await expect(btn, `${view}: the button's name is its words, without the emoji's`).toHaveAccessibleName(words);
+        await expect(btn.locator('span[aria-hidden="true"]'), `${view}: the emoji keeps its own hidden span`).toHaveText('🖨️');
+        await expect(page.locator('#lightboxPrintHint')).toHaveText(hint);
+        await page.locator('#iconLightboxClose').click();
+        await expect(page.locator('#iconLightbox')).not.toHaveClass(/\bopen\b/);
+    }
+});
+
 // ── THE PRINT BUTTON PRINTS WHAT IS ON SCREEN (v23.27) ──────────────────────────────────────────
 // The prepare used to un-hide every card the finder had filtered out, so a traveller looking at one
 // country got the whole guide — 25 pages, at a station, before a trip. Opening a collapsed card is
@@ -822,7 +843,7 @@ test('a month drawn from this device\'s cache keeps its "Saved copy" label on pa
 
     const label = await printedLabel(page, '.calendar-stale-note');
     expect(label?.shown, 'the sheet says the month is a saved copy').toBe(true);
-    expect(label?.words).toBe('Saved copy — couldn\'t check for changes');
+    expect(label?.words).toBe('Saved copy — couldn’t check for changes');
     expect(label?.retryShown, 'a button paper cannot press is left off').toBe(false);
 });
 

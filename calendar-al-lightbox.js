@@ -125,7 +125,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
   /** Why a year has no allowance, in one line, for the em-dash state. @param {any} member @param {number} year */
   function noAllowanceLine(member, year) {
     if (member?.startDate instanceof Date && year < member.startDate.getFullYear()) {
-      return `No allowance for ${year}: it is before the start date.`;
+      return `No allowance for ${year}: that is before their start date.`;   // "their": the panel may show a colleague
     }
     return `No allowance on record for ${year}: the app keeps leave figures for the CEA, CES and Dispatcher grades only.`;
   }
@@ -330,7 +330,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
       // the original visible error state.
       if (memoShown) {
         console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e);
-        noteLine('Saved copy — couldn\'t check for changes');
+        noteLine('Saved copy — couldn’t check for changes');
         return;
       }
       console.error('[AL lightbox] Failed:', e);

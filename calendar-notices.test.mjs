@@ -926,6 +926,29 @@ describe('8 · the timetable notice: from 16 November behind the install and New
         assert.doesNotMatch(text(block), /\b(?:on|this|next) Sunday\b(?! 13 December)/i, 'a Sunday with no date reads as today on a Sunday');
     });
 
+    test('it names the Trains page\'s new columns by the heading they carry there, every day it runs (lightbox review, 22 Nov 2026)', async () => {
+        // It said "the times in the Trains page's second column", and the new times are second only in the train
+        // list: the station table opens with a label column, and the last-trains table puts them third. The page
+        // heads every such column with `newLabel` (trains-change.js → `timetablePhase`, through trains-cards.js),
+        // so the notice names that heading — asked of the page's own function on each day of the run.
+        const { timetablePhase } = await import('./trains-change.js');
+        const { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } = await import('./trains-data.js');
+        const HTML = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const at = HTML.indexOf(`id="${SOON.overlay}"`);
+        const body = HTML.slice(at, HTML.indexOf('<!-- One-time notice', at))
+            .replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
+        const dates = { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL };   // trains-cards.js's own
+        const labels = new Set();
+        for (let d = new Date(2026, 10, 16); d <= new Date(2026, 11, 12); d.setDate(d.getDate() + 1)) {
+            labels.add(timetablePhase(new Date(d), dates).newLabel);
+        }
+        assert.equal(labels.size, 1, `the page's heading changes during the notice's run: ${[...labels].join(', ')}`);
+        const [heading] = labels;
+        assert.match(body, new RegExp(`the times in the Trains page’s ${heading} columns are the ones running`),
+            `the notice must name the columns the Trains page heads "${heading}"`);
+        assert.doesNotMatch(body, /\b(?:first|second|third|fourth|fifth) column\b/i, 'a column by its position is true of one table only');
+    });
+
     test('posted on one date, everywhere — and its button names where it goes, the drawer\'s own route, unbroken (v26.21)', async () => {
         // The polish the owner asked for with the move. The date is the day it went up, in the module, on screen and in
         // App Notices. The button names its destination, as the New link notice's "Open the New link page →" does. And

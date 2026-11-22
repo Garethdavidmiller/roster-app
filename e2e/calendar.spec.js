@@ -1094,7 +1094,7 @@ test('calendar: a re-check that fails on return keeps the grid as a saved copy, 
     await page.clock.fastForward('11:00');
     await comeBack();
     await expect(note, 'the failed re-check must reach the screen').toBeVisible();
-    await expect(note).toContainText('Saved copy — couldn\'t check for changes');
+    await expect(note).toContainText('Saved copy — couldn’t check for changes');
     await expect(shown).toHaveAttribute('data-override-state', 'stale');
     await expect(page.locator('.calendar-grid'), 'the grid is kept — a failed re-check never blanks good data').toBeVisible();
     await expect(leaveDay, 'with the leave it already held').toContainText('AL');
@@ -3257,7 +3257,7 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     // as a mistake beside a colleague's 32.
     await page.locator('#alBtn').click();
     await expect(page.locator('#alLbYear')).toHaveText('2026');
-    await expect(page.locator('#alLbChristmas')).toHaveText('Christmas Day: annual leave, not counted');
+    await expect(page.locator('#alLbChristmas')).toHaveText('Christmas Day: annual leave that does not come off the allowance');
     await expect(page.locator('#alLbTaken')).toHaveText('0');
     await expect(page.locator('#alLbEntitlement')).toHaveText('32');
     await expect(page.locator('#alLbBreakdown')).toBeHidden();
@@ -4203,12 +4203,12 @@ test('huddle: a tap on a Huddle that could not be read offers Try again, which r
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.evaluate(() => { location.hash = '#huddle'; });
-    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle");
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn’t load the Daily Huddle");
     const subs = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.snapshotSubs || 0);
     const before = await subs();
     await page.locator('#huddleRetryBtn').click();
     await expect.poll(subs).toBeGreaterThan(before);
-    await expect(page.locator('#huddleViewerBody'), 'a retry that fails again says so again').toContainText("Couldn't load the Daily Huddle");
+    await expect(page.locator('#huddleViewerBody'), 'a retry that fails again says so again').toContainText("Couldn’t load the Daily Huddle");
 });
 
 // A COLD tap — the notification that opened the page — used to settle silently: the message needed
@@ -4218,7 +4218,7 @@ test('huddle: a cold tap on a Huddle that could not be read is answered, and clo
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleError: true }; });
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/#huddle');
-    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle", { timeout: 15_000 });
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn’t load the Daily Huddle", { timeout: 15_000 });
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
 });
@@ -4365,7 +4365,7 @@ test('huddle: offline with nothing cached, a tap says it could not load — neve
     await page.waitForTimeout(300);   // the cache-only snapshot has landed
     await page.evaluate(() => { location.hash = '#huddle'; });
     const body = page.locator('#huddleViewerBody');
-    await expect(body).toContainText("Couldn't load the Daily Huddle", { timeout: 10_000 });
+    await expect(body).toContainText("Couldn’t load the Daily Huddle", { timeout: 10_000 });
     await expect(body).not.toContainText('No Daily Huddle has been uploaded yet');
 });
 
@@ -4592,7 +4592,7 @@ test('huddle: a tap before the Huddle has answered says "Loading…", and an ans
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => { location.hash = '#huddle'; });
     await expect(page.locator('#huddleViewerBody')).toContainText('Loading…');
-    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle", { timeout: 12_000 });
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn’t load the Daily Huddle", { timeout: 12_000 });
 });
 
 test('huddle: drawn through the REAL sanitiser — no data- or aria- attribute, no picture, and the picture is named with the route to the file', async ({ page }) => {
@@ -4705,7 +4705,7 @@ test('calendar: the leave panel labels a saved balance it could not check, and k
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
     await page.locator('#alBtn').click();
-    await expect(page.locator('#alLbError')).toHaveText('Saved copy — couldn\'t check for changes');
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — couldn’t check for changes');
     await expect(page.locator('#alLbError')).toBeVisible();
     await expect(page.locator('#alLbTaken'), 'the saved figures stay').toHaveText('20');
     await expect(page.locator('#alLbRemaining')).toHaveText('6');

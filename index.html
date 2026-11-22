@@ -185,20 +185,21 @@
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
                 <div class="lightbox-tip"><span>Select the month to jump to another</span></div>
-                <div class="lightbox-tip keyboard-only"><span>Keyboard: navigate months</span><span class="lightbox-tip-key">← →</span></div>
+                <div class="lightbox-tip keyboard-only"><span>Keyboard: change month</span><span class="lightbox-tip-key">← →</span></div>
+                <div class="lightbox-tip keyboard-only"><span>Change month from a day in the grid</span><span class="lightbox-tip-key">PgUp PgDn</span></div>
+                <div class="lightbox-tip keyboard-only"><span>Open the day in focus</span><span class="lightbox-tip-key">Enter</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
             <div class="lightbox-tips" id="teamViewTips" hidden>
                 <div class="lightbox-tips-title">Tips</div>
-                <div class="lightbox-tip touch-only"><span>If the week is wider than your screen, swipe the table sideways</span></div>
-                <div class="lightbox-tip"><span>Select CEA, CES or Dispatcher to switch grade</span></div>
-                <div class="lightbox-tip"><span>Open <span class="nav-path">☰ → Daily Huddle</span> for the latest day plan</span></div>
-                <div class="lightbox-tip"><span>Select 📍, or Back to this week under the dates, to return to the current week</span></div>
+                <!-- ONE COPY OF THE TEAM VIEW TIPS (lightbox review, 22 Nov 2026): they are the ? panel's
+                     (#teamInfoLightbox, below). Kept here as well, the two copies drifted apart. -->
+                <div class="lightbox-tip"><span>Select <strong>?</strong> beside the grade tabs for Team Week View’s tips and colour key</span></div>
             </div>
             <div class="lightbox-print-wrap">
                 <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn"><span aria-hidden="true">🖨️</span> Print this calendar</button>
-                <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month's calendar</span>
+                <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month’s calendar</span>
             </div>
             <a href="./staff-guide.html" class="lightbox-bug-link"><span aria-hidden="true">📘</span> Staff &amp; Admin Guide</a>
             <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
@@ -254,7 +255,7 @@
                 <div class="notice-date">Posted 16 Nov 2026</div>
             </div>
             <div class="notice-main">
-                <p class="notice-body">Chiltern’s trains move to the new timetable on <strong>Sunday 13&nbsp;December</strong>: from that day, the times in the Trains page’s second column are the ones running.</p>
+                <p class="notice-body">Chiltern’s trains move to the new timetable on <strong>Sunday 13&nbsp;December</strong>: from that day, the times in the Trains page’s <strong>From 13&nbsp;Dec</strong> columns are the ones running.</p>
                 <p class="notice-body">The <strong>Trains</strong> page shows what changes at every station, the last trains, and where each train stops — the questions customers will ask that Sunday morning. You can open it any time from the menu: ☰&nbsp;then 🚆&nbsp;Trains.</p>
             </div>
             <div class="notice-actions">
@@ -290,7 +291,7 @@
     <div id="alLightbox" class="lb-overlay" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
         <div id="alLightboxContent" class="lb-content">
         <button id="alLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
-            <div class="al-lb-icon">🏖️</div>
+            <div class="al-lb-icon" aria-hidden="true">🏖️</div>
             <div class="al-lb-title">Annual Leave</div>
             <!-- WHOSE LEAVE (v25.50, owner): the panel shows whichever member the Calendar has chosen, a
                  colleague's as readily as the reader's own, so it names them — filled on every open. -->
@@ -328,7 +329,7 @@
             <!-- CHRISTMAS LEAVE (v25.37): the Christmas days this year shows as leave, listed so they are
                  RECORDED and said to be not counted, because the figures above leave them out. -->
             <p id="alLbChristmas" class="al-lb-carry" hidden></p>
-            <p id="alLbError" class="al-lb-error" hidden>Couldn't load — check your connection</p>
+            <p id="alLbError" class="al-lb-error" hidden>Couldn’t load — check your connection</p>
             <!-- Short labels so the pair shares a row at 320px — the day panel's "Leave dates" names the same list. -->
             <div class="al-lb-actions">
                 <a href="admin.html#book-annual-leave" class="al-lb-link">Record leave</a>
@@ -480,25 +481,24 @@
     <div id="teamInfoLightbox" class="lb-overlay" role="dialog" aria-label="Team Week View — help" aria-modal="true">
         <div id="teamInfoContent" class="lb-content">
             <button id="teamInfoClose" class="lb-close" type="button" aria-label="Close">✕</button>
-            <div class="team-help-title">👥 Team Week View</div>
+            <div class="team-help-title"><span aria-hidden="true">👥</span> Team Week View</div>
             <ul class="team-help-list">
                 <li class="touch-only">If the week is wider than your screen, swipe the table left and right to see all 7 days</li>
-                <li>Use ← → to move between weeks</li>
+                <li>Select <strong>← Prev</strong> or <strong>Next →</strong> to move between weeks</li>
                 <li>Select <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
-                <li>Open ☰ and choose <strong>Daily Huddle</strong> to read the latest day plan</li>
-                <li>Use <strong>📍</strong>, or <strong>Back to this week</strong> under the dates, to return to the current week</li>
+                <li>Select <strong>📍</strong>, or <strong>↩ Back to this week</strong> under the dates, to return to the current week</li>
             </ul>
             <div class="team-info-section">Colour key</div>
             <div class="team-info-key">
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--early"></span><span aria-hidden="true">☀️</span> Early</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--late"></span><span aria-hidden="true">🌙</span> Late</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--night"></span><span aria-hidden="true">🦉</span> Night</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--al"></span><span aria-hidden="true">🏖️</span> Annual leave</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rdw"></span><span aria-hidden="true">💼</span> Rest day working</div>
+                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--al"></span><span aria-hidden="true">🏖️</span> Annual Leave</div>
+                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rdw"></span><span aria-hidden="true">💼</span> Rest Day Working</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--spare"></span><span aria-hidden="true">📋</span> Spare</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--absent"></span><span aria-hidden="true">🪑</span> Absent</div>
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--other"></span><span aria-hidden="true">🏷️</span> Other</div>
-                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rest"></span><span aria-hidden="true">🏠</span> Rest day</div>
+                <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rest"></span><span aria-hidden="true">🏠</span> Rest</div>
             </div>
             <p class="team-info-note">Shifts shown are each person’s base roster plus any recorded changes. A change saved on the Admin page shows here when the Calendar next opens, or within 20 minutes while it stays open.</p>
         </div>
@@ -511,7 +511,7 @@
          drawn inside the box, which runs to the screen's edges (index.css). calendar-huddle-viewer.js. -->
     <div id="huddleViewer" role="dialog" aria-label="Daily Huddle" aria-modal="true">
         <div id="huddleViewerHeader">
-            <span id="huddleViewerTitle">📋 Daily Huddle</span>
+            <span id="huddleViewerTitle"><span aria-hidden="true">📋</span> Daily Huddle</span>
             <p id="huddleViewerStatus" class="visually-hidden" role="status"></p>
             <button id="huddleViewerClose" type="button" class="lb-close" aria-label="Close">✕</button>
         </div>

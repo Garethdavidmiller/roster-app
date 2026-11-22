@@ -381,7 +381,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         note.className = 'calendar-stale-note';
         const words = document.createElement('span');
         words.setAttribute('role', 'status');
-        words.textContent = 'Saved copy — couldn\'t check for changes';
+        words.textContent = 'Saved copy — couldn’t check for changes';
         note.appendChild(words);
         return note;
     }
@@ -404,8 +404,8 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
                 window.open(open.url, '_blank', 'noopener');
             } else {
                 ++_bodySeq;
-                body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact the admin.</p>';
-                say('This Huddle link is unavailable — please contact the admin.');
+                body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please tell the admin.</p>';
+                say('This Huddle link is unavailable — please tell the admin.');   // the doc viewer's words
             }
         });
         // A null is ORDINARY — no IAM grant, a lapsed claim, a timeout — and the stored url is used.
@@ -428,7 +428,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         const seq = ++_bodySeq;
         body.innerHTML = '<div class="huddle-open-prompt">'
             + '<p>The latest Huddle is ready.</p>'
-            + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
+            + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn"><span aria-hidden="true">📄</span> Open Huddle</button>'
             + '</div>';
         const saved = _savedCopyNote();
         if (saved) body.prepend(saved);
@@ -539,9 +539,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         ++_bodySeq;
         body.innerHTML = state === 'none'
             ? '<div class="huddle-open-prompt"><p>No Daily Huddle has been uploaded yet.</p></div>'
-            : '<div class="huddle-open-prompt"><p class="huddle-error">Couldn\'t load the Daily Huddle.</p>'
+            : '<div class="huddle-open-prompt"><p class="huddle-error">Couldn’t load the Daily Huddle.</p>'
               + '<button type="button" id="huddleRetryBtn" class="huddle-open-btn">↻ Try again</button></div>';
-        say(state === 'none' ? 'No Daily Huddle has been uploaded yet.' : 'Couldn\'t load the Daily Huddle.');
+        say(state === 'none' ? 'No Daily Huddle has been uploaded yet.' : 'Couldn’t load the Daily Huddle.');
         const retry = document.getElementById('huddleRetryBtn');
         retry?.addEventListener('click', () => {
             _huddleState = 'loading';

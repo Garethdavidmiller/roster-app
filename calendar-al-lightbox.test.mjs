@@ -76,7 +76,7 @@ function fakeEl(id, tag = 'div') {
 const els = new Map();
 const byId = (/** @type {string} */ id) => { if (!els.has(id)) els.set(id, fakeEl(id)); return els.get(id); };
 // The could-not-load line keeps its markup's words: the panel reads them once, as it starts.
-byId('alLbError').textContent = 'Couldn\'t load — check your connection';
+byId('alLbError').textContent = 'Couldn’t load — check your connection';
 // …and so does the day panel's change caption.
 byId('dayDetailChangeFrom').textContent = CAPTION_BASE;
 const statsEl = fakeEl(null);
@@ -266,7 +266,7 @@ describe('a year with no allowance says why, and ‹ stops at the member\'s firs
         await answer();
         assert.equal(byId('alLbRemaining').textContent, '—');
         assert.equal(byId('alLbError').hidden, false, 'four dashes and no words');
-        assert.equal(byId('alLbError').textContent, `No allowance for ${THIS_YEAR - 1}: it is before the start date.`);
+        assert.equal(byId('alLbError').textContent, `No allowance for ${THIS_YEAR - 1}: that is before their start date.`);
     });
 
     test('a year in a grade the app keeps no leave figures for says so', async () => {
