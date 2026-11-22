@@ -9,10 +9,10 @@
  * result (trains-render.js → `renderHeadlines`).
  */
 
-import { serviceMinutes, alignTimes } from './trains-change.js';
+import { serviceMinutes, compareRoutes } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
-import { callsOf, decemberKnown, endingAt, summarise, callingAt, lineOf } from './trains-stations.js';
-import { aRealDay } from './trains-weekdays.js';
+import { callsOf, decemberKnown, endingAt, summarise, lineOf, stationTrains } from './trains-stations.js';
+import { aRealDay, onWeekday, WEEKDAYS } from './trains-weekdays.js';
 import { hourChanged, sameRegularity, rateWords, minutesWords, andList, EDGE_SHIFT_MIN } from './trains-verdict.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
@@ -50,10 +50,15 @@ import { hourChanged, sameRegularity, rateWords, minutesWords, andList, EDGE_SHI
 export function headlineChanges(nowRows, decRows, stations) {
     // One real day (see the header): a train that runs Mondays and Fridays, and its Tuesday-to-
     // Thursday partner, are one train — counted twice, they put Haddenham's weekday at 44 trains.
+    // The days a fold must hold on: each weekday, its exceptions settled, where the rows have any — a
+    // headline names no day, so a station joins another's sentence only if its trains are that
+    // station's on every one of them (see `sig` below). One day where they have none.
+    const days = [...nowRows, ...decRows].some(r => r[3])
+        ? WEEKDAYS.map(d => [onWeekday(nowRows, d), onWeekday(decRows, d)]) : [[nowRows, decRows]];
+    const paired = days.map(([n, d]) => compareRoutes(n, d));
     nowRows = aRealDay(nowRows);
     decRows = aRealDay(decRows);
     const places = new Set([...nowRows, ...decRows].flatMap(callsOf));
-    const byTime = (/** @type {TrainRow[]} */ rs) => [...rs].sort((a, b) => serviceMinutes(a[0]) - serviceMinutes(b[0]));
     /** @type {Headline[]} */
     const out = [];
     for (const crs of places) {
@@ -64,8 +69,15 @@ export function headlineChanges(nowRows, decRows, stations) {
         const name = stations[crs] ?? crs;
         // A train is its time, its end and its days: one minute can be two trains — today's weekday
         // 17:37 runs to Snow Hill on Mondays and Fridays and to Princes Risborough on the other days.
-        const sig = new Set(alignTimes(byTime(callingAt(eNow, crs)), byTime(callingAt(eDec, crs))).flatMap(t =>
-            t.kind === 'new' ? [`+${t.dec} ${t.decTo}`] : t.kind === 'gone' ? [`-${t.now} ${t.nowTo} ${t.days}`] : []));
+        // Which trains join this station and which leave it is the station card's own answer
+        // (`stationTrains`): the line's pairing, read here. Paired again by nearest time across every
+        // route, the trains calling at Bicester North lost two that run on to Stourbridge without
+        // calling there, and "3 of them also stop at Bicester North" was said of five Banbury trains
+        // that all do (Trains review, Nov 2026). Read on every weekday and put together: on a Monday High
+        // Wycombe also swaps a train, so its three more a day are not only Banbury's there.
+        const sig = new Set(days.flatMap(([n, d], i) => known ? stationTrains(n, d, crs, 'dep', paired[i])
+            : stationTrains(endingAt(n, crs), endingAt(d, crs), crs, 'dep'))
+            .flatMap(t => !t.now && t.dec ? [`+${t.dec} ${t.decTo}`] : t.now && !t.dec ? [`-${t.now} ${t.nowTo} ${t.days}`] : []));
         if (known && !now.total && dec.total) {
             out.push({ crs, tone: 'more', score: 100 + dec.total, parts: [], sig, text: '', tails: [], route: 'new', delta: dec.total, lead: dec.total === 1
                 ? `A new direct train to ${name}, the ${dec.first}` : `New direct trains to ${name}: ${dec.total} a day` });
@@ -147,7 +159,8 @@ export function headlineChanges(nowRows, decRows, stations) {
 
 /**
  * The words on a headline's chip (v24.92). A new or withdrawn direct service is named as such — its
- * count is the whole service; a line about times moving says so; otherwise the change in trains a
+ * count is the whole service; a line about times moving says "New times", which holds on either side of
+ * the change; otherwise the change in trains a
  * day, signed, and the kind of change only when the count did not move.
  * @param {'more'|'less'|'moved'} tone
  * @param {'new'|'gone'|null} route
@@ -157,7 +170,8 @@ export function headlineChanges(nowRows, decRows, stations) {
 function headlineChip(tone, route, delta) {
     if (route === 'new') return 'New route';
     if (route === 'gone') return 'No direct trains';
-    if (tone === 'moved') return 'Times move';
+    // No tense: "Times move" read as still to come weeks after the change (Trains review, Nov 2026).
+    if (tone === 'moved') return 'New times';
     if (delta) return `${delta > 0 ? '+' : '−'}${Math.abs(delta)} a day`;
     return tone === 'less' ? 'Fewer trains' : 'More trains';
 }
@@ -177,7 +191,9 @@ function headlineChip(tone, route, delta) {
  *     count, or a clause the destination's sentence states word for word — every time here is at
  *     Marylebone, so the same words are the same fact. Haddenham keeps its Saturday line — 3 an
  *     hour, was 2 — though its new trains are Birmingham's.
- * A new or withdrawn direct service never folds: it is the news.
+ * A new or withdrawn direct service never folds: it is the news. And the trains are the station
+ * card's own (`stationTrains`), read on every weekday: a headline names no day, so a station whose
+ * change is a destination's trains on a Tuesday but swaps a train of its own on a Monday keeps its line.
  * @param {Headline[]} out   changed in place: folded stations removed, named in their destination's line
  * @param {TrainRow[]} nowRows
  * @param {TrainRow[]} decRows

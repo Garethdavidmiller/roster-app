@@ -103,8 +103,9 @@ test.describe('trains', () => {
         await findStation(page, 'beac');
         await page.locator('#trStationPicks .tr-pick', { hasText: 'Beaconsfield' }).click();
         // 16 since v24.83: a train that passes it now, or starts calling, is counted at the station. Since 18 Nov
-        // 2026 the sentence names the days it is true of, and a Monday's and a Friday's count follows.
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('Tuesday to Thursday, same number of trains a day, but 16 are different — see Train by train below. '
+        // 2026 the sentence names the days it is true of, and a Monday's and a Friday's count follows. 12 since the
+        // Trains review (Nov 2026): a stop moved from one train to another is one of December's trains, not two.
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('Tuesday to Thursday, same number of trains a day, but 12 are different — see Train by train below. '
             + 'Fastest journey 3 minutes shorter: 21 min, was 24. Mondays and Fridays, 1 more train a day: 53, was 52.');
         const bcfDaily = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' });
         await expect(bcfDaily.locator('td').nth(0)).toHaveText('53 (Mon and Fri: 52)');
@@ -340,7 +341,7 @@ test.describe('trains', () => {
         const twin = page.locator('#trStation .tr-trains tbody tr', { hasText: 'Mon and Fri only' });
         await expect(twin).toContainText('17:37');
         await expect(twin).toContainText('4 mins earlier');
-        await expect(page.locator('#trStation .tr-trains')).not.toContainText('No longer runs');
+        await expect(page.locator('#trStation .tr-trains')).not.toContainText(/No longer runs|Will stop running/);
     });
 
     test('a headline opens its station going there; Back returns to the list; focus lands on the station\'s name (v24.83, v24.92)', async ({ page }) => {

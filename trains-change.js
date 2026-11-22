@@ -395,7 +395,20 @@ export function daysUntil(today, changeDate) {
 }
 
 /**
- * The wording for one paired train's change — the one place the page's change words are written.
+ * A number of minutes in a change's words — "1 min", "6 mins" — whichever way it moved: the sign is said
+ * by the word after it ("later", "earlier"). The figures table writes a journey as "24 min", a unit after
+ * a figure; a change is a count, and takes the plural.
+ * @param {number} n
+ * @returns {string}
+ */
+export const minsWords = (n) => `${Math.abs(n)} min${Math.abs(n) === 1 ? '' : 's'}`;
+
+/**
+ * The wording for one paired train's change: the chip beside a train on a station card, and the
+ * lookup's answer. Not the only place the page writes change words — the Last trains panel's chips
+ * (trains-render.js → `renderLastTrains`), the lookup's own small print and the headline chips
+ * (trains-headlines.js → `headlineChip`) write theirs — but the one place a PAIRED TRAIN's are.
+ * Every count of minutes in them is `minsWords`'s.
  *
  * TENSE FOLLOWS THE CHANGE DATE. Before it, a new end is "Will go on to …": the page's first column
  * is TODAY, so "Now runs to" read as a fact about the current timetable. From the change, the same
@@ -410,7 +423,7 @@ export function daysUntil(today, changeDate) {
  * @returns {string}
  */
 export function changeLabel(t, stations = {}, dir = 'dep', { started = false, withTime = true } = {}) {
-    const mins = (/** @type {number} */ n) => `${n} min${n === 1 ? '' : 's'}`;
+    const mins = minsWords;
     // On a station card a new end can come with a new time at the station itself (`atShift`).
     const at = /** @type {{ atShift?: number }} */ (t).atShift ?? 0;
     const moved = (/** @type {string} */ what) => at ? `${mins(Math.abs(at))} ${at > 0 ? 'later' : 'earlier'}, ${what[0].toLowerCase()}${what.slice(1)}` : what;
@@ -424,7 +437,9 @@ export function changeLabel(t, stations = {}, dir = 'dep', { started = false, wi
         case 'later':   return `${mins(t.shift)} later`;
         case 'earlier': return `${mins(-t.shift)} earlier`;
         case 'new':     return 'New train';
-        case 'gone':    return 'No longer runs';
+        // A train that goes is still running until the change: "No longer runs" said so of twelve trains
+        // a member could catch that evening (Trains review, Nov 2026).
+        case 'gone':    return started ? 'No longer runs' : 'Will stop running';
         case 'passes':  return started ? 'No longer stops here' : 'Will no longer stop here';
         case 'calls':   return started ? 'Now stops here' : 'Will stop here';
         case 'terminus': {
@@ -497,6 +512,14 @@ export function dateWords(iso, offset = 0, { short = false, weekday = false } = 
     const words = `${at.getUTCDate()} ${short ? month.slice(0, 3) : month}`;
     return weekday ? `${DAYS[at.getUTCDay()]} ${words}` : words;
 }
+
+/**
+ * The month of a 'YYYY-MM-DD' date, as the page names a timetable by it: "December". Derived, as
+ * `dateWords` is, so books that start in May are not called December.
+ * @param {string} iso
+ * @returns {string}
+ */
+export const monthWords = (iso) => dateWords(iso).replace(/^\d+ /, '');
 
 /**
  * The holidays inside a window of dates, as the page names them: 'Christmas and New Year',

@@ -81,6 +81,15 @@ describe('foldWeekdayVariants — a train that runs at two times on different we
         const folded = foldWeekdayVariants(alignTimes([row('17:37', 'PRR', '', 'MFX')], []));
         assert.equal(folded[0].kind, 'gone');
     });
+
+    test('a partner further than MAX_SHIFT_MIN away is another train, as alignment would say', () => {
+        const pair = (/** @type {string} */ mfo) => foldWeekdayVariants(/** @type {any} */ ([
+            { now: '17:00', dec: '17:00', kind: 'same', shift: 0, days: 'MFX' },
+            { now: mfo, dec: null, kind: 'gone', shift: 0, days: 'MFO' }]))[1];
+        assert.equal(MAX_SHIFT_MIN, 20, 'premise: the times below sit either side of twenty minutes');
+        assert.deepEqual([pair('17:20').kind, pair('17:20').dec], ['earlier', '17:00']);
+        assert.equal(pair('17:21').kind, 'gone');
+    });
 });
 
 describe('compareRoutes — one train, a different destination', () => {
@@ -193,7 +202,9 @@ describe('words', () => {
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'earlier', shift: -6 })), '6 mins earlier');
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'same' })), 'No change');
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'new' })), 'New train');
-        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'gone' })), 'No longer runs');
+        // A train that goes still runs until the change: "No longer runs" said so of trains running that evening.
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'gone' })), 'Will stop running');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'gone' }), {}, 'dep', { started: true }), 'No longer runs');
         assert.equal(daysLabel('MFO'), 'Mon and Fri only');
         assert.equal(daysLabel('MFX'), 'Tue to Thu only');
         assert.equal(daysLabel(''), '');

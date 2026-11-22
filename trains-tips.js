@@ -94,7 +94,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📋', html: 'The biggest changes to trains <strong>leaving Marylebone</strong> on the day chosen above, one line per station, biggest first.' },
                     { icon: '👆', html: 'Choose a change to open that station and see everything about it — including every train a few minutes earlier or later, which this list leaves out.' },
-                    { icon: '🟢', html: 'The chip on each line names the change: <strong>+6 a day</strong> is six more trains a day, <strong>−2 a day</strong> two fewer. <strong>New route</strong> is a station with direct trains in the new timetable and none before it, and <strong>No direct trains</strong> the other way round. <strong>Times move</strong> is the same trains at different times. <strong>More trains</strong> or <strong>Fewer trains</strong> is the same number a day, but more or fewer an hour in the daytime.' },
+                    { icon: '🟢', html: 'The chip on each line names the change: <strong>+6 a day</strong> is six more trains a day, <strong>−2 a day</strong> two fewer. <strong>New route</strong> is a station with direct trains in the new timetable and none before it, and <strong>No direct trains</strong> the other way round. <strong>New times</strong> is the same trains at different times. <strong>More trains</strong> or <strong>Fewer trains</strong> is the same number a day, but more or fewer an hour in the daytime.' },
                     { icon: '☀️', html: `<strong>Daytime</strong> means ${DAYTIME}. It is not a fare: off-peak tickets have their own times.` },
                 ],
             },
