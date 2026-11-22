@@ -931,6 +931,33 @@ test('settings: on a desktop the cards are 16px apart, as on Admin and Operation
     expect(gap).toBe(16);
 });
 
+// THE WORK EMAIL, START TO FINISH (settings review, Nov 2026): no test saved an address and then removed it,
+// so the one write and the one delete this card makes were each reached only by their failure paths.
+test('settings: a work email saved and then removed — what is written, what the card says, and what the summary counts', async ({ page }) => {
+    await openSettings(page, { configured: false, noPush: true });
+    await expect(page.locator('#contactStatusChip')).toHaveText('Not saved');
+    await page.locator('#workEmailInput').fill('g.miller');
+    await page.locator('#workEmailSaveBtn').click();
+    const today = await page.evaluate(() => import('/date-format.js').then(m => m.formatDayMonthYear(new Date())));
+    await expect(page.locator('#contactFeedback')).toHaveText(`✓ Saved — last updated ${today}`);
+    await expect(page.locator('#contactStatusChip')).toHaveText('✓ Saved');
+    await expect(page.locator('#contactHint'), 'the collapsed card names the address').toHaveText('g.miller@chilternrailways.co.uk');
+    await expect(page.locator('#settingsSummaryItems')).not.toContainText('work email');
+    const written = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => /staffContact/.test(w.path)));
+    expect(written.map((/** @type {any} */ w) => [w.path, w.data.memberName, w.data.workEmail]),
+        'the whole address, on this member\'s own record').toEqual([['staffContact/G. Miller', 'G. Miller', 'g.miller@chilternrailways.co.uk']]);
+
+    await page.locator('#workEmailRemoveBtn').click();
+    const dialog = page.getByRole('alertdialog', { name: 'Remove your work email?' });
+    await dialog.getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect(page.locator('#contactStatusChip')).toHaveText('Not saved');
+    await expect(page.locator('#workEmailRemoveBtn')).toBeHidden();
+    await expect(page.locator('#contactFeedback')).toHaveText('');
+    await expect(page.locator('#workEmailInput')).toHaveValue('');
+    await expect(page.locator('#settingsSummaryItems')).toContainText('Save your work email');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths), 'the record itself was deleted').toContain('staffContact/G. Miller');
+});
+
 // A token minted before the member's `name` claim is refused until it refreshes. Operations' reads of
 // these collections refresh it once and retry (withClaimRetry); Settings' did not, and both cards read
 // "Couldn't check" for a member whose email and password were both in order (settings review, Nov 2026).
