@@ -82,7 +82,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect, expectNothingLeftForGoogle, wireToEmulators } from './signed-in-fixtures.js';
 import { resetDatabase, readCollection, seedDocument, EMULATOR } from './signed-in-env.mjs';
 import { resetPasswords, disableAccount } from './signed-in-setup.mjs';
-import { signInThroughOverlay, enterPin, sheetAction, clickDialogConfirm, activeDesignName } from './helpers.js';
+import { signInThroughOverlay, enterPin, sheetAction, clickDialogConfirm, activeDesignName, pastDoubleTap } from './helpers.js';
 import { teamMembers, getBaseShift, isBankHoliday, CONFIG } from '../roster-data.js';
 import { manualOverrideId } from '../override-id.js';
 import { nameToEmail } from '../auth-identity.js';
@@ -503,6 +503,7 @@ test('back online: a delete waits for the save this device has not sent yet, and
     const del = page.locator(`#overrideTableBody .btn-delete[data-id="${id}"]`);
     await del.click();
     await expect(del).toHaveText('Delete?');
+    await pastDoubleTap(page);
     await del.click();
 
     // While the save is held the delete must not go ahead: the server does not hold the day yet, so a
@@ -808,7 +809,7 @@ test('can\'t get in: the request from the sign-in card reaches the server, the c
     await page.goto('/');
     await signInThroughOverlay(page, MEMBER, { submit: false });   // named on the card, nothing tried
     await page.locator('#loginResetRequest').click();
-    await expect(page.locator('#loginResetStatus')).toHaveText('Request sent. The admin will reset your password and let you know.');
+    await expect(page.locator('#loginResetStatus')).toHaveText('Request sent. Once the admin has reset it, sign in with your surname in lowercase and choose a new password.');
     await expect(page.locator('#loginResetRequest'), 'nothing left to press').toBeHidden();
 
     const rows = await readCollection('resetRequests');

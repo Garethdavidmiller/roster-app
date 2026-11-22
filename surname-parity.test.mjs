@@ -150,7 +150,7 @@ describe('surname derivation — browser ↔ functions parity', () => {
             assert.ok(credentialCandidatesFor(name, typed).includes(surnamePassword(name)),
                 `"${typed}" is ${name}'s surname, and the fallback was not offered`);
             const chosen = `${s.toUpperCase()}-${'1'.repeat(8)}`;
-            assert.equal(validateNewPassword(name, chosen, chosen), 'Choose something other than your surname.',
+            assert.equal(validateNewPassword(name, chosen, chosen), 'Your new password can’t be your surname, even with numbers or symbols added.',
                 `"${chosen}" is ${name}'s surname, and it was accepted as a new password`);
         }
     });

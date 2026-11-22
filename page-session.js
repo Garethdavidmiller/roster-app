@@ -26,7 +26,8 @@
  * a sign-out has been ANSWERED, so the member is not asked twice.
  *
  * `askBeforeLeavingByDrawer(isDirty)` — the same question asked IN the page, before a link in the
- * drawer or the About panel leaves it, because a phone never shows the browser's.
+ * drawer or the About panel leaves it, because a phone never shows the browser's. `leaveAfterAsking`
+ * asks it for one control (a header logo), and `LEAVE_ANSWERED` is how another surface says it asked.
  *
  * `keepDraftWhenHidden(isDirty, slot)` — for the exits nothing can ask about (iOS discarding a hidden
  * page, a swipe back): a copy of the unsaved work, kept when the page is hidden and offered on the
@@ -55,9 +56,11 @@
  * release this device's push record, clear the session and tear down the drawer first, because the
  * drawer was wired with the old member's name and pills, and on a shared device neither that nor the
  * member's targeted notices may stay behind the sign-in.
- * A session that could not be DECIDED — Firebase's start-up stalled, so the policy says `pending` —
- * is the one case that clears nothing (v24.61): the sign-in is shown over a kept session, and a
- * late-landing identity reloads the page into itself.
+ * A session that could not be DECIDED — the policy says `pending` because the sign-in reached no
+ * answer: Firebase's start-up stalled, or the attempt failed transiently (the network, the reset check
+ * unavailable, a rate limit, Firebase's internal error, an account or viewer the browser could not
+ * shed) — is the one case that clears nothing (v24.61): the sign-in is shown over a kept session, and
+ * a late-landing identity reloads the page into itself.
  *
  * ── WHAT IT DELIBERATELY DOES NOT OWN ──────────────────────────────────────────────────────────
  *
@@ -88,14 +91,29 @@ let _leaving = false;
  *  tab (review, 15 Nov 2026) — but nobody answered a leave, so a draft is still kept (`_leaving` is not). */
 let _identityReload = false;
 
-/** What every way off a page with unsaved work asks. */
-const LEAVE_QUESTION = 'You have unsaved changes. Leave this page anyway?';
+/**
+ * What every way off a page with unsaved work asks — the drawer, the About links and the header logos, and (its title
+ * and buttons) Admin's own banner and Overtime's in-page moves.
+ *
+ * IT SAYS THE WORK IS LOST, BECAUSE IT IS (confirm review, Nov 2026). An answered leave stands `keepDraftWhenHidden`
+ * aside, so nothing is kept and nothing is offered back — while the same members are taught elsewhere that unsaved
+ * work comes back (the Restore offer). It read "You have unsaved changes. Leave this page anyway?" under a plain
+ * "Leave", where the same discard through sign-out was already `danger`. One cancel word, "Keep editing", everywhere.
+ */
+export const LEAVE_QUESTION = Object.freeze({
+    title: 'Leave without saving?',
+    message: 'Your unsaved changes on this page will be lost.',
+    confirmLabel: 'Leave without saving',
+    cancelLabel: 'Keep editing',
+    danger: true,
+});
 
 /**
  * Warn before the tab closes or navigates while there is unsaved work.
  * @param {() => boolean} isDirty
  */
 export function warnOnUnload(isDirty) {
+    hearAnsweredLeave();
     window.addEventListener('beforeunload', (e) => {
         if (!_leaving && !_identityReload && isDirty()) { e.preventDefault(); e.returnValue = ''; }
     });
@@ -149,7 +167,7 @@ export function askBeforeLeavingByDrawer(isDirty) {
         if (!link || !LEAVING_ZONES.some(zone => link.closest(zone)) || !leavesPage(link)) return;
         e.preventDefault();
         e.stopPropagation();
-        confirmDialog({ message: LEAVE_QUESTION, confirmLabel: 'Leave' })
+        confirmDialog({ ...LEAVE_QUESTION })
             .then((ok) => {
                 if (!ok) return;
                 _leaving = true;   // answered: the unload warning must not ask a second time
@@ -163,13 +181,40 @@ export function askBeforeLeavingByDrawer(isDirty) {
  * Ask before ONE control leaves the page with unsaved work, as a drawer link does — the header logo
  * on Operations, the one way off that page that did not ask (review, 15 Nov 2026): a phone never shows
  * the browser's own question. On "Leave" the unload warning stands aside, as it does for the drawer.
+ * Admin's and Overtime's logos ask it too (confirm review, Nov 2026), so leaving a page is one
+ * question wherever it starts.
  * @param {() => boolean} isDirty @param {() => void} go what leaving does
  * @returns {Promise<void>}
  */
 export async function leaveAfterAsking(isDirty, go) {
-    if (isDirty() && !(await confirmDialog({ message: LEAVE_QUESTION, confirmLabel: 'Leave' }))) return;
+    if (isDirty() && !(await confirmDialog({ ...LEAVE_QUESTION }))) return;
+    leaveNow(go);
+}
+
+/**
+ * Leave NOW, the question about the work answered: marked first, so the browser's "Leave site?" does not
+ * ask a second time and `keepDraftWhenHidden` keeps nothing of the work the member chose to leave.
+ * @param {() => void} go what leaving does
+ */
+function leaveNow(go) {
     _leaving = true;
     go();
+}
+
+/**
+ * The event a question asked OUTSIDE this module sends once it has been answered with a leave — a
+ * notification's "Open it" or "Reload" (sw-register.js). Neither half was told, so a desktop asked
+ * "Leave site?" a second time and the next load offered back the work the member had chosen to leave
+ * (confirm review, Nov 2026). An EVENT, not an import: sw-register.js is in modules that must never
+ * reach the Firebase client (calendar-access-gate.test.mjs), and this module does.
+ */
+export const LEAVE_ANSWERED = 'myb-leave-answered';
+/** Whether this page listens for `LEAVE_ANSWERED` yet — once, from whichever of the two needs it first. */
+let _hearingAnsweredLeave = false;
+function hearAnsweredLeave() {
+    if (_hearingAnsweredLeave) return;
+    _hearingAnsweredLeave = true;
+    window.addEventListener(LEAVE_ANSWERED, () => { _leaving = true; });
 }
 
 /**
@@ -183,6 +228,7 @@ export async function leaveAfterAsking(isDirty, go) {
  * @param {{ keep: () => void, forget: () => void }} slot  writes, or deletes, this page's draft
  */
 export function keepDraftWhenHidden(isDirty, slot) {
+    hearAnsweredLeave();
     const onHide = () => {
         try { if (!_leaving && isDirty()) slot.keep(); else slot.forget(); }
         catch (err) { console.error('[page-session] the unsaved-work draft could not be kept:', err); }
@@ -228,16 +274,22 @@ export function onReturnToPage(afterMs, fn) {
  */
 export function askBeforeSignOut(isDirty) {
     return async () => {
+        // A TITLE ON EACH, AND THE CONSEQUENCE STATED (confirm review, Nov 2026): untitled, the dialog's
+        // accessible name was its whole message, and "Sign out anyway?" did not say the work is lost.
         if (writesInFlight() > 0) {
             // Both facts when both are true (v24.57, review) — one question must not hide the other.
-            const alsoDirty = isDirty() ? ' You also have unsaved changes.' : '';
+            const dirty = isDirty();
+            const alsoDirty = dirty ? ' Your unsaved changes on this page will be lost too.' : '';
             return confirmDialog({
-                message: `A change is still saving — if you sign out now it may be lost.${alsoDirty} Sign out anyway?`,
-                confirmLabel: 'Sign out', danger: true,
+                title: 'Sign out now?',
+                message: `A change is still saving — if you sign out now it may be lost.${alsoDirty}`,
+                confirmLabel: 'Sign out', cancelLabel: dirty ? 'Keep editing' : 'Stay signed in', danger: true,
             });
         }
         return !isDirty() || await confirmDialog({
-            message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true,
+            title: 'Sign out without saving?',
+            message: 'You have unsaved changes. If you sign out now they will be lost.',
+            confirmLabel: 'Sign out', cancelLabel: 'Keep editing', danger: true,
         });
     };
 }
@@ -318,15 +370,23 @@ export function rebaseRestoreGuard() {
 /** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed
  *  late, the last time it reloaded for that. Local to this module — one reader, one writer. */
 const LATE_IDENTITY_RELOAD = 'myb_late_identity_reload';
+/** Set once this page load has allowed a reload with sessionStorage unusable — see below. */
+let _reloadAllowedWithoutStorage = false;
 /** Whether a late-identity reload may run now: not within two minutes of the last one. Stamps when it
  *  says yes. sessionStorage (one tab's journey), read directly in a try/catch — iOS private mode throws.
+ *  Where it throws, one reload is still allowed rather than none — but only ONE per page load (review,
+ *  Nov 2026): it said yes to every call, so the cap was no cap at all there. Memory cannot outlive the
+ *  reload it allows, so across loads that tab is bounded only by each load's single late landing.
  *  @param {number} now @returns {boolean} */
 export function lateReloadAllowed(now) {
     try {
         const last = parseInt(sessionStorage.getItem(LATE_IDENTITY_RELOAD) || '0', 10) || 0;
         if (now - last < LATE_RELOAD_GAP_MS) return false;
         sessionStorage.setItem(LATE_IDENTITY_RELOAD, String(now));
-    } catch { /* no sessionStorage: allow the one reload rather than none */ }
+    } catch {
+        if (_reloadAllowedWithoutStorage) return false;
+        _reloadAllowedWithoutStorage = true;
+    }
     return true;
 }
 /** Two minutes: longer than any start-up stall plus the SDK's own 30s lookup timeout, so a second
@@ -338,30 +398,41 @@ function sessionName(raw) {
     try { return (raw && JSON.parse(raw)?.name) || null; } catch { return null; }
 }
 
+/** What the shared sign-in says once this page has signed the member out on this device. */
+export const SIGNED_OUT_NOTICE = 'You’ve been signed out on this device. Sign in again to carry on.';
+
 /**
  * Once the page's own Firebase session settles: sign in again now if it could not be confirmed, and
  * again later if the account goes mid-visit.
  * @param {{ page: string, pageLabel: string, member: string, established: Promise<any>|any,
- *           signIn?: () => void }} opts
- *        `signIn` defaults to the shared in-place sign-in, reloading on success.
+ *           signIn?: () => void, about?: import('./login-overlay.js').LoginAbout|null }} opts
+ *        `signIn` defaults to the shared in-place sign-in, reloading on success. That card is FOR
+ *        `member` (their grade and name chosen, the password next) and, once this page has cleared the
+ *        session, says so (`SIGNED_OUT_NOTICE`): a blank card asking for grade and name again read like
+ *        a fault (review, Nov 2026). `about` is what it says the page is, for a page whose card at load
+ *        carries one (Trains). A page that passes its own `signIn` words its own card.
  * @returns {Promise<void>}
  */
-export function guardNamedSession({ page, pageLabel, member, established, signIn }) {
+export function guardNamedSession({ page, pageLabel, member, established, signIn, about = null }) {
     // Loaded on demand: the Calendar and the Pay Calculator import this module for the sign-out
     // routines and never call this one, and the sign-in is 44 KB they would otherwise load at start.
     // Every page that DOES call it already has the module (it shows its own sign-in at load).
-    const showSignIn = signIn ?? (() => import('./login-overlay.js')
-        .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, onSuccess: () => window.location.reload() }))
-        .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }));
+    /** @type {(signedOut: boolean) => void} */
+    const showSignIn = signIn ? () => signIn() : (signedOut) => { import('./login-overlay.js')
+        .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, about, presetName: member,
+            notice: signedOut ? SIGNED_OUT_NOTICE : '', onSuccess: () => window.location.reload() }))
+        .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }); };
     // The sign-in waits for the reset's history step to land (v25.06): it pushes an entry of its own.
     // This device's push record goes FIRST, as at every other end of a member's hold (audit A1) — never
     // awaited, so the sign-in does not wait on it. The identity has usually gone already (that is why
     // the sign-in is back), so the release drops the browser subscription and the next send's 410
     // deletes the record — as on the Calendar after a reset refusal.
-    const relogin = () => { releasePushForEndingHold(); clearSession(); resetNavPanel(); whenHistorySettled(showSignIn); };
-    // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means
-    // Firebase's start-up stalled past its bound (`terminalAuthEvent`, session.js): the member has not
-    // been refused, the network has not answered. Keep the local session and the drawer, show the
+    const relogin = () => { releasePushForEndingHold(); clearSession(); resetNavPanel(); whenHistorySettled(() => showSignIn(true)); };
+    // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means the
+    // sign-in reached no answer — Firebase's start-up stalled past its bound, or the attempt failed
+    // transiently: a network error, the reset check unavailable, a rate limit, Firebase's internal
+    // error, a shed that failed (`terminalAuthEvent`, session.js). The member has not been refused, so
+    // the card does not say they were signed out. Keep the local session and the drawer, show the
     // sign-in — which can also sign them in, if they would rather not wait — and if the identity
     // this page belongs to lands late, reload into it rather than leave a page whose writes would fail.
     // ONE automatic reload per two minutes (24-hour review). On a connection that accepts and never
@@ -369,7 +440,7 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
     // identity "lands late" on EVERY load, and an uncapped reload was a loop with the sign-in
     // flashing inside it. After the one reload the overlay stays, and it can still sign them in.
     const holdForLateIdentity = () => {
-        showSignIn();
+        showSignIn(false);
         const email = nameToEmail(member);
         const stop = onAuthStateChanged(auth, (/** @type {any} */ user) => {
             if (!user || user.isAnonymous || user.email !== email) return;

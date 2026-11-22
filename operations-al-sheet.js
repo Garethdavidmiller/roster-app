@@ -162,7 +162,8 @@ export function initAlSheetCard(opts = {}) {
     });
 
     clearBtn.addEventListener('click', async () => {
-        if (alSaveUnsaved() && !(await confirmDialog({ message: SAVE_WORDS.clearAsk, confirmLabel: 'Clear' }))) return;
+        if (alSaveUnsaved() && !(await confirmDialog({ title: SAVE_WORDS.clearTitle, message: SAVE_WORDS.clearAsk,
+            confirmLabel: 'Clear', cancelLabel: 'Keep the check', danger: true }))) return;
         forgetReview();
         fresh();
         dropFile();

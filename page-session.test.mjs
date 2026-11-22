@@ -12,6 +12,7 @@
 
 import { test, describe, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 /** Everything the module did, in order. @type {string[]} */
 let log = [];
@@ -38,10 +39,14 @@ mock.module('./auth-state.js', { namedExports: { getAuthSnapshot: () => ({}) } }
 mock.module('./claim-retry.js', { namedExports: { watchIdentityLoss: (/** @type {any} */ a) => { log.push('watch'); watchArgs = a; return () => {}; } } });
 mock.module('./nav-panel.js', { namedExports: { resetNavPanel: () => log.push('resetNavPanel') } });
 let lastConfirm = '';
+/** The whole of the last question asked — title, buttons and danger as well as the message. @type {any} */
+let lastAsked = null;
 let inFlight = 0;
-mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { log.push('confirm'); lastConfirm = o.message; return confirmAnswer; }, whenHistorySettled: (/** @type {() => void} */ fn) => fn() } });
+mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { log.push('confirm'); lastConfirm = o.message; lastAsked = o; return confirmAnswer; }, whenHistorySettled: (/** @type {() => void} */ fn) => fn() } });
 mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight } });
-mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => log.push(`login:${o.pageLabel}`) } });
+/** What the shared sign-in was last opened with — RECORDED, so a test can say what the card was told. @type {any} */
+let lastLoginOpts = null;
+mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => { lastLoginOpts = o; log.push(`login:${o.pageLabel}`); } } });
 
 /** sessionStorage for the late-identity reload cap. @type {Map<string,string>} */
 const ss = new Map();
@@ -84,7 +89,7 @@ const settle = async () => {
     for (let i = 0; i < 100 && !log.some(e => e.startsWith('login:')); i++) await new Promise(r => setTimeout(r, 20));
 };
 
-beforeEach(() => { ss.clear(); ls.clear(); docListeners = {}; /** @type {any} */ (global.document).visibilityState = 'visible'; authCb = null; inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
+beforeEach(() => { lastLoginOpts = null; ss.clear(); ls.clear(); docListeners = {}; /** @type {any} */ (global.document).visibilityState = 'visible'; authCb = null; inFlight = 0; lastConfirm = ''; lastAsked = null; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
 
 describe('guardNamedSession', () => {
     test('an unconfirmed own session: clear, tear down the drawer, THEN the sign-in — and no watch', async () => {
@@ -152,6 +157,65 @@ describe('guardNamedSession', () => {
         assert.equal(ps.lateReloadAllowed(Date.now() + ps.LATE_RELOAD_GAP_MS + 1), true, 'and the cap lifts after the gap');
     });
 
+    test('with sessionStorage THROWING (iOS private mode), one reload per page load still — never one per call (review, Nov 2026)', async () => {
+        // A fresh module instance: a page load is what the in-memory fallback lasts for.
+        const fresh = await import('./page-session.js?storage-throws');
+        const real = global.sessionStorage;
+        const refuse = () => { const e = new Error('The operation is insecure.'); e.name = 'SecurityError'; throw e; };
+        global.sessionStorage = /** @type {any} */ ({ getItem: refuse, setItem: refuse });
+        try {
+            const now = Date.now();
+            assert.equal(fresh.lateReloadAllowed(now), true, 'the one reload is still allowed rather than none');
+            assert.equal(fresh.lateReloadAllowed(now + 1), false, 'a second reload on the same load — the loop the cap exists to stop');
+            assert.equal(fresh.lateReloadAllowed(now + fresh.LATE_RELOAD_GAP_MS + 1), false, 'without storage the gap cannot be measured, so it never lifts on this load');
+        } finally { global.sessionStorage = real; }
+    });
+
+    test('the shared sign-in after a LOST session names the member and says they were signed out (review, Nov 2026)', async () => {
+        // It said nothing and asked for grade and name again, which read like a fault rather than a sign-out.
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: true });
+        currentUser = null;
+        watchArgs.onLost();
+        await settle();
+        assert.equal(lastLoginOpts?.presetName, 'A. Member', 'the card was not for the member it lost');
+        assert.equal(lastLoginOpts?.notice, ps.SIGNED_OUT_NOTICE, 'the card did not say why it was up');
+        assert.equal(ps.SIGNED_OUT_NOTICE, 'You’ve been signed out on this device. Sign in again to carry on.');
+        assert.equal(lastLoginOpts?.about, null, 'a page that passes no `about` gets none');
+    });
+
+    test('…and so does one that could not be confirmed at load, which is cleared too', async () => {
+        decision = 'login';
+        await ps.guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: 'A. Member', established: Promise.resolve() });
+        await settle();
+        assert.equal(lastLoginOpts?.presetName, 'A. Member');
+        assert.equal(lastLoginOpts?.notice, ps.SIGNED_OUT_NOTICE);
+    });
+
+    test('…but an UNDECIDED session, which is kept, is not told it was signed out — only who the card is for', async () => {
+        decision = 'pending';
+        await ps.guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: 'A. Member', established: false });
+        await settle();
+        assert.equal(lastLoginOpts?.presetName, 'A. Member');
+        assert.equal(lastLoginOpts?.notice, '', 'a slow network was described as a sign-out');
+    });
+
+    test('a page whose own card explains it (Trains) has the same explanation on the card a lost session gets', async () => {
+        const about = { lines: ['What this page is.'] };
+        decision = 'login';
+        await ps.guardNamedSession({ page: 'trains', pageLabel: 'Trains', member: 'A. Member', established: null, about });
+        await settle();
+        assert.equal(lastLoginOpts?.about, about);
+    });
+
+    test('…and Trains is WIRED to pass it: the explanation its card at load carries (the wiring, read from source)', async () => {
+        // The rule above is the helper's; this is the call site. Without `about` a member who lost their
+        // session mid-visit met a card without the staff PIN's way in that the page's own card offers.
+        const { readFileSync } = await import('node:fs');
+        const src = readFileSync(new URL('./trains-app.js', import.meta.url), 'utf8');
+        assert.match(src, /initLoginOverlay\(\{[^}]*about: SIGN_IN_ABOUT/, 'premise: the card at load explains the page');
+        assert.match(src, /guardNamedSession\(\{[^}]*about: SIGN_IN_ABOUT/, 'the card a lost session gets does not say what the page is');
+    });
+
     test('a page with its own sign-in (Admin) gets that, not the shared one', async () => {
         decision = 'login';
         await ps.guardNamedSession({ page: 'admin', pageLabel: 'Admin', member: 'A. Member', established: null,
@@ -182,6 +246,9 @@ describe('signing out', () => {
         confirmAnswer = true;
         assert.equal(await ps.askBeforeSignOut(() => true)(), true);
         assert.deepEqual(log, ['confirm', 'confirm'], 'asking clears nothing — the drawer releases only after a yes');
+        // It says the work is lost, under a title of its own (confirm review, Nov 2026).
+        assert.deepEqual({ ...lastAsked }, { title: 'Sign out without saving?', message: 'You have unsaved changes. If you sign out now they will be lost.',
+            confirmLabel: 'Sign out', cancelLabel: 'Keep editing', danger: true });
     });
 
     test('a save still on its way is asked about, even with nothing unsaved on screen (v24.56)', async () => {
@@ -190,8 +257,11 @@ describe('signing out', () => {
         assert.equal(await ps.askBeforeSignOut(() => false)(), false, 'a Cancel keeps the session so the save can land');
         assert.match(lastConfirm, /A change is still saving — if you sign out now it may be lost/);
         assert.doesNotMatch(lastConfirm, /unsaved/);
+        assert.equal(lastAsked.title, 'Sign out now?');
+        assert.equal(lastAsked.cancelLabel, 'Stay signed in', 'nothing is being edited, so nothing to keep editing');
         await ps.askBeforeSignOut(() => true)();
-        assert.match(lastConfirm, /unsaved changes/, 'with both, the one question names both');
+        assert.match(lastConfirm, /unsaved changes on this page will be lost too/, 'with both, the one question names both');
+        assert.equal(lastAsked.cancelLabel, 'Keep editing');
     });
 
     test('the browser\'s "Leave site?" asks only while there is unsaved work', () => {
@@ -419,7 +489,7 @@ describe('leaving by a drawer or About-panel link (askBeforeLeavingByDrawer)', (
         assert.equal(tapOn({ href: './' }).prevented, true, 'held while the question is open');
         await answered();
         assert.deepEqual(log, ['confirm'], 'Cancel: the page and its work stay');
-        assert.match(lastConfirm, /unsaved changes\. Leave this page anyway\?/);
+        assert.deepEqual({ ...lastAsked }, { ...fresh.LEAVE_QUESTION }, 'the one leave question');
         log = []; confirmAnswer = true;
         tapOn({ href: './staff-guide.html?from=admin.html' });
         await answered();
@@ -491,12 +561,35 @@ describe('leaving by one control (leaveAfterAsking) — the Operations header lo
         confirmAnswer = false;
         await fresh.leaveAfterAsking(() => true, () => log.push('go'));
         assert.deepEqual(log, ['confirm'], 'Cancel: the page and its work stay');
-        assert.match(lastConfirm, /unsaved changes\. Leave this page anyway\?/, 'the drawer\'s own question');
+        assert.deepEqual({ ...lastAsked }, { ...fresh.LEAVE_QUESTION }, 'the drawer\'s own question');
         assert.equal(ask(), true, 'still unsaved, still asked about');
         log = []; confirmAnswer = true;
         await fresh.leaveAfterAsking(() => true, () => log.push('go'));
         assert.deepEqual(log, ['confirm', 'go']);
         assert.equal(ask(), false, 'answered: the unload warning stands aside, as it does for the drawer');
+    });
+
+    test('the leave question says the work is lost, and is asked as a destructive one (confirm review, Nov 2026)', () => {
+        // "Leave" deletes the draft (`keepDraftWhenHidden`), so the question may not read as if the work comes back.
+        assert.deepEqual({ ...ps.LEAVE_QUESTION }, { title: 'Leave without saving?', message: 'Your unsaved changes on this page will be lost.',
+            confirmLabel: 'Leave without saving', cancelLabel: 'Keep editing', danger: true });
+    });
+
+    test('a leave answered ELSEWHERE (a notification\'s Open it) stands the browser\'s question and the draft aside', async () => {
+        const fresh = await import('./page-session.js?answered-elsewhere');
+        listeners = {}; docListeners = {};
+        fresh.warnOnUnload(() => true);
+        fresh.keepDraftWhenHidden(() => true, { keep: () => log.push('keep'), forget: () => log.push('forget') });
+        assert.equal(ask(), true, 'premise: unsaved work is asked about');
+        assert.equal((listeners[fresh.LEAVE_ANSWERED] ?? []).length, 1, 'listened for once, however many routines need it');
+        fire(fresh.LEAVE_ANSWERED);
+        assert.equal(ask(), false, 'the browser does not ask a second time');
+        fire('pagehide');
+        assert.deepEqual(log, ['forget'], 'and no draft is kept of the work left behind');
+        // sw-register.js sends it by name (it may not import this module), so the two spellings are one.
+        const sw = readFileSync(new URL('./sw-register.js', import.meta.url), 'utf8');
+        assert.ok(sw.includes(`window.dispatchEvent(new Event('${fresh.LEAVE_ANSWERED}'))`),
+            'sw-register.js no longer announces an answered notification question by the name this module listens for');
     });
 
     test('with nothing unsaved it simply goes, asking nothing', async () => {

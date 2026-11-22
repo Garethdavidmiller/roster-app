@@ -2,9 +2,13 @@
 /**
  * generate-roster-members.mjs — derive functions/roster-members.json from roster-data.js.
  *
- * The Cloud Function (functions/index.js) reads functions/roster-members.json to tell
- * the AI which names to look for in a PDF roster. This script generates that file from
- * the authoritative teamMembers array in roster-data.js so they stay in sync.
+ * functions/roster-members.json is the SERVER's copy of the roster, and above all its AUTHORISATION
+ * source: setupRosterAuth provisions exactly `activeMembers` plus the `roles` lists, stamps the claim
+ * tiers from `roles`, and sweeps every other roster account as a leaver; resetMemberPassword and the
+ * reset request refuse any name not on it; and getAccountSetupGaps audits against it. It also tells
+ * parseRosterPDF which names to look for (`cea`/`ces`/`dispatcher`) and carries the Overtime roster.
+ * None of it comes from a request body (B4). This script generates it from teamMembers and CONFIG in
+ * roster-data.js so the two stay in sync — and a Functions deploy is what puts a change into effect.
  *
  * Run after adding or removing a staff member:
  *   node scripts/generate-roster-members.mjs
@@ -29,10 +33,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
  * @returns {Record<string, unknown>}
  */
 export function buildRosterMembers() {
-    // activeMembers mirrors admin-auth.js's ACTIVE_MEMBERS EXACTLY — the same four getMembersForGrade
-    // calls in the same order. Do NOT re-derive it with a plain `!m.hidden` filter: managers carry
+    // activeMembers is every member who can sign in: the same four getMembersForGrade groups the login
+    // overlays offer, in the same order. Do NOT re-derive it with a plain `!m.hidden` filter: managers carry
     // `hidden: true` by convention and are selected by managerOnly, so a naive filter would drop every one
-    // (and orphan-removal would then disable them). Using getMembersForGrade guarantees parity (B4).
+    // (and orphan-removal would then disable them). Using getMembersForGrade keeps the sign-in lists and
+    // the server's provisioned set one list (B4).
     const activeMembers = [
         ...getMembersForGrade('CEA'),
         ...getMembersForGrade('CES'),

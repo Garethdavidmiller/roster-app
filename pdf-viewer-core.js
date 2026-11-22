@@ -154,6 +154,17 @@ export const FAILURE_TEXT = Object.freeze({
 });
 
 /**
+ * What the failure's one button DOES, by kind (lightbox review R5-11, 22 Nov 2026). A file that has GONE from the pack
+ * answers 404 at the same address every time, so "Try again" fetched the missing file again while the words above it
+ * said to reload the page: for `gone` the button reloads the page, and says so. The other two retry the file.
+ * @param {'connection'|'gone'|'broken'} kind
+ * @returns {{ label: string, reload: boolean }}
+ */
+export function failureAction(kind) {
+    return kind === 'gone' ? { label: 'Reload the page', reload: true } : { label: 'Try again', reload: false };
+}
+
+/**
  * What a page says in its own box when the file opened but that page could not be drawn — PDF.js refused it, or the
  * browser gave its canvas no memory to draw in. Its button tries that page again (external review, 10 Nov 2026).
  */

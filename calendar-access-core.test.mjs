@@ -158,13 +158,16 @@ describe('classifyUnlockFailure — the words a member reads', () => {
             const f = classifyUnlockFailure({ status });
             assert.equal(f.kind, 'rejected');
             assert.match(f.message, /not recognised/i);
-            assert.equal(f.retryable, true);
         }
     });
 
-    test('429 says too many attempts and reveals NO limit internals', () => {
+    test('429 says the PIN is paused, offers the sign-in, and reveals NO limit internals', () => {
         const f = classifyUnlockFailure({ status: 429 });
         assert.equal(f.kind, 'throttled');
+        // Why it stopped, and the way in that is not behind the limit: the server's window can pause
+        // the PIN for somebody who typed nothing wrong, and a member's own password still works.
+        assert.match(f.message, /paused after too many wrong entries/);
+        assert.match(f.message, /or sign in instead/);
         // No count, no window, no threshold — those are the numbers an automated traversal would
         // use to pace itself just under the limit.
         assert.equal(/\d/.test(f.message), false, `leaked a number: ${f.message}`);
@@ -178,16 +181,29 @@ describe('classifyUnlockFailure — the words a member reads', () => {
         assert.doesNotMatch(f.message, /not recognised/i);
     });
 
+    test('a failure on the app\'s side says who to tell when it repeats — the server\'s, and a sign-in after a correct PIN', () => {
+        for (const c of [{ status: 500 }, { status: 503 }, { code: 'missing-claim' }, { code: 'auth/network-request-failed' }]) {
+            assert.equal(classifyUnlockFailure(c).message,
+                'Calendar couldn’t be unlocked. Try again shortly — if it keeps happening, tell the admin.', JSON.stringify(c));
+        }
+    });
+
     test('no status at all is a transport failure, not a rejection', () => {
         const f = classifyUnlockFailure({ status: null });
         assert.equal(f.kind, 'network');
         assert.match(f.message, /connection/i);
+        assert.doesNotMatch(f.message, /admin/, 'a dropped connection is not the admin\'s to fix');
     });
 
-    test('every branch is retryable — there is no dead end', () => {
+    test('there is no `retryable` flag: every failure is retried by pressing the button again, so nothing read it', () => {
         const cases = [{ offline: true }, { status: 429 }, { status: 401 }, { status: 500 },
                        { status: null }, { code: 'x' }, {}];
-        for (const c of cases) assert.equal(classifyUnlockFailure(c).retryable, true, JSON.stringify(c));
+        for (const c of cases) assert.deepEqual(Object.keys(classifyUnlockFailure(c)).sort(), ['kind', 'message'], JSON.stringify(c));
+    });
+
+    test('the words use the curly apostrophe, never the straight one', () => {
+        const cases = [{ offline: true }, { status: 429 }, { status: 401 }, { status: 500 }, { status: null }, { code: 'x' }];
+        for (const c of cases) assert.doesNotMatch(classifyUnlockFailure(c).message, /'/, JSON.stringify(c));
     });
 
     test('no branch ever echoes a PIN — there is nowhere for one to enter', () => {

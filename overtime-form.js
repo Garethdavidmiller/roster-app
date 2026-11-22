@@ -746,9 +746,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * only, so Submit (and the dirty-guard on leaving) still stand between this and the server.
      */
     async function onAllUnavailable() {
+        const sendWord = baseRevision ? 'Save changes' : 'Submit availability';   // the button's own words (Nov 2026)
         const ok = await confirmDialog({
             title: 'Not available all week?',
-            message: 'This fills all seven days as \u201cNot available\u201d. Nothing is sent until you press Submit.',
+            message: `This fills all seven days as \u201cNot available\u201d. Nothing is sent until you press ${sendWord}.`,
             confirmLabel: 'Fill all seven days',
         });
         if (!ok) return;
@@ -757,7 +758,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         for (const d of dates) answers[d] = withMode(answers[d], 'unavailable', ctx.byDate[d]);
         paintDays();
         updateSubmitState();
-        say('All seven days set to Not available — press Submit to send your answer.', 'ok');
+        say(`All seven days set to Not available — press ${sendWord} to send your answer.`, 'ok');
     }
 
     // ── Submit ──────────────────────────────────────────────────────────────────────────────────

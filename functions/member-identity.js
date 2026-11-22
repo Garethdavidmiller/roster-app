@@ -49,9 +49,10 @@ function memberNameFromClaims(claims) {
 
 /**
  * Whether an existing account at a roster email must be TAKEN BACK before its claims are stamped
- * (v24.24): only when it carries NO custom claim. Only the Admin SDK or the console can set one, so
- * any claim means this server or an admin touched it. Not `name`: that would also reset an admin
- * given `{ admin: true }` by hand — the recovery admin-auth.js suggests — mid-click. Lives here
+ * (v24.24): only when it carries NO custom claim. Only the Admin SDK can set one — the Firebase console
+ * has no field for it — so any claim means this server or an admin's own script touched it. Not `name`:
+ * that would also reset an admin given `{ admin: true }` by hand — the recovery RECOVERY_RUNBOOK.md →
+ * "Restoring a lost admin claim" describes, which admin-auth.js points to — mid-click. Lives here
  * beside the claim it protects; setupRosterAuth (auth-endpoints.js) is the caller.
  * @param {{ customClaims?: Record<string, any>|null }} user
  * @returns {boolean}

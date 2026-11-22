@@ -409,6 +409,65 @@ what a passing Hosting run released, through `deploy-mirror.yml`.
 4. When service returns, spot-check a write (save a test override and confirm it sticks) and
    re-run the deployment health checks.
 
+### J. Restoring a lost admin claim
+
+**Symptom:** Operations → Staff Login Accounts says *"Your account is missing the admin claim"*, or
+every admin action answers 403 "admin claim required". The admin can still sign in; the account
+has lost `admin: true`, which only `setupRosterAuth` stamps — and that endpoint itself needs it.
+
+**The Firebase console cannot fix this.** It can disable, delete and re-password an account, but it
+has no field for a custom claim; only the Admin SDK can set one.
+
+1. **First find out why, or it comes straight back.** Set up accounts stamps the tiers from the
+   DEPLOYED `functions/roster-members.json`. Check the name is in `CONFIG.ADMIN_NAMES`
+   (`roster-data.js`) **and** in `roles.admin` there. If it is not, fix the roster, run
+   `npm run generate:roster-members`, and wait for Deploy Firebase Functions — otherwise the next
+   Set up accounts run takes `admin` away again and signs the account out.
+2. **If another account still holds the claim**, sign in as it and press **Set up accounts**. Done —
+   no script.
+3. **Otherwise, a one-off Admin SDK script, run on your own computer.** You need the Google Cloud
+   CLI, signed in for Application Default Credentials as an account with Firebase Authentication
+   Admin (or Owner) on `myb-roster`, and `functions/node_modules` installed (`cd functions && npm ci`):
+   ```
+   gcloud auth application-default login
+   node -e "console.log(require('./functions/roster-parse-helpers').nameToEmail('X. Surname'))"
+   ```
+   The second line prints the account address the app derives from the name, exactly as
+   `nameToEmail` does. Save this **outside the repository** — it must never be committed — with your
+   own name and that address in place of the placeholders:
+   ```js
+   // restore-admin-claim.cjs — one-off. Never commit it.
+   const { initializeApp, applicationDefault } = require('firebase-admin/app');
+   const { getAuth } = require('firebase-admin/auth');
+
+   const NAME  = 'X. Surname';                   // exactly as written in CONFIG.ADMIN_NAMES
+   const EMAIL = 'x.surname@myb-roster.local';   // what the nameToEmail line printed
+
+   initializeApp({ credential: applicationDefault(), projectId: 'myb-roster' });
+   (async () => {
+       const user = await getAuth().getUserByEmail(EMAIL);
+       const existing = user.customClaims || {};
+       if (existing.member && existing.member !== NAME) throw new Error(`claimed for ${existing.member} — stop`);
+       if (existing.calendarViewer) throw new Error('this is the shared staff PIN account — stop');
+       // The admin tier exactly as claimsForTier stamps it: name and member, admin, and never manager beside it.
+       const { manager, ...kept } = existing;   // linksDesigner, if held, is kept
+       const claims = { ...kept, name: NAME, member: NAME, admin: true };
+       await getAuth().setCustomUserClaims(user.uid, claims);
+       console.log('was', existing, '\nnow', claims);
+   })().catch((e) => { console.error(e.message); process.exitCode = 1; });
+   ```
+   Run it with the repository's own copy of the SDK:
+   ```
+   NODE_PATH=<path to the repository>/functions/node_modules node restore-admin-claim.cjs
+   ```
+   `name` and `member` must both equal the roster name: the Firestore rules and every member
+   endpoint believe a name only beside a `member` claim that matches it (AUTH_AND_SESSIONS.md).
+   An account that already carries a claim is never taken back by Set up accounts (`mustReclaim`,
+   `functions/member-identity.js`), so the claim set here is not undone as an outsider's.
+4. **Sign out of the app and back in**, so the device's token carries the new claim, then press
+   **Set up accounts** once: it re-stamps every tier from the roster, this one included, and its
+   audit line should read clean. Delete the script.
+
 ---
 
 ## Restore from an export or backup (the last resort)
@@ -449,6 +508,7 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 | Bad Functions deploy | `git revert` + push; only if Actions is down, `firebase deploy --only functions` from a pulled checkout of `main` with the revert | git / CLI |
 | Bad Rules deploy | Console → Rules → Rollback to the previous version (seconds) — never past v24.23 | Firebase Console |
 | Members denied everywhere after a claims change | Set up accounts (read its ❌ Failed and 🔁 Reset lines + audit), then wait ≤1h or bump `CLAIM_EPOCH` — not a rules rollback | Operations |
+| The admin lost the admin claim | Playbook J — the console cannot set a claim; another admin's Set up accounts, or a one-off Admin SDK script | local + Operations |
 | Broken live site | Revert the commit (reaches both origins); Console → Hosting → Rollback fixes `web.app` only | git + Firebase Console |
 | Hosting infra down | Point staff at the `/roster-app/` GitHub mirror | — |
 | Everything failing at once | Check status pages; wait; don't redeploy | status.firebase.google.com |

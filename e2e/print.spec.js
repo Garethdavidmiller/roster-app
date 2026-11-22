@@ -369,6 +369,53 @@ test('About: a double tap on Print prints once @print', async ({ page }) => {
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__prints), { message: 'the next opening prints too' }).toBe(2);
 });
 
+// THE PRINT BUTTON'S EMOJI STAYS DECORATIVE (lightbox review, 22 Nov 2026). The Calendar's About relabels its Print
+// button for the view on screen, and it did so with `textContent`, which wiped the markup's aria-hidden emoji span on
+// the first open: a screen reader then said "printer, Print this calendar". The accessible name is the words alone.
+test('About: the Print button\'s emoji stays hidden from a screen reader, in both views @print', async ({ page }) => {
+    await seedMemberSession(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    const btn = page.locator('#lightboxPrintBtn');
+    for (const [view, words, hint] of [['the month', 'Print this calendar', 'Prints the current month’s calendar'],
+                                       ['Team Week View', 'Print this week’s roster', /A4 landscape/]]) {
+        if (view === 'Team Week View') await page.locator('#teamViewBtn').click();
+        await page.locator('.title-icon').first().click();
+        await expect(page.locator('#iconLightbox')).toHaveClass(/\bopen\b/);
+        await expect(btn, `${view}: the button's name is its words, without the emoji's`).toHaveAccessibleName(words);
+        await expect(btn.locator('span[aria-hidden="true"]'), `${view}: the emoji keeps its own hidden span`).toHaveText('🖨️');
+        await expect(page.locator('#lightboxPrintHint')).toHaveText(hint);
+        await page.locator('#iconLightboxClose').click();
+        await expect(page.locator('#iconLightbox')).not.toHaveClass(/\bopen\b/);
+    }
+});
+
+// PRINT WAITS FOR THE CLOSE, NOT A CLOCK (lightbox review R1-11, 22 Nov 2026). About's Print waited a fixed 500 ms
+// for the panel's fade, so under reduced motion — where the close finishes at once — it still kept the reader waiting
+// half a second. It waits on `close()`'s promise now: the fade and the Back echo, and no longer than they take. And it
+// still prints only once the panel has gone, so the panel is never on the paper.
+test('About: under reduced motion Print prints as soon as the panel has gone @print', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__printed = null;
+        window.print = () => {
+            const lb = /** @type {HTMLElement} */ (document.getElementById('iconLightbox'));
+            w.__printed = { after: performance.now() - w.__tapped, panelUp: lb.classList.contains('visible') };
+        };
+    });
+    await seedMemberSession(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await page.locator('.title-icon').first().click();
+    await expect(page.locator('#iconLightbox')).toHaveClass(/\bopen\b/);
+    await page.locator('#lightboxPrintBtn').evaluate(b => { /** @type {any} */ (window).__tapped = performance.now(); /** @type {HTMLElement} */ (b).click(); });
+    await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__printed)).not.toBeNull();
+    const printed = await page.evaluate(() => /** @type {any} */ (window).__printed);
+    expect(printed.panelUp, 'it printed with the panel still on the page').toBe(false);
+    expect(printed.after, `it waited ${Math.round(printed.after)} ms for a close that had already finished`).toBeLessThan(400);
+});
+
 // ── THE PRINT BUTTON PRINTS WHAT IS ON SCREEN (v23.27) ──────────────────────────────────────────
 // The prepare used to un-hide every card the finder had filtered out, so a traveller looking at one
 // country got the whole guide — 25 pages, at a station, before a trip. Opening a collapsed card is
@@ -503,7 +550,7 @@ test('printing with a lightbox open prints the whole page, and not the lightbox 
     await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
     await seedSession(page, 'G. Miller');
     for (const [url, ready, open, panel] of /** @type {Array<[string, string, string, string]>} */ ([
-        ['/paycalc.html', '.ty-tab.active', '.help-btn', '#helpLightbox'],
+        ['/paycalc.html', '.ty-tab.active', '.help-btn', '#tipsLightbox'],
         ['/trains.html', '.btn-card-tips', '.btn-card-tips', '#tipsLightbox'],
     ])) {
         await page.goto(url);
@@ -823,7 +870,7 @@ test('a month drawn from this device\'s cache keeps its "Saved copy" label on pa
 
     const label = await printedLabel(page, '.calendar-stale-note');
     expect(label?.shown, 'the sheet says the month is a saved copy').toBe(true);
-    expect(label?.words).toBe('Saved copy — couldn\'t check for changes');
+    expect(label?.words).toBe('Saved copy — couldn’t check for changes');
     expect(label?.retryShown, 'a button paper cannot press is left off').toBe(false);
 });
 

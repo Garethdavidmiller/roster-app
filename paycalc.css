@@ -390,46 +390,11 @@
     margin-bottom: 12px; line-height: 1.5;
   }
 
-  /* ── HELP LIGHTBOX ── an .lb-overlay, raised for this page */
-  #helpLightbox { z-index: var(--z-notice); }
-  /* One width at every size, the Tips' own (css-tokens.md has three, and no fourth); a see-through
-     glass sheet, so the glass family's corner. */
-  #helpLightboxContent {
-    background: var(--on-navy-raised);
-    border: 1px solid var(--on-navy-raised-strong);
-    border-radius: var(--radius-panel);
-    padding: 28px 24px 24px;
-    width: min(var(--modal-standard), var(--modal-cap));
-    max-height: 78vh;
-    max-height: 78dvh;
-  }
-  .help-lightbox-title {
-    color: white; font-size: var(--type-large); font-weight: 700;   /* the unified overlay title */
-    margin-bottom: 14px; padding-right: 22px; line-height: 1.3;
-  }
-  .help-lightbox-list {
-    list-style: none; padding: 0; margin: 0;
-  }
-  .help-lightbox-list li {
-    color: var(--on-navy-muted);
-    font-size: var(--type-label); line-height: 1.6;
-    padding: 7px 0 7px 18px;
-    border-bottom: 1px solid var(--on-navy-hairline);
-    position: relative;
-  }
-  .help-lightbox-list li:last-child { border-bottom: none; padding-bottom: 0; }
-  .help-lightbox-list li::before {
-    content: '·'; position: absolute; left: 0; top: 7px;
-    color: var(--accent-gold); font-weight: 800; font-size: var(--type-medium); line-height: 1.3;
-  }
-  .help-lightbox-list strong { color: rgba(255,255,255,0.92); font-weight: 700; }
-  #helpLightboxClose { color: var(--on-navy-faint); }
-  #helpLightboxClose:active { color: white; }
-  @media (hover: hover) and (pointer: fine) {
-    #helpLightboxClose:hover { color: white; }
-  }
-  /* On the dark glass the navy fallback ring measured 1.17:1: the gold every ✕ on a navy sheet wears. */
-  #helpLightboxClose:focus-visible { outline: var(--focus-outline-gold); outline-offset: 2px; }
+  /* ── THE ? PANELS ── the shared Tips panel (#tipsLightbox, shared.css → "Tips lightbox content"),
+     raised for this page as the sheet it replaced was. Pay drew its own see-through glass sheet of bullet
+     lists until Nov 2026 — the one `?` in the app the page showed through behind (owner-approved). Its
+     look is the shared one; nothing of it is restated here. */
+  #tipsLightbox { z-index: var(--z-notice); }
 
   /* ── SHOW MORE / HOURS EXTRA ── */
     .show-more-btn {
@@ -1167,7 +1132,7 @@
          chrome and the occasional cards. The no-special-rate-hours tick prints only as a fact, when
          ticked: its teaching line and the unticked row are for the screen. */
       .lb-overlay,
-      #iconLightbox, #helpLightbox, .setup-banner, .period-controls, .save-row,
+      #iconLightbox, #tipsLightbox, .setup-banner, .period-controls, .save-row,
       #saveSettingsBtn, #actualsImportBtn, .settings-save-feedback,
       .bd-btn, .show-more-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #payslipCard, #hppCard, #backPayCard, #backPayCardToggle, #decimalConverterCard,

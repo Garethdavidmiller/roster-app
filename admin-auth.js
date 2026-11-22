@@ -87,14 +87,26 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
     // from the result that two colleagues had been put back on their surname. A wrong tier ('claims') only has its
     // permissions corrected. 'unstamped' is the server's word for no permissions at all; an older server sent 'claims'
     // for it, so during a deploy that one still reads as wrong permissions.
+    //
+    // AND TWO IT REFUSES (review D3, Nov 2026). An account at a member's address that is the shared staff PIN account
+    // ('viewer-linked'), or whose permissions name another member ('other-member'), read "wrong permissions — Press Set
+    // up accounts below", and pressing it only reported the refusal. Each now says what Set up accounts says when it
+    // refuses it, and the press is offered only when some gap on the line is one it mends.
     const WHY_TEXT = /** @type {Record<string, string>} */ ({
-        'no-account': 'no account',
-        'claims':     'wrong permissions',
-        'unstamped':  'no permissions',
-        'disabled':   'account disabled',
+        'no-account':    'no account',
+        'claims':        'wrong permissions',
+        'unstamped':     'no permissions',
+        'disabled':      'account disabled',
+        'viewer-linked': 'linked to the staff PIN account',
+        'other-member':  'account claimed for another member',
     });
     /** The reasons Set up accounts answers by resetting the account to the surname default and signing it out. */
     const RESET_BY_SETUP = new Set(['unstamped', 'disabled']);
+    /** The reasons Set up accounts REFUSES, each with its remedy — the server's own (functions/auth-endpoints.js). */
+    const REFUSED_BY_SETUP = /** @type {Record<string, (names: string) => string>} */ ({
+        'viewer-linked': (names) => `${names}: the address is linked to the shared staff PIN account, which Set up accounts will not take over. The next staff PIN unlock clears it — then press Set up accounts.`,
+        'other-member':  (names) => `${names}: the account at that address is claimed for another member, so Set up accounts will not adopt it. Check it in the Firebase console.`,
+    });
 
     /** "A", "A and B", "A, B and C". @param {string[]} names */
     const listed = (names) => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
@@ -195,11 +207,17 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             gapsEl.append(ok);
         } else {
             if (setUp.length) {
-                const resets = setUp.filter(/** @param {any} g */ g => RESET_BY_SETUP.has(g.why)).map(/** @param {any} g */ g => g.name);
+                /** @param {(g: any) => boolean} pick */
+                const namesWhere = (pick) => setUp.filter(pick).map(/** @param {any} g */ g => g.name);
+                const resets = namesWhere(g => RESET_BY_SETUP.has(g.why));
+                const pressMends = namesWhere(g => !(g.why in REFUSED_BY_SETUP)).length > 0;
+                const refusals = Object.entries(REFUSED_BY_SETUP)
+                    .map(([why, remedy]) => ({ names: namesWhere(g => g.why === why), remedy }))
+                    .filter(r => r.names.length).map(r => r.remedy(listed(r.names)));
                 gapsEl.append(gapLine('auth-gap-line',
                     setUp.length === 1 ? 'member is not set up' : 'members are not set up',
                     setUp.map(/** @param {any} g */ g => `${g.name} (${WHY_TEXT[g.why] || g.why})`),
-                    ['Press Set up accounts below.', ...(resets.length ? [resetWarning(resets)] : [])]));
+                    [...(pressMends ? ['Press Set up accounts below.'] : []), ...(resets.length ? [resetWarning(resets)] : []), ...refusals]));
             }
             if (leavers.length) {
                 gapsEl.append(gapLine('auth-gap-line auth-gap-line--leaver',
@@ -264,10 +282,12 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
             // The server (setupRosterAuth) requires the admin custom claim on the caller's
             // token — there is NO unauthenticated bootstrap path. If the claim is missing
             // (e.g. accounts were rebuilt) this call WILL be rejected (403); the claim must
-            // be restored in the Firebase console first. Surface that honestly rather than
-            // implying a bootstrap is in progress.
+            // be restored first, and the Firebase console CANNOT set a custom claim — only the
+            // Admin SDK can, so the procedure is RECOVERY_RUNBOOK.md → "Restoring a lost admin
+            // claim" (review D2, Nov 2026). Surface that honestly rather than implying a
+            // bootstrap is in progress.
             if (!tokenResult.claims.admin) {
-                resultEl.innerHTML = '<p class="auth-result-info"><span aria-hidden="true">⚠️</span> Your account is missing the admin claim, which this setup requires — the server will reject this call. Set the admin claim in the Firebase console, then sign out and back in.</p>';
+                resultEl.innerHTML = '<p class="auth-result-info"><span aria-hidden="true">⚠️</span> Your account is missing the admin claim, which this setup requires — the server will reject this call. The Firebase console cannot restore it: follow “Restoring a lost admin claim” in RECOVERY_RUNBOOK.md, then sign out and back in.</p>';
                 resultEl.classList.add('visible');
                 return;   // without this, the fetch below 403s and the catch overwrites this guidance with a raw error
             }
@@ -309,6 +329,9 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                 }
             };
 
+            /** The last preview's labels by uid — what a confirm's `confirmSkipped` uids are named by. @type {Map<string, string>} */
+            const previewLabels = new Map();
+
             /**
              * Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal.
              * `afterConfirm` APPENDS beneath the first run's report rather than replacing it (whole-app
@@ -319,8 +342,8 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
              */
             const renderResult = (data, afterConfirm = false) => {
                 const { created = [], skipped = [], reclaimed = [], disabled = [], failed = [], demoted = [],
-                        orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [],
-                        disabledLeaverPushRemoved = 0 } = data;
+                        orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [], orphanUids = [],
+                        confirmSkipped = [], notPreviewed = [], disabledLeaverPushRemoved = 0 } = data;
                 const lines = [];
                 if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
                 if (skipped.length && !afterConfirm) lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
@@ -336,6 +359,14 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                 // untouched, so they sign back in as usual — said, because a member signed out unasked will ask why.
                 if (demoted.length)  lines.push(`🔒 Access reduced and signed out of every device (${demoted.length}): ${demoted.join(', ')} — they sign back in with the password they already use`);
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
+                // A confirm disables only what the preview named AND is still a leaver (review D1, Nov 2026;
+                // `sweepAgainstPreview`, functions/account-lifecycle.js). The two it left alone are named.
+                // A server older than that sends neither, and disables every leaver it finds, as before.
+                if (confirmSkipped.length) {
+                    const named = confirmSkipped.map(/** @param {string} uid */ uid => previewLabels.get(uid) || uid);
+                    lines.push(`⏭️ Not disabled — no longer found as a leaver since the preview (${named.length}): ${named.join(', ')}`);
+                }
+                if (notPreviewed.length) lines.push(`⚠️ Not disabled — not in the preview you confirmed (${notPreviewed.length}): ${notPreviewed.join(', ')} — press Set up accounts again with the leavers box ticked to preview them.`);
                 // Leavers disabled on an earlier run whose phones had saved their notification records again (D2).
                 if (disabledLeaverPushRemoved > 0) lines.push(`🔕 Notifications switched off on ${disabledLeaverPushRemoved} device${disabledLeaverPushRemoved !== 1 ? 's' : ''} of leavers disabled earlier`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
@@ -350,6 +381,16 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                 // B4 dry-run: the server previewed which accounts WOULD be disabled — require an
                 // explicit confirm before any account is disabled (no accidental leaver sweeps).
                 if (orphanDryRun) {
+                    // The uids the confirm sends back, so it disables what is listed here and nothing else. Sent
+                    // ALWAYS: a server older than them ignores the field and disables as before, and a preview
+                    // from that server confirmed by a newer one sends none — so it disables nobody and says
+                    // to preview again, rather than every leaver it finds. Misaligned is treated as none.
+                    const aligned = Array.isArray(orphanUids) && orphanUids.length === orphansToDisable.length;
+                    previewLabels.clear();
+                    if (aligned) orphanUids.forEach(/** @param {any} uid @param {number} i */ (uid, i) => {
+                        if (typeof uid === 'string' && uid) previewLabels.set(uid, orphansToDisable[i]);
+                    });
+                    const previewedUids = [...previewLabels.keys()];
                     if (orphansToDisable.length) {
                         const n = orphansToDisable.length;
                         resultEl.insertAdjacentHTML('beforeend',
@@ -361,7 +402,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                             confirmBtn.disabled = true;
                             confirmBtn.textContent = 'Disabling…';
                             try {
-                                renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true }), true);
+                                renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true, confirmUids: previewedUids }), true);
                                 loadGaps().catch(() => {});   // the leavers line above should now clear (loadGaps shows its own failures)
                             } catch (e) {
                                 // Re-enable so a transient/expired-token failure (the dry-run may be

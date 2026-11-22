@@ -64,7 +64,7 @@ function fakeEl(id, tag = 'div') {
         hasAttribute(/** @type {string} */ k) { return k in attrs; },
         removeAttribute(/** @type {string} */ k) { delete attrs[k]; },
         addEventListener(/** @type {string} */ t, /** @type {Function} */ fn) { (listeners[t] ||= []).push(fn); },
-        fire(/** @type {string} */ t) { for (const fn of listeners[t] || []) fn({}); },
+        fire(/** @type {string} */ t, /** @type {any} */ e = {}) { for (const fn of listeners[t] || []) fn(e); },
         replaceChildren(/** @type {any[]} */ ...kids) { el.children = kids; },
         append(/** @type {any[]} */ ...kids) { el.children.push(...kids); },
         appendChild(/** @type {any} */ kid) { el.children.push(kid); return kid; },
@@ -76,7 +76,7 @@ function fakeEl(id, tag = 'div') {
 const els = new Map();
 const byId = (/** @type {string} */ id) => { if (!els.has(id)) els.set(id, fakeEl(id)); return els.get(id); };
 // The could-not-load line keeps its markup's words: the panel reads them once, as it starts.
-byId('alLbError').textContent = 'Couldn\'t load — check your connection';
+byId('alLbError').textContent = 'Couldn’t load — check your connection';
 // …and so does the day panel's change caption.
 byId('dayDetailChangeFrom').textContent = CAPTION_BASE;
 const statsEl = fakeEl(null);
@@ -98,8 +98,17 @@ mock.module('./firebase-client.js', { namedExports: {
 } });
 
 // ── The lightbox lifecycle: open runs onOpen, close runs onClose, nothing else ──────────────────
+/** Every close, in order, and every link click handed to `followLinkOutOf`. @type {string[]} */
+let closes = [];
+/** @type {Array<{ lb: any, e: any }>} */
+let followed = [];
+/** What waits for the close's history echo — run by hand, so a test can see what came first. @type {Array<() => void>} */
+let settleWaiters = [];
 mock.module('./overlay.js', { namedExports: {
-    createLightbox: (/** @type {any} */ { onOpen, onClose }) => ({ open: () => onOpen?.(), close: () => onClose?.() }),
+    createLightbox: (/** @type {any} */ { overlay, onOpen, onClose }) => ({ overlay, open: () => onOpen?.(), close: () => { closes.push(overlay?.id); onClose?.(); } }),
+    // The real ones are overlay-history.test.mjs's; here what matters is that the panels hand them their exits.
+    followLinkOutOf: (/** @type {any} */ lb, /** @type {any} */ e) => { followed.push({ lb, e }); return true; },
+    whenHistorySettled: (/** @type {() => void} */ fn) => { settleWaiters.push(fn); },
 } });
 
 /** The member session.js holds, or null once signed out. @type {{ name: string }|null} */
@@ -134,7 +143,12 @@ const { initCalendarLightboxes } = await import('./calendar-al-lightbox.js');
 onCalendarAccess(({ open }) => { if (!open) clearSnapshot(); });
 /** Team Week View on screen, where the name picker is hidden. */
 let teamViewOn = false;
-const { openDayDetail } = initCalendarLightboxes({ navigateToPaycalc: () => {}, isTeamView: () => teamViewOn });
+/** Every jump the day panel's Pay estimate asked for, with the closes that had happened by then. @type {Array<{ to: string, closedBefore: string[], waitersLeft: number }>} */
+const jumps = [];
+const { openDayDetail } = initCalendarLightboxes({
+    navigateToPaycalc: (payday) => { jumps.push({ to: payday, closedBefore: [...closes], waitersLeft: settleWaiters.length }); },
+    isTeamView: () => teamViewOn,
+});
 
 /** Two invented CEAs on the main line. */
 const PERSON  = Object.freeze({ name: 'A. Person',  role: 'CEA', rosterType: 'main', currentWeek: 1 });
@@ -252,7 +266,7 @@ describe('a year with no allowance says why, and ‹ stops at the member\'s firs
         await answer();
         assert.equal(byId('alLbRemaining').textContent, '—');
         assert.equal(byId('alLbError').hidden, false, 'four dashes and no words');
-        assert.equal(byId('alLbError').textContent, `No allowance for ${THIS_YEAR - 1}: it is before the start date.`);
+        assert.equal(byId('alLbError').textContent, `No allowance for ${THIS_YEAR - 1}: that is before their start date.`);
     });
 
     test('a year in a grade the app keeps no leave figures for says so', async () => {
@@ -362,6 +376,45 @@ describe('the day panel', () => {
         // …and a member without one keeps the time's own kind.
         openDayDetail(cell({ detailShiftValue: '06:00-14:00', detailShift: 'Early shift 06:00-14:00' }));
         assert.equal(byId('dayDetailShiftGlyph').textContent, '☀️');
+    });
+});
+
+// ── EVERY EXIT FROM A PANEL LEAVES NO DEAD STEP IN BACK (lightbox review, 22 Nov 2026) ──────────────
+// The browser proof is e2e/calendar.spec.js ("one Back from …"); this is the wiring, which the browser
+// can only show through the history it leaves behind.
+describe('a panel\'s ways out', () => {
+    /** A day cell as the renderer writes one. @param {Record<string, string>} dataset */
+    const cell = (dataset) => ({ dataset: { detailDay: 'Monday 16 November 2026', ...dataset } });
+    test('a click inside the leave panel is handed to followLinkOutOf, for the leave panel', () => {
+        followed = [];
+        const click = { type: 'click', button: 0, target: {} };
+        byId('alLightboxContent').fire('click', click);
+        assert.equal(followed.length, 1, '"Record leave" and "Leave dates" stack Admin on the panel\'s own history entry');
+        assert.equal(followed[0].e, click);
+        assert.equal(followed[0].lb.overlay?.id, 'alLightbox', 'handed for the wrong lightbox, whose entry is not the top one');
+    });
+
+    test('a click inside the day panel is handed to followLinkOutOf, for the day panel', () => {
+        followed = [];
+        const click = { type: 'click', button: 0, target: {} };
+        byId('dayDetailContent').fire('click', click);
+        assert.equal(followed.length, 1, '"Leave dates" stacks Admin on the day panel\'s own history entry');
+        assert.equal(followed[0].lb.overlay?.id, 'dayDetailLightbox');
+    });
+
+    test('Pay estimate closes the panel and jumps only once the close\'s Back has landed', () => {
+        const { paydays } = getPaydaysAndCutoffs(THIS_YEAR);
+        const payday = formatISO(paydays[3]);
+        openDayDetail(cell({ detailShiftValue: 'RD', detailShift: 'Rest day', paydayIso: payday }));
+        const pay = byId('dayDetailPayBtn');
+        assert.equal(pay.hidden, false, 'premise: the reader\'s own pay day offers the jump');
+        closes = []; settleWaiters = []; jumps.length = 0;
+        pay.onclick();
+        assert.deepEqual(closes, ['dayDetailLightbox'], 'the panel closes first');
+        assert.equal(jumps.length, 0, 'the jump raced the close\'s history.back() — it must wait for the echo');
+        assert.equal(settleWaiters.length, 1);
+        settleWaiters.shift()?.();
+        assert.deepEqual(jumps, [{ to: payday, closedBefore: ['dayDetailLightbox'], waitersLeft: 0 }]);
     });
 });
 

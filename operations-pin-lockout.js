@@ -22,7 +22,8 @@
  * page, and nothing here could say it.
  */
 
-/** How long a block that has ended is still worth a line. The server applies the same day. */
+/** How long a block that has ended is still worth a line. The server applies the same day — `LOCKOUT_RECENT_MS`
+ *  (functions/calendar-viewer-auth.js); operations-pin-lockout.test.mjs fails when the two disagree. */
 const RECENT_MS = 24 * 60 * 60 * 1000;
 
 /**

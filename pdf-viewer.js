@@ -56,7 +56,7 @@
 import { createLightbox } from './overlay.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 import {
-    ZOOM_STEPS, zoomAfter, zoomLabel, pageLayout, canOpenOutside, classifyFailure, FAILURE_TEXT,
+    ZOOM_STEPS, zoomAfter, zoomLabel, pageLayout, canOpenOutside, classifyFailure, FAILURE_TEXT, failureAction,
     PAGE_FAILURE_TEXT, pageLabel, pagesLabel,
 } from './pdf-viewer-core.js';
 
@@ -164,7 +164,12 @@ export function initPdfViewer() {
 
     zoomOutBtn.addEventListener('click', () => { if (current) setZoom(zoomAfter(current.zoom, -1)); });
     zoomInBtn.addEventListener('click', () => { if (current) setZoom(zoomAfter(current.zoom, 1)); });
-    retryBtn.addEventListener('click', () => { if (currentUrl) load(currentUrl); });
+    /** The failure button's act for the failure on screen: retry the file, or reload a page whose list is older than the pack. */
+    let retryReloads = false;
+    retryBtn.addEventListener('click', () => {
+        if (retryReloads) { location.reload(); return; }
+        if (currentUrl) load(currentUrl);
+    });
 
     /** @param {{ url: string, title: string, kicker?: string, pages?: number }} file */
     function open(file) {
@@ -222,6 +227,10 @@ export function initPdfViewer() {
         };
         current = mine;
         updateZoom();
+        // FOCUS STAYS IN THE VIEWER (lightbox review R1-6): a retry hides the button that has focus, and focus
+        // on a hidden control falls to the page — for the whole wait, and after it, since nothing gave it
+        // back. The pages box is the viewer's own Tab stop, and where the file appears.
+        if (retryBtn.contains(document.activeElement)) pagesEl.focus({ preventScroll: true });
         showStatus('Opening…', { busy: true });
         try {
             const lib = await loadLibrary();
@@ -248,6 +257,9 @@ export function initPdfViewer() {
                 timedOut: isFetchTimeout(e),
                 networkError: e instanceof TypeError,
             });
+            const act = failureAction(kind);
+            retryReloads = act.reload;
+            retryBtn.textContent = act.label;
             showStatus(FAILURE_TEXT[kind], { retry: true });
         }
     }

@@ -229,12 +229,19 @@ function answerNotificationTaps(isBusy) {
             // Operations reviews an upload was being told it would "open another page".
             const samePage = url.pathname === location.pathname && url.search === location.search;
             if (samePage && url.hash && url.hash !== location.hash) { location.href = url.href; return; }
+            // THE ANSWER IS A LEAVE, AND IT DOES WHAT IT SAYS (confirm review, Nov 2026). Two things went wrong
+            // after "Open it": page-session was never told the question had been answered, so the browser's own
+            // "Leave site?" asked a second time on a desktop and a draft was kept of the work the member had just
+            // chosen to leave; and "Reload" on this page at its own #hash assigned the URL it was already on,
+            // which is a same-document hop that reloads nothing. The answer is announced to page-session.js
+            // (`LEAVE_ANSWERED`, spelled here because importing it would put the Firebase client behind this
+            // module), which stands both aside; and the address the page is already on is a real reload.
+            const go = samePage && url.hash === location.hash ? () => location.reload() : () => { location.href = url.href; };
             import('./overlay.js').then(({ confirmDialog }) => confirmDialog({
-                message: samePage
-                    ? 'A notification asked to reload this page, but it has unsaved changes or a save still on its way. Reload anyway?'
-                    : 'A notification asked to open another page, but this one has unsaved changes or a save still on its way. Open it anyway?',
-                confirmLabel: samePage ? 'Reload' : 'Open it', danger: true,
-            })).then(ok => { if (ok) location.href = url.href; })
+                title: 'Open the notification?',
+                message: 'This page has unsaved changes, or a change still on its way to the server. If you open the notification now, they may be lost.',
+                confirmLabel: samePage ? 'Reload' : 'Open it', cancelLabel: 'Stay here', danger: true,
+            })).then(ok => { if (!ok) return; window.dispatchEvent(new Event('myb-leave-answered')); go(); })
               .catch(err => console.warn('[sw-register] could not offer the notification\'s page:', err));
         }
     });

@@ -41,6 +41,17 @@
  * a disabled account. So every confirmed run also releases the records of the leavers already
  * disabled — the same accounts the sweep would take, judged by its own filter (`computeOrphanLabels`),
  * which keeps the shared Calendar PIN account and every current member out of it.
+ *
+ * ── A CONFIRM DISABLES WHAT THE ADMIN READ, NOT WHAT THE SERVER FINDS LATER (review D1, Nov 2026) ──
+ *
+ * The sweep is a dry run, then a confirm, and the confirm may come an hour after the preview. It used
+ * to recompute the leavers at the confirm and disable whatever it found — so an account that had
+ * become a leaver since (a roster change deployed in between, an account made at a leaver address) was
+ * disabled on a Confirm button that never named it. Now the client sends back the previewed uids and
+ * the sweep disables only the OVERLAP with what it finds afresh (`sweepAgainstPreview`): a previewed
+ * account that is no longer a leaver is left alone and reported, and a leaver nobody previewed is left
+ * enabled and reported, so the admin previews again. A confirm WITHOUT the list is an Operations page
+ * cached from before this release; it keeps the old behaviour, which is all that page can ask for.
  */
 const { computeOrphanLabels } = require('./roster-parse-helpers');
 
@@ -120,4 +131,26 @@ function disabledLeaverUids(users, activeEmails) {
         .map((o) => o.uid).filter((uid) => typeof uid === 'string' && uid !== '');
 }
 
-module.exports = { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids };
+/**
+ * Which of the leavers found NOW a confirmed sweep may disable, given the uids the admin previewed (the
+ * header, D1). `confirmUids` null is a client older than the preview's uids: every leaver found, as
+ * before — kept ONLY for such a client, and the one branch to delete once none can be left.
+ * @param {Array<{ uid: string|undefined, label: string }>} orphans  computeOrphanLabels, at the confirm
+ * @param {string[]|null} confirmUids  the previewed uids (parseSetupActionFlags), or null
+ * @returns {{ toDisable: Array<{ uid: string|undefined, label: string }>, skipped: string[], notPreviewed: string[] }}
+ *          `skipped` — previewed uids that are no longer leavers; `notPreviewed` — labels of leavers left alone
+ */
+function sweepAgainstPreview(orphans, confirmUids) {
+    const found = Array.isArray(orphans) ? orphans : [];
+    if (confirmUids === null) return { toDisable: found, skipped: [], notPreviewed: [] };
+    const asked = new Set(confirmUids);
+    const fresh = new Set(found.map((o) => o.uid));
+    return {
+        toDisable: found.filter((o) => typeof o.uid === 'string' && asked.has(o.uid)),
+        skipped: [...asked].filter((uid) => !fresh.has(uid)),
+        notPreviewed: found.filter((o) => !(typeof o.uid === 'string' && asked.has(o.uid))).map((o) => o.label),
+    };
+}
+
+module.exports = { passwordWriteRefused, unwrittenResetAnswer, elevatedClaimsLost, ELEVATED_CLAIMS, disabledLeaverUids,
+    sweepAgainstPreview };

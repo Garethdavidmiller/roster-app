@@ -27,22 +27,18 @@ import { noteStaffPinEnded } from './staff-pin-ended.js';
 import { shedCalendarViewer } from './viewer-shed.js';
 export { shedCalendarViewer };
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
-import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal, sessionStartMs } from './silent-sign-in.js';
+import { noDefaultKey, planSilentAttempt, afterRecheck, remembersRefusal, sessionStartMs, AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
-
-/** Auth error codes that mean the credential was DEFINITIVELY rejected — a wrong password, or no
- *  such account — as opposed to a transient/config failure (network, provider-disabled). On these
- *  the sign-in must resolve to 'none' + a re-sign-in prompt, NEVER an anonymous fallback
- *  (PASSWORD_DESIGN.md §3.3 — the critical fix: once anyone has a custom
- *  password, an anonymous fallback here would be silently denied every write by the strict B3 rules,
- *  reproducing the v10.94 outage class). `invalid-credential` is the modern email-enumeration-safe
- *  code; `wrong-password`/`invalid-login-credentials`/`user-not-found` cover older SDK phrasings.
- *  The classification is the shared `isCredentialRejection` (auth-identity.js) — the SAME predicate
- *  the Settings reauth uses, so the two candidate ladders can't drift. */
-const _isCredentialRejection = isCredentialRejection;
 import { dispatchAuth } from './auth-state.js';
+
+// A DEFINITIVE credential rejection — a wrong password, or no such account — as opposed to a
+// transient/config failure (network, provider-disabled), is `isCredentialRejection` (auth-identity.js),
+// the SAME predicate the Settings reauth uses, so the two candidate ladders can't drift. On one the
+// sign-in resolves to 'none' + a re-sign-in prompt, NEVER an anonymous fallback (PASSWORD_DESIGN.md
+// §3.3 — once anyone has a custom password, an anonymous fallback would be silently denied every write
+// by the strict B3 rules, reproducing the v10.94 outage class).
 
 /**
  * Feed the auth STORE (AUTH_ARCHITECTURE.md Phase 2). This is a pure side-effect, wrapped so
@@ -58,9 +54,10 @@ function _feedAuth(event) {
     try { dispatchAuth(event); } catch (e) { console.error('[Auth] store feed failed', e); }
 }
 
-/** Translate the resolved Firebase identity (the B0 signals) into a terminal store event.
- *  Two outcomes only since v24.34: the write pages never fall back to an anonymous session any more
- *  (the `ENFORCE_NAMED_SESSION` switch that could restore one was retired v24.34), so the store's
+/** Translate the resolved Firebase identity (the B0 signals) into a terminal store event — one of
+ *  the three `terminalAuthEvent` returns: NAMED, TRANSIENT (nothing could be decided) or NONE (a
+ *  refusal). The write pages never fall back to an anonymous session any more (the
+ *  `ENFORCE_NAMED_SESSION` switch that could restore one was retired v24.34), so the store's
  *  `ANONYMOUS` and `FATAL` events have no producer here. */
 function _syncAuthTerminal(/** @type {string} */ name) {
     const ev = terminalAuthEvent({ named: getFirebaseIdentity() === 'named', stalled: _authStartStalled, error: getFirebaseAuthError() ?? null });
@@ -190,10 +187,9 @@ export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
  */
 export function getFirebaseAuthError() { return _fbAuthError; }
 
-/** Ceiling on the IndexedDB auth restore. Matches the 8s sign-in budget (the login freeze) and
- *  `SAVE_TIMEOUT_MS` in password-force.js — one number for "how long is Firebase allowed to take
- *  before we stop waiting", rather than a different guess per call site. */
-export const AUTH_RESTORE_TIMEOUT_MS = 8000;
+/** Ceiling on the IndexedDB auth restore — the one "how long is Firebase allowed to take" number,
+ *  defined in silent-sign-in.js (which says why there) and re-exported for this module's importers. */
+export { AUTH_RESTORE_TIMEOUT_MS };
 
 /**
  * Resolve the first onAuthStateChanged emission (the IndexedDB session restore) once.
@@ -207,15 +203,16 @@ export const AUTH_RESTORE_TIMEOUT_MS = 8000;
  * waited for ever. Firebase emits promptly in normal operation, but this project has already met
  * enough real iOS/Firebase restoration oddities that the bound belongs in the SHARED primitive
  * rather than in whichever coordinator remembered to add one. The Calendar had bounded its own path
- * at v20.45; Admin, Links, Operations, Settings and the Pay Calculator had not, and would each have
- * needed their own copy of the same idea.
+ * at v20.45; the protected pages' coordinators had not, and would each have needed their own copy of
+ * the same idea.
  *
- * **It resolves `null` on timeout rather than rejecting, and that is deliberate.** All four call
- * sites already handle a null user — it is the ordinary "nobody is signed in" answer: `admin-auth.js`
- * raises "session not found, sign out and back in", `ensureFirebaseSession` proceeds to sign in with
- * the stored credentials, and the two `.catch(() => null)` sites treat it as no lingering identity.
- * Rejecting would introduce an unhandled rejection at two of them and change behaviour on a path
- * that only fires when something is already wrong. Null is what every caller is built for.
+ * **It resolves `null` on timeout rather than rejecting, and that is deliberate.** Every call site
+ * (grep for `restoreFirstAuthUser`) already handles a null user — it is the ordinary "nobody is signed
+ * in" answer: `admin-auth.js` raises "session not found, sign out and back in", `ensureFirebaseSession`
+ * proceeds to sign in with the stored credentials, and the `.catch(() => null)` sites treat it as no
+ * lingering identity. Rejecting would introduce an unhandled rejection where there is no catch and
+ * change behaviour on a path that only fires when something is already wrong. Null is what every
+ * caller is built for.
  *
  * The bound is generous for that reason: firing it early on a merely-slow restore would tell a
  * signed-in admin their session is missing. 8s is a hang, not a slow phone.
@@ -387,16 +384,27 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // matching-user fast path below stays safe for a stale gen: commit() no-ops the global write.
     // NOT when a password was TYPED (Sep 2026 review): that is an explicit sign-in, and a restored
     // session for the same member is no proof the typed password is right — taking this path
-    // renewed an expired 60-day session with ANY password during the boot window. The typed
-    // password goes to Firebase below; the restored session is signed out first, so a wrong one
-    // leaves nobody signed in.
-    if (password == null && existing && !existing.isAnonymous && existing.email === nameToEmail(name)) return commit('named', true);
+    // renewed an expired 60-day session with ANY password during the boot window. So the typed
+    // password always goes to Firebase below, and this attempt answers only what Firebase answers.
+    const sameMember = !!existing && !existing.isAnonymous && existing.email === nameToEmail(name);
+    if (password == null && sameMember) return commit('named', true);
     if (!fresh()) return commit('none', false);
     // Only reuse a persisted session when it belongs to the expected user.
     // An anonymous fallback session, or a session for a different member (e.g.
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
-    if (existing) {
+    //
+    // THE SAME MEMBER'S RESTORED ACCOUNT IS NOT SIGNED OUT FIRST (review, Nov 2026). It used to be,
+    // so one mistyped password destroyed a sign-in that was working — and Firebase shares one account
+    // across a browser's tabs, so every other tab then saw nobody signed in, ran its relogin and
+    // cleared the shared 60-day session. The typed password is still SENT (above) and a wrong one
+    // still ends this attempt 'none'; Firebase leaves the current user as it was on a refusal and
+    // replaces it on a success, so the sign-out bought nothing but the damage. An EXPIRED local
+    // session loses nothing by it either: a failed attempt with no session held for this member
+    // clears (`runNamedSignIn` — its `keepsLocalSession` is false then), and `clearSession` signs the
+    // restored account out, so a wrong password still never renews it (AUTH_AND_SESSIONS 1); a session
+    // held for this member is still kept, now with its working identity still behind it.
+    if (existing && !sameMember) {
         // A sign-out the browser cannot complete ENDS this attempt; it must never reject it
         // (sessions-4, Nov 2026) — every write page hands this promise to resolveSession() with no
         // catch, so a rejection left sessionReady rejected and no sign-in offered. Nothing is signed
@@ -449,7 +457,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
         //   · predates the reset → refuse, end the local session, make the holder type a password
         //   · could not be confirmed → do not sign in silently, but DESTROY NOTHING: it is treated
         //     like a sign-in that could not reach the server, which is what it nearly always is
-        //   · the probe says the password is wrong → the ordinary sign-in below fails and handles it
+        //   · the probe says the password is wrong → remembered and stopped (below), never re-sent
         if (password == null) {
             const resetAt = await probeResetAtMs(email, candidate, name, 5000);
             if (!fresh()) return commit('none', false);
@@ -458,12 +466,22 @@ export async function ensureFirebaseSession(name, _gen, password) {
             if (after?.note) lsSet(noDefaultKey(name), String(Date.now()));
             if (after?.stop) break;
             if (after?.unanswered) _recheckUnansweredGen = gen;
+            // THE PROBE IS A SIGN-IN, SO ITS REFUSAL IS ONE (review, Nov 2026). On a device with no flag
+            // yet this went on to the SDK sign-in with the same surname: two wrong-password requests a
+            // load from the station's one address, whose shared throttle is why the flag exists. Stop
+            // here as the recheck does, remember it as the SDK's refusal of the surname would have, and
+            // record that refusal's code, so the attempt still ends NONE with a reason to read.
+            if (resetAt === 'credential') {
+                lsSet(noDefaultKey(name), String(Date.now()));
+                lastError = 'auth/invalid-credential';
+                break;
+            }
             if (resetAt === null || resetAt === 'throttled') {
                 recordError(resetAt === 'throttled' ? 'auth/too-many-requests' : 'auth/reset-check-unavailable');
                 console.warn('[Auth] silent sign-in held — could not confirm the last password reset');
                 return commit('none', false);
             }
-            if (resetAt !== 'credential' && sessionPredatesReset(_sessionCreatedMs(), resetAt)) {
+            if (sessionPredatesReset(_sessionCreatedMs(), resetAt)) {
                 // NAMED, as every other refusal here is (Nov 2026 review): without a code this read as a
                 // sign-in that ended for no reason, which getFirebaseAuthError() and Operations' banner
                 // could not tell from any other. Not transient — the session is gone, so nothing retries.
@@ -510,7 +528,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
             if (candidate === surnamePassword(name) && remembersRefusal(_e.code)) lsSet(noDefaultKey(name), String(Date.now()));
             // A definitive credential rejection for THIS candidate → try the next one (if any). A
             // NON-credential error (network / provider-disabled) → stop; it isn't a password problem.
-            if (!_isCredentialRejection(_e.code)) { nonCredentialStop = true; break; }
+            if (!isCredentialRejection(_e.code)) { nonCredentialStop = true; break; }
         }
     }
 
@@ -662,10 +680,10 @@ export async function refreshClaimsIfStale(epoch) {
  * shared device where someone reaches the persisted credential via devtools / a direct SDK call.
  * `reconcileExpiredIdentity()` (below) is the COORDINATED teardown — run AFTER the auth restore, not an
  * async signOut inside this synchronous getSession() (which would race the Calendar's access decision).
- * The calendar (the PWA start_url) calls it on virtually every launch, AND every protected coordinator
- * (admin/settings/operations/links/paycalc) now calls it at init (review item 7), so a lingering expired
- * identity is dropped even on a direct deep-link to a protected page — no longer only on the next login
- * or the next calendar open. (Finding #9)
+ * The calendar (the PWA start_url) calls it on virtually every launch, AND every protected page's
+ * coordinator now calls it at init (review item 7; grep for the call rather than trusting a list here),
+ * so a lingering expired identity is dropped even on a direct deep-link to a protected page — no longer
+ * only on the next login or the next calendar open. (Finding #9)
  */
 export function getSession() {
     try {
@@ -760,10 +778,9 @@ export function clearSession() {
  * If the restored user is NAMED but there is no valid local session, sign it out.
  *
  * The calendar is the PWA `start_url`, so this runs on virtually every launch — the dominant path by
- * which an expired session's lingering privileges are dropped. Every protected coordinator (admin,
- * settings, operations, links, paycalc) ALSO calls it at init (review item 7), so a direct deep-link
- * to a protected page tears the identity down immediately rather than waiting for the next login or
- * calendar open. Reading `auth.currentUser` alone would miss a COLD restore (authReady only sets
+ * which an expired session's lingering privileges are dropped. Every protected page's coordinator
+ * ALSO calls it at init (review item 7), so a direct deep-link to a protected page tears the identity
+ * down immediately rather than waiting for the next login or calendar open. Reading `auth.currentUser` alone would miss a COLD restore (authReady only sets
  * persistence — the persisted user loads via the first onAuthStateChanged emission), so this resolves
  * that restore before deciding.
  *

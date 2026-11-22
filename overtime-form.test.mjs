@@ -132,7 +132,9 @@ mock.module('./overtime-data.js', {
     },
 });
 
-mock.module('./overlay.js', { namedExports: { confirmDialog: async () => true } });
+/** The questions the form asked, in order — so a case can read what the member was told. @type {any[]} */
+let asked = [];
+mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { asked.push(o); return true; } } });
 
 /** A rest day — the roster every day has unless a case says otherwise. */
 const REST = { shift: 'RD', isRest: true, hasTime: false, overnight: false, start: '', end: '', rosteredMinutes: 0 };
@@ -197,6 +199,7 @@ beforeEach(() => {
     duringSubmit = null;
     created = [];
     rosterFor = () => REST;
+    asked = [];
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -727,5 +730,23 @@ describe('an out-of-date Before/After answer has a way to the shift as it is now
         const night = await mountForm({ win: { submission: { days: after, currentRevision: 3 } } });
         assert.doesNotMatch(night.host.parts['.ot-days'].innerHTML, /data-reanchor/,
             'an overnight duty offers no "after" — the server would refuse it');
+    });
+});
+
+// THE ALL-WEEK SHORTCUT NAMES THE BUTTON ON SCREEN (confirm review, Nov 2026). Editing a saved answer the
+// button reads "Save changes", and both the question and the line after it said "press Submit".
+describe('the all-week shortcut names the button that will send it', () => {
+    test('a first answer: "Submit availability"', async () => {
+        const f = await mountForm({ win: { submission: null } });
+        await f.fillWeek();
+        assert.match(asked.at(-1)?.message ?? '', /Nothing is sent until you press Submit availability\.$/);
+        assert.match(f.feedback(), /press Submit availability to send your answer/);
+    });
+    test('a saved answer being changed: "Save changes"', async () => {
+        const f = await mountForm();
+        await f.fillWeek();
+        assert.match(asked.at(-1)?.message ?? '', /Nothing is sent until you press Save changes\.$/);
+        assert.match(f.feedback(), /press Save changes to send your answer/);
+        assert.equal(f.host.parts['.ot-submit'].textContent, 'Save changes', 'premise: the button the member sees');
     });
 });

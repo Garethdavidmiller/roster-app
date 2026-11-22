@@ -323,6 +323,18 @@ describe('restoreFirstAuthUser', () => {
         // Firing early on a merely-slow restore would tell a signed-in admin their session is gone.
         assert.equal(AUTH_RESTORE_TIMEOUT_MS, 8000);
     });
+
+    test('ONE number: the boot restore and the typed sign-in\'s deadline import it, and spell no copy (review, Nov 2026)', async () => {
+        // Three literal 8000s stood beside this constant; a change to one would have left two behind.
+        const { readFileSync } = await import('node:fs');
+        const silent = await import('./silent-sign-in.js');
+        assert.equal(silent.AUTH_RESTORE_TIMEOUT_MS, AUTH_RESTORE_TIMEOUT_MS, 'session.js re-exports the one definition');
+        for (const file of ['firebase-client.js', 'login-core.js']) {
+            const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+            assert.match(src, /import \{[^}]*\bAUTH_RESTORE_TIMEOUT_MS\b[^}]*\} from '\.\/silent-sign-in\.js'/, `${file} does not import the shared bound`);
+            assert.doesNotMatch(src, /\b8000\b|\b8_000\b/, `${file} spells its own 8000 again`);
+        }
+    });
 });
 
 // ── sessionReady / resolveSession ─────────────────────────────────────────────
@@ -1577,6 +1589,33 @@ describe('primeAuth + currentUser fast path', () => {
         assert.ok(_signInCalls >= 1, 'the typed password was actually checked');
     });
 
+    test('…and a MISTYPED password leaves the member\'s working sign-in as it was — no sign-out first (review, Nov 2026)', async () => {
+        // Signing the restored account out before the typed password destroyed a sign-in that worked,
+        // and every other tab of the browser then saw nobody and cleared the shared 60-day session.
+        const restored = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        auth.currentUser = restored;
+        _signOutCalled   = false;
+        _signInCalls     = 0;
+        _signInPasswords = [];
+        _signInBehavior  = 'auth/invalid-credential';
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'Not-the-Passw0rd');
+        assert.equal(ok, false, 'a wrong typed password must still fail');
+        assert.deepEqual(_signInPasswords, ['Not-the-Passw0rd'], 'the typed password was sent to Firebase, and only it');
+        assert.equal(getFirebaseIdentity(), 'none', 'never a success on the strength of the restored session');
+        assert.equal(getFirebaseAuthError(), 'auth/invalid-credential');
+        assert.equal(_signOutCalled, false, 'the same member\'s restored account was signed out before the password was checked');
+        assert.equal(auth.currentUser, restored, 'a refusal must leave the account that was signed in');
+    });
+
+    test('…while ANOTHER member\'s restored account is still signed out before the typed password', async () => {
+        auth.currentUser = { isAnonymous: false, email: nameToEmail('S. Silva') };
+        _signOutCalled   = false;
+        _signInBehavior  = 'auth/invalid-credential';
+        assert.equal(await ensureFirebaseSession('G. Miller', undefined, 'Not-the-Passw0rd'), false);
+        assert.equal(_signOutCalled, true, 'a colleague\'s account stayed signed in under this member\'s sign-in');
+        assert.equal(auth.currentUser, null);
+    });
+
     test('…and a RIGHT typed password on a live matching session still signs in', async () => {
         auth.currentUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
         _signInBehavior  = 'ok';
@@ -2187,6 +2226,23 @@ describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that adm
         assert.equal(late, 0, 'the PIN page started under a sign-in that began while its token was read');
     });
 
+    test('…and once a sign-in or sign-out has begun, the watcher UNSUBSCRIBES at the next emission — it does not linger', async () => {
+        // The early stand-down is the only unsubscribe on that path: without it every later emission of
+        // the page's life — each token refresh, each sign-in — kept running a watcher that could only
+        // ever return.
+        const before = new Set(_authCbs);
+        assert.equal(await holdsStaffPin(60, () => {}), false, 'premise: nothing held at the decision');
+        const ours = [..._authCbs].filter(cb => !before.has(cb));
+        assert.equal(ours.length, 1, 'premise: the late-viewer watcher subscribed once');
+        const unsubsBefore = _authUnsubs;
+        clearSession();   // a sign-out moves the generation, as a sign-in does
+        ours[0](null);
+        assert.equal(_authCbs.has(ours[0]), false, 'the watcher stood down without unsubscribing');
+        assert.equal(_authUnsubs, unsubsBefore + 1, 'exactly one unsubscribe');
+        ours[0](null);
+        assert.equal(_authUnsubs, unsubsBefore + 1, 'a second emission unsubscribed again');
+    });
+
     test('a restore that never arrives answers within the budget — no PIN, never a hang', async () => {
         _authNeverEmits = true;
         const started = Date.now();
@@ -2263,12 +2319,16 @@ describe('a silent re-sign-in after an admin reset', () => {
         // refusal that came after it let the Calendar's late-identity watcher grant the phone first,
         // and a reload mid-check came back through the stored user. The SDK must never be reached.
         sessionCreatedAt(NOW - 3 * 86_400_000);
+        store.set(CALENDAR_SNAPSHOT, '{"member":"G. Miller"}');
         _resetAtMs = NOW - 86_400_000;
         const releasedBefore = _pushReleases.length;
         assert.equal(await ensureFirebaseSession('G. Miller'), false);
         assert.equal(_probeCalls, 1, 'the reset was asked about');
         assert.equal(_signInCalls, 0, 'and the app never signed in — nothing was announced or stored');
         assert.equal(store.has(AUTH_KEY), false, 'the local session survived — the next load would try again');
+        // The member's own stored roster goes with the session it belongs to (CALENDAR_DATA.md 17):
+        // the lost phone the reset was aimed at must not go on showing it, labelled, to whoever has it.
+        assert.equal(store.has(CALENDAR_SNAPSHOT), false, 'the refused device kept the member\'s stored roster');
         assert.equal(getFirebaseIdentity(), 'none');
         // NAMED (Nov 2026 review): this refusal recorded no code, so it read as a sign-in that ended for
         // no reason. Its own code, and not a transient one — the session is gone; nothing may retry it.
@@ -2319,12 +2379,26 @@ describe('a silent re-sign-in after an admin reset', () => {
         assert.equal(store.has(AUTH_KEY), true, 'nothing is destroyed');
     });
 
-    test('a password the probe says is WRONG goes to the ordinary sign-in, which handles it as before', async () => {
+    test('a surname the probe says is WRONG stops there: remembered, and never sent again to the SDK (review, Nov 2026)', async () => {
+        // The probe IS a password sign-in. Going on to the SDK with the same surname sent a second
+        // doomed request from the station's one shared address, the throttle the memory exists to spare.
+        const FLAG_ = 'myb_auth_nodefault_G. Miller';
         sessionCreatedAt(NOW - 86_400_000);
         _resetAtMs = 'credential';
-        _signInBehavior = 'wrong-password';
+        _signInBehavior = 'auth/wrong-password';
+        assert.equal(store.has(FLAG_), false, 'premise: this device has never seen the surname refused');
         assert.equal(await ensureFirebaseSession('G. Miller'), false);
-        assert.equal(_signInCalls, 1, 'the SDK sign-in ran, so the migrated-member memory still learns');
+        assert.equal(_probeCalls, 1, 'the reset was asked about, which is the one request');
+        assert.equal(_signInCalls, 0, 'the refused surname was sent to the SDK as well');
+        assert.ok(Number(store.get(FLAG_)) > Date.now() - 60_000, 'the refusal was not remembered, with when');
+        assert.equal(getFirebaseIdentity(), 'none');
+        assert.equal(getFirebaseAuthError(), 'auth/invalid-credential', 'a refusal, under the code the SDK\'s would carry');
+        assert.equal(terminalAuthEvent({ named: false, stalled: false, error: getFirebaseAuthError() ?? null }).type, 'NONE');
+        assert.equal(store.has(AUTH_KEY), true, 'nothing was reset, so the session is not ended here');
+        // The next load: the flag holds, so nothing at all is asked.
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_probeCalls + _signInCalls, 1, 'a flagged device asked again inside 6 hours');
+        store.delete(FLAG_);
     });
 
     test('a session written before `createdAt` existed is dated from its expiry', async () => {

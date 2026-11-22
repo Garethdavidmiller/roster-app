@@ -45,7 +45,7 @@ import { notifSupported, peekNotifState, enableNotifications, disableNotificatio
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { newsletterInMenu } from './newsletter-recency.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled, watchScrollFade, closeOnBackdropTap, pinCloseButton } from './overlay.js';
 import { readArchivedNotices } from './notice-archive.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
@@ -340,7 +340,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!canReadDocuments()) {
             // The viewers' own words (calendar-doc-viewer.js), naming the document; "on the Calendar" only
             // where the PIN card is somewhere else (review, 21 Nov 2026).
-            _docFailureFallback(triggerEl, `Enter the staff PIN${_onCalendarPage() ? '' : ' on the Calendar'}, or sign in, to read the ${triggerEl.dataset.csTitle}.`);
+            _docFailureFallback(triggerEl, `Sign in, or enter the staff PIN${_onCalendarPage() ? '' : ' on the Calendar'}, to read the ${triggerEl.dataset.csTitle}.`);
             return;
         }
         _docFetching = true;
@@ -756,14 +756,19 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             return;
         }
         const t = setTimeout(done, 500);
+        // The panel's OWN fade only — `transitionend` bubbles, and a child's (a pressed button easing
+        // back) finished this close early (lightbox review R1-4). Not `{ once: true }`: a child's event
+        // would spend it, and `done` removes the listener itself.
+        /** @param {Event} e */
+        const onEnd = (e) => { if (e.target === el) done(); };
         function done() {
             clearTimeout(t);
-            el.removeEventListener('transitionend', done);
+            el.removeEventListener('transitionend', onEnd);
             el.classList.remove('visible');
             unlockBodyScroll();
             burger.focus();
         }
-        el.addEventListener('transitionend', done, { once: true });
+        el.addEventListener('transitionend', onEnd);
     }
     /** Another overlay open over a drawer lightbox (a dialog, a viewer a notification tap opened) owns the keyboard — `_isTopOverlay`'s rule, read from the DOM because these share the drawer's history entry (test audit, 7 Nov 2026). */
     const _overlayAbove = (/** @type {Element|null} */ own) => Array.from(document.querySelectorAll('.lb-overlay.open')).some(el => el !== own);
@@ -782,6 +787,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             lockBodyScroll();
             setOpen(true);   // before the frame and the timer below, which both ask it
             el.classList.add('visible');
+            // Its ✕ stays in reach as a long panel scrolls, as every createLightbox panel's does (overlay.js).
+            // A no-op where the ✕ is not directly inside a scrolling panel (App Notices' list scrolls instead).
+            pinCloseButton(/** @type {HTMLElement|null} */ (el.querySelector('.lb-content')));
             // A CLOSE BEFORE THIS FRAME, OR THE TIMER, RETIRES THEM (15 Nov 2026), as createLightbox's does:
             // an Escape before a slow engine draws, or a tab that runs no frames while hidden. Run after the
             // close, the frame faded the panel back in over the page and the timer moved focus into it.
@@ -1085,7 +1093,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, c
             ${footerHtml}
         </div>
         <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"
-             aria-label="Menu" aria-modal="true">
+             aria-label="Menu" aria-describedby="navComingSoonBody" aria-modal="true">
             <div class="lb-content" id="navComingSoonContent">
                 <button type="button" id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-icon" id="navComingSoonIcon" aria-hidden="true">📰</div>

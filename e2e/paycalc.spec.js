@@ -1349,12 +1349,11 @@ test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ p
     expect(box.y, `card landed at y=${Math.round(box.y)} of ${vh}`).toBeLessThan(vh / 3);
 });
 
-// ── The Calendar's Year to Date notice (v24.86) ───────────────────────────────────────────────────
-// Its rules — the load after the timetable notice, CEA/CES only, a one-off, ending on 31 October — are
-// unit-tested in calendar-notices.test.mjs. These are the halves only a browser can prove: the order
-// across two real loads, and that its link lands a member on the card it teaches, open, with nothing
-// else in the way. Clock pinned inside both notices' life (22–31 Oct 2026) and the Pay page's own
-// Year to Date notice's (to ~26 Nov), so neither silently retires and leaves these proving nothing.
+// ── The Year to Date card's deep link (v24.86) ───────────────────────────────────────────────────
+// The Calendar's Year to Date notice that first linked here was retired on 22 Nov 2026 with the October
+// timetable notice; the link it used, paycalc.html#payslipCard, is still the Pay page's own route to the
+// card (the premium notice's too). Clock pinned inside the Pay page's own Year to Date notice's life
+// (to ~26 Nov), so it does not silently retire and leave this proving nothing.
 const YTD_NOTICE_DAY = new Date('2026-10-22T09:00:00Z');
 
 test('paycalc: the Calendar\'s Year to Date link lands on that card OPEN, and the Pay notice stays out of its way', async ({ page }) => {
@@ -1383,53 +1382,6 @@ test('paycalc: the Calendar\'s Year to Date link lands on that card OPEN, and th
     await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_pc_ytd_notice_2_shown'))).toBe('1');
     await page.waitForTimeout(1500);
     await expect(page.locator('#noticeYtdLightbox.visible')).toHaveCount(0);
-});
-
-test('the Calendar\'s Year to Date notice comes the load AFTER the timetable one, and its link opens the card', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await page.clock.setFixedTime(YTD_NOTICE_DAY);
-    await seedSession(page, 'G. Miller');
-    await seedMemberSession(page, 'G. Miller');
-    await seedMember(page, 'G. Miller');
-    // Registered AFTER the seeders, which mark every Calendar notice done on every load. The Year to
-    // Date notice is undismissed on every load — it is the subject; the timetable notice on the FIRST
-    // load only, so that load is the one where it opens and is dismissed for real.
-    await page.addInitScript(() => {
-        const n = Number(sessionStorage.getItem('__e2e_ytd_load') || 0) + 1;
-        sessionStorage.setItem('__e2e_ytd_load', String(n));
-        localStorage.removeItem('myb_notice_ytd_figures_2026_done');
-        if (n === 1) localStorage.removeItem('myb_notice_timetable_2026_done');
-    });
-
-    // Load 1 — the timetable notice, and nothing behind it, even once it is dismissed. Measured by
-    // mutation: deleting the follow rule leaves this GREEN, because the timetable notice's timer fires
-    // first and `openNoticeIfClear` then finds the page covered. What this proves is the composed
-    // behaviour on a real page; the rule's own teeth are calendar-notices.test.mjs block 7.
-    await page.goto('/');
-    const timetable = page.locator('#timetableNoticeLb');
-    await expect(timetable).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-    await page.locator('#timetableNoticeLater').click();
-    await expect(timetable).not.toHaveClass(/\bopen\b/);
-    expect(await page.evaluate(() => localStorage.getItem('myb_notice_timetable_2026_done')),
-        'dismissing it is what lets the next one come').toBe('1');
-    await page.waitForTimeout(2500);                       // past the 1,500ms defer, twice over
-    await expect(page.locator('#ytdNoticeLb'), 'not on the same load').not.toHaveClass(/\bopen\b/);
-
-    // Load 2 — now it comes, and its link lands on the card, open.
-    await page.reload();
-    const notice = page.locator('#ytdNoticeLb');
-    await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-    await expect(notice).toContainText('Taxable Pay');
-    await expect(notice).toContainText('Tax Paid');
-    await page.locator('#ytdNoticeGo').click();
-    await expect(page).toHaveURL(/paycalc\.html#payslipCard$/);
-    await expect(page.locator('#payslipCardBody')).toHaveClass(/open/);
-    // The seeders re-mark it done on the Pay page's load, so its own flag proves nothing here; the
-    // drawer's archive is the store nothing re-seeds.
-    const archived = await page.evaluate(() =>
-        JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map((/** @type {{ id: string }} */ n) => n.id));
-    expect(archived, 'kept in the drawer\'s App Notices once it has been shown').toContain('ytd-figures-2026');
-    expect(errors).toHaveLength(0);
 });
 
 test('paycalc: a long confirm dialog keeps its own buttons on screen', async ({ page }) => {
@@ -1472,8 +1424,11 @@ test('paycalc: a long confirm dialog keeps its own buttons on screen', async ({ 
     // the fold; a consequence may not, so both lead the message.
     const msg = page.locator('.dialog-message');
     const top = (await msg.innerText()).slice(0, 260);
-    expect(top, top).toMatch(/Restoring replaces what is here/);
+    expect(top, top).toMatch(/Restoring replaces what is here and can’t be undone/);
+    expect(top, top).toMatch(/choose Cancel and use Download backup/);   // the way out, named (R5-10)
     expect(top, top).toMatch(/damaged and will not open/);
+    await expect(page.locator('.dialog-btn-cancel'), 'the button the message names').toHaveText('Cancel');
+    await expect(confirm).toHaveText('Replace my pay data');
 
     await page.locator('.dialog-btn-cancel').click();
     await expect(page.locator('#ptStatus')).toContainText('Nothing was changed');
@@ -1566,7 +1521,7 @@ test('paycalc: backup → restore round trip survives the reload', async ({ page
     // trigger the reload, so it cannot miss a fast one either.
     const reloaded = page.waitForEvent('load');
     await page.locator('#ptPasteGo').click();
-    await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
+    await page.locator('.dialog-btn-confirm').click();      // "Replace my pay data" — the write is gated on this
     await expect(page.locator('#ptStatus')).toContainText('Restored 1 payslip. Reloading…');
     await reloaded;
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p16')))
@@ -1587,7 +1542,7 @@ test('paycalc: a backup with no payslips says it was restored, not "Restored 0 p
     }));
     const reloaded = page.waitForEvent('load');
     await page.locator('#ptPasteGo').click();
-    await page.locator('.dialog-btn-confirm').click();      // "Replace" — the write is gated on this
+    await page.locator('.dialog-btn-confirm').click();      // "Replace my pay data" — the write is gated on this
     await expect(page.locator('#ptStatus')).toHaveText('Restored your backup — it held no payslips. Reloading…');
     await reloaded;
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_code')), 'premise: it was restored').toBe('1257L');
@@ -2906,10 +2861,10 @@ test('paycalc: a Dispatcher is told the calculator does not cover their pay, and
     // Written FOR a Dispatcher (v25.50, paycalc-role-card.js): their pay is not covered YET, and the
     // condition for adding it is the rates — "we haven't got them" is the truth, and it tells a
     // Dispatcher this is a gap rather than a decision. No date: the condition is information.
-    await expect(page.locator('#unsupportedGradeTitle')).toHaveText("The Pay Calculator doesn't cover Dispatcher pay yet");
+    await expect(page.locator('#unsupportedGradeTitle')).toHaveText("The Pay Calculator doesn’t cover Dispatcher pay yet");
     await expect(card).toContainText('once Dispatcher rates are confirmed');
     // ...it says what the calculator DOES, naming the grades it serves in full...
-    await expect(page.locator('#unsupportedGradeWhat')).toContainText("Customer Experience Ambassador's or Supervisor's (CEA or CES)");
+    await expect(page.locator('#unsupportedGradeWhat')).toContainText("Customer Experience Ambassador’s or Supervisor’s (CEA or CES)");
     // ...and links the guide, which is the only "what is this for" left on a refusal: the page's own
     // guide link is hidden with the calculator.
     await expect(card.locator('a[href="./paycalc-guide.html"]')).toBeVisible();
@@ -3105,7 +3060,7 @@ test('paycalc: the sign-in card says what the calculator is, who it is for, and 
     const about = page.locator('#loginAbout');
     await expect(about).toBeVisible();
     await expect(about).toContainText('Customer Experience Ambassadors and Supervisors (CEA and CES)');
-    await expect(about).toContainText("the staff PIN doesn't open it");
+    await expect(about).toContainText("the staff PIN doesn’t open it");
     await expect(about.locator('a.login-about-link')).toHaveAttribute('href', './paycalc-guide.html');
     await expect(page.locator('#loginFootnote')).toContainText('shared screen');
     // The words DESCRIBE the dialog, so a screen reader announces them with the card.
@@ -3116,13 +3071,15 @@ test('paycalc: the sign-in card says what the calculator is, who it is for, and 
     expect(errors, 'Uncaught JS exceptions on the explained sign-in card').toHaveLength(0);
 });
 
-// ...and only on this page: every other page's sign-in card is exactly what it was.
-test('the sign-in explanation is the Pay Calculator\'s alone — another page\'s card is unchanged', async ({ page }) => {
+// ...and only on this page: another page's card carries its OWN explanation (owner, 21 Nov 2026 — every
+// page's card says what the page is; e2e/auth.spec.js holds them all), never the Pay Calculator's words
+// or its guide link.
+test('the sign-in explanation is the Pay Calculator\'s alone — another page\'s card is its own', async ({ page }) => {
     await page.goto('/settings.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
-    await expect(page.locator('#loginAbout')).toHaveCount(0);
-    await expect(page.locator('#loginFootnote')).toHaveCount(0);
-    expect(await page.locator('#loginOverlay').getAttribute('aria-describedby')).toBeNull();
+    await expect(page.locator('#loginAbout')).toBeVisible();
+    await expect(page.locator('#loginAbout')).not.toContainText(/take-home pay/i);
+    await expect(page.locator('#loginAbout .login-about-link')).toHaveCount(0);
 });
 
 // The guide link is a second way OFF the sign-in card, so it keeps the Back link's rule: a sign-in in
@@ -3875,9 +3832,11 @@ const pcColour = (page, value) => page.evaluate((v) => {
     const c = getComputedStyle(i).color; i.remove(); return c;
 }, value);
 
-test('paycalc: a Tab stop on a dark surface wears the ring drawn for one', async ({ page }, info) => {
-    // The help sheet's ✕ and the guide link at the foot of the page have no focus rule of their own,
+test('paycalc: a Tab stop wears the ring drawn for the surface it is on', async ({ page }, info) => {
+    // The help sheet's ✕ and the guide link at the foot of the page had no focus rule of their own,
     // so they took the app's navy fallback ring: 1.17:1 on the dark glass and 1:1 on the navy canvas.
+    // The ? panels are the shared WHITE Tips sheet since Nov 2026, so their ✕ takes the navy ring every
+    // other page's Tips ✕ wears — gold there would be ~1.5:1.
     test.skip(isTouchProject(info), 'a keyboard');
     await seedSession(page);
     await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
@@ -3894,10 +3853,10 @@ test('paycalc: a Tab stop on a dark surface wears the ring drawn for one', async
     expect(await ring(link), 'the guide link on the navy canvas').toEqual({ focus: true, style: 'solid', colour: gold });
 
     await page.locator('.help-btn[data-help="hours"]').click();
-    await expect(page.locator('#helpLightbox.visible')).toBeVisible();
-    const close = page.locator('#helpLightboxClose');
+    await expect(page.locator('#tipsLightbox.visible')).toBeVisible();
+    const close = page.locator('#tipsLightboxClose');
     for (let i = 0; i < 6 && !(await close.evaluate(e => e === document.activeElement)); i++) await page.keyboard.press('Tab');
-    expect(await ring(close), 'the help sheet\'s ✕ on the dark glass').toEqual({ focus: true, style: 'solid', colour: gold });
+    expect(await ring(close), 'the ? panel\'s ✕ on the white sheet').toEqual({ focus: true, style: 'solid', colour: await pcColour(page, 'var(--primary-blue)') });
 });
 
 test('paycalc: the Training Days stepper draws its focus ring whole', async ({ page }, info) => {
@@ -4091,7 +4050,7 @@ test('paycalc: at large text an open card is never cut short — Save settings s
 test('paycalc: a notice sheet\'s two answers are one width, from tablet up', async ({ page }, info) => {
     // From 768px every `.btn-primary` stopped at 280px — a cap written for the cards, whose two
     // buttons were then exempted by name. What it still reached was the first answer in each notice
-    // sheet: "Yes, it's mine" 280px wide over a 290px "No — start fresh", the mismatched pair the
+    // sheet: "Yes, it's mine" 280px wide over a 290px "No — start fresh" (its label then), the mismatched pair the
     // cap's own comment called a fault.
     test.skip(isTouchProject(info), 'tablet and desktop widths');
     await page.clock.setFixedTime(new Date('2026-11-10T09:00:00Z'));
@@ -4111,7 +4070,7 @@ test('paycalc: a notice sheet\'s two answers are one width, from tablet up', asy
         await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
         await settle();
         const [mine, fresh] = await boxes(['dataOwnerMine', 'dataOwnerFresh']);
-        expect(mine, `${width}px: "Yes, it's mine" against "No — start fresh" under it`).toEqual(fresh);
+        expect(mine, `${width}px: "Yes, it's mine" against "No — delete it" under it`).toEqual(fresh);
 
         await page.locator('#dataOwnerClose').click();   // decide later
         await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
@@ -4146,7 +4105,7 @@ test('paycalc: a primary button and the secondary under it are drawn by one reci
     await page.goto('/paycalc.html');
     await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
     const [mine, fresh] = await shape(['dataOwnerMine', 'dataOwnerFresh']);
-    expect(mine, '"Yes, it\'s mine" against "No — start fresh"').toBe(fresh);
+    expect(mine, '"Yes, it\'s mine" against "No — delete it"').toBe(fresh);
     await page.locator('#dataOwnerClose').click();
     await expect(page.locator('#dataOwnerLightbox')).not.toHaveClass(/visible/);
     if (!await page.locator('#payTransferBody').evaluate(el => el.classList.contains('open'))) {
@@ -4940,18 +4899,44 @@ test('paycalc: the ? help sheet is the Tips\' width at every size', async ({ pag
     for (const width of [1366, 820, 390]) {
         await page.setViewportSize({ width, height: 800 });
         await page.locator('#hoursCard .help-btn').click();
-        await expect(page.locator('#helpLightbox')).toHaveClass(/open/);
+        await expect(page.locator('#tipsLightbox')).toHaveClass(/open/);
         const w = await page.evaluate(() => {
             const probe = document.createElement('div');
             probe.style.cssText = 'position:absolute;width:min(var(--modal-standard), var(--modal-cap))';
             document.body.appendChild(probe);
             const want = probe.offsetWidth;
             probe.remove();
-            return { want, got: /** @type {HTMLElement} */ (document.getElementById('helpLightboxContent')).offsetWidth };
+            return { want, got: /** @type {HTMLElement} */ (document.getElementById('tipsLightboxContent')).offsetWidth };
         });
         expect(w.got, `the sheet at ${width}px`).toBe(w.want);
         await page.keyboard.press('Escape');
-        await expect(page.locator('#helpLightbox')).not.toHaveClass(/visible/);
+        await expect(page.locator('#tipsLightbox')).not.toHaveClass(/visible/);
+    }
+});
+
+// THE ? PANELS ARE THE SHARED TIPS SHEET (owner-approved, Nov 2026). They were a see-through glass sheet
+// (white at 9% over the page) of bullet lists, so the page's own text showed through behind the help —
+// confirmed on an iPhone. Now: the white sheet, the fixed title and ✕, section headings and icon rows
+// every other page's ? opens. And because one sheet serves all five buttons, a panel scrolled to its end
+// left the NEXT one opening part-way down, its first heading out of sight; each opens at its top now.
+test('paycalc: each ? opens the white Tips sheet, headed and at its top', async ({ page }) => {
+    await openReturning(page, { width: 375, height: 667 });
+    const sheet = page.locator('#tipsLightboxContent');
+    for (const key of ['settings', 'hours', 'accuracy', 'hpp', 'backpay']) {
+        await page.locator(`.help-btn[data-help="${key}"]`).click();
+        await expect(page.locator('#tipsLightbox'), key).toHaveClass(/open/);
+        await expect(page.locator('#tipsLbTitle'), key).not.toBeEmpty();
+        // Opaque: nothing of the page can show through it.
+        expect(await sheet.evaluate(e => getComputedStyle(e).backgroundColor), `${key}: an opaque sheet`).toBe('rgb(255, 255, 255)');
+        await expect(page.locator('#tipsLbBody .tips-lb-section').first(), `${key}: sections are headed`).toBeVisible();
+        expect(await page.locator('#tipsLbBody .tips-lb-item .tips-lb-icon').count(), `${key}: every row has its icon`)
+            .toBe(await page.locator('#tipsLbBody .tips-lb-item').count());
+        expect(await sheet.evaluate(e => e.scrollTop), `${key}: opens at its top`).toBe(0);
+        // Leave it scrolled to its end, as a member who read it all would, for the next one to open after.
+        await sheet.evaluate(e => { e.scrollTop = e.scrollHeight; });
+        expect(await sheet.evaluate(e => e.scrollTop), `premise: ${key}'s panel scrolls on a phone`).toBeGreaterThan(0);
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#tipsLightbox')).not.toHaveClass(/visible/);
     }
 });
 
@@ -5077,7 +5062,7 @@ test('paycalc: nothing a mouse or a keyboard reads says "tap"', async ({ page },
     await payPageReady(page);
     await page.locator('#hoursShowMore').click();
     await page.locator('#hoursCard .help-btn').click();
-    await expect(page.locator('#helpLightbox')).toHaveClass(/open/);
+    await expect(page.locator('#tipsLightbox')).toHaveClass(/open/);
     const words = await page.evaluate(() => [document.body.innerText,
         ...[...document.querySelectorAll('[aria-label]')].map(e => e.getAttribute('aria-label'))].join('\n'));
     expect(words.match(/[^\n]*\btap(s|ped|ping)?\b[^\n]*/gi) ?? []).toEqual([]);

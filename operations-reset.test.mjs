@@ -25,9 +25,13 @@ const answered = (/** @type {number} */ status, /** @type {string} */ body) => n
 test('the question asks about a lost phone with a box that names what ticking it changes', () => {
     const q = resetQuestion(NAME);
     assert.equal(q.title, 'Reset password?');
-    assert.equal(q.confirmLabel, 'Reset');
+    assert.equal(q.confirmLabel, 'Reset password');
     assert.equal(q.danger, true);
-    assert.ok(q.message.includes(`Reset ${NAME}'s password back to their surname default`));
+    assert.ok(q.message.includes(`Reset ${NAME}’s password to their surname default`));
+    // What the server does (functions/auth-endpoints.js): the old password stops at once, and a notice goes unless ticked.
+    assert.match(q.message, /current password stops working straight away/);
+    assert.match(q.message, /Unless you tick the box below, a notice goes to their devices/);
+    assert.doesNotMatch(q.message, /'/, 'curly apostrophes in visible copy');
     assert.equal(q.option, LOST_PHONE, 'the dialog carries the one lost-phone option');
     assert.equal(LOST_PHONE.label, 'Their phone is lost or stolen');
     assert.match(LOST_PHONE.hint, /No reset notice is sent/);
@@ -83,7 +87,7 @@ test('a reset whose admin sign-in could not be renewed was never sent: Retry, an
         const { retry, note } = resetFailure(NAME, err);
         assert.equal(retry, true, 'nothing changed, so trying again is the right offer');
         assert.equal(note?.title, 'The reset wasn’t sent', 'a bare Retry gave the admin no reason');
-        assert.match(note?.message ?? '', new RegExp(`nothing was sent and ${NAME.replace('.', '\\.')}'s password has not changed`));
+        assert.match(note?.message ?? '', new RegExp(`nothing was sent and ${NAME.replace('.', '\\.')}’s password has not changed`));
         assert.equal(err.cause, offline, 'the renewal\'s own error is kept, for the console');
     } finally { globalThis.fetch = realFetch; }
 });
@@ -109,15 +113,18 @@ test('a member nobody told is the admin\'s errand, whether or not the sign-out w
     const untold = resetOutcome(NAME, { ...LANDED, notified: false });
     assert.equal(untold?.title, 'Password reset — tell them yourself');
     // `notified: false` is also a send that failed, so the line says what happened, never that the member has no notifications.
-    assert.match(untold?.message ?? '', new RegExp(`No reset notice reached ${NAME.replace('.', '\\.')}'s devices, so they have NOT been told`));
+    assert.match(untold?.message ?? '', new RegExp(`No reset notice reached ${NAME.replace('.', '\\.')}’s devices, so they have NOT been told`));
     assert.doesNotMatch(untold?.message ?? '', /has no notifications/, 'a send that failed is blamed on the member\'s phone');
     assert.match(untold?.message ?? '', /their password is now their surname and they are signed out\./);
-    assert.match(untold?.message ?? '', /Their other sessions were signed out\./);
+    assert.match(untold?.message ?? '', /They are signed out on every device\./);
     assert.doesNotMatch(untold?.message ?? '', /lost phone/, 'an ordinary reset never speaks of a lost phone');
 
     const both = resetOutcome(NAME, { ...LANDED, revoked: false, revokeFailed: true, notified: false });
-    assert.equal(both?.title, 'Password reset — other devices not signed out yet', 'the live sign-in leads');
-    assert.match(both?.message ?? '', /when they next renew, within the hour/);
+    assert.equal(both?.title, 'Password reset — not signed out yet', 'the live sign-in leads');
+    assert.match(both?.message ?? '', /ends every sign-in when it next renews, within the hour/);
+    // The revoke is the MEMBER's whole sign-out, and the admin's device is not one of theirs: no "other devices".
+    assert.match(both?.message ?? '', /They couldn’t be signed out of their devices straight away/);
+    assert.doesNotMatch(`${both?.title} ${both?.message}`, /other devices/);
     assert.match(both?.message ?? '', /they have NOT been told/, 'and the untold member is no longer hidden');
     assert.doesNotMatch(both?.message ?? '', /and they are signed out/, 'never claims a sign-out that failed');
 });
@@ -167,7 +174,7 @@ test('an account taken back waits on Set up accounts, and is never also called u
 
 test('a lost-phone reset whose sign-out failed never says they are signed out', () => {
     const r = resetOutcome(NAME, { ...LANDED, revoked: false, revokeFailed: true, notified: false, lostDevice: true, pushReleased: 1 }, { lostDevice: true });
-    assert.equal(r?.title, 'Password reset — other devices not signed out yet');
+    assert.equal(r?.title, 'Password reset — not signed out yet');
     assert.doesNotMatch(r?.message ?? '', /the lost phone included/);
     assert.doesNotMatch(r?.message ?? '', /, they are signed out,/);
     assert.match(r?.message ?? '', /their password is now their surname and the app asks for a new one/);

@@ -457,7 +457,8 @@ describe('the Trains tips hold on both sides of the change', () => {
     test('the changes panel opens with the title its view goes by before the change', async () => {
         const { CARD_TIPS } = await import('./trains-tips.js');
         const { changesTitle } = await import('./trains-render.js');
-        assert.equal(CARD_TIPS.changes.title, `🔔 ${changesTitle(false)}`);
+        // No emoji in a panel title (R2-14): the card's header carries it, and the title is the dialog's aria-label.
+        assert.equal(CARD_TIPS.changes.title, changesTitle(false));
         assert.notEqual(changesTitle(true), changesTitle(false), 'and the view has another name from the change');
     });
 
@@ -480,7 +481,7 @@ describe('the Trains tips hold on both sides of the change', () => {
             assert.equal(/leaf-fall/.test(words(day)), leafFall, `${iso}: the leaf-fall line and the station card's note disagree`);
             assert.equal(tipsOn(day).overview.sections.flatMap(s => s.items).length, all - (festive ? 0 : 1) - (leafFall ? 0 : 1), `${iso}: another line went too`);
             assert.ok(Object.values(tipsOn(day)).every(p => p.sections.every(s => s.items.length)), `${iso}: a heading is left over an empty section`);
-            assert.equal(tipsOn(day).changes.title, `🔔 ${changesTitle(daysUntil(day, CHANGE_DATE) <= 0)}`, `${iso}: the changes panel is titled for the other side of the change`);
+            assert.equal(tipsOn(day).changes.title, changesTitle(daysUntil(day, CHANGE_DATE) <= 0), `${iso}: the changes panel is titled for the other side of the change`);
         }
         // The last day of both still has both; the next has neither.
         assert.match(words(on('2027-01-10')), /Christmas and New Year are not on this page[\s\S]*leaf-fall/);

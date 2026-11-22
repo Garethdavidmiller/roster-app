@@ -32,7 +32,7 @@
 
 export const CARD_TIPS = {
     'my-availability': {
-        title: '📝 My availability',
+        title: 'My availability',
         sections: [
             {
                 items: [
@@ -53,7 +53,7 @@ export const CARD_TIPS = {
                     // The rule was always how the app behaved and was stated nowhere, so an
                     // ordinary overnight entry looked self-contradictory (Friday 22:00–02:00 beside
                     // Saturday "not available"). Owner, Aug 2026.
-                    { icon: '🌙', html: 'Each day\'s answer is about a duty <strong>starting that day</strong>. So availability that runs past midnight belongs to the day it starts on — you do not answer for it again the next morning.' },
+                    { icon: '🌙', html: 'Each day’s answer is about a duty <strong>starting that day</strong>. So availability that runs past midnight belongs to the day it starts on — you do not answer for it again the next morning.' },
                     { icon: '🔄', html: 'If your shift changes after you have answered, the form says so on that day. What you said still stands until you change it yourself.' },
                 ],
             },
@@ -63,7 +63,7 @@ export const CARD_TIPS = {
                     { icon: '📋', html: 'This tells the roster team when you are <strong>available</strong>. It does not book overtime and does not guarantee any.' },
                     { icon: '➕', html: 'What you offer is time <strong>around whatever you are already rostered</strong>. Saying you are available never puts your rostered shift at risk, and never means you would rather work a different one.' },
                     { icon: '⏱️', html: 'A working day is never planned past <strong>12 hours in total</strong>, whatever you answer — you do not need to choose anything to get that limit.' },
-                    { icon: '☑️', html: 'The tick under a day — <strong>I\'d work up to a full 12-hour day</strong> — is a separate question from when you are free. Leave it alone and you are simply available in the hours you chose; tick it and you are saying the roster team may build you a long day, counting anything you are already rostered. It is not offered where the day already reaches twelve hours.' },
+                    { icon: '☑️', html: 'The tick under a day — <strong>I’d work up to a full 12-hour day</strong> — is a separate question from when you are free. Leave it alone and you are simply available in the hours you chose; tick it and you are saying the roster team may build you a long day, counting anything you are already rostered. It is not offered where the day already reaches twelve hours.' },
                     // Added in the overtime-ui sweep (Nov 2026): the tick shipped at v23.81 with no line
                     // here. It must never read as granted (OVERTIME_AVAILABILITY.md invariant 14).
                     { icon: '🙋', html: 'On a Sunday you are rostered to work, <strong>Ask to be taken off this Sunday</strong> asks the roster team to take you off it. It is a request, not a change to your roster: the roster team decides, and your roster shows what they decided.' },
@@ -76,7 +76,7 @@ export const CARD_TIPS = {
     },
 
     'upcoming-weeks': {
-        title: '🗓️ Upcoming weeks',
+        title: 'Upcoming weeks',
         sections: [
             {
                 heading: 'How weeks get opened',
@@ -97,7 +97,7 @@ export const CARD_TIPS = {
                     // who has been told that will read a stuck week as normal.
                     { icon: '🌑', html: '<strong>Did not open overnight</strong> means the automatic run was due to open that week and did not. Use <strong>Open now</strong> on the row — it works whether or not anyone has worked out why the run stopped.' },
                     { icon: '⚠️', html: '<strong>Missed</strong> means no form was ever opened, so nobody was asked and nobody is outstanding. It never means nobody was needed.' },
-                    { icon: '🚫', html: 'Once a week\'s final deadline has passed it can no longer be opened, and the row stays as <strong>Missed</strong> until that Saturday goes by.' },
+                    { icon: '🚫', html: 'Once a week’s final deadline has passed it can no longer be opened, and the row stays as <strong>Missed</strong> until that Saturday goes by.' },
                 ],
             },
             {
@@ -108,7 +108,7 @@ export const CARD_TIPS = {
                     { icon: '📁', html: '<strong>Previous weeks</strong> lists the weeks that have already run and are still kept — around 13 weeks — so you can look back at what was available when a decision was made.' },
                     // Added with the feature (v20.95). Without it the only way to discover the
                     // control is to notice a small button on a row you are trying to scroll past.
-                    { icon: '🚪', html: '<strong>Stop asking</strong>, beside a name in <em>Who is being asked</em>, is for somebody who has left. They come out of that week\'s counts, stop seeing it on their own page, and a <strong>Not being asked</strong> note names them at the bottom. Their form is kept.' },
+                    { icon: '🚪', html: '<strong>Stop asking</strong>, beside a name in <em>Who is being asked</em>, is for somebody who has left. They come out of that week’s counts, stop seeing it on their own page, and a <strong>Not being asked</strong> note names them at the bottom. Their form is kept.' },
                     // NOT "always undone" (overtime-ui-2): a press made before the first deadline can
                     // be undone only until it, however long the week then stays open.
                     { icon: '↩️', html: '<strong>Ask again</strong> puts them back. It is offered while the <strong>first deadline is still ahead</strong>, and after it only for somebody stopped <em>since</em> that deadline. So a press made before the first deadline can be undone until that deadline, and one made after it until the week closes. Somebody stood down before the cut-off is not put back into a deadline they were never asked about — they join again from the next week.' },
@@ -119,7 +119,7 @@ export const CARD_TIPS = {
     },
 
     'who-is-available': {
-        title: '👥 Who is available',
+        title: 'Who is available',
         sections: [
             {
                 heading: 'Reading the week',
@@ -151,7 +151,7 @@ export const CARD_TIPS = {
                     { icon: '🔄', html: '<strong>Roster changed since this answer</strong> is the opposite: they have not changed their mind — their shift has moved under an answer that was tied to it.' },
                     // The last two had no line here until the overtime-ui sweep (Nov 2026).
                     { icon: '🆕', html: '<strong>Added after this week opened</strong> — they were asked after the week began, so a name under <em>No response</em> may simply be new to it rather than gone quiet.' },
-                    { icon: '🙋', html: '<strong>Asked to come off this Sunday</strong> sits beside that person\'s answer, never in place of it: their availability stands as they gave it, and the request changes no roster until the roster team decides.' },
+                    { icon: '🙋', html: '<strong>Asked to come off this Sunday</strong> sits beside that person’s answer, never in place of it: their availability stands as they gave it, and the request changes no roster until the roster team decides.' },
                 ],
             },
             {

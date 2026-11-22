@@ -144,8 +144,8 @@ This is the same class of decision as `upload-commit.js` and should read the sam
 
 ### On success
 
-Set the credential, `revokeRefreshTokens(uid)` (a recovery is exactly when other devices should
-stop being signed in), stamp `passwordStatus.passwordSetAt` server-side — which, unlike the
+Set the credential, `revokeRefreshTokens(uid)` (a recovery is exactly when every existing session
+should end, and it ends them all), stamp `passwordStatus.passwordSetAt` server-side — which, unlike the
 client-written stamp the Settings card produces, is real evidence — and mark the code used.
 
 ### It is also the ACTIVATION path
@@ -270,8 +270,9 @@ current plan is unchanged until they make it.**
 
 ### Route 1 — the plan as it stands
 
-C5 is gated on Track E because of a metric argument: a member who only ever reads the roster signs
-in nowhere, never meets the forced-password overlay, and therefore never migrates — so the "≥90%
+C5 is gated on Track E because of a metric argument: a member who only ever opens the roster with
+the staff PIN signs in nowhere, never meets the forced-password overlay (which the Calendar's own
+sign-in has run since v23.21), and therefore never migrates — so the "≥90%
 migrated" figure cannot converge without individual authentication first.
 
 ### Route 2 — what C6 makes possible

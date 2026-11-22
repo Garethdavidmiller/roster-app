@@ -6,6 +6,7 @@
 import { expect } from '@playwright/test';
 import { ROTATING_LINES } from '../links-design.js';
 import { shouldReport } from '../client-errors.js';
+import { TWO_TAP_MIN_MS } from '../admin-booked-periods.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -954,4 +955,16 @@ export function tooWide(page) {
                             return r.width > 0 && Math.round(r.right) > vw + 1; })
             .map(el => `${el.tagName}${el.id ? '#' + el.id : ''}.${(typeof el.className === 'string' ? el.className : '').split(' ')[0]}`);
     });
+}
+
+/**
+ * Wait out a two-tap control's double-tap minimum, so the next tap is a confirmation (confirm review,
+ * Nov 2026). Admin's ✕ deletes and Operations' email Remove ignore a second tap sooner than
+ * `TWO_TAP_MIN_MS` after arming, because that is a double tap, not an answer; a test that taps twice
+ * at once now reads exactly like a double tap. Real time, which `performance.now()` keeps under
+ * `page.clock.setFixedTime` and an installed clock that is not paused.
+ * @param {import('@playwright/test').Page} page
+ */
+export async function pastDoubleTap(page) {
+    await page.waitForTimeout(TWO_TAP_MIN_MS + 100);
 }

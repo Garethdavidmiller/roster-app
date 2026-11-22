@@ -35,7 +35,8 @@
  * That left `al-booking-2026` alone until v24.82 added `timetable-2026`, v24.86 the Year to Date
  * notice that follows it and v24.91 the install notice — the same release that retired the leave
  * reminder early, by owner decision (22 Oct 2026) — then v24.94 the second timetable notice (up from
- * 16 November since v26.21) and v25.61 the New link one. Every one of them is `'members'` —
+ * 16 November since v26.21) and v25.61 the New link one. The two October notices were deleted on
+ * 22 Nov 2026, three weeks after they went inert, as `backpay-2026` was. Every one of them is `'members'` —
  * so **no live notice addresses the signed-out audience**, and the positive direction of the
  * audience gate has nothing to exercise it. `calendar-notices.test.mjs` can still prove a notice is REFUSED to the wrong audience and
  * that every notice is gated at all; what it can no longer prove behaviourally is that a
@@ -107,9 +108,9 @@ function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecide
 }
 
 /**
- * The last day the two October notices are offered — Saturday 31 October 2026, all of it; from
- * 1 November a device that never saw them is flagged and shown nothing (owner, 22 Oct 2026, for
- * the Year to Date notice and the timetable one alike).
+ * The last day the two October notices were offered — Saturday 31 October 2026, all of it (owner,
+ * 22 Oct 2026, for the Year to Date notice and the timetable one alike). Both are retired (22 Nov
+ * 2026); the date stays because the install notice still follows them, through `FOLLOWED_ENDS`.
  *
  * A DATE, NOT A DAY COUNT FROM POSTING. The clocks go back on 25 October, so "N days after posting"
  * is N days and an hour of wall clock: counted from the timetable notice's 21 Oct it would have
@@ -194,125 +195,6 @@ export function initCalendarNotices({ after } = {}) {
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same
     // hour it was written; the wrapper is the scope those returns need.
-    // ── The new timetable, and where to learn it (v24.82; owner request, 21 Oct 2026) ────────────
-    //
-    // Chiltern's timetable changes on Sunday 13 December, and staff will be asked about it; this
-    // points members at the Trains page, which shows the change station by station. A ONE-OFF from
-    // the start, on the rule the owner set for the leave reminder (10 Sep 2026; that notice was
-    // retired early at v24.91): every dismissal — the ×, the backdrop, Escape, "Not now" and the
-    // link — marks it DONE, so it declares no snooze key at all. Its body says where the page sits
-    // in the menu, so "Not now" loses nothing.
-    // It is offered until the end of 31 October (owner, 22 Oct 2026 — `OCTOBER_LAST_DAY`). It
-    // shipped running to 13 December, the day the timetable starts; the owner brought it forward to
-    // end with the Year to Date notice below, which waits for this one to be dismissed. Archived on
-    // OPEN, because the link may take the member away before onClose fires.
-    (function () {
-        const NOTICE_ID   = 'timetable-2026';
-        const NOTICE_DATE = '21 Oct 2026';
-        const DONE_KEY    = 'myb_notice_timetable_2026_done';
-
-        const overlay = document.getElementById('timetableNoticeLb');
-        if (!overlay) return;
-        if (lsGet(DONE_KEY)) return;
-        if (isNoticeExpired(OCTOBER_LAST_DAY, 1)) { lsSet(DONE_KEY, '1'); return; }
-
-        const markDone = () => lsSet(DONE_KEY, '1');
-
-        const lb = createLightbox({
-            overlay,
-            content:  /** @type {HTMLElement} */ (document.getElementById('timetableNoticeContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('timetableNoticeClose')),
-            onOpen() {
-                archiveNotice({
-                    id: NOTICE_ID, title: 'A new timetable starts on 13 December', section: 'Trains',
-                    date: NOTICE_DATE,
-                    body: 'Chiltern’s new timetable starts on Sunday 13 December. The Trains page shows what '
-                        + 'changes at Marylebone, station by station — open it from the menu: ☰ then 🚆 Trains.',
-                });
-            },
-            onClose() { markDone(); },
-        });
-
-        _wireNoticeLink('timetableNoticeGo', lb, markDone);
-        document.getElementById('timetableNoticeLater')?.addEventListener('click', () => lb.close());
-
-        // 'members' — chosen while the Trains page signed people in, when its link would have led the
-        // station PC only to a sign-in. The PIN has read Trains since v24.84; whether the station
-        // should be told too was left to the owner (this notice's row is in the new-notice skill's
-        // "Current notices" table). A PIN unlock is not flagged seen, so the notice still arrives
-        // when that device is next signed in.
-        _openWhenAudienceAllows(lb, 'members');
-    }());
-
-    // ── Year to Date figures: a closer tax estimate on the Pay Calculator (v24.86; owner, 22 Oct) ──
-    //
-    // Teaches the Pay Calculator's Year to Date card — what the two figures are, where they are on a
-    // payslip, and what they do — and links to the card itself, opened (paycalc.html#payslipCard).
-    // It asks for the TAX CODE to be checked first (v24.88, owner): with a wrong code, Year to Date
-    // figures make the estimate worse, not better — the cumulative method applies the wrong allowance
-    // to every payslip of the year at once. Measured on a real payslip with the default code where the
-    // payslip said 1182L: the next estimate £23.20 out without the figures, £207.60 out with them.
-    // A ONE-OFF on the same rule as the timetable notice above: every dismissal marks it done.
-    //
-    // IT COMES THE TIME AFTER THE TIMETABLE NOTICE, never on the same load (owner). So it reads that
-    // notice's done flag NOW, at wiring time, and is not wired at all until the flag was set on an
-    // earlier load — dismissing the timetable notice cannot bring this one up behind it, and two
-    // notices are never offered back to back. `FOLLOWS` restates that notice's key, which the test
-    // pins equal to the one its IIFE declares, so a renamed key cannot quietly strand this notice.
-    // Today the order would ALSO hold without it — this block sits after the timetable one, so its
-    // timer fires second and `openNoticeIfClear` finds the page already covered (measured: deleting
-    // the rule leaves the browser journey green). It stays because the owner named the ORDER, and an
-    // order that holds only because of where a block sits in this file is one reordering away from
-    // not holding. calendar-notices.test.mjs block 7 is what fails without it.
-    //
-    // ONLY TO A MEMBER THE PAY CALCULATOR CAN PRICE. It refuses every role without confirmed rates
-    // (Dispatchers, the manager accounts) and any name the roster no longer holds, so a notice sent
-    // to them would advertise a page that turns them away. `payCalcIsTheirs` asks the Pay page's own
-    // test (pay-audience.js), so the two cannot disagree. Read at OPEN time, through the
-    // gate: a member who signs in at the front door on this very load has no session at wiring time.
-    // Refused, it is left unflagged, like an out-of-audience notice.
-    //
-    // Offered to the end of 31 October with the timetable notice (`OCTOBER_LAST_DAY`), so a member
-    // who first meets that one on the 31st gets this one only by opening the Calendar again that
-    // day — the cost of the owner's single end date, and the right way round: the timetable notice
-    // is never cut short to make room. Archived on OPEN, because the link leaves the page.
-    (function () {
-        const NOTICE_ID   = 'ytd-figures-2026';
-        const NOTICE_DATE = '22 Oct 2026';
-        const DONE_KEY    = 'myb_notice_ytd_figures_2026_done';
-        const FOLLOWS     = 'myb_notice_timetable_2026_done';
-
-        const overlay = document.getElementById('ytdNoticeLb');
-        if (!overlay) return;
-        if (lsGet(DONE_KEY)) return;
-        if (isNoticeExpired(OCTOBER_LAST_DAY, 1)) { lsSet(DONE_KEY, '1'); return; }
-        if (!followedDone(FOLLOWS)) return;
-
-        const markDone = () => lsSet(DONE_KEY, '1');
-
-        const lb = createLightbox({
-            overlay,
-            content:  /** @type {HTMLElement} */ (document.getElementById('ytdNoticeContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('ytdNoticeClose')),
-            onOpen() {
-                archiveNotice({
-                    id: NOTICE_ID, title: 'Make your pay estimates more accurate', section: 'Pay',
-                    date: NOTICE_DATE,
-                    body: 'Check the tax code in Your Settings matches your payslip, then copy Taxable Pay and Tax Paid from the Year to '
-                        + 'Date box at the bottom left of your latest payslip into the Pay Calculator’s 📊 Year to Date Figures '
-                        + 'card — its tax figure usually gets much closer to your payslip.',
-                });
-            },
-            onClose() { markDone(); },
-        });
-
-        _wireNoticeLink('ytdNoticeGo', lb, markDone);
-        document.getElementById('ytdNoticeLater')?.addEventListener('click', () => lb.close());
-
-        // 'members' — it is about YOUR pay, and on the PIN-unlocked station PC it addresses nobody.
-        _openWhenAudienceAllows(lb, 'members', payCalcIsTheirs);
-    }());
-
     // WIRED BEFORE THE INSTALL NOTICE (v24.96, the 72-hour review). In the final week, 6–12 December,
     // this one waits for nobody, so two notices can be due on one load — this one and, on a phone that
     // never answered it, the install notice — and the first to ask for the screen takes it
@@ -406,12 +288,12 @@ export function initCalendarNotices({ after } = {}) {
     // flagged and shown nothing.
     //
     // THIRD IN LINE, and never on the load another notice is dismissed — the order the owner
-    // confirmed for the first two. It FOLLOWS the timetable notice, and it also waits for the Year to
-    // Date notice, but only where that one is the member's to get: a Dispatcher never gets it, and
-    // waiting for it would hold this notice back until the Year to Date notice expires on
-    // 1 November. Both flags are read at WIRING time, as FOLLOWS always is, so the order holds by
-    // construction: on the load the Year to Date notice is shown, this one is refused at the gate,
-    // whichever timer fires first.
+    // confirmed for the first two. It FOLLOWS the October timetable notice, and it also waits for the
+    // Year to Date notice, but only where that one was the member's to get: a Dispatcher never got it.
+    // Both flags are read at WIRING time, as FOLLOWS always is, so the order held by construction.
+    // BOTH ARE RETIRED (lightbox review, 22 Nov 2026): their markup and code went once they had been
+    // inert for three weeks, and their ends stay in `FOLLOWED_ENDS`, so `followedDone` passes on them
+    // for every device — the ones that never answered them included — and this one waits for neither.
     //
     // WHAT IT SAYS DEPENDS ON THE BROWSER, chosen as it opens, because Chromium's offer can arrive
     // after the gate: one tap where Chromium has handed its install offer over; Share, then Add to
@@ -593,7 +475,7 @@ function _showInstallRoute({ how, mirror }) {
         installNoticeMenu:    !mirror && how === 'menu',
         installNoticePay:     mirror,
         installNoticePayIos:  !mirror && how === 'ios',     // the Home Screen app's storage is its own — Android's is not
-        installNoticeHave:    !mirror && how !== 'prompt',   // Chromium offers only where it is not installed
+        installNoticeHave:    !mirror && how === 'menu',     // Chromium offers only where it is not installed; the iPhone's line says it itself
         installNoticeActions: mirror || how === 'prompt',
         installNoticeInstall: !mirror && how === 'prompt',   // never an Install button on the mirror, whatever `how` says (v24.96)
         installNoticeGo:      mirror,

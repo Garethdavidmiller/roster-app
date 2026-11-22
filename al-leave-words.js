@@ -382,7 +382,9 @@ export const SAVE_WORDS = Object.freeze({
     undoOffline: 'You’re offline, so nothing was taken back. Press Undo again with a connection.',
     undoUnread: 'The app’s records couldn’t be read, so nothing was taken back. Check your connection and press Undo again.',
     recheckFailed: 'The check after it stopped part way. Check again to see what the app now holds.',
-    clearAsk: 'Clear the check? Your answers, and the people you have confirmed, go with it.',
+    // A title and a line (confirm review, Nov 2026): untitled, the dialog's accessible name was the whole sentence.
+    clearTitle: 'Clear the check?',
+    clearAsk: 'Your answers, and the people you have confirmed, go with it.',
 });
 
 /** The question over a rest day. @param {string} date */

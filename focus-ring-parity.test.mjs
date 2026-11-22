@@ -182,8 +182,9 @@ test('the scan finds the focus rules, every exemption is in use, and each remova
 // ── 3. A control on a NAVY surface never wears the navy ring (desktop audit, Nov 2026) ─────────────
 // The fallback ring is `--focus-outline` — navy — so a control on navy with no rule of its own is a
 // Tab stop with no visible indicator (1:1). These are the shared code's controls on the navy header
-// and the opaque navy sheet, and the Pay Calculator's two on navy surfaces of its own (whole-app fix,
-// 10 Nov 2026): the help sheet's ✕ and the guide link on the navy page. Each must name a ring drawn for
+// and the opaque navy sheet, and the Pay Calculator's own on the navy page (whole-app fix, 10 Nov 2026):
+// the guide link. (Its help sheet's ✕ was the second until Nov 2026, when the ? panels became the shared
+// WHITE Tips sheet, whose ✕ rightly wears the navy ring.) Each must name a ring drawn for
 // a dark surface. A static floor beside the e2e (pages.spec.js → "keyboard focus is visible on the navy
 // surfaces"), which reads the computed ring: this one names the rule, that one proves the cascade lets
 // it win.
@@ -194,7 +195,7 @@ test('the controls on a navy surface name a ring drawn for one', () => {
             '#navNoticesClose:focus-visible', '#navComingSoonClose:focus-visible', '.lightbox-bug-link:focus-visible',
             '.lightbox-print-btn:focus-visible', '.notice-cta:focus-visible', '.notice-later:focus-visible',
             '.notice-lb-content .btn-action:focus-visible', '#navNoticesList:focus-visible'],
-        'paycalc.css': ['#helpLightboxClose:focus-visible', '.guide-footer-link a:focus-visible'],
+        'paycalc.css': ['.guide-footer-link a:focus-visible'],
     };
     const wrong = [];
     for (const [file, selectors] of Object.entries(ON_NAVY)) {

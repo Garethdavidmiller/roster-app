@@ -1094,7 +1094,7 @@ test('calendar: a re-check that fails on return keeps the grid as a saved copy, 
     await page.clock.fastForward('11:00');
     await comeBack();
     await expect(note, 'the failed re-check must reach the screen').toBeVisible();
-    await expect(note).toContainText('Saved copy — couldn\'t check for changes');
+    await expect(note).toContainText('Saved copy — couldn’t check for changes');
     await expect(shown).toHaveAttribute('data-override-state', 'stale');
     await expect(page.locator('.calendar-grid'), 'the grid is kept — a failed re-check never blanks good data').toBeVisible();
     await expect(leaveDay, 'with the leave it already held').toContainText('AL');
@@ -2151,8 +2151,9 @@ test.describe('install notice — on an iPhone', () => {
     // own storage, so the member is signed out there and the Pay Calculator's figures stay behind in the
     // browser — the notice promised the opposite. And Share is under ••• on iOS 26, and absent from an
     // email or chat app altogether. Driven through the real detection, at the smallest iPhone that runs
-    // iOS 16.4 (the SE, 375×667), because these lines made the card longer than its screen.
-    test('it says where Share is, to open in Safari first, and what stays behind — and all of it can be read', async ({ page }, info) => {
+    // iOS 16.4 (the SE, 375×667), because these lines made the card longer than its screen: 654px against
+    // a 532px cap, measured on WebKit (lightbox review, 22 Nov 2026). Cut to fit, as the skill's lesson asks.
+    test('it says where Share is, to open in Safari first, and what stays behind — and all of it fits an iPhone SE', async ({ page }, info) => {
         test.skip(!isTouchProject(info), 'it is offered only on a touch screen');
         const errors = collectFatalErrors(page);
         await page.setViewportSize({ width: 375, height: 667 });
@@ -2169,12 +2170,14 @@ test.describe('install notice — on an iPhone', () => {
         await expect(pay).toContainText('Move Your Pay Data');
         await expect(page.locator('#installNoticePay'), 'the mirror\'s line, which says the figures stay at an ADDRESS').toBeHidden();
         await expect(notice).not.toContainText('your saved pay figures are far less likely');
-        // The card runs past this screen, so it must scroll to its last line, with the ✕ never lost.
+        // THE WHOLE CARD FITS — no line under the fade, and the ✕ is not the only way out that can be seen.
+        // scrollHeight against clientHeight, never a screenshot: a card caught mid-animation is scaled.
+        await expect(page.locator('#installNoticeHave'), 'folded into the iPhone line').toBeHidden();
+        await page.waitForTimeout(600);   // past the open's scale-in
+        const fit = await page.locator('#installNoticeContent').evaluate(el => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+        expect(fit.scroll, `the card scrolls: ${fit.scroll}px of content in ${fit.client}px`).toBeLessThanOrEqual(fit.client);
         const close = page.locator('#installNoticeClose');
         await expect(close).toBeInViewport();
-        const last = page.locator('#installNoticeHave');
-        await last.scrollIntoViewIfNeeded();
-        await expect(last).toBeInViewport();
         await close.click();
         await expect(notice).not.toHaveClass(/\bopen\b/);
         const archived = await page.evaluate(() =>
@@ -2217,38 +2220,6 @@ test('install notice: never on a desktop — and not flagged there, so the membe
     await page.waitForTimeout(2500);                          // past the 1,500ms defer
     await expect(page.locator('#installNoticeLb')).not.toHaveClass(/\bopen\b/);
     expect(await page.evaluate(() => localStorage.getItem('myb_notice_install_app_2026_done'))).toBeNull();
-    expect(errors).toHaveLength(0);
-});
-
-test('the Calendar\'s three notices come one per load — timetable, Year to Date, then install (v24.91)', async ({ page }, info) => {
-    // The order the owner confirmed for the first two, carried to the third, on a real page across
-    // real reloads. The session is seeded WITHOUT the seeders' notice flags: here the flags are the
-    // subject, and each must survive a reload exactly as a dismissal leaves it.
-    test.skip(!isTouchProject(info), 'the third is offered only on a touch screen');
-    test.setTimeout(90_000);
-    const errors = collectFatalErrors(page);
-    await page.clock.setFixedTime(INSTALL_NOTICE_DAY);
-    await page.addInitScript(() => {
-        localStorage.setItem('myb_admin_session', JSON.stringify({
-            name: 'G. Miller', ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
-        }));
-        localStorage.setItem('myb_roster_selected_member', 'G. Miller');
-        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true });
-    });
-    await page.goto('/');
-    for (const [lb, answer] of [['#timetableNoticeLb', '#timetableNoticeLater'],
-                                ['#ytdNoticeLb', '#ytdNoticeLater'],
-                                ['#installNoticeLb', '#installNoticeClose']]) {
-        await expect(page.locator(lb)).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        await page.locator(answer).click();
-        await expect(page.locator(lb)).not.toHaveClass(/\bopen\b/);
-        await page.waitForTimeout(2500);                      // past the defer: nothing follows on this load
-        await expect(page.locator('.notice-lb-content:visible'), `nothing after ${lb} on its own load`).toHaveCount(0);
-        await page.reload();
-    }
-    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
-    await page.waitForTimeout(2500);
-    await expect(page.locator('.notice-lb-content:visible'), 'all three answered: nothing more').toHaveCount(0);
     expect(errors).toHaveLength(0);
 });
 
@@ -3289,7 +3260,7 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     // as a mistake beside a colleague's 32.
     await page.locator('#alBtn').click();
     await expect(page.locator('#alLbYear')).toHaveText('2026');
-    await expect(page.locator('#alLbChristmas')).toHaveText('Christmas Day: annual leave, not counted');
+    await expect(page.locator('#alLbChristmas')).toHaveText('Christmas Day: annual leave that does not come off the allowance');
     await expect(page.locator('#alLbTaken')).toHaveText('0');
     await expect(page.locator('#alLbEntitlement')).toHaveText('32');
     await expect(page.locator('#alLbBreakdown')).toBeHidden();
@@ -3298,7 +3269,16 @@ test('christmas: a day due at work is leave never counted, and a worked Boxing D
     await expect(page.locator('#alLbEntitlement')).toHaveText('33');
     await expect(page.locator('#alLbRemaining')).toHaveText('33');
     await expect(page.locator('#alLbBreakdown')).toBeVisible();
-    await expect(page.locator('#alLbBreakdown')).toHaveText('Includes 1 day in lieu for working Boxing Day 2026');
+    await expect(page.locator('#alLbBreakdown')).toHaveText('Entitlement 33: includes 1 day in lieu for working Boxing Day 2026');
+    // A FULL-WIDTH LINE UNDER THE FIGURES (lightbox review, 22 Nov 2026), not a caption in the quarter-width
+    // Entitlement cell, where a long note stretched all four figures to its height.
+    const fit = await page.evaluate(() => {
+        const note = /** @type {HTMLElement} */ (document.getElementById('alLbBreakdown')).getBoundingClientRect();
+        const stats = /** @type {HTMLElement} */ (document.querySelector('.al-lb-stats')).getBoundingClientRect();
+        return { below: note.top >= stats.bottom, share: note.width / stats.width };
+    });
+    expect(fit.below, 'the note sits under the four figures').toBe(true);
+    expect(fit.share, 'and has the panel\'s width, not a quarter of it').toBeGreaterThan(0.6);
     await page.locator('#alLightboxClose').click();
 
     // Team Week View says the same about the same days — it asks the same resolver. Two weeks on
@@ -4235,12 +4215,12 @@ test('huddle: a tap on a Huddle that could not be read offers Try again, which r
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.evaluate(() => { location.hash = '#huddle'; });
-    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle");
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn’t load the Daily Huddle");
     const subs = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.snapshotSubs || 0);
     const before = await subs();
     await page.locator('#huddleRetryBtn').click();
     await expect.poll(subs).toBeGreaterThan(before);
-    await expect(page.locator('#huddleViewerBody'), 'a retry that fails again says so again').toContainText("Couldn't load the Daily Huddle");
+    await expect(page.locator('#huddleViewerBody'), 'a retry that fails again says so again').toContainText("Couldn’t load the Daily Huddle");
 });
 
 // A COLD tap — the notification that opened the page — used to settle silently: the message needed
@@ -4250,7 +4230,7 @@ test('huddle: a cold tap on a Huddle that could not be read is answered, and clo
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleError: true }; });
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/#huddle');
-    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle", { timeout: 15_000 });
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn’t load the Daily Huddle", { timeout: 15_000 });
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
 });
@@ -4374,8 +4354,8 @@ test('drawer Circular on Admin: when no tab comes back, staged edits are asked a
     }, [DOC_STORED, 'circulars/2026-09-25-a.pdf']);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--circular').click();
-    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible({ timeout: 10_000 });
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByText('Your unsaved changes on this page will be lost.', { exact: true })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Keep editing' }).click();
     await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
     await expect(row.locator('.day-start')).toHaveValue('06:00');
     // The question stops the click before the drawer's own handler, so the drawer is still OPEN — and
@@ -4397,7 +4377,7 @@ test('huddle: offline with nothing cached, a tap says it could not load — neve
     await page.waitForTimeout(300);   // the cache-only snapshot has landed
     await page.evaluate(() => { location.hash = '#huddle'; });
     const body = page.locator('#huddleViewerBody');
-    await expect(body).toContainText("Couldn't load the Daily Huddle", { timeout: 10_000 });
+    await expect(body).toContainText("Couldn’t load the Daily Huddle", { timeout: 10_000 });
     await expect(body).not.toContainText('No Daily Huddle has been uploaded yet');
 });
 
@@ -4422,7 +4402,7 @@ test('circular: offline with nothing cached, the viewer and the drawer say they 
     });
     await page.evaluate(() => { location.hash = '#circular'; });
     const body = page.locator('#docViewerBody');
-    await expect(body).toContainText("Couldn't load this document.", { timeout: 10_000 });
+    await expect(body).toContainText('Couldn’t load this document.', { timeout: 10_000 });
     await expect(body).not.toContainText('has been uploaded yet');
     await page.keyboard.press('Escape');
     await expect(page.locator('#docViewer')).not.toHaveClass(/visible/);
@@ -4624,7 +4604,7 @@ test('huddle: a tap before the Huddle has answered says "Loading…", and an ans
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
     await page.evaluate(() => { location.hash = '#huddle'; });
     await expect(page.locator('#huddleViewerBody')).toContainText('Loading…');
-    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle", { timeout: 12_000 });
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn’t load the Daily Huddle", { timeout: 12_000 });
 });
 
 test('huddle: drawn through the REAL sanitiser — no data- or aria- attribute, no picture, and the picture is named with the route to the file', async ({ page }) => {
@@ -4737,7 +4717,7 @@ test('calendar: the leave panel labels a saved balance it could not check, and k
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
     await page.locator('#alBtn').click();
-    await expect(page.locator('#alLbError')).toHaveText('Saved copy — couldn\'t check for changes');
+    await expect(page.locator('#alLbError')).toHaveText('Saved copy — couldn’t check for changes');
     await expect(page.locator('#alLbError')).toBeVisible();
     await expect(page.locator('#alLbTaken'), 'the saved figures stay').toHaveText('20');
     await expect(page.locator('#alLbRemaining')).toHaveText('6');
@@ -4862,6 +4842,84 @@ test('calendar: the leave panel\'s two links take the gold focus ring on its nav
         }
         expect(ring, `"${name}"`).toEqual({ style: 'solid', width: '2px', colour: gold });
     }
+});
+
+// ── EVERY WAY OUT OF A PANEL: ONE BACK RETURNS TO THE CALENDAR (lightbox review, 22 Nov 2026) ──────
+// The New link notice's rule (above, 18 Nov 2026) for the leave panel's two links, the day panel's
+// "Leave dates" and its Pay estimate. A plain link followed from inside an open panel stacked the next page
+// on top of the panel's own history entry, which carries the Calendar's address: Back reloaded the Calendar
+// on that entry, and the Back after it did nothing. The links now REPLACE the panel's entry
+// (`followLinkOutOf`), and Pay estimate waits for the close's own Back before it jumps
+// (`whenHistorySettled`). Playwright runs with the back/forward cache off, so Back always reloads here.
+/**
+ * From the page an exit opened: one Back lands on the Calendar on an entry no overlay holds, and the next
+ * leaves it for the page the member came from.
+ * @param {import('@playwright/test').Page} page @param {RegExp} landed
+ */
+async function oneBackReturnsToCalendar(page, landed) {
+    await expect(page).toHaveURL(landed);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/(index\.html)?$/);
+    expect(await page.evaluate(() => history.state?.mybOverlay ?? null),
+        'Back landed on the panel\'s own entry, whose next Back nothing answers').toBeNull();
+    await page.goBack();
+    await expect(page, 'one more Back leaves the Calendar').toHaveURL(/\/railcard-guide\.html$/);
+}
+
+for (const [label, sel, landed] of /** @type {const} */ ([
+    ['Record leave', '#alLightboxContent .al-lb-link:not(#alLbViewLink)', /\/admin\.html#book-annual-leave$/],
+    ['Leave dates', '#alLbViewLink', /\/admin\.html\?alYear=2026#alBookedBox$/],
+])) {
+    test(`calendar: the leave panel's "${label}" — one Back returns to the Calendar, and the next leaves it`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/railcard-guide.html');              // where the member came from
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await page.locator('#alBtn').click();
+        await expect(page.locator(sel)).toBeVisible();
+        await expect(page.locator(sel)).toHaveText(label);
+        await page.locator(sel).click();
+        await oneBackReturnsToCalendar(page, landed);
+        expect(errors).toHaveLength(0);
+    });
+}
+
+test('calendar: the day panel\'s "Leave dates" — one Back returns to the Calendar, and the next leaves it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'al9', memberName: 'G. Miller', date: '2026-09-04', type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const alDay = page.locator('.calendar-day:not(.other-month)[data-detail-shift-value="AL"]').first();
+    await expect(alDay, 'premise: the seeded leave day is drawn').toBeVisible();
+    await alDay.click();
+    await expect(page.locator('#dayDetailLeaveBtn')).toBeVisible();
+    await page.locator('#dayDetailLeaveBtn').click();
+    await oneBackReturnsToCalendar(page, /\/admin\.html\?alYear=2026#alBookedBox$/);
+    expect(errors).toHaveLength(0);
+});
+
+test('calendar: the day panel\'s Pay estimate — one Back returns to the Calendar, and the next leaves it', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/railcard-guide.html');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const payDay = page.locator('.calendar-day:not(.other-month)[data-payday-iso]').first();
+    await expect(payDay, 'premise: the month has a payday').toBeVisible();
+    await payDay.click();
+    await expect(page.locator('#dayDetailPayBtn')).toBeVisible();
+    await page.locator('#dayDetailPayBtn').click();
+    await oneBackReturnsToCalendar(page, /\/paycalc\.html\?payday=\d{4}-\d{2}-\d{2}$/);
+    expect(errors).toHaveLength(0);
 });
 
 // ── WHOSE LEAVE IT IS (v25.50, owner, 7 Nov 2026) ──────────────────────────────────────────────

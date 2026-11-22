@@ -295,7 +295,8 @@ test.describe('confirmDialog: asked over a higher layer, it paints on top of it'
             });
         });
         const dialog = page.locator('.dialog-overlay.open');
-        await expect(dialog.locator('.dialog-btn-confirm'), 'the question holds the keyboard').toBeFocused();
+        // A destructive question opens on its SAFE answer (lightbox review R1-2): Cancel holds the keyboard.
+        await expect(dialog.locator('.dialog-btn-cancel'), 'the question holds the keyboard, on its safe answer').toBeFocused();
         await expect.poll(() => dialog.locator('.dialog-lb-content').evaluate(el => getComputedStyle(el).transform),
             { timeout: 5000 }).toBe('matrix(1, 0, 0, 1, 0, 0)');   // the open's scale has landed
         return dialog.locator('.dialog-btn-confirm').evaluate(b => {
@@ -489,6 +490,86 @@ for (const [width, height] of [[1280, 593], [1366, 650]]) {
 // ☰ drew about 34×30px, under the 44px touch target, and it is the way into every other page. The
 // glyph stays as it was; an invisible square round it takes the tap. Hit-tested on every page, because
 // a header that clipped its overflow would quietly cut the square back down.
+// ── THE ✕ STAYS WHILE A LONG PANEL SCROLLS (lightbox review R1-5, 22 Nov 2026) ────────────────────────
+// The ✕ was placed absolutely inside the panel that scrolls, so it scrolled away with the words: on a small phone a
+// member reading down About lost the only close control, and iOS has no system Back. It is pinned now (`pinCloseButton`,
+// overlay.js), placed from MEASURED lengths so that at rest nothing moves. Both halves are asserted: the content sits
+// exactly where it sat unpinned, and scrolled to the bottom the ✕ is on the same spot and is what a tap there reaches.
+test('a long panel keeps its ✕ in reach as it scrolls, and pinning it moves nothing at rest', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.setViewportSize({ width: 375, height: 560 });   // short enough that About scrolls inside itself
+    await page.goto('/');
+    await waitForPageSettled(page);
+    await page.locator('.title-icon').first().click();
+    const panel = page.locator('#iconLightboxContent');
+    await expect(panel).toBeVisible();
+    await expect.poll(() => panel.evaluate(el => el.getAnimations().length), 'the panel settles').toBe(0);
+    const where = () => panel.evaluate(el => {
+        const p = el.getBoundingClientRect(), x = /** @type {HTMLElement} */ (el.querySelector(':scope > .lb-close')).getBoundingClientRect();
+        const logo = /** @type {HTMLElement} */ (el.querySelector('img')).getBoundingClientRect();
+        return { top: Math.round(x.top - p.top), right: Math.round(p.right - x.right), logo: Math.round(logo.top - p.top) };
+    });
+    expect(await panel.evaluate(el => el.scrollHeight - el.clientHeight), 'premise: About scrolls at this height').toBeGreaterThan(40);
+    await expect(page.locator('#iconLightboxClose')).toHaveClass(/\blb-close--pinned\b/);
+    const pinned = await where();
+    // The same panel with the ✕ placed the old way — absolutely, by `.lb-close` alone.
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('iconLightboxClose')).classList.remove('lb-close--pinned'));
+    const unpinned = await where();
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.getElementById('iconLightboxClose')).classList.add('lb-close--pinned'));
+    expect(pinned, 'pinning the ✕ moved it, or the content under it, at rest').toEqual(unpinned);
+
+    await panel.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await expect.poll(() => panel.evaluate(el => el.classList.contains('is-scrolled'))).toBe(true);
+    const scrolled = await where();
+    expect({ top: scrolled.top, right: scrolled.right }, 'the ✕ scrolled away with the words').toEqual({ top: pinned.top, right: pinned.right });
+    expect(scrolled.logo, 'premise: the panel did scroll').toBeLessThan(pinned.logo - 40);
+    const onTop = await page.locator('#iconLightboxClose').evaluate(b => {
+        const r = b.getBoundingClientRect();
+        return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b;
+    });
+    expect(onTop, 'the words scrolled over the ✕, so a tap there misses it').toBe(true);
+    await page.locator('#iconLightboxClose').click();
+    await expect(page.locator('#iconLightbox')).toBeHidden();
+});
+
+// ── NO ✕ IS LEFT TO THE BROWSER'S OWN COLOUR (lightbox review R1-3) ───────────────────────────────────────
+// The sign-in card's picker sheet set no colour on its ✕, so it was the browser's button text: black here, the system
+// blue in WebKit — where every other ✕ on white is grey. `.lb-close` now has one, from the surface's token.
+test('the picker sheet\'s ✕ wears the light ✕ colour, not the browser\'s', async ({ page }) => {
+    await page.goto('/settings.html');
+    await page.locator('#loginGradeTrigger').click();
+    const close = page.locator('.picker-sheet .lb-close');
+    await expect(close).toBeVisible();
+    const [ink, token] = await close.evaluate(b => {
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--lb-close-ink)';
+        document.body.appendChild(probe);
+        const t = getComputedStyle(probe).color;
+        probe.remove();
+        return [getComputedStyle(b).color, t];
+    });
+    expect(ink, 'the sheet\'s ✕ is not the light ✕ colour').toBe(token);
+});
+
+// ── REDUCED MOTION REACHES THE MONTH PICKER (lightbox review R1-9) ────────────────────────────────────────
+// `#monthJumpOverlay`'s own fade is an id rule, which outranks shared.css's `.lb-overlay { transition: none }` under
+// reduced motion — so it alone still faded in for the readers who asked for no motion.
+test('the month picker opens with no fade under reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible({ timeout: 15_000 });
+    await page.locator('.month-year').click();
+    await expect(page.locator('#monthJumpOverlay')).toHaveClass(/\bopen\b/);
+    expect(await page.locator('#monthJumpOverlay').evaluate(el => getComputedStyle(el).transitionDuration)).toBe('0s');
+});
+
 test('the menu button ☰ takes a tap anywhere in a 44px square round its centre, on every page', async ({ page }) => {
     test.setTimeout(90_000);
     await page.setViewportSize({ width: 375, height: 800 });
@@ -766,7 +847,8 @@ test('About panel: one order, one corner, and the tips line up with the keyboard
     // A tip every pointer reads names no one input — Team Week View's set included. A touch-only
     // tip may still say "Swipe".
     const said = await page.locator('#iconLightbox .lightbox-tip:not(.touch-only)').allTextContents();
-    expect(said.length, 'premise: both tip sets, the month\'s and Team Week View\'s').toBeGreaterThan(5);
+    // Team Week View's set is one line since 22 Nov 2026 — a pointer to its ? panel, which holds the tips.
+    expect(said.length, 'premise: both tip sets, the month\'s and Team Week View\'s').toBeGreaterThanOrEqual(5);
     expect(said.filter(t => /^\s*(Tap|Click)\b/.test(t)), 'a tip a mouse reads too says "Select", not "Tap"').toEqual([]);
 
     await page.goto('/paycalc.html');
@@ -864,8 +946,9 @@ async function tabToRing(page, selector, presses = 10) {
 
 test('keyboard focus is visible on the navy surfaces the shared code draws', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 768 });
-    // Inside the new-timetable notice's life (21–31 Oct), so the Calendar puts one up to Tab through.
-    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    // Inside the timetable notice's final week (6–12 Dec), when it waits for no other notice, so the
+    // Calendar puts one up to Tab through.
+    await page.clock.setFixedTime(new Date('2026-12-07T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_app_notices', JSON.stringify([
         { id: 'timetable-2026', title: 'A new timetable starts on 13 December', section: 'Trains', date: '21 Oct 2026', body: 'Some trains leave Marylebone at different times.', archivedAt: '2026-10-21T09:00:00.000Z' },
@@ -901,14 +984,14 @@ test('keyboard focus is visible on the navy surfaces the shared code draws', asy
     await expect(page.locator('#navNoticesLightbox')).toBeHidden();
 
     // A one-time notice on the Calendar: its ✕, its call to action and "Not now".
-    await page.addInitScript(() => localStorage.removeItem('myb_notice_timetable_2026_done'));
+    await page.addInitScript(() => localStorage.removeItem('myb_notice_timetable_soon_2026_done'));
     await page.goto('/');
-    await expect(page.locator('#timetableNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-    for (const [sel, name] of [['#timetableNoticeClose', 'the notice ✕'], ['#timetableNoticeGo', 'the call to action'], ['#timetableNoticeLater', '"Not now"']]) {
+    await expect(page.locator('#timetableSoonNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    for (const [sel, name] of [['#timetableSoonNoticeClose', 'the notice ✕'], ['#timetableSoonNoticeGo', 'the call to action'], ['#timetableSoonNoticeLater', '"Not now"']]) {
         expect(await tabToRing(page, sel), name).toEqual({ style: 'solid', width: '2px', colour: gold });
     }
-    await page.locator('#timetableNoticeLater').click();
-    await expect(page.locator('#timetableNoticeLb')).toBeHidden();
+    await page.locator('#timetableSoonNoticeLater').click();
+    await expect(page.locator('#timetableSoonNoticeLb')).toBeHidden();
 
     // The About panel — the Calendar's carries every row kind: ✕, Print, the guide and the bug report.
     await page.locator('.title-icon').first().click();

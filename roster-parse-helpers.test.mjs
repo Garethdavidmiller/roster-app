@@ -1636,45 +1636,75 @@ describe('parseStrictIsoDate', () => {
 // pure decision functions it delegates to, so the B4 logic is covered here.
 
 describe('parseSetupActionFlags', () => {
+    /** The two flags alone — `confirmUids` has its own test below. @param {any} b @param {any} raw */
+    const flags = (b, raw) => {
+        const { removeOrphans, confirmOrphanRemoval } = parseSetupActionFlags(b, raw);
+        return { removeOrphans, confirmOrphanRemoval };
+    };
     test('parsed JSON body (application/json) → flags read straight off req.body', () => {
-        assert.deepEqual(parseSetupActionFlags({ removeOrphans: true, confirmOrphanRemoval: true }, null),
+        assert.deepEqual(flags({ removeOrphans: true, confirmOrphanRemoval: true }, null),
             { removeOrphans: true, confirmOrphanRemoval: true });
-        assert.deepEqual(parseSetupActionFlags({ removeOrphans: false }, null),
+        assert.deepEqual(flags({ removeOrphans: false }, null),
             { removeOrphans: false, confirmOrphanRemoval: false });
-        assert.deepEqual(parseSetupActionFlags({}, null),
+        assert.deepEqual(flags({}, null),
             { removeOrphans: false, confirmOrphanRemoval: false });
     });
     test('a wrong-shape req.body (non-JSON Content-Type) falls back to rawBody JSON', () => {
         // firebase-functions gives a bogus single-key object for a form-urlencoded body; the raw
         // body still holds the real JSON — the flags must come from there, not be dropped.
         const bogus = { '{"removeOrphans":true,"confirmOrphanRemoval":true}': '' };
-        assert.deepEqual(parseSetupActionFlags(bogus, '{"removeOrphans":true,"confirmOrphanRemoval":true}'),
+        assert.deepEqual(flags(bogus, '{"removeOrphans":true,"confirmOrphanRemoval":true}'),
             { removeOrphans: true, confirmOrphanRemoval: true });
     });
     test('rawBody is used when req.body is empty/undefined', () => {
-        assert.deepEqual(parseSetupActionFlags(undefined, '{"removeOrphans":true}'),
+        assert.deepEqual(flags(undefined, '{"removeOrphans":true}'),
             { removeOrphans: true, confirmOrphanRemoval: false });
-        assert.deepEqual(parseSetupActionFlags(null, Buffer.from('{"removeOrphans":true,"confirmOrphanRemoval":true}')),
+        assert.deepEqual(flags(null, Buffer.from('{"removeOrphans":true,"confirmOrphanRemoval":true}')),
             { removeOrphans: true, confirmOrphanRemoval: true });
     });
     test('a real parsed body with removeOrphans present is NOT overridden by rawBody', () => {
         // If req.body already exposes the boolean, trust it (don't re-parse a possibly-stale rawBody).
-        assert.deepEqual(parseSetupActionFlags({ removeOrphans: false }, '{"removeOrphans":true}'),
+        assert.deepEqual(flags({ removeOrphans: false }, '{"removeOrphans":true}'),
             { removeOrphans: false, confirmOrphanRemoval: false });
     });
     test('malformed rawBody → flags default off (fail-safe: no sweep), never throws', () => {
-        assert.deepEqual(parseSetupActionFlags(undefined, 'not json {{{'),
+        assert.deepEqual(flags(undefined, 'not json {{{'),
             { removeOrphans: false, confirmOrphanRemoval: false });
-        assert.deepEqual(parseSetupActionFlags(undefined, ''),
+        assert.deepEqual(flags(undefined, ''),
             { removeOrphans: false, confirmOrphanRemoval: false });
     });
     test('only strict boolean true counts (truthy strings/1 do not enable)', () => {
-        assert.deepEqual(parseSetupActionFlags({ removeOrphans: 'true', confirmOrphanRemoval: 1 }, null),
+        // Kept strict when the reader was rebuilt (review D6): the confirm DISABLES accounts, and the
+        // reset's `lostDevice` is held to the same rule.
+        assert.deepEqual(flags({ removeOrphans: 'true', confirmOrphanRemoval: 1 }, null),
+            { removeOrphans: false, confirmOrphanRemoval: false });
+        assert.deepEqual(flags('{"removeOrphans":"true","confirmOrphanRemoval":"true"}', undefined),
             { removeOrphans: false, confirmOrphanRemoval: false });
     });
     test('an array body is treated as no-body (falls through to rawBody/empty)', () => {
-        assert.deepEqual(parseSetupActionFlags(['x'], null),
+        assert.deepEqual(flags(['x'], null),
             { removeOrphans: false, confirmOrphanRemoval: false });
+    });
+    // THE ONE BODY READER (review D6, Nov 2026). This parser kept its own copy after request-helpers.js
+    // made one for every endpoint, and answered "no flags" for a body that arrived as a Buffer or a
+    // string with no rawBody beside it — the shape requestPasswordReset had already been fixed for.
+    test('a Buffer or a string body is read like any other, with no rawBody beside it', () => {
+        const json = '{"removeOrphans":true,"confirmOrphanRemoval":true}';
+        for (const body of [Buffer.from(json), json]) {
+            assert.deepEqual(flags(body, undefined), { removeOrphans: true, confirmOrphanRemoval: true },
+                Buffer.isBuffer(body) ? 'a Buffer body' : 'a string body');
+        }
+    });
+    // THE PREVIEWED UIDS (review D1). Absent is a client older than them, and keeps the old sweep;
+    // anything sent that is not a list of uids is an EMPTY list, which disables nobody.
+    test('confirmUids: absent is null, a list is its distinct non-empty strings, anything else is empty', () => {
+        assert.equal(parseSetupActionFlags({ removeOrphans: true }, null).confirmUids, null);
+        assert.deepEqual(parseSetupActionFlags({ confirmUids: ['a', 'b', 'a', '', 7, null, 'c'] }, null).confirmUids, ['a', 'b', 'c']);
+        for (const bad of ['a', 7, null, { a: 1 }, true]) {
+            assert.deepEqual(parseSetupActionFlags({ removeOrphans: true, confirmUids: bad }, null).confirmUids, [], JSON.stringify(bad));
+        }
+        assert.deepEqual(parseSetupActionFlags(Buffer.from('{"confirmUids":["u1"]}'), undefined).confirmUids, ['u1'], 'through the shared reader');
+        assert.deepEqual(parseSetupActionFlags({ confirmUids: ['x'.repeat(129), 'ok'] }, null).confirmUids, ['ok'], 'no uid is that long');
     });
 });
 
@@ -2797,11 +2827,31 @@ describe('summariseAccountGaps', () => {
             }
         });
 
-        test('a `member` claim that names somebody else is not the right claim', () => {
-            const users = allGood().map(u =>
-                u.displayName === 'B. Toth' ? { ...u, customClaims: { name: 'B. Toth', member: 'G. Miller' } } : u);
+        // TWO THAT SET UP ACCOUNTS REFUSES (review D3, Nov 2026). Both came back as `claims` — "wrong
+        // permissions: press Set up accounts" — and the press only reported the refusal. Each now carries
+        // the reason the button gives, asked in the button's order (functions/auth-endpoints.js).
+        test('a `member` claim that names somebody else is `other-member` — the button will not adopt it', () => {
+            const { claimedByAnotherMember } = require('./functions/member-identity.js');
+            const claims = { name: 'B. Toth', member: 'G. Miller' };
+            assert.equal(claimedByAnotherMember({ email: nameToEmail('B. Toth'), customClaims: claims }), 'G. Miller', 'premise: the button refuses it');
+            const users = allGood().map(u => u.displayName === 'B. Toth' ? { ...u, customClaims: claims } : u);
             assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
-                [{ name: 'B. Toth', why: 'claims' }]);
+                [{ name: 'B. Toth', why: 'other-member' }]);
+        });
+
+        test('the shared PIN account holding a member\'s address is `viewer-linked`, by its uid or its claim', () => {
+            const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
+            for (const over of [{ uid: CALENDAR_VIEWER_UID, customClaims: { calendarViewer: true } },
+                { uid: 'some-uid', customClaims: { calendarViewer: true } }, { uid: CALENDAR_VIEWER_UID, customClaims: null }]) {
+                const users = allGood().map(u => u.displayName === 'B. Toth' ? { ...u, ...over } : u);
+                assert.deepEqual(summariseAccountGaps(users, CFG).setUp, [{ name: 'B. Toth', why: 'viewer-linked' }], JSON.stringify(over));
+            }
+        });
+
+        test('a renamed member whose claim still derives this address is NOT `other-member`', () => {
+            const users = allGood().map(u => u.displayName === 'B. Toth'
+                ? { ...u, customClaims: { ...u.customClaims, name: 'B Toth', member: 'B Toth' } } : u);
+            assert.notEqual(summariseAccountGaps(users, CFG).setUp[0]?.why, 'other-member');
         });
 
         test('a leaver whose account is still enabled', () => {

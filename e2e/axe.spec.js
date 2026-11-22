@@ -369,7 +369,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // axe 4.14 checks WCAG 2.5.3 Label in Name, and #1678 fixed every state this file scanned. The
     // Team view was never opened here, and its week bar said "Previous week" under "← Prev" and its
     // toggle "Switch back to monthly calendar" under "Month"; an ARMED delete was never scanned, and
-    // the bulk one said "Confirm delete selected changes" under "⚠ Delete 2?". Each is a word a voice
+    // the bulk one said "Confirm delete selected changes" under "Delete 2?". Each is a word a voice
     // user says that the name did not contain.
 
     test('calendar — Team view: the week bar and the Month toggle', async ({ page }) => {
@@ -401,7 +401,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // Armed by the real clicks, so the words and names are the app's own.
         await page.locator('#selectAllOverrides').check();
         await page.locator('#bulkDeleteBtn').click();
-        await expect(page.locator('#bulkDeleteBtn')).toHaveText('⚠ Delete 2?');
+        await expect(page.locator('#bulkDeleteBtn')).toHaveText('Delete 2?');
         await page.locator('.override-card .btn-delete').first().click();
         await expect(page.locator('.override-card .btn-delete').first()).toHaveText('Delete?');
         // An armed confirm lapses after five seconds, and a scan can take longer than that on a slow
@@ -410,7 +410,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             .forEach(b => clearTimeout(/** @type {any} */ (b).armTimer)));
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
-        await expect(page.locator('#bulkDeleteBtn'), 'still armed when scanned').toHaveText('⚠ Delete 2?');
+        await expect(page.locator('#bulkDeleteBtn'), 'still armed when scanned').toHaveText('Delete 2?');
     });
 
     test('paycalc (signed in)', async ({ page }) => {
@@ -456,6 +456,24 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             }
             await expect(page.locator(`#${body}`), `#${body} opened`).toHaveCSS('visibility', 'visible');
         }
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
+    // A ? PANEL OPEN (Nov 2026). The Pay "?" panels became the shared white Tips sheet — section headings,
+    // icon rows, a title and ✕ that stay while it scrolls — and no scan had opened a Tips panel on any page.
+    test('paycalc — a ? panel open (the shared Tips sheet)', async ({ page }) => {
+        await seedSession(page);
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#netDisplay')).toHaveText(/£\d/);
+        for (let i = 0; i < 3 && await page.locator('.lb-overlay.visible').count(); i++) await page.keyboard.press('Escape');
+        await page.locator('.help-btn[data-help="hpp"]').click();
+        await expect(page.locator('#tipsLightbox')).toHaveClass(/\bopen\b/);
+        await expect(page.locator('#tipsLbBody .tips-lb-section').first()).toBeVisible();
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });
@@ -1112,7 +1130,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     //
     // A state a test can only reach by luck is a state nothing covers. Force all three.
     for (const [cls, text] of [
-        ['lightbox-status',                "Couldn't check for an update"],
+        ['lightbox-status',                'Couldn’t check for an update'],
         ['lightbox-status up-to-date',     '✓ Up to date'],
         ['lightbox-status needs-update',   '↻ Update ready — it will apply next time you reopen the app'],
     ]) {
@@ -1171,45 +1189,11 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
-    test('the new-timetable notice open (calendar) — the Trains badge on the glass (v24.82)', async ({ page }) => {
-        // The same shell as the scan above, and one thing that scan cannot see: this notice's section
-        // badge is the Trains pill's raspberry under white type, a pairing no other notice carries.
-        // Members only, and alive from its 21 Oct posting to the end of 31 October — so a named
-        // identity and a clock inside that life, the re-enable registered after the seeders.
-        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
-        await seedSession(page, 'G. Miller');
-        await seedMemberSession(page, 'G. Miller');
-        await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
-        await page.goto('/');
-        await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#timetableNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        // The fade is waited out by scan() itself, which lets running CSS transitions finish before it
-        // measures — a 600ms sleep here stood in for that (test audit, 7 Nov 2026).
-        const v = await scan(page, { exclude: ['.other-month'] });
-        expect(v.length, report(v)).toBe(0);
-    });
-
-    test('the Year to Date notice open (calendar) — the Pay badge on the glass (v24.86)', async ({ page }) => {
-        // The green Pay badge under white type had never been scanned on any page — the Pay page's own
-        // notices are suppressed in this suite. Members only, and only on a load AFTER the timetable
-        // notice was dismissed: the seeders mark that one done, so clearing this notice's flag alone
-        // is the whole setup. A CEA, because the notice is offered only where the Pay Calculator prices.
-        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
-        await seedSession(page, 'G. Miller');
-        await seedMemberSession(page, 'G. Miller');
-        await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_ytd_figures_2026_done']);
-        await page.goto('/');
-        await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#ytdNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
-        // The fade is waited out by scan() itself, which lets running CSS transitions finish before it
-        // measures — a 600ms sleep here stood in for that (test audit, 7 Nov 2026).
-        const v = await scan(page, { exclude: ['.other-month'] });
-        expect(v.length, report(v)).toBe(0);
-    });
-
     test('the timetable notice open (calendar) — in its final week (v24.96; up from 16 November since v26.21)', async ({ page }) => {
+        // THE TRAINS BADGE'S SCAN TOO since the October timetable notice was retired (22 Nov 2026): its
+        // raspberry pill under white type is this notice's as well, so the pairing is still scanned here.
+        // (The Year to Date notice's green Pay badge went with that notice, unscanned on any page now —
+        // the Pay page's own notices are suppressed in this suite.)
         // NEVER SCANNED until the test audit (7 Nov 2026 — UI-23): `timetable-soon-2026` was then the
         // one notice with a START date, still to open on the real clock, and nothing here pinned a clock
         // inside its life. Members only, 16 November to 12 December; the clock is pinned to the Monday of

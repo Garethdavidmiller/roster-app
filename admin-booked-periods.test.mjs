@@ -19,16 +19,22 @@
  */
 import { describe, it, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods, periodDelete } from './admin-booked-periods.js';
+import { bookedYears, pickBookedYear, splitAtYearEnd, createBookedPeriods, periodDelete, twoTap, TWO_TAP_MIN_MS } from './admin-booked-periods.js';
 import { isRestGap } from './admin-period-dates.js';
 import { alPosition } from './al-entitlement.js';
 
-// The delete control's "Confirm?" disarms itself after 5 s on a REAL timer, and nothing here waits
+// The delete control's "Delete?" disarms itself after 5 s on a REAL timer, and nothing here waits
 // for it — so it held the process open after the last test, 5.1 s of wall for ~100 ms of tests
 // (test audit, 7 Nov 2026). Mocked, it is a fake timer the reset throws away. Not
 // `--test-force-exit`, which has silently dropped tests in this repo.
-beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); });
-afterEach(() => { mock.timers.reset(); });
+//
+// The double-tap minimum is measured on `performance.now()` (admin-booked-periods.js says why), which
+// the timer mock does not move, so `advance` moves both together: the clock a tap is measured on and
+// the timers that disarm.
+let _now = 1000;
+const advance = (/** @type {number} */ ms) => { _now += ms; mock.timers.tick(ms); };
+beforeEach(() => { mock.timers.enable({ apis: ['setTimeout'] }); mock.method(performance, 'now', () => _now); });
+afterEach(() => { mock.timers.reset(); mock.restoreAll(); });
 
 /** @param {string[]} starts */
 const periods = starts => starts.map(s => ({ start: s, end: s, count: 1 }));
@@ -247,6 +253,7 @@ describe('the Christmas row — every year already on screen, and a stored recor
         btns[0].click();
         assert.equal(btns[0].getAttribute('aria-label'), 'Confirm delete the leave recorded on 2026-12-26');
         assert.equal(r.deleted.length, 0, 'the first tap only arms it');
+        advance(TWO_TAP_MIN_MS);
         btns[0].click();
         assert.deepEqual(r.deleted, [['annual_leave', 'X', '2026-12-26', '2026-12-26', 1]]);
     });
@@ -304,8 +311,8 @@ function renderList({ entries, counted, rest = [], sundays = [], year = '2026', 
 }
 /** A leave entry as the winner map hands it over. */
 const leaveOn = (/** @type {string} */ date, /** @type {any} */ over = {}) => ({ memberName: 'X', date, type: 'annual_leave', value: 'AL', ...over });
-/** Arm, then confirm — the two taps. */
-const twoTaps = (/** @type {any} */ btn) => { btn.click(); btn.click(); };
+/** Arm, then confirm — the two taps, far enough apart to be two (`TWO_TAP_MIN_MS`). */
+const twoTaps = (/** @type {any} */ btn) => { btn.click(); advance(TWO_TAP_MIN_MS); btn.click(); };
 /** Let a settled delete's `.finally` run. */
 const settled = () => new Promise(res => setImmediate(res));
 
@@ -625,14 +632,14 @@ describe('the two-tap ✕ keeps ONE disarm timer (the copy Saved Changes had fix
         const del = renderList({ entries: [leaveOn('2026-11-02')], counted: ['2026-11-02'], onDelete: async () => { throw new Error('refused'); } });
         const x = del.xs()[0];
         x.click();                                       // t=0: armed (first timer due at 5s)
-        mock.timers.tick(1000);
+        advance(1000);
         x.click();                                       // t=1s: confirmed — refused at once
         for (let i = 0; i < 5; i++) await Promise.resolve();
         assert.equal(x.textContent, '✕', 'premise: the refusal disarmed it');
-        mock.timers.tick(1000);
+        advance(1000);
         x.click();                                       // t=2s: re-armed (its own timer due at 7s)
-        mock.timers.tick(3500);                          // t=5.5s: the FIRST arm's five seconds are up
-        assert.equal(x.textContent, 'Confirm?', 'the first arming must not disarm the second');
+        advance(3500);                                   // t=5.5s: the FIRST arm's five seconds are up
+        assert.equal(x.textContent, 'Delete?', 'the first arming must not disarm the second');
         x.click();
         assert.equal(del.calls.length, 2, 'the confirming tap deletes');
     });
@@ -659,7 +666,39 @@ describe('the two-tap ✕ keeps ONE disarm timer (the copy Saved Changes had fix
         x.click();
         assert.ok(/** @type {any} */ (x).armTimer, 'armed: the countdown is on the control');
         clearTimeout(/** @type {any} */ (x).armTimer);   // exactly what the axe spec does
-        mock.timers.tick(6000);
-        assert.equal(x.textContent, 'Confirm?', 'held open past its five seconds');
+        advance(6000);
+        assert.equal(x.textContent, 'Delete?', 'held open past its five seconds');
+    });
+});
+
+// A DOUBLE TAP IS ONE GESTURE (confirm review, Nov 2026). The second tap of a double tap met an armed ✕
+// and deleted at once — the Pay Calculator's Clear had already been fixed for exactly this. The minimum
+// lives in `twoTap`, the one way to arm, so these drive the shared control as every caller does.
+describe('the two-tap ignores the second tap of a double tap', () => {
+    it('a row\'s ✕: a tap at once after arming deletes nothing, and a later one deletes', async () => {
+        const del = renderList({ entries: [leaveOn('2026-11-02')], counted: ['2026-11-02'] });
+        const x = del.xs()[0];
+        x.click();
+        advance(TWO_TAP_MIN_MS - 1);
+        x.click();
+        assert.equal(del.calls.length, 0, 'the double tap\'s second tap is not a confirmation');
+        assert.equal(x.textContent, 'Delete?', 'and the ✕ is still asking');
+        advance(1);
+        x.click();
+        assert.equal(del.calls.length, 1, 'a tap once the minimum has passed confirms');
+    });
+
+    it('the bulk delete re-arms for a new selection, with its own minimum and count', () => {
+        const btn = new El('button');
+        btn.setAttribute('aria-label', 'Delete selected');
+        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 2?', 'Delete selected', 'Confirm delete 2', 'a|b'), false, 'arms');
+        advance(TWO_TAP_MIN_MS);
+        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 3?', 'Delete selected', 'Confirm delete 3', 'a|b|c'), false,
+            'a changed selection re-arms rather than deleting what was never asked about');
+        assert.equal(btn.textContent, 'Delete 3?');
+        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 3?', 'Delete selected', 'Confirm delete 3', 'a|b|c'), false,
+            'the re-arm has its own minimum');
+        advance(TWO_TAP_MIN_MS);
+        assert.equal(twoTap(/** @type {any} */ (btn), 'Delete 3?', 'Delete selected', 'Confirm delete 3', 'a|b|c'), true);
     });
 });

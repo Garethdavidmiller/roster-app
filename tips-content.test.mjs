@@ -29,11 +29,12 @@ import { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } from './links-desig
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { DAYTIME, renderFurtherChanges } from './trains-render.js';
+import { LEAVE_FILE_MAX_AGE_DAYS } from './al-leave-file.js';
 
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
  *
- * `scope` names the coordinator constants a page's tips strings interpolate. Only Links has any:
+ * `scope` names the constants a page's tips strings interpolate (Links, Trains, and Operations' leave-file age). Links:
  * four of its entries state the rotation length and one states the main cycle's length, and
  * `links-rotation-parity.test.mjs` requires the former to be DERIVED rather than typed (the length
  * went 28 → 22 at v19.98 and left prose behind in fifteen places). So the two guards pull in
@@ -43,7 +44,7 @@ import { DAYTIME, renderFurtherChanges } from './trains-render.js';
  */
 const PAGES = [
     { js: 'admin-tips.js',     html: 'admin.html' },
-    { js: 'operations-tips.js', html: 'operations.html' },
+    { js: 'operations-tips.js', html: 'operations.html', scope: { LEAVE_FILE_MAX_AGE_DAYS } },
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN, MIN_REST_MINUTES } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
@@ -84,24 +85,55 @@ function readWiredCards(file) {
 
 // paycalc has the SAME contract under a different name, and it was unguarded until this review.
 // `HELP_CONTENT` (paycalc-help.js) is keyed by `data-help`, lives in a different file from its
-// renderer (paycalc-lightboxes.js), and is consumed with `data.tips.map(...)` — so a missing `tips`
-// throws exactly like `tips.sections` did, and a missing key gives the same silently-inert button.
-// It is clean today; it is covered here so it stays that way. (The nav-panel arrays are deliberately
-// NOT covered: they are module-internal constants sitting directly above their own renderer, so an
-// editor sees both at once — the cross-FILE separation is what let the reset-requests bug through.)
+// renderer, and a missing key gives the same silently-inert button. Since Nov 2026 it is rendered by
+// the shared `initTipsLightbox` (paycalc-lightboxes.js passes `.help-btn[data-help]` as its trigger:
+// the Pay "?" panels were a see-through glass sheet of bullet lists of their own until then), so it is
+// held to the SAME shape as every CARD_TIPS block — `{ title, sections: [{ heading, items: [{ icon,
+// html }] }] }`. (The nav-panel arrays are deliberately NOT covered: they are module-internal constants
+// sitting directly above their own renderer, so an editor sees both at once — the cross-FILE
+// separation is what let the reset-requests bug through.)
 const { HELP_CONTENT } = await import('./paycalc-help.js');   // top level: .mjs allows it
+/** Every item's html in one entry, in order. @param {any} entry @returns {string[]} */
+const helpItems = entry => entry.sections.flatMap((/** @type {any} */ s) => s.items).map((/** @type {any} */ i) => i.html);
 
 describe('paycalc-help.js — HELP_CONTENT', () => {
     const html = readFileSync('paycalc.html', 'utf8');
     const wired = [...html.matchAll(/data-help="([^"]+)"/g)].map(m => m[1]);
 
-    test('every entry has a title and a non-empty tips ARRAY', () => {
-        const broken = Object.entries(HELP_CONTENT)
-            .filter(([, v]) => !v || typeof v.title !== 'string' || !Array.isArray(v.tips) || !v.tips.length)
-            .map(([k, v]) => `${k} (tips: ${JSON.stringify(v && v.tips)})`);
+    test('every entry is in the shape the shared Tips panel renders', () => {
+        // The renderer does `for (const section of tips.sections)` and `for (const item of section.items)`.
+        const broken = [];
+        for (const [key, v] of Object.entries(HELP_CONTENT)) {
+            if (!v || typeof v.title !== 'string' || !Array.isArray(v.sections) || !v.sections.length) {
+                broken.push(`${key} has no title or no sections array`);
+                continue;
+            }
+            v.sections.forEach((/** @type {any} */ sec, /** @type {number} */ i) => {
+                if (!Array.isArray(sec.items) || !sec.items.length) { broken.push(`${key}.sections[${i}] has no items`); return; }
+                sec.items.forEach((/** @type {any} */ item, /** @type {number} */ j) => {
+                    if (typeof item.icon !== 'string' || !item.icon.trim() || typeof item.html !== 'string' || !item.html.trim()) {
+                        broken.push(`${key}.sections[${i}].items[${j}] is missing its icon or html`);
+                    }
+                });
+            });
+        }
         assert.deepEqual(broken, [],
-            `paycalc-help.js: ${broken.join(', ')} — the renderer does \`data.tips.map(...)\`, so a ` +
-            'missing or non-array tips throws the moment the ? is tapped.');
+            `paycalc-help.js: ${broken.join('; ')} — a wrong shape throws, or shows an empty row, the moment the ? is tapped.`);
+    });
+
+    test('every section has a short heading, as the other pages\' panels do', () => {
+        const bare = Object.entries(HELP_CONTENT).flatMap(([k, v]) => v.sections
+            .map((/** @type {any} */ s, /** @type {number} */ i) => [s.heading, `${k}.sections[${i}]`])
+            .filter(([h]) => typeof h !== 'string' || !h.trim() || h.length > 40).map(([, at]) => at));
+        assert.deepEqual(bare, [], 'a section with no heading, or one too long to be a heading');
+    });
+
+    test('the page opens its ? buttons through the shared panel, and carries that panel\'s markup', () => {
+        assert.match(readFileSync('paycalc-lightboxes.js', 'utf8'),
+            /initTipsLightbox\(HELP_CONTENT, \{ trigger: \{ selector: '\.help-btn\[data-help\]', key: 'help' \} \}\)/);
+        for (const id of ['tipsLightbox', 'tipsLightboxContent', 'tipsLightboxClose', 'tipsLbTitle', 'tipsLbBody']) {
+            assert.match(html, new RegExp(`id="${id}"`), `paycalc.html: #${id} is missing — initTipsLightbox returns early without it`);
+        }
     });
 
     test('every data-help button in paycalc.html has an entry', () => {
@@ -121,7 +153,7 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
         // It said "140 hours" by hand. Change the table, load a fresh copy of the help, and the tip
         // must say the new figure — per grade when the two grades differ.
         const { GRADES } = await import('./paycalc-calc.js');
-        const tipOf = (/** @type {any} */ mod) => mod.HELP_CONTENT.hours.tips.find((/** @type {string} */ t) => t.startsWith('Your contract includes'));
+        const tipOf = (/** @type {any} */ mod) => helpItems(mod.HELP_CONTENT.hours).find((/** @type {string} */ t) => t.startsWith('Your contract includes'));
         assert.match(tipOf({ HELP_CONTENT }), new RegExp(`${GRADES.cea.contr} hours per period`));
         const saved = [GRADES.cea.contr, GRADES.ces.contr];
         try {
@@ -130,6 +162,26 @@ describe('paycalc-help.js — HELP_CONTENT', () => {
             GRADES.ces.contr = 147;
             assert.match(tipOf(await import('./paycalc-help.js?differ')), /CEA 150, CES 147/);
         } finally { [GRADES.cea.contr, GRADES.ces.contr] = saved; }
+    });
+
+    test('the premium panel names WHICH January pays which year, read from the tax-year table', async () => {
+        // It said "a single lump sum on a January payslip every year", and a member entering 2026/27 hours
+        // read that as January 2027 — whose payslip carries 2025/26's premium (paycalc.md invariant 4:
+        // the first January AFTER the year ends). The years come from TAX_YEARS, so the rollover moves them.
+        const { TAX_YEARS } = await import('./paycalc-calc.js');
+        const words = helpItems(HELP_CONTENT.hpp).join(' ');
+        const cur = TAX_YEARS[TAX_YEARS.length - 1], prev = TAX_YEARS[TAX_YEARS.length - 2];
+        assert.ok(cur.hppPaidJan > Number(cur.label.slice(0, 4)) + 1, 'premise: a year\'s premium is paid the January after it ends');
+        assert.match(words, new RegExp(`premium for ${cur.label} comes on your January ${cur.hppPaidJan} payslip`));
+        assert.match(words, new RegExp(`January ${prev.hppPaidJan} payslip carries the premium for ${prev.label}`));
+        assert.doesNotMatch(words, /a January payslip<\/strong> every year/);
+        // A new year in the table moves the sentence with it.
+        TAX_YEARS.push({ ...cur, label: '2099/00', hppPaidJan: 2101 });
+        try {
+            const moved = helpItems((await import('./paycalc-help.js?rollover')).HELP_CONTENT.hpp).join(' ');
+            assert.match(moved, /premium for 2099\/00 comes on your January 2101 payslip/);
+            assert.match(moved, new RegExp(`January ${cur.hppPaidJan} payslip carries the premium for ${cur.label}`));
+        } finally { TAX_YEARS.pop(); }
     });
 });
 
@@ -143,12 +195,12 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
     const link = String(new Function(`return (${m[1]});`)()).replace(/<[^>]+>/g, '');
 
     test('the card hint quotes the link\'s opening words', () => {
-        const hint = /<span class="hint">Staff who tapped “([^”]+)”/.exec(readFileSync('operations.html', 'utf8'))?.[1];
+        const hint = /<span class="hint">Staff who selected “([^”]+)”/.exec(readFileSync('operations.html', 'utf8'))?.[1];
         assert.ok(hint && link.startsWith(hint), `operations.html quotes "${hint}"; the link reads "${link}"`);
     });
 
     test('the ? panel quotes the link in full', () => {
-        const first = readCardTips('operations-tips.js')['reset-requests'].sections[0].items[0].html;
+        const first = readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS })['reset-requests'].sections[0].items[0].html;
         assert.equal(/“([^”]+)”/.exec(first)?.[1], link);
     });
 });
@@ -162,7 +214,7 @@ describe('operations — the reset queue quotes the sign-in link as it reads', (
 // a developer's words, for a link that opens the NEWEST issue, not the one just filed. The reset queue's
 // panel title also wore an emoji, the only Operations panel title that did.
 describe('operations — the document cards promise only what the app does', () => {
-    const tips = readCardTips('operations-tips.js');
+    const tips = readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS });
 
     test('the Huddle header says staff open the latest, not today\'s', () => {
         const hint = /Daily Huddle<\/h2>\s*<span class="hint">(.*)<\/span>\s*<\/div>/.exec(readFileSync('operations.html', 'utf8'))?.[1];
@@ -502,5 +554,47 @@ for (const { js, html, scope } of PAGES) {
                 `${js}: CARD_TIPS entries no button can open: ${orphans.join(', ')}. Either the card ` +
                 'lost its ? button or the key was renamed on one side only.');
         });
+
+        // ── HOUSE STYLE, AS RENDERED (lightbox review R2, Nov 2026) ─────────────────────────────────
+        // Visible copy uses ’ and “ ”, and a straight quote had drifted into four of these modules (36
+        // apostrophes and 4 double quotes) because nothing looked. Read as the lightbox shows it, tags
+        // stripped, so an attribute's own quotes (an href) are not counted.
+        // links-tips.js is left out of both checks below only because another session owns the Links page.
+        if (js !== 'links-tips.js') test(`no tip in ${js} shows a straight apostrophe or double quote`, () => {
+            const straight = [];
+            for (const [key, v] of Object.entries(tips)) {
+                const texts = [v.title, ...v.sections.flatMap((/** @type {any} */ s) => [s.heading ?? '', ...s.items.map((/** @type {any} */ i) => i.html)])];
+                for (const t of texts.map(h => String(h).replace(/<[^>]+>/g, ''))) {
+                    if (/[A-Za-z]'[A-Za-z]|"/.test(t)) straight.push(`${key}: ${t.slice(0, 80)}`);
+                }
+            }
+            assert.deepEqual(straight, [], `${js}: use ’ for an apostrophe and “ ” for quotes in visible copy`);
+        });
+
+        // A panel title is the dialog's aria-label (tips-lightbox.js), so an emoji there is read out before
+        // the title; the card's header carries the emoji. And the title is the card's heading, so the
+        // panel a reader opens is named as the card they opened it from ("Weekly Roster upload" was not).
+        if (js !== 'links-tips.js') test(`every panel title in ${js} is its card's heading, with no emoji`, () => {
+            const page = readFileSync(html, 'utf8');
+            const wrong = [];
+            for (const m of page.matchAll(/class="[^"]*btn-card-tips[^"]*"[^>]*data-card="([^"]+)"/g)) {
+                const h2 = [...page.slice(0, m.index).matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].pop()?.[1] ?? '';
+                const heading = h2.replace(/<span aria-hidden="true">[^<]*<\/span>/g, '').replace(/<[^>]+>/g, '').trim();
+                const title = tips[m[1]]?.title ?? '';
+                if (/\p{Extended_Pictographic}/u.test(title) || title !== heading) wrong.push(`${m[1]}: title “${title}”, card “${heading}”`);
+            }
+            assert.deepEqual(wrong, []);
+        });
     });
 }
+
+// ── THE LEAVE SHEET'S AGE LIMIT IS THE FILE'S OWN CONSTANT (R2-19) ──────────────────────────────
+// "14 days" was typed twice in the panel while al-leave-file.js holds LEAVE_FILE_MAX_AGE_DAYS. Evaluated
+// with a stand-in, the panel must say the stand-in in both places.
+describe('operations-tips.js — the leave sheet panel reads LEAVE_FILE_MAX_AGE_DAYS', () => {
+    test('both of its age lines follow the constant', () => {
+        const text = JSON.stringify(readCardTips('operations-tips.js', { LEAVE_FILE_MAX_AGE_DAYS: 21 })['annual-leave-sheet']);
+        assert.equal(text.match(/more than 21 days old/g)?.length, 2, text);
+        assert.doesNotMatch(text, /\b14 days\b/);
+    });
+});

@@ -218,7 +218,7 @@ test('locked: a Daily Huddle tap says what to do, and issues NO read', async ({ 
     const before = await docReads(page);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
     await expect(page.locator('#huddleViewer')).toHaveClass(/open/);
     expect(await docReads(page), 'the tap itself issued nothing').toBe(before);
     // ABSOLUTE, not a delta: the first cut compared before/after the tap, and a listener attached
@@ -236,7 +236,7 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
     // PROMPTLY, not eventually: the viewer waits for the access decision before calling itself
     // locked, and the lock card being up means that decision is made. Left to the default timeout this
     // also passed on the viewer's own 8s fallback, i.e. with the decision never wired to it at all.
-    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+    await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
     const before = await docReads(page);
     // The message sits over the PIN card, so the reader closes it to type — and the held tap has to
     // survive that close, or a notification tap could never be finished by a PIN.
@@ -259,7 +259,7 @@ test('locked: a Circular deep link is FINISHED by a sign-in too — in place, as
     await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true }); });
     await page.goto('/index.html#circular');
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
-    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+    await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
     await page.locator('#docViewerClose').click();
     await expect(page.locator('#docViewer')).toBeHidden();
     await markThisPage(page);
@@ -280,7 +280,7 @@ test('locked: a Daily Huddle tap is FINISHED by a sign-in too', async ({ page })
     await expect(page.locator('#calendarLock #loginCard')).toBeVisible();
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
     await page.locator('#huddleViewerClose').click();
     await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
     await markThisPage(page);
@@ -306,7 +306,7 @@ test('locked: the Newsletter check asks nothing, and the menu offers what this d
     expect(await docReads(page), 'the locked Calendar asked for the Newsletter').toBe(0);
     expect(await page.evaluate((k) => localStorage.getItem(k), NEWSLETTER_LATEST_KEY)).toBe(isoDaysAgo(3));
     await row.click();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN, or sign in, to read the Marylebone Newsletter.');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN, to read the Marylebone Newsletter.');
 });
 
 test('locked: the drawer refuses a Circular tap without opening a tab', async ({ page }) => {
@@ -318,7 +318,10 @@ test('locked: the drawer refuses a Circular tap without opening a tab', async ({
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel .nav-panel-link--circular').click();
     await expect(page.locator('#navComingSoonLightbox')).toBeVisible();
-    await expect(page.locator('#navComingSoonLightbox')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular.');
+    await expect(page.locator('#navComingSoonLightbox')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular.');
+    // READ OUT, not only shown (lightbox review R1-7): focus goes to the ✕, so a screen reader heard the panel's name
+    // and "Close, button", never why the tap was refused. The message is the dialog's description.
+    await expect(page.locator('#navComingSoonLightbox')).toHaveAccessibleDescription(/Sign in, or enter the staff PIN, to read the Weekly Retail Circular/);
     expect(await docReads(page)).toBe(before);
     expect(popups.length, 'no blank tab is opened for a read that will not happen').toBe(0);
 });
@@ -433,7 +436,8 @@ test('a throttled attempt says something different from a wrong PIN', async ({ p
     await stubPinExchange(page, { status: 429 });
     await page.goto('/index.html');
     await enterPin(page, '1234');
-    await expect(page.locator('#calLockMsg')).toContainText(/too many attempts/i);
+    await expect(page.locator('#calLockMsg')).toContainText(/paused after too many wrong entries/i);
+    await expect(page.locator('#calLockMsg')).toContainText(/sign in instead/i);   // the one other way in
     await expect(page.locator('#calLockMsg')).not.toContainText(/not recognised/i);
 });
 
@@ -673,7 +677,7 @@ test('a re-lock by a MONTH read shuts the documents too — a Huddle tap behind 
     const before = await docReads(page);
     await page.locator('#navMenuBtn').click();
     await page.locator('#navPanel a[href="./#huddle"]').click();
-    await expect(page.locator('#huddleViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Daily Huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Daily Huddle');
     expect(await docReads(page), 'a re-locked Calendar read or listened for a document').toBe(before);
 
     // The PIN opens both again: the grid, and the Huddle the tap was for — on ONE new listener.
@@ -714,7 +718,7 @@ for (const [label, named] of /** @type {[string, boolean][]} */ ([['with a name 
         await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = false; });
         const before = await docReads(page);
         await page.evaluate(() => { window.location.hash = '#circular'; });
-        await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
+        await expect(page.locator('#docViewerBody')).toContainText('Sign in, or enter the staff PIN, to read the Weekly Retail Circular', { timeout: 3000 });
         expect(await docReads(page), 'a re-locked Calendar read a document').toBe(before);
 
         // The PIN brings back both: the read the lock held, and a Calendar this page had not yet drawn.
@@ -1183,7 +1187,7 @@ test('a visitor who never held the PIN is told nothing about it, and the way bac
 test("Admin's sign-in card says what Admin is for, and that the PIN does not open it — in Pay's words", async ({ page }) => {
     // The clause is shared on purpose: a station reaches both pages from one menu (admin-app.js →
     // ADMIN_SIGN_IN_ABOUT). If one card is reworded, this asks for the other to follow.
-    const clause = "so you sign in as yourself — the staff PIN doesn't open it.";
+    const clause = "so you sign in as yourself — the staff PIN doesn’t open it.";
     for (const url of ['/admin.html', '/paycalc.html']) {
         await page.goto(url);
         await expect(page.locator('#loginAbout'), url).toContainText(clause);
@@ -1486,17 +1490,17 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
 // rule rather than hardcode one, which is the shape a members-only regression would take.
 // **The next `'signed-out'` notice restores this test** — `.claude/skills/new-notice/` says so.
 test.describe('one-time notices and the PIN unlock', () => {
-    // Inside the timetable notice's life (posted 21 Oct 2026, offered to the end of 31 October), or
-    // it silently retires and these would pass by testing nothing. Pinned rather than removed with
-    // the notice: what is under test is the audience gate, and the next members-only notice inherits
-    // it — as this one did at v24.91, from the leave reminder retired that day.
+    // Inside the timetable notice's FINAL WEEK (6–12 Dec 2026), or it silently retires and these
+    // would pass by testing nothing. Pinned rather than removed with a notice: what is under test is
+    // the audience gate, and the next members-only notice inherits it — as this one did on 22 Nov
+    // 2026, from the October timetable notice retired that day.
     //
-    // WHY THIS NOTICE AND NOT THE YEAR TO DATE ONE, though that is the more obviously personal: the
-    // audience must be the ONLY thing standing between the notice and the station. The Year to Date
-    // notice also asks whose Pay Calculator this is, which a PIN unlock never answers — so it stays
-    // off the station even when declared `'everyone'`, and the mutation this block exists to catch
-    // would pass. The timetable notice has no second condition.
-    const BEFORE_CUTOFF = new Date('2026-10-22T09:00:00Z');
+    // WHY ITS FINAL WEEK: the audience must be the ONLY thing standing between the notice and the
+    // station. Before 6 December it also waits for the install and New link notices, conditions a
+    // PIN unlock may meet or not for reasons of their own, so it could stay off the station even when
+    // declared `'everyone'`, and the mutation this block exists to catch would pass. In its final
+    // week it has no second condition.
+    const IN_FINAL_WEEK = new Date('2026-12-07T09:00:00Z');
     // The notices open 1500ms after access is granted. Proving an ABSENCE means waiting past that,
     // and the first test below is what makes this number credible rather than hopeful: it shows a
     // permitted notice is already on screen by then, on the same session, through the same path.
@@ -1510,16 +1514,16 @@ test.describe('one-time notices and the PIN unlock', () => {
     // reported bug — sailed through it.
     test('...and NOT one addressed to members', async ({ page }) => {
         const errors = collectFatalErrors(page);
-        await page.clock.setFixedTime(BEFORE_CUTOFF);
+        await page.clock.setFixedTime(IN_FINAL_WEEK);
         await seedViewerAccess(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_timetable_soon_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
         await page.waitForTimeout(PAST_THE_DEFER);
-        await expect(page.locator('#timetableNoticeLb')).not.toHaveClass(/open/);
+        await expect(page.locator('#timetableSoonNoticeLb')).not.toHaveClass(/open/);
         // ...and NOT flagged seen, or it would never arrive on the day that device signs in.
-        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_timetable_2026_done'));
+        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_timetable_soon_2026_done'));
         expect(flagged, 'a suppressed notice must be left untouched, not marked seen').toBeNull();
 
         // ...and NOT in the ARCHIVE either, which is the half the report was actually about: the
@@ -1530,20 +1534,20 @@ test.describe('one-time notices and the PIN unlock', () => {
         const archived = await page.evaluate(() =>
             JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id));
         expect(archived, 'a notice the station was not addressed by must not reach its drawer')
-            .not.toContain('timetable-2026');
+            .not.toContain('timetable-soon-2026');
         expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
     });
 
     test('a signed-in member on the same device does get it', async ({ page }) => {
         const errors = collectFatalErrors(page);
-        await page.clock.setFixedTime(BEFORE_CUTOFF);
+        await page.clock.setFixedTime(IN_FINAL_WEEK);
         await seedSession(page);
         await seedMemberSession(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_timetable_soon_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
-        await expect(page.locator('#timetableNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
+        await expect(page.locator('#timetableSoonNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
         expect(errors, 'Uncaught JS exceptions on a member calendar').toHaveLength(0);
     });
 });

@@ -110,10 +110,10 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     const bodyEl   = /** @type {HTMLElement} */ (document.getElementById('docViewerBody'));
     const closeBtn = /** @type {HTMLElement} */ (document.getElementById('docViewerClose'));
     // ── THE OUTCOME IS SPOKEN (whole-app review, 10 Nov 2026) ─────────────────────────────────────────
-    // "Loading…" became "No … uploaded yet" or "Enter the staff PIN…" with no focus move and no live
-    // region, so a screen-reader user heard the dialog open and then nothing. Every message now goes
-    // into ONE status line that stays in the body (index.html), so the change itself is announced;
-    // a button follows it in the body, where focus already takes the reader.
+    // "Loading…" became "No … uploaded yet" or "Sign in, or enter the staff PIN…" with no focus move
+    // and no live region, so a screen-reader user heard the dialog open and then nothing. Every
+    // message now goes into ONE status line that stays in the body (index.html), so the change itself
+    // is announced; a button follows it in the body, where focus already takes the reader.
     const statusEl = /** @type {HTMLElement} */ (document.getElementById('docViewerStatus'));
 
     // Discards a superseded fetch: two rapid notification taps (#circular then #newsletter) each set
@@ -139,7 +139,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     let _decided = false;
     let _waitingSeq = -1;
     /** @param {{ label: string }} d */
-    const lockedText = (d) => `Enter the staff PIN, or sign in, to read the ${d.label}.`;
+    const lockedText = (d) => `Sign in, or enter the staff PIN, to read the ${d.label}.`;
 
     const lb = createLightbox({
         overlay, content, closeBtn,
@@ -289,7 +289,10 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'doc-open-btn';
-                btn.textContent = `📄 Open ${d.label}`;
+                const icon = document.createElement('span');
+                icon.setAttribute('aria-hidden', 'true');   // decoration: the button is named "Open <document>" (R4-7)
+                icon.textContent = '📄';
+                btn.append(icon, ` Open ${d.label}`);
                 // Real user gesture → window.open opens a Custom Tab over the standalone app.
                 // Counted here (not on viewer open) so the count means the document was actually
                 // opened — mirroring the nav-drawer path (v18.20; admin-excluded, anonymous).
@@ -317,12 +320,15 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // A RETRY CONTROL, not just text (v19.08). "please try again" with nothing to press is a
             // dead end — and for a screen-reader user it is the only thing that ever replaces
             // "Loading…", so it has to be actionable.
-            showMessage("Couldn't load this document.", 'doc-viewer-empty');
+            showMessage('Couldn’t load this document.', 'doc-viewer-empty');
             const againBtn = document.createElement('button');
             againBtn.type = 'button';
             againBtn.className = 'doc-open-btn';
             againBtn.textContent = '↻ Try again';
-            againBtn.addEventListener('click', () => openDoc(key));
+            // FOCUS TO THE PANEL FIRST (lightbox review R1-6): the retry's "Loading…" removes this
+            // button, and focus on a removed node falls to the page for the whole wait. The panel
+            // (`tabindex="-1"`, createLightbox) keeps it in the dialog until the result takes it.
+            againBtn.addEventListener('click', () => { content?.focus({ preventScroll: true }); openDoc(key); });
             bodyEl.appendChild(againBtn);
             againBtn.focus();
         }

@@ -52,8 +52,8 @@ const CARD_TIPS = {
         sections: [
             { items: [
                 { icon: '🔑', html: 'Replace your <strong>surname default</strong> with a password only you know — anyone who knows your name can guess the default.' },
-                { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven\'t changed it yet), then a new one of <strong>at least 8 characters</strong>.' },
-                { icon: '↩️', html: 'Forgotten it? On the sign-in screen select <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
+                { icon: '✏️', html: 'Enter your <strong>current</strong> password (your surname, if you haven’t changed it yet), then a new one of <strong>at least 8 characters</strong> that isn’t your surname.' },
+                { icon: '↩️', html: 'Forgotten it? On the sign-in card select <strong>“Can’t get in?”</strong> — that asks the admin for you. They reset it back to your surname, and you choose a new one when you next sign in.' },
                 { icon: '🔒', html: 'Your password is never shown to anyone, not even the admin.' },
             ]},
         ],
@@ -62,8 +62,9 @@ const CARD_TIPS = {
         title: 'Work Email',
         sections: [
             { items: [
-                { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong> — the one the company already sends things to.' },
-                { icon: '🔑', html: 'It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet. For now, ask the admin if you forget your password — the <strong>“Can’t get in?”</strong> link on the sign-in screen asks them for you.' },
+                // The field takes the part before the @ (placeholder firstname.surname) and shows the domain beside it (settings.html).
+                { icon: '✉️', html: 'Use your <strong>Chiltern work email</strong>. Type only the part before the @ — firstname.surname — and the rest is already shown beside the box.' },
+                { icon: '🔑', html: 'It is for <strong>account recovery</strong>. Self-service recovery isn’t available yet. For now, ask the admin if you forget your password: select <strong>“Can’t get in?”</strong> on the sign-in card, and it asks them for you.' },
                 { icon: '🔒', html: 'Only you and the admin can see this email. It is not shown to your manager or to anyone else.' },
             ]},
         ],
@@ -74,8 +75,8 @@ const CARD_TIPS = {
             // Every kind the card lists (settings.html), and nothing else: a member turning notifications
             // on agrees to this list. It named two kinds while four were sent, then four while the card
             // said five — so tips-content.test.mjs now holds the two lists to each other.
-            { heading: 'What you\'ll get', items: [
-                { icon: '📋', html: '<strong>Daily Huddle</strong> — when the day\'s Huddle has been uploaded.' },
+            { heading: 'What you’ll get', items: [
+                { icon: '📋', html: '<strong>Daily Huddle</strong> — when the day’s Huddle has been uploaded.' },
                 { icon: '📰', html: '<strong>Weekly Retail Circular</strong> — when a new one is posted.' },
                 { icon: '🗞️', html: '<strong>Marylebone Newsletter</strong> — when a new one is posted.' },
                 { icon: '💷', html: '<strong>Pay reminder</strong> — for CEA and CES colleagues: on the cut-off Saturday, six days before payday, to enter your hours.' },
@@ -84,7 +85,7 @@ const CARD_TIPS = {
             { heading: 'How it works', items: [
                 { icon: '📲', html: 'Select <strong>Enable notifications</strong> and allow it when your phone asks. That is all.' },
                 { icon: '🔕', html: 'Select <strong>Disable notifications</strong> to stop them at any time. You can turn them back on later.' },
-                { icon: '🚫', html: 'If you chose <strong>Don\'t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone\'s own settings.' },
+                { icon: '🚫', html: 'If you chose <strong>Don’t allow</strong> when your phone asked, the button cannot ask again — your phone will not let it. Turn notifications back on for this app in your phone’s own settings.' },
             ]},
             { heading: 'iPhone users', items: [
                 // Browser-neutral: every iOS browser is WebKit, so this reaches Chrome/Edge/Firefox too (v22.45).
@@ -106,7 +107,7 @@ const CARD_TIPS = {
             { heading: 'Moving it', items: [
                 { icon: '📄', html: 'The button opens the <strong>pay calculator</strong>, where you can download a backup or copy it as text — the controls live there because that is where the data is.' },
                 { icon: '⚠️', html: 'Restoring <strong>replaces</strong> what is on the device — it does not merge. Take a backup of the new device first if it already has figures on it.' },
-                { icon: '🙋', html: 'A backup belongs to the member who made it. Restoring somebody else\'s is refused, because staff share devices.' },
+                { icon: '🙋', html: 'A backup belongs to the member who made it. Restoring somebody else’s is refused, because staff share devices.' },
             ]},
         ],
     },
@@ -256,8 +257,9 @@ export function init() {
         // On success, initialise in place via initAuthorised(), falling back to a reload if it throws
         // mid-wiring (never less robust than reload). Don't resolveSession(false) here, or the one-shot
         // sessionReady is poisoned before initAuthorised can resolve it true.
-        // Reload (fresh overlay) rather than run initAuthorised() with a null identity if saveSession
-        // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+        // Reload (fresh overlay) rather than run initAuthorised() with a null identity if getSession()
+        // is null by then — belt and braces, because a failed save never reaches onSuccess
+        // (`runNamedSignIn` refuses with kind 'storage' first). See operations-app.js.
         const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } initAuthorised(); } catch { window.location.reload(); } };
         initLoginOverlay({ pageLabel: 'Settings', onSuccess });
     } else {
@@ -478,7 +480,7 @@ export function init() {
             }
         }).catch(err => {
             console.warn('[staffContact] Load failed:', err);
-            setFeedback('Couldn\'t check your saved email — check your connection.', 'err');
+            setFeedback('Couldn’t check your saved email — check your connection.', 'err');
             // NOT 'action': nothing was learnt, so the summary must not count it as a to-do and
             // must not count it as done either. `error` opens the card and holds back "all set".
             reportSetting('work-email', 'error', 'Couldn’t check');
@@ -498,7 +500,7 @@ export function init() {
                 return;
             }
             if (!isValidEmail(email)) {
-                setFeedback('That doesn\'t look like a valid email address.', 'err');
+                setFeedback('That doesn’t look like a valid email address.', 'err');
                 emailInput.focus();
                 return;
             }
@@ -523,8 +525,8 @@ export function init() {
                 setFeedback(
                     unconfirmedWriteLine(err, 'your email', 'it is saved') ? /** @type {string} */ (unconfirmedWriteLine(err, 'your email', 'it is saved'))
                     : (/** @type {any} */ (err))?.code === 'permission-denied'
-                        ? 'Couldn\'t save — please sign out and sign back in.'
-                        : 'Couldn\'t save — check your connection and try again.',
+                        ? 'Couldn’t save — please sign out and sign back in.'
+                        : 'Couldn’t save — check your connection and try again.',
                     'err'
                 );
             } finally {
@@ -535,7 +537,8 @@ export function init() {
 
         if (removeBtn) {
             removeBtn.addEventListener('click', async () => {
-                if (!await confirmDialog({ message: 'Remove your saved work email address?', confirmLabel: 'Remove', danger: true })) return;
+                if (!await confirmDialog({ title: 'Remove your work email?', message: 'Only you and the admin can see it. You can save it again at any time.',
+                    confirmLabel: 'Remove', danger: true })) return;
                 removeBtn.disabled = true;
                 try {
                     await sessionReady;
@@ -547,8 +550,8 @@ export function init() {
                     setFeedback(
                         unconfirmedWriteLine(err, 'the removal', 'it is gone') ? /** @type {string} */ (unconfirmedWriteLine(err, 'the removal', 'it is gone'))
                         : (/** @type {any} */ (err))?.code === 'permission-denied'
-                            ? 'Couldn\'t remove — please sign out and sign back in.'
-                            : 'Couldn\'t remove — check your connection and try again.',
+                            ? 'Couldn’t remove — please sign out and sign back in.'
+                            : 'Couldn’t remove — check your connection and try again.',
                         'err'
                     );
                 } finally {
@@ -683,8 +686,11 @@ export function init() {
             form?.requestSubmit();
             const done = '✓ Password updated. Use it the next time you sign in.';
             setFeedback(done, 'ok');   // a stamp that then FAILS is a soft note, and amends only this line
+            // …and says what is true (review, Nov 2026). It promised "Your status will refresh shortly",
+            // but nothing retries the stamp: without it the app still believes the surname is in use,
+            // so the next sign-in may ask for a new password again. The password itself HAS changed.
             res?.stamp?.then((/** @type {boolean} */ ok) => { if (!ok && feedback?.textContent === done)
-                setFeedback('✓ Password updated. Use it next time you sign in. (Your status will refresh shortly.)', 'ok'); });
+                setFeedback('✓ Password updated — use it next time you sign in. The app couldn’t record the change, so it may ask you to choose a password again.', 'ok'); });
             curEl.value = newEl.value = confEl.value = '';
             // Re-mask on success (v18.95). Clearing the values alone left the fields in whatever
             // reveal state the member chose, so the NEXT password typed into this card — possibly
@@ -779,6 +785,11 @@ export function init() {
                 refocus = saveBtn;
                 // Map by CAUSE and by STAGE — the ladder the forced change reads too (auth-identity.js).
                 // A stale sign-in is this card's own: its remedy here is to sign out and back in.
+                // Effectively unreachable today: the card re-authenticates with the current password
+                // just above, which is exactly what makes a sign-in "recent". It stays as a guard: if
+                // that step were ever skipped, reordered or changed, Firebase would refuse with this
+                // code, and the generic "wasn’t updated — try again shortly" line would send the member
+                // to retry something only signing out and back in can fix.
                 if (code === 'auth/requires-recent-login') setFeedback('For your security, sign out and back in, then change your password.', 'err');
                 else {
                     const f = passwordChangeFailure(code, reauthed);

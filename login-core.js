@@ -16,6 +16,8 @@ import { isCredentialRejection } from './auth-identity.js';
 // Every page that loads the card statically already loads password-force.js statically, and the
 // Calendar loads the card on demand, so the import adds nothing to any page's start-up.
 import { withTimeout } from './password-force.js';
+// The one "how long may Firebase take" bound (8s, the login freeze's budget) — pure, so no SDK import here.
+import { AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
 
 /**
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
@@ -44,7 +46,7 @@ import { withTimeout } from './password-force.js';
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = AUTH_RESTORE_TIMEOUT_MS }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
@@ -64,7 +66,7 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // the house wording rule (an account matter → "the admin").
         if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.' };
         const code = getAuthError();
-        if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — please wait a few minutes and try again.' };
+        if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — wait a few minutes and try again.' };
         // A browser that could not sign an account OUT is transient to the session (it keeps the 60-day
         // session — session.js) but it is no network fault: the card says what the 'other' line says.
         if (isTransient(code) && !/-shed-failed$/.test(String(code))) return { ok: false, kind: 'transient', error: 'Couldn’t reach sign-in — check your connection and try again.' };
@@ -122,4 +124,45 @@ export function resetRequestFailureLine(err, timedOut) {
     if (status === '404') return 'Your name isn’t on the app’s list for reset requests yet — contact the admin directly.';
     if (status === '503') return 'Reset requests aren’t available at the moment — contact the admin directly.';
     return 'Couldn’t send the request — check your connection, or contact the admin directly.';
+}
+
+// ── WHAT A PAGE IS, ON ITS SIGN-IN CARD (owner, 21 Nov 2026) ─────────────────────────────────────────
+// Admin, Pay, New link and Trains pass their own explanation (`about`) to initLoginOverlay; the pages
+// below did not, so the same card read differently from page to page. Theirs live here, read by page
+// label, so the card says the same thing at load AND when a session is lost mid-visit (page-session.js
+// passes no `about` of its own for these pages) without each coordinator carrying another copy. Each
+// says what the page holds, that the staff PIN does not open it (AUTH_AND_SESSIONS 18, 24), and has the
+// shared-screen footnote Admin's and Pay's carry. `e2e/auth.spec.js` holds every page's card to it.
+const SHARED_SCREEN = 'On a shared screen, sign out from the menu when you finish.';
+const SIGN_IN_ABOUT_BY_PAGE = Object.freeze({
+    Settings: Object.freeze({
+        lines: Object.freeze([
+            'Your password, your work email for account recovery, and notifications on this device.',
+            'They belong to your own account, so you sign in as yourself — the staff PIN doesn’t open it.',
+        ]),
+        footnote: SHARED_SCREEN,
+    }),
+    Operations: Object.freeze({
+        lines: Object.freeze([
+            'The admin’s tools: the Daily Huddle and circulars, the weekly roster upload, and staff sign-in accounts.',
+            'Only the admin can use it, so you sign in as yourself — the staff PIN doesn’t open it.',
+        ]),
+        footnote: SHARED_SCREEN,
+    }),
+    Links: Object.freeze({
+        lines: Object.freeze([
+            'The workspace where new roster links are designed and checked.',
+            'Only the colleagues designing them can use it, so you sign in as yourself — the staff PIN doesn’t open it.',
+        ]),
+        footnote: SHARED_SCREEN,
+    }),
+});
+
+/**
+ * The sign-in card's explanation for a page that does not pass its own (the note above).
+ * @param {string} pageLabel  initLoginOverlay's `pageLabel`
+ * @returns {{ lines: readonly string[], footnote: string } | null}
+ */
+export function signInAboutFor(pageLabel) {
+    return Object.hasOwn(SIGN_IN_ABOUT_BY_PAGE, pageLabel) ? SIGN_IN_ABOUT_BY_PAGE[/** @type {keyof typeof SIGN_IN_ABOUT_BY_PAGE} */ (pageLabel)] : null;
 }
