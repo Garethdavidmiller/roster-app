@@ -201,8 +201,8 @@ body {
 
 /* Password card (PASSWORD_DESIGN.md) */
 .pw-nudge {
-    background: color-mix(in oklch, var(--accent-gold) 16%, white);
-    border: 1px solid color-mix(in oklch, var(--accent-gold) 45%, white);
+    background: var(--gold-wash-bg);
+    border: 1px solid var(--gold-wash-border);
     border-radius: var(--radius-lg);
     padding: 10px 12px;
     font-size: var(--type-small);
@@ -278,8 +278,8 @@ body {
 .settings-summary[data-tone="todo"],
 .card-year-chip[data-tone="action"],
 .card-year-chip[data-tone="blocked"] {
-    background: color-mix(in oklch, var(--accent-gold) 16%, white);
-    border-color: color-mix(in oklch, var(--accent-gold) 45%, white);
+    background: var(--gold-wash-bg);
+    border-color: var(--gold-wash-border);
 }
 .settings-summary[data-tone="todo"] .settings-summary-line,
 .card-year-chip[data-tone="action"],
