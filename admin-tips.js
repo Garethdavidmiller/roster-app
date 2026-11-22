@@ -23,7 +23,7 @@ export const CARD_TIPS = {
                 { icon: '☑️', html: 'A ticked day with no type yet has the gold edge only, and saves nothing until it has one.' },
                 // Three of the six pills are off on a Sunday, and Other offers Spare alone there; 25 and 26 December have no Other pill
                 // (admin-day-pills.js), so "any day" needs this. admin-day-pills.test.mjs holds these words to the row.
-                { icon: '☀️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong>, <strong>Rest Day</strong> and, under <strong>Other</strong>, <strong>Spare</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW. <strong>Christmas Day</strong> and <strong>Boxing Day</strong> can’t be an Other day (training, meetings and the rest) or a Spare turn.' },
+                { icon: '🗓️', html: 'A <strong>Sunday</strong> offers only <strong>RDW</strong>, <strong>Rest Day</strong> and, under <strong>Other</strong>, <strong>Spare</strong>. Sundays are not contracted, so leave and absence cannot be recorded on one and a worked Sunday is always RDW. <strong>Christmas Day</strong> and <strong>Boxing Day</strong> can’t be an Other day (training, meetings and the rest) or a Spare turn.' },
                 { icon: '🎨', html: 'A row already carrying a change is <strong>cream</strong>. Saving over one replaces what was there, so check the cream rows before you save.' },
                 // Owner, 10 Nov 2026: a tick chooses a day for Apply, and never removes anything.
                 { icon: '🗑️', html: 'To remove a saved change, select its type again — the day reads <strong>⚠ Removing</strong> — then <strong>Save changes</strong>. A tick only chooses a day for <strong>Apply</strong>.' },
@@ -57,10 +57,16 @@ export const CARD_TIPS = {
                 { icon: '🏖️', html: 'Select a date range. Sundays never use a leave day. A <strong>rest day</strong> in the range is asked about rather than assumed — it only counts if you had swapped a working day onto it.', staffOnly: true },
                 // The preview is a COUNT and a span, not a list of days: never invite a check of what is not on screen.
                 { icon: '👀', html: 'Before you save you are told <strong>how many days of leave</strong> the range uses and the dates it spans. Sundays are never in that count; a rest day is in it only where you have said it was a swapped working day. Check the number against what you meant to book.' },
-                // Owner, 21 Nov 2026: a Spare week (CEA and CES) uses at most four days of leave.
-                { icon: '📋', html: 'For a CEA or CES, a whole <strong>Spare week</strong> off uses <strong>4 days</strong>, not 6. A Dispatcher’s Spare days use one each.' },
+                // Owner, 21 Nov 2026: a Spare week (CEA and CES) uses at most four days of leave (SPARE_WEEK_MAX_DAYS,
+                // al-entitlement.js) — a whole week, and a part week past its fourth day, alike.
+                { icon: '📋', html: 'A <strong>Spare</strong> day — on standby, shift not yet assigned — uses one day of leave. For a CEA or CES a Spare week never uses more than <strong>4</strong>: a whole Spare week off uses 4 days, not 6, and a fifth or sixth day in that week uses none. A Dispatcher’s Spare days use one each.' },
                 { icon: '⚠️', html: 'If the booking would take somebody past their entitlement for the year you are told, and asked to confirm. It does not stop you — sometimes that is the right answer.' },
                 { icon: '🗓️', html: 'Leave in <strong>January</strong> comes out of that year’s allowance. When some is booked, a <strong>Which year’s allowance</strong> panel appears under the Record button, and a day can come out of the year before instead, while that year still has days left.' },
+                // christmas-leave.js: both days are skipped by the range (admin-al.js names them in the preview), a member
+                // due at work there is shown on leave at no cost from 2026, a Spare week's are rest days, and a worked
+                // Boxing Day earns a day in lieu in the NEXT year's allowance, which leave over that day takes back.
+                { icon: '🎄', html: '<strong>Christmas Day</strong> and <strong>Boxing Day</strong> are skipped: the station is closed. From 2026, somebody whose pattern has them at work on either day is shown on leave there automatically, and it costs nothing. In a Spare week both are rest days.' },
+                { icon: '➕', html: 'Working <strong>Boxing Day</strong> when the pattern had them at work earns one day of leave in lieu, added to the <strong>next</strong> year’s allowance. Leave booked over that worked day takes the day back.' },
             ]},
         ],
     },
@@ -73,8 +79,12 @@ export const CARD_TIPS = {
                 { icon: '🪑', html: 'You never say why. Only the dates are saved; the reason is not recorded anywhere in the app.' },
             ]},
             { heading: 'Good to know', items: [
-                { icon: '📅', html: 'Pick a start and end date. Rest days and Sundays inside the range are skipped automatically. Sundays are never recorded as absence — a rostered Sunday in the range is set as a rest day, and the preview names it.' },
-                { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and everybody can see it, the same as annual leave. What they cannot see is why.' },
+                // admin-sick.js + admin-al-projection.js: a Sunday is skipped only where the roster already rests it — one with
+                // a shift gets a rest-day correction (`rangeSundayCorrections`); 25/26 December and days before the start date
+                // are skipped too; a rest day holding RDW or leave is left as it is (`absenceHiddenDates`). The preview names each.
+                { icon: '📅', html: 'Pick a start and end date. Rest days, <strong>Christmas Day</strong> and <strong>Boxing Day</strong>, and any day before the member’s start date are skipped automatically. A Sunday is never recorded as absence: where the roster has a shift on a Sunday in the range, that Sunday is set as a rest day instead. A rest day already holding Rest Day Working or leave is left as it is. The preview names each of these days before you save.' },
+                // The Calendar needs a sign-in or the staff PIN, so "everybody" overstated who can see it.
+                { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and every member of staff can see it, the same as annual leave. What they cannot see is why.' },
             ]},
         ],
     },
@@ -82,14 +92,15 @@ export const CARD_TIPS = {
         title: 'Saved Changes',
         sections: [
             { heading: 'Viewing', items: [
-                { icon: '🔍', html: 'The list follows the <strong>member selected at the top of the page</strong>. Select <strong>All staff</strong> above the table for everyone\'s changes, and the same button again to come back.', adminOnly: true },
+                { icon: '🔍', html: 'The list follows the <strong>member selected at the top of the page</strong>. Select <strong>All staff</strong> above the table for everyone’s changes, and <strong>This member only</strong> to come back.', adminOnly: true },
                 { icon: '🔍', html: 'This list shows your own saved changes only.', staffOnly: true },
                 { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on this month.', adminOnly: true },
                 // Staff default to All months on purpose — see admin-saved-changes.js.
                 { icon: '📅', html: 'The <strong>month filter</strong> narrows it to one month. It starts on <strong>All months</strong>, so leave you have booked for later in the year is not hidden behind it.', staffOnly: true },
             ]},
             { heading: 'Editing and deleting', items: [
-                { icon: '✏️', html: 'Select <strong>✎</strong> (Edit) on a change to adjust its type or time, then <strong>Save changes</strong>.' },
+                // handleEdit (admin-app.js) moves Change a Shift to that member and week and scrolls to it.
+                { icon: '✏️', html: 'Select <strong>✎</strong> (Edit) to open that day’s week in <strong>Change a Shift</strong>, change its type or time there, then select <strong>Save changes</strong>.' },
                 { icon: '🗑️', html: 'Select <strong>✕</strong> (Delete), then again to confirm. That day goes back to whatever the roster originally said.' },
             ]},
             { heading: 'Where a change came from', adminOnly: true, items: [

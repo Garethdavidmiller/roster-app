@@ -5588,8 +5588,9 @@ test('admin: the Record Absence tips say a Sunday rostered as work is set as a r
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.locator('.btn-card-tips[data-card="sick-days"]').click();
     const tips = page.locator('#tipsLbBody');
-    await expect(tips).toContainText('Rest days and Sundays inside the range are skipped automatically');
-    await expect(tips).toContainText('Sundays are never recorded as absence — a rostered Sunday in the range is set as a rest day, and the preview names it.');
+    await expect(tips).toContainText('Rest days, Christmas Day and Boxing Day, and any day before the member’s start date are skipped automatically');
+    await expect(tips).toContainText('A Sunday is never recorded as absence: where the roster has a shift on a Sunday in the range, that Sunday is set as a rest day instead.');
+    await expect(tips).toContainText('The preview names each of these days before you save.');
 });
 
 // ── THE DESKTOP AUDIT (Nov 2026) ─────────────────────────────────────────────────────────────────

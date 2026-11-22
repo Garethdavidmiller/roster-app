@@ -193,7 +193,9 @@ describe('ABSENCE copy is the one that still skips, and must not be swept with t
         // CLAUDE.md: the swap question is never wired to the Absence card. Being off sick on a rest
         // day costs nothing and asks nobody anything, so this sentence is TRUE here — and a
         // find-and-replace over the phrase above would have broken it.
-        assert.match(sick, /rest days and sundays inside the range are skipped automatically/i,
+        // Sundays left this sentence (R2-3, Nov 2026): a Sunday is skipped only where the roster already rests it,
+        // and the same item says what happens to a rostered one. Rest days are still skipped, unasked.
+        assert.match(sick, /rest days,[^.]{0,160}skipped automatically/i,
             'the Absence tips no longer state the rule that flow actually follows');
     });
 
