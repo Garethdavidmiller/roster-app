@@ -399,17 +399,12 @@ export function stationTrains(nowRows, decRows, crs, dir, routes = compareRoutes
         listed.add(k);
         return true;
     });
-    // EVERY DECEMBER TRAIN ON EVERY WEEKDAY IT RUNS. A pair runs on its current train's days, so a December
-    // train paired only with a Tuesday-to-Thursday one was on no row on a Monday or Friday, while the card's
-    // own count had it: December's 07:40 from High Wycombe, given by `uncross` to the Tue-to-Thu 07:33, and
-    // three trains the line left that way before it (24-hour check, 22 Nov 2026). On the days nothing
-    // carries it, it is listed as what it is there — a train today's timetable has nothing in place of.
-    for (const d of decRows) {
-        if (!calls(d)) continue;
-        const k = `${d[0]} ${d[1]}`;
-        const missing = WEEKDAYS.filter(w => runsOn(d[3], w) && !once.some(s => s.dec && `${s.dec} ${s.decTo}` === k && runsOn(s.days, w)));
-        if (!missing.length) continue;
-        once.push({ now: null, dec: d[0], decTo: d[1], kind: 'new', shift: 0, days: daysCode(missing), via: d[2],
+    // EVERY DECEMBER TRAIN ON EVERY WEEKDAY IT RUNS. A row runs on its current train's days, so December's 07:40
+    // from High Wycombe, paired (`uncross`) with a Tue-to-Thu train, was on no row on a Monday or Friday, which the
+    // card still counted (24-hour check, 22 Nov 2026). On the days nothing carries it, it is a new train there.
+    for (const d of decRows.filter(calls)) {
+        const missing = WEEKDAYS.filter(w => runsOn(d[3], w) && !once.some(s => s.dec === d[0] && s.decTo === d[1] && runsOn(s.days, w)));
+        if (missing.length) once.push({ now: null, dec: d[0], decTo: d[1], kind: 'new', shift: 0, days: daysCode(missing), via: d[2],
             decAt: boardingTime(d, crs, dir), ...(dir === 'arr' ? { decIn: d[0] } : {}) });
     }
     const at = (/** @type {StationTrain} */ s) => serviceMinutes(/** @type {string} */ (s.nowAt ?? s.decAt ?? s.now ?? s.dec));
@@ -426,8 +421,7 @@ export function stationTrains(nowRows, decRows, crs, dir, routes = compareRoutes
  * partners are swapped. A swap never adds to the minutes moved altogether — of two crossed pairs, the
  * uncrossed pairing is never the dearer — and each one takes a crossing away, so it ends. The swapped
  * pair is then said as what it now is: the same route, or a train that now comes from or goes to
- * somewhere else (`rerouted`). Swapped on the days the two share, a December train can be left with no
- * partner on the others — `stationTrains` then lists it there as new, so no weekday loses it. The lookup is timed at Marylebone, where nothing crossed, and keeps its
+ * somewhere else (`rerouted`). The lookup is timed at Marylebone, where nothing crossed, and keeps its
  * pairing: there, the 08:00 from High Wycombe is still the 08:18.
  * @param {{ t: PairedTrain, n: TrainRow|undefined, d: TrainRow|undefined }[]} pairs  changed in place
  * @param {string} crs
