@@ -2149,7 +2149,7 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await page.evaluate(() => document.getElementById('circularUploadBody')?.classList.add('open'));
 
     const trigger = page.locator('#circularUploadBody .date-trigger');
-    await expect(trigger).toHaveText(/8 Sep 2026/);
+    await expect(trigger).toHaveText('Tue 8 September 2026');
 
     // The tab just sits there while the day turns over.
     await page.clock.setFixedTime(new Date('2026-09-09T09:00:00Z'));
@@ -2162,7 +2162,7 @@ test('operations: the date picker follows the clock across midnight', async ({ p
     await expect(ninth).not.toHaveClass(/dp-off/);
     await expect(ninth).not.toHaveAttribute('aria-disabled', 'true');
     await ninth.click();
-    await expect(trigger).toHaveText(/9 Sep 2026/);
+    await expect(trigger).toHaveText('Wed 9 September 2026');
 });
 
 // ── The week the roster form offers first (owner, 10 Nov 2026; import-client-3) ─────────────────
@@ -2176,7 +2176,7 @@ test('operations: on a Thursday the roster form offers the following week', asyn
     await page.clock.runFor(2000);
     await expect(page.locator('#rosterWeekEnding')).toHaveValue('2026-11-21');
     await page.evaluate(() => document.getElementById('rosterUploadBody')?.classList.add('open'));
-    await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText(/Sat 21 Nov 2026/);
+    await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText('Sat 21 November 2026');
 });
 
 // ── The app's own dropdown on Operations (v23.38) ──────────────────────────────────────────────
@@ -4311,7 +4311,7 @@ test.describe('operations: the roster read, cut off', () => {
         await expect(page.locator('#rosterParseBtn')).toHaveText('Reading…');
         await pick('2026-08-15');
         await expect(week).toHaveValue('2026-08-08');
-        await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText(/Sat 8 Aug 2026/);
+        await expect(page.locator('#rosterUploadBody .date-trigger')).toHaveText('Sat 8 August 2026');
     });
 
     test('Safari\'s "Load failed" seconds in is a dropped connection, not a large PDF', async ({ page }) => {
