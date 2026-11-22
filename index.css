@@ -2936,7 +2936,6 @@
             text-align: center;
             /* CAPPED (lightbox review R1-5): it had no cap, so large text on a phone on its side could put
                its ✕ off the screen with no way to scroll to it. Its ✕ is the light one, `.lb-close`'s own. */
-            max-height: 86vh;
             max-height: var(--modal-max-h);
         }
         .doc-viewer-title {
@@ -2997,8 +2996,7 @@
             min-width: 260px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             text-align: center;
-            max-height: 86vh;                     /* capped, as every panel is (lightbox review R1-5) */
-            max-height: var(--modal-max-h);
+            max-height: var(--modal-max-h);   /* capped, as every panel is (lightbox review R1-5) */
         }
 
         #monthJumpCard h2 {
