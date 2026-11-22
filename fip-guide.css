@@ -292,6 +292,11 @@ summary .chevron {
     margin-left: 8px;
 }
 details[open] > summary .chevron { transform: rotate(180deg); }
+/* A reader who asked for less motion gets the turn without the swing (Nov 2026). The chevron flips at once;
+   the shell's chips already move nothing but colour. */
+@media (prefers-reduced-motion: reduce) {
+    summary .chevron { transition: none; }
+}
 details[open] > summary { border-bottom: 1px solid var(--border); }
 /* The ring is drawn INSIDE the row: the card's `overflow: hidden` clips anything outside it, which
    left the browser's own ring a hairline with its corners cut off. While ringed, the row takes the
@@ -472,8 +477,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 /* TWO CLEAR BUTTONS, ONE FIELD. `type="search"` makes WebKit and Chromium draw their own cancel
    glyph at the right edge — exactly where `.cf-clear` below already sits, in the app's own style
    — so a reader typing a country name saw the platform's ✕ overlapping ours, at a different size,
-   in a different grey, doing the same job. Ours stays because it is reachable, sized to the 30px
-   touch target the guides use, and can say what it does; the UA's is drawn and cannot be told
+   in a different grey, doing the same job. Ours stays because it is reachable (a 30px circle, with
+   a 44px hit area under a finger — the touch block below), and can say what it does; the UA's is drawn and cannot be told
    anything. `type="search"` itself is kept for the keyboard's Search key on iOS. */
 .cf-input { -webkit-appearance: none; appearance: none; }
 .cf-input::-webkit-search-cancel-button,
@@ -513,10 +518,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .cf-popular a:hover, .country-jump a:hover { border-color: var(--navy); box-shadow: 0 1px 4px rgba(0, 30, 60, 0.12); }
 }
 .cf-popular a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+/* "No country card matches" IS A STATUS, NOT A NOTE (Nov 2026). It sat after the 35 country chips, ~350px
+   under the field — behind a phone's keyboard while the reader was still typing — and in the amber of the
+   "compare public fares" advice box below it, so it read as part of that advice. It now answers straight
+   under the field, in the info blue of the page's other "here is where you are" boxes (full outline, as
+   this page's notes have — an edge here marks an unresolved source). */
 .cf-nomatch {
     font-size: 13px; color: var(--text);
-    background: var(--yellow-bg); border: 1px solid var(--yellow-bdr);
-    border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+    background: var(--blue-bg); border: 1px solid var(--blue-bdr);
+    border-radius: 8px; padding: 10px 12px; margin: 8px 0 0;
 }
 
 /* ── Country jump list ───────────────────── */
@@ -568,10 +578,27 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     /* .chip-bar print-hide is in guide-shell.css (shared) */
     .country-finder,
     .country-jump,
-    .btn-primary,
-    .btn-secondary,
+    .cf-nomatch,
     .btn-print-country,
     .btn-text-link { display: none !important; }
+
+    /* THE CONTACTS PRINT AS LINES OF TEXT (Nov 2026). Hiding the buttons left "Book, order & apply" on paper
+       as a heading and two labels with nothing under them. A button is no use on a sheet, but what it holds
+       is — so each prints as a navy line with no fill or edge: the call button carries its number in its
+       words, the booking site its address, and the two RST forms print theirs after them. The ↗ text links
+       stay off: their addresses are the same sites again. */
+    .btn-primary, .btn-secondary {
+        background: none; border: 0; border-radius: 0;
+        padding: 0; margin: 0 0 4px;
+        width: auto; text-align: left;
+        color: var(--navy); font-size: 13px; font-weight: 700; text-decoration: none;
+        break-inside: avoid;
+    }
+    .btn-primary[href*="raildeliverygroup.com"]::after,
+    .btn-secondary[href*="raildeliverygroup.com"]::after {
+        content: " — " attr(href);
+        font-weight: 400; font-size: 11px; color: var(--mid); overflow-wrap: anywhere;
+    }
 
     /* ── PRINT THIS COUNTRY (v24.06) ──────────────────────────────────────────────────────
        The print review, item 1 (ROADMAP_HISTORY). One country's card instead of the 25-sheet book, because that is
@@ -675,7 +702,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     margin-top: 20px;
     line-height: 1.6;
 }
-.foot-disclaimer-link { color: inherit; }
+/* Its link is the shell's one link, navy (Nov 2026): grey, it read as part of the grey sentence. */
 
 /* ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────
    The control itself; the @media print block above takes it off the paper, since
@@ -698,6 +725,21 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     .btn-print-country:hover { border-color: var(--navy); }
 }
 .btn-print-country:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+/* ── 44px UNDER A FINGER (Nov 2026) ───────────────────────────────────────────────────────────────
+   Measured on a touch phone: the "Popular from Marylebone" chips 33px tall, the A–Z country chips 37px,
+   the finder's ✕ 30×30 and "Print this country" 36px — every one under the 44px target, on the page's
+   most-tapped controls. The chips and the button GROW to 44px: they wrap in rows only 5px apart, so an
+   invisible hit area would overlap the row below. The ✕ cannot grow without crowding the field, so it
+   keeps its 30px circle and takes an invisible 44px square round it. Coarse pointers only, and AFTER
+   each control's own rule, so this wins on source order (css-tokens.md → the 16px rule, on source order). */
+@media (pointer: coarse) {
+    /* Flex centres the words in the taller chip; a flex row drops the space after the flag, so the gap puts
+       back its width (a space in Inter is about a quarter of an em). */
+    .cf-popular a, .country-jump a { display: inline-flex; align-items: center; gap: 0.25em; min-height: 44px; }
+    .btn-print-country { min-height: 44px; }   /* a <button> centres its words in its own height */
+    .cf-clear::after { content: ""; position: absolute; inset: -7px; }
+}
 
 /* ── ON SCREEN, THE GUIDES' THREE TEXT SIZES (v26.24) ─────────────────────────────────────────────
    guide-shell.css → "THE GUIDES' THREE TEXT SIZES". This page was the closest to the scale already —
