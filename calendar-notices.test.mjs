@@ -663,7 +663,8 @@ describe('5 · the install notice: a phone browser, third in line, and the right
             'any other phone browser: its own menu'],
         // Two more lines since the iPhone audit (7 Nov 2026): an email or chat app cannot add it, and the
         // Home Screen app's storage is its own. Android shares one storage, so its routes carry neither.
-        [{ how: 'ios', mirror: false }, ['installNoticeHave', 'installNoticeIos', 'installNoticePayIos', 'installNoticeSafari'],
+        // "Already on your home screen?" is folded into the iPhone's own line (22 Nov 2026), so the card fits an SE.
+        [{ how: 'ios', mirror: false }, ['installNoticeIos', 'installNoticePayIos', 'installNoticeSafari'],
             'an iPhone or iPad: Share, then Add to Home Screen — and what does not come with it'],
         // The mirror gets no steps of its own: the main address shows them once the member is there,
         // and with them the card ran past a phone's screen and hid its one button.
@@ -787,7 +788,9 @@ describe('5 · the install notice: a phone browser, third in line, and the right
     });
 
     test('on an iPhone it says where Share is on iOS 26, to open the roster in Safari first, and what stays behind', () => {
-        assert.match(lineText('installNoticeIos'), /Share button, then Add to Home Screen — on iOS 26 or later, Share is under •••/);
+        assert.match(lineText('installNoticeIos'), /Tap Share, then Add to Home Screen — on iOS 26 or later, Share is under •••/);
+        assert.match(lineText('installNoticeIos'), /Already there\? Open it from your home screen: notifications work only there/,
+            'the iPhone line carries "already installed" and where notifications work — there is no separate line for them on this route');
         assert.match(lineText('installNoticeSafari'), /email or a chat\? Open it in Safari first/);
         const pay = lineText('installNoticePayIos');
         assert.match(pay, /keeps its own storage/, 'it must say WHY the figures do not follow');

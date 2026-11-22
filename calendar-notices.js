@@ -475,7 +475,7 @@ function _showInstallRoute({ how, mirror }) {
         installNoticeMenu:    !mirror && how === 'menu',
         installNoticePay:     mirror,
         installNoticePayIos:  !mirror && how === 'ios',     // the Home Screen app's storage is its own — Android's is not
-        installNoticeHave:    !mirror && how !== 'prompt',   // Chromium offers only where it is not installed
+        installNoticeHave:    !mirror && how === 'menu',     // Chromium offers only where it is not installed; the iPhone's line says it itself
         installNoticeActions: mirror || how === 'prompt',
         installNoticeInstall: !mirror && how === 'prompt',   // never an Install button on the mirror, whatever `how` says (v24.96)
         installNoticeGo:      mirror,

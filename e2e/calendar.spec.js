@@ -2151,8 +2151,9 @@ test.describe('install notice — on an iPhone', () => {
     // own storage, so the member is signed out there and the Pay Calculator's figures stay behind in the
     // browser — the notice promised the opposite. And Share is under ••• on iOS 26, and absent from an
     // email or chat app altogether. Driven through the real detection, at the smallest iPhone that runs
-    // iOS 16.4 (the SE, 375×667), because these lines made the card longer than its screen.
-    test('it says where Share is, to open in Safari first, and what stays behind — and all of it can be read', async ({ page }, info) => {
+    // iOS 16.4 (the SE, 375×667), because these lines made the card longer than its screen: 654px against
+    // a 532px cap, measured on WebKit (lightbox review, 22 Nov 2026). Cut to fit, as the skill's lesson asks.
+    test('it says where Share is, to open in Safari first, and what stays behind — and all of it fits an iPhone SE', async ({ page }, info) => {
         test.skip(!isTouchProject(info), 'it is offered only on a touch screen');
         const errors = collectFatalErrors(page);
         await page.setViewportSize({ width: 375, height: 667 });
@@ -2169,12 +2170,14 @@ test.describe('install notice — on an iPhone', () => {
         await expect(pay).toContainText('Move Your Pay Data');
         await expect(page.locator('#installNoticePay'), 'the mirror\'s line, which says the figures stay at an ADDRESS').toBeHidden();
         await expect(notice).not.toContainText('your saved pay figures are far less likely');
-        // The card runs past this screen, so it must scroll to its last line, with the ✕ never lost.
+        // THE WHOLE CARD FITS — no line under the fade, and the ✕ is not the only way out that can be seen.
+        // scrollHeight against clientHeight, never a screenshot: a card caught mid-animation is scaled.
+        await expect(page.locator('#installNoticeHave'), 'folded into the iPhone line').toBeHidden();
+        await page.waitForTimeout(600);   // past the open's scale-in
+        const fit = await page.locator('#installNoticeContent').evaluate(el => ({ scroll: el.scrollHeight, client: el.clientHeight }));
+        expect(fit.scroll, `the card scrolls: ${fit.scroll}px of content in ${fit.client}px`).toBeLessThanOrEqual(fit.client);
         const close = page.locator('#installNoticeClose');
         await expect(close).toBeInViewport();
-        const last = page.locator('#installNoticeHave');
-        await last.scrollIntoViewIfNeeded();
-        await expect(last).toBeInViewport();
         await close.click();
         await expect(notice).not.toHaveClass(/\bopen\b/);
         const archived = await page.evaluate(() =>
