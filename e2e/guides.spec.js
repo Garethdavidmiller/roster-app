@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, isTouchProject, scaleText, seedMemberSession } from './helpers.js';
+import { collectFatalErrors, isTouchProject, openGuideLink, scaleText, seedMemberSession, seedSession } from './helpers.js';
 import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
@@ -1914,6 +1914,78 @@ test('guides: the footer back link is one control with one wording on every guid
         seen.push(m.style);
     }
     expect(new Set(seen).size, `one recipe, got: ${seen.join(' | ')}`).toBe(1);
+});
+
+// THE FOOTER LINK GOES WHERE THE ARROW GOES (owner, Nov 2026). It ignored `?from=` while the header's ← obeyed
+// it, so a guide opened from Admin offered "← Back to calendar" at its foot and Admin at its head. It now names
+// the page the arrow names; a missing, the calendar's or a crafted `from` leaves it as authored.
+test('guides: the footer back link follows ?from= as the header arrow does', async ({ page }) => {
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        const link = page.locator('main a.guide-back-link');
+        for (const [from, text, href] of [
+            ['admin.html', '← Back to Admin', './admin.html'],
+            ['paycalc.html', '← Back to Pay Calculator', './paycalc.html'],
+            ['index.html', '← Back to calendar', './'],
+            ['https://evil.example/x', '← Back to calendar', './'],
+            ['', '← Back to calendar', './'],
+        ]) {
+            await page.goto(`/${guide}.html${from ? `?from=${encodeURIComponent(from)}` : ''}`);
+            await expect(link, `${guide} from "${from}": the footer's words`).toHaveText(text);
+            await expect(link, `${guide} from "${from}": the footer's destination`).toHaveAttribute('href', href);
+            await expect(page.locator('.page-header .btn-back'), `${guide} from "${from}": the arrow agrees`).toHaveAttribute('href', href);
+        }
+    }
+});
+
+// GOING BACK IS GOING BACK (Nov 2026). The drawer opens a guide by REPLACING its own history entry, so a ← that
+// LINKED to Admin left Admin, guide, Admin in the history, and the phone's Back from Admin landed on the guide
+// again. Where the page before is the one the arrow names, both back links now step back to it instead. Where
+// that is not certain — no page before, or a reader who has moved within the guide since — they follow the link.
+test('guides: the back links step back to the page that opened the guide, not forward to a copy of it', async ({ page }) => {
+    await seedSession(page);
+    for (const control of ['.page-header .btn-back', 'main a.guide-back-link']) {
+        await page.goto('/admin.html');
+        const opened = await page.evaluate(() => history.length);
+        await (await openGuideLink(page, 'Railcard Guide')).click();
+        await page.waitForURL(/railcard-guide\.html\?from=admin\.html/, { timeout: 4000 });
+        await expect(page.locator('.page-header .btn-back')).toHaveAttribute('href', './admin.html');
+        const onGuide = await page.evaluate(() => history.length);
+        expect(onGuide, `premise: the drawer replaced its own entry with the guide (${control})`).toBeLessThanOrEqual(opened + 1);
+        await page.locator(control).click();
+        await page.waitForURL(/\/admin\.html/, { timeout: 4000 });
+        expect(await page.evaluate(() => history.length), `${control}: no new Admin was pushed on top of the guide`).toBe(onGuide);
+        // …so the phone's Back from here does not land on the guide again.
+        await page.goBack().catch(() => null);
+        expect(page.url(), `${control}: Back from Admin went to the guide again`).not.toMatch(/railcard-guide/);
+    }
+});
+
+test('guides: with no page before, another page before, or after a move within the guide, the back links follow their link', async ({ page }) => {
+    // A direct visit: nothing to step back to, so the arrow navigates to Admin as a link does.
+    await page.goto('/railcard-guide.html?from=admin.html');
+    const before = await page.evaluate(() => history.length);
+    await page.locator('.page-header .btn-back').click();
+    await page.waitForURL(/\/admin\.html/, { timeout: 4000 });
+    expect(await page.evaluate(() => history.length), 'the link was followed').toBe(before + 1);
+
+    // The page before is not the one the arrow names: a step back would land on the wrong page.
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.evaluate(() => { location.href = './railcard-guide.html?from=paycalc.html'; });
+    await page.waitForURL(/railcard-guide\.html\?from=paycalc\.html/, { timeout: 4000 });
+    await page.locator('.page-header .btn-back').click();
+    await page.waitForURL(/\/paycalc\.html/, { timeout: 4000 });
+
+    // Opened from Admin, then a country link: one step back would only go back a country.
+    await page.goto('/admin.html');
+    await (await openGuideLink(page, 'FIP Travel Guide')).click();
+    await page.waitForURL(/fip-guide\.html\?from=admin\.html/, { timeout: 4000 });
+    await page.locator('.country-jump a[href="#country-fr"]').click();
+    await expect(page).toHaveURL(/#country-fr$/);
+    const moved = await page.evaluate(() => history.length);
+    await page.locator('main a.guide-back-link').click();
+    await page.waitForURL(/\/admin\.html/, { timeout: 4000 });
+    expect(await page.evaluate(() => history.length), 'the link was followed, not one step back').toBe(moved + 1);
 });
 
 // ONE UNDER A MOUSE TOO (whole-app review, Nov 2026). The recipe above was one at rest and three when

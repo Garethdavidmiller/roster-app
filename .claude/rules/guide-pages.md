@@ -82,7 +82,11 @@ paths:
   `paycalc-guide.html`'s links to `./paycalc.html`. **`guide-back.js` retargets that arrow at runtime**
   when the guide was opened from the nav drawer: `nav-panel.js` appends `?from=<page>` and `←` points
   back at that page, because guide links navigate in the SAME tab. `from` is allowlisted against the
-  app's own pages; an absent or unknown value leaves the authored href alone.
+  app's own pages; an absent or unknown value leaves the authored href alone. The footer
+  `.guide-back-link` follows it too. **Where the page before is the one named** (same origin and path,
+  by `document.referrer`), both call `history.back()` instead of linking, so Admin → drawer → guide → ←
+  leaves no second Admin over the guide for the phone's Back to land on; the href stays the fallback
+  (no referrer, no history, or a move within the guide since it loaded). `guide-back.js` has the why.
 
 ## Unified guide shell
 
@@ -110,7 +114,9 @@ do not re-inline it. `guide-shell.css` defines the shared brand palette tokens (
 - **The `←` has one hover, gold, on every guide** (fine pointers only), at a specificity no page's own
   `a:hover` reaches.
 - **Footer back link:** `.guide-back-link` is ONE recipe for railcard, rangers and FIP — centred, 44px
-  tall, "← Back to calendar" to `./`, the last element of `<main>`, hidden in print — with ONE hover
+  tall, authored "← Back to calendar" to `./` and retargeted by `guide-back.js` with the header's `←`
+  (opened from Admin it reads "← Back to Admin"; owner, Nov 2026), the last element of `<main>`,
+  hidden in print — with ONE hover
   (navy words, gold underline) at (0,2,0). Do not restyle it per page; `e2e/guides.spec.js` fails if the
   three diverge.
 - **Chips:** desktop hover feedback on the shared `.chip` (border-darken + soft shadow, colour-fade
@@ -226,10 +232,11 @@ that register structurally (part of `npm run test:hygiene`) — every row must k
 `Reviewed`/`Next` dates (Next strictly after Reviewed), and a valid class.
 
 - **Before changing a high-risk claim**, update its register row (Source + `Reviewed`), then the guide.
-- **Block ↔ source linkage:** each high-risk railcard/fip block carries a
+- **Block ↔ source linkage:** each high-risk Railcard, Rangers or FIP block carries a
   `data-guide-source="<register-id>"` attribute (several space-separated ids allowed).
-  `guide-sources.test.mjs` enforces both directions — an attribute pointing at a missing row fails, and
-  a railcard/fip row with no anchoring block fails — so adding a row means anchoring it in the HTML,
+  `guide-sources.test.mjs` enforces both directions — an attribute on ANY guide (it reads every
+  `GUIDE_PAGES` entry) pointing at a missing row, or at another guide's, fails, and a Railcard, Rangers
+  or FIP row with no anchoring block fails — so adding a row means anchoring it in the HTML,
   and removing a block means removing or re-homing its row. The attribute is inert (no CSS/JS reads
   it), so it needs no version bump.
 - The **National vs Local** flag is the anti-drift control: it stops a Marylebone shortcut being
