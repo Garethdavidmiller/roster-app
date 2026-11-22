@@ -37,7 +37,7 @@
 import { CONFIG, escapeHtml } from './roster-data.js';
 import { serverTimestamp } from './firebase-client.js';
 import { createLightbox, confirmDialog } from './overlay.js';
-import { checkName, nameConflict } from './links-design-naming.js';
+import { checkName, checkDesignName, nameConflict } from './links-design-naming.js';
 import { ROTATING_LINES } from './links-design.js';
 import { PROPOSAL_NAMES } from './links-proposals.js';
 import { docPayload, restoredEntryFrom, binEntryFromDoc, binEntryFrom } from './links-design-doc.js';
@@ -60,8 +60,11 @@ import { unconfirmedWriteLine } from './claim-retry.js';
  * @property {(msg: string, kind?: 'ok'|'err'|'') => void} actionStatus  the workspace's status line;
  *   `''` is its neutral voice, neither a success nor a failure (a write queued in this browser)
  * @property {() => any} getHeader           the masthead, once built (the bin opens from its ··· sheet)
- * @property {(ids: Set<string>) => void} removeDesigns  drop these from the live list; if one was open,
- *   open the next live design, else the first of the shortlist (Keep only the shortlist)
+ * @property {(ids: Set<string>, mark: any) => boolean} removeDesigns  drop these from the live list; if one was open,
+ *   open the next live design, else the first of the shortlist (Keep only the shortlist) — unless it was
+ *   EDITED since `mark` (`snapshot`'s, as the moves began): then its edits stay, as an unsaved new design,
+ *   and it returns true
+ * @property {() => any} [snapshot]  where the page stands — which design is open, and what it holds
  * @property {(id: string, settled?: Promise<string>) => void} markQueued  this design's last write is only in THIS BROWSER's queue
  *   (a create the store returned `queued`) — the coordinator's record, which the masthead's pill reads;
  *   `settled` says how that write ended (links-design-store.js rule 6)
@@ -69,6 +72,9 @@ import { unconfirmedWriteLine } from './claim-retry.js';
  *   or an unsaved design. Without it, Keep only the shortlist cannot tell whether the open design is
  *   among those moving, and warns about unsaved work whenever there is any
  */
+
+/** What Keep only the shortlist says when the open design moved while it was being edited. */
+const EDITS_KEPT = 'What you changed in the open design while they moved is still here, not saved — Save keeps it as a new design.';
 
 /** What a write still in this browser's queue is called — `saveChanges`'s words for a queued save. */
 const IN_THIS_BROWSER = 'Saved in this browser — it uploads the next time Links is open here with a connection.';
@@ -187,10 +193,7 @@ export function createDesignLibrary(ctx) {
         if (!_importParsed) return;
         const name = (_importEl('linksImportName')?.value ?? '').trim();
         if (!name) { _importStatus('Give the design a name first.', 'bad'); return; }
-        // …and not a SHORTLISTED PROPOSAL's name either: the proposals sit in the same picker and the
-        // same Compare chips, where two of one name cannot be told apart (whole-app fix, Nov 2026).
-        const asDesign = checkName(name, { existing: ctx.getDesigns(), noun: 'design' });
-        const nameCheck = asDesign.ok ? checkName(name, { existing: [...PROPOSAL_NAMES], noun: 'shortlisted proposal' }) : asDesign;
+        const nameCheck = checkDesignName(name, { designs: ctx.getDesigns(), proposalNames: PROPOSAL_NAMES });   // a proposal's name too
         if (!nameCheck.ok) { _importStatus(nameCheck.message || 'That name cannot be used.', 'bad'); return; }
         const btn = _importEl('linksImportSave');
         if (btn) btn.disabled = true;
@@ -317,7 +320,7 @@ export function createDesignLibrary(ctx) {
         try {
             if (!await confirmDialog({
                 title: 'Remove for good',
-                message: `Permanently remove "${d.name}"?\n\nThis one can't be undone.`,
+                message: `Permanently remove “${d.name}”?\n\nThis cannot be undone.`,
                 confirmLabel: 'Remove for good',
                 danger: true,
             })) return;
@@ -460,17 +463,20 @@ export function createDesignLibrary(ctx) {
             danger: true,
         })) return;
         keeping = true;
+        // Where the page stood as the moves began: a design edited while they run keeps its edits (bug, Nov 2026).
+        const mark = ctx.snapshot?.() ?? null;
         try {
             const results = await Promise.allSettled(older.map(d => ctx.store.binIfStill(d.id, ctx.currentUser, isOlderDesign)));
             const moved = new Set(older.filter((_, i) => results[i].status === 'fulfilled' && /** @type {any} */ (results[i]).value === 'moved').map(d => d.id));
             const failed = results.filter(r => r.status === 'rejected');
             for (const r of failed) console.error('[Links] Keep only the shortlist: a move failed:', /** @type {PromiseRejectedResult} */ (r).reason);
             for (const d of older) if (moved.has(d.id)) bin.unshift(binEntryFrom(d, ctx.currentUser));
-            if (moved.size) ctx.removeDesigns(moved);
+            const kept = moved.size ? ctx.removeDesigns(moved, mark) : false;
             // A design the transaction SKIPPED was saved, binned or removed by somebody else meanwhile;
             // the server knows which, so ask it rather than guess.
             if (moved.size + failed.length < older.length) await ctx.refreshLists();
-            ctx.actionStatus(keptOnlyShortlistLine(moved.size, failed.length), failed.length ? 'err' : 'ok');
+            ctx.actionStatus(keptOnlyShortlistLine(moved.size, failed.length) + (kept ? ` ${EDITS_KEPT}` : ''),
+                failed.length ? 'err' : kept ? '' : 'ok');
         } finally {
             keeping = false;
         }

@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * links-compare.js — Compare mode for links.html: view two saved designs side by side with a
- * gold-outline diff on differing cells. Extracted from links-app.js (v17.71, extraction programme).
+ * links-compare.js — Compare mode for links.html: view two designs — saved ones or the built-in
+ * shortlisted proposals — side by side with a gold-outline diff on differing cells. Extracted from links-app.js (v17.71, extraction programme).
  *
  * This module is the SINGLE SOURCE OF TRUTH for the two compare state vars (`compareMode` +
  * `compareDesignId`) — links-app.js no longer stores them. The coordinator only ever ASKS this
@@ -14,14 +14,14 @@
  * design collection + a few render callbacks and local helpers (all defined in links-app.js).
  */
 import { escapeHtml } from './roster-data.js';
-import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
-import { assessFatigue, COVER_DUTY_WORDS } from './links-fatigue.js';
+import { DAYS, ROTATING_LINES, MIN_REST_MINUTES, classifyShift, calcCoverage, hoursFigure } from './links-design.js';
+import { COVER_DUTY_WORDS } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
 import { compareDesigns } from './links-compare-analysis.js';
+import { analyse } from './links-analyse.js';
 import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { describeHours } from './links-demand.js';
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+import { emptyPattern, isUnfilledPattern, compareCellHtml, coverCellsHtml } from './links-grid-cells.js';
 
 /**
  * What compare mode calls the ACTIVE design while it has no name yet — a design fresh from the
@@ -45,13 +45,10 @@ const TOTAL_POS = ROTATING_LINES;
  * @param {() => void} deps.renderGrid
  * @param {() => void} deps.renderBrushBar
  * @param {() => void} deps.dearmBrush
- * @param {() => Record<string, any>} deps.emptyPattern
- * @param {(p: any) => boolean} deps.isUnfilledPattern
- * @param {(shift: string) => string} deps.shiftLabel
  */
 export function initLinksCompare(deps) {
     const { getDesigns, getActiveDesignId, getDesign, renderDesignPicker, renderGrid,
-        renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel } = deps;
+        renderBrushBar, dearmBrush } = deps;
 
     let compareMode = false;
     /** @type {any} */
@@ -199,9 +196,8 @@ export function initLinksCompare(deps) {
                 if ((p[d] ?? 'RD') !== (q[d] ?? 'RD')) { cells++; lines.add(pos); }
             }
         }
-        const ca = runDesignChecks(a.patterns, TOTAL_POS), cb = runDesignChecks(b.patterns, TOTAL_POS);
-        const fa = assessFatigue(a.patterns, TOTAL_POS),   fb = assessFatigue(b.patterns, TOTAL_POS);
-        const ha = weeklyHours(a.patterns, TOTAL_POS),     hb = weeklyHours(b.patterns, TOTAL_POS);
+        const ra = analyse(a, TOTAL_POS), rb = analyse(b, TOTAL_POS);   // the panels' own reading (links-analyse.js)
+        const ca = ra.checks, cb = rb.checks, fa = ra.fatigue, fb = rb.fatigue, ha = ra.hours, hb = rb.hours;
         // `weeklyHours().exSunday` is DECIMAL HOURS, and `hmFromHours` is the one formatter for it —
         // its own header says so, having been written after three hand-rolled copies rendered
         // "34h 60m". This was a fourth copy and it read the figure as MINUTES: a 35-hour week
@@ -209,7 +205,7 @@ export function initLinksCompare(deps) {
         // Nothing was out of range and nothing threw. Import the formatter; never restate it.
         // …and "(partial)" where the Design checks row and the summary chip say it (`complete` false: a whole line
         // had no readable time, so the average covers fewer lines than the design has).
-        const hrs = (/** @type {any} */ h) => h.exSunday === null ? '—' : hmFromHours(h.exSunday) + (h.complete ? '' : ' (partial)');
+        const hrs = (/** @type {any} */ h) => hoursFigure(h).text;
         // An UNCHANGED figure still renders. Showing only what moved would leave the reader unable
         // to tell "the same" from "not measured", which is this app's most repeated defect.
         const row = (/** @type {string} */ label, /** @type {any} */ x, /** @type {any} */ y) =>
@@ -226,6 +222,9 @@ export function initLinksCompare(deps) {
             // numbers beside them, and would be wrong by twenty lines.
             `${_filterActive() ? ' — the figures here and the cover row below still cover all '
                 + `${TOTAL_POS} lines` : ''}</p>` +
+            // THE KEY: which side is which. Every row reads `A → B`, and the strip sits above both columns, so
+            // without it a reader had to work out from the headers below which figure was the open design's.
+            `<p class="compare-an-note compare-sum-key">${escapeHtml(a.name || COMPARE_ACTIVE_FALLBACK)} → ${escapeHtml(b.name || 'Design B')}</p>` +
             `<ul class="compare-sum-list">` +
             row('Hours a week (excl. Sunday)', hrs(ha), hrs(hb)) +
             row('Full weekends off', ca.weekendsOff, cb.weekendsOff) +
@@ -435,41 +434,16 @@ export function initLinksCompare(deps) {
             const same     = DAYS.every(d => (p[d] ?? 'RD') === (op[d] ?? 'RD'));
             const rowClass = `${isUnfilledPattern(p) ? 'row-unfilled' : ''}${same ? ' row-same' : ''}`.trim();
 
-            const dayCells = DAYS.map((d, di) => {
-                const shift = p[d]  ?? 'RD';
-                const other = op[d] ?? 'RD';
-                const type  = classifyShift(shift);
-                const label = shiftLabel(shift);
-                const diff  = shift !== other ? ' cell-diff' : '';
-                // A SPAN, NOT A BUTTON (v22.60, external review). These cells cannot be operated —
-                // `.links-grid--compare` sets `pointer-events: none` and every one carried
-                // `tabindex="-1"` — so rendering them as buttons announced hundreds of controls to a screen
-                // reader that do nothing when reached. The class stays, because it is what carries
-                // the shift colouring; `role` and `tabindex` go, because there is nothing to press.
-                return `<td class="shift-cell${diff}">` +
-                    `<span class="shift-cell-btn type-${type}" ` +
-                    `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(shift)}">` +
-                    `${escapeHtml(label)}</span></td>`;
-            }).join('');
+            // A SPAN, NOT A BUTTON (v22.60): these cells cannot be operated, and as buttons they announced hundreds of dead
+            // controls. Named as the editable grid's are ("RD, rest day"), through `role="img"` (links-grid-cells.js rule 2).
+            const dayCells = DAYS.map(d => compareCellHtml(posStr, d, p[d] ?? 'RD', (p[d] ?? 'RD') !== (op[d] ?? 'RD'), classifyShift)).join('');
 
             rows.push(`<tr class="${rowClass}" data-pos="${posStr}"><td class="pos-num">${posStr}</td>${dayCells}</tr>`);
         }
         tbody.innerHTML = rows.join('');
 
         if (tfoot) {
-            const cov   = calcCoverage(patterns);
-            const cells = DAYS.map(d => {
-                const { early, late, spare, night } = (/** @type {Record<string, any>} */ (cov))[d];
-                const worked = early + late + spare + night;
-                return `<td class="cov-cell">` +
-                    `<span class="cov-num">${worked}</span>` +
-                    `<span class="cov-label-e"> E:${early}</span>` +
-                    ` <span class="cov-label-l">L:${late}</span>` +
-                    (night ? ` <span class="cov-label-n">N:${night}</span>` : '') +
-                    (spare ? ` <span class="cov-label-s">SP:${spare}</span>` : '') +
-                    `</td>`;
-            }).join('');
-            tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}</tr>`;
+            tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${coverCellsHtml(/** @type {any} */ (calcCoverage(patterns)))}</tr>`;
         }
     }
 

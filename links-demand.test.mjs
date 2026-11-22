@@ -107,7 +107,7 @@ describe('DEC_2026_DEMAND — the measured profile', () => {
     test('the source identifies the exact files, so a design can be traced back to them', () => {
         assert.match(DEC_2026_SOURCE.detail, /10 of 13/, 'the weekday file must be identifiable by name');
         assert.match(DEC_2026_SOURCE.detail, /Final/, 'and so must its Sat/Sun counterparts');
-        assert.match(DEC_2026_SOURCE.detail, /ECS excluded/i);
+        assert.match(DEC_2026_SOURCE.detail, /empty-stock moves left out/i);
         assert.match(DEC_2026_SOURCE.detail, /Measured \w+ \d{4}/, 'when it was measured');
         // The renderer branches on this, so it has to stay a boolean whichever way it points.
         assert.equal(typeof DEC_2026_SOURCE.provisional, 'boolean');

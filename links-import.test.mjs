@@ -202,7 +202,7 @@ describe('a pasted grid — where a paste loses a COLUMN', () => {
     test('a duplicate or out-of-range week is refused rather than resolved', () => {
         const dup = parseGrid([line('3', ...Array(7).fill('RD'), '0'), line('3', ...Array(7).fill('SP'), '0')].join('\n'));
         assert.equal(dup.ok, false);
-        assert.match(String(dup.error), /Week 3 appears twice/);
+        assert.match(String(dup.error), /Line 3 appears twice/);
         const far = parseGrid(line('99', ...Array(7).fill('RD'), '0'));
         assert.equal(far.ok, false);
         assert.match(String(far.error), /outside the .* rotation/);
@@ -274,7 +274,7 @@ describe('the app\'s own JSON', () => {
         assert.ok(w, `no night warning in ${JSON.stringify(r.warnings)}`);
         assert.match(String(w), /15:00-00:30, 22:00-06:00/);
         const g = parseGrid(line('RD', '22:00-06:00', 'RD', 'RD', 'RD', 'RD', 'RD'));
-        assert.ok(g.ok && g.warnings.some(x => /CEAs do not work nights/.test(x)));
+        assert.ok(g.ok && g.warnings.some(x => /Customer Experience Ambassadors \(CEAs\) do not work nights/.test(x)));
         const fine = parseDesignImport(JSON.stringify(good));
         assert.ok(fine.ok && !fine.warnings.some(x => /night/.test(x)), 'an ordinary design carries no night warning');
     });

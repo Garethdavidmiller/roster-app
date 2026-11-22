@@ -38,6 +38,8 @@
  * seam `links-design-doc.js` uses, so this stays loadable in Node and testable without mocks.
  */
 
+import { ROTATING_LINES } from './links-design.js';
+
 /** The longest a set name may be — the bound `firestore.rules` puts on a set's name (a design's is 100). */
 export const MAX_SET_NAME = 60;
 
@@ -57,7 +59,11 @@ export const SPARE_WEEKS_CAP = 29;
 export function targetSetProblem(table) {
     if (!table.slots.length) return 'Add at least one shift row before saving a staffing setup.';
     if (table.slots.length > MAX_SET_SLOTS) return `A staffing setup can hold at most ${MAX_SET_SLOTS} rows.`;
-    if (table.spareLines > SPARE_WEEKS_CAP) return `Spare lines can be at most ${SPARE_WEEKS_CAP}.`;
+    // The rules' cap is above the rotation, so the figure a designer is told is the one the card
+    // itself allows — one line short of the rotation, the box's own `max` (Nov 2026: "at most 29"
+    // was a number no link this length can have).
+    const cap = Math.min(SPARE_WEEKS_CAP, ROTATING_LINES - 1);
+    if (table.spareLines > cap) return `Cover weeks can be at most ${cap} — a staffing setup needs at least one working line.`;
     return null;
 }
 
@@ -181,7 +187,7 @@ export function describeSetState(set, ctx = {}) {
         ? 'yours to change.'
         : canWrite
             ? `saved by ${set.createdBy}. You can overwrite it as the admin.`
-            : `saved by ${set.createdBy}. Only they can overwrite it.`;
+            : `saved by ${set.createdBy}. Only they or the admin can change it.`;
 
     const where = !isLoaded
         ? 'Press Use setup to bring these shift times into the table.'
