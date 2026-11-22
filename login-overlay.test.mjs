@@ -619,6 +619,27 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         assert.equal(card.submit.disabled, true);
     });
 
+    // THE BUTTON AS THE CARD STANDS WHEN THE ATTEMPT SETTLES (24-hour check, 22 Nov 2026): a change of person in
+    // flight cannot repaint the button (`showLockFor` stands aside while `_signingIn`), so the attempt does it on
+    // the way out. Without that, a card moved back to a LOCKED person mid-flight offered them "Sign in →".
+    test('a card moved back to a locked person while somebody else’s sign-in is in flight shows their lock when it settles', async () => {
+        const card = mount(B);
+        for (let i = 0; i < 3; i++) { card.password.value = `wrong-${i}-for-B`; card.send(); await settle(card); }
+        assert.equal(card.submit.textContent, 'Try again in 30s', 'premise: B is locked');
+        card.name.value = A;
+        card.name.dispatchEvent({ type: 'change' });
+        assert.equal(card.submit.textContent, 'Sign in →', 'premise: the lock is B’s alone');
+        const release = hold();
+        card.password.value = 'wrong-for-A';
+        card.send();
+        card.name.value = B;   // back to B, mid-flight (a pick from a sheet already closing)
+        card.name.dispatchEvent({ type: 'change' });
+        release();
+        await settle(card);
+        assert.equal(card.submit.textContent, 'Try again in 30s', 'B was offered a sign-in inside their own lock');
+        assert.equal(card.submit.disabled, true);
+    });
+
     test('"Choose your name first." sends the caret to the name picker’s trigger, as the grade line does', async () => {
         const card = mount();
         card.grade.value = grade;
