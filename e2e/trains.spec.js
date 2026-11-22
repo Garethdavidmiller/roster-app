@@ -9,7 +9,7 @@
  * summarising the wrong direction for Coming back, leaves every unit test green.
  */
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, stubPinExchange, enterPin, scaleText } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags, isTouchProject, stubPinExchange, enterPin, scaleText, pickFirstMemberAndPassword } from './helpers.js';
 import { TIMETABLES, STATIONS } from '../trains-data.js';
 import { busiestStations, matchStations } from '../trains-stations.js';
 
@@ -740,6 +740,7 @@ test.describe('trains', () => {
             await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
             await openLookup(page);
             await page.locator('#trLookupInput').fill('1036');
+            await expect(page.locator('#trLookupResult .tr-answer').first()).toBeVisible();   // the answer waits for typing to pause
             expect(await overflow(), 'What’s changing').toBeLessThanOrEqual(1);
             await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
             await page.locator('#trStation .tr-route-sum').click();
@@ -751,7 +752,8 @@ test.describe('trains', () => {
             await findStation(page, 'banbury');
             await page.locator('#trStationInput').press('Enter');
             await page.locator('[data-sdir="arr"]').click();
-            await page.locator('#trStation .tr-route-sum').click();
+            // "Train by train" is still open from Aylesbury — it stays as the member left it (`showTrains`).
+            await expect(page.locator('#trStation .tr-route')).toHaveAttribute('open', '');
             await page.locator('#trAllTrains').click();
             await expect(page.locator('#trStation .tr-trains')).toContainText('Same time, gets in 11 mins later');
             expect(await clipped(), 'Banbury coming back, every train').toBeLessThanOrEqual(1);
@@ -1563,5 +1565,204 @@ test.describe('trains: the words review', () => {
         await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));
         await page.reload();
         await expect(page.locator('#trOverviewHint')).toHaveText('What changed at Marylebone on 13 December');
+    });
+});
+
+// ── THE WIRING, AFTER THE TRAINS REVIEW (22 Nov 2026) ─────────────────────────────────────────────────────────────
+// Each of these was a line of trains-app.js (or trains-grid-mirror.js) that no test reached: deleting or inverting it
+// left the whole suite green. Each test below was checked by mutating that line (scripts/mutate.mjs).
+test.describe('trains — Back, the station card and the boxes, wired', () => {
+    /** Open the page as an invented member, on a Wednesday before the change. @param {import('@playwright/test').Page} page */
+    const open = async (page) => {
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await seedSession(page, 'A. Person');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+    };
+    /** Open a station from the changes list: the press that gives it a Back entry. @param {import('@playwright/test').Page} page */
+    const fromList = async (page) => {
+        await page.locator('[data-view="changes"]').click();
+        await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
+        await expect(page.locator('#trStationTitle')).toHaveText('Aylesbury');
+    };
+
+    test('closing a ? panel leaves the view where it was — over a station opened from the list too; Back then returns to the list', async ({ page }) => {
+        await open(page);
+        // Stations by its tab: no entry of its own, so the ✕ lands on the page's first entry, which is not the list's either.
+        await page.locator('[data-view="stations"]').click();
+        await page.locator('.btn-card-tips[data-card="stations"]').click();
+        await expect(page.locator('#tipsLightbox')).toBeVisible();
+        await page.locator('#tipsLightboxClose').click();
+        await expect(page.locator('#tipsLightbox')).toBeHidden();
+        await page.waitForFunction(() => !history.state);
+        await expect(page.locator('#trViewStations'), 'the ✕ over Stations opened by its tab went to the list').toBeVisible();
+        await fromList(page);
+        await page.locator('.btn-card-tips[data-card="stations"]').click();
+        await expect(page.locator('#tipsLightbox')).toBeVisible();
+        await page.locator('#tipsLightboxClose').click();
+        await expect(page.locator('#tipsLightbox')).toBeHidden();
+        // The ✕ pops the panel's own entry, landing on the station's: once history is back there, its popstate has run.
+        await page.waitForFunction(() => history.state?.trains === 'station');
+        await expect(page.locator('#trViewStations')).toBeVisible();
+        await expect(page.locator('#trViewChanges')).toBeHidden();
+        await page.goBack();
+        await expect(page.locator('#trViewChanges')).toBeVisible();
+    });
+
+    test('Back, Forward and a second station from the list: Forward redraws the station, and one Back returns to the list', async ({ page }) => {
+        await open(page);
+        await fromList(page);
+        await page.goBack();
+        await expect(page.locator('#trViewChanges')).toBeVisible();
+        await page.goForward();
+        await expect(page.locator('#trViewStations'), 'Forward lands on the station\'s entry, so the station is drawn').toBeVisible();
+        await expect(page.locator('#trStationTitle')).toHaveText('Aylesbury');
+        await page.locator('[data-view="changes"]').click();
+        await expect(page.locator('#trViewChanges')).toBeVisible();
+        await page.locator('#trChanges .tr-head').nth(2).click();
+        await expect(page.locator('#trViewStations')).toBeVisible();
+        await page.goBack();
+        await expect(page.locator('#trViewChanges'), 'one Back returns to the list').toBeVisible();
+        await expect(page).toHaveURL(/trains\.html/);
+    });
+
+    test('a redraw that changes nothing writes nothing: the station card is the same nodes, and "Train by train" stays open', async ({ page }) => {
+        await open(page);
+        await fromList(page);
+        await page.locator('#trStation .tr-route-sum').click();
+        await expect(page.locator('#trStation .tr-route')).toHaveAttribute('open', '');
+        // What the tab coming back into view does (trains-app.js): the whole page is drawn again. The first draw after
+        // the list was opened writes it as open (`showTrains`); the one after that has nothing new to write.
+        const redraw = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await redraw();
+        await page.locator('#trStation .tr-verdict').evaluate(n => { /** @type {any} */ (n).__kept = true; });
+        await redraw();
+        await expect(page.locator('#trStationHint')).toHaveText('Weekdays · London Marylebone → Aylesbury');
+        expect(await page.locator('#trStation .tr-verdict').evaluate(n => /** @type {any} */ (n).__kept === true),
+            'the unchanged card was written again — a live region would read it all out again').toBe(true);
+        await expect(page.locator('#trStation .tr-route')).toHaveAttribute('open', '');
+    });
+
+    test('"Train by train" stays as it was left when the direction, the day or the station changes', async ({ page }) => {
+        await open(page);
+        await fromList(page);
+        const list = page.locator('#trStation .tr-route');
+        await page.locator('#trStation .tr-route-sum').click();
+        await expect(list).toHaveAttribute('open', '');
+        await page.locator('[data-sdir="arr"]').click();
+        await expect(page.locator('#trStationHint')).toHaveText('Weekdays · Aylesbury → London Marylebone');
+        await expect(list, 'open after Coming back').toHaveAttribute('open', '');
+        await page.locator('[data-day="SO"]').click();
+        await expect(page.locator('#trStationHint')).toHaveText('Saturdays · Aylesbury → London Marylebone');
+        await expect(list, 'open after Saturdays').toHaveAttribute('open', '');
+        await page.locator('#trStationChange').click();
+        await page.locator('#trStationInput').fill('amersham');
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Amersham');
+        await expect(list, 'open for the next station').toHaveAttribute('open', '');
+        // …and closed stays closed.
+        await page.locator('#trStation .tr-route-sum').click();
+        await expect(list).not.toHaveAttribute('open', '');
+        await page.locator('[data-sdir="dep"]').click();
+        await expect(page.locator('#trStationHint')).toHaveText('Saturdays · London Marylebone → Amersham');
+        await expect(list, 'closed after Going there').not.toHaveAttribute('open', '');
+    });
+
+    test('Enter in an empty station box opens nothing; with a name typed, the first match', async ({ page }) => {
+        await open(page);
+        await page.locator('[data-view="stations"]').click();
+        await expect(page.locator('#trStationPicks .tr-pick').first()).toBeVisible();
+        await page.locator('#trStationInput').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#trStationTitle'), 'Enter in an empty box opened the first chip').toHaveText('Stations');
+        await expect(page.locator('#trStationPicker')).toBeVisible();
+        await page.locator('#trStationInput').fill('   ');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#trStationTitle'), 'nor do spaces alone').toHaveText('Stations');
+        await page.locator('#trStationInput').fill('amer');
+        await page.keyboard.press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Amersham');
+    });
+
+    test('a screen reader is told one short line per press, and the cards themselves are not read out', async ({ page }) => {
+        // The line is trains-status.js's (`statusLine`, `matchesLine`), made of the words already on screen.
+        await open(page);
+        const status = page.locator('#trStatus');
+        await expect(status).toHaveAttribute('role', 'status');
+        for (const id of ['#trChanges', '#trStation']) await expect(page.locator(id)).not.toHaveAttribute('aria-live', /./);
+        await expect(status, 'opening the page is not a change, and says nothing').toHaveText('');
+        await page.locator('[data-day="SO"]').click();
+        await expect(status).toHaveText('Saturdays, trains leaving Marylebone — biggest change first');
+        await page.locator('[data-day="SX"]').click();
+        await expect(status).toHaveText('Weekdays, trains leaving Marylebone — biggest change first');
+        await fromList(page);
+        await expect(status).toHaveText('Weekdays, London Marylebone to Aylesbury. 6 more trains a day: 47, was 41.');
+        await page.locator('[data-sdir="arr"]').click();
+        await expect(status).toHaveText(/^Weekdays, Aylesbury to London Marylebone\. \S/);
+        await page.locator('#trStationChange').click();
+        await page.locator('#trStationInput').pressSequentially('chal');
+        await expect(status).toHaveText('1 station to choose from: Chalfont & Latimer');
+        await page.locator('#trStationInput').fill('zzz');
+        await expect(status).toHaveText('No station matches that.');
+        await page.locator('[data-view="grid"]').click();
+        await page.locator('#trPattern [data-col="0"]').click();
+        await expect(status).toHaveText(/^Only where the :\d\d to .+ stops\.$/);
+    });
+
+    test('the time lookup answers once typing pauses: "5.15pm", typed, never shows 05:15', async ({ page }) => {
+        await open(page);
+        await openLookup(page);
+        // Every answer the box is given, in order, as it is written.
+        await page.locator('#trLookupResult').evaluate((box) => {
+            /** @type {any} */ (window).__answers = [];
+            new MutationObserver(() => /** @type {any} */ (window).__answers.push(box.textContent)).observe(box, { childList: true, subtree: true });
+        });
+        await page.locator('#trLookupInput').pressSequentially('5.15pm', { delay: 60 });
+        await expect(page.locator('#trLookupResult .tr-answer').first()).toContainText('The 17:15 to Oxford');
+        const answers = await page.evaluate(() => /** @type {any} */ (window).__answers);
+        expect(answers.filter((/** @type {string} */ a) => a.includes('05:15')), 'a half-typed time was answered on the way').toEqual([]);
+        // Enter answers at once, without waiting for the pause: read in the same task as the key, before any timer can run.
+        await page.locator('#trLookupInput').fill('1716');
+        const atEnter = await page.evaluate(() => {
+            /** @type {HTMLElement} */ (document.getElementById('trLookupInput')).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+            return /** @type {HTMLElement} */ (document.getElementById('trLookupResult')).textContent;
+        });
+        expect(atEnter, 'Enter waited for the pause').toContain('17:16');
+    });
+
+    test('the column heads kept in view are no wider than the grid when the grid does not fill its box', async ({ page }) => {
+        await page.setViewportSize({ width: 727, height: 700 });
+        await open(page);
+        await page.locator('[data-view="grid"]').click();
+        await page.locator('[data-day="SU"]').click();
+        const table = page.locator('#trPattern .tr-grid');
+        const t = /** @type {{ x: number, y: number, width: number, height: number }} */ (await table.boundingBox());
+        const w = /** @type {{ x: number, y: number, width: number, height: number }} */ (await page.locator('#trPattern .tr-grid-wrap').boundingBox());
+        expect(t.width, 'premise: at this width the grid is narrower than its box').toBeLessThan(w.width - 20);
+        await page.evaluate((y) => window.scrollTo(0, window.scrollY + y), t.y + 300);
+        const stick = page.locator('.tr-grid-stick');
+        await expect(stick).toBeVisible();
+        const s = /** @type {{ x: number, y: number, width: number, height: number }} */ (await stick.boundingBox());
+        const now = /** @type {{ x: number, y: number, width: number, height: number }} */ (await table.boundingBox());
+        expect(s.x + s.width, 'the heads run on past the last column').toBeLessThanOrEqual(now.x + now.width + 1);
+    });
+
+    test('signed in on the page itself, a Back to it is not reloaded for the member who signed in', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await page.goto('/trains.html');
+        await page.locator('#loginOverlay').waitFor({ state: 'visible' });
+        const { pw } = await pickFirstMemberAndPassword(page);
+        await page.locator('#loginPassword').fill(pw);
+        await page.locator('#loginSubmit').click();
+        await expect(page.locator('#loginOverlay')).toBeHidden();
+        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+        const reloaded = page.waitForEvent('framenavigated', { predicate: f => f === page.mainFrame(), timeout: 3_000 })
+            .then(() => true, () => false);
+        // Left and restored from the back/forward cache, by the same member: the page is theirs, and is shown.
+        await page.evaluate(() => {
+            window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+            window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+        }).catch(() => {});
+        expect(await reloaded, 'the page reloaded for the member it was just signed in for').toBe(false);
     });
 });

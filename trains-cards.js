@@ -34,6 +34,7 @@ import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml,
  * @property {'now'|'dec'} grid      which basic hour the grid shows
  * @property {boolean} allHeads      the changes list expanded
  * @property {boolean} allTrains     a station's unchanged trains shown too
+ * @property {boolean} showTrains    a station's "Train by train" list open — kept as the direction, day or station changes
  * @property {boolean} pickerOpen    the station search and chips are on screen (always, until a station is chosen)
  * @property {number|null} gridCol   the grid column whose stops alone are shown
  */
@@ -129,7 +130,7 @@ export function renderStationCard(state) {
     const p = phase();
     const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir, { change: CHANGE_DATE, started: p.started });
     const leaf = state.sdir === 'arr' && LEAF_FALL.stations.includes(state.station) && daysUntil(railwayToday(), LEAF_FALL.until) >= 0;
-    setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false, allTrains: state.allTrains,
+    setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: state.showTrains, allTrains: state.allTrains,
         labels: { old: p.oldLabel, new: p.newLabel }, started: p.started, ended: p.phase === 'ended',
         leafFall: leaf ? { minutes: LEAF_FALL.minutes, until: dateWords(LEAF_FALL.until) } : null }));
 }

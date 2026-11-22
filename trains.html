@@ -89,6 +89,11 @@
 </div>
 <main class="app" id="trainsMain">
 
+    <!-- WHAT A SCREEN READER IS TOLD (Trains review, 22 Nov 2026): one short line for each press — the list's day, a
+         station's journey and its answer, the grid's chosen train — written by trains-app.js (`statusLine`). The cards
+         themselves are not live regions: as they were, every press read a whole card out. -->
+    <p id="trStatus" class="sr-only" role="status"></p>
+
     <!-- No page title and no hero on the canvas (v24.72). The header already names the page, and
          every other page opens straight onto its cards — the countdown is this card's header chip,
          the way Admin's "AL left" and Settings' status chips carry a card's one datum.
@@ -233,7 +238,7 @@
                     </div>
                 </div>
                 <div class="card-collapsible-body open" id="trChangesBody">
-                    <div class="card-body"><div id="trChanges" aria-live="polite"></div></div>
+                    <div class="card-body"><div id="trChanges"></div></div>
                 </div>
             </div>
         </div>
@@ -273,7 +278,7 @@
                         <button type="button" class="tr-tab" data-sdir="dep" aria-pressed="true">Going there</button>
                         <button type="button" class="tr-tab" data-sdir="arr" aria-pressed="false">Coming back</button>
                     </div>
-                    <div id="trStation" aria-live="polite"></div>
+                    <div id="trStation"></div>
                 </div>
             </div>
         </div>
