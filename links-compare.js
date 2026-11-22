@@ -20,8 +20,7 @@ import { formatWindow, windowsDiffer } from './links-window.js';
 import { compareDesigns } from './links-compare-analysis.js';
 import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { describeHours } from './links-demand.js';
-
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+import { emptyPattern, isUnfilledPattern, compareCellHtml, coverCellsHtml } from './links-grid-cells.js';
 
 /**
  * What compare mode calls the ACTIVE design while it has no name yet — a design fresh from the
@@ -45,13 +44,10 @@ const TOTAL_POS = ROTATING_LINES;
  * @param {() => void} deps.renderGrid
  * @param {() => void} deps.renderBrushBar
  * @param {() => void} deps.dearmBrush
- * @param {() => Record<string, any>} deps.emptyPattern
- * @param {(p: any) => boolean} deps.isUnfilledPattern
- * @param {(shift: string) => string} deps.shiftLabel
  */
 export function initLinksCompare(deps) {
     const { getDesigns, getActiveDesignId, getDesign, renderDesignPicker, renderGrid,
-        renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel } = deps;
+        renderBrushBar, dearmBrush } = deps;
 
     let compareMode = false;
     /** @type {any} */
@@ -435,41 +431,16 @@ export function initLinksCompare(deps) {
             const same     = DAYS.every(d => (p[d] ?? 'RD') === (op[d] ?? 'RD'));
             const rowClass = `${isUnfilledPattern(p) ? 'row-unfilled' : ''}${same ? ' row-same' : ''}`.trim();
 
-            const dayCells = DAYS.map((d, di) => {
-                const shift = p[d]  ?? 'RD';
-                const other = op[d] ?? 'RD';
-                const type  = classifyShift(shift);
-                const label = shiftLabel(shift);
-                const diff  = shift !== other ? ' cell-diff' : '';
-                // A SPAN, NOT A BUTTON (v22.60, external review). These cells cannot be operated —
-                // `.links-grid--compare` sets `pointer-events: none` and every one carried
-                // `tabindex="-1"` — so rendering them as buttons announced hundreds of controls to a screen
-                // reader that do nothing when reached. The class stays, because it is what carries
-                // the shift colouring; `role` and `tabindex` go, because there is nothing to press.
-                return `<td class="shift-cell${diff}">` +
-                    `<span class="shift-cell-btn type-${type}" ` +
-                    `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(shift)}">` +
-                    `${escapeHtml(label)}</span></td>`;
-            }).join('');
+            // A SPAN, NOT A BUTTON (v22.60): these cells cannot be operated, and as buttons they announced hundreds of dead
+            // controls. Named as the editable grid's are ("RD, rest day"), through `role="img"` (links-grid-cells.js rule 2).
+            const dayCells = DAYS.map(d => compareCellHtml(posStr, d, p[d] ?? 'RD', (p[d] ?? 'RD') !== (op[d] ?? 'RD'), classifyShift)).join('');
 
             rows.push(`<tr class="${rowClass}" data-pos="${posStr}"><td class="pos-num">${posStr}</td>${dayCells}</tr>`);
         }
         tbody.innerHTML = rows.join('');
 
         if (tfoot) {
-            const cov   = calcCoverage(patterns);
-            const cells = DAYS.map(d => {
-                const { early, late, spare, night } = (/** @type {Record<string, any>} */ (cov))[d];
-                const worked = early + late + spare + night;
-                return `<td class="cov-cell">` +
-                    `<span class="cov-num">${worked}</span>` +
-                    `<span class="cov-label-e"> E:${early}</span>` +
-                    ` <span class="cov-label-l">L:${late}</span>` +
-                    (night ? ` <span class="cov-label-n">N:${night}</span>` : '') +
-                    (spare ? ` <span class="cov-label-s">SP:${spare}</span>` : '') +
-                    `</td>`;
-            }).join('');
-            tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}</tr>`;
+            tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${coverCellsHtml(/** @type {any} */ (calcCoverage(patterns)))}</tr>`;
         }
     }
 

@@ -400,6 +400,10 @@ What the Build press on `links.html` says and remembers: why a table was refused
 What `links.html` reads from today's roster: the shift times its cell sheet offers (the main roster's, never the bilingual one's) and today's link measured against the fatigue factors for the Design checks card's comparison — once per roster, each factor at its own threshold. Pure; tested by `links-today.test.mjs`.
 - **Exports:** `shiftOptionLists` · `currentLinkBaseline`
 
+### `links-grid-cells.js`
+What one cell of a Links grid says — its label, its accessible name, and the markup the editable grid, the compare grids and their cover rows are drawn from — so a name fixed once reaches every grid. Pure; tested by `links-grid-cells.test.mjs`.
+- **Exports:** `DAY_LABELS` · `shiftLabel` · `cellName` · `emptyPattern` · `isUnfilledPattern` · `cellAriaName` · `editCellHtml` · `compareCellHtml` · `coverCellsHtml`
+
 ### `links-tips.js`
 `CARD_TIPS` for `links.html`'s `?` panels: pure data, rendered by `tips-lightbox.js`, shape pinned by `tips-content.test.mjs`. Its generator panel restates `links-default-targets.js`'s header, and no test can see that rule.
 - **Exports:** `CARD_TIPS`

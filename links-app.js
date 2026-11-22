@@ -50,6 +50,7 @@ import {
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { createGridInput, trackPaintBarHeight } from './links-grid-input.js';
+import { DAY_LABELS, shiftLabel, cellName, cellAriaName, emptyPattern, isUnfilledPattern, editCellHtml, coverCellsHtml } from './links-grid-cells.js';
 import { deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
 import { splitDesignDocs, binOldOnLoad, binOldOnRefresh, readCannotAnswer, migratesLegacy, byDesignName, designToOpen } from './links-design-load.js';
 import { createDesignLibrary } from './links-design-library.js';
@@ -183,7 +184,6 @@ export function init() {
     // ============================================
     // CONSTANTS
     // ============================================
-    const DAY_LABELS    = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     // ONE declaration of the rotation length, imported from links-design.js (v19.38). The grid
     // height and the generator's output are necessarily the same number — every line rotates.
     const TOTAL_POS = ROTATING_LINES;
@@ -383,28 +383,6 @@ export function init() {
     // ============================================
 
     /**
-     * Compact two-line label for a shift button: "06:20\n14:20" or "RD" / "SP".
-     * @param {any} shift
-     */
-    function shiftLabel(shift) {
-        if (!shift || shift === 'RD' || shift === 'OFF') return 'RD';
-        if (shift === 'SPARE') return 'SP';
-        const dash = shift.indexOf('-');
-        return dash > 0 ? `${shift.slice(0, dash)}\n${shift.slice(dash + 1)}` : shift;
-    }
-    /** A cell's or brush's NAME: what it shows, then what that stands for — WCAG 2.5.3 (v25.27). @param {any} shift */
-    const cellName = (/** @type {any} */ shift) => { const l = shiftLabel(shift); return l === 'RD' ? 'RD, rest day' : l === 'SP' ? 'SP, spare' : String(shift); };
-
-    /** All-RD pattern — a starting blank for an as-yet-undesigned line. */
-    const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
-
-    /** An all-rest line is "not yet designed" — flagged amber, not muted. */
-    const isUnfilledPattern = (/** @type {any} */ p) => DAYS.every(d => {
-        const s = p?.[d] ?? 'RD';
-        return s === 'RD' || s === 'OFF';
-    });
-
-    /**
      * Shared HTML options for any shift dropdown.
      * @param {string|null} currentVal — currently selected value
      * @param {boolean} includeRdSpare — true for cell-edit dropdowns, false for generator time selects
@@ -443,7 +421,7 @@ export function init() {
     // arrows) so those injected deps exist; the render deps are hoisted function declarations.
     const compare = initLinksCompare({
         getDesigns: () => [...designs, ...PROPOSAL_ENTRIES], getActiveDesignId: () => activeDesignId ?? activeProposalId, getDesign: () => design,
-        renderDesignPicker, renderGrid, renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel,
+        renderDesignPicker, renderGrid, renderBrushBar, dearmBrush,
     });
 
     // ============================================
@@ -1370,16 +1348,7 @@ export function init() {
             const p        = (/** @type {Record<string, any>} */ (design.patterns))[posStr] || emptyPattern();
             const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : '';
 
-            const dayCells = DAYS.map((d, di) => {
-                const shift = p[d] ?? 'RD';
-                const type  = classifyShift(shift);
-                const label = shiftLabel(shift);
-                return `<td class="shift-cell">` +
-                    `<button class="shift-cell-btn type-${type}" ` +
-                    `data-pos="${posStr}" data-day="${d}" ` +
-                    `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(cellName(shift))}">` +
-                    `${escapeHtml(label)}</button></td>`;
-            }).join('');
+            const dayCells = DAYS.map(d => editCellHtml(posStr, d, p[d] ?? 'RD', classifyShift)).join('');
 
             rows.push(
                 `<tr class="${rowClass}" data-pos="${posStr}">` +
@@ -1503,17 +1472,7 @@ export function init() {
     function renderFooter(cov, totals) {
         const tfoot = document.getElementById('linksCoverageFoot');
         if (!tfoot || !design || !cov) return;
-        const cells = DAYS.map(d => {
-            const { early, late, spare, night } = cov[d];
-            const worked = early + late + spare + night;
-            return `<td class="cov-cell">` +
-                `<span class="cov-num">${worked}</span>` +
-                `<span class="cov-label-e"> E:${early}</span>` +
-                ` <span class="cov-label-l">L:${late}</span>` +
-                (night ? ` <span class="cov-label-n">N:${night}</span>` : '') +
-                (spare ? ` <span class="cov-label-s">SP:${spare}</span>` : '') +
-                `</td>`;
-        }).join('');
+        const cells = coverCellsHtml(cov);
         // THE HOURS AVERAGES ARE NOT RECOMPUTED HERE. They come from `weeklyHours`, the same call
         // the Design-checks row and the summary strip read, so the page cannot state a design's
         // hours two ways four seconds apart. Only the DAYS average is this feature's own, and it
@@ -1600,7 +1559,7 @@ export function init() {
      */
     function repaintCellBtn(btn, pos, day, shift) {
         btn.className = `shift-cell-btn type-${classifyShift(shift)}`;
-        btn.setAttribute('aria-label', `Line ${pos} ${DAY_LABELS[DAYS.indexOf(day)]}: ${cellName(shift)}`);
+        btn.setAttribute('aria-label', cellAriaName(pos, day, shift));
         btn.textContent = shiftLabel(shift);
     }
 
