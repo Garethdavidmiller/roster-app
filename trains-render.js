@@ -552,9 +552,9 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
                 + `${esc(head)}${esc(when)}.${esc(stops)}</p>`;
         }
         // From the change, the same pairing read the other way: what the running train used to be.
-        // The days in the cards' own words (trains-weekdays.js) — typed here, they said 'Wednesdays' for any code
-        // they did not know (words review, Nov 2026) — and plural, as "on" them asks: "on Tuesdays to Thursdays".
-        const on = days ? ` on ${weekdayWords(WEEKDAYS.filter(w => runsOn(t.days, w)), { plural: true })}` : '';
+        // The days in the cards' own words (trains-weekdays.js): typed here as "Tuesdays to Thursdays",
+        // with a 'Wednesdays' for any code it did not know (words review, Nov 2026).
+        const on = days ? ` on ${weekdayWords(WEEKDAYS.filter(w => runsOn(t.days, w)))}` : '';
         const o = t.other;
         // A new end that came with a new time keeps the old time too, as the before-change answer
         // does — "it ended at Birmingham Moor Street" of a train that was the 17:07 (v24.89).

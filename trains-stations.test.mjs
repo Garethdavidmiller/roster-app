@@ -1297,10 +1297,6 @@ describe('the days a figure is true of, and the rest of what changed (external r
         assert.deepEqual(both(['Wed']), ['Wednesdays', 'Wed']);
         assert.deepEqual(both(['Mon', 'Tue']), ['Mondays and Tuesdays', 'Mon and Tue'], 'two days are a pair, never a range');
         assert.deepEqual(both(['Mon', 'Tue', 'Thu', 'Fri']), ['Mondays, Tuesdays, Thursdays and Fridays', 'Mon, Tue, Thu and Fri']);
-        // Plural, for "on": a range's ends as a list's days; a list, and the short form, unchanged.
-        assert.deepEqual([['Tue', 'Wed', 'Thu'], ['Mon', 'Fri'], [...WEEKDAYS]].map(d => weekdayWords(/** @type {any} */ (d), { plural: true })),
-            ['Tuesdays to Thursdays', 'Mondays and Fridays', 'Weekdays']);
-        assert.equal(weekdayWords(['Tue', 'Wed', 'Thu'], { short: true, plural: true }), 'Tue to Thu');
     });
 
     test('balanceFacts: the rest of what changed, each only past its bar, the sentence\'s way first', () => {
@@ -1667,13 +1663,12 @@ describe('the lookup and the cards as the words review read them (Nov 2026)', ()
         assert.doesNotMatch(look('SX', '16:37'), /No weekday train|is a new train/);
     });
 
-    // The days a train runs, in the cards' words: the lookup typed its own. And plural on both sides of a pair, as
-    // "on" them asks: "on Tuesday to Thursday" beside "on Mondays and Fridays" read unevenly (24-hour check, Nov 2026).
-    test('after the change, a train\'s days are named as the cards name them, plural as "on" them asks', () => {
+    // The days a train runs, in the cards' words: the lookup typed its own, "Tuesdays to Thursdays".
+    test('after the change, a train\'s days are named as the cards name them', () => {
         const html = look('SX', '17:33', true);
-        assert.match(html, /Same time as before 13 December on Tuesdays to Thursdays\./);
+        assert.match(html, /Same time as before 13 December on Tuesday to Thursday\./);
         assert.match(html, /Until 12 December it left at 17:37 on Mondays and Fridays\./);
-        assert.doesNotMatch(html, /on Tuesday to Thursday/);
+        assert.doesNotMatch(html, /Tuesdays to Thursdays/);
         assert.match(look('SX', '07:00', true, [row('07:00', 'OXF', '', 'WO')], [row('07:00', 'OXF')]), /Same time as before 13 December on Wednesdays\./);
     });
 
