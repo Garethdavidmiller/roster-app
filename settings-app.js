@@ -21,7 +21,7 @@ import { requirePage, navGatesFor } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen, installNeed } from './settings-status.js';
 import { setStatus } from './status-text.js';
-import { unconfirmedWriteLine } from './claim-retry.js';
+import { unconfirmedWriteLine, trackBackgroundWrite } from './claim-retry.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 import { inventoryOf } from './paycalc-inventory.js';
@@ -32,16 +32,14 @@ import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
-import { initPasswordForce, withTimeout, settleOrTimeout } from './password-force.js';
+import { initPasswordForce } from './password-force.js';
+import { runPasswordSave } from './own-password.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 
 /** True from a password save's first write until its outcome is known — the two writes (re-auth,
  *  then the update) must never have a release's reload land between them (v24.61, iOS audit B2). */
 let _passwordSaving = false;
-
-/** Ceiling on each password network call. Same 8s budget as sign-in and the forced overlay. */
-const SAVE_TIMEOUT_MS = 8000;
 
 // ── The `?` panels ──────────────────────────────────────────────────────────────────────────────
 // Static content at module scope, so it exists before anything in init() runs (Nov 2026 review): it
@@ -764,21 +762,17 @@ export function init() {
                 // reauthenticate and updatePassword against the PREVIOUSLY persisted member while
                 // stamping passwordStatus for this one.
                 await sessionReady;
-                // Both calls TIME-BOXED (v18.95, shared with password-force.js). Without it a promise
-                // that never settles — dead-air mobile data, not an error — skips both `catch` and
-                // `finally`, leaving the button disabled on "Saving…" with no message, for good. The
-                // forced overlay got this at v18.94; this card makes the same call and was missed.
-                // Re-auth may time out as a plain failure — it changes nothing, so "it did not happen"
-                // is a true statement about it and retrying is free.
-                await withTimeout(reauthenticateWithPassword(member, current), SAVE_TIMEOUT_MS);
-                reauthed = true;
-                // The WRITE may NOT (v18.97, external review). Promise.race stops WAITING; it does not
-                // CANCEL — so a slow updatePassword can land after we would have reported failure, and
-                // the member would then sign in with an old password that no longer works.
-                // Timed ALONE (settings-ops-2): a slow stamp turned a changed password into "couldn't confirm".
-                const outcome = await settleOrTimeout(changeOwnPassword(member, next), SAVE_TIMEOUT_MS);
+                // The sequence is own-password.js's (`runPasswordSave`, shared with the forced change):
+                // both calls TIME-BOXED (v18.95 — a promise that never settles skips `catch` and `finally`
+                // and left the button on "Saving…" for good); the re-auth as a plain failure, since it
+                // changes nothing; the WRITE as "pending" rather than "failed", because Promise.race stops
+                // WAITING and does not CANCEL (v18.97), and timed ALONE (settings-ops-2). The write is
+                // COUNTED while it runs, past the deadline too, so `writesInFlight` sees it: the update
+                // reload holds for it and signing out asks first (settings review, Nov 2026).
+                const outcome = await runPasswordSave({ member, current, next,
+                    reauthenticate: reauthenticateWithPassword, change: changeOwnPassword, track: trackBackgroundWrite });
                 if (outcome.status === 'pending') { onIndeterminate(outcome.settled); return; }
-                if (outcome.status === 'failed')  throw outcome.error;
+                if (outcome.status === 'failed')  { reauthed = outcome.reauthed; throw outcome.error; }
                 onWriteConfirmed(outcome.value);
             } catch (e) {
                 const code = /** @type {any} */ (e)?.code || '';
