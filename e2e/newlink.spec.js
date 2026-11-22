@@ -8,7 +8,7 @@
  * are pinned in Node (newlink-render.test.mjs, newlink-data.test.mjs); this drives the real page through them.
  */
 import { test, expect, withLinksDesigners } from './fixtures.js';
-import { collectFatalErrors, isTouchProject, scaleText, seedSession, signInThroughOverlay } from './helpers.js';
+import { collectFatalErrors, isTouchProject, scaleText, seedSession, signInThroughOverlay, waitForPageSettled } from './helpers.js';
 import { CHANGES, PACK } from '../newlink-data.js';
 import { CONFIG, teamMembers } from '../roster-data.js';
 
@@ -890,4 +890,22 @@ test.describe('new link', () => {
         await expect(page.locator('.nl-name-title').first()).toHaveText('Balanced V6');
         await expect(page.locator('#nlPreview, .nl-preview')).toHaveCount(0);
     });
+});
+
+// THE STANDARD LOST-SESSION CARD (the 22 Nov 2026 review): v26.48 gave every page a card that keeps the member's name and
+// says why they are being asked; New link passed its own `signIn`, which replaced that card whole, and showed a blank one
+// asking for grade and name again with no reason — the state that review said "read like a fault". Outside the
+// describe above: its pinned clock suppresses the page-ready mark this waits for (helpers.js → waitForPageSettled).
+test('a session lost mid-visit brings the standard card: the reason, the name kept, and what the page is', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { const w = /** @type {any} */ (window); w.__E2E = { ...(w.__E2E || {}), authUser: true }; });
+    await page.goto('/newlink.html');
+    await expect(page.locator('.nl-name-title').first()).toBeVisible();
+    await waitForPageSettled(page);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+    const card = page.locator('#loginOverlay');
+    await expect(card).toBeVisible({ timeout: 8000 });
+    await expect(card.locator('#loginNotice')).toHaveText('You’ve been signed out on this device. Sign in again to carry on.');   // page-session.js SIGNED_OUT_NOTICE
+    await expect(card.locator('.login-about-line').first()).toHaveText('The three shortlisted proposals for the new CEA link, to read and compare.');
+    await expect(card).toContainText('G. Miller');
 });

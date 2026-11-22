@@ -368,8 +368,8 @@ body {
 .nl-weeks-wrap {
     padding: 6px; border: 1.5px dashed var(--border-mid); border-radius: var(--radius-md); overflow-x: auto; overscroll-behavior-x: contain; position: relative;
     background:
-        linear-gradient(to left, white, rgba(255, 255, 255, 0)) right 0 top 0 / 28px 100% no-repeat local,
-        radial-gradient(farthest-side at 100% 50%, rgba(0, 30, 60, 0.18), rgba(0, 30, 60, 0)) right 0 top 0 / 12px 100% no-repeat scroll,
+        linear-gradient(to left, white, transparent) right 0 top 0 / 28px 100% no-repeat local,
+        radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--primary-blue) 18%, transparent), transparent) right 0 top 0 / 12px 100% no-repeat scroll,
         white;
 }
 .nl-weeks { width: 100%; min-width: calc(22.2em + 25px); border-collapse: separate; border-spacing: 2px; table-layout: fixed; font-size: var(--type-badge); font-variant-numeric: tabular-nums; }
