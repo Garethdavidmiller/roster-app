@@ -769,7 +769,7 @@ test('settings: the pay data card counts what is actually on the device', async 
     await openSettings(page, { configured: true, payKeys: 3, noPush: true });
     await expect(page.locator('#payDataStatusChip')).toHaveText('3 payslips');
     await expect(page.locator('#payDataInventory')).toContainText('3 payslips');
-    await expect(page.locator('#payDataInventory')).toContainText('saved on this device');
+    await expect(page.locator('#payDataInventory')).toHaveText('3 payslips — saved in this browser on this device');
 });
 
 test('settings: a shared device does not count a colleague’s payslips as yours', async ({ page }) => {
@@ -794,8 +794,19 @@ test('settings: a shared device does not count a colleague’s payslips as yours
 
 test('settings: a device with no pay data says so, rather than saying nothing', async ({ page }) => {
     await openSettings(page, { configured: true, payKeys: 0, noPush: true });
-    await expect(page.locator('#payDataInventory')).toHaveText('No pay calculator history saved yet');
+    await expect(page.locator('#payDataInventory')).toHaveText('No pay calculator history saved in this browser yet');
     await expect(page.locator('#payDataStatusChip')).toHaveText('None saved');
+});
+
+// FIGURES WITH NO PAYSLIP ARE STILL FIGURES (settings review, Nov 2026). The card counted payslips and
+// tax years only: pension history on its own read "None saved", and on an iPhone the Install card hid
+// the step that carries the figures across — from the member who had figures to lose.
+test('settings: pension history alone is saved figures — the card says so, and an iPhone is told to copy it first', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('myb_pc_gmiller_pension_timeline', '[]'));
+    await openSettings(page, { configured: true, iphone: true });
+    await expect(page.locator('#payDataStatusChip')).toHaveText('Saved');
+    await expect(page.locator('#payDataInventory')).toHaveText('Pension — saved in this browser on this device');
+    await expect(page.locator('#installStepPay')).toBeVisible();
 });
 
 test('settings: the install card exists only while there is an install to offer', async ({ page }) => {

@@ -883,8 +883,8 @@ WHEN a member was in the pension scheme, as a timeline of changes rather than a 
 - **Exports:** `parsePensionTimeline` · `serialisePensionTimeline` · `isOptedOutAt` · `withPensionChange` · `withOptOutStartAt` · `withRejoinAt` · `optOutStartsAt` · `migrateLegacyOptOut`
 
 ### `paycalc-inventory.js`
-What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
-- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines`
+What a stored pay key IS, and what a set of them adds up to — the ONE classifier the backup summary, the transfer card's itemised list, Settings' Pay Calculator Data line and the damage preflight all ask, so they cannot disagree. An unrecognised key is described as unknown, never dropped. Bound by `.claude/rules/paycalc.md` invariant 15; tested by `paycalc-inventory.test.mjs`, which scans the tree for every `pcPrefix()` key builder and requires each to land on a known kind.
+- **Exports:** `KEY_KINDS` · `classifyPayKey` · `describePayKey` · `inventoryOf` · `damagedEntries` · `inventoryLines` · `inventorySummary`
 
 ### `paycalc-transfer.js`
 The pay-data backup format and its import rules. Pay data lives only in this browser's `localStorage` — per address, and kept off the server by decision — so this is how it moves to the other address or a new phone. Pure, because the import decides whether a member's whole pay history is overwritten: key selection, the validation ladder (`validateBackup`, the trust boundary), re-keying and the all-or-nothing replace. The DOM half is `paycalc-transfer-card.js`. Bound by `.claude/rules/paycalc.md` invariant 10; tested by `paycalc-transfer.test.mjs`, key shape by `paycalc-key-parity.test.mjs`.

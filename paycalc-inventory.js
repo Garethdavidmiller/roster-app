@@ -212,24 +212,58 @@ export function damagedEntries(entries, prefix) {
  * @returns {string[]}
  */
 export function inventoryLines(inv) {
-    const plural = (/** @type {number} */ n, /** @type {string} */ w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-    // "a", "a and b", "a, b and c" — a bare join reads as "2025/26 and 2026/27 and 2027/28" the
-    // moment a third tax year exists, which it will every April.
-    const list = (/** @type {string[]} */ xs) => xs.length < 2 ? (xs[0] || '')
-        : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`;
     /** @type {string[]} */
     const lines = [];
     if (inv.periods) lines.push(`${plural(inv.periods, 'payslip')} of entered figures`);
-    if (inv.taxYears.length) lines.push(`Tax ${inv.taxYears.length === 1 ? 'year' : 'years'} ${list(inv.taxYears)}`);
-    for (const g of inv.groups) {
-        // Payslips and tax years are already stated above in their own terms; naming their key
-        // counts again would be the card talking about storage instead of about pay.
-        if (g.id === 'payslip' || g.id === 'yearSetup') continue;
-        if (g.id === 'unknown') {
-            lines.push(`${plural(g.count, 'item')} this version does not recognise (they will be carried across unchanged)`);
-            continue;
-        }
-        lines.push(g.label.charAt(0).toUpperCase() + g.label.slice(1));
+    if (inv.taxYears.length) lines.push(capitalise(taxYearsPhrase(inv.taxYears)));
+    for (const g of otherGroups(inv)) {
+        lines.push(g.id === 'unknown'
+            ? `${unknownPhrase(g.count)} (they will be carried across unchanged)`
+            : capitalise(g.label));
     }
     return lines;
 }
+
+/**
+ * The same inventory in ONE line and a chip — Settings' Pay Calculator Data card (settings review,
+ * Nov 2026). The card counted payslips and tax years only, so a member holding pension history, their
+ * settings or back pay with no payslip was told "None saved", and the Install card's "copy your
+ * figures first" step was hidden from the one person it was for. It reads every kind now, in the
+ * words of `inventoryLines` above (the phrases are shared), so the two cards cannot describe one
+ * device differently.
+ *
+ * @param {ReturnType<typeof inventoryOf>} inv
+ * @returns {{ any: boolean, line: string, chip: string }} `any` — is anything stored at all (an
+ *   unrecognised key counts: a backup carries it); `line` — what is stored, "" when nothing is;
+ *   `chip` — the one datum for the collapsed header.
+ */
+export function inventorySummary(inv) {
+    const parts = [];
+    if (inv.periods) parts.push(plural(inv.periods, 'payslip'));
+    if (inv.taxYears.length) parts.push(taxYearsPhrase(inv.taxYears));
+    for (const g of otherGroups(inv)) parts.push(g.id === 'unknown' ? unknownPhrase(g.count) : g.label);
+    const any = inv.keys > 0;
+    const chip = inv.periods ? plural(inv.periods, 'payslip')
+        : inv.taxYears.length ? plural(inv.taxYears.length, 'tax year')
+        : any ? 'Saved' : 'None saved';
+    return { any, line: capitalise(parts.join(' · ')), chip };
+}
+
+// ── The phrases both readings share ────────────────────────────────────────────────────────────
+/** "1 payslip", "2 payslips". @param {number} n @param {string} w */
+function plural(n, w) { return `${n} ${w}${n === 1 ? '' : 's'}`; }
+/** @param {string} s */
+function capitalise(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+/** "a", "a and b", "a, b and c" — a bare join reads as "2025/26 and 2026/27 and 2027/28" the moment a
+ *  third tax year exists, which it will every April. @param {string[]} xs */
+function list(xs) { return xs.length < 2 ? (xs[0] || '') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`; }
+/** "tax year 2026/27", "tax years 2025/26 and 2026/27". @param {string[]} years */
+function taxYearsPhrase(years) { return `tax ${years.length === 1 ? 'year' : 'years'} ${list(years)}`; }
+/** @param {number} n */
+function unknownPhrase(n) { return `${plural(n, 'item')} this version does not recognise`; }
+/**
+ * The kinds named by their own label. Payslips and tax years are stated in their own terms first;
+ * naming their key counts again would be the card talking about storage instead of about pay.
+ * @param {ReturnType<typeof inventoryOf>} inv
+ */
+function otherGroups(inv) { return inv.groups.filter(g => g.id !== 'payslip' && g.id !== 'yearSetup'); }

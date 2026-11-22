@@ -24,7 +24,7 @@ import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, trackBackgroundWrite } from './claim-retry.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, askBeforeSignOut } from './page-session.js';
 import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
-import { inventoryOf } from './paycalc-inventory.js';
+import { inventoryOf, inventorySummary } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
 import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
 import { lsKeys } from './ls.js';
@@ -348,7 +348,7 @@ export function init() {
     //
     // It reports `n/a`: there is no wrong amount of pay data, so this card can never be a to-do
     // and can never delay "all set". The chip is information, not a verdict.
-    /** @returns {boolean} whether this device holds pay calculator history — what the line says */
+    /** @returns {boolean} whether this browser holds ANY of this member's pay calculator figures — what the line says */
     function initPayDataCard() {
         const line = document.getElementById('payDataInventory');
         try {
@@ -364,18 +364,15 @@ export function init() {
             // drops the device-level flags. Handing `inventoryOf` unfiltered keys would slice
             // every unrelated key by the prefix length and classify the wreckage as 'unknown',
             // so a phone with no pay data at all would report a pile of it.
-            const inv  = inventoryOf(selectBackupKeys(lsKeys(), pcPrefix()), pcPrefix());
-            const bits = [];
-            if (inv.periods)         bits.push(`${inv.periods} payslip${inv.periods === 1 ? '' : 's'}`);
-            if (inv.taxYears.length) bits.push(inv.taxYears.length === 1
-                ? `tax year ${inv.taxYears[0]}`
-                : `${inv.taxYears.length} tax years (${inv.taxYears.join(', ')})`);
-            if (line) line.textContent = bits.length
-                ? `${bits.join(' · ')} saved on this device`
-                : 'No pay calculator history saved yet';
-            reportSetting('pay-data', 'n/a',
-                inv.periods ? `${inv.periods} payslip${inv.periods === 1 ? '' : 's'}` : 'None saved');
-            return bits.length > 0;
+            // EVERY kind it holds, not payslips and tax years alone (settings review, Nov 2026): pension
+            // history, settings or back pay on their own read "None saved", and hid the Install card's
+            // copy-your-figures step from a member who had figures to lose. `inventorySummary` words it.
+            const sum = inventorySummary(inventoryOf(selectBackupKeys(lsKeys(), pcPrefix()), pcPrefix()));
+            if (line) line.textContent = sum.any
+                ? `${sum.line} — saved in this browser on this device`
+                : 'No pay calculator history saved in this browser yet';
+            reportSetting('pay-data', 'n/a', sum.chip);
+            return sum.any;
         } catch (err) {
             console.warn('[payData] Inventory failed:', err);
             if (line) line.textContent = '';
