@@ -588,7 +588,7 @@ reached** — a 2026 implementation preference must not become a 2028 architectu
 Distribution costs an Apple Developer account ($99/year) and Google Play ($25) whatever is chosen.
 
 ### Split the three largest page controllers — each when it is next changed
-**Status:** Conditional · **Trigger:** the next change to that page's rules (a wiring-only edit, like v26.16's to `paycalc-app.js` or v26.19's to `admin-app.js`, is not one) · **Owner:** the developer · **Review:** at that change, not before
+**Status:** Conditional — the first seam is out of two of the three: `paycalc-app.js`'s pricing (`pricePayslip`, `paycalc-calc.js`, v26.42) and `admin-app.js`'s week-grid Save (`collectWeekRows`, `admin-week-collect.js`, v26.44); `links-app.js` has had none · **Trigger:** the next change to that page's rules (a wiring-only edit, like v26.16's to `paycalc-app.js` or v26.19's to `admin-app.js`, is not one) · **Owner:** the developer · **Review:** at that change, not before
 
 **Why:** an external review (10 Nov 2026) named `links-app.js`, `admin-app.js` and `paycalc-app.js`
 (2,657, 1,729 and 1,597 lines when it measured them) as the files where one edit is hardest to

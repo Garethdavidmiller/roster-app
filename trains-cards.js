@@ -34,6 +34,7 @@ import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml,
  * @property {'now'|'dec'} grid      which basic hour the grid shows
  * @property {boolean} allHeads      the changes list expanded
  * @property {boolean} allTrains     a station's unchanged trains shown too
+ * @property {boolean} showTrains    a station's "Train by train" list open — kept as the direction, day or station changes
  * @property {boolean} pickerOpen    the station search and chips are on screen (always, until a station is chosen)
  * @property {number|null} gridCol   the grid column whose stops alone are shown
  */
@@ -64,7 +65,8 @@ export function renderOverview(p) {
     // Chiltern's further changes are not in its books; the note, worded from their dates, goes once they end.
     const festive = el('trFestive');
     if (festive) { festive.hidden = !p.festive; setHTML(festive, renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)); }
-    setText('trOverviewHint', `What change${p.started ? 'd' : 's'} at Marylebone from ${dateWords(CHANGE_DATE)}`);
+    // "What changed … from 13 December" read as a change still going on; it happened ON the day (words review, Nov 2026).
+    setText('trOverviewHint', p.started ? `What changed at Marylebone on ${dateWords(CHANGE_DATE)}` : `What changes at Marylebone from ${dateWords(CHANGE_DATE)}`);
     const ended = el('trEnded');   // the journey planner as a link; the static words named Chiltern's
     if (ended) { ended.hidden = p.phase !== 'ended'; setHTML(ended, `<strong>Both timetables on this page have ended.</strong> Check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> for today’s trains.`); }
     setText('trGridNow', p.oldLabel);
@@ -128,17 +130,41 @@ export function renderStationCard(state) {
     const p = phase();
     const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir, { change: CHANGE_DATE, started: p.started });
     const leaf = state.sdir === 'arr' && LEAF_FALL.stations.includes(state.station) && daysUntil(railwayToday(), LEAF_FALL.until) >= 0;
-    setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false, allTrains: state.allTrains,
+    setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: state.showTrains, allTrains: state.allTrains,
         labels: { old: p.oldLabel, new: p.newLabel }, started: p.started, ended: p.phase === 'ended',
         leafFall: leaf ? { minutes: LEAF_FALL.minutes, until: dateWords(LEAF_FALL.until) } : null }));
 }
 
+/**
+ * A time with its a.m. or p.m. still being typed: "5.15p", "5.15 p.", "515a", "5.15 " (words review,
+ * Nov 2026). The answer the box gave a keystroke ago stands until the tail is finished — typing "5.15pm"
+ * otherwise put the hint, "Type a time like…", up between "5.15" and "5.15pm" and the polite live region
+ * read it out. Only an hour that CAN take a.m. or p.m. (1 to 12): "17:15 " is not waiting for anything.
+ * @param {string} raw  the box's value, untrimmed — a trailing space is part of the question
+ * @returns {boolean}
+ */
+export function amPmPending(raw) {
+    const m = String(raw).trimStart().match(/^(\d{1,2})(?:[:.]?\d{2})?(\s+|\s*[ap]\.?)$/i);
+    if (!m) return false;
+    const h = Number(m[1]);
+    return h >= 1 && h <= 12;
+}
+
+/** The day the lookup last answered for: a kept answer is kept only for the same day. @type {string|null} */
+let lookupDay = null;
+
 /** "What happens to the 17:15?" — trains-render.js writes the answer. @param {PageState} state */
 export function renderLookup(state) {
-    const typed = /** @type {HTMLInputElement|null} */ (el('trLookupInput'))?.value.trim() ?? '';
+    const raw = /** @type {HTMLInputElement|null} */ (el('trLookupInput'))?.value ?? '';
+    const typed = raw.trim();
     const at = typed ? parseTypedTime(typed) : null;
+    const result = el('trLookupResult');
+    // An a.m./p.m. still being typed keeps the answer on screen (`amPmPending`) — for the day it answered,
+    // and only when there is one: a day tab pressed meanwhile, or a box empty until now, answers afresh.
+    if (amPmPending(raw) && lookupDay === state.day && result?.innerHTML) return;
+    lookupDay = state.day;
     const p = phase();
-    setHTML(el('trLookupResult'), !typed ? '' : !at ? '<p class="card-explainer tr-lead">Type a time like 17:15, 1715 or 5.15pm.</p>'
+    setHTML(result, !typed ? '' : !at ? '<p class="card-explainer tr-lead">Type a time like 17:15, 1715 or 5.15pm.</p>'
         : lookupHtml({ at, day: state.day, nowRows: TIMETABLES.now[state.day].dep, decRows: TIMETABLES.dec[state.day].dep,
             started: p.started, ended: p.phase === 'ended', labels: { old: p.oldLabel, new: p.newLabel }, change: CHANGE_DATE, stations: STATIONS }));
 }

@@ -2176,6 +2176,7 @@ button.lightbox-bug-link {
     }
 }
 
+@media (max-width: 340px) { .app-header { padding-inline: 10px; } .app-header-brand { gap: 4px; margin-inline-end: 6px; } }   /* 320px: the name ran into the badge (0–2px); 6px clear, whole beside Trains' (Trains review, 22 Nov 2026) */
 /* ── Shared header: desktop (≥ 768px) ── */
 @media (min-width: 768px) {
     .app-header {

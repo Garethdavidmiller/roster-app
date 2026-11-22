@@ -4,8 +4,9 @@
  *
  * Staff are asked "how do I get to Gerrards Cross?", not "what is the 10:10's terminus?". So the
  * Trains page is organised by the station a customer is going to (or coming back from), and every
- * figure here is about one station: trains a day, trains an hour off-peak, the minutes past the
- * hour, the fastest journey, the first and last train. This module computes them; the page renders.
+ * figure here is about one station: trains a day, trains an hour in the daytime (`PATTERN_HOURS` —
+ * never "off-peak", a fare at a ticket office), the minutes past the hour, the fastest journey, the
+ * first and last train. This module computes them; the page renders.
  *
  * ── WHAT IS KNOWN, AND WHAT IS NOT YET ─────────────────────────────────────────────────────────
  *
@@ -38,9 +39,9 @@
  * card's sentence says, and the words its figures are written in: trains-verdict.js.
  */
 
-import { serviceMinutes, alignTimes, compareRoutes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
+import { serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, routeKey, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
-import { REAL_DAY, aRealDay, onWeekday, weekdayGroups, weekdayWords } from './trains-weekdays.js';
+import { REAL_DAY, WEEKDAYS, aRealDay, runsOn, onWeekday, weekdayGroups, weekdayWords } from './trains-weekdays.js';
 import { verdictFor } from './trains-verdict.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
@@ -78,15 +79,25 @@ export function boardingTime(row, crs, dir) {
     return parseStops(row).find(s => s.crs === crs)?.time ?? row[0];
 }
 
+/** Each stops field read once (`parseStops`): the headlines read every station on every weekday, and
+ *  re-reading the same few hundred strings was most of their time. Keyed by the string, not the row, so
+ *  a row edited in place cannot be answered from its old stops; frozen, so no caller can edit a shared answer. */
+const STOPS_READ = /** @type {Map<string, ReadonlyArray<Readonly<{ crs: string, time: string }>>>} */ (new Map());
+
 /**
- * A row's stops as `[{ crs, time }]`. Empty when they are not known.
+ * A row's stops as `[{ crs, time }]`. Empty when they are not known. Read-only: the answer is shared.
  * @param {TrainRow} row
- * @returns {{ crs: string, time: string }[]}
+ * @returns {ReadonlyArray<Readonly<{ crs: string, time: string }>>}
  */
 export function parseStops(row) {
     const s = row[4] ?? '';
     if (!s) return [];
-    return s.split(' ').map(t => ({ crs: t.slice(0, 3), time: `${t.slice(3, 5)}:${t.slice(5, 7)}` }));
+    let read = STOPS_READ.get(s);
+    if (!read) {
+        read = Object.freeze(s.split(' ').map(t => Object.freeze({ crs: t.slice(0, 3), time: `${t.slice(3, 5)}:${t.slice(5, 7)}` })));
+        STOPS_READ.set(s, read);
+    }
+    return read;
 }
 
 /** @param {TrainRow} row */
@@ -235,9 +246,15 @@ export function stationView(nowRows, decRows, crs, dir, when = {}) {
     }
     const eNow = endingAt(nowRows, crs), eDec = endingAt(decRows, crs);
     if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, others: [], verdict: verdictFor(now, null, null, dir, when) };
+    // As the rest of the card does: one real day's count, and a Monday-and-Friday train folded onto its
+    // Tuesday-to-Thursday partner's December time (`foldWeekdayVariants`). Counted row by row, the two
+    // versions of one train were two trains that END here, and "through" came out a train short; aligned
+    // without the fold, the Monday-and-Friday one "no longer ran" (Trains review, Nov 2026 — unreachable
+    // while December's books carry every stop, and kept for books that may not).
+    const endNow = summarise(eNow, crs, dir);
     const ending = {
-        now: summarise(eNow, crs, dir), dec: summarise(eDec, crs, dir),
-        trains: alignTimes(byTime(eNow), byTime(eDec)), through: now.total - eNow.length,
+        now: endNow, dec: summarise(eDec, crs, dir),
+        trains: foldWeekdayVariants(alignTimes(byTime(eNow), byTime(eDec))), through: now.total - endNow.total,
     };
     return { crs, now, dec: null, trains: null, ending, others: [], verdict: verdictFor(ending.now, ending.dec, ending.trains, dir, when) };
 }
@@ -290,14 +307,16 @@ function dayScope(nowRows, decRows, crs, dir) {
  *
  * WHICH TRAIN BECOMES WHICH is decided once, for the whole line (`compareRoutes`): each route's trains
  * aligned on their own, Monday-and-Friday versions folded onto their partner, a train that now goes
- * somewhere else linked across routes. The time lookup reads the same answer, so the two can no
- * longer disagree — until v24.83 a station card aligned only its own trains, by time alone, and
+ * somewhere else linked across routes. The time lookup reads the same answer, so the two disagree
+ * only where two of those pairs cross at this station and are swapped here (`uncross`) — until v24.83 a station card aligned only its own trains, by time alone, and
  * told a member the Mondays-and-Fridays 17:37 "No longer runs" while the lookup said "4 mins earlier
  * (17:33)" of the same train.
  *
  * Then each pair is read AT this station, because a train can keep running and stop calling here, or
  * start calling here: 'passes' — it still runs, it no longer stops here; 'calls' — it ran, and now
- * stops here. "No longer runs" and "New train" are kept for trains that really go or come.
+ * stops here. "Will stop running" ("No longer runs" from the change) and "New train" are kept for
+ * trains that really go or come. Where two of the line's pairs cross at this station, their December
+ * partners are swapped first (`uncross`, below): read at the station, a pairing never crosses.
  *
  * Coming back, each time is the train's departure from `crs` and a retiming is measured there — see
  * the header for why.
@@ -305,9 +324,11 @@ function dayScope(nowRows, decRows, crs, dir) {
  * @param {TrainRow[]} decRows
  * @param {string} crs
  * @param {'dep'|'arr'} dir
+ * @param {import('./trains-change.js').RouteChange[]} [routes]  `compareRoutes(nowRows, decRows)`, when the
+ *   caller reads many stations of one day — it is the same for every station, and the slow part
  * @returns {StationTrain[]}  in boarding-time order
  */
-export function stationTrains(nowRows, decRows, crs, dir) {
+export function stationTrains(nowRows, decRows, crs, dir, routes = compareRoutes(nowRows, decRows)) {
     const key = (/** @type {string} */ time, /** @type {string|undefined} */ end, /** @type {string} */ days = '') => `${time} ${end} ${days}`;
     const nowBy = new Map(nowRows.map(r => [key(r[0], r[1], r[3]), r]));
     const decBy = new Map(decRows.map(r => [key(r[0], r[1]), r]));          // a pair carries no December days
@@ -318,14 +339,19 @@ export function stationTrains(nowRows, decRows, crs, dir) {
         const a = callsOf(n), b = callsOf(d), i = a.indexOf(crs);
         return (dir === 'dep' ? a.slice(i + 1) : a.slice(0, i)).some(c => b.includes(c));
     };
-    /** @type {StationTrain[]} */
-    const out = [];
-    for (const t of compareRoutes(nowRows, decRows).flatMap(r => r.trains)) {
+    /** @type {{ t: PairedTrain, n: TrainRow|undefined, d: TrainRow|undefined }[]} */
+    const pairs = [];
+    for (const t of routes.flatMap(r => r.trains)) {
         if (t.kind === 'rerouted' && t.side === 'new') continue;               // its 'old' side carries both trains
         const n = t.now ? nowBy.get(key(t.now, t.nowTo, t.days)) : undefined;
         const d = t.dec ? decBy.get(key(t.dec, t.decTo)) : undefined;
+        if (calls(n) || calls(d)) pairs.push({ t: { ...t }, n, d });
+    }
+    uncross(pairs, crs, dir);
+    /** @type {StationTrain[]} */
+    const out = [];
+    for (const { t, n, d } of pairs) {
         const nHere = calls(n), dHere = calls(d);
-        if (!nHere && !dHere) continue;
         /** @type {StationTrain} */
         const s = { ...t, via: (n ?? d)?.[2] ?? '' };
         // Gone from here. A train that still runs on past this station "no longer stops here"; one whose
@@ -375,6 +401,58 @@ export function stationTrains(nowRows, decRows, crs, dir) {
     });
     const at = (/** @type {StationTrain} */ s) => serviceMinutes(/** @type {string} */ (s.nowAt ?? s.decAt ?? s.now ?? s.dec));
     return once.sort((a, b) => at(a) - at(b));
+}
+
+/**
+ * PAIRED AT MARYLEBONE, NEVER CROSSING AT THE STATION. The line's pairing is order-preserving at
+ * Marylebone, route by route (`compareRoutes`); read at a station two routes meet, two pairs can cross
+ * there. Coming back to High Wycombe on a weekday, today's 07:21 (into Marylebone 08:00) was paired with
+ * December's 07:40, and today's 07:33 with December's 07:27, so the card said "19 mins later" of a train
+ * whose slot December fills six minutes on, and "6 mins earlier" of the one after it (Trains review, Nov
+ * 2026). So where two trains that both call here, on a day both run, cross at the station, their December
+ * partners are swapped. A swap never adds to the minutes moved altogether — of two crossed pairs, the
+ * uncrossed pairing is never the dearer — and each one takes a crossing away, so it ends. The swapped
+ * pair is then said as what it now is: the same route, or a train that now comes from or goes to
+ * somewhere else (`rerouted`). The lookup is timed at Marylebone, where nothing crossed, and keeps its
+ * pairing: there, the 08:00 from High Wycombe is still the 08:18.
+ * @param {{ t: PairedTrain, n: TrainRow|undefined, d: TrainRow|undefined }[]} pairs  changed in place
+ * @param {string} crs
+ * @param {'dep'|'arr'} dir
+ */
+function uncross(pairs, crs, dir) {
+    const here = (/** @type {TrainRow|undefined} */ r) => !!r && callsOf(r).includes(crs);
+    const both = pairs.filter(p => here(p.n) && here(p.d));
+    const at = (/** @type {TrainRow} */ r) => serviceMinutes(boardingTime(r, crs, dir));
+    const together = (/** @type {string} */ a, /** @type {string} */ b) => WEEKDAYS.some(w => runsOn(a, w) && runsOn(b, w));
+    // Aylesbury's two routes are two journeys (trains-change.js, "the route is part of where a train goes"):
+    // a train via Amersham is never swapped onto one via High Wycombe, however the times fall.
+    const via = (/** @type {TrainRow} */ r) => LINES[routeKey(r)]?.via ?? r[2];
+    const cost = (/** @type {TrainRow} */ n, /** @type {TrainRow} */ d) => Math.abs(at(d) - at(n));
+    /** @type {Set<typeof pairs[number]>} */
+    const swapped = new Set();
+    // Each swap takes away a crossing, so the bound is never met; it keeps a later edit from hanging.
+    for (let guard = both.length * both.length; guard > 0; guard--) {
+        // The crossing whose swap saves the most minutes first: a train crossed with two others is given the
+        // partner that fits it best, and the other pairings are left as the line made them.
+        const best = both.flatMap(p => both.flatMap(q => {
+            const [pn, pd, qn, qd] = /** @type {TrainRow[]} */ ([p.n, p.d, q.n, q.d]);
+            const crossed = together(p.t.days, q.t.days) && at(pn) < at(qn) && at(pd) > at(qd)
+                && via(pn) === via(qd) && via(qn) === via(pd);
+            return crossed ? [{ p, q, saves: cost(pn, pd) + cost(qn, qd) - cost(pn, qd) - cost(qn, pd) }] : [];
+        })).sort((a, b) => b.saves - a.saves)[0];
+        if (!best) break;
+        const { p, q } = best;
+        [p.d, q.d] = [q.d, p.d];
+        swapped.add(p).add(q);
+    }
+    for (const p of swapped) {
+        const n = /** @type {TrainRow} */ (p.n), d = /** @type {TrainRow} */ (p.d);
+        const { other: _other, side: _side, ...t } = p.t;
+        const shift = serviceMinutes(d[0]) - serviceMinutes(n[0]);
+        p.t = routeKey(n) === routeKey(d)
+            ? { ...t, dec: d[0], decTo: d[1], shift, kind: n[1] !== d[1] ? 'terminus' : shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier' }
+            : { ...t, dec: d[0], decTo: d[1], shift, kind: 'rerouted', side: 'old', other: { station: d[1], via: d[2], time: d[0] } };
+    }
 }
 
 /**

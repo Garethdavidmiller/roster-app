@@ -80,6 +80,7 @@ const UNNAMED_BY_DESIGN = {
     'admin-time-inputs.js':  'driven by e2e/admin.spec.js ("admin: a week-grid time box formats as typed, moves on, and flags an impossible time"); its typing rule is clock-input.js, unit-tested by clock-input.test.mjs',
     'admin-week-swipe.js':   'driven by e2e/admin.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
     'paycalc-transfer-card.js': 'driven by e2e/settings.spec.js (the Settings "Pay Calculator Data" pointer card renders and links)',
+    'trains-status.js':      'driven by e2e/trains.spec.js ("a screen reader is told one short line per press, and the cards themselves are not read out"): every line it makes is read back from #trStatus after a real press',
 
     // ── NO GENUINE GAPS REMAIN ──────────────────────────────────────────────────────────────────
     // `paycalc-year-card.js` sat here from v23.69 as the one entry that was debt rather than a

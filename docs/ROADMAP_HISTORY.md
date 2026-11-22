@@ -3015,6 +3015,27 @@ any other day is. The entry as it stood:
 > **Until then, for an older Save only:** if a day it added was changed in Admin while it ran, put the day
 > right in Admin after an Undo, or skip the Undo and remove the Save's days in Admin.
 
+## Closed limitations, moved out of KNOWN_LIMITATIONS.md (22 Nov 2026)
+
+### The FIP guide's twin of the chip bar — CLOSED v26.47
+
+The guides review removed the copy: `guide-chips.js` drives the FIP guide's chip bar as it drives the
+other four, `fip-guide.js` keeps only its country finder, the opening of a country's `<details>` and
+its print preparation, and `page-contract-parity.test.mjs` refuses a chip-bar call in `fip-guide.js`
+(`.claude/rules/guide-pages.md`; `guide-chips.js` header). The bullet, from "Left open by the full
+check of 3 November 2026", as it stood:
+
+> - **One twin kept apart on purpose.** `fip-guide.js` carries the chip-bar blocks of
+>   `guide-chips.js` — jump, scrollspy, the hold that keeps a tapped or linked chip lit when its
+>   section cannot reach the top, sticky offsets (watching the bar's size as well as the header's) and
+>   deep-link landing — woven into its country finder, where a jump also opens the country's
+>   `<details>`; the other four guides share the one file. Two rules are in the shared file only: the
+>   two-column rule (the FIP guide is one column) and a banner section starting at its banner (the FIP
+>   guide has no banners), so neither has anything to do there yet. The hold was a third until Nov
+>   2026: at 375px and 1280px wide nothing bottomed the page out, but a tall desktop window does, and
+>   there a tap on Ferries or Mistakes lit Apply (`e2e/guides.spec.js` → "fip: a chip near the end of
+>   the page stays lit after its jump").
+
 ## Moved out of ROADMAP.md (7 Nov 2026)
 
 Finished work and closed indexes, moved **verbatim** by line range from `ROADMAP.md` as it stood at

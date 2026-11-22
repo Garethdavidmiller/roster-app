@@ -30,6 +30,8 @@ body {
    page's right-hand edge is one line from top to bottom. They were three splits — the card at half
    width, the controls at half, the content at 420px — and three edges 110px apart. */
 .app { --tr-side: 420px; --tr-gap: 24px; }
+/* A desktop's measure for the station box and the lookup's single list: one value, two places. */
+.app { --tr-field-max: 480px; }
 .app-header { margin-bottom: 4px; }
 @media (min-width: 768px) {
     .app-header { max-width: var(--content-max-width); margin-left: auto; margin-right: auto; }
@@ -95,9 +97,6 @@ body {
     background: var(--surface-sunken);
     list-style: none;
 }
-/* On a desktop the box takes its column's width (desktop audit, Nov 2026): held to a phone's 340px it
-   stopped 64px short of the right-hand edge every block beneath it shares. */
-@media (min-width: 1024px) { .tr-totals-days { max-width: none; } }
 .tr-total {
     display: grid;
     grid-template-columns: 5.6em minmax(0, 1fr) auto;
@@ -112,6 +111,18 @@ body {
 .tr-total-n { color: var(--text-mid); font-size: var(--type-body); white-space: nowrap; }
 .tr-total-n strong { color: var(--text-dark); font-weight: 800; }
 .tr-total .tr-delta { justify-self: end; margin-left: 0; }
+/* On a desktop the box takes its column's width (desktop audit, Nov 2026): held to a phone's 340px it
+   stopped 64px short of the right-hand edge every block beneath it shares. Its change chips then sat at the far
+   edge, about 200px from the figures they belong to (Trains review, 22 Nov 2026), so there the rows share one
+   grid (after the rules above, so it wins): each chip follows the widest figure, the chips line up, and the spare width is left after them. */
+@media (min-width: 1024px) {
+    .tr-totals-days { max-width: none; }
+    @supports (grid-template-columns: subgrid) {
+        .tr-totals-days { grid-template-columns: 5.6em max-content auto minmax(0, 1fr); }
+        .tr-total { grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: 12px; }
+        .tr-total .tr-delta { justify-self: start; }
+    }
+}
 
 /* ── Day and direction ──────────────────────────────────────────────────────
    THE CONTROLS ARE BUTTONS THAT LOOK LIKE BUTTONS (owner, 2 Nov 2026: the translucent tabs "lack pop"
@@ -221,7 +232,7 @@ was the Pay Calculator's outlined tabs, whose unchosen one is grey type on no fi
 least pressable-looking thing on the card. Until v24.93 it was a sunken track whose chosen tab went
 white, a third recipe for one job. */
 .tr-tabs--in-card { margin: 12px 0; }
-@media (min-width: 1024px) { .tr-tabs--in-card { max-width: 420px; } }
+@media (min-width: 1024px) { .tr-tabs--in-card { max-width: var(--tr-side); } }
 .tr-tabs--in-card[hidden] { display: none !important; }
 .tr-tabs--in-card .tr-tab {
     border: 1.5px solid var(--border-mid);
@@ -268,11 +279,13 @@ white, a third recipe for one job. */
     white-space: nowrap;
 }
 /* Amber, not the warning red: --al-warning sits 3° of hue from --error-red, so "Times move" and
-   "No longer runs" were the same pink with different text (v24.83). */
+   "No longer runs" were the same pink with different text (v24.83). "Will run to …" is news that is neither good nor
+   bad, so it is the app's informational pale blue with navy words — not the page's raspberry, which on this page
+   means "you chose this" (Trains review, 22 Nov 2026). */
 .tr-chip--moved    { background: var(--orange-light); color: var(--orange-text); }
 .tr-chip--new      { background: var(--success-green-bg); color: var(--success-text); }
 .tr-chip--gone     { background: var(--error-bg); color: var(--error-text); }
-.tr-chip--rerouted { background: color-mix(in oklch, var(--raspberry) 12%, white); color: var(--raspberry); white-space: normal; }
+.tr-chip--rerouted { background: var(--blue-light); color: var(--primary-blue); white-space: normal; }
 
 .tr-delta {
     display: inline-block;
@@ -375,8 +388,10 @@ the Pay Calculator's comparison table also uses — the uppercase label is the c
 .tr-none { color: var(--text-faint); }
 .tr-days {
     display: block;
-    color: var(--text-light);
-    font-size: var(--type-micro);
+    /* The days a train runs and where it goes: read, not decoration — the badge size and the mid grey, not 10px
+       light grey (Trains review, 22 Nov 2026). */
+    color: var(--text-mid);
+    font-size: var(--type-badge);
     font-weight: 400;
 }
 
@@ -496,7 +511,7 @@ Overtime's small outlined pill (.ot-refresh-btn): white, a hairline, badge type,
 .tr-change-station { margin: 0 0 4px; }
 .tr-change-station[hidden], .tr-more[hidden] { display: none !important; }
 .tr-input.tr-input--wide { width: 100%; max-width: none; }
-@media (min-width: 1024px) { .tr-input.tr-input--wide { max-width: 480px; } }
+@media (min-width: 1024px) { .tr-input.tr-input--wide { max-width: var(--tr-field-max); } }
 .tr-picks-label, .tr-sub {
     flex-basis: 100%;
     margin: 0;
@@ -566,7 +581,7 @@ tinted box with the whole sentence in the tone's colour). */
     #trStation:has(.tr-route) {
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        column-gap: 24px;
+        column-gap: var(--tr-gap);
         align-items: start;
     }
     /* Placed in reading order, no row numbers: across the card, what it says before it answers (the line once
@@ -669,7 +684,7 @@ on the answer: the app's ring, not the browser's orange one. */
    tint of the page's colour, as a hovered week in the date pickers takes. Never on the CHOSEN column,
    which keeps the look its choice gave it (css-tokens.md: hover never repaints a chosen control). */
 @media (hover: hover) and (pointer: fine) {
-    .tr-grid thead th.tr-grid-colhead:not(.tr-col-on):hover { background: color-mix(in srgb, var(--page-accent) 10%, transparent); }
+    .tr-grid thead th.tr-grid-colhead:not(.tr-col-on):hover { background: color-mix(in oklch, var(--page-accent) 10%, white); }
 }
 .tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
 .tr-grid-focus .tr-more { margin: 0; }
@@ -761,6 +776,31 @@ on the answer: the app's ring, not the browser's orange one. */
 /* Some hours only: half filled. A column is every hour's train at that minute (stoppingGrid), and a
    station only some of them stop at is not a stop "every hour" (v24.83). */
 .tr-dot--some { background: linear-gradient(90deg, var(--primary-blue) 50%, transparent 50%); box-shadow: inset 0 0 0 2px var(--primary-blue); }
+/* WINDOWS HIGH CONTRAST (Trains review, 22 Nov 2026). Every mark above is a background, a gradient or a box-shadow,
+   and a forced-colours theme repaints the first as Canvas and drops the other two — so the grid and its key were
+   BLANK there, station names over empty columns, on the station PC's own operating system. The marks opt out of the
+   forcing and are redrawn in the theme's CanvasText on Canvas: the same four SHAPES, which were already what told them
+   apart (above), so nothing is lost but the colour the reader asked to replace. System colours only, and longhands —
+   native-surface-parity contract 14 reads every forced-colours block; e2e/forced-colors.spec.js counts the ink. */
+@media (forced-colors: active) {
+    .tr-dot { forced-color-adjust: none; background-color: CanvasText; background-image: none; box-shadow: none; }
+    .tr-dot--some, .tr-dot--new, .tr-dot--lost {
+        background-color: Canvas;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: auto;
+        box-shadow: inset 0 0 0 2px CanvasText;
+    }
+    .tr-dot--some { background-image: linear-gradient(90deg, CanvasText 50%, transparent 50%); }
+    .tr-dot--new {
+        background-image: linear-gradient(CanvasText, CanvasText), linear-gradient(CanvasText, CanvasText);
+        background-size: 6px 2px, 2px 6px;
+    }
+    .tr-dot--lost {
+        background-image: linear-gradient(135deg, transparent calc(50% - 1px), CanvasText calc(50% - 1px) calc(50% + 1px),
+                          transparent calc(50% + 1px));
+    }
+}
 /* Two even columns on a phone (the 2 Nov 2026 polish): wrapping freely, the four entries stranded "no
    longer stops" alone on a second line. One row from a tablet up, where all four fit. */
 .tr-grid-key {
@@ -827,7 +867,7 @@ uppercase. */
 /* The lookup's near lists: ONE column when both timetables list the same trains; where they differ,
    a row only one side has is marked at its left edge, and says so to a screen reader. */
 .tr-near-cols--one { grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 1024px) { .tr-near-cols--one { max-width: 480px; } }
+@media (min-width: 1024px) { .tr-near-cols--one { max-width: var(--tr-field-max); } }
 .tr-near-only { border-left: 3px solid var(--primary-blue); padding-left: 8px; font-weight: 700; }
 /* Last trains: the station table's recipe, with the grid's band rows between the two lines. */
 .tr-last { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -872,8 +912,9 @@ uppercase. */
     .tr-total { grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
     .tr-total-day { grid-column: 1 / -1; }
 }
-/* A station's card: its column heads may wrap and its cells give up a little padding. Below 14em — a 320px
-   phone at 1.5 times — a station's name in the train list's small print may break inside the word, and below
+/* A station's card: its column heads may wrap and its cells give up a little padding. Below 15em — a 320px
+   phone at 1.3 times; 14em until the small print grew from 10px to 11px (Trains review, 22 Nov 2026) — a station's
+   name in the train list's small print may break inside the word, and below
    12em (1.75 times there) so may one in a figure's label: either reads better than a table cut off at the
    card's edge. */
 #trStation { container: tr-station / inline-size; }
@@ -881,13 +922,19 @@ uppercase. */
     .tr-trains thead th, .tr-st-table thead th { white-space: normal; }
     .tr-trains th, .tr-trains td { padding-right: 6px; }
 }
-@container tr-station (max-width: 14em) { .tr-trains .tr-days { overflow-wrap: anywhere; } }
+@container tr-station (max-width: 15em) { .tr-trains .tr-days { overflow-wrap: anywhere; } }
 @container tr-station (max-width: 12em) { .tr-st-table tbody th { overflow-wrap: anywhere; } }
 
 /* A thumb's target (v24.83): on a phone the tabs, the station chips and the "Show…" buttons were
    27–31px tall. After the base rules, so it wins. */
 @media (pointer: coarse) {
     .tr-tab, .tr-pick, .tr-more, .tr-grid-colbtn { min-height: 44px; }
+    /* …except the two small pills that ACT (above): at 44px, with badge type, they were capsules twice the height of
+       their words (Trains review, 22 Nov 2026). They take Overtime's touch height for the same pill (36px) and an
+       invisible band above and below for a thumb's 44px, as the ? button keeps its target (shared.css). */
+    .tr-change-station, .tr-grid-focus .tr-more { position: relative; min-height: 36px; }
+    /* -5px: the band is measured from inside the 1px border, so 34 + 2 × 5 = 44. */
+    .tr-change-station::before, .tr-grid-focus .tr-more::before { content: ''; position: absolute; inset: -5px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -904,6 +951,22 @@ uppercase. */
     .badge-page { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-grid-swipe, .tr-change-station { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
+    /* An in-card choice (Now / From 13 Dec, Going there / Coming back) prints as the ONE it is: the chosen tab's words
+       are white for its raspberry fill, which paper drops, so the sheet showed the chosen one faint and the other bold
+       (Trains review, 22 Nov 2026). Paper cannot be pressed, so the other tab goes, and the chosen one prints as an
+       outlined label in the body's ink — the card's subtitle names the day; this names the timetable or direction.
+       Written on the groups' ids, never on the chosen state, so no rule here colours a choice (page-identity-parity). */
+    .tr-tabs--in-card .tr-tab[aria-pressed="false"] { display: none; }
+    #trStationDir .tr-tab, #trGridMode .tr-tab {
+        flex: 0 0 auto;
+        min-height: 0;
+        padding: 3px 12px;
+        background: none;
+        border-color: var(--text-dark);
+        color: var(--text-dark);
+        box-shadow: none;
+        transition: none;   /* the tab eases its colours, and a print taken mid-ease kept the white */
+    }
 }
 
 /* The boot placeholder's other half (v24.96): the cards wait for `auth-ready`, which trains-app.js

@@ -11,6 +11,7 @@ def build(cols, src):
         cells = c['cells']
         if not cells: continue
         if cells[0]['text'] == 'f': continue                      # a continuation; reached from its 'e' column
+        if i in used: continue                                    # already joined to the column it continues
         fac = list(c.get('fac', []))
         stops = [dict(crs=x['crs'], name=x['name'], ad=x['ad'], t=x['text']) for x in cells if timed(x)]
         if any(x['text'] == 'e' for x in cells):
@@ -65,14 +66,15 @@ def timed_stops(stops, keep):
     return out
 def row_order(cols):
     """The book's station rows, outward direction, in printed order: the longest block's rows first,
-    then any station another block adds, placed after the nearest station that precedes it there.
-    A station printed twice (arrival and departure) appears once."""
+    then any station another block adds, placed after the nearest station that precedes it there —
+    or, with none before it there, first, as build.py's _merged places one (they disagreed: this put
+    it last). A station printed twice (arrival and departure) appears once."""
     order = []
     for rows in sorted((c.get('rows', []) for c in cols if c['dir'] == 'out'), key=len, reverse=True):
         for i, crs in enumerate(rows):
             if crs in order: continue
             before = next((c for c in reversed(rows[:i]) if c in order), None)
-            order.insert(order.index(before) + 1 if before else len(order), crs)
+            order.insert(order.index(before) + 1 if before else 0, crs)
     return order
 MET, MAIN = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
 T = build(MET, 'met') + build(MAIN, 'main')

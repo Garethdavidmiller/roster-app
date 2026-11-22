@@ -29,16 +29,6 @@ is in `ROADMAP_HISTORY.md`). These it left, each for a decision rather than a de
   largest stylesheets are capped the same way by `stylesheet-ratchet.test.mjs`. A file at its cap
   takes the next feature only by extracting something first; the ratchet's header says what a good
   response looks like, and raising a cap in passing is not one.
-- **One twin kept apart on purpose.** `fip-guide.js` carries the chip-bar blocks of
-  `guide-chips.js` — jump, scrollspy, the hold that keeps a tapped or linked chip lit when its
-  section cannot reach the top, sticky offsets (watching the bar's size as well as the header's) and
-  deep-link landing — woven into its country finder, where a jump also opens the country's
-  `<details>`; the other four guides share the one file. Two rules are in the shared file only: the
-  two-column rule (the FIP guide is one column) and a banner section starting at its banner (the FIP
-  guide has no banners), so neither has anything to do there yet. The hold was a third until Nov
-  2026: at 375px and 1280px wide nothing bottomed the page out, but a tall desktop window does, and
-  there a tap on Ferries or Mistakes lit Apply (`e2e/guides.spec.js` → "fip: a chip near the end of
-  the page stays lit after its jump").
 - **Typed colours.** The coloured `rgb()`/`rgba()` literals left in the stylesheets, the app's and
   the guides' alike — nearly all a navy shadow tint — are a ratchet that may only go down
   (`RGB_BASELINE` in `css-hex-parity.test.mjs`).
@@ -676,7 +666,7 @@ session-only, so it ends when the browser session does.
 
 **What it does change, stated plainly.** A LEAVER whose device still holds a local session keeps the
 signed-in *UI* for up to 60 days. That was never the control it looked like: the real remedy is
-Operations → Set up accounts → "Disable accounts for anyone no longer on the roster (leavers)", after which the ID token stops
+Operations → Staff Login Accounts → tick "Disable accounts for anyone no longer on the roster (leavers)" → Set up accounts, after which the ID token stops
 refreshing (≤1 hour) and every authenticated read and write fails, and the Admin page independently
 blocks a signed-in name that is no longer a selectable roster member. So the exposure is bounded by
 the account disable, not by the local timer — which is why the timer's length is a UX choice, not a

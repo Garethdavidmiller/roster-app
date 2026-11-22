@@ -62,7 +62,7 @@ import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, holdsStaffPin, signOutStaffPin } from './session.js';
-import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } from './page-session.js';
 import { requirePage, navGatesFor, admitsStaffPin } from './auth-policy.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
 import { initCardCollapse } from './overlay.js';
@@ -80,6 +80,7 @@ import { changesTitle, SIGN_IN_ABOUT } from './trains-render.js';
 import { DEC_STOPS_KNOWN, LAST_STATION_KEY, phase, renderOverview, renderChanges, renderPattern, renderStationPicks, renderLast,
     renderStationCard, renderLookup, setText, el } from './trains-cards.js';
 import { syncGridMirror } from './trains-grid-mirror.js';
+import { announce, statusLine, matchesLine } from './trains-status.js';
 
 /** @typedef {import('./trains-cards.js').Day} Day */
 /** @typedef {import('./trains-cards.js').Dir} Dir */
@@ -121,8 +122,8 @@ export function init() {
             // No session here: reload into a fresh sign-in. Belt and braces — a session that failed to
             // save never reaches onSuccess (`runNamedSignIn` refuses with kind 'storage' first, and
             // Private Browsing has not refused storage since iOS 11), so only a session lost in between
-            // (another tab signing out, site data cleared) lands here.
-            onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
+            // (another tab signing out, site data cleared) lands here. The page is now theirs (`rebaseRestoreGuard`, as Pay).
+            onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } rebaseRestoreGuard(); init(); } catch { window.location.reload(); } },
         }); });
         return;
     }
@@ -199,7 +200,7 @@ function start(member) {
     const opensOn = settled && remembered && STATIONS[remembered] ? remembered : null;
     /** @type {PageState} */
     const state = { day: todayDay(), view: settled ? 'stations' : 'changes', station: opensOn, sdir: 'dep',
-        grid: DEC_STOPS_KNOWN ? 'dec' : 'now', allHeads: false, allTrains: false, pickerOpen: !opensOn, gridCol: null };
+        grid: DEC_STOPS_KNOWN ? 'dec' : 'now', allHeads: false, allTrains: false, showTrains: false, pickerOpen: !opensOn, gridCol: null };
     // The grid opens on TODAY until December's stops exist: a December grid of end stations alone read
     // as a broken page, and it was the first thing the tab showed (owner, 7 Oct 2026).
 
@@ -275,6 +276,7 @@ function render(state) {
     // The fixed copy of the grid's column heads: rebuilt from whatever the grid now is — including
     // nothing, when another view is on screen (trains-grid-mirror.js).
     syncGridMirror(state.view === 'grid' ? el('trPattern') : null);
+    announce(statusLine(state));
 }
 
 /** Redraw the whole page if the railway day, or the calendar date, has turned since it was drawn (the header). @param {PageState} state @returns {boolean} whether it did */
@@ -288,11 +290,13 @@ function turnIfNewDay(state) {
 
 /**
  * One delegated click handler for every tab and every station button, and the two text inputs — each
- * input redraws only its own panel, so a live region is not re-announced for every key.
+ * input redraws only its own panel, the lookup once typing pauses (`SETTLE_MS`). A station opened from the list
+ * has a history entry NAMING it, and a popstate draws what its entry names (Trains review, 22 Nov 2026: a station
+ * entry was ignored, so Back, Forward and a second station left two entries for one view, and a Back did nothing).
  * @param {PageState} state
  */
 function wire(state) {
-    let pushed = false;     // a station opened from the changes list has a Back entry (Android Back returns to the list)
+    let pushed = false;     // the history entry the page is on is a station's (Android Back returns to the list)
     el('trainsMain')?.addEventListener('click', (e) => {
         const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest(
             'button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],button[data-col],#trHeadsMore,#trAllTrains,#trGridAll,#trStationChange'));
@@ -321,7 +325,8 @@ function wire(state) {
             state.allTrains = false;
             state.pickerOpen = false;
             state.view = 'stations';
-            if (was !== 'stations') { state.sdir = 'dep'; history.pushState({ trains: 'station' }, ''); pushed = true; }
+            const entry = { trains: 'station', crs: state.station };   // what a Back or Forward to it draws
+            if (was !== 'stations') { state.sdir = 'dep'; history.pushState(entry, ''); pushed = true; } else if (pushed) history.replaceState(entry, '');
         }
         if (pushed && was === 'stations' && state.view !== 'stations') { pushed = false; history.back(); }
         render(state);
@@ -335,19 +340,45 @@ function wire(state) {
         } else refocus(b, scope);
     });
     window.addEventListener('popstate', (e) => {
-        if (!pushed || /** @type {any} */ (e.state)?.trains === 'station') return;
+        const entry = /** @type {any} */ (e.state);
+        if (entry?.trains === 'station') {   // that station — unless already on screen, as under a lightbox's ✕
+            pushed = true;
+            const crs = typeof entry.crs === 'string' && STATIONS[entry.crs] ? entry.crs : state.station;
+            if (state.view === 'stations' && state.station === crs) return;
+            Object.assign(state, { view: 'stations', station: crs, pickerOpen: false, allTrains: state.station === crs && state.allTrains });
+            render(state);
+            return;
+        }
+        if (!pushed) return;   // any other entry is the list, once a station's was left — not a ✕ over another view
         pushed = false;
         state.view = 'changes';
         render(state);
     });
     // A key redraws its own card — unless the railway day has turned since the page was drawn, when the
-    // whole page turns first and the answer is that day's, not the one the page was opened on.
-    el('trLookupInput')?.addEventListener('input', () => { if (!turnIfNewDay(state)) renderLookup(state); });
-    el('trStationInput')?.addEventListener('input', () => { if (!turnIfNewDay(state)) renderStationPicks(state); });
-    // Enter takes the first match — with one station left, it is the one meant.
-    el('trStationInput')?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') /** @type {HTMLElement|null} */ (el('trStationPicks')?.querySelector('button[data-station]') ?? null)?.click();
+    // whole page turns first and the answer is that day's, not the one the page was opened on. The lookup
+    // waits for typing to pause: "5.15pm" passed through 05:15 on its way, and a screen reader heard each.
+    const SETTLE_MS = 300;
+    let settle = 0, counted = 0;
+    const lookUp = () => { clearTimeout(settle); if (!turnIfNewDay(state)) renderLookup(state); };
+    el('trLookupInput')?.addEventListener('input', () => { clearTimeout(settle); settle = window.setTimeout(lookUp, SETTLE_MS); });
+    el('trLookupInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) lookUp(); });   // Enter answers now
+    el('trStationInput')?.addEventListener('input', () => {   // the chips at once; how many match is SAID once typing pauses
+        if (!turnIfNewDay(state)) renderStationPicks(state);
+        clearTimeout(counted);
+        counted = window.setTimeout(() => announce(matchesLine()), SETTLE_MS);
     });
+    // Enter takes the first match — with one station left, it is the one meant. An EMPTY box has no match (its chips are the busiest).
+    el('trStationInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.isComposing && /** @type {HTMLInputElement} */ (e.currentTarget).value.trim()) /** @type {HTMLElement|null} */ (el('trStationPicks')?.querySelector('button[data-station]') ?? null)?.click();
+    });
+    // "Train by train" stays as it was left across a redraw (`showTrains`); `toggle` does not bubble, so it is caught on
+    // the way down. Closed, it also stops asking for every train (`allTrains`), which would open it again.
+    el('trStation')?.addEventListener('toggle', (e) => {
+        const d = /** @type {HTMLElement} */ (e.target);
+        if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('tr-route')) return;
+        state.showTrains = d.open;
+        if (!d.open) state.allTrains = false;
+    }, true);
 }
 
 /**
