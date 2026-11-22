@@ -755,8 +755,8 @@ test('links: today\'s link quotes each factor\'s own threshold, and is measured 
             "status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 12,"],
         ["status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 4,",
             "status: ff15 > 4 ? 'present' : 'clear', value: ff15, threshold: 3,"],
-        ['export function assessFatigue(patterns, lines = ROTATING_LINES) {',
-            'export function assessFatigue(patterns, lines = ROTATING_LINES) {\n'
+        ['export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } = {}) {',
+            'export function assessFatigue(patterns, lines = ROTATING_LINES, { window: win } = {}) {\n'
             + '    if (lines !== ROTATING_LINES) { const w = /** @type {any} */ (globalThis); w.__todayMeasured = (w.__todayMeasured || 0) + 1; }'],
     ]);
     // A missing anchor THROWS: a silent no-op would leave a green test that had stopped testing anything.
