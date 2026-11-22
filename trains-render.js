@@ -19,7 +19,7 @@ import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, routeKey, LINES, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes, holidaysWithin,
     JOURNEY_PLANNER_URL } from './trains-change.js';
 import { pairColumns, lineOf, orderStations, stopChanges, parseStops } from './trains-stations.js';
-import { aRealDay, weekdayGroups, weekdayWords } from './trains-weekdays.js';
+import { aRealDay, weekdayGroups, weekdayWords, WEEKDAYS, runsOn } from './trains-weekdays.js';
 import { minutesWords, hourNote, hourWords } from './trains-verdict.js';
 import { CHANGE_DATE } from './trains-data.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
@@ -62,15 +62,16 @@ const ENDED_NOTE = '<p class="card-explainer tr-lead"><strong>These times come f
 export const changesTitle = (started) => started ? 'What changed' : 'What’s changing';
 
 /**
- * The overview's opening line, in the tense of the change: "Today’s timetable beside the new one…"
- * before it, "The timetable that ran until…" from it.
+ * The overview's opening line, in the tense of the change: "This page compares today’s timetable with the
+ * new one…" before it, "…the timetable that ran until…" from it. A sentence with a verb: "Today’s
+ * timetable beside the new one that starts on…" was a caption, and read as one (words review, Nov 2026).
  * @param {string} change  'YYYY-MM-DD'
  * @param {boolean} started
  * @returns {string}
  */
 export function leadWords(change, started) {
     const on = (/** @type {number} */ offset) => dateWords(change, offset, { weekday: true });
-    return `${started ? `The timetable that ran until ${on(-1)} beside the new one, which started on` : 'Today’s timetable beside the new one that starts on'} ${on(0)}. `
+    return `This page compares ${started ? `the timetable that ran until ${on(-1)} with the new one, which started on` : 'today’s timetable with the new one that starts on'} ${on(0)}. `
         + 'Both are Chiltern’s published timetables, not live running information.';
 }
 
@@ -89,9 +90,12 @@ export function renderFurtherChanges(change, until) {
     // spaces, "13 December" broke after the 13 on a 390px phone (whole-app check, Nov 2026).
     const together = (/** @type {string} */ words) => words.replace(/ /g, '&nbsp;');
     const when = `between ${together(dateWords(change))} and ${together(dateWords(until))}`;
+    // It is the holidays' TIMES that are missing, not the holidays — and "changing times again" had no
+    // "first time" before the change. The present tense holds on both sides of 13 December: an
+    // arrangement before it, what is happening during it (words review, Nov 2026).
     return holidays
-        ? `<strong>${esc(holidays)} ${holidays.includes(' and ') ? 'are' : 'is'} not on this page.</strong> Chiltern is changing times again ${when}, with big changes over the holidays.`
-        : `<strong>Chiltern’s further changes are not on this page.</strong> It is changing times again ${when}.`;
+        ? `<strong>${esc(holidays)} times are not on this page.</strong> Chiltern is changing some times ${when}, most of all over the holidays.`
+        : `<strong>Chiltern’s further changes are not on this page.</strong> Chiltern is changing some times ${when}.`;
 }
 
 /**
@@ -104,7 +108,12 @@ export function renderFurtherChanges(change, until) {
  * Trains, which the PIN keeps. Worded as a way to OPEN the page, never as signing in (18).
  */
 export const SIGN_IN_ABOUT = Object.freeze({
-    lines: Object.freeze(['Visiting or agency staff, at a station computer, or not set up in the app yet? The staff PIN opens this page too: enter it on the roster, then choose Trains from its menu.']),
+    // What the page is for comes first, as every other page's card says it (login-core.js): the PIN line
+    // alone told a member how to open a page it never described. Its date is derived, and it holds in
+    // every phase — "before and after", not "what will change" (words review, Nov 2026). The date holds
+    // together, as renderFurtherChanges's does: at 390px "13" ended a line and "December" began the next.
+    lines: Object.freeze([`Chiltern’s trains from Marylebone before and after the timetable change on ${dateWords(CHANGE_DATE).replace(' ', '\u00a0')}: by station, by time, and where each train stops.`,
+        'Visiting or agency staff, at a station computer, or not set up in the app yet? The staff PIN opens this page too: enter it on the roster, then choose Trains from its menu.']),
     link: Object.freeze({ href: `./${PIN_FIRST_HASH}`, label: 'Use the staff PIN instead →' }),
 });
 
@@ -121,7 +130,7 @@ const dot = (kind, words) => `<span class="tr-dot${kind ? ` tr-dot--${kind}` : '
  * trains" on seven rows of eight, so nothing stood out and the Aylesbury row ran to six lines on a
  * phone. Now the one clause a colleague repeats is the bold line, the figures and every further
  * clause sit beneath it in smaller, quieter type, and the chip carries the number ("+6 a day") or
- * the exception ("New route", "Times move") — trains-stations.js writes all three. NOTHING IS
+ * the exception ("New route", "New times") — trains-stations.js writes all three. NOTHING IS
  * CLIPPED: the stations a new train also calls at are said in that detail and nowhere else on the
  * page, so a two-line clamp would have hidden a fact rather than depth.
  * @param {{ crs: string, tone: string, text: string, lead?: string, detail?: string, chip?: string }[]} items
@@ -132,7 +141,7 @@ const dot = (kind, words) => `<span class="tr-dot${kind ? ` tr-dot--${kind}` : '
 export function renderHeadlines(items, { showAll, partial }) {
     const shown = showAll ? items : items.slice(0, 5);
     // The chip says what KIND of change, in words a reader can repeat: "More" alone asked "more what?".
-    const word = /** @type {Record<string, string>} */ ({ more: 'More trains', less: 'Fewer trains', moved: 'Times move' });
+    const word = /** @type {Record<string, string>} */ ({ more: 'More trains', less: 'Fewer trains', moved: 'New times' });
     const list = shown.length
         ? `<ul class="tr-heads">${shown.map(h => `<li><button type="button" class="tr-head" data-station="${esc(h.crs)}">`
             + `<span class="tr-chip tr-chip--${h.tone === 'more' ? 'new' : h.tone === 'less' ? 'gone' : 'moved'}">${esc(h.chip ?? word[h.tone] ?? '')}</span>`
@@ -202,9 +211,15 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     // than the answer, inside its accented box — so the cost of a gain is read with it, not found later.
     const also = (view.verdict.also ?? []).map(t => ` <span class="tr-verdict-also">${esc(t)}</span>`).join('');
     const verdict = `<p class="tr-verdict tr-verdict--${view.verdict.tone}">${esc(view.verdict.text)}${also}</p>`;
+    // No direct train in the new timetable: the next step is the journey planner, which finds a route with
+    // a change of train — "No direct trains" alone left a colleague with nothing to tell the customer
+    // (words review, Nov 2026). Not once the books have ended: `ENDED_NOTE` already links it.
+    const planner = dec && !dec.total && !ended
+        ? `<p class="card-explainer tr-note">For a journey with a change of train, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a>.</p>`
+        : '';
     // No train either side: the sentence is the whole answer. A table of noughts under "No change."
     // read as a service carrying on (v24.83).
-    if (dec && !now.total && !dec.total) return endedNote + verdict;
+    if (dec && !now.total && !dec.total) return endedNote + verdict + planner;
     const label = ending ? `<p class="tr-sub">${esc(leaving ? `Trains that end at ${name}` : `Trains that start at ${name}`)}</p>` : '';
     const throughNote = ending && ending.through > 0
         ? `<p class="card-explainer tr-note">${ending.through === 1 ? 'One other train a day calls' : `${ending.through} other trains a day call`} at ${esc(name)}`
@@ -249,18 +264,26 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     // Today's Amersham-line book is Chiltern's leaf-fall timetable and December's is not (trains-data.js,
     // LEAF_FALL): a few minutes' difference coming back may be the season, not the new timetable.
     const leafNote = leafFall && !leaving
-        ? `<p class="card-explainer tr-note"><strong>Leaf fall:</strong> until ${esc(leafFall.until)}, trains to London on this line leave up to ${leafFall.minutes} minutes earlier than usual. `
+        // "On this line" was untrue on Aylesbury's card, which holds trains via High Wycombe too, and
+        // leaf fall itself went unexplained (words review, Nov 2026): the route is named, and what the
+        // season is, in one clause.
+        ? `<p class="card-explainer tr-note"><strong>Leaf fall:</strong> until ${esc(leafFall.until)}, trains to London via Amersham leave up to ${leafFall.minutes} minutes earlier than usual `
+            + '(Chiltern’s autumn timetable: fallen leaves make the rails slippery, so these trains leave earlier to give them more time). '
             // Only a LATER December time can be the season: leaf fall moves today's trains earlier, so a
             // December train that is earlier still is a real change (v24.89, the 48-hour review — the
             // note said "a change of 3 minutes or less", and ten such earlier rows sat beneath it).
             // "Check the journey planner before 10 January" read as a deadline, and left out the 10th, the
             // last leaf-fall day — the note is still up on it (trains-cards.js).
-            + `The ${esc(labels.old)} column includes that and the ${esc(labels.new)} column does not, so a train up to ${leafFall.minutes} minutes later in the ${esc(labels.new)} column may only be leaf fall. For trains up to and including ${esc(leafFall.until)}, check the journey planner.</p>`
+            + `The ${esc(labels.old)} column includes that and the ${esc(labels.new)} column does not, so a train up to ${leafFall.minutes} minutes later in the ${esc(labels.new)} column may be leaf fall, not a real change. For trains up to and including ${esc(leafFall.until)}, check the journey planner.</p>`
         : '';
-    if (!trains) return endedNote + verdict + table + minutesNote + leafNote;
+    if (!trains) return endedNote + verdict + planner + table + minutesNote + leafNote;
     const changed = trains.filter(t => t.kind !== 'same' || (/** @type {any} */ (t).farShift ?? 0) !== 0);
     const same = trains.length - changed.length;
-    const shown = allTrains ? trains : changed;
+    // When NOTHING changes, the unchanged trains are the list: "Every train keeps its time" with a second
+    // button for Little Kimble's four rows was two taps to a list that had nothing to hide (words review,
+    // Nov 2026).
+    const whole = allTrains || !changed.length;
+    const shown = whole ? trains : changed;
     const CHIP = /** @type {Record<string, string>} */ ({ earlier: 'moved', later: 'moved', terminus: 'rerouted', passes: 'gone', calls: 'new' });
     // Coming back on a leaf-fall line, a December time LATER by no more than the leaf-fall minutes may
     // be the season rather than the timetable — the note above the list says so — and nine of
@@ -300,12 +323,12 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         ? `<table class="tr-trains"><thead><tr><th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th><th scope="col">${was('What changes', 'What changed')}</th></tr></thead>`
             + `<tbody>${rowsHtml}</tbody></table>`
         : `<p class="card-explainer tr-lead">${was('Every train keeps its time.', 'Every train kept its time.')}</p>`;
-    const more = !allTrains && same
+    const more = !whole && same
         ? `<button type="button" class="tr-more" id="trAllTrains">Show the ${same} that ${was(same === 1 ? 'stays' : 'stay', 'stayed')} the same</button>` : '';
     // The figures and their notes are ONE block: on a desktop it is the left column beside the train list
     // (trains.css), and as separate grid items every note took the same cell, so the leaf-fall note was drawn
     // on top of the times note (whole-app check, Nov 2026). On a phone the block is ordinary flow.
-    return endedNote + label + verdict + `<div class="tr-st-figures">${table + minutesNote + leafNote + throughNote}</div>`
+    return endedNote + label + verdict + planner + `<div class="tr-st-figures">${table + minutesNote + leafNote + throughNote}</div>`
         + `<details class="tr-route"${showTrains || allTrains ? ' open' : ''}><summary class="tr-route-sum"><span class="tr-route-name">Train by train</span>`
         + `<span class="tr-route-what">${esc(tally)} · leaving ${esc(leaving ? 'Marylebone' : name)}</span></summary>`
         + list + more + '</details>';
@@ -451,8 +474,9 @@ export function renderPicks(offered, { typed, selected, stations, last = null })
     // Before anything is typed, the station this device looked at last comes first, under its own
     // label (v24.94): a member asks about the same station again and again — their own commute, the
     // barrier's regulars — and it is one chip rather than a search. Never while typing: the matches
-    // are the answer to what was typed.
-    const remembered = !typed && last && stations[last] ? `<p class="tr-picks-label">Last time</p>${chip(last)}` : '';
+    // are the answer to what was typed. The label is "You looked at": on a page of train times,
+    // "Last time" read as one (words review, Nov 2026).
+    const remembered = !typed && last && stations[last] ? `<p class="tr-picks-label">You looked at</p>${chip(last)}` : '';
     return remembered + `<p class="tr-picks-label">${typed ? 'Matching stations' : 'Busiest stations'}</p>`
         + offered.filter(crs => !remembered || crs !== last).map(chip).join('');
 }
@@ -500,6 +524,7 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
     // the lookup answered "No change" (v24.89, the 48-hour review).
     const arrives = (/** @type {TrainRow|undefined} */ r) => r ? parseStops(r).find(x => x.crs === r[1])?.time : undefined;
     const mins = (/** @type {number} */ m) => `${m} min${m === 1 ? '' : 's'}`;
+    const lc = (/** @type {string} */ s) => s.charAt(0).toLowerCase() + s.slice(1);
     const pairs = compareRoutes(nowRows, decRows).flatMap(r => r.trains.map(t => ({ r, t })));
     const exact = pairs.filter(({ t }) => started
         ? t.dec === at && (t.kind !== 'rerouted' || t.side === 'new')
@@ -512,16 +537,23 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
         if (!started) {
             const when = t.kind === 'earlier' || t.kind === 'later' ? ` (${t.dec})` : '';
             const stops = stopsWords(n, d);
-            const label = changeLabel(far ? { ...t, farShift: far } : t, stations, 'dep');
+            const label = changeLabel(far ? { ...t, farShift: far } : t, stations, 'dep', { withTime: false });
+            // A new end that comes with a new time says the time FIRST, the way a plain retime does
+            // ("4 mins later (17:33)"): "Will end at Birmingham Moor Street, 16:41" read as arriving at
+            // Moor Street at 16:41, when 16:41 is the new time it leaves Marylebone (words review, Nov 2026).
+            const moved = t.shift && (t.kind === 'terminus' || t.kind === 'rerouted')
+                ? `${mins(Math.abs(t.shift))} ${t.shift > 0 ? 'later' : 'earlier'} (${t.dec}), ${lc(label)}` : '';
             // "No change. From 13 December it also stops at Kings Sutton." contradicted itself in one
             // breath, while the Kings Sutton card called the same train "Will stop here": with a stop
             // changed, the TIME is what has not (v24.96, the 72-hour review).
-            const head = label === 'No change' && stops ? 'Same time' : label;
+            const head = moved || (label === 'No change' && stops ? 'Same time' : label);
             return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(named(r, t.nowTo))}${days ? ` (${esc(days)})` : ''}:</strong> `
                 + `${esc(head)}${esc(when)}.${esc(stops)}</p>`;
         }
         // From the change, the same pairing read the other way: what the running train used to be.
-        const on = days ? ` on ${days === 'Mon and Fri only' ? 'Mondays and Fridays' : days === 'Tue to Thu only' ? 'Tuesdays to Thursdays' : 'Wednesdays'}` : '';
+        // The days in the cards' own words (trains-weekdays.js): typed here as "Tuesdays to Thursdays",
+        // with a 'Wednesdays' for any code it did not know (words review, Nov 2026).
+        const on = days ? ` on ${weekdayWords(WEEKDAYS.filter(w => runsOn(t.days, w)))}` : '';
         const o = t.other;
         // A new end that came with a new time keeps the old time too, as the before-change answer
         // does — "it ended at Birmingham Moor Street" of a train that was the 17:07 (v24.89).
@@ -533,7 +565,34 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
         return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(named(r, t.decTo))}:</strong> ${esc(was)}.${esc(stopsWords(n, d))}</p>`;
     }).join('');
     const adj = /** @type {Record<string, string>} */ ({ SX: 'weekday', SO: 'Saturday', SU: 'Sunday' })[day];
-    const noExact = answer ? '' : `<p class="card-explainer tr-lead">No ${adj} train leaves at exactly ${esc(at)}${started ? '' : ' in today’s timetable'}.</p>`;
+    // NO TRAIN AT THAT TIME IN THE RUNNING TIMETABLE — BUT ONE IN THE OTHER (words review, Nov 2026). Before
+    // the change, 09:31 answered "No weekday train leaves at exactly 09:31" under a headline about the new
+    // 09:31 to Stratford-upon-Avon. So the other timetable's train at that time is said next: from the
+    // change, what it will be; after it, the mirror — what the train at that time was, and what became of it.
+    // "In the current timetable", not "today’s": the day chosen above need not be today. "From 13 December",
+    // never "From Sunday 13 December": on the Weekdays tab, a Sunday read as the wrong day.
+    /** Where a train's end moves to, as a clause: ", and ends at Birmingham Moor Street". */
+    const endMove = (/** @type {import('./trains-change.js').PairedTrain} */ t, /** @type {string} */ where) =>
+        t.kind === 'rerouted' ? `, and runs to ${where}`
+        : t.kind === 'terminus' ? `, and ${lineDepth(/** @type {string} */ (t.decTo)) > lineDepth(/** @type {string} */ (t.nowTo)) ? 'goes on to' : 'ends at'} ${where}` : '';
+    const otherSide = answer ? [] : pairs.filter(({ t }) => started
+        ? t.now === at && (t.kind !== 'rerouted' || t.side === 'old')
+        : t.dec === at && (t.kind !== 'rerouted' || t.side === 'new')).map(({ r, t }) => {
+        const days = daysLabel(t.days) ? ` (${daysLabel(t.days)})` : '';
+        const o = t.other;
+        if (!started) {
+            if (t.kind === 'new' || !t.now) return `From ${from} the ${at} is a new train to ${named(r, t.decTo)}.`;
+            // A rerouted train's old self is on another route: named from it, not from this one.
+            const was = t.kind === 'rerouted' && o ? `${o.time} to ${routeName(stations, o.station, o.via)}` : `${t.now} to ${named(r, t.nowTo)}`;
+            return `From ${from} the ${was}${days} leaves at ${at} instead${endMove(t, named(r, t.decTo))}.`;
+        }
+        const was = `The ${at} to ${named(r, t.nowTo)}${days} ran until ${until}`;
+        if (t.kind === 'gone' || !t.dec) return `${was}, and no longer runs.`;
+        const to = t.kind === 'rerouted' && o ? routeName(stations, o.station, o.via) : named(r, t.decTo);
+        return `${was}. From ${from} it leaves at ${t.dec} instead${endMove(t, to)}.`;
+    });
+    const noExact = answer ? '' : `<p class="card-explainer tr-lead">No ${adj} train leaves at exactly ${esc(at)}${started ? '' : ' in the current timetable'}.`
+        + `${otherSide.map(w => ` ${esc(w)}`).join('')}</p>`;
     const where = (/** @type {string} */ st, /** @type {string} */ via) => {
         // A train that runs on past its line's station is named by the line, then where it goes on to —
         // "Birmingham Moor Street, on to Stourbridge": "Stourbridge Junction" alone reads as a train
@@ -563,18 +622,25 @@ export function renderLookup({ at, day, nowRows, decRows, started, ended = false
                 + `${mark ? '<span class="sr-only"> — only in this timetable</span>' : ''}</li>`; }).join('')}</ul>`
         : '<p class="card-explainer tr-lead">No trains.</p>';
     const within = `${esc(DAY_NAMES[day])}, leaving within ${NEAR_WINDOW_MIN} minutes of ${esc(at)}`;
-    const lc = (/** @type {string} */ s) => s.charAt(0).toLowerCase() + s.slice(1);
     const endedNote = ended ? ENDED_NOTE : '';
     if (same) {
+        // "In both timetables": the two labels lower-cased read "the same trains until 12 dec and from 13 dec"
+        // (words review, Nov 2026).
         return endedNote + answer + noExact
-            + (near.now.length ? `<p class="card-explainer tr-lead">${within} — <strong>the same trains</strong> ${esc(lc(labels.old))} and ${esc(lc(labels.new))}:</p>`
+            + (near.now.length ? `<p class="card-explainer tr-lead">${within} — <strong>the same trains</strong> in both timetables:</p>`
                 : `<p class="card-explainer tr-lead">${within}:</p>`)
             + `<div class="tr-near-cols tr-near-cols--one"><div>${list(near.now)}</div></div>`;
     }
+    // The bar is said in words beneath the lists, not only to a screen reader: drawn alone, a navy edge and
+    // bold type meant nothing to a colleague who had not read the `?` panel (words review, Nov 2026).
+    const onlyNow = onlyIn(near.now, near.dec), onlyDec = onlyIn(near.dec, near.now);
+    const barNote = onlyNow.size || onlyDec.size
+        ? '<p class="card-explainer tr-note">A bar at the left marks a train in only one of the two lists: a new train, one that stops running, or one whose time or destination is different.</p>'
+        : '';
     return endedNote + answer + noExact
         + `<p class="card-explainer tr-lead">${within}:</p>`
-        + `<div class="tr-near-cols"><div><h3 class="tr-near-head">${esc(labels.old)}</h3>${list(near.now, onlyIn(near.now, near.dec))}</div>`
-        + `<div><h3 class="tr-near-head">${esc(labels.new)}</h3>${list(near.dec, onlyIn(near.dec, near.now))}</div></div>`;
+        + `<div class="tr-near-cols"><div><h3 class="tr-near-head">${esc(labels.old)}</h3>${list(near.now, onlyNow)}</div>`
+        + `<div><h3 class="tr-near-head">${esc(labels.new)}</h3>${list(near.dec, onlyDec)}</div></div>` + barNote;
 }
 
 /**
@@ -596,7 +662,9 @@ export function renderLastTrains(rows, { stations, labels, bands = [], started =
         : r.kind === 'later' || r.kind === 'earlier' ? `<span class="tr-chip tr-chip--moved">${mins(/** @type {number} */ (r.shift))} ${r.kind}</span>` : '';
     const bandOf = (/** @type {string} */ crs) => bands.findIndex(b => b.stations.includes(crs));
     const banded = new Set(rows.map(r => bandOf(r.crs)).filter(i => i >= 0)).size > 1;
-    const dash = '<span class="tr-none">—</span>';
+    // An empty cell is a dash to the eye and "none" to a screen reader, as on a station card: a bare "—"
+    // was read aloud as "dash", or not at all (words review, Nov 2026).
+    const dash = none;
     let lastBand = -1;
     const body = rows.map((r) => {
         const band = bandOf(r.crs);
@@ -606,5 +674,7 @@ export function renderLastTrains(rows, { stations, labels, bands = [], started =
         return `${head}<tr><th scope="row">${esc(stations[r.crs] ?? r.crs)}</th><td>${r.now ? esc(r.now) : dash}</td><td>${dec}</td><td>${what(r)}</td></tr>`;
     }).join('');
     return `<table class="tr-last"><thead><tr><th scope="col">Station</th><th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th>`
-        + `<th scope="col"><span class="sr-only">${started ? 'What changed' : 'What changes'}</span></th></tr></thead><tbody>${body}</tbody></table>`;
+        // The chips' column is headed on screen as Train by train's is (words review, Nov 2026): unheaded, a
+        // "4 mins later" chip did not say WHICH last train moved, the old one or the new.
+        + `<th scope="col">${started ? 'What changed' : 'What changes'}</th></tr></thead><tbody>${body}</tbody></table>`;
 }

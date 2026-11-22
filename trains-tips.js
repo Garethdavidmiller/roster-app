@@ -68,7 +68,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📄', html: `First column: Chiltern’s public timetables, valid until ${dateWords(CHANGE_DATE, -1, { weekday: true })}.` },
                     { icon: '📄', html: `From ${dateWords(CHANGE_DATE)}: Chiltern’s new public timetables, valid until ${dateWords(DEC_VALID_UNTIL, 0, { weekday: true })} ${DEC_VALID_UNTIL.slice(0, 4)}.` },
-                    { icon: '🍂', html: `The first column’s Amersham-line times are Chiltern’s <strong>leaf-fall</strong> ones: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.`, until: LEAF_FALL.until },
+                    { icon: '🍂', html: `The first column’s Amersham-line times are Chiltern’s <strong>leaf-fall</strong> ones — its autumn timetable: fallen leaves make the rails slippery, so trains are given more time. Until ${dateWords(LEAF_FALL.until)}, trains to London via Amersham leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so a small difference coming back via Amersham may be leaf fall, not a real change.`, until: LEAF_FALL.until },
                 ],
             },
         ],
@@ -113,9 +113,9 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '⌨️', html: 'Start typing a station, or choose one of the busiest. Short forms work too: <strong>Moor St</strong>, <strong>Gerrards X</strong>, <strong>Oxford Pkwy</strong>, <strong>Bham</strong>, <strong>Gt Missenden</strong>, or the three-letter code. Press Enter to open the first match. The card answers in one sentence first, then the figures, the old timetable beside the new.' },
-                    { icon: '🔢', html: `<strong>Daytime</strong> means ${DAYTIME}. <strong>2 (1 in some hours)</strong> trains an hour means most daytime hours have two trains, and some have only one; <strong>1 to 3</strong> means no one number is true of most hours.` },
+                    { icon: '🔢', html: `<strong>Daytime</strong> means ${DAYTIME}. <strong>2 (1 in some hours)</strong> trains an hour means most daytime hours have two trains, and some have only one; <strong>1 to 3</strong> means no one number is true of most hours. <strong>Varies</strong> means daytime trains run, but not at the same minutes every hour.` },
                     { icon: '🕐', html: '<strong>Going there</strong>, every time is when the train leaves <strong>Marylebone</strong>. <strong>Coming back</strong>, it is when the train leaves the station on the card, with the time it gets into Marylebone underneath.' },
-                    { icon: '🔁', html: `<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one step further. A train counts as the same train when it leaves within ${MAX_SHIFT_MIN} minutes of its old time. Beyond that it shows as removed, and the new one as a new train.` },
+                    { icon: '🔁', html: `<strong>Train by train</strong> lists only the trains that change; the button beneath it shows the ones that stay the same. A train counts as the same train when it leaves within ${MAX_SHIFT_MIN} minutes of its old time. Beyond that the old one shows as <strong>Will stop running</strong> — from ${dateWords(CHANGE_DATE)}, <strong>No longer runs</strong> — and the new one as <strong>New train</strong>.` },
                     { icon: '🚏', html: `<strong>Will no longer stop here</strong> is a train in both timetables that passes this station in the new one; <strong>Will stop here</strong> is one in both that calls here only in the new one. From ${dateWords(CHANGE_DATE)} they read <strong>No longer stops here</strong> and <strong>Now stops here</strong>. A train that no longer comes this far in the new timetable says where it ends instead — or, coming back, where it starts.` },
                 ],
             },
@@ -134,10 +134,11 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '🔂', html: `Between ${DAYTIME} most hours repeat the same trains. Each column is one of them: <strong>:06</strong> at the top means it leaves Marylebone at 10:06, 11:06, 12:06 and so on.` },
+                    { icon: '🔂', html: `From ${DAYTIME}, most hours repeat the same trains. Each column is one of them: <strong>:06</strong> at the top means it leaves Marylebone at 10:06, 11:06, 12:06 and so on.` },
                     { icon: '⚫', html: 'A dot means that train stops at that station every hour; a <strong>half dot</strong> means only in some hours. <strong>4 of 6 hours</strong> under a time means it does not run every hour.' },
                     { icon: '👆', html: 'Choose a time at the top to show only the stations that train stops at. Choose it again, or <strong>Show every station</strong>, for the whole picture. The rows are in two groups, the main line and the Aylesbury line via Amersham, as Chiltern’s two timetable books divide them.' },
-                    { icon: '🧠', html: 'It is the one thing worth learning by heart: know it and you can answer most daytime questions without looking anything up.' },
+                    { icon: '🔀', html: `<strong>Now</strong> and <strong>From ${dateWords(CHANGE_DATE, 0, { short: true })}</strong>, above the grid, switch it between the two timetables. From ${dateWords(CHANGE_DATE)}, <strong>Now</strong> reads <strong>Until ${dateWords(CHANGE_DATE, -1, { short: true })}</strong>.` },
+                    { icon: '🧠', html: 'This grid is the one thing worth learning by heart: know it and you can answer most daytime questions without looking anything up.' },
                 ],
             },
             {
@@ -155,8 +156,8 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '⌨️', html: 'Type a time the way you would say it: <strong>17:15</strong>, <strong>1715</strong>, <strong>5.15pm</strong> or <strong>515pm</strong> all work. Without am or pm, <strong>515</strong> means 05:15.' },
-                    { icon: '💬', html: `If a train leaves at exactly that time on the day chosen above, the answer says what happens to it from ${dateWords(CHANGE_DATE)} — and, once the new timetable has started, what it used to be.` },
-                    { icon: '↔️', html: `Underneath, every train leaving Marylebone within ${NEAR_WINDOW_MIN} minutes either side, in both timetables, for the day chosen above.` },
+                    { icon: '💬', html: `If a train leaves at exactly that time on the day chosen above, the answer says what happens to it from ${dateWords(CHANGE_DATE)} — and, once the new timetable has started, what it used to be. If no train leaves then but one does in the other timetable, it says what that train is.` },
+                    { icon: '↔️', html: `Underneath, every train leaving Marylebone within ${NEAR_WINDOW_MIN} minutes either side, in both timetables, for the day chosen above. Where the two lists differ, a <strong>bar at the left</strong> marks a train in only one of them: a new train, one that stops running, or one whose time or destination is different.` },
                 ],
             },
         ],

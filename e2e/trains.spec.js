@@ -43,7 +43,7 @@ test.describe('trains', () => {
         await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
         // Chiltern's books say nothing about Christmas, so the page says it cannot answer for it.
         await expect(page.locator('#trFestive')).toBeVisible();
-        await expect(page.locator('#trFestive')).toContainText('Christmas and New Year are not on this page.');
+        await expect(page.locator('#trFestive')).toContainText('Christmas and New Year times are not on this page.');
 
         // What's changing: sentences, biggest first, and a tap opens that station.
         const heads = page.locator('#trChanges .tr-head');
@@ -153,7 +153,7 @@ test.describe('trains', () => {
         await page.locator('#trLookupInput').fill('5.15pm');
         await expect(page.locator('#trLookupResult .tr-answer').first()).toContainText('The 17:15 to Oxford');
         await page.locator('#trLookupInput').fill('1716');
-        await expect(page.locator('#trLookupResult')).toContainText('No weekday train leaves at exactly 17:16 in today’s timetable.');
+        await expect(page.locator('#trLookupResult')).toContainText('No weekday train leaves at exactly 17:16 in the current timetable.');
         await page.locator('#trLookupInput').fill('noon');
         await expect(page.locator('#trLookupResult')).toContainText('Type a time like 17:15');
 
@@ -180,7 +180,7 @@ test.describe('trains', () => {
             await expect(page.locator('#trOverviewBody')).not.toHaveClass(/\bopen\b/);
             await expect(page.locator('#trFestive')).toBeVisible();
             await expect(page.locator('#trFestive')).toBeInViewport();
-            await expect(page.locator('#trFestive')).toContainText('Christmas and New Year are not on this page.');
+            await expect(page.locator('#trFestive')).toContainText('Christmas and New Year times are not on this page.');
             // And the fold still does its job: the first answer is on the first screen.
             const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
             expect(first, 'the first headline is still on the first screen').toBeLessThan(560);
@@ -246,7 +246,7 @@ test.describe('trains', () => {
         await seedSession(page, 'C. Reen');
         await page.goto('/trains.html');
         await expect(page.locator('#trCountdown')).toHaveText('Now running');
-        await expect(page.locator('#trLead')).toContainText('The timetable that ran until Saturday 12 December beside the new one');
+        await expect(page.locator('#trLead')).toContainText('This page compares the timetable that ran until Saturday 12 December with the new one');
         await expect(page.locator('[data-day="SU"]')).toHaveAttribute('aria-pressed', 'true');
         await openLookup(page);
         await page.locator('#trLookupInput').fill('15:38');
@@ -332,7 +332,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trStationTitle')).toHaveText('Amersham');
         await expect(page.locator('#trStation')).not.toContainText('Leaf fall');
         await page.locator('[data-sdir="arr"]').click();
-        await expect(page.locator('#trStation')).toContainText('Leaf fall: until 10 January, trains to London on this line leave up to 3 minutes earlier than usual.');
+        await expect(page.locator('#trStation')).toContainText('Leaf fall: until 10 January, trains to London via Amersham leave up to 3 minutes earlier than usual');
         // The Mondays-and-Fridays 17:37 is the 17:33's twin, 4 minutes earlier — the card once said "No longer runs".
         await page.locator('[data-sdir="dep"]').click();
         await findStation(page, 'snowhill');
@@ -456,8 +456,8 @@ test.describe('trains', () => {
         // Change station starts the search afresh: the busiest chips, not the last search's one match.
         await page.locator('#trStationChange').click();
         await expect(page.locator('#trStationInput')).toHaveValue('');
-        // …under the station just looked at, remembered as "Last time" (v24.94).
-        await expect(page.locator('#trStationPicks .tr-picks-label')).toHaveText(['Last time', 'Busiest stations']);
+        // …under the station just looked at, remembered as "You looked at" (v24.94; "Last time" until the words review).
+        await expect(page.locator('#trStationPicks .tr-picks-label')).toHaveText(['You looked at', 'Busiest stations']);
         // Coming back from Aylesbury, a shift the leaf-fall note explains is quiet text; the tally says how many.
         await page.locator('#trStationPicks .tr-pick', { hasText: 'Aylesbury' }).click();
         await page.locator('[data-sdir="arr"]').click();
@@ -867,7 +867,7 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await page.reload();
         await page.locator('[data-view="stations"]').click();
         await expect(page.locator('#trStationPicker')).toBeVisible();     // before the change the page still opens on the list
-        await expect(page.locator('#trStationPicks .tr-picks-label').first()).toHaveText('Last time');
+        await expect(page.locator('#trStationPicks .tr-picks-label').first()).toHaveText('You looked at');
         await expect(page.locator('#trStationPicks .tr-pick').first()).toHaveText('Beaconsfield');
         expect(await page.locator('#trStationPicks .tr-pick', { hasText: /^Beaconsfield$/ }).count(), 'offered once, not twice').toBe(1);
         // From 11 January the page opens on Stations — on the remembered station, with the picker folded.
@@ -888,7 +888,7 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await page.locator('[data-day="SO"]').click();
         await page.locator('#trLookupInput').fill('1716');
         const result = page.locator('#trLookupResult');
-        await expect(result).toContainText('the same trains now and from 13 Dec');
+        await expect(result).toContainText('the same trains in both timetables');
         await expect(result.locator('.tr-near-cols--one')).toHaveCount(1);
         await expect(result.locator('.tr-near-head')).toHaveCount(0);
         await page.locator('[data-day="SX"]').click();
@@ -1386,12 +1386,12 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         // The countdown names the calendar day, so on the Sunday it says "today" from midnight; this expected
         // "Starts tomorrow", the defect (it read as the Monday). The overview's own words still turn at 03:00.
         await expect(page.locator('#trCountdown')).toHaveText('Starts today');
-        await expect(page.locator('#trLead')).toContainText('Today’s timetable beside the new one');
+        await expect(page.locator('#trLead')).toContainText('This page compares today’s timetable with the new one');
         await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
         await page.clock.setFixedTime(new Date('2026-12-13T03:30:00'));   // the change has come; the tab never slept
         await page.locator('[data-view="grid"]').click();
         await expect(page.locator('#trCountdown')).toHaveText('Starts today');
-        await expect(page.locator('#trLead')).toContainText('The timetable that ran until Saturday 12 December');
+        await expect(page.locator('#trLead')).toContainText('This page compares the timetable that ran until Saturday 12 December');
         await expect(page.locator('#trGridNow'), 'the grid\'s first timetable is named for what it now is').toHaveText('Until 12 Dec');
         await expect(page.locator('[data-day="SU"]'), 'the day turned too: no day tab was pressed').toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trPatternHint')).toContainText('Sundays');
@@ -1410,13 +1410,13 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await page.goto('/trains.html');
         await expect(page.locator('#trCountdown'), 'the calendar day is the day of the change').toHaveText('Starts today');
         await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.locator('#trLead')).toContainText('Today’s timetable beside the new one');
+        await expect(page.locator('#trLead')).toContainText('This page compares today’s timetable with the new one');
         await page.clock.setFixedTime(new Date('2026-12-13T03:30:00'));   // the change has come; nothing pressed, never hidden
         await page.clock.runFor(60_000);
         await expect(page.locator('#trCountdown')).toHaveText('Starts today');
         await expect(page.locator('[data-day="SU"]'), 'the day turned without a press').toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trChangesHint')).toContainText('Sundays');
-        await expect(page.locator('#trLead')).toContainText('The timetable that ran until Saturday 12 December');
+        await expect(page.locator('#trLead')).toContainText('This page compares the timetable that ran until Saturday 12 December');
     });
 
     test('a time typed just after 03:00 is answered for the new day, before the page\'s minute comes round', async ({ page }) => {
@@ -1460,7 +1460,7 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await page.goto('/trains.html');
         const tips = page.locator('.btn-card-tips[data-card="overview"]');
         await tips.click();
-        await expect(page.locator('#tipsLbBody')).toContainText('Christmas and New Year are not on this page.');
+        await expect(page.locator('#tipsLbBody')).toContainText('Christmas and New Year times are not on this page.');
         await expect(page.locator('#tipsLbBody')).toContainText('leaf-fall');
         await page.locator('#tipsLightboxClose').click();
         await expect(page.locator('#tipsLightbox')).toBeHidden();
@@ -1500,5 +1500,68 @@ test.describe('trains — the page turns as a whole, and a station computer is s
         await expect(page.locator('#trControls')).toBeVisible();
         await expect(page.locator('#loginOverlay')).toHaveCount(0);
         expect(errors, errors.join('\n')).toEqual([]);
+    });
+});
+
+// ── THE WORDS REVIEW (Nov 2026): the lookup and the cards through the real page ───────────────────────────────
+test.describe('trains: the words review', () => {
+    // "5.15pm" passes through "5.15p", which is no time: the box put up "Type a time like…" between the
+    // two answers, and the polite live region read it out. The answer stands until the p.m. is finished.
+    test('typing a p.m. keeps the answer on screen until it is finished, and never shows the hint', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, 'G. Miller');
+        await page.clock.setFixedTime(new Date('2026-11-18T09:00:00Z'));
+        await page.goto('/trains.html');
+        await openLookup(page);
+        const input = page.locator('#trLookupInput'), result = page.locator('#trLookupResult');
+        await input.fill('5.15');
+        await expect(result).toContainText('05:15');
+        const held = await result.innerHTML();
+        // Each keystroke of the tail, as the box receives it — one input event with the value it leaves.
+        for (const value of ['5.15p', '5.15', '5.15 ', '5.15 p']) {
+            await input.fill(value);
+            await page.waitForTimeout(400);   // past any debounce: what stands is what the box decided
+            expect(await result.innerHTML(), `"${value}" changed the answer`).toBe(held);
+            await expect(result).not.toContainText('Type a time like');
+        }
+        await input.pressSequentially('m');
+        await expect(result).toContainText('17:15');
+        await expect(result).not.toContainText('Type a time like');
+        // A day pressed while the p.m. is pending answers for that day, not the kept one.
+        await input.fill('5.15p');
+        await page.locator('[data-day="SO"]').click();
+        await expect(result).toContainText('Type a time like');
+        expect(errors, errors.join('\n')).toEqual([]);
+    });
+
+    test('the lookup says what a train at that time is in the other timetable, and what the bar beside a train means', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.clock.setFixedTime(new Date('2026-11-18T09:00:00Z'));
+        await page.goto('/trains.html');
+        await openLookup(page);
+        const result = page.locator('#trLookupResult');
+        await page.locator('#trLookupInput').fill('0931');
+        await expect(result.locator('.tr-lead').first()).toHaveText('No weekday train leaves at exactly 09:31 in the current timetable. From 13 December the 09:31 is a new train to Stratford-upon-Avon.');
+        await expect(result.locator('.tr-near-only').first()).toBeVisible();
+        await expect(result.locator('.tr-note')).toHaveText('A bar at the left marks a train in only one of the two lists: a new train, one that stops running, or one whose time or destination is different.');
+        await page.locator('#trLookupInput').fill('1637');
+        await expect(result.locator('.tr-answer')).toContainText('The 16:37 to Stourbridge Junction: 4 mins later (16:41), will end at Birmingham Moor Street.');
+    });
+
+    test('the overview says what changed ON the day, and a station whose trains all keep their times lists them in one tap', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.clock.setFixedTime(new Date('2026-11-18T09:00:00Z'));
+        await page.goto('/trains.html');
+        await expect(page.locator('#trOverviewHint')).toHaveText('What changes at Marylebone from 13 December');
+        await page.locator('[data-view="stations"]').click();
+        await findStation(page, 'little kimble');
+        await page.locator('#trStationInput').press('Enter');
+        await page.locator('#trStation .tr-route-sum').click();
+        await expect(page.locator('#trStation .tr-route-what')).toContainText('All 4 stay the same');
+        await expect(page.locator('#trStation .tr-trains tbody tr')).toHaveCount(4);
+        await expect(page.locator('#trAllTrains')).toHaveCount(0);
+        await page.clock.setFixedTime(new Date('2026-12-20T09:00:00Z'));
+        await page.reload();
+        await expect(page.locator('#trOverviewHint')).toHaveText('What changed at Marylebone on 13 December');
     });
 });
