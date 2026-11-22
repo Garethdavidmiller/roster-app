@@ -577,12 +577,12 @@ describe('render — a built-in proposal', () => {
         return els;
     };
 
-    test('untouched: its own name, "Shortlisted proposal", a read-only status, Save a copy… enabled', () => {
+    test('untouched: its own name, "Shortlisted proposal", a "Built in" status, Save a copy… enabled', () => {
         const els = open(false);
         assert.equal(els.faceName.textContent, PROPS[0].name);
         assert.equal(els.eyebrow.textContent, 'Shortlisted proposal');
         assert.equal(els.status.className, 'dm-status dm-status--proposal');
-        assert.equal(els.statusLong.textContent, 'Read-only');
+        assert.equal(els.statusLong.textContent, 'Built in — edits save as a copy');
         assert.equal(els.whoName.textContent, 'Shortlisted');
         assert.equal(els.whoRole.textContent, 'LC-26-T10 · 32241e32', 'the ref that matches the printed sheet');
         assert.equal(els.avatar.textContent, '★', 'a mark, not the initials of a person who does not exist');
@@ -609,7 +609,7 @@ describe('render — a built-in proposal', () => {
             ['Shortlisted proposals', 'Last saved by you', 'Last saved by S. Silva']);
         const rows = allRows(els.pickList);
         assert.equal(rows[0].dataset.id, PROPS[0].id);
-        assert.equal(rowMeta(rows[0]), 'LC-26-T10 · 32241e32 · read-only');
+        assert.equal(rowMeta(rows[0]), 'LC-26-T10 · 32241e32 · built in');
         assert.deepEqual(tickedRows(els.pickList).map((/** @type {any} */ r) => r.dataset.id), [PROPS[0].id]);
         assert.ok(!rows.some((/** @type {any} */ r) => rowName(r) === 'Untitled design'));
         assert.equal(els.pickerSub.textContent, '3 shortlisted · 2 saved designs', 'both counts, neither folded into the other');
@@ -626,7 +626,7 @@ describe('render — a built-in proposal', () => {
         h.render({ ...base, dirty: true });
         assert.equal(rowMeta(allRows(els.pickList)[0]), 'Open · edited, not saved');
         h.render({ ...base, dirty: false });   // the edit undone
-        assert.equal(rowMeta(allRows(els.pickList)[0]), 'LC-26-T10 · 32241e32 · read-only');
+        assert.equal(rowMeta(allRows(els.pickList)[0]), 'LC-26-T10 · 32241e32 · built in');
     });
 
     test('a saved design open: the proposals are listed, none of them ticked', () => {
