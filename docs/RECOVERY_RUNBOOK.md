@@ -38,14 +38,14 @@ of a single record — *not* a full database restore. Reach for a full restore l
 | Firebase project ID | `myb-roster` |
 | Region | `europe-west2` (London) |
 | Firestore database | `(default)` |
-| Firestore collections | `overrides`, `huddles`, `circulars`, `newsletters`, `staffContact`, `passwordStatus`, `pushSubscriptions`, `clientErrors`, `analytics`, `linkDesigns`, `linkTargetSets`, `resetRequests`, `viewerAttempts`, `errorLogNotice` (two timestamps; losing it costs nothing, the next check starts afresh), `alUploads` (the annual leave uploader's log, from v26.11; losing it makes the next upload behave like the first, with no memory of leave an earlier Save brought in and the app has since cancelled), `overtimeWindows` (a TREE — `participants`/`submissions`/`revisions` subcollections; an export that takes the parent alone restores an empty week). **The authority is `firestore.rules`** — every top-level `match` is a collection to scope, so check this row against it before scoping a backup from it: a backup scoped from a short list silently omits whole features |
+| Firestore collections | `overrides`, `huddles`, `circulars`, `newsletters`, `staffContact`, `passwordStatus`, `pushSubscriptions`, `clientErrors`, `analytics`, `linkDesigns`, `linkTargetSets`, `resetRequests`, `viewerAttempts` (the retired staff PIN's throttle — purged after the server release), `errorLogNotice` (two timestamps; losing it costs nothing, the next check starts afresh), `alUploads` (the annual leave uploader's log, from v26.11; losing it makes the next upload behave like the first, with no memory of leave an earlier Save brought in and the app has since cancelled), `overtimeWindows` (a TREE — `participants`/`submissions`/`revisions` subcollections; an export that takes the parent alone restores an empty week). **The authority is `firestore.rules`** — every top-level `match` is a collection to scope, so check this row against it before scoping a backup from it: a backup scoped from a short list silently omits whole features |
 | Storage paths | `huddles/…`, `circulars/…`, `newsletters/…` |
 | Cloud Functions (europe-west2) | **Do not keep a second list here.** `functions-surface.test.mjs` pins the whole deploy surface in CI and is the only copy that cannot fall behind — read it. A rollback scoped from a hand-kept list misses whatever the list forgot. While Overtime is paused its five endpoints and daily creator are not exported (`OVERTIME_AVAILABILITY.md` → Paused) |
 | Live site (primary) | `https://myb-roster.web.app` (Firebase Hosting) |
 | Live site (mirror) | `https://garethdavidmiller.github.io/roster-app/` (GitHub Pages, published by `deploy-mirror.yml` after each passing Hosting run) |
 | Deploy mechanism | GitHub Actions via Workload Identity Federation → `github-deploy@myb-roster.iam.gserviceaccount.com`. Workflows: `deploy-functions.yml`, `deploy-hosting.yml`, `deploy-rules.yml`, and `deploy-mirror.yml` (the Pages mirror, since its source was switched to GitHub Actions on 10 November 2026) |
 | Source of truth for a rollback | this git repo — `main` is what deploys |
-| **IAM prerequisite for `unlockCalendarViewer` (and `getDocumentUrl`)** | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials `createCustomToken` cannot sign locally; it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt (the command is §5b below). |
+| **IAM prerequisite for `getDocumentUrl`** (first needed by the retired staff PIN's `unlockCalendarViewer` — keep it after that goes) | The Cloud Run runtime service account — currently `532910998075-compute@developer.gserviceaccount.com` — must hold **`roles/iam.serviceAccountTokenCreator` on itself**, and `iamcredentials.googleapis.com` must be enabled. Under Application Default Credentials the Admin SDK cannot sign locally (`getSignedUrl`, and the PIN exchange's `createCustomToken`); it calls the IAM Credentials API. **Gen-2 does not grant this by default and nothing in the repo can enforce it** — its absence caused the 10 Aug 2026 outage, in which every correct PIN returned 500 while every wrong one returned a healthy 401. Re-apply it if the runtime service account changes, if the function is given its own service account, or if the project is rebuilt (the command is §5b below). |
 
 You need the **Firebase CLI** (`npm i -g firebase-tools`, then `firebase login`) and the
 **gcloud CLI** (`gcloud auth login`, `gcloud config set project myb-roster`) on your own
@@ -153,8 +153,8 @@ gcloud iam service-accounts add-iam-policy-binding \
 ```
 
 That is the runtime service account named in the table at the top — the default Compute account, not
-an `@myb-roster.iam` one — and it is the SAME grant as the `unlockCalendarViewer` IAM prerequisite
-there, so if the PIN works the grant is already in place.
+an `@myb-roster.iam` one — and it is the SAME grant as the IAM prerequisite there, which the retired
+staff PIN's exchange needed first. Keep it when that exchange is deleted.
 
 **Without it the endpoint answers 503 on every call.** That is deliberate and safe: the client
 treats 503 as "use the stored URL", so a missing grant degrades to the OLD behaviour rather than to
@@ -330,7 +330,7 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
    ```
 3. Check function logs to confirm recovery: **Console → Functions → Logs**, or
    `firebase functions:log`.
-4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, `CALENDAR_VIEWER_PIN`) live in
+4. Secrets (`HUDDLE_SECRET`, `ANTHROPIC_API_KEY`, `VAPID_PRIVATE_KEY`, and the retired `CALENDAR_VIEWER_PIN` until it is destroyed) live in
    Firebase Secret Manager — a deploy doesn't wipe them; a broken function is almost always code, not secrets.
 
 ### F. A Firestore / Storage Rules deploy locked people out (or opened access)
@@ -521,132 +521,51 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 
 - `CLAUDE.md` — project identity, deployment health checks, API-key referrer allowlist.
 - `DATA_MODEL.md` — every collection's fields, which is what a hand-restored record must match.
-- `OPERATIONS_REFERENCE.md` — Huddle/roster ingest flow, the Calendar PIN's operation (setting and
-  rotating it), and Security Rules detail.
+- `OPERATIONS_REFERENCE.md` — Huddle/roster ingest flow, the retired staff PIN's last manual steps,
+  and Security Rules detail.
 - `SECURITY_RELEASE_PLAN.md` — WIF deploy identity, claim model, the deferred security work.
 - `KNOWN_LIMITATIONS.md` — "The installed PWA masks live-site breakage" (why you must verify
   in a fresh window).
 
 ---
 
-## The Calendar PIN — deployment order, and breaking glass
+## The staff PIN (retired)
 
-### Deploying it — the order is the whole safety story
+**Retired 23 Nov 2026 (owner).** The Calendar and Trains open only to somebody signed in by name; the
+shared PIN opens nothing in the app. It comes out in three releases — client, server, cleanup —
+recorded in DECISIONS.md → "The staff PIN retired". What staff are told, how somebody without a login
+gets one, and **the manual steps after the server release** (delete the `calendar-viewer` account,
+destroy `CALENDAR_VIEWER_PIN`, purge `viewerAttempts`, consider switching off Anonymous sign-in, KEEP
+the token-creator grant): OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
 
-**The rollout is closed** (rules step 4 on 26 Aug 2026, verified in production on 27 Aug). The steps
-below are kept because they are the template for any change that TIGHTENS a read rule, and because
-code cites them by number. The PIN's own client switch (`CONFIG.CALENDAR_PIN_ACCESS`) has since been
-retired, so none of this is a rollback route any more: **rolling back now means reverting step 4's
-rules push** (or the release), never flipping a client flag.
+**Between the client and the server release the PIN still works at the endpoint.** No screen asks
+for it, but `unlockCalendarViewer` still mints a token the rules accept, so somebody holding the PIN
+can still read the roster by calling it directly. Do not leave long between the two releases. If the
+PIN is known to have got out in that window, ship the server release rather than rotating it.
 
-**Never deploy the rules first.** A client that cannot satisfy a tightened read rule shows every staff
-phone the base roster with a "Couldn't update" chip — a roster that is *wrong*, not obviously broken.
+**The server release tightens a read rule**, so it ships AFTER the client release has soaked, never
+in the same push — the order below. An app that has not updated yet still shows the PIN box; after
+the server release its unlock fails with the card's generic "couldn't unlock" line, and the next load
+of the new app offers the sign-in card. If members lose the roster after the rules deploy, that is
+playbook F: revert the rules push. Nobody needs the PIN back to recover — a member's own password
+never went near it.
 
-**That ordering has to be made by hand, because the three deploy workflows do not provide it.**
-`deploy-functions.yml`, `deploy-hosting.yml` and `deploy-rules.yml` all fire from the same push to
-`main`, in parallel, with no sequencing between them — so a single merge carrying the function, the
-client and the rules performs steps 2, 3 and 4 *simultaneously*, and whether the rules land before
-or after the hosting deploy is a coin toss. Ship it as separate pushes. For the PIN that meant two
-brakes, each released by its own push: the client switch (step 3) and the `allow read;` hold line in
-`firestore.rules` (step 4). The hold line was declared a second time as `OVERRIDES_READ_HELD_OPEN` in
-`firestore.rules.test.mjs`, and `calendar-viewer-parity.test.mjs` fails if the two disagree in either
-direction — which is what stopped the hold outliving the rollout: it could not be forgotten quietly,
-only removed deliberately.
+### Tightening a read rule — the order
 
-1. **Secret — BEFORE the merge, not after.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`.
-   This is not merely "nothing works without it": `firebase deploy --only functions` resolves the
-   `latest` version of every secret bound to a deploying endpoint (`validateSecretVersions` in
-   firebase-tools) and throws if one has no version. `defineSecret` creating the container is not
-   enough — an empty secret still fails. And the check covers the WHOLE deploy, so an unset PIN does
-   not fail just `unlockCalendarViewer`; it fails `ingestHuddle`, `parseRosterPDF` and everything
-   else in the same run. The live functions keep serving their current revision, so nothing breaks
-   for staff, but the push ships no function code and opens a deploy-failure issue. Recoverable —
-   set the secret and run the workflow again on `main` (Actions → Deploy Firebase Functions → Run
-   workflow) — but the cheap move is to set it first.
-2. **Merge, and the function goes live with it** — a dark deploy, with both brakes still on, whose job
-   is to prove the *rest* of the release (session handling, the nav drawer, the calendar bootstrap)
-   against real devices while the feature itself is invisible.
-2b. **Prove the SUCCESS path in production, by hand, BEFORE step 3.** Someone holding the PIN opens
-   the live Calendar in a private window and unlocks it. There is no automated substitute: it is the
-   only way the token mint is exercised against real IAM, real Auth and the real secret — the e2e
-   suite stubs the exchange (rightly — a test must not hold the secret). **A `GET` → 204 (405 before v25.77) and a WRONG
-   PIN → 401 prove nothing**: `getUser`/`createUser`, `setCustomUserClaims` and `createCustomToken`
-   run only for a CORRECT PIN. That is exactly how step 3 failed on 10 Aug 2026 — every correct PIN
-   returned 500 from the token-mint block, and it had to be reverted within hours. If it fails, read
-   the function log: `[unlockCalendarViewer] token mint failed <code> <message>` names the cause. The
-   known candidate is the IAM gap in the project-facts table above.
-3. **Client.** Release the client that can satisfy the new rule — hosting only, no rules change — and
-   **let it soak** while the rule is still permissive, so a stale cached client keeps working.
-4. **Rules.** Remove the `allow read;` hold line and set `OVERRIDES_READ_HELD_OPEN = false` in the
-   same commit; push with nothing else in it. From this moment an old cached client cannot read
-   overrides, and the rollback is step 4's own revert.
+The PIN's rollout (Aug 2026) is where this order was learned, and code still cites its step 4. A
+client that cannot satisfy a tightened read rule shows every staff phone the base roster under a
+"Couldn't update" chip — a roster that is *wrong*, not obviously broken — and the three deploy
+workflows fire in parallel from one push, so the order has to be made by hand, as separate pushes:
 
-   **The go/no-go was taken on 26 Aug 2026** on the pre-flight below: most real loads had moved off
-   the pre-v20.51 client, and page views were broadly level with July.
+1. **Server pieces the client needs** (a function, a secret — set a secret BEFORE the merge: a deploy
+   with an empty bound secret fails the whole Functions deploy).
+2. **Prove the success path in production by hand** where only a real call exercises it (the PIN's
+   first attempt failed on 10 Aug 2026 because a wrong-input 401 had been taken as proof).
+3. **Client** — hosting only — and let it **soak** while the rule is still permissive.
+4. **Rules**, in a push with nothing else in it. Go/no-go: Operations → App Speed → By app version
+   (the share of loads still on an older client) and Operations → Usage page views; the rules
+   workflow green. Postponing costs little.
+5. **Verify** in a fresh private window, then on a phone.
 
-   **What the soak is for:** not proving the PIN works — that was step 2b — but *how many devices are
-   still running a client that cannot satisfy the new rule*, because those are the ones this step
-   breaks for one load. Every day converts more of them, and only opening the app converts one. Count
-   from the version that actually carried the client — a version that released it and was then rolled
-   back does not count (for the PIN that was v20.51, not v20.46).
-
-   **Pre-flight, in this order:**
-   1. **Operations → App Speed → "A closer look" → By app version.** The share of real loads still on
-      a client older than the cutover version. This is the number that decides go/no-go; a trickle is
-      fine. Versions roll up into ranges, so a range that straddles the cutover is mostly converted but
-      not provably so — and the card aggregates the WHOLE MONTH, so it is pessimistic about how stale
-      devices are TODAY.
-   2. **Operations → Usage → page views** against the period before the client shipped. A successful
-      unlock records usage and a failed one records nothing, so a material drop means unlocks are
-      failing. **This is the only soak signal there is** — a locked Calendar has no identity, so a
-      failing PIN exchange never reaches the Error Log. Silence there is not health. Page views are
-      stored per MONTH (`analytics/pv_<YYYY-MM>`) with no daily bucket, so a 7-day window cannot be
-      read; either add a daily bucket first or write the pre-flight against what the cards hold.
-   3. `unlockCalendarViewer` in the Functions log, for outright errors.
-   4. The rules deploy path is green. Do not ship step 4 on top of a red rules workflow.
-
-   **Be free to postpone.** An exposure that has stood for years costs little for another fortnight;
-   getting a roster wrong for somebody on their first shift back costs more.
-5. **Verify in production**, in a fresh private window: PIN → roster → reload → still unlocked →
-   Team View → month navigation → Admin (must demand a member sign-in) → close the browser →
-   PIN again. Then on a phone, and at an office-desktop width. This step is a person and not a job,
-   for the reason step 2b gives.
-
-**The mixed-version window at step 4** is one page load wide: the service worker claims immediately
-on activate and reloads the page, so a device is on the new client by its next open. Within that one
-load an old client shows the base roster plus the sync chip's "Couldn't update — try again". That
-is visible and recoverable, and step 3's soak is what keeps the window to a single load rather than
-a deploy cycle.
-
-### If viewer authentication fails in production
-
-**Restore access through the sign-in card, not through the rules.** A member signing in with their own
-password never touches `unlockCalendarViewer`, so their way in still works. Opening the `overrides` read
-rule (`allow read;`) would restore NOTHING: the Calendar decides access in the browser and draws the PIN
-card for anyone who is not a member or a viewer, whatever the rules say (`decideAccess`,
-`calendar-access-core.js`). It could not ship through the pipeline either — `calendar-viewer-parity.test.mjs`
-fails a bare `allow read;` that nothing declares, and `deploy-rules.yml` runs `npm run check` first.
-
-1. Tell staff to use the sign-in card with their own password. A shared station PC has no way in until
-   the exchange is fixed — say so plainly rather than leaving them to retry.
-2. Diagnose from the Cloud Function logs (`unlockCalendarViewer`). A locked Calendar has no Firebase
-   identity, so **nothing appears in the Operations Error Log** — do not read its silence as health.
-   The usual causes are an unset or un-redeployed secret (`503`, or every PIN rejected) and a
-   claim/uid mismatch between the function and the rules (unlock succeeds, no shifts appear).
-3. Fix (the IAM grant in the project facts table above, the secret, a redeploy — Actions → Deploy
-   Firebase Functions → Run workflow, on `main`), then confirm the PIN from a fresh private window.
-
-Do **not** leave it half-working: a Calendar that renders without its overrides is the one outcome
-worse than a Calendar that will not open.
-
-### If the PIN gets out
-
-Rotation needs no client release — OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN". Set the new
-secret, redeploy (Actions → Deploy Firebase Functions → Run workflow, on `main` — never a
-`firebase deploy` from an old clone), tell staff. Existing unlocked sessions keep working until their
-browsers close; to kill those too, revoke the shared account's refresh tokens
-(`getAuth().revokeRefreshTokens('calendar-viewer')`, from `firebase-admin/auth`) — which takes effect
-at each session's next token refresh, within about an hour, not instantly. Member sessions are untouched either way.
-**Do not DISABLE the `calendar-viewer` account as the kill switch** — the next correct unlock treats a
-disabled account as tampered and rebuilds it from nothing, so a disable lasts only until somebody who
-holds the PIN uses it. Rotate the PIN (and revoke the tokens) instead.
+The mixed-version window at step 4 is one page load wide: the service worker reloads onto the new
+client by the device's next open.

@@ -552,8 +552,8 @@ reading above has to be compared with what follows knowing that.
 - **A load nobody watched records nothing.** The Calendar's release reload runs while the page is
   hidden — that is its design (v22.90) — and it was about one Calendar open in seven in September,
   timed as if a member had opened the page, with the phone slowing or freezing it meanwhile.
-- **Typing is not load time.** The staff PIN unlocks the Calendar without a reload, and every page
-  signs in on the page itself, so `Usable` included reading the card and typing. It is now dropped once the
+- **Typing is not load time.** The staff PIN (retired 23 Nov 2026) unlocked the Calendar without a
+  reload, and every page signs in on the page itself, so `Usable` included reading the card and typing. It is now dropped once the
   page asked somebody to type; a sign-in has its own figure.
 - **The wait after a release is timed as a wait** — from the member coming back to the page until it
   was usable — and **sign-in time ends at Usable**, where it ended whenever the reading ran (on the

@@ -44,7 +44,7 @@ machine removes that class as a foundation.
 - Migrate the roster **data structure**, remove/alter GitHub Pages support, or solve surname passwords
   (Track C in the security plan).
 - Make the Calendar's data private — that came later and separately, through the staff PIN
-  (`AUTH_PLAN.md` → E2).
+  (`AUTH_PLAN.md` → E2), itself retired on 23 Nov 2026 for a named sign-in.
 - Move `PAYSLIP_ACTUALS` — a **separate** privacy task (see its section), not on the auth critical path.
 - Build a general app-wide state store (the machine owns identity only).
 
@@ -81,14 +81,14 @@ states). A page reads the store's snapshot (`getAuthSnapshot()`) when its own se
 
 | Page | Local session | Firebase (read) | Firebase (write) | Role | Anonymous |
 |------|---------------|-----------------|------------------|------|-----------|
-| Calendar | optional | a member or the `calendarViewer` capability (staff PIN) — anonymous reads nothing | n/a | none | session only, grants no read |
+| Calendar | optional | a member — anonymous reads nothing (the staff PIN's `calendarViewer` was retired 23 Nov 2026; the rules drop it in the server release) | n/a | none | session only, grants no read |
 | Admin | required | named | **named + fresh claims** | admin *or* manager (per action) | no |
 | Operations | required | named | **named** | master admin | no |
 | Links | required | named | **named** | designer | no |
 | Settings | required | named (writes) | **named** | owner/admin | no |
 | Pay Calculator | required | best-effort | best-effort | none | **soft** |
 | Overtime | required | named | **named** | admin, manager *or* `overtimeBeta` participant — **paused, closed to everyone** (`OVERTIME_AVAILABILITY.md` → Paused) | no |
-| Trains | required, or the staff PIN | — (no Firestore reads) | — | none | no |
+| Trains | required | — (no Firestore reads) | — | none | no |
 | New link | required | — (no Firestore reads) | — | master admin, a name in `CONFIG.NEWLINK_PREVIEW`, or `newlinkAudience` — a normal CEA contract or a manager (since v25.60) | no |
 | Guides | — | — | — | — | n/a |
 

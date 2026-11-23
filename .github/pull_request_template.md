@@ -24,7 +24,7 @@
 
 ### Error handling
 - [ ] No new silent `catch(() => {})` — use `catch(e => console.warn(...))` for fire-and-forget paths
-- [ ] `initErrorReporter()` called on any new page module — never bare: only once the page holds an identity the rules accept, a member or the Calendar PIN viewer (CLAUDE.md → `initErrorReporter()` call pattern)
+- [ ] `initErrorReporter()` called on any new page module — never bare: only once the page holds an identity the rules accept, a signed-in member (CLAUDE.md → `initErrorReporter()` call pattern)
 
 ### Tests
 - [ ] `npm test` passes

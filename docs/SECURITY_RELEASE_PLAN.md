@@ -32,7 +32,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **C6 — one-time recovery/activation codes** | Proposed, not started | Owner decision | — | Design in `CREDENTIAL_LIFECYCLE.md` §1. Supersedes C4′ as the recovery path: today's reset makes the SURNAME valid again, so the migration's own repair mechanism undoes the migration. C4′ stays live until C6 does — break-glass may not have a gap |
 | **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design in `CREDENTIAL_LIFECYCLE.md` §3. **No prerequisites** — the only item in that programme with none. Server-enforced from the token's `auth_time`, never a client timer |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
-| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session or the staff PIN, and the server refuses anything without a verified member (`isMember()`), `admin`, or `calendarViewer`. RECOVERY_RUNBOOK → "The Calendar PIN" step 4 records the go/no-go | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
+| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session (the staff PIN was retired on 23 Nov 2026 — DECISIONS.md → "The staff PIN retired"), and the server refuses anything without a verified member (`isMember()`), `admin`, or — until the server release — `calendarViewer`. RECOVERY_RUNBOOK → "The staff PIN (retired)" has the read-tightening order | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
 | **E6 — document files** | Short-lived signed links live (`getDocumentUrl`: server v24.16–18, client v24.19); the stored permanent link kept as the fallback (owner, 7 Oct 2026) | — | Owner — revisit on DECISIONS.md's trigger (a leaked link, or `getDocumentUrl` failures making the fallback usual) | ARCHITECTURE.md EXC-007 closes: the links already in circulation no longer open |
 | **Deferred residual** | ✅ **Complete (v24.34, owner-approved).** Both switches retired with every branch that ran only when one was false: `calendar-access.js` no longer calls `signInAnonymously`, and `session.js` no longer self-heals an account or falls back to anonymous. Neither was a working rollback any more — the rules refused every session they restored | — | — | — |
 
@@ -227,16 +227,16 @@ Three design points that flow from this and still govern any future rule change:
   traffic, register every domain + CI/dev debug tokens, then **enforce one product at a time**
   (Firestore → Storage → Functions) (D2). **Never enforce during a rules cutover.**
 - **Note:** App Check gates *which clients* connect, not *what an authenticated client may read* — it
-  never addressed the `overrides` exposure, which closed by other means (reads need a member, the
-  admin or the staff PIN). Per-member write isolation (Track B) was the higher-value work; App Check is
+  never addressed the `overrides` exposure, which closed by other means (reads need a member or the
+  admin; the staff PIN, which also opened them, was retired on 23 Nov 2026). Per-member write isolation (Track B) was the higher-value work; App Check is
   defence-in-depth, correctly sequenced last.
 - **This track is authoritative: App Check is deferred and sequenced, not closed.** KNOWN_LIMITATIONS
   → "Firebase App Check — declined as an immediate action, RETAINED as Track D" defers here; if this
   track is ever genuinely cancelled, close it THERE too rather than leaving two readings.
 - **D-adjacent hardening — analytics doc size (deferred, App Check is the real fix).** The
   `analytics/activeAccounts` and `analytics/perf_<YYYY-MM>` rules validate that `daily`/`months`/
-  `samples` are *maps* but do **not** bound the map-key **count**. So any signed-in member or
-  staff-PIN session (`isKnownIdentity` — an anonymous token is refused here) could pad one of those
+  `samples` are *maps* but do **not** bound the map-key **count**. So any signed-in member (or,
+  until the server release, a retired staff-PIN session — `isKnownIdentity` — an anonymous token is refused here) could pad one of those
   single documents toward Firestore's 1 MB limit; once near the cap, every legitimate `increment()`
   merge fails and only an admin can shrink it back — a self-inflicted **availability** DoS on analytics
   recording (not a data or money risk; non-sensitive aggregate counts). **Why deferred:** it needs an
@@ -255,23 +255,23 @@ Three design points that flow from this and still govern any future rule change:
 > owner decisions). This section stays authoritative for **sequencing and risk**, consistent with how
 > `PASSWORD_DESIGN.md` relates to Track C. Keep each to its half.
 
-> **Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is undecided.**
+> **Status: the read closure is IN FORCE since 26 Aug 2026; the shared staff PIN was RETIRED on 23 Nov
+> 2026, so every reader of the Calendar signs in by name. E3/E4/E5 as designed are still not built.**
 >
-> `overrides` reads require a verified member (`isMember()`), `admin`, or the shared staff-PIN
-> `calendarViewer` capability. The bare `allow read;` that once sat ABOVE that rule — and which,
+> `overrides` reads require a verified member (`isMember()`) or `admin` — and, until the server release
+> deletes it, the retired staff PIN's `calendarViewer` capability (DECISIONS.md → "The staff PIN
+> retired"). The bare `allow read;` that once sat ABOVE that rule — and which,
 > because Firestore ORs every matching allow rule, kept override data public — was deleted in its own
-> push after the client had soaked; RECOVERY_RUNBOOK.md → "The Calendar PIN" step 4 records the
-> go/no-go. **The external review's "public absence/AL data" finding is closed.** The `huddles` /
+> push after the client had soaked; RECOVERY_RUNBOOK.md → "The staff PIN (retired)" keeps the order
+> it followed. **The external review's "public absence/AL data" finding is closed.** The `huddles` /
 > `circulars` / `newsletters` reads closed too (owner decision, 7 Sep 2026: the documents are not
-> visible without the PIN or a password). What stays open is the FILES half, the permanent bearer URLs
+> visible without a sign-in — or, until 23 Nov 2026, the PIN). What stays open is the FILES half, the permanent bearer URLs
 > (E6 below; `ARCHITECTURE.md` EXC-007).
 >
-> What is separately a *considered option, not a committed plan* is putting the whole app behind an
-> INDIVIDUAL login — the PIN is one code for the whole station. The most likely trigger remains
-> **external**: if the app becomes (or is being assessed as) official Chiltern infrastructure,
-> **Chiltern IT may require** each person to authenticate rather than a station to share a code. Until
-> such a requirement lands (or the owner independently decides), the staff-PIN design stands and
-> E3/E4/E5 are dormant. `AUTH_PLAN.md` → E2 records how a server-validated shared credential answered
+> The owner decided independently (23 Nov 2026) that each person authenticates: the PIN is retired,
+> and somebody with no roster of their own gets an Other Staff login. That reached E3's front door by
+> removing the shared code; E3's soft posture, E4's offline grace and E5's named-only rules for the
+> whole app remain dormant (`AUTH_PLAN.md` → E3). `AUTH_PLAN.md` → E2 records how a server-validated shared credential answered
 > the decision gate in a way the phase list did not contain, and what it deliberately leaves open.
 
 **Two different bars, wildly different costs:**
@@ -283,8 +283,8 @@ Three design points that flow from this and still govern any future rule change:
 
 **Be honest about what each buys.** The project config is in the client JS, so a *determined* scraper
 can create an anonymous session — Level 1 raises the bar from "trivially public" to "must initiate a
-Firebase anonymous session against our project", not to "must be staff". The PIN and Level 2 are the
-real gates. The exposure being closed is **outsider-with-URL**, not colleague-to-colleague (the member
+Firebase anonymous session against our project", not to "must be staff". The PIN (retired 23 Nov 2026)
+and Level 2 are the real gates. The exposure being closed is **outsider-with-URL**, not colleague-to-colleague (the member
 selector already lets any staff member view any colleague's roster/AL by design — Track E does not
 change that).
 
@@ -311,7 +311,8 @@ REST). Staged:
   session", with the Anonymous provider left enabled — so the barrier was one `signInAnonymously()`
   call, which is no barrier to anyone willing to script it. The staff PIN replaced it: `overrides`
   reads require a verified member (`isMember()`) **or** the `calendarViewer` capability, and anonymous
-  is denied outright. That clears the **E5** bar for the read without paying E3's front-door cost. Full
+  is denied outright. That clears the **E5** bar for the read without paying E3's front-door cost. The
+  PIN itself was retired on 23 Nov 2026: a named sign-in is the only way in now. Full
   argument: `AUTH_PLAN.md` → E2. The **three document collections**, the one piece left over from E2,
   were closed under E6 (the reads require access; the files' bearer URLs are E6's remaining half).
 - **E3: require named on the calendar, SOFT posture.** Flip `PAGE_POLICIES.calendar` to require named,
@@ -348,7 +349,7 @@ consequences hang off requiring an individual sign-in there:
 2. **Notification deep-links.** A push tap opens `#huddle`; on a lapsed session it would land on a
    login screen. The deep link must survive the login flow.
 3. **First-run onboarding.** First contact becomes "sign in" for everyone, including the shared
-   station PC, which today uses the PIN.
+   station PC — which is where the app has stood since the PIN was retired (23 Nov 2026).
 4. **The document viewers** couple to the login working on every path.
 
 **Rollout discipline:** migrate, don't cut over — **E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5**.
@@ -356,13 +357,14 @@ Never make the calendar's front door and named-only read rules a single flip. `a
 pins this exact sequence in both documents and rejects superseded shorthand for the phases. Reuse the
 staged posture the B-track proved. Verify only from a **fresh private window**. **Starting E3
 consciously REVERSES a recorded decision** — `CREDENTIAL_LIFECYCLE.md` §4, keep both kinds of Calendar
-access — so record the reversal rather than making it silently.
+access — so record the reversal rather than making it silently. Retiring the PIN (23 Nov 2026) was
+that reversal, recorded there.
 
 **Owner questions — answer BEFORE writing any E code:**
 
-1. **What bar are we defending?** Casual (indexing / shared URL) → **E0 + the staff PIN** is the
-   stopping point, and both have shipped. A motivated outsider willing to script an anonymous sign-in
-   is already refused by the PIN rule; *individual* identity — each person authenticates — needs
+1. **What bar are we defending?** Casual (indexing / shared URL) → **E0 + the staff PIN** was the
+   stopping point, and both shipped; the PIN has since been retired for a named sign-in (23 Nov 2026). A motivated outsider willing to script an anonymous sign-in
+   is already refused by the read rule; *individual* identity — each person authenticates — needs
    **E3/E4/E5** and the front-door cost that comes with them. *This single answer decides whether the
    rest of Track E is needed at all.*
    **Not E1.** E1 is behaviour-preserving CLIENT preparation — it changes no rule and does not stop a
@@ -446,7 +448,7 @@ the live authority; this is the reasoning behind its hard/soft split:
 | settings | Yes — `staffContact` (needs a verified member, `isMember()`) | **Hard** — in-place login overlay, block writes |
 | links | Yes — `linkDesigns` | **Hard** — in-place login overlay |
 | overtime | Yes — the member's own availability, through the Overtime endpoints | **Hard** — in-place login overlay. While paused the page shows a paused note to everyone, signed in or not (`OVERTIME_AVAILABILITY.md` → Paused) |
-| trains, newlink | **No** — they read nothing from the server | **Hard** — in-place login overlay (Trains also admits the staff PIN, AUTH_AND_SESSIONS 24) |
+| trains, newlink | **No** — they read nothing from the server | **Hard** — in-place login overlay |
 | paycalc | **No** — only `clientErrors`/`analytics` (non-isolated) | **Soft** — log only; the calculator is localStorage-based and must keep working |
 
 Every protected page shows the **shared in-place login overlay** (`login-overlay.js`) rather than

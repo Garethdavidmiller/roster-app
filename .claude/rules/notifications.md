@@ -52,7 +52,7 @@ change, and reliably on Android and iOS (emoji render inline). The icon is alway
 | Password was reset | 🔑 | Settings "Password" card | `password-reset` | event |
 | Timetable change (one-off) | 🚆 | Trains nav pill / page badge | `timetable` | event |
 | New Error Log entries (admin only) | 🐛 | Operations "Needs attention" strip → Error Log | `error-log` | event |
-| Staff PIN blocked station-wide (admin only) | 🔢 | Operations "Needs attention" strip → Staff Login Accounts | `pin-lockout` | event |
+| Staff PIN blocked station-wide (admin only; the retired PIN's — deleted in the server release) | 🔢 | Operations "Needs attention" strip → Staff Login Accounts | `pin-lockout` | event |
 
 A new notifying feature: the checklist at the end.
 
@@ -103,7 +103,8 @@ to CEA and CES members only, the grades the Pay Calculator prices (owner, 10 Nov
   message, because a push renders on a lock screen. Checked every fifteen minutes, sent at most once
   an hour (`sendErrorLogNotification`, documents.js); the rules are `functions/error-log-notice.js`,
   the sender and its record `functions/error-log-notify.js`.
-- **The staff-PIN lockout notice goes to the admin's devices only** (owner, Nov 2026), by the Error
+- **The staff-PIN lockout notice goes to the admin's devices only** (owner, Nov 2026; the PIN was
+  retired on 23 Nov 2026 and this notice, its sender and its tag are deleted in the server release), by the Error
   Log's rule — `enabledAdminUids` (`functions/admin-recipients.js`, shared with the reset request and
   the Error Log notice). Sent when a wrong PIN trips the station-wide block, at most once a day. A
   count and a time only — never the PIN, never an address. The rules are
@@ -133,7 +134,7 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
 **The `owner` must never outlive the member's hold on the device:**
 
 - **Sign-out.** The drawer's Sign out — once the page has committed to it (a `beforeSignOut` cancel
-  keeps the record) — and the Calendar member card's "Sign out and use the staff PIN" hand-over call
+  keeps the record) — calls
   `releaseDevicePush` (`notif.js`), which deletes this device's record, so a targeted notice never
   follows a member onto a shared device they have left. `getNotifState` re-saves it, and runs on a
   signed-in CALENDAR load and once each time SETTINGS opens signed in (`notif-card.js`, owner, 22 Nov
@@ -146,7 +147,8 @@ addressed-to-one-person notification uses `sendTargetedPush` and keeps that shap
   is lost mid-visit (`relogin`, `page-session.js`), a failed typed sign-in that clears ANOTHER member's
   held session (`login-overlay.js`) — releases the record before the session is cleared, through
   `releasePushForEndingHold` (`session.js`, which says why: on a station PC left on the staff PIN, no
-  next member ever comes to take it over). **Never for the staff PIN**: the viewer owns no record, and
+  next member ever comes to take it over). **Never for a staff-PIN session** (the PIN is retired; a leftover session is signed out until the
+  cleanup release): the viewer owns no record, and
   releasing as it dropped the browser's own subscription, so a member who had used the PIN on their
   own phone found notifications off.
 - **A leaver.** `fanOutPush` consults no owner, so the confirmed leaver sweep in `setupRosterAuth`
@@ -274,7 +276,8 @@ round.
   "all 50 staff" test); the next change moves the one constant, `TIMETABLE_CHANGE`.
 - Overtime → `overtime.html` (both the asked notice and the deadline reminder).
 - Staff PIN blocked → `operations.html#login-accounts` (opens Staff Login Accounts, where the lockout's
-  line is, through `DEEP_LINK_CARDS` — the card the strip's item opens too).
+  line is, through `DEEP_LINK_CARDS` — the card the strip's item opens too). Deleted in the server
+  release with the retired PIN's endpoint.
 - Error Log → `operations.html#error-log` (opens and scrolls to the Error Log card, through the same
   `DEEP_LINK_CARDS`). A tap while Operations is ALREADY open re-reads the log — `operations-errors.js`,
   from the hash the event carried, because the page strips the hash in the same event.

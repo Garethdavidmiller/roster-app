@@ -47,7 +47,7 @@ all read. The field reference is here, beside the data.
   hidden: false,           // Optional — hides from dropdown
   managerOnly: false,      // Optional — login-only manager/clerk account (Management group); hidden from the calendar member selector, has no roster of its own
   otherStaff: false,       // Optional — an "Other Staff" login (owner, 23 Nov 2026): no roster, no manager or admin
-                           // rights; sees what the staff PIN shows plus their own Settings. Always with
+                           // rights; sees the roster (the retired staff PIN's view) plus their own Settings. Always with
                            // role: 'Other Staff' and hidden: true, never on a CONFIG role list (validateTeamMembers).
                            // Picked by its flag, like managerOnly (getMembersForGrade, signInMembers); a leaver's row is REMOVED.
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
@@ -75,7 +75,7 @@ in Admin's Absence card (`admin-sick.js` takes a range of up to a year, so a lon
 recorded again before the first range runs out) — never as a `rosterChanges` entry, a `hidden` flag,
 a later `startDate` or an edit to a pattern. Three reasons. This table is world-readable, so a pattern
 changed because of an absence tells anyone on the internet, while Absent days stay behind a sign-in
-or the staff PIN and never carry a reason (CLAUDE.md → the absence emoji). A pattern edit shows those
+and never carry a reason (CLAUDE.md → the absence emoji). A pattern edit shows those
 days as something else — rest days, or a line that is not theirs — so the Calendar and Team Week no
 longer show an absence at all. And a `rosterChanges` entry is never deleted (above), so the absence
 would stay published, in the file and its history, after the person is back.

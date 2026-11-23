@@ -157,8 +157,10 @@ bar, and it should be taken with the E3 measurement criteria **pre-registered** 
 requires the thresholds to be written down before telemetry starts, precisely so they cannot be
 chosen after seeing the numbers.
 
-This gates more than itself: **C5 cannot complete without it**, because a member who only ever opens
-the roster with the staff PIN never signs in and is therefore never compelled to set a password.
+This gated more than itself: **C5 could not complete without it**, because a member who only ever
+opened the roster with the staff PIN never signed in and was never compelled to set a password. The
+PIN was retired on 23 Nov 2026, so every reader now signs in; what that does to C5's gate is part of
+the open decision in `CREDENTIAL_LIFECYCLE.md` §7.
 
 ### Calendar start — how often we deploy (OWNER DECISION, not a code change)
 **Status:** Blocked on an owner decision — an external review's recommendation, not yet adopted · **Owner:** Gareth · **Would change:** release cadence, nothing in the tree
@@ -219,8 +221,8 @@ month ahead, because "must be done by March" reliably becomes "started in March"
 **Status:** Idea (each part) · **Owner:** Gareth · **Trigger:** each part names its own, below ·
 **Blocker:** the open questions at the end · **Review:** before 13 Dec 2026, and again in January
 
-`trains.html` is every member's (owner, 20 Oct 2026; DECISIONS.md), and the station PIN reads it
-too: station-first, with ranked changes in a colleague's words, a card per station, the basic hour
+`trains.html` is every member's (owner, 20 Oct 2026; DECISIONS.md), an Other Staff login's included:
+station-first, with ranked changes in a colleague's words, a card per station, the basic hour
 as a stopping-pattern grid, and both timetables from Chiltern's published books, every stop
 included. The ideas below were proposed with the preview (7 Oct 2026) and deliberately not built
 yet; those since built are in ROADMAP_HISTORY.md → "Trains page — preview items shipped". They are
@@ -253,8 +255,7 @@ chooses (the trigger, the page opening to staff, was met on 20 Oct 2026).
   to the top (from about 20:00) with a countdown to each last train, the after-midnight ones labelled "tonight, just after midnight".
 - **Your shift** — for a signed-in member the Calendar already knows today's shift, so: "You're on
   15:45–23:55. Busiest spell 17:00–18:59. Last trains you'll see: …". No other tool can say this.
-  It needs a sign-in: it is a member's own roster, and the station PIN is nobody (DECISIONS.md;
-  AUTH_AND_SESSIONS.md invariant 24).
+  It needs a member with a roster of their own — an Other Staff login has none.
 - **Busy times strip** — a 24-hour bar shaded by trains per hour with a "now" marker, reusing the
   departure curve the Links work already holds (`links-demand.js`).
 - **Platform view for the next hour** — which train sits where, and which are joined. Needs the

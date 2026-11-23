@@ -43,9 +43,9 @@ paths:
   6 in `guide-index-parity.test.mjs`). The staleness contract cannot see this: the index is TRUE of
   the page.
 - **A guide that lists something the app keeps in one place is held to it.**
-  `guide-app-parity.test.mjs` reads the app's own lists (the PIN's pages in `auth-policy.js`, the menu
-  in `nav-destinations.js`, the Admin type buttons in `admin-shift-types.js`) and fails on the guide line that
-  disagrees, in both directions; the Calendar sign-in card's PIN hint is held to the same list. A new
+  `guide-app-parity.test.mjs` reads the app's own lists (the menu in `nav-destinations.js`, the Admin
+  type buttons in `admin-shift-types.js`) and fails on the guide line that disagrees, in both directions.
+  (Its staff PIN check went with the PIN, 23 Nov 2026.) A new
   list a guide restates gets a check there, not a reminder.
 - **Draw an app control as the app draws it.** A reader matches the page to the screen by sight, so
   a depicted control wears the real one's colours AND shape: the Staff Guide's five Calendar buttons

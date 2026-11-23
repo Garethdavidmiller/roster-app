@@ -158,8 +158,7 @@ shown that yet.
   Calendar asks once a load as its documents open, and every page reads the date this device keeps.
   It said "once a day" when proposed; it asks on every Calendar load instead, one small read, so an
   upload brings the button back the next time anyone opens the app. What moves with it, and is held
-  to the number by `guide-app-parity.test.mjs`: the Calendar's staff PIN line (names the Newsletter
-  only while the menu does), the Staff Guide's Latest tile and the welcome email ("for six weeks after
+  to the number by `guide-app-parity.test.mjs`: the Staff Guide's Latest tile and the welcome email ("for six weeks after
   each issue"), and the Operations card, whose receipt says whether the issue just uploaded will be
   offered. An upload still notifies staff and the notification still opens it (`#newsletter`),
   whatever its age. To change the window, change `NEWSLETTER_RECENT_DAYS` and the words the test names.
@@ -289,16 +288,15 @@ shown that yet.
   is (KNOWN_LIMITATIONS.md).
 
 - **The Trains page is every member's** (owner, 20 Oct 2026 — "make the trains page live for
-  everyone"; v24.81) **— and the station PIN's** (owner, 22 Oct 2026 — "the station pin staff should be
-  able to view the trains page"; v24.84) · **Trigger to revisit: the page showing anything that is
+  everyone"; v24.81) **— and was the station PIN's** (owner, 22 Oct 2026 — "the station pin staff should be
+  able to view the trains page"; v24.84; **ended 23 Nov 2026 with the PIN** — "The staff PIN retired",
+  below: the station's shared PC now signs in by name) · **Trigger to revisit: the page showing anything that is
   somebody's own — a member's shifts, leave or pay.** It was an admin preview from v24.71 while it was
   shaped. The v24.81 trigger ("staff on the PIN asking for it") is what fired: the people customers ask
   about the timetable are at the station, often on its shared PC. The PIN is admitted because the page
   reads nothing — the timetable is public — so a station that keeps its PIN there can reach nothing it
-  could not already. That is the whole argument, and it stops holding the moment the page shows a
-  member's own data; "Your shift" would need a sign-in. How: `staffPin: true` in `PAGE_POLICIES`, and
-  `holdsStaffPin` asked before the sign-in (AUTH_AND_SESSIONS.md invariant 24). Every other protected
-  page still signs the PIN out on arrival. Narrowing the member side again is one line in
+  could not already. That was the whole argument, and it would have stopped holding the moment the page
+  showed a member's own data. Narrowing the member side again is one line in
   `auth-policy.js` and one flag in `nav-panel.js`, which `page-contract-parity.test.mjs` requires to
   move together.
 
@@ -316,7 +314,9 @@ shown that yet.
   press a button; it stays, so a leaked link is one press from dead. It keeps the fallback: a rotation
   gives each record a NEW permanent link, it does not take the stored link away.
 
-- **The staff PIN session keeps NO server-side time limit** (owner, 7 Oct 2026) · **Trigger: a PIN
+- **The staff PIN session keeps NO server-side time limit** (owner, 7 Oct 2026) — **overtaken 23 Nov
+  2026: the PIN is retired** ("The staff PIN retired", below), and a leftover PIN session is signed out
+  on its next Calendar or Trains load. The record as it stood: · **Trigger: a PIN
   tab found open on a device that should not have it, or a PIN rotation that has to chase sessions.**
   The October 2026 production review proposed an `auth_time` ceiling in `isCalendarViewer`, because
   the PIN session lives in sessionStorage and browsers bring that back on a session restore, so a tab
@@ -1256,7 +1256,9 @@ individually and see what the staff PIN shows, plus their own Settings (owner's 
 Settings", the grade named "Other staff" in the sign-in list, the same 60-day session as everyone, and
 the PIN kept for now). The owner's direction is to **phase the PIN out**; this is the first step, and
 retiring the PIN is a separate change once everybody who uses it has a login of their own, so nobody is
-locked out on the day.
+locked out on the day. **That change was decided the same day** — "The staff PIN retired", below. Also
+the same day, the grade was renamed **"Other Staff"** (capital S) in the sign-in list, the role string,
+Operations' filter and the server's list; this heading keeps the original wording.
 
 **How, and why that way.** The row is a `teamMembers` entry like a manager's (`hidden`, picked by its own
 flag), so the sign-in, the server's account list and Operations all reach it through one function,
@@ -1270,6 +1272,43 @@ Admin by its address could only record leave against a roster they do not have.
 **Not chosen:** a new `viewer` claim with its own rules. It would have made the rules the boundary for
 something no rule needs to stop, at the cost of a rules release, a Functions release and a second claim
 for every write path to reason about.
+
+## The staff PIN retired (owner, 23 Nov 2026)
+
+**Decided:** the shared four-digit staff PIN goes. Everyone signs in under their own name; somebody with
+no roster of their own gets an Other Staff login (the entry above), which gives them the view the PIN
+gave. The PIN was a barrier, not authentication — one code for the whole station, recording nobody,
+and the only remedy for one leaver was rotating it for everyone — and with a per-person route for every
+kind of colleague who used it, it no longer earned its place.
+
+**Three releases, in this order, never one push** (the deploy workflows fire in parallel, and this
+tightens a read rule — RECOVERY_RUNBOOK.md → "Tightening a read rule — the order"):
+
+1. **Client.** No PIN anywhere in the UI; only a named sign-in opens the Calendar and Trains. A device
+   still holding a PIN session is signed out on its next Calendar or Trains load, and its sign-in card
+   says the PIN has been retired. The notice audiences that existed for signed-out readers
+   (`'signed-out'`, `'everyone'`) go with it: every notice is for members. **Kept for now:** the
+   transition code that tears a live PIN session down safely (AUTH_AND_SESSIONS.md 8 — the viewer
+   check, the sign-out before persistence is restored, the viewer branch of `authReady`) and the
+   Operations PIN-lockout card, because the endpoint it reports on is still deployed.
+2. **Server**, once the client has soaked. The rules drop `isCalendarViewer`; `unlockCalendarViewer`,
+   `functions/pin-lockout.js`, the `CALENDAR_VIEWER_PIN` binding, the viewer door in `getDocumentUrl`
+   and the Operations PIN-lockout card are deleted. Then the manual steps — delete the
+   `calendar-viewer` account, destroy the secret, purge `viewerAttempts`, consider switching off
+   Anonymous sign-in, and KEEP the token-creator grant (`getDocumentUrl` needs it):
+   OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
+3. **Cleanup**, once the account is deleted: the transition code goes, because no PIN session can
+   exist any more.
+
+**Between releases 1 and 2 the PIN still works at the endpoint** — a person holding it can read the
+roster by calling it directly — so release 2 should not wait long. Rotating the PIN in that window is
+not worth doing; shipping release 2 is.
+
+**Not chosen:** keeping the PIN on Trains alone (its timetable is public — the reason it was admitted on
+22 Oct 2026). A station PC that signs in by name reaches Trains the same way, and one shared code kept
+for one page is still a shared code to rotate. **Not chosen either:** removing everything in one
+release. A device holding a PIN session when the rules stopped accepting it would show a roster under
+a "Couldn't update" chip, and a cached app would keep offering a PIN box that could not work.
 
 ## The 55-hour row takes a cover week at its worst, as every run does (17 Nov 2026)
 

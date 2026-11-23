@@ -14,9 +14,9 @@ at here, never restated.
 ## Why this file exists
 
 The plumbing is finished and it is good: a 60-day session with a single written expiry, strict
-claim-based write isolation, chosen passwords with a forced migration, an admin reset queue, and a
-staff PIN that keeps roster changes and the documents off the open internet without pretending to be
-individual authentication. None of that needs redesigning.
+claim-based write isolation, chosen passwords with a forced migration, an admin reset queue, and — until the
+owner retired it on 23 Nov 2026 — a staff PIN that kept roster changes and the documents off the open
+internet without pretending to be individual authentication. None of that needs redesigning.
 
 What is left is the **credential lifecycle**, and it was scattered — the reset mechanism in
 `PASSWORD_DESIGN.md` §5, the email half as a deferred row in the status table, passkeys in a survey
@@ -40,7 +40,7 @@ owner decides what is worth doing and when.
 | 1 | **C6 — one-time recovery/activation codes** (§1) | The single biggest remaining weakness. Recovery currently makes the surname valid again, so the migration's own repair mechanism undoes the migration | The C5 decision (§7); new-starter activation without a seeded surname |
 | 2 | **Keep converting personal devices** (§2) | Machinery all exists; it is a campaign, not a build | Moves the migration figure toward whatever C5 ends up needing |
 | 3 | **F — step-up for sensitive admin actions** (§3) | A 60-day admin session is the right trade for ordinary work and the wrong one for account administration | Nothing. Independent, cheap, and the only item here with no prerequisite |
-| 4 | **Keep both kinds of Calendar access** (§4) | Not a change — a decision to record, because "make named sign-in mandatory" keeps suggesting itself | — |
+| 4 | **One kind of Calendar access** (§4) — reversed 23 Nov 2026: the staff PIN is retired | Was "keep both kinds"; the owner chose named sign-in for everybody once an Other Staff login covered everyone the PIN served | The §7 Route 1 metric argument no longer holds (§7) |
 | 5 | **C5 — retire the surname entirely** (§7) | The milestone. Two possible routes, and which one is taken is an **open owner decision** | Removes a whole credential class from the threat model |
 | 6 | **C2 — verified work-email recovery** (§8) | Needs a mail relay that does not exist, and needs #1 first so it is a SECOND route rather than the only one | Admin reset becomes true break-glass |
 | 7 | **Passkeys** (§9) | Excellent fit, blocked on serving from one origin | — |
@@ -79,9 +79,10 @@ in the response and never again.
 member has no working credential; that is the whole situation. It takes a name, a code and a new
 password, and on success sets the credential and revokes existing sessions.
 
-The app has two public unauthenticated endpoints today. `requestPasswordReset` is safe because it is
-*deliberately incapable* of changing anything — it records a request. `unlockCalendarViewer` does mint
-a credential, a read-only one, behind a per-source and a global throttle. This one would set a
+The app has had two public unauthenticated endpoints. `requestPasswordReset` is safe because it is
+*deliberately incapable* of changing anything — it records a request. `unlockCalendarViewer` (the
+retired staff PIN's, deleted in the server release) minted a credential, a read-only one, behind a
+per-source and a global throttle. This one would set a
 password. It deserves the treatment `unlockCalendarViewer` got, and for the same reasons.
 
 ### The code itself
@@ -97,7 +98,8 @@ password. It deserves the treatment `unlockCalendarViewer` got, and for the same
   export in the time it takes to read this paragraph.
 - **Never logged, never returned twice, never in analytics or the error log.** The `CALENDAR_VIEWER_PIN`
   rule, unchanged: a secret that reaches telemetry has been published.
-- **Compared timing-safely** — `functions/calendar-viewer-auth.js` already holds that discipline.
+- **Compared timing-safely** — the retired staff PIN's exchange (`functions/calendar-viewer-auth.js`, deleted
+  in the server release) held that discipline.
 
 ### Storage — `recoveryCodes/{memberName}`
 
@@ -177,12 +179,10 @@ Not a build — everything needed shipped already: the forced overlay at named s
 status table, `neverSignedIn` from `getSignInStats`, and a Settings page that states
 `✓ Password set` or `Using surname` without being opened.
 
-**No notice is needed to invite a PIN user to sign in.** The Calendar's front door is already a
-sign-in card with the staff PIN one tap behind it, so the invitation is the first thing a PIN user
-sees, and a notice repeating it would argue with the screen underneath. The one part the front door
-does not state is the 60-day fact ("Sign in once and you won't need the staff PIN again for 60
-days"), and it belongs on the card if anywhere. For anything else of this shape the audience rule
-(`'signed-out'`, retiring itself the moment the reader signs in) is the mechanism. **Operations states
+**No notice is needed to invite a former PIN user to sign in.** Since the PIN was retired (23 Nov 2026)
+the sign-in card is the only way in, and a device that still held a PIN session is told on that card
+that the PIN has been retired. Somebody with no login asks the admin, who adds one (an Other Staff
+login where they have no roster — OPERATIONS_REFERENCE.md). **Operations states
 the campaign's position as a number** — the Account status summary reads "N/M own password" (per
 grade, beside "N/M work email"), so the size of what is left is visible to the one person chasing it.
 
@@ -218,9 +218,14 @@ established for a stale claim, and it should reuse it rather than grow a second 
 
 ---
 
-## 4 · Keep both kinds of Calendar access
+## 4 · One kind of Calendar access — the staff PIN retired (owner, 23 Nov 2026)
 
-Recorded as a decision because the alternative keeps suggesting itself.
+**This section recorded the decision to keep both kinds of access; the owner reversed it on 23 Nov 2026**
+(DECISIONS.md → "The staff PIN retired"). An Other Staff login gave everyone who used the PIN a way in
+under their own name, so the shared code no longer earned its place. A shared station PC now signs in
+by name like any device — colleagues sign in to Windows individually, so each has their own browser
+storage there (DECISIONS.md → "Shared office PCs are not treated as a shared-browser risk"). The table and argument below are the decision as
+it stood, kept because AUTH_PLAN.md and §7 cite them.
 
 | | Shared station PC | Personal device |
 |---|---|---|
@@ -273,13 +278,16 @@ current plan is unchanged until they make it.**
 C5 is gated on Track E because of a metric argument: a member who only ever opens the roster with
 the staff PIN signs in nowhere, never meets the forced-password overlay (which the Calendar's own
 sign-in has run since v23.21), and therefore never migrates — so the "≥90%
-migrated" figure cannot converge without individual authentication first.
+migrated" figure cannot converge without individual authentication first. **Since the PIN was retired
+(23 Nov 2026) that premise is gone**: every reader signs in and meets the overlay. What that does to
+the gate is part of the open decision below, not settled here.
 
 ### Route 2 — what C6 makes possible
 
 Once one-time codes exist, every remaining un-migrated account's surname password can be replaced
 **server-side with an unknown random credential**. Nobody loses Calendar access, because the staff
-PIN is not a password. Anyone who later wants named access asks for an activation code and chooses
+PIN is not a password. (Written while the PIN existed. With it retired, an account whose surname is
+replaced cannot read the Calendar until it is activated — a cost this route did not have before.) Anyone who later wants named access asks for an activation code and chooses
 a password — which is the ordinary new-starter flow, not a special case.
 
 ### What the two routes actually differ on
@@ -385,8 +393,8 @@ reason they sit last.
 ## The target, in one picture
 
 ```
-Shared PC          staff PIN ──────────────► read the Calendar
-                                             browser close destroys it
+Shared PC          password ───────────────► named member, as on a personal device
+                   (the staff PIN, retired 23 Nov 2026)
 
 Personal device    password or passkey ────► named member, 60-day session
 

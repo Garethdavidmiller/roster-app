@@ -230,8 +230,7 @@ hours are an estimate on the same weighting, and the setting's shape: the header
 
 **The card's words are written for its reader** (owner, 7 Nov 2026): a Dispatcher is told their pay
 is not covered *yet* — never a date; a manager is told who it is for, with nothing promised. Each
-version, and the page's **sign-in card** (login-overlay.js → `about`, including that the staff PIN
-does not open it), is argued in the header of `paycalc-role-card.js`. **The two are one door**: the refusal wears the sign-in card's panel (`.pc-role-card` joins the
+version, and the page's **sign-in card** (login-overlay.js → `about`), is argued in the header of `paycalc-role-card.js`. **The two are one door**: the refusal wears the sign-in card's panel (`.pc-role-card` joins the
 shared do-this-first recipe), its "What it does" box and its "← Back to roster", centred over the page on
 desktop rather than parked in the work columns — `e2e/paycalc.spec.js` pins the width and the centring.
 

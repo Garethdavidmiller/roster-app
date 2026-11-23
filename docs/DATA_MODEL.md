@@ -124,7 +124,7 @@ uploadedAt   Firestore server timestamp — the rules require `== request.time` 
 uploadedBy   Member name string (manual upload) or "power-automate" (Cloud Function ingest)
 htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested; absent for PDFs. At most 250 KB (the rules cap it)
 ```
-Reads: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` capability. The client also refuses the read at source while the Calendar is locked (CALENDAR_DATA.md 15; Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).
+Reads: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or — until the server release removes it — the retired staff PIN's `calendarViewer` claim. The client also refuses the read at source while the Calendar is locked (CALENDAR_DATA.md 15; Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).
 Writes: require auth + admin claim. Cloud Function writes via Admin SDK (bypasses rules).
 Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/huddle-retention.js`, awaited at the end of every `ingestHuddle` run (the daily path). Huddles are higher-volume than circulars/newsletters (which keep 6 months) and rarely referenced after the day, so retention is shorter. Storage delete on `/huddles` requires the admin-delete rule.
 
@@ -135,7 +135,7 @@ workEmail   Work email address (5–200 chars; must be the `@chilternrailways.co
 updatedAt   Firestore server timestamp
 ```
 Read/write restricted: owner can read/write/delete their own doc; admin can read, write and delete any.
-The owner test is a bound member identity (`memberName()` — AUTH_AND_SESSIONS.md invariant 19) — anonymous and PIN sessions cannot write.
+The owner test is a bound member identity (`memberName()` — AUTH_AND_SESSIONS.md invariant 19) — anonymous sessions, and the retired PIN's, cannot write.
 Purpose: account recovery. Self-service recovery by email is not built — `SECURITY_RELEASE_PLAN.md` track C2.
 Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js` (own email) and from `operations-app.js`'s merged **Account status** card (`saveStaffContact`/`deleteStaffContact` for admin set/edit/remove on a member's behalf). `getAllStaffContacts` (reads all docs) is also called from `operations-app.js` (Account status card).
 
@@ -224,11 +224,15 @@ deletable so VAPID-rotation cleanup can't be locked out; orphans left by a uid c
 server-side by `fanOutPush`'s 410/404 cleanup), OR the doc is **already gone** — a no-op, so a second
 sign-out is not read as a refusal that drops the browser subscription. An identity that merely knows a
 doc id cannot delete somebody else's subscription.
-Also deleted: on the drawer's Sign out and the Calendar's hand-over to the PIN (`releaseDevicePush`,
+Also deleted: on the drawer's Sign out (`releaseDevicePush`,
 `notif.js`), and for a confirmed leaver by `setupRosterAuth`'s sweep (`releasePushForOwner`,
 `functions/push.js`). Why each exists: `.claude/rules/notifications.md`.
 
-**viewerAttempts** (the staff Calendar PIN throttle)
+**viewerAttempts** (the RETIRED staff PIN's throttle)
+
+**Retired with the staff PIN (23 Nov 2026).** Written only while `unlockCalendarViewer` is deployed; the
+server release deletes the writer and the collection is then purged by hand — delete this entry then
+(OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
 ```
 <doc id>     the SOURCE KEY, not a person — a privacy-conscious derivation of the request origin,
              or the fixed GLOBAL_SOURCE_KEY for the all-sources bucket. It is never a member name
@@ -243,8 +247,8 @@ blockedUntil set once the limit is REACHED; the block expires on its own, delibe
 `unlockCalendarViewer` via the Admin SDK. **Only FAILURES stay recorded**: every attempt is charged
 before its PIN is compared and a correct PIN is refunded (a refund to zero deletes the row), so the
 collection can say who is guessing and never who is using the app. The rules and the thresholds are
-argued in `functions/calendar-viewer-auth.js`; the operational view is OPERATIONS_REFERENCE.md → the
-Calendar PIN.
+argued in `functions/calendar-viewer-auth.js`; the operational view is OPERATIONS_REFERENCE.md → "The
+staff PIN (retired)".
 One document in it is not a throttle row (Nov 2026): **`_lockout-record`**, the station-wide block told
 to the admin (`functions/pin-lockout.js`) — `blocks` (each block's start, epoch ms, the last day only),
 `blockedUntil` (the latest block's end) and `alertedAt` (the admin's last notice: at most one a day).
@@ -264,7 +268,7 @@ timestamp    Firestore server timestamp (when the error occurred) — the rules 
 resolved     boolean — false on create (the rules require it); set to true by admin to dismiss
 resolvedAt   Firestore server timestamp — set when an admin resolves; retention is measured from this, not from `timestamp`
 ```
-Write: a signed-in member, the admin, or the Calendar PIN viewer (`isKnownIdentity`); shape-validated by Firestore rules.
+Write: a signed-in member or the admin (`isKnownIdentity`, which admits the retired PIN viewer until the server release); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` (built in `analytics-client.js`, re-exported by `firebase-client.js`), called fire-and-forget from `error-reporter.js`.
 Also read by: the admin's Error Log notification (`functions/error-log-notify.js`, v26.04), every fifteen minutes — the entries after its line (`timestamp >`, ordered, at most 101), for COUNTS only; it never copies a name, page or message anywhere. Its record is **errorLogNotice**, below.
@@ -373,7 +377,7 @@ has no `openId`. The Operations Usage card renders them as a separate "Documents
 group under Page popularity.
 
 Uniqueness of "active accounts" is deduped **client-side** (localStorage flags keyed by member name, which never leave the device) so the server only ever receives increments — it stores *how many* accounts were active, never *which*. "Last 30 days" = sum of the `daily` buckets over the rolling window, and **each member-device holds ONE count there, on its latest active day** (`rollingMove`, usage-stats.js, whose header has the reasoning): an open on a new day writes `+1` on today and `-1` on the day the count sat on, in one merged write, so the sum counts everyone active in the window. The window sum and each address row are clamped at zero, because a lost `+1` leaves its `-1` behind until that day leaves the window. Counts are per member-device (multi-device users count more than once) — a usage trend, not an exact headcount. **The EXACT unique count sits beside it** and comes from a different source entirely: the `getSignInStats` Cloud Function reads Firebase Auth's own `lastSignInTime`, so uniqueness is a property of the data rather than something the app has to enforce — and nothing new is stored (no per-account record, no identity returned). It measures **sign-ins, not activity**: sessions last 60 days, so most page opens are session RESTORES. The 30-day sign-in window is therefore SHORTER than a session and no longer bounds active people in either direction — it misses anyone signed in 31–60 days ago who uses the app daily, as well as including anyone who signed in once and stopped. Do not describe it as bounding active people unless its window is derived from `SESSION_MS`. There is no month-over-month history either (only the LAST sign-in is stored). Both figures are shown, each labelled with what it measures — the exact one does not replace the trend. `neverSignedIn` is the actionable number: accounts provisioned by Set up accounts that have never been used.
-Write: a signed-in member, the admin, or the Calendar PIN viewer (`isKnownIdentity`) — an ANONYMOUS token is refused, because the anonymous provider is still enabled on the project and anyone holding the public API key could mint one. A `pv_`/`perf_` document is accepted only for the present month or one either side, by the server's UTC clock (the client names the month by its own clock), so no session can create documents for months nobody is in. Nothing in the app signs in anonymously. The same identity is required to write `clientErrors` and `pushSubscriptions` (where the viewer stays excluded). Values aren't individually validatable (Firestore can't restrict to increment-only) — App Check is the eventual integrity control; the data is non-sensitive aggregate counts. On UPDATE a non-admin write may not remove an existing key (the anti-wipe guard); the moved count's `-1` relies on exactly that: it is an ordinary write the guard allows, because it removes no key (`firestore.rules.test.mjs` writes the real payload as a member and as the PIN viewer). No client delete.
+Write: a signed-in member or the admin (`isKnownIdentity`, which admits the retired PIN viewer until the server release) — an ANONYMOUS token is refused, because the anonymous provider is still enabled on the project and anyone holding the public API key could mint one. A `pv_`/`perf_` document is accepted only for the present month or one either side, by the server's UTC clock (the client names the month by its own clock), so no session can create documents for months nobody is in. Nothing in the app signs in anonymously. The same identity is required to write `clientErrors` and `pushSubscriptions` (where the viewer stays excluded). Values aren't individually validatable (Firestore can't restrict to increment-only) — App Check is the eventual integrity control; the data is non-sensitive aggregate counts. On UPDATE a non-admin write may not remove an existing key (the anti-wipe guard); the moved count's `-1` relies on exactly that: it is an ordinary write the guard allows, because it removes no key (`firestore.rules.test.mjs` writes the real payload as a member and as the PIN viewer). No client delete.
 Read: admin only (`request.auth.token.admin == true`).
 Written by: `recordPageView` / `recordActiveAccount` in `analytics-client.js`, called from `usage-reporter.js` (`recordUsage`) on every page. Read by: `getUsageStats` in `analytics-client.js`, which also prunes daily buckets older than `DAILY_RETENTION_DAYS` (usage-stats.js) by the same server-proved clock, never the device's, called from the Usage card in `operations-usage.js`. Decision/aggregation maths is the pure `usage-stats.js` module.
 The `perf_<YYYY-MM>` doc holds anonymous page-load latency: `recordPageLatency(page, identity?)` in `perf-reporter.js` records the metrics above and calls `recordPerfSample` (analytics-client.js), batched into one merged write per open; key dimensions (version/page/metric/bucket/PWA mode/connection class) are non-identifying — no member, no raw ms. **Admin (developer) sessions are excluded** so figures reflect real staff. The Operations "App speed" card (`getPerfStats` → `initPageSpeedCard`, `operations-speed.js`) reads THIS month + LAST month and shows 🔑 Signing in, 📄 Opening pages (✨ First appears / 📦 Code loaded / ✅ Usable, then each page's three bars) and 🔍 A closer look at the busiest page — the stored copy before the sign-in check, the wait after a release, and Usable by app version and by how the page was opened. The maths is the pure `perf-stats.js`: `THIN_SAMPLE` governs the whole card, a value that is not a whole-number count is refused when read (any signed-in session writes the values), and the three percentages always add to 100. Versions roll up into ranges (`v20.10–v20.19`) for the reason in AI_MAP, and no range crosses v24.98, where the way of timing changed.
@@ -402,7 +406,7 @@ fileType     "pdf" | "docx" (no inline HTML conversion — a PDF opens directly,
 uploadedAt   Firestore server timestamp — the rules require `== request.time`; the retention sweep (`pruneOldDocs`) trusts it as its clock
 uploadedBy   Member name string
 ```
-Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
+Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19) or `admin` (matches the Huddle model, the retired viewer claim included until the server release). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-doc-uploads.js` (the card's settings for `doc-upload.js`).
 Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens **directly** in a new tab, one tap: a PDF by its URL, a Word doc via the Office Online viewer; the URL is a short-lived one from `getDocumentUrl` when the server grants it, else the stored `storageUrl`) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `pruneOldDocs()` in `doc-retention.js`.
@@ -418,7 +422,7 @@ fileType     "pdf" | "docx" (no inline HTML conversion — a PDF opens directly,
 uploadedAt   Firestore server timestamp — the rules require `== request.time`; the retention sweep (`pruneOldDocs`) trusts it as its clock
 uploadedBy   Member name string
 ```
-Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
+Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19) or `admin` (matches the Huddle model, the retired viewer claim included until the server release). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-doc-uploads.js` (the card's settings for `doc-upload.js`).
 Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens **directly** in a new tab, one tap: a PDF by its URL, a Word doc via the Office Online viewer; short-lived `getDocumentUrl` URL first, stored `storageUrl` as fallback) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
 Also read once per Calendar load, for the latest issue's `date` only (`checkLatestNewsletter`, `newsletter-recency.js`): the ☰ button shows while it is under six weeks old, and the date is kept on the device (localStorage `myb_newsletter_latest`, `''` once the server has said there is none) for every page's drawer to read.
@@ -573,23 +577,16 @@ Not a collection, so only the facts the collections lean on are here, each point
   `password-force.js` compel a member still on the surname default to choose their own password **at
   their next sign-in**. Nobody is signed out to accelerate it: the 60-day cap completes coverage on
   its own, staggered by each member's own expiry. It shows only for a `named` identity — never a
-  staff-PIN session nor a soft-failed Pay Calculator one, where `updatePassword` cannot succeed and
-  the block would be unsatisfiable — and fails open on any failure it cannot recover from. A member
-  who only ever views the roster with the staff PIN never signs in and is never compelled: accepted (reaching them means
-  Track E). **It is the ONLY post-login overlay.** If a second one is ever added, read the note above
+  soft-failed Pay Calculator one, where `updatePassword` cannot succeed and
+  the block would be unsatisfiable — and fails open on any failure it cannot recover from. Since the staff PIN
+  was retired (23 Nov 2026) everybody who reads the roster signs in, so nobody is out of its reach. **It is the ONLY post-login overlay.** If a second one is ever added, read the note above
   `_show` in `password-force.js` first — anything that must happen when an overlay OPENS has to fire
   before the await, never after it.
-- **The staff Calendar PIN.** The Calendar opens for a named member session OR the shared staff PIN,
-  and for nothing else. A shared office PC enters four digits and gets the full Calendar, overrides
-  included, in a session that lives exactly as long as the browser session. The viewer's
-  custom-token session is never a bound member identity: it holds no `admin`, `manager` or
-  `linksDesigner` claim and cannot write any roster, leave or account data — only the telemetry
-  every session may write (`clientErrors`, `analytics` counters). The PIN value lives only in the
-  `CALENDAR_VIEWER_PIN` secret. Design: `calendar-access.js` / `calendar-access-core.js`; the
-  contracts: `CALENDAR_DATA.md` and `AUTH_AND_SESSIONS.md`; operations and rotation:
-  OPERATIONS_REFERENCE.md. **A support question to expect:** a member who has never signed in has to
-  unlock each browser session; signing in once (a 60-day session) removes the PIN entirely, which is
-  what the Calendar's own front door offers first.
+- **The staff Calendar PIN — RETIRED 23 Nov 2026** (owner). The Calendar and Trains open only for a
+  named session; somebody with no roster of their own gets an Other Staff login, a plain member account
+  (`{ name, member }`), so no collection gained a field or a rule. Until the server release the
+  `calendarViewer` claim, the `CALENDAR_VIEWER_PIN` secret and `viewerAttempts` remain; what goes when,
+  and the manual steps: OPERATIONS_REFERENCE.md → "The staff PIN (retired)".
 - **The Firebase SDK version** is the one `firebase-client.js` imports — check it before any new
   Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the
   SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.

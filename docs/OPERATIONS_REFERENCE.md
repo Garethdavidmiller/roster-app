@@ -193,15 +193,17 @@ Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` is invalid.
 
 ### Firestore Security Rules — `huddles` collection
 
-Access posture: **read requires access, write admin-only** — a read needs a bound member identity,
-the admin claim, or the staff-PIN viewer capability. The live rule in `firestore.rules` is the
+Access posture: **read requires access, write admin-only** — a read needs a bound member identity
+or the admin claim (and, until the server release, the retired staff PIN's `calendarViewer` claim —
+"The staff PIN (retired)", below). The live rule in `firestore.rules` is the
 authority — it also shape-validates browser writes: `hasOnly` field allowlist, bounded `YYYY-MM-DD`
 date, `fileType in ['pdf','docx']`, typed `uploadedAt`/`uploadedBy`, a 250,000-char `htmlContent` cap,
 and a separate admin-only delete rule. Don't quote the rule here — it drifts; read the file.
 
-Reads need access because the three documents are behind the PIN or a password (owner decision,
-7 Sep 2026): a notification tap on a locked device is held on the PIN card, and the client refuses
-the read at source (`calendar-doc-access.js`) — see "Behind the PIN" below. Browser writes (the
+Reads need access because the three documents are behind a sign-in (owner decision, 7 Sep 2026;
+the staff PIN that also opened them was retired on 23 Nov 2026): a notification tap on a locked
+device is held on the sign-in card, and the client refuses the read at source
+(`calendar-doc-access.js`) — see "Behind a sign-in" below. Browser writes (the
 manual admin upload path in `huddle.js`) require the admin claim; the automated `ingestHuddle` Cloud
 Function uses the Admin SDK, which bypasses rules entirely. The matching Storage rule (`storage.rules`)
 also requires the admin claim for huddle file writes.
@@ -233,7 +235,7 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 
 **Important:** Both triggers (nav-panel link and notification tap) reach the viewer through the `#huddle` hash and the single `_triggerAutoOpen` path, so the no-`htmlContent` case always opens the file via the in-overlay button — never a direct `window.open`/`location.href` at open time. Routing both triggers through the explicit button avoids relying on activation that may not be present. DOCX files with `htmlContent` bypass this entirely — they render inline.
 
-**Behind the PIN (owner decision, 7 Sep 2026).** The notification itself cannot break — it is built server-side and carries no document content — but the TAP-THROUGH needs access: the viewers consult `calendar-doc-access.js`, which the Calendar opens on the full grant. A tap on a device that is signed in or holds a viewer session opens the Huddle as before. A tap on a device that is locked lands on the PIN card with the tap HELD: entering the PIN (or signing in) finishes it and the Huddle opens. No read — cached or live — is issued while locked, which is what a rules change alone could not guarantee. The rules closing the three collections' reads shipped one release after the client: a read-tightening ships client-first, the reverse of a schema expansion.
+**Behind a sign-in (owner decision, 7 Sep 2026).** The notification itself cannot break — it is built server-side and carries no document content — but the TAP-THROUGH needs access: the viewers consult `calendar-doc-access.js`, which the Calendar opens on the full grant. A tap on a device that is signed in opens the Huddle as before. A tap on a device that is locked lands on the sign-in card with the tap HELD: signing in finishes it and the Huddle opens. No read — cached or live — is issued while locked, which is what a rules change alone could not guarantee. The rules closing the three collections' reads shipped one release after the client: a read-tightening ships client-first, the reverse of a schema expansion.
 
 **Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/documents.js`, Huddle ingestion succeeds but no push is sent. To re-enable: set it back to `false`, redeploy Functions, and verify `STAFF_SITE_URL` (`functions/index.js`) is the bare `https://myb-roster.web.app` origin — the service worker discards the payload origin/path and re-bases only the trailing page/hash onto its own `registration.scope`, so no `/roster-app` sub-path is needed.
 
@@ -436,7 +438,7 @@ before relying on this summary:
 ### Staff access flow
 
 1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer (the Newsletter only while its latest issue is under six weeks old, above).
-2. `nav-panel.js` click handler fires. A `_docFetching` flag returns early if a fetch is already in flight (a guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
+2. `nav-panel.js` click handler fires. A `_docFetching` flag returns early if a fetch is already in flight (a guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`) is refused first — the lightbox asks them to sign in — and no tab is opened.
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
 4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8 s budget (`DOC_FETCH_BUDGET_MS`), with a short-lived URL requested from `getDocumentUrl` in parallel against the same budget. A read that runs past it is handled as a Firestore error (below); a short-lived URL that runs past it gives way to the stored `storageUrl`:
    - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted or when the server signed a different file than the one read (its returned `storagePath` does not match — `resolveDocumentOpenUrl`). A PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` so it renders with images instead of downloading (no Mammoth-style inline HTML conversion, unlike the Huddle). `closePanel()` closes the drawer, popping its history entry.
@@ -448,7 +450,7 @@ before relying on this summary:
 
 | Operation | Requirement |
 |-----------|-------------|
-| Reads | Require access, as the Huddle does: a bound member identity, the admin claim, or the staff-PIN viewer capability. The client refuses at source behind the PIN (`calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL — used only when the path it signed matches the document on screen — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
+| Reads | Require access, as the Huddle does: a bound member identity or the admin claim (the retired `calendarViewer` claim until the server release). The client refuses at source behind a sign-in (`calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL — used only when the path it signed matches the document on screen — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
 | Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file |
 | Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |
@@ -530,7 +532,7 @@ function log — counts only.
 
 The one flow that starts with **no identity at all**: a member who has forgotten a self-set password
 has no Firebase session, so they cannot write anything — which is why this runs through a public
-unauthenticated endpoint (one of two, with `unlockCalendarViewer`) rather than a client write. The
+unauthenticated endpoint (the only one once the server release deletes `unlockCalendarViewer`) rather than a client write. The
 design and its accepted risks are `PASSWORD_DESIGN.md` §12–§14.
 
 1. **Member** taps "Can't get in?" on the login overlay — **always available there**, under the Sign
@@ -735,7 +737,7 @@ branch build needs, so it stays either way.
 ## Adding an Other Staff login
 
 For somebody who needs the roster but has none of their own and no manager rights (owner, 23 Nov 2026).
-They sign in under their own name and see what the staff PIN shows — everyone's roster, read-only;
+They sign in under their own name and see what the retired staff PIN showed — everyone's roster, read-only;
 Trains; the Huddle, Circular and Newsletter — plus their own Settings, so they can change their password
 and turn on notifications. No Admin, Pay Calculator, Overtime, Links or New link.
 
@@ -752,7 +754,7 @@ and turn on notifications. No Admin, Pay Calculator, Overtime, Links or New link
 Leaving: remove the row (Removing a staff member, below — the managers' exception applies).
 
 **What the server sees.** A plain member — `{ name, member }`, no new claim — so the security rules need
-nothing new: they can read the roster, as the PIN can, and write only what any member writes for
+nothing new: they can read the roster, as any member can, and write only what any member writes for
 themselves (their password status, work email, notification devices). The grade narrows the PAGES on the
 client (`auth-policy.js`, `otherStaff`), which is the UX layer, not the boundary (AUTH_AND_SESSIONS 6).
 
@@ -1150,198 +1152,72 @@ waiting for the next check. Signing out also asks while any change is still on i
 as it does on Admin. The answers are never stored: they name colleagues against their leave, so they
 live on the page alone.
 
-## Staff PIN access for the Calendar
+## The staff PIN (retired)
 
-The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Every other
-protected page but Trains — Admin, Settings, Operations, Links, the Pay Calculator and the rest — still
-needs a real member sign-in; the PIN grants reads, not identity: *the Calendar's override data* and the three documents (the Huddle,
-Circular and Newsletter); its only writes are the error log and the usage counters
-(`isKnownIdentity`). The one other page it opens is **Trains** (owner, 22 Oct 2026), which reads
-nothing at all — the timetable is public — and was admitted because the staff customers ask are the
-station's (AUTH_AND_SESSIONS.md invariant 24). **The PIN is a barrier, not authentication** — no
-surface may describe it as signing somebody in (AUTH_AND_SESSIONS.md invariant 18).
+**Retired 23 Nov 2026 (owner).** The shared four-digit staff PIN no longer opens anything. The
+Calendar and Trains open only to somebody signed in under their own name, like every other page, and
+no screen offers a PIN box. Why it went, and the three releases that remove it: DECISIONS.md → "The
+staff PIN retired".
 
-### Why it exists
+**A phone still holding a PIN session** is signed out the next time it opens the Calendar or Trains,
+and its sign-in card says the staff PIN has been retired and to sign in with their own name (asking
+the admin if they have no login). Nothing else needs doing on the phone.
 
-Staff open the roster on shared office PCs for a quick look. Signing into a corporate Windows
-account gives them a fresh browser every time, so a full member sign-in for a thirty-second glance
-is friction nobody would accept. Without the PIN, override data — annual leave, absence and shift
-changes for every member — would be readable by anyone with the URL, which is how it was before. The
-PIN is what lets both be fixed at once.
+**Somebody who used the PIN and has no login:**
 
-### What a member experiences
+- **On the roster** — they already have an account (password their surname until they set their
+  own). If they have never signed in, check Operations → Staff Login Accounts; a new starter follows
+  `/new-starter`.
+- **Not on the roster, but needs to read it** (somebody from another team, a manager with no shifts
+  of their own) — give them an Other Staff login: "Adding an Other Staff login", above.
+- **Forgotten password** — "Can't get in?" on the sign-in card ("Locked-out member → reset request
+  queue", above).
 
-| Situation | What happens |
-|---|---|
-| Signed-in member, live session | Nothing changes. No PIN, no interruption; the session rule (60 days) is untouched. |
-| Any browser holding nothing — a new phone, a shared PC's fresh browser | The Calendar area shows the **member sign-in card** first (grade · name · password — the same card as the other pages), with **"Use the staff PIN instead"** beneath it and a line saying who the PIN is for: visiting or agency staff, or anyone without a password yet. One tap → the "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. A station PC can bookmark `./#staff-pin` to land on the PIN card directly. |
-| Same tab — a reload, or moving between the Calendar, Trains and the guides | Stays unlocked. Opening a page that needs a sign-in (Admin, Pay, Settings…) ends it (AUTH_AND_SESSIONS.md invariant 24). The viewer belongs to that ONE tab: its session-only persistence is the tab's, so a new tab asks for the PIN again. |
-| Tab or browser closed and reopened | Usually the PIN is asked for again. But a browser that restores its last session brings the tab's storage back with it, and the PIN with that; there is deliberately no server-side time limit to catch it (owner — DECISIONS.md → "The staff PIN session keeps NO server-side time limit"). That is why **End staff PIN** (once "Lock Calendar") matters on a shared PC: it ends the PIN there and then, whatever the browser does next. |
-| Guides | Reachable **without** the PIN. The nav drawer is never locked. |
-| Huddle, Circular, Newsletter | Need the PIN or a sign-in. A locked tap says what to do rather than opening; a notification tap is held on the PIN card and finishes once access is given. |
-| Trains page | Opens with the PIN, from the drawer's 🚆 Trains pill, and the PIN is still held on the way back. Its drawer shows **Staff PIN access** and **End staff PIN** (named "Lock Calendar" until v26.46), which locks the station and lands on the PIN card. Admin, Pay and Settings still ask for a member sign-in, and opening one ends the PIN: its sign-in card says the roster is locked again, and its way back opens the Calendar on the PIN box. A fresh browser that opens Trains directly is asked to sign in — the PIN is entered on the Calendar. |
-| A member whose sign-in has been lost from the device | They get **their own sign-in card**, never the PIN — see below. |
-| A slow start on a poor connection | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
+### Until the server release
 
-The PIN card's **"Sign in instead"** goes back to the sign-in card, and a viewer can press **End
-staff PIN** in the nav drawer before walking away — that lands on the PIN card, because whoever
-pressed it got in with the PIN. **The sign-in card comes first** (owner decision, 7 Sep 2026) because
-most people opening the app are staff with a password of their own, and signing in is what ends the
-code for them for 60 days.
+The client release took the PIN off every screen; the server side stays deployed for now. So, until
+the server release ships:
 
-### "It asked me for a PIN and I'm signed in"
+- `unlockCalendarViewer` and the `CALENDAR_VIEWER_PIN` secret are still live, and the rules still
+  accept the `calendarViewer` claim. Only an app that has not yet updated still offers the PIN box,
+  and a session it opens is signed out on the next load of the new app. Somebody holding the PIN can
+  still read the roster by calling the endpoint directly, so the server release should not wait long
+  (RECOVERY_RUNBOOK.md → "The staff PIN (retired)").
+- The Operations **"Staff PIN blocked"** item can still appear (with its push to the admin's own
+  devices) if the endpoint is hammered. Nothing to do: it clears itself, and no member needs the PIN.
+  It is deleted in the server release.
+- **Do not rotate the PIN.** Nothing reads it.
+- **Do not destroy the secret yet.** While `unlockCalendarViewer` is deployed, every Functions deploy
+  resolves `CALENDAR_VIEWER_PIN` and fails the WHOLE deploy if it has no version. If it is gone by
+  mistake, set a new value interactively — `firebase functions:secrets:set CALENDAR_VIEWER_PIN
+  --project myb-roster`, typed at the prompt, never committed — and run the Functions deploy again.
 
-A support question worth recognising, because it can have two quite different causes:
+### After the server release — the manual steps
 
-- **The device lost the member's Firebase sign-in while keeping the app's own 60-day session.** Seen
-  mostly on iPhones; the likeliest route is a storage read that failed, not Safari's seven-day rule,
-  which clears both together and leaves a member simply signed out (KNOWN_LIMITATIONS.md → "A
-  signed-in session lasts 60 days", "One interaction to expect on iOS"). The member is, as far as
-  they and the app know, signed in — with nothing behind it.
-- **The sign-in was simply slow to come back.**
+The server release deletes `isCalendarViewer` from the rules, the `unlockCalendarViewer` function,
+`functions/pin-lockout.js`, the secret's binding, the viewer door in `getDocumentUrl` and the
+Operations PIN-lockout card. Once **Deploy Firebase Functions** and **Deploy Firestore/Storage rules**
+have both finished, in this order:
 
-Neither lands on the staff PIN: a signed-in member is never sent to the shared code (CALENDAR_DATA.md
-invariant 11). That member gets a card addressed to them whose button is the normal sign-in — and for
-anyone still on their surname default the app quietly signs them back in with nothing typed, so they
-see nothing at all. A late sign-in is honoured whenever it turns up.
+1. **Delete the `calendar-viewer` account** — Firebase console → Authentication → Users → the account
+   with uid `calendar-viewer` → Delete. Any session still open on it ends at its next token refresh.
+2. **Destroy the secret** — `firebase functions:secrets:destroy CALENDAR_VIEWER_PIN --project myb-roster`.
+   That destroys the latest version; `firebase functions:secrets:get CALENDAR_VIEWER_PIN --project myb-roster`
+   lists any left, or delete the whole secret in Google Cloud → Secret Manager.
+3. **Purge `viewerAttempts`** — Firebase console → Firestore → `viewerAttempts` → Delete collection
+   (or `firebase firestore:delete viewerAttempts --recursive --project myb-roster`). It is the
+   retired throttle's server-only store; nothing reads it any more.
+4. **Consider turning off Anonymous sign-in** — Authentication → Sign-in method → Anonymous. The app
+   no longer signs in anonymously anywhere and the rules refuse an anonymous token, so this only removes
+   it at source; check in a private window afterwards that the Calendar still loads (KNOWN_LIMITATIONS.md).
+5. **Keep** `roles/iam.serviceAccountTokenCreator` on the runtime service account: `getDocumentUrl`
+   needs it (RECOVERY_RUNBOOK.md project facts). The PIN exchange was its first user, not its only one.
 
-**If a member still reports it:** ask whether the card said "Calendar · <their name>". If it did,
-that is the sign-in card working as intended and the remedy is their password. If they genuinely saw
-the four-digit PIN card, they have no session on that device — which is expected on a shared PC and
-on any browser they have not signed into.
+Then the **cleanup release** removes the client's transition code (the sign-out of a leftover PIN
+session) — it waits for step 1, because until the account is gone a session on it can still exist.
 
-### There is no on/off switch
-
-Rollback is reverting the release (and, for the read rule, RECOVERY_RUNBOOK.md → "The Calendar PIN").
-The client switch the PIN shipped behind, `CONFIG.CALENDAR_PIN_ACCESS`, was retired because the rules
-no longer allow the anonymous session its `false` mode restored — flipping it would have shown every
-visitor a base roster under a "couldn't update" chip, a roster that is WRONG rather than obviously
-broken.
-
-`overrides` reads require a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19),
-`admin`, or the `calendarViewer` capability, and the server refuses anything else. The rollout's
-lesson, for any comparable change: **client first, rules second, as separate pushes** — the deploy
-workflows run in parallel, so which lands first is a coin toss, and rules-before-client is the state
-that shows every staff phone a roster that is wrong rather than obviously broken (RECOVERY_RUNBOOK.md →
-"The Calendar PIN" has the steps).
-
-### Setting the PIN (do this FIRST — the function will not work without it)
-
-The value lives only in Secret Manager. It is deliberately **not** in the repository, in any
-documentation, in any test, or in any client asset. Setting it takes the two steps of rotating it,
-below: the secret, then a redeploy so the function picks the value up.
-
-### Rotating the Calendar PIN
-
-No client release is needed — the client never knows the value.
-
-1. `firebase functions:secrets:set CALENDAR_VIEWER_PIN --project myb-roster`, and enter the four
-   digits when prompted. This uploads no code, so it is safe from any folder. If it then offers to
-   "re-deploy the functions" that use the secret, yes is safe too: it moves `unlockCalendarViewer`
-   onto the new value in place, without uploading code, and step 2 is then done.
-2. Otherwise redeploy, so the function picks up the new value: **Actions → Deploy Firebase
-   Functions → Run workflow, on `main`**. It deploys the functions `main` holds, after the same tests
-   as a push. Only if Actions itself is down, run
-   `firebase deploy --only functions:unlockCalendarViewer`, and only from a checkout of today's
-   `main` (`git pull` first). The same goes for the `firebase deploy --only functions` that step 1
-   suggests if you say no: `firebase deploy` uploads the `functions/` folder it runs in, so an old
-   clone puts old code back on the PIN endpoint.
-3. Tell staff the new code.
-
-New unlock attempts use the new PIN immediately. **Sessions already unlocked are not affected** —
-they hold a Firebase token, not the PIN. If you need to invalidate those too (someone left, the code
-got out), also revoke the shared account's refresh tokens:
-
-```
-# Google Cloud Shell, or anywhere with the Admin SDK and project credentials:
-firebase auth:export /tmp/u.json --project myb-roster    # (optional, to confirm the uid exists)
-# then, in a Node shell with firebase-admin initialised:
-const { getAuth } = require('firebase-admin/auth');
-await getAuth().revokeRefreshTokens('calendar-viewer')
-```
-
-Every viewer session is then rejected on its next token refresh (within the hour) and must re-enter
-the new PIN. Member sessions are untouched.
-
-### How it works
-
-1. The browser POSTs `{ pin }` to `unlockCalendarViewer` (europe-west2). CORS is restricted to the
-   app's own hosting origins; the PIN is compared **server-side**, in constant time, against the
-   `CALENDAR_VIEWER_PIN` secret. Nothing is compared in the browser and no verifier is shipped to it.
-2. On success the function ensures a dedicated Firebase Auth account (`calendar-viewer`, **no
-   email**), re-applies its claims — exactly `{ calendarViewer: true }` — and returns a custom token.
-3. The client switches Firebase Auth to **session-only persistence**, signs in with the token, and
-   verifies the claim actually arrived before showing anything.
-4. `firestore.rules` allows `overrides` reads for a bound member identity (`isMember()`: a password
-   sign-in on the name's derived email, carrying the server-set `member` claim) or `calendarViewer`
-   on a custom-token sign-in.
-   The viewer writes nothing a member owns: its only writes are the error log and the usage counters.
-
-### Abuse protection
-
-A four-digit PIN is 10,000 combinations, so the endpoint is throttled server-side **two ways**, both
-recorded in the server-only `viewerAttempts` collection. Only *failures* stay counted: every attempt is
-charged BEFORE its PIN is compared and a correct PIN is refunded afterwards. The reasoning — why the
-charge comes first, what the contention costs, and why the per-source key is read from the END of
-`x-forwarded-for` (a caller can only prepend to it) — is `functions/calendar-viewer-auth.js`'s header.
-
-1. **Per source — 30 failed attempts per 15 minutes, then a 15-minute block.** Sized for a station
-   behind one corporate NAT address: thirty *wrong* entries in fifteen minutes from the whole
-   building is not fumbling, and a correct PIN never stays counted.
-2. **All sources — 200 failed attempts per 15 minutes**, under a fixed key no header can touch. This
-   caps the whole endpoint at 800 guesses an hour, so the full PIN space takes upwards of twelve hours
-   of obviously abnormal traffic.
-
-Blocks expire on their own; there is no permanent lock, deliberately, because a shared-source
-control that anyone can drive into a permanent state is a denial-of-service handle pointed at staff.
-**If the all-sources ceiling ever trips during normal use, the code in circulation is wrong — reissue
-it rather than raising the number.**
-
-#### When the PIN is blocked for everyone — what the admin is told (owner, Nov 2026)
-
-Anybody can reach the all-sources ceiling on purpose, and do it again; the limit stays, so the admin is
-TOLD instead (`functions/pin-lockout.js`; the trade-off is `functions/calendar-viewer-auth.js`'s header):
-
-- **A push to the admin's own devices** — "🔢 Staff PIN — blocked station-wide", "200 wrong entries in 15
-  minutes. It reopens by itself at 14:20." — at most ONCE A DAY however often it trips. Only an admin
-  account that is enabled and carries the `admin` claim (`enabledAdminUids`, the rule the Error Log and
-  reset-request notices share); never a broadcast. A count and a time only: never the PIN, never an
-  address. The tap opens Operations → Staff Login Accounts.
-- **Operations**: a "Staff PIN blocked" item on the "Needs attention" strip, and a line on Staff Login
-  Accounts, while a block runs or one began in the last day. It rides on that card's account check
-  (`getAccountSetupGaps`), so it appears when the card's check answers; a check that could not read the
-  record shows nothing about the PIN rather than an all-clear. **Whether a block is still running is the
-  all-sources throttle row's to say**, read beside the record (owner, 18 Nov 2026): a correct PIN can
-  lift a block early, after the record was written, so a block the row has let go of reads "was blocked
-  … at 14:05", with no end, rather than "blocked until 14:20" for a door that has opened.
-- **What to do**: nothing, if it was once — the block clears itself, and members can still sign in with
-  their password. If it keeps happening, somebody is guessing: rotate the PIN ("Rotating the
-  Calendar PIN", above).
-- **The record** is one document in `viewerAttempts` (`_lockout-record`: the block times of the last day,
-  when the latest ends, when the admin was last told). Server-only, like the rest of the collection; the
-  sweep never removes it. Deleting it by hand in the console only makes the next block notify again.
-
-**If the throttle store itself is unreachable, the endpoint refuses (503) rather than guessing
-unthrottled.** The refusal costs nothing real: the overrides live in the same Firestore the throttle
-read just failed against, so a token minted during that outage could not have loaded a single shift
-anyway. Staff see the card's ordinary "try again shortly" message, and the moment Firestore recovers
-both the unlock and the roster come back together.
-
-### Diagnosing a problem
-
-- **"PIN not recognised" for everybody** → the PIN was rotated without redeploying the function,
-  which still holds the old value. Check `firebase functions:secrets:access CALENDAR_VIEWER_PIN` and
-  redeploy ("Rotating the Calendar PIN", step 2).
-- **"Calendar couldn't be unlocked. Try again shortly — if it keeps happening, tell the admin." for everybody** → the function is failing,
-  not refusing. A 503 whose body and log say "Calendar access is not configured" is an unset or
-  malformed secret; a 500 on every CORRECT PIN is the missing IAM grant (`roles/iam.serviceAccountTokenCreator`
-  on the runtime service account — RECOVERY_RUNBOOK.md project facts), which is what broke the
-  first rollout. Neither message names the cause on screen; the Cloud Function log does.
-- **Unlock succeeds, Calendar shows no shifts** → the token minted without its claim, or the rules
-  and the client disagree about the claim name. `calendar-viewer-parity.test.mjs` is the guard for
-  the second; the Cloud Function log line `[unlockCalendarViewer] unlocked` confirms the first (it names no source: a hash of an address can be reversed by trying addresses).
-- **Nothing in the Operations Error Log** → expected. A locked Calendar has no Firebase identity, so
-  it cannot write client errors. Use the Cloud Function logs.
+**Never write the PIN's value anywhere** — not in a doc, a commit, a ticket or a test. It was never in
+the repository, and the record of its retirement does not need it.
 
 ---
 
@@ -1586,7 +1462,7 @@ Printing from **My availability** gives a short notice instead. It is a form, no
 
 `trains.html` compares two Chiltern timetables held in one generated file, `trains-data.js`. Nothing
 about it is live: it reads no network, and its times change only when somebody regenerates that file.
-Every signed-in member can open it, and so can the staff PIN.
+Every signed-in member can open it, an Other Staff login included.
 
 - **What it holds:** today's books, valid until Saturday 12 December 2026, and December's, valid from
   13 December 2026 to Saturday 15 May 2027 — both Chiltern's public timetables, every stop included.

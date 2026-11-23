@@ -235,8 +235,8 @@ write is still in Firestore's on-device queue, because the SDK's IndexedDB queue
 unsent batch without bounding the search to the signed-in account (the SDK's getHighestUnacknowledgedBatchId,
 `@firebase/firestore` 4.19, still in 4.20). Every checked save on that device then takes over eight
 seconds, and every checked removal is refused with a false "You appear to be offline", until that
-other account is next signed in online. The usual source is the **staff PIN**: its page views and
-speed samples still queued when opening Admin ended it. Whether a member is affected depends on how
+other account is next signed in online. The usual source is the **staff PIN** (retired 23 Nov 2026):
+its page views and speed samples still queued when opening Admin ended it. Whether a member is affected depends on how
 their account id sorts against the viewer's, which is why it looked like a few people's phones and
 not everybody's. Fresh pages, offline-then-online, two tabs and reloads were all fast.
 
@@ -245,17 +245,19 @@ not everybody's. Fresh pages, offline-then-online, two tabs and reloads were all
   no field means the save did not wait (`trackOwnWritesWaits`, slow-save.js). **When two saves
   overlap, the figure can be the OTHER save's wait**: the line reports the waits that ended while
   this save ran, so "(2 waits)" counts waits heard, not saves made.
-- **Each sign-out that ends the PIN for a member first gives the viewer's queued writes up to two
-  seconds to leave** (v26.52, `letViewerWritesGo`, firebase-client.js): End staff PIN, a member
-  signing in over the PIN, and the clean-up of an identity that outlived its session. So a new
-  leftover is not made while online. It does nothing for a device that already holds one, or for a
-  viewer ended offline. Two kinds do not wait: `clearSession()`, and the PIN unlock's own
-  sign-outs — harmless, the viewer's one account either signs straight back in or has queued nothing.
+- **A sign-out that ends a leftover PIN session first gives the viewer's queued writes up to two
+  seconds to leave** (v26.52, `letViewerWritesGo`, firebase-client.js — transition code, kept until
+  the cleanup release): the sign-out a Calendar or Trains load gives a PIN session since the PIN was
+  retired, and the clean-up of an identity that outlived its session. So a new leftover is not made
+  while online. It does nothing for a device that already holds one, or for a viewer ended offline.
+  `clearSession()` does not wait.
 - **On a device that already holds another account's leftover, ending the PIN can take the whole two
-  seconds** (`VIEWER_WRITES_GRACE_MS`): the viewer's own wait meets the same SDK fault. A typed
-  sign-in from a PIN-unlocked device then has about six of its eight seconds left for the sign-in
-  itself. Accepted: the bound is kept, and the device is cleared as below.
-- **To clear an affected device today:** enter the staff PIN once with a signal, then sign back in.
+  seconds** (`VIEWER_WRITES_GRACE_MS`): the viewer's own wait meets the same SDK fault. Accepted: the
+  bound is kept.
+- **To clear an affected device:** this used to be "enter the staff PIN once with a signal". With the
+  PIN retired nobody can sign that account in to send its queue, so the remedy is to clear the site's
+  stored data in the browser (or remove and re-add the installed app) and sign in again. Not yet
+  tried on an affected phone.
 - **Not done (owner, 22 Nov 2026):** falling back to a per-record check when the wait runs out, which
   would rescue affected devices at the cost of a sixteen-second wait on a save with no data
   connection. Revisit if readings show "ran out" persisting after v26.52.
@@ -266,7 +268,7 @@ in `client-errors.js`), so the Operations strip leaves them out. The admin's Err
 noticed (OPERATIONS_REFERENCE.md → "The Error Log notification"). Read the entries from iPhones
 before choosing a fix.
 
-## Anybody can hold the staff PIN shut — the limit is kept, and the admin is told
+## Until the server release, anybody can hold the retired staff PIN shut — and nobody needs it
 
 `unlockCalendarViewer` throttles failed PINs twice — per source, and under an all-sources ceiling
 with a fixed key (`DEFAULT_THROTTLE` and `GLOBAL_THROTTLE` in `functions/calendar-viewer-auth.js`,
@@ -274,14 +276,11 @@ which carries the arithmetic). The ceiling is what stops a distributed guess at 
 it is also the weakness: a stranger sending wrong PINs from enough addresses keeps it reached, and
 while it is reached **every member of staff is refused the PIN**, correct or not. Nothing leaks; the
 Calendar is simply closed to anyone not signed in by name, and the block clears itself. Raising or
-removing the ceiling makes guessing cheaper, so it is a trade-off for the owner rather than a fix.
-**Owner decision (Nov 2026): keep the limit, and tell the admin.** When the ceiling trips, the admin's
-own devices get one push — at most once a day, a count and a time, never the PIN or an address — and
-Operations' "Needs attention" strip and Staff Login Accounts say so while a block runs or one began in
-the last day (OPERATIONS_REFERENCE.md → "When the PIN is blocked for everyone"). What the alert does NOT
-do is stop it: somebody repeating it is told about, not prevented. The two cheap mitigations, if it
-recurs: rotate the PIN to a longer one (the limit then protects far more), or let a correct PIN through
-the ceiling while still counting it.
+removing the ceiling makes guessing cheaper. **Owner decision (Nov 2026): keep the limit, and tell the
+admin** — a push to the admin's own devices at most once a day, and a "Staff PIN blocked" item in
+Operations. **Since the PIN was retired (23 Nov 2026) a block costs nobody anything**: no screen asks
+for the PIN, so the alert can be ignored. The endpoint, the throttle and the alert are all deleted in
+the server release, and this section with them (OPERATIONS_REFERENCE.md → "The staff PIN (retired)").
 
 ## The iPhone status bar is solid — and was changed without a device to test on
 
@@ -447,8 +446,8 @@ short-lived signed URL, used only when it names the file the page is holding
 (`resolveDocumentOpenUrl`). Without `roles/iam.serviceAccountTokenCreator` on the runtime service
 account every call answers 503 and they fall back to the **permanent tokenised `storageUrl`** in the
 Firestore document — kept as the fallback by owner decision, so a member can open the document either
-way (DECISIONS.md). The grant is very probably in place: `unlockCalendarViewer` runs as the same
-account and depends on the same grant (RECOVERY_RUNBOOK.md → 5b). Confirm by opening a document and
+way (DECISIONS.md). The grant is very probably in place: the retired staff PIN's `unlockCalendarViewer`,
+which worked in production, runs as the same account and depends on the same grant (RECOVERY_RUNBOOK.md → 5b). Confirm by opening a document and
 looking for `storage.googleapis.com` rather than `firebasestorage` in the opened address.
 
 **That fallback can go dead, and Check says so.** A document's stored link can come to name a key its
@@ -685,8 +684,8 @@ read only to compare with the member's last reset (`sessionPredatesReset`).
 **What reads FROM this number, and gets further away as it grows:**
 - **The forced password migration** (`CONFIG.FORCE_PASSWORD_SET`, PASSWORD_DESIGN Track C) is driven
   by sign-ins, so it takes up to 60 days to reach everybody who signs in — the C5 exit metric moves
-  at the session's pace, and never reaches a member who only opens the roster with the staff PIN
-  (Track E).
+  at the session's pace. Since the staff PIN was retired (23 Nov 2026), everybody who reads the roster
+  signs in, so nobody is out of its reach.
 - **Operations → Usage, "Accounts that have signed in — last 30 days"** counts sign-ins, not people:
   someone can sign in once and use the app daily for two months without re-entering the window. The
   card's note says "counts sign-ins, not opens", and the reasoning beside `_appendSignInSection`
@@ -696,8 +695,8 @@ read only to compare with the member's last reset (`sessionPredatesReset`).
 **What this does not change.** Every path that genuinely REVOKES access is immediate and was never
 the session clock's job: an explicit sign-out (`clearSession`, which signs Firebase out too), a
 disabled or deleted Firebase account, revoked credentials, and the `CLAIM_EPOCH` sweep. The
-**Calendar viewer** is not a member session, holds no `name` claim, and its persistence is
-session-only, so it ends when the browser session does.
+retired staff PIN's **Calendar viewer** is not a member session, holds no `name` claim, and a
+leftover one is signed out on the device's next Calendar or Trains load.
 
 **What it does change, stated plainly.** A LEAVER whose device still holds a local session keeps the
 signed-in *UI* for up to 60 days. That was never the control it looked like: the real remedy is
@@ -710,15 +709,10 @@ security one.
 **One interaction to expect on iOS.** `decideAccess` grants `named` only when a live local session
 is backed by a **restored Firebase identity** — both halves, because either alone is a real failure
 (see `calendar-access-core.js`). A device can hold the session without the identity, and that member
-gets the member sign-in card ("This device needs to sign you in again…") instead of their roster,
-never the PIN. A silent re-sign-in is tried first, and one tap on "Sign in" re-establishes the
+gets the member sign-in card ("This device needs to sign you in again…") instead of their roster.
+A silent re-sign-in is tried first, and one tap on "Sign in" re-establishes the
 identity, so it is recoverable rather than a lockout — but it will generate a support question, it
 will land on iPhone users specifically, and it is worth expecting rather than diagnosing.
-
-**The case where the same tab also held a staff-PIN session is closed (v25.98).** The start-up
-decision now answers a held member session with the member's card, never the PIN, as the late-restore
-path already did (`decideAccess`, `CALENDAR_DATA.md` 11). The paragraph that recorded it is in
-ROADMAP_HISTORY.md → "Closed limitations, moved out of KNOWN_LIMITATIONS.md (13 Nov 2026)".
 
 **The cause is NOT Safari's seven-day rule** (corrected 7 Nov 2026, iPhone audit — this paragraph and
 five module headers said it was). WebKit's tracking prevention deletes ALL of a site's script-writable
@@ -774,7 +768,7 @@ Check territory, or inherent platform behaviour, not bugs to patch:
   platform's, and the app stops depending on it only by not using it.
 - **Analytics dynamic-map value integrity.** `analytics/activeAccounts`, `analytics/origins` and
   `analytics/perf_<month>` hold maps whose keys and values Firestore rules cannot iterate or
-  type-check, so an authenticated session (a named member or the PIN viewer) could write forged
+  type-check, so an authenticated session (a named member, or the retired PIN viewer until the server release) could write forged
   counts. The rules validate SHAPE and block key-removal (the destructive wipe), the `pv_` counts are
   int-checked, and the App Speed card reads a value only when it is a whole number under a million
   (`perf-stats.js`); the usage readers take a non-number as zero. A forged but PLAUSIBLE count is
@@ -845,8 +839,7 @@ What remains inherent:
 - **"First appears" is still the splash.** Kept because it is genuinely useful — it is the
   difference between a slow network and a slow app — but it is not "the member can see their
   roster", and reading it as that is the trap this note exists to close.
-- **"Usable" is a smaller population.** An open where somebody had to sign in or type the staff PIN
-  first records no "Usable" (its sign-in is the figure), and Overtime skips the mark when its own
+- **"Usable" is a smaller population.** An open where somebody had to sign in first records no "Usable" (its sign-in is the figure), and Overtime skips the mark when its own
   state read fails, so its cell can still show a dash rather than a number. The smaller total is not
   fewer opens.
 - **Historic data cannot be backfilled.** The metric starts at v20.80, so a month-over-month
@@ -877,10 +870,11 @@ name such a burst probes is recorded as a request the admin sees, and each name 
 ten minutes. Closing it fully means sending the push from a Firestore trigger, so no answer waits on it
 — a new deployed function, left for a release that needs one. App Check (below) would also blunt it.
 
-### Three settings outside the code that nobody has checked from here (sign-in audit, 13 Nov 2026)
+### Settings outside the code that nobody has checked from here (sign-in audit, 13 Nov 2026)
 
 The sign-in audit could read the code and the rules, not the Firebase console or the live network.
-Three things it depends on are therefore assumed, not known:
+These things it depends on are therefore assumed, not known (the first and last matter only until the
+server release deletes the retired staff PIN's endpoint and account):
 
 - **Who may change or delete their own account.** Every staff-PIN holder signs in to ONE shared
   viewer account. If users may delete their own account, or link an email to it, one PIN holder can
@@ -892,8 +886,8 @@ Three things it depends on are therefore assumed, not known:
   outsider little, but it is a free signal. Same page.
 - **The address the PIN lockout counts by.** `unlockCalendarViewer` counts failures per source by the
   LAST `x-forwarded-for` entry, which a caller cannot forge. If the hosting puts its own address
-  last, every caller shares one failure budget (`maxFailures`, `calendar-viewer-auth.js`) — a cheaper form of "Anybody can hold the staff PIN
-  shut" (above), not a way past the PIN. Reading one real request's headers in the function's logs
+  last, every caller shares one failure budget (`maxFailures`, `calendar-viewer-auth.js`) — a cheaper form of "anybody can hold the retired staff
+  PIN shut" (above), not a way past the PIN. Reading one real request's headers in the function's logs
   would settle it.
 
 ### A lost-phone reset still leaves one narrow gap: the surname (sign-in audit, 13 Nov 2026)
@@ -934,8 +928,8 @@ action**:
   hiccup and writes start failing silently with no visible error in the app. The allowlist must be
   kept in sync forever.
 - It gates *which clients* connect, not what an authenticated client may read, so it adds nothing to
-  the `overrides` read boundary, which has required a member identity or the PIN's `calendarViewer`
-  capability since 26 Aug 2026 (`firestore.rules`).
+  the `overrides` read boundary, which has required a claim since 26 Aug 2026 — a member identity, or the retired PIN's
+  `calendarViewer` until the server release (`firestore.rules`).
 - Payoff for this threat model (unadvertised app, small known team) is low: it blocks scripted bulk
   reads/writes from outside our pages, which is a real but low-probability attack here. The Aug 2026
   external review recommended it for the telemetry and reset-request paths — the same

@@ -53,11 +53,10 @@ recorded, with the measurements behind that decision, in `typecheck-scope.test.m
 ### There are no secrets in this tree
 
 The repository is public and holds no credentials. Deploys authenticate through Workload Identity
-Federation rather than a stored key; the Firebase API key is referrer-restricted; the shared
-Calendar PIN lives only in Secret Manager. No test can look for the digits themselves (a test that knew
-them would be the leak), so `calendar-viewer-parity.test.mjs` checks the shapes a leak would take — a
-client file naming the secret, a comparison in the browser, a stored verifier. Keeping the digits out of
-the repository is a rule, not a guard.
+Federation rather than a stored key; the Firebase API key is referrer-restricted; the retired
+staff PIN's value lives only in Secret Manager, until it is destroyed after the server release that
+deletes its endpoint (OPERATIONS_REFERENCE.md → "The staff PIN (retired)"). Keeping its digits out of
+the repository — and out of the record of its retirement — is a rule, not a guard.
 
 ## The test lanes
 
@@ -145,14 +144,14 @@ behind them.
   sign-in and the forced password change, a day of leave saved, reloaded and drawn on the Calendar, a
   colleague's day refused, a manager recording on behalf, a save with no signal, a delete made just
   after the signal returns while that save is still queued, the same race in the Links workspace (a
-  rename made while a design's offline save is still queued, as the designer), the staff PIN's real
-  exchange, Back after signing out, and since v25.98 the sign-in audit's journeys: a real admin reset
+  rename made while a design's offline save is still queued, as the designer), Back after signing out, and since v25.98 the sign-in audit's journeys: a real admin reset
   and the member's phone opened again, a token renewal refused mid-save, the silent surname re-sign-in,
   a disabled leaver, "Can't get in?", a new password from Settings, two tabs signing out, a browser
-  restart (the PIN gone, the member kept) and a new password whose record is still on its way
+  restart (the member kept) and a new password whose record is still on its way
   (`e2e/signed-in.spec.js`). `scripts/signed-in.mjs` builds a
   throwaway Firebase project folder in the temp directory — the emulator settings from `firebase.json`,
-  a random four-digit PIN, never the real one — and writes nothing into the checkout. Each page keeps
+  a random stand-in for the retired staff PIN's secret while its function is still deployed, never the
+  real one — and writes nothing into the checkout. Each page keeps
   its own CSP, widened only by the emulators' addresses. **What it cannot see** is what only
   production has: the API key's allowed sites, the rules as DEPLOYED rather than as committed, Web
   Push, the service worker (blocked, so every request reaches the routes) and the Pages mirror. Nor
