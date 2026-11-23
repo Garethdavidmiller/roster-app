@@ -36,7 +36,7 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, releasePushForEndingHold } from './session.js';
+import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, releasePushForEndingHold, AUTH_RESTORE_TIMEOUT_MS } from './session.js';
 import { isCredentialRejection } from './auth-identity.js';
 // The card's DOM-free rules — the sign-in core, which links its explanation may carry, and what a failed
 // reset request says — are login-core.js's, re-exported so every caller and test keeps importing them here.
@@ -670,6 +670,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         setLoginStatus('Checking your sign-in…');
         _statusTimers.push(setTimeout(() => setLoginStatus('Still checking — almost there…'), 1500));
         _statusTimers.push(setTimeout(() => setLoginStatus('Still working — this can happen after an app update or on weak signal.'), 4000));
+        // 8 SECONDS IS "LONGER THAN USUAL", NOT A FAILURE (external review, 23 Nov 2026): the attempt goes on
+        // to an answer, or to `SIGN_IN_GIVE_UP_MS` (login-core.js), and the card says to leave it open.
+        _statusTimers.push(setTimeout(() => setLoginStatus('Sign-in is taking longer than usual. Keep this open — it will finish when the signal allows.'), AUTH_RESTORE_TIMEOUT_MS));
     }
     function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setLoginStatus(''); }
 
@@ -694,6 +697,59 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 submitBtn.textContent = 'Sign in →';
             }
         }, 30_000);
+    }
+
+    /** A sign-in that succeeded: the card's last state, and the page it opens (`onSuccess`). Shared by the
+     *  attempt and by a late answer to one the app had already ended (`awaitLateSignIn`). @param {string} name */
+    async function opened(name) {
+        _failCount = 0;   // a successful sign-in clears the wrong-password streak
+        // …and with it the stuck-member emphasis, for a card that stays up after a success —
+        // `onSuccess` failing (below) asks the member to try again on this one. A dismissed card
+        // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
+        resetResetRequest();
+        // One-shot "a real sign-in just happened" marker for the forced set-password overlay
+        // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written HERE — the one place every
+        // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
+        // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
+        // path (both the reload and the in-place branch run it). Deliberately set BEFORE
+        // onSuccess, which on the reload path never returns.
+        lsSet(PW_FORCE_PENDING_PREFIX + name, '1');
+        // Confirm success before the (usually slow) reload kicks in, so there is no silent
+        // "did it work?" gap between the click and the destination page appearing.
+        clearStatusProgress();
+        submitBtn.textContent = `Signed in — opening ${pageLabel}…`;
+        try {
+            await onSuccess(name);
+            // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
+        } catch (e) {
+            // onSuccess CAN reject (the admin path does inline work before reloading). The
+            // rejection used to be swallowed by the click handler's .catch(()=>{}), stranding
+            // the primary button disabled on "Signed in — opening …" forever. The session IS
+            // saved at this point, so recover the UI and let the user retry (v16.23).
+            console.warn('[Login] onSuccess failed after a successful sign-in:', e);
+            clearLoginStart();   // drop the perf marker — a later open must not log an inflated loginTotal
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Sign in →';
+            showError('Signed in, but the page couldn’t open — try again.');
+        }
+    }
+
+    /**
+     * An attempt the app ended (`SIGN_IN_GIVE_UP_MS`) that answers anyway: if it signed the colleague in and
+     * the card is still up, for them, with nothing else in flight, it opens the page — the saved session the
+     * failure kept is confirmed (external review, 23 Nov 2026). Committed through `runNamedSignIn` with the
+     * answer already in hand, so the local session is written by the one path that writes it.
+     * @param {string} name @param {string} typedPw @param {Promise<boolean>} late
+     */
+    function awaitLateSignIn(name, typedPw, late) {
+        late.then(async (named) => {
+            if (!named || !overlay.isConnected || _attempting || nameSelect.value !== name) return;
+            const r = await runNamedSignIn({ ...signInDeps(name, typedPw), ensureNamedSession: async () => true });
+            if (!r.ok) { showError(/** @type {string} */ (r.error)); return; }
+            errorEl.classList.remove('visible');
+            submitBtn.disabled = true;
+            await opened(name);
+        }).catch(() => {});
     }
 
     async function attempt() {
@@ -739,6 +795,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
+                if (_result.late) awaitLateSignIn(name, typedPw, _result.late);
                 // Is the card still showing the person this attempt was for? The pickers are inert in
                 // flight (`setPickersInert`), but a pick from a sheet that was already closing when the
                 // member pressed Enter still lands. Then this failure is the EARLIER person's: it is
@@ -778,36 +835,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 showError(/** @type {string} */ (_result.error));
                 return;
             }
-            _failCount = 0;   // a successful sign-in clears the wrong-password streak
-            // …and with it the stuck-member emphasis, for a card that stays up after a success —
-            // `onSuccess` failing (below) asks the member to try again on this one. A dismissed card
-            // is removed (`dismissLoginOverlay`), and a re-show builds a new one.
-            resetResetRequest();
-            // One-shot "a real sign-in just happened" marker for the forced set-password overlay
-            // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written HERE — the one place every
-            // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
-            // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
-            // path (both the reload and the in-place branch run it). Deliberately set BEFORE
-            // onSuccess, which on the reload path never returns.
-            lsSet(PW_FORCE_PENDING_PREFIX + name, '1');
-            // Confirm success before the (usually slow) reload kicks in, so there is no silent
-            // "did it work?" gap between the click and the destination page appearing.
-            clearStatusProgress();
-            submitBtn.textContent = `Signed in — opening ${pageLabel}…`;
-            try {
-                await onSuccess(name);
-                // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
-            } catch (e) {
-                // onSuccess CAN reject (the admin path does inline work before reloading). The
-                // rejection used to be swallowed by the click handler's .catch(()=>{}), stranding
-                // the primary button disabled on "Signed in — opening …" forever. The session IS
-                // saved at this point, so recover the UI and let the user retry (v16.23).
-                console.warn('[Login] onSuccess failed after a successful sign-in:', e);
-                clearLoginStart();   // drop the perf marker — a later open must not log an inflated loginTotal
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Sign in →';
-                showError('Signed in, but the page couldn’t open — try again.');
-            }
+            await opened(name);
         } finally {
             // Release the in-flight mutex on completion, every time. It used to stay latched for the
             // 30-second lock, its timer releasing it — which kept the NEXT person out as well, the lock

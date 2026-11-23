@@ -304,7 +304,7 @@ The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each p
 
 ### `login-core.js`
 The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), which links the card's explanation may carry, the explanation itself for a page that passes none (`signInAboutFor`), and what a failed reset request says. `login-overlay.js` re-exports the other three, so callers and `login-overlay.test.mjs` reach them there.
-- **Exports:** `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
+- **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
 
 ### `login-overlay.js`
 The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-pin.spec.js`.
@@ -973,7 +973,7 @@ The pure write-safety rules, every dependency injected: one refresh-and-retry fo
 
 ### `page-session.js`
 How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
-- **Exports:** `LEAVE_QUESTION` · `DISCARD_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
+- **Exports:** `LEAVE_QUESTION` · `DISCARD_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_IDENTITY_NOTICE` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
 
 ### `unsaved-draft.js`
 A copy of unsaved work, kept on this device for the exits nothing can ask about (iOS discards a hidden page; a swipe back asks nothing) and offered to the same member on the next load. Its six rules are the header: never applied silently, never across members, a mirror of the unsaved state at the last hide that deletes only its own copy, a day then gone, a draft is work and not a decision, and work a save has since landed is not unsaved. Written through `keepDraftWhenHidden` (`page-session.js`); used by Admin and Links. Tested in `page-session.test.mjs`.

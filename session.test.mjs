@@ -334,16 +334,17 @@ describe('restoreFirstAuthUser', () => {
         assert.equal(AUTH_RESTORE_TIMEOUT_MS, 8000);
     });
 
-    test('ONE number: the boot restore and the typed sign-in\'s deadline import it, and spell no copy (review, Nov 2026)', async () => {
-        // Three literal 8000s stood beside this constant; a change to one would have left two behind.
+    test('ONE number: the boot restore and the card\'s "taking longer" line import it, and spell no copy (review, Nov 2026)', async () => {
+        // Three literal 8000s stood beside this constant; a change to one would have left two behind. Since 23 Nov
+        // 2026 the typed sign-in is ENDED at SIGN_IN_GIVE_UP_MS (login-core.js), and 8 seconds is when the card
+        // says it is taking longer than usual (login-overlay.js, through session.js's re-export).
         const { readFileSync } = await import('node:fs');
         const silent = await import('./silent-sign-in.js');
         assert.equal(silent.AUTH_RESTORE_TIMEOUT_MS, AUTH_RESTORE_TIMEOUT_MS, 'session.js re-exports the one definition');
-        for (const file of ['firebase-client.js', 'login-core.js']) {
-            const src = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
-            assert.match(src, /import \{[^}]*\bAUTH_RESTORE_TIMEOUT_MS\b[^}]*\} from '\.\/silent-sign-in\.js'/, `${file} does not import the shared bound`);
-            assert.doesNotMatch(src, /\b8000\b|\b8_000\b/, `${file} spells its own 8000 again`);
-        }
+        const read = (/** @type {string} */ file) => readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
+        assert.match(read('firebase-client.js'), /import \{[^}]*\bAUTH_RESTORE_TIMEOUT_MS\b[^}]*\} from '\.\/silent-sign-in\.js'/, 'firebase-client.js does not import the shared bound');
+        assert.match(read('login-overlay.js'), /import \{[^}]*\bAUTH_RESTORE_TIMEOUT_MS\b[^}]*\} from '\.\/session\.js'/, 'login-overlay.js does not import the shared bound');
+        for (const file of ['firebase-client.js', 'login-core.js', 'login-overlay.js']) assert.doesNotMatch(read(file), /\b8000\b|\b8_000\b/, `${file} spells its own 8000 again`);
     });
 });
 

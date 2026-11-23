@@ -46,7 +46,9 @@ mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {a
 mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight } });
 /** What the shared sign-in was last opened with — RECORDED, so a test can say what the card was told. @type {any} */
 let lastLoginOpts = null;
-mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => { lastLoginOpts = o; log.push(`login:${o.pageLabel}`); } } });
+mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => { lastLoginOpts = o; log.push(`login:${o.pageLabel}`); }, dismissLoginOverlay: () => log.push('dismissLogin') } });
+/** Whether the card on screen has a sign-in in flight (its button held): read by the no-memory branch. */
+let signInInFlight = false;
 
 /** sessionStorage for the late-identity reload cap. @type {Map<string,string>} */
 const ss = new Map();
@@ -62,6 +64,7 @@ const fire = (/** @type {string} */ t, /** @type {any} */ e = {}) => (listeners[
 let docListeners = {};
 global.document = /** @type {any} */ ({
     visibilityState: 'visible',
+    querySelector: (/** @type {string} */ sel) => (sel === '#loginSubmit' ? { hasAttribute: (/** @type {string} */ a) => a === 'disabled' && signInInFlight } : null),
     addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (docListeners[t] ??= []).push(fn); },
 });
 const fireDoc = (/** @type {string} */ t, /** @type {any} */ e = {}) => (docListeners[t] ?? []).forEach(fn => fn(e));
@@ -154,21 +157,62 @@ describe('guardNamedSession', () => {
         log = [];
         authCb(me);
         assert.deepEqual(log, ['authUnwatch'], 'no second reload inside the window — the overlay stays, and can sign them in');
-        assert.equal(ps.lateReloadAllowed(Date.now() + ps.LATE_RELOAD_GAP_MS + 1), true, 'and the cap lifts after the gap');
+        assert.equal(ps.lateReloadAllowed(Date.now() + ps.LATE_RELOAD_GAP_MS + 1), 'reload', 'and the cap lifts after the gap');
     });
 
-    test('with sessionStorage THROWING (iOS private mode), one reload per page load still — never one per call (review, Nov 2026)', async () => {
-        // A fresh module instance: a page load is what the in-memory fallback lasts for.
-        const fresh = await import('./page-session.js?storage-throws');
+    // ── A TAB THAT CANNOT REMEMBER A RELOAD NEVER RELOADS BY ITSELF (external review, 23 Nov 2026) ──────
+    // One reload per page load was allowed there, and a reload IS a new page load: three fresh loads a
+    // second apart each allowed another, so a start-up that stalled every time flashed the card away in a
+    // loop. Now no load reloads by itself; the card says the sign-in is back and offers Try again.
+    test('with sessionStorage THROWING, no fresh page load reloads by itself — the reviewer\'s three loads a second apart', async () => {
         const real = global.sessionStorage;
         const refuse = () => { const e = new Error('The operation is insecure.'); e.name = 'SecurityError'; throw e; };
         global.sessionStorage = /** @type {any} */ ({ getItem: refuse, setItem: refuse });
         try {
             const now = Date.now();
-            assert.equal(fresh.lateReloadAllowed(now), true, 'the one reload is still allowed rather than none');
-            assert.equal(fresh.lateReloadAllowed(now + 1), false, 'a second reload on the same load — the loop the cap exists to stop');
-            assert.equal(fresh.lateReloadAllowed(now + fresh.LATE_RELOAD_GAP_MS + 1), false, 'without storage the gap cannot be measured, so it never lifts on this load');
+            for (let load = 0; load < 3; load++) {
+                const fresh = await import(`./page-session.js?load-${load}`);   // each a fresh page load
+                assert.equal(fresh.lateReloadAllowed(now + load * 1000), 'no-memory', `load ${load + 1}: no reload it could not count`);
+            }
         } finally { global.sessionStorage = real; }
+    });
+
+    test('…and when the identity lands there, the card says so and offers Try again, rather than reloading', async () => {
+        const real = global.sessionStorage;
+        const refuse = () => { throw new Error('SecurityError'); };
+        global.sessionStorage = /** @type {any} */ ({ getItem: refuse, setItem: refuse });
+        try {
+            decision = 'pending';
+            const { nameToEmail } = await import('./auth-identity.js');
+            await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+            await settle();
+            log = [];
+            authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
+            await settle();
+            assert.deepEqual(log, ['authUnwatch', 'dismissLogin', 'login:Links'], 'no reload: the card is drawn again');
+            assert.equal(lastLoginOpts.notice, ps.LATE_IDENTITY_NOTICE);
+            assert.equal(lastLoginOpts.alternative?.label, 'Try again');
+            log = [];
+            lastLoginOpts.alternative.onSelect();
+            assert.deepEqual(log, ['reload'], 'Try again is the colleague\'s own reload');
+        } finally { global.sessionStorage = real; }
+    });
+
+    test('…but a sign-in already in flight on the card is left to finish: nothing is redrawn under it', async () => {
+        const real = global.sessionStorage;
+        const refuse = () => { throw new Error('SecurityError'); };
+        global.sessionStorage = /** @type {any} */ ({ getItem: refuse, setItem: refuse });
+        signInInFlight = true;
+        try {
+            decision = 'pending';
+            const { nameToEmail } = await import('./auth-identity.js');
+            await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+            await settle();
+            log = [];
+            authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
+            await settle();
+            assert.deepEqual(log, ['authUnwatch']);
+        } finally { global.sessionStorage = real; signInInFlight = false; }
     });
 
     test('the shared sign-in after a LOST session names the member and says they were signed out (review, Nov 2026)', async () => {
