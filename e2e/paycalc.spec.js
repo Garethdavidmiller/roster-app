@@ -1570,9 +1570,11 @@ test('paycalc: a payslip saved elsewhere while the replace question is open is n
     await expect(page.locator('#ptStatus')).toContainText('changed while that question was open, so nothing was changed');
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_code')), 'nothing was written').toBe('K100');
     // …and it asks again, now naming the payslip that arrived.
-    await expect(page.locator('.dialog-btn-confirm')).toHaveText('Replace my pay data');
-    await expect(page.locator('.dialog-message').last()).toContainText(/payslip/i);
-    await page.locator('.dialog-btn-cancel').click();
+    // The first dialog is still in the page for its closing fade, so this is the newest one.
+    const again = page.locator('.dialog-overlay').last();
+    await expect(again.locator('.dialog-btn-confirm')).toHaveText('Replace my pay data');
+    await expect(again.locator('.dialog-message')).toContainText(/payslip/i);
+    await again.locator('.dialog-btn-cancel').click();
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p20')), 'the new payslip is still here').toBe('{"satH":8,"satM":0}');
 });
 
