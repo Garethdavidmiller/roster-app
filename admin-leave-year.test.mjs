@@ -40,7 +40,8 @@ describe('what the panel offers', () => {
     test('THE CAP: with the earlier year full, it is refused on a day still on the later year — and says why', () => {
         const html = leaveYearPanelHtml([group({ prevOpen: false, positions: { 2026: { remaining: 0 }, 2027: { remaining: 30 } } })]);
         assert.match(button(html, '2027-01-05', 2026), / disabled/);
-        assert.match(html, /2026 has no days left, so these days stay on 2027’s allowance\./);
+        assert.match(html, /2026 has no days left, so no more days can be moved to 2026\./);
+        assert.doesNotMatch(html, /stay on 2027/, 'untrue of a day already moved to 2026 (external review of v26.55)');
     });
 
     test('a day already moved can always move FORWARD again, even with the earlier year full', () => {

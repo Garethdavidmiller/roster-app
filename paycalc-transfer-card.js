@@ -96,6 +96,12 @@ export function initTransferCard() {
         return selectBackupKeys(lsKeys(), pcPrefix());
     }
 
+    /** Every key and value of this member's pay data, as one string to compare: a payslip saved, changed or
+     *  removed in another tab changes it. @param {string[]} keys @returns {string} */
+    function snapshotOf(keys) {
+        return JSON.stringify([...keys].sort().map(k => [k, lsGet(k)]));
+    }
+
     /** Render an inventory as the card's detail list. @param {string[]} lines */
     function paintInventory(lines) {
         if (!invEl) return;
@@ -272,6 +278,12 @@ export function initTransferCard() {
         // count alone described neither side, since a namespace also holds pension history,
         // back-pay figures and Year-to-Date totals that no payslip count mentions.
         const existing = ownKeys();
+        // WHAT THE QUESTION DESCRIBES, to hold the write to (external review of v26.55). The dialog waits on the
+        // member, and another tab can save a payslip meanwhile: the replace then wrote the backup over the list
+        // taken HERE, left the new payslip beside it — a merge — and reported success. So the pay data is read
+        // again just before writing, and if it has changed nothing is written and the question is asked again
+        // with what is here now. Never deleted unseen, never merged in silence.
+        const shown = snapshotOf(existing);
         const arriving = inventoryLines(res.inventory).map(l => `• ${l}`).join('\n');
         if (existing.length) {
             const here = inventoryLines(inventoryOf(existing, pcPrefix())).map(l => `• ${l}`).join('\n');
@@ -303,6 +315,12 @@ export function initTransferCard() {
                 confirmLabel: 'Restore anyway',
             });
             if (!ok) { status('Nothing was changed.'); return; }
+        }
+
+        if (snapshotOf(ownKeys()) !== shown) {
+            status('Your pay data on this device changed while that question was open, so nothing was changed. '
+                 + 'Here is what it holds now.', 'warn');
+            return applyRestore(text);
         }
 
         // The whole ladder is `applyRestore` in paycalc-transfer.js (v19.84). It used to be inline
