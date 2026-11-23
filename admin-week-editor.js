@@ -118,7 +118,8 @@ function getSundayOfWeek(dateStr) {
  * in the real label: at 320px its box is 120px, and the full form ("29 November–5 December 2026",
  * 249px) would ellipsise 260 weeks of 261 on one line — or, allowed to wrap, need THREE lines for 63
  * of them beside 44px arrows. At 375px it would ellipsise 70 weeks, the 📅's own row included. The
- * short form fits every week at 375px (`e2e/responsive.spec.js`). The words are the same week the
+ * short form fits every week at 375px on one line, and at 320px takes a second line rather than an
+ * ellipsis (owner, 23 Nov 2026 — admin.css `.week-nav-label`; `e2e/responsive.spec.js`). The words are the same week the
  * full form would name: the label is a control between two arrows, not a date to quote.
  *
  * Same-month ranges collapse, as `formatTeamWeekLabel` does, and both forms use a tight en-dash: at

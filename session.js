@@ -499,7 +499,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
         }
         try {
             await signInWithEmailAndPassword(auth, email, candidate);
-            // LANDED AFTER A SIGN-OUT (v24.38). The login overlay's 8s bound gives up, calls
+            // LANDED AFTER A SIGN-OUT (v24.38). The login overlay's bound (SIGN_IN_GIVE_UP_MS) gives up, calls
             // clearSession(), and tells the member it failed — but the request it gave up on can
             // still land, leaving Firebase signed in with no app session behind it on a shared
             // device. Undo it only when a clearSession() is the LAST thing that happened: a newer

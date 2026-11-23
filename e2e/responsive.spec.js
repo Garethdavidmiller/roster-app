@@ -200,9 +200,12 @@ test('admin week label fits at 375px for every week across 13 months', async ({ 
     await page.goto('/admin.html');
     await expect(page.locator('#weekNavLabel')).toBeVisible();
 
+    // ONE LINE, NOT MERELY "NOT CUT OFF" (23 Nov 2026): the label now wraps rather than ellipsising, so a
+    // label too long for 375px would no longer overflow — it would take a second line and grow the row.
+    // The height is what says it still fits on one: the row keeps its 44px here.
     const measure = () => page.evaluate(() => {
         const el = document.getElementById('weekNavLabel');
-        return { text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth };
+        return { text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth, h: Math.round(el.getBoundingClientRect().height) };
     });
     const first = await measure();
     await page.locator('#nextWeekBtn').click();
@@ -215,16 +218,43 @@ test('admin week label fits at 375px for every week across 13 months', async ({ 
         const out = [];
         for (let i = 0; i < 55; i++) {
             btn.click();
-            out.push({ text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth });
+            out.push({ text: el.textContent, sw: el.scrollWidth, cw: el.clientWidth, h: Math.round(el.getBoundingClientRect().height) });
         }
         return out;
     });
 
     const overflowing = [first, second, ...rest]
-        .filter(r => r.sw > r.cw)
-        .map(r => `${r.text} (${r.sw}px into ${r.cw}px)`);
-    expect(overflowing, `week labels ellipsising at 375px — the 📅 affordance is cut off:\n${overflowing.join('\n')}`)
+        .filter(r => r.sw > r.cw || r.h > 44)
+        .map(r => `${r.text} (${r.sw}px into ${r.cw}px, ${r.h}px tall)`);
+    expect(overflowing, `week labels that no longer fit one line at 375px:\n${overflowing.join('\n')}`)
         .toEqual([]);
+});
+
+// AT 320px THE LABEL TAKES A SECOND LINE RATHER THAN AN ELLIPSIS (owner, 23 Nov 2026). Its box is 120px
+// there, and on one line 246 weeks of 261 were cut off ("30 Aug–5 Se…"), hiding which week was being
+// edited. Every week of a year: never cut off, and never more than two lines at the normal text size.
+test('admin week label at 320px: every week of a year whole, on at most two lines', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 760 });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html?date=2026-01-04');
+    await expect(page.locator('#weekNavLabel')).toBeVisible();
+    await page.locator('#nextWeekBtn').click();   // one real click: the button's own wiring
+    const weeks = await page.evaluate(() => {
+        const el = document.getElementById('weekNavLabel');
+        const btn = document.getElementById('nextWeekBtn');
+        const out = [];
+        for (let i = 0; i < 52; i++) {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const lines = new Set([...range.getClientRects()].map(r => Math.round(r.top))).size;
+            out.push({ text: el.textContent, cut: el.scrollWidth > el.clientWidth, lines });
+            btn.click();
+        }
+        return out;
+    });
+    const bad = weeks.filter(w => w.cut || w.lines > 2).map(w => `${w.text} (${w.cut ? 'cut off' : `${w.lines} lines`})`);
+    expect(bad, `week labels cut off, or over two lines, at 320px:\n${bad.join('\n')}`).toEqual([]);
+    expect(weeks.some(w => w.lines === 2), 'premise: at 320px some weeks need the second line').toBe(true);
 });
 
 // The week across New Year names the year it STARTS in (18 Nov 2026): "27 Dec–2 Jan 2027" put

@@ -16,8 +16,16 @@ import { isCredentialRejection } from './auth-identity.js';
 // Every page that loads the card statically already loads password-force.js statically, and the
 // Calendar loads the card on demand, so the import adds nothing to any page's start-up.
 import { withTimeout } from './password-force.js';
-// The one "how long may Firebase take" bound (8s, the login freeze's budget) — pure, so no SDK import here.
-import { AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
+
+/**
+ * How long one sign-in may take before the APP ends it (external review, 23 Nov 2026). It was 8 seconds —
+ * `AUTH_RESTORE_TIMEOUT_MS`, the bound on finding a SAVED identity — and on patchy station Wi-Fi the card
+ * said "Couldn’t complete sign-in" while Firebase went on to sign the colleague in a moment later. So 8
+ * seconds is now only when the card says the attempt is taking longer than usual (login-overlay.js), and
+ * the attempt runs to an answer, or to this. Past it the card says so, and an answer that still arrives —
+ * the saved session it kept, now confirmed — opens the page (`late`, below; `awaitLateSignIn`).
+ */
+export const SIGN_IN_GIVE_UP_MS = 30_000;
 
 /**
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
@@ -41,18 +49,23 @@ import { AUTH_RESTORE_TIMEOUT_MS } from './silent-sign-in.js';
  * @param {() => void} [deps.releaseEndedHold]  runs just before a failure clears the session, and
  *   releases this device's push record when the session is ANOTHER member's (audit A1) — not awaited
  * @param {() => void} [deps.forgetStaffPinEnded]  on success: the PIN's end is no longer this page's news
- * @param {number} [deps.timeoutMs]
- * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage' }>}
+ * @param {number} [deps.timeoutMs]  when the app ends the attempt (`SIGN_IN_GIVE_UP_MS`)
+ * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage', late?: Promise<boolean> }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
- *   ('credential' = wrong password → the caller's lockout counts it; others must not).
+ *   ('credential' = wrong password → the caller's lockout counts it; others must not). A 'timeout' carries
+ *   `late`: the attempt itself, which may still answer — true only for a named session that answer made.
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = AUTH_RESTORE_TIMEOUT_MS }) {
-    let named = false, authResolved = true;
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, isCredential = isCredentialRejection, keepsLocalSession = () => false, releaseEndedHold = () => {}, forgetStaffPinEnded = () => {}, timeoutMs = SIGN_IN_GIVE_UP_MS }) {
+    let named = false, authResolved = true, threw = false;
+    const attempt = Promise.resolve().then(ensureNamedSession).catch(() => { threw = true; return false; });
     try {
-        named = await withTimeout(ensureNamedSession(), timeoutMs);
+        named = await withTimeout(attempt, timeoutMs);
     } catch {
-        authResolved = false;   // timed out (or threw) → treat as not signed in
+        authResolved = false;   // the app ended it: past `timeoutMs` with no answer
     }
+    // A sign-in that THREW is a failure that has happened, not one still pending: said as the timeout
+    // always said it (no answer was read), but with no `late` — nothing is left to arrive.
+    if (threw) authResolved = false;
     if (!authResolved || !named) {
         // Never leave a stale/legacy session behind a failed sign-in — UNLESS it is this member's
         // own (v24.56, auth review). A returning member on the Calendar's come-back card holds a
@@ -64,7 +77,7 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
         // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_DESIGN.md §3.5 +
         // the house wording rule (an account matter → "the admin").
-        if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.' };
+        if (!authResolved) return { ok: false, kind: 'timeout', error: 'Couldn’t complete sign-in — check your connection and try again.', ...(threw ? {} : { late: attempt.then(Boolean) }) };
         const code = getAuthError();
         if (code === 'auth/too-many-requests') return { ok: false, kind: 'ratelimit', error: 'Too many attempts — wait a few minutes and try again.' };
         // A browser that could not sign an account OUT is transient to the session (it keeps the 60-day

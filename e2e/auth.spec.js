@@ -630,9 +630,18 @@ test('reset request link: a network/transient failure does NOT push the reset ro
     // admin's time and mislead the member about what is actually wrong. The link stays available
     // (it always is); what it must not do is present itself as the answer to this failure.
     await page.addInitScript(() => { window.__E2E = { hangSignIn: true }; });   // → timeout, not credential
+    // THE PAGE'S CLOCK, MOVED ON (external review, 23 Nov 2026): the app ends an attempt only at
+    // SIGN_IN_GIVE_UP_MS (30s, login-core.js), so the test moves time rather than waiting it out — and on
+    // the way reads the 8-second line, which says the sign-in is slow and that nothing has failed.
+    await page.clock.install();
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
+    await page.clock.runFor(8_000);
+    await expect(page.locator('#loginStatus')).toContainText('taking longer than usual');
+    await expect(page.locator('#loginError'), 'at 8 seconds nothing has failed').toBeHidden();
+    await page.clock.runFor(22_500);
     await expect(page.locator('#loginError')).toBeVisible();
+    await expect(page.locator('#loginError')).toContainText('Couldn’t complete sign-in');
     await expect(page.locator('#loginResetRequest')).not.toHaveClass(/login-reset-request--prompted/);
 });
 
