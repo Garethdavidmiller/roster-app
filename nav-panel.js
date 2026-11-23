@@ -189,7 +189,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains'|'newlink', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, onLogoClick?: (() => void)|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains'|'newlink', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, isNotOtherStaff?: boolean, onLogoClick?: (() => void)|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
  *   onLockCalendar (the Calendar and Trains) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
@@ -201,8 +201,9 @@ export function resetNavPanel() {
  *   authenticated pages: `sessionReady`). Defaults to already-resolved.
  *   onLogoClick — opens the page's About lightbox when the drawer logo is tapped (a sub-page's
  *   header logo goes back to the calendar, so About lives here).
+ *   isNotOtherStaff — the one gate that defaults to TRUE (nav-destinations.js → `otherStaffHidden` says why).
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, onLogoClick = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => !!memberName } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, isNotOtherStaff = true, onLogoClick = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => !!memberName } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion: the SIGNED-IN name, never a selected
     // member (on the station PC that is whichever row was picked last). Never stored — only compared
     // against CONFIG.ADMIN_NAMES; usage-reporter.js has the reasoning.
@@ -215,7 +216,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     burger.setAttribute('aria-controls', 'navPanel');
     burger.setAttribute('aria-expanded', 'false');
 
-    _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, onLockCalendar);
+    _inject(currentPage, memberName, onSignOut, { isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, isNotOtherStaff }, onLockCalendar);
 
     const panel    = /** @type {HTMLElement} */ (document.getElementById('navPanel'));
     const overlay  = /** @type {HTMLElement} */ (document.getElementById('navPanelOverlay'));
@@ -974,17 +975,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
  * @param {any} currentPage
  * @param {any} memberName
  * @param {any} onSignOut
- * @param {any} isAdmin
- * @param {any} isLinksDesigner
- * @param {any} canOpenOvertime
- * @param {any} canOpenNewlink
+ * @param {import('./nav-destinations.js').NavGates} gates  the pill gates, as `visiblePills` reads them
  * @param {any} onLockCalendar
  */
-function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, onLockCalendar) {
+function _inject(currentPage, memberName, onSignOut, gates, onLockCalendar) {
     // Render every permitted destination. The current page is shown too — as an
     // inert "you are here" pill (aria-current) rather than being filtered out —
     // so the drawer doubles as a map, not just a list of exits.
-    const pills = visiblePills(NAV_PAGES, { isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink }, currentPage)
+    const pills = visiblePills(NAV_PAGES, gates, currentPage)
         .map(p => p.current
             ? `<span class="nav-panel-pill ${p.colorClass} nav-panel-pill--current" aria-current="page">${p.label}</span>`
             : `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)

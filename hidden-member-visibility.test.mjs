@@ -76,7 +76,7 @@ globalThis.document = {
 };
 globalThis.requestAnimationFrame = fn => fn();
 
-const { teamMembers, TEAM_GRADES } = await import('./roster-data.js');
+const { teamMembers, TEAM_GRADES, isOtherStaff } = await import('./roster-data.js');
 const { initTeamView, weekStartForMonth } = await import('./calendar-team-view.js');
 const { noteKnowledge, forget: forgetKnowledge } = await import('./calendar-data-state.js');
 
@@ -381,6 +381,13 @@ describe('the copies agree', () => {
                 `${f} has grown its own managerOnly rule — every listing surface must agree, so `
                 + 'either all of them exclude it or none of them do');
         }
+    });
+
+    test('Other staff rows are hidden rows too, and never also Management (owner, 23 Nov 2026)', () => {
+        // The same coupling for the second login-only grade: `hidden` keeps them off every list, and the sign-in
+        // picks them by their own flag — a row with both flags would be offered under two grades.
+        const leaky = teamMembers.filter(m => isOtherStaff(m) && (!m.hidden || m.managerOnly)).map(m => m.name);
+        assert.deepEqual(leaky, [], 'these Other staff rows are not hidden, or are also managerOnly:\n  ' + leaky.join('\n  '));
     });
 
     test('managerOnly rows are hidden rows, which is the only reason they stay out of the lists', () => {

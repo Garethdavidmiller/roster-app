@@ -1179,8 +1179,14 @@ export function init() {
     // Admin does not print: printing shows a "use the Calendar" notice (admin.css @media print).
 
     // Page access (auth-policy.js): "any named user" — the admin/manager split gates ACTIONS
-    // (applyPermissions), not the page, so there is no 'forbidden' path. 'login' iff no local session.
+    // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other staff"
+    // login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague to record it for.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
+    if (_access.decision === 'forbidden') {
+        // Off to the Calendar, as Operations sends a non-admin here: a page with nothing on it for them.
+        window.location.replace('./');
+        return;
+    }
     if (_access.decision === 'login') {
         // Not signed in → show login overlay; do not load any Firestore data. On a confirmed sign-in,
         // showAdminLogin's onSuccess reloads (flag off) or runs initAuthorised() in place (flag on).

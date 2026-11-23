@@ -895,6 +895,25 @@ export async function withLinksDesigners(page, names) {
 }
 
 /**
+ * Add one INVENTED "Other staff" login to the served roster for this page (owner, 23 Nov 2026). Call BEFORE page.goto().
+ * @param {import('@playwright/test').Page} page
+ * @param {string} name
+ */
+export async function withOtherStaff(page, name) {
+    // An INVENTED "Other staff" login (owner, 23 Nov 2026), served in the real roster module: the row goes in just
+    // before the array's end, after the comment that documents its shape, so the app reads it exactly as it would a
+    // real one. BEFORE page.goto(), for the same reason as the CONFIG overrides above.
+    if (page.url() !== 'about:blank') throw new Error('withOtherStaff: call it BEFORE page.goto()');
+    const row = `    { name: ${JSON.stringify(name)}, currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },`;
+    await page.route('**/roster-member-data.js', async route => {
+        const body = await (await route.fetch()).text();
+        const anchor = 'Operations → Set up accounts.\n];';
+        if (!body.includes(anchor)) throw new Error('withOtherStaff: the Other staff anchor in roster-member-data.js has moved — re-anchor it');
+        await route.fulfill({ contentType: 'text/javascript', body: body.replace(anchor, `Operations → Set up accounts.\n${row}\n];`) });
+    });
+}
+
+/**
  * A date `days` before `from` (default today) as the app files an issue: 'YYYY-MM-DD', by the calendar.
  * @param {number} days
  * @param {Date} [from]

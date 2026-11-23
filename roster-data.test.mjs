@@ -57,6 +57,8 @@ import {
     workEmailLocalPart,
     workEmailFrom,
     getMembersForGrade,
+    signInMembers,
+    isOtherStaff,
     parseSmartFloatOrNull,
 } from './roster-data.js';
 // The grade on a day lives beside the data it reads, in a module of its own (roster-data.js is at its size cap).
@@ -1334,6 +1336,33 @@ test('getMembersForGrade(Management) returns every CONFIG.MANAGER_NAMES manager 
     assert.ok(names.length >= CONFIG.MANAGER_NAMES.length, 'Management group must not be empty');
 });
 
+// THE "OTHER STAFF" GRADE (owner, 23 Nov 2026): a login with no roster, picked by its own flag as managers are by
+// theirs — so it is not lost to the `hidden` it carries. The person is INVENTED and lives only for the test.
+test('Other staff: their own sign-in group, in everybody who can sign in, and in the server\'s list', async () => {
+    const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true };
+    const before = getMembersForGrade('Other staff').map(m => m.name);
+    assert.ok(!before.includes('Q. Example'), 'premise: the invented name is not a real login');
+    assert.deepEqual(before, teamMembers.filter(m => m.role === 'Other staff').map(m => m.name),
+        'every real Other staff row is in the group, and nothing else is');
+    teamMembers.push(/** @type {any} */ (row));
+    try {
+        assert.ok(isOtherStaff(row) && !isOtherStaff({ ...row, otherStaff: 'yes' }), 'the flag must be exactly true');
+        assert.deepEqual(getMembersForGrade('Other staff').map(m => m.name), [...before, 'Q. Example']);
+        for (const g of ['CEA', 'CES', 'Dispatcher', 'Management']) {
+            assert.ok(!getMembersForGrade(g).includes(/** @type {any} */ (row)), `not also listed under ${g}`);
+        }
+        assert.deepEqual(signInMembers(), CONFIG.GRADE_ORDER.flatMap(getMembersForGrade), 'every grade, in the sign-in\'s order');
+        assert.ok(signInMembers().includes(/** @type {any} */ (row)));
+        const { buildRosterMembers } = await import('./scripts/generate-roster-members.mjs');
+        const built = /** @type {any} */ (buildRosterMembers());
+        assert.ok(built.activeMembers.includes('Q. Example'), 'the server gives them an account (activeMembers)');
+        assert.ok(!Object.values(built.roles).flat().includes('Q. Example'), 'and no claim tier beyond a member\'s');
+        assert.ok(!built.cea.includes('Q. Example') && !built.ces.includes('Q. Example'), 'nor a pay reminder');
+    } finally {
+        teamMembers.splice(teamMembers.indexOf(/** @type {any} */ (row)), 1);
+    }
+});
+
 // A LEAVER LEFT ON A ROLE LIST KEEPS A WORKING LOGIN (review D5, Nov 2026). setupRosterAuth unions every
 // role name into the set it provisions and never sweeps (resolveRosterAuthConfig, so that a sweep can
 // never disable an admin or a designer), so a name hidden or removed from teamMembers but still in
@@ -1688,7 +1717,7 @@ const ROSTER_CYCLE_LENGTHS = {
     dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS,
 };
 const VALID_ROSTER_TYPES = new Set(Object.keys(ROSTER_CYCLE_LENGTHS));
-const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management']);
+const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management', 'Other staff']);
 
 test('every teamMember has a valid rosterType', () => {
     const bad = teamMembers.filter(m => !VALID_ROSTER_TYPES.has(m.rosterType));
@@ -1802,7 +1831,7 @@ test('no two rows hold one rotating line, except a leaver\'s line taken after th
         /** @type {Map<string, any[]>} */
         const lines = new Map();
         for (const m of teamMembers) {
-            if (m.managerOnly || (m.startDate && midnight(day) < midnight(m.startDate))) continue;
+            if (m.managerOnly || isOtherStaff(m) || (m.startDate && midnight(day) < midnight(m.startDate))) continue;
             const type = resolveMemberRoster(m, day).rosterType;
             if (!ROTATING.has(type)) continue;
             const key = `${type} week ${getWeekNumberForDate(day, m)}`;

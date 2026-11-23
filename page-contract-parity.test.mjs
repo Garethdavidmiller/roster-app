@@ -683,8 +683,10 @@ test("a pill's GATE and the page policy's ROLE agree — in both directions", ()
     assert.ok(roleGated.size >= 3,
         `expected several role-gated pages in PAGE_POLICIES, found ${[...roleGated]}`);
 
-    // Page ids whose NAV_PAGES entry carries one of the gate flags (nav-destinations.js → PILL_GATES).
-    const gateFlags = Object.keys(PILL_GATES);
+    // Page ids whose NAV_PAGES entry carries one of the ROLE gate flags (nav-destinations.js → PILL_GATES).
+    // `otherStaffHidden` is not one: it takes a pill from one grade instead of giving it to a role, and has
+    // its own correspondence below.
+    const gateFlags = Object.keys(PILL_GATES).filter(f => f !== 'otherStaffHidden');
     assert.ok(gateFlags.length >= 3, `expected the NAV_PAGES gate flags, found ${gateFlags.length}`);
     const navIds   = new Set(NAV_PAGES.map(p => p.id));
     const navGated = new Set(NAV_PAGES.filter(p => gateFlags.some(f => /** @type {any} */ (p)[f])).map(p => p.id));
@@ -701,6 +703,16 @@ test("a pill's GATE and the page policy's ROLE agree — in both directions", ()
     assert.deepEqual(hidden, [],
         'these pills are hidden from people the page would ADMIT, so the feature is reachable only '
         + 'by typing its URL: ' + hidden.join(', '));
+
+    // The same two ways round for the "Other staff" grade (owner, 23 Nov 2026): a pill hidden from them
+    // (`otherStaffHidden`) is exactly a page whose policy does not admit them (`otherStaff`), among the pills
+    // every member is otherwise offered.
+    const ungated = NAV_PAGES.filter(p => !gateFlags.some(f => /** @type {any} */ (p)[f]));
+    const hiddenFromThem  = ungated.filter(p => /** @type {any} */ (p).otherStaffHidden).map(p => p.id);
+    const refusedThem     = ungated.filter(p => !PAGE_POLICIES[p.id]?.otherStaff).map(p => p.id);
+    assert.deepEqual(hiddenFromThem, refusedThem,
+        'an Other staff login must be shown exactly the pages its policy admits: hidden ' + hiddenFromThem.join(', ')
+        + '; refused ' + refusedThem.join(', '));
 });
 
 test('every app page marks itself USABLE, so the App Speed figure covers all of them', () => {

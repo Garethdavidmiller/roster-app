@@ -28,8 +28,21 @@ import { navGatesFor, requirePage, overtimeEnabled, PAGE_POLICIES } from './auth
 import { CONFIG, teamMembers } from './roster-data.js';
 
 const g = /** @type {any} */ (globalThis);
+const restores = /** @type {Array<() => void>} */ ([]);
 const PILL_IDS = NAV_PAGES.map(p => p.id);
-const GATED = NAV_PAGES.filter(p => Object.keys(PILL_GATES).some(f => /** @type {any} */ (p)[f])).map(p => p.id);
+/** The one gate that takes pills AWAY from a grade rather than giving them to a role: an Other staff login loses
+ *  Admin and Pay (owner, 23 Nov 2026). Everybody else, nobody signed in and the PIN included, keeps them. */
+const EXCLUDING = ['otherStaffHidden'];
+/** Pills only a ROLE opens. */
+const GATED = NAV_PAGES.filter(p => Object.keys(PILL_GATES).some(f => !EXCLUDING.includes(f) && /** @type {any} */ (p)[f])).map(p => p.id);
+/** Pills an Other staff login does not see. */
+const NOT_FOR_OTHER_STAFF = NAV_PAGES.filter(p => /** @type {any} */ (p).otherStaffHidden).map(p => p.id);
+
+/** An INVENTED "Other staff" row for one test (tests use invented people only); `afterEach` takes it back. */
+function withOtherStaff(/** @type {string} */ name) {
+    teamMembers.push(/** @type {any} */ ({ name, currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true }));
+    restores.push(() => { const i = teamMembers.findIndex(m => m.name === name); if (i !== -1) teamMembers.splice(i, 1); });
+}
 
 /** The pills the drawer draws for this member, by id. */
 const drawn = (/** @type {string|null} */ member) => visiblePills(NAV_PAGES, navGatesFor(member), 'calendar').map(p => p.id);
@@ -38,7 +51,6 @@ const admitted = (/** @type {string} */ member) => PILL_IDS.filter(id =>
     requirePage({ status: 'named', member }, id).decision === 'allow' && (id !== 'overtime' || overtimeEnabled()));
 
 /** Give `member` a place on a CONFIG list for one test; `afterEach` takes it back. */
-const restores = /** @type {Array<() => void>} */ ([]);
 function withRole(/** @type {'LINKS_DESIGNERS'|'OVERTIME_BETA'|'NEWLINK_PREVIEW'} */ list, /** @type {string} */ member) {
     const before = [.../** @type {any} */ (CONFIG)[list]];
     /** @type {any} */ (CONFIG)[list] = [...before, member];
@@ -67,6 +79,21 @@ for (const paused of [true, false]) {
             assert.equal(overtimeEnabled(), !paused);
             assert.ok(GATED.length >= 4, `expected the four gated pills, read ${GATED}`);
             for (const id of GATED) assert.ok(PAGE_POLICIES[id]?.role?.length, `${id}'s pill is gated, so its page policy must name a role`);
+            assert.deepEqual(NOT_FOR_OTHER_STAFF, ['admin', 'paycalc'], 'an Other staff login loses exactly Admin and Pay');
+            for (const id of NOT_FOR_OTHER_STAFF) assert.ok(!PAGE_POLICIES[id]?.otherStaff, `${id} is hidden from Other staff, so its policy must not admit them`);
+            for (const id of PILL_IDS.filter(x => !NOT_FOR_OTHER_STAFF.includes(x) && !GATED.includes(x))) {
+                assert.ok(PAGE_POLICIES[id]?.otherStaff, `${id} is drawn for Other staff, so its policy must admit them`);
+            }
+        });
+
+        test('an Other staff login (invented): exactly the PIN\'s pages and Settings, drawn ⇔ admitted', () => {
+            const name = 'Q. Example';
+            withOtherStaff(name);
+            seam();
+            assert.deepEqual(drawn(name), admitted(name), 'the pills drawn and the pages admitted differ');
+            assert.deepEqual(drawn(name), ['calendar', 'trains', 'settings']);
+            assert.deepEqual(drawn(name).filter(id => id !== 'settings'),
+                PILL_IDS.filter(id => PAGE_POLICIES[id]?.staffPin), 'what the staff PIN reads, and Settings beside it');
         });
 
         test('every name on the roster: drawn ⇔ admitted, in both directions', () => {
@@ -107,7 +134,7 @@ for (const paused of [true, false]) {
             seam();
             assert.deepEqual(drawn(null), PILL_IDS.filter(id => !GATED.includes(id)),
                 'the PIN sees Admin, Pay and Settings on purpose, and no role-gated page');
-            assert.deepEqual(navGatesFor(null), { isAdmin: false, isLinksDesigner: false, canOpenOvertime: false, canOpenNewlink: false });
+            assert.deepEqual(navGatesFor(null), { isAdmin: false, isLinksDesigner: false, canOpenOvertime: false, canOpenNewlink: false, isNotOtherStaff: true });
             assert.deepEqual(navGatesFor(undefined), navGatesFor(null));
         });
     });

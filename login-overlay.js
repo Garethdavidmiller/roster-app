@@ -382,7 +382,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         nameSelect.disabled = false;
     }
 
-    GRADE_ORDER.forEach(g => gradeSelect.appendChild(new Option(g, g)));
+    // Only a grade somebody holds: a grade with nobody on it (Other staff, until its first login is added) would
+    // otherwise be offered and lead to an empty name list.
+    GRADE_ORDER.filter(g => getMembersForGrade(g).length > 0).forEach(g => gradeSelect.appendChild(new Option(g, g)));
 
     // THE SIGN-IN CASCADE GOES THROUGH THE APP'S OWN PICKER (v23.49, external review). It was the
     // last native `<select>` a member could meet, and the odd one out: the Calendar stopped handing

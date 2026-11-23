@@ -71,6 +71,15 @@ export function unsupportedRoleCopy(role) {
             why: 'If someone in your team asks how their pay is worked out, this is where they can check it.',
         };
     }
+    // An "Other staff" login (owner, 23 Nov 2026): no roster, and no grade the calculator has rates for. Its drawer
+    // has no Pay pill, so this is the card somebody meets only by following an old link or typing the address.
+    if (role === 'Other staff') {
+        return {
+            title: 'The Pay Calculator is for CEAs and CESs',
+            what: WHAT_IT_DOES,
+            why: 'It works out pay from a roster line and a grade’s rates, so it has nothing to work from for your login.',
+        };
+    }
     return {
         title: "The Pay Calculator isn’t available for your role yet",
         what: WHAT_IT_DOES,

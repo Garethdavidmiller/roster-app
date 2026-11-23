@@ -1,7 +1,7 @@
-import { test, expect, forcePasswordSet } from './fixtures.js';
+import { test, expect, forcePasswordSet, withOtherStaff } from './fixtures.js';
 import { APP_PAGES } from '../scripts/app-pages.mjs';
 import { CONFIG } from '../roster-data.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
 
 // ── ADMIN (admin.html) ────────────────────────────────────────────────────
 
@@ -1399,3 +1399,50 @@ for (const [name, url, ready, init] of /** @type {Array<[string, string, string,
         expect(await reloaded, `${name} was restored for the next person instead of reloading`).toBe(true);
     });
 }
+
+// ── THE "OTHER STAFF" GRADE (owner, 23 Nov 2026) ────────────────────────────────────────────────────────────
+// A login with no roster and no manager or admin rights, shown what the staff PIN shows plus their own Settings.
+// The person is INVENTED and served into the real roster module (fixtures.js → withOtherStaff).
+test.describe('an Other staff login — the staff PIN\'s pages and Settings, under their own name', () => {
+    const NAME = 'Q. Example';
+
+    test('the drawer offers Calendar, Trains and Settings, and no Admin or Pay; the Calendar shows the roster', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await withOtherStaff(page, NAME);
+        await seedMemberSession(page, NAME);   // the session AND the Firebase identity behind it (the Calendar asks for both)
+        await page.goto('/');
+        await expect(page.locator('.calendar-grid')).toBeVisible();
+        // A colleague's roster, as the staff PIN shows: they have none of their own, so the picker holds somebody else.
+        await expect(page.locator('#teamMemberSelect')).not.toHaveValue('');
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--calendar')).toBeVisible();
+        await expect(page.locator('.nav-panel-pill--trains')).toBeVisible();
+        await expect(page.locator('.nav-panel-pill--settings')).toBeVisible();
+        await expect(page.locator('.nav-panel-pill--admin')).toHaveCount(0);
+        await expect(page.locator('.nav-panel-pill--pay')).toHaveCount(0);
+        await expect(page.locator('.nav-panel-pill--operations')).toHaveCount(0);
+        expect(errors).toEqual([]);
+    });
+
+    test('Admin and Operations send them to the Calendar; the Pay Calculator says why it is not for them', async ({ page }) => {
+        await withOtherStaff(page, NAME);
+        await seedSession(page, NAME);
+        await page.goto('/admin.html');
+        await expect(page).toHaveURL(/\/(index\.html)?(#.*)?$/);
+        await page.goto('/operations.html');
+        await expect(page).toHaveURL(/\/(index\.html)?(#.*)?$/);
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#unsupportedGradeTitle')).toHaveText('The Pay Calculator is for CEAs and CESs');
+    });
+
+    test('Settings and Trains open for them', async ({ page }) => {
+        await withOtherStaff(page, NAME);
+        await seedSession(page, NAME);
+        await page.goto('/settings.html');
+        await expect(page.locator('#navMenuBtn')).toBeVisible();
+        await expect(page).toHaveURL(/settings\.html/);
+        await page.goto('/trains.html');
+        await expect(page).toHaveURL(/trains\.html/);
+        await expect(page.locator('#trStationPicker, #trOverviewBody').first()).toBeAttached();
+    });
+});

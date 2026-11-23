@@ -24,6 +24,11 @@
 //                            (roster-roles.js); a year's leave through allowanceRole (al-contract.js).
 //   hidden         {boolean} Optional. true = vacancy/removed; excluded from dropdown, data preserved
 //   managerOnly    {boolean} Optional. true = management/clerk login; hidden from staff selector; appears in login dropdown under "Management" group
+//   otherStaff     {boolean} Optional. true = an "Other staff" login (owner, 23 Nov 2026): somebody with no roster of their
+//                            own and no manager or admin rights, who signs in with their own password and sees what the
+//                            staff PIN shows (everyone's roster, read-only; Trains; the Huddle and the documents) plus their
+//                            own Settings. Always with `role: 'Other staff'` and `hidden: true`; never on a role list
+//                            (validateTeamMembers refuses either). Like a manager's row, it is removed when they leave.
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
 //                            suppresses shift time. Remove to restore normal roster display.
 //   bilingualContract {boolean} Optional. A CEA on a BILINGUAL CONTRACT: 34 days' leave, not 32. The
@@ -262,4 +267,11 @@ export const teamMembers = [
     // Set up accounts is next pressed, which the owner does on 22 Nov, and W. Cummings then signs out and back in.
     { name: 'W. Cummings', currentWeek: 9, rosterType: 'ces', role: 'Management', hidden: true, managerOnly: true,
       roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] },
+
+    // Other staff — login-only accounts with no roster and no manager or admin rights (owner, 23 Nov 2026): they
+    // see what the staff PIN shows, under their own name. One row each, in this shape:
+    //   { name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },
+    { name: 'S. Fayombo',       currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },
+    { name: 'K. Matusevicute',  currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },
+    // Then `npm run generate:roster-members`, and once the functions deploy has finished, Operations → Set up accounts.
 ];

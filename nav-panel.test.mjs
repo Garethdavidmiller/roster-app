@@ -147,6 +147,36 @@ function mountDrawer(/** @type {any} */ opts) {
     return els.get('navSignOutBtn');
 }
 
+// ── The Admin and Pay pills without gates: kept for nobody signed in and the PIN ──────────────────────────────
+// `isNotOtherStaff` is the one gate `initNavPanel` defaults to TRUE (owner, 23 Nov 2026): a page that passes no
+// gates — the PIN, or nobody signed in — must keep Admin and Pay, and only an Other staff login loses them.
+describe('the Other staff gate defaults to keeping Admin and Pay', () => {
+    /** The drawer markup a mount injects. @param {any} opts */
+    function injected(opts) {
+        /** @type {any[]} */ const made = [];
+        global.document = /** @type {any} */ ({
+            getElementById: () => fakeEl(),
+            createElement: () => { const el = fakeEl(); made.push(el); return el; }, body: fakeEl(),
+            addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
+        });
+        const location = { pathname: '/links.html', hash: '', replace() {} };
+        global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout, location });
+        /** @type {any} */ (global).location = location;
+        global.history = /** @type {any} */ ({ pushState() {}, back() {} });
+        initNavPanel({ currentPage: 'links', ...opts });
+        return made.map(el => String(el.innerHTML ?? '')).join('');
+    }
+    test('no gates passed: Admin and Pay are drawn', () => {
+        const html = injected({});
+        assert.ok(html.includes('./admin.html') && html.includes('./paycalc.html'), 'the drawer was built with both pills');
+    });
+    test('an Other staff login (isNotOtherStaff false): neither is drawn, Settings still is', () => {
+        const html = injected({ memberName: 'Q. Example', isNotOtherStaff: false });
+        assert.ok(!html.includes('./admin.html') && !html.includes('./paycalc.html'));
+        assert.ok(html.includes('./settings.html'));
+    });
+});
+
 describe('sign-out releases the device push record only once the page commits', () => {
     beforeEach(() => { signOutLog.length = 0; });
 
