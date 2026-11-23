@@ -250,6 +250,29 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(calls.clear, 1, 'signed back out so no Firebase identity is stranded');
     });
 
+    test('a timeout hands back the attempt itself, which still answers (external review, 23 Nov 2026)', async () => {
+        /** @type {(v: boolean) => void} */ let answer = () => {};
+        const { deps } = makeDeps({ ensureNamedSession: () => new Promise(res => { answer = res; }), timeoutMs: 20 });
+        const r = await runNamedSignIn(deps);
+        assert.equal(r.kind, 'timeout');
+        assert.ok(r.late instanceof Promise, 'the card can still hear the answer');
+        answer(true);
+        assert.equal(await r.late, true);
+    });
+
+    test('a sign-in that THREW has nothing left to arrive: no `late`', async () => {
+        const { deps } = makeDeps({ ensureNamedSession: async () => { throw new Error('auth blew up'); } });
+        const r = await runNamedSignIn(deps);
+        assert.equal(r.kind, 'timeout', 'said as before');
+        assert.equal(r.late, undefined);
+    });
+
+    test('the app ends an attempt well after the 8 seconds a SAVED identity may take to be found', async () => {
+        const { SIGN_IN_GIVE_UP_MS } = await import('./login-core.js');
+        const { AUTH_RESTORE_TIMEOUT_MS } = await import('./silent-sign-in.js');
+        assert.ok(SIGN_IN_GIVE_UP_MS >= 3 * AUTH_RESTORE_TIMEOUT_MS, `${SIGN_IN_GIVE_UP_MS} ms`);
+    });
+
     test('while auth is still PENDING the session is not saved (the half-signed-in regression)', async () => {
         /** @type {(v: boolean) => void} */ let resolveAuth = () => {};
         const { deps, calls } = makeDeps({
@@ -530,8 +553,8 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         fakeAuth.currentUser = null; store.clear(); triggers.clear();
     });
 
-    /** Mount a fresh inline card and hand back its controls. @param {string} [presetName] */
-    function mount(presetName = '') {
+    /** Mount a fresh inline card and hand back its controls. @param {string} [presetName] @param {(name: string) => void} [onSuccess] */
+    function mount(presetName = '', onSuccess = () => {}) {
         /** @type {Map<string, any>} */ const els = new Map();
         const absent = new Set(['#loginAbout', '.login-about-link', '#loginFootnote', '#loginNotice', '#loginAlternative', '#loginAlternativeHint']);
         const overlay = new FakeEl('loginOverlay');
@@ -549,11 +572,11 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         };
         /** @type {any} */ (globalThis).window = {};
         /** @type {any} */ (globalThis).Option = class { constructor(/** @type {string} */ text, /** @type {string} */ value) { this.textContent = text; this.value = value; } };
-        initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => {}, host: /** @type {any} */ ({ appendChild() {} }), presetName });
+        initLoginOverlay({ pageLabel: 'Settings', onSuccess, host: /** @type {any} */ ({ appendChild() {} }), presetName });
         const $ = (/** @type {string} */ sel) => /** @type {any} */ (overlay).querySelector(sel);
         return {
             grade: $('#loginGrade'), name: $('#loginName'), password: $('#loginPassword'), submit: $('#loginSubmit'),
-            error: $('#loginError'), reset: $('#loginResetRequest'),
+            error: $('#loginError'), reset: $('#loginResetRequest'), status: $('#loginStatus'),
             gradeTrigger: () => triggers.get('loginGradeTrigger'), nameTrigger: () => triggers.get('loginNameTrigger'),
             send: () => $('#loginForm').dispatchEvent({ type: 'submit', preventDefault() {} }),
         };
@@ -569,6 +592,88 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         signInGate = new Promise(r => { open = () => { signInGate = null; r(); }; });
         return () => open();
     }
+
+    // ── A SLOW ANSWER IS NOT A FAILURE (external review, 23 Nov 2026) ─────────────────────────────────
+    // On patchy Wi-Fi the card said "Couldn’t complete sign-in" at 8 seconds, and Firebase signed the
+    // colleague in a moment later. 8 seconds now says the attempt is taking longer; the app ends it only at
+    // `SIGN_IN_GIVE_UP_MS`; and an answer that still arrives opens the page.
+    /** Let promise jobs and a few `setImmediate` turns run, the mocked clock standing still. */
+    const turns = async (n = 20) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
+    /** A saved app session on this device for `name` — a returning colleague's. @param {string} name */
+    const holdSession = (name) => store.set('myb_admin_session', JSON.stringify({ name, ver: 2, expiry: Date.now() + 86_400_000 }));
+
+    test('at 8 seconds a sign-in still out says it is taking longer — no failure — and the answer opens the page', async () => {
+        signInCode = 'ok';
+        /** @type {string[]} */ const opened = [];
+        const card = mount(A, (n) => { opened.push(n); });
+        const release = hold();
+        card.password.value = 'their-right-password-1';
+        card.send();
+        await turns();
+        mock.timers.tick(8000);
+        await turns();
+        assert.match(card.status.textContent, /taking longer than usual/, 'the card says it is slow');
+        assert.equal(card.error.classList.contains('visible'), false, 'and says nothing has failed');
+        assert.equal(card.submit.textContent, 'Signing in…', 'the attempt is still the card’s');
+        release();
+        await turns(60);
+        assert.deepEqual(opened, [A], 'the answer, when it came, opened the page');
+    });
+
+    // THE REVIEWER'S CASE: a returning colleague, whose saved app session the ended attempt keeps (v24.56).
+    test('ended by the app at 30 seconds, an answer that still signs a RETURNING colleague in opens the page', async () => {
+        signInCode = 'ok';
+        holdSession(A);
+        /** @type {string[]} */ const opened = [];
+        const card = mount(A, (n) => { opened.push(n); });
+        const release = hold();
+        card.password.value = 'their-right-password-1';
+        card.send();
+        await turns();
+        mock.timers.tick(30_000);
+        await settle(card);
+        assert.equal(card.error.classList.contains('visible'), true, 'premise: the app ended the attempt and said so');
+        assert.deepEqual(opened, []);
+        release();
+        await turns(60);
+        assert.deepEqual(opened, [A], 'the late sign-in was not thrown away');
+    });
+
+    // A NEW sign-in has no saved session to keep: the ended attempt clears the device, and a request that lands
+    // after it is signed back out (session.js, v24.38 — on a shared device nothing is left signed in behind
+    // a card that said it failed). That safeguard stands: nothing opens.
+    test('…but a first sign-in the app ended stays ended: a late landing is undone, and nothing opens', async () => {
+        signInCode = 'ok';
+        /** @type {string[]} */ const opened = [];
+        const card = mount(A, (n) => { opened.push(n); });
+        const release = hold();
+        card.password.value = 'their-right-password-1';
+        card.send();
+        await turns();
+        mock.timers.tick(30_000);
+        await settle(card);
+        release();
+        await turns(60);
+        assert.deepEqual(opened, []);
+        assert.equal(fakeAuth.currentUser, null, 'the late landing was signed back out');
+    });
+
+    test('…and not once the card has moved to somebody else', async () => {
+        signInCode = 'ok';
+        holdSession(A);
+        /** @type {string[]} */ const opened = [];
+        const card = mount(A, (n) => { opened.push(n); });
+        const release = hold();
+        card.password.value = 'their-right-password-1';
+        card.send();
+        await turns();
+        mock.timers.tick(30_000);
+        await settle(card);
+        card.name.value = B;
+        release();
+        await turns(60);
+        assert.deepEqual(opened, [], 'A’s late answer opened nothing on a card now showing B');
+    });
 
     test('premise: a grade with two members to switch between', () => {
         assert.ok(grade && A && B && A !== B);

@@ -386,25 +386,31 @@ export function rebaseRestoreGuard() {
 /** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed
  *  late, the last time it reloaded for that. Local to this module — one reader, one writer. */
 const LATE_IDENTITY_RELOAD = 'myb_late_identity_reload';
-/** Set once this page load has allowed a reload with sessionStorage unusable — see below. */
-let _reloadAllowedWithoutStorage = false;
-/** Whether a late-identity reload may run now: not within two minutes of the last one. Stamps when it
- *  says yes. sessionStorage (one tab's journey), read directly in a try/catch — iOS private mode throws.
- *  Where it throws, one reload is still allowed rather than none — but only ONE per page load (review,
- *  Nov 2026): it said yes to every call, so the cap was no cap at all there. Memory cannot outlive the
- *  reload it allows, so across loads that tab is bounded only by each load's single late landing.
- *  @param {number} now @returns {boolean} */
+/**
+ * Whether a late-identity reload may run now: `'reload'` when none has in the last two minutes (and it is
+ * stamped), `'too-soon'` inside them, and `'no-memory'` when this tab cannot remember one at all.
+ * sessionStorage (one tab's journey), read directly in a try/catch — iOS private mode throws.
+ *
+ * WITHOUT THAT MEMORY, NO AUTOMATIC RELOAD (external review, 23 Nov 2026). It allowed one per page load,
+ * but a page load is exactly what a reload starts again: three fresh loads a second apart each allowed one,
+ * so on a start-up that stalls every time the sign-in card flashed away in a loop. With nothing to count
+ * reloads by, the page asks instead (`guardNamedSession` → the card's Try again), and a reload is the
+ * colleague's own tap — which no loop can make.
+ * @param {number} now @returns {'reload'|'too-soon'|'no-memory'}
+ */
 export function lateReloadAllowed(now) {
     try {
         const last = parseInt(sessionStorage.getItem(LATE_IDENTITY_RELOAD) || '0', 10) || 0;
-        if (now - last < LATE_RELOAD_GAP_MS) return false;
+        if (now - last < LATE_RELOAD_GAP_MS) return 'too-soon';
         sessionStorage.setItem(LATE_IDENTITY_RELOAD, String(now));
+        return 'reload';
     } catch {
-        if (_reloadAllowedWithoutStorage) return false;
-        _reloadAllowedWithoutStorage = true;
+        return 'no-memory';
     }
-    return true;
 }
+
+/** What the card says when the identity came back on a tab that cannot reload by itself (above). */
+export const LATE_IDENTITY_NOTICE = 'You’re signed in again on this device.';
 /** Two minutes: longer than any start-up stall plus the SDK's own 30s lookup timeout, so a second
  *  landing inside it can only be the same stall again. */
 export const LATE_RELOAD_GAP_MS = 120_000;
@@ -433,10 +439,17 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
     // Loaded on demand: the Calendar and the Pay Calculator import this module for the sign-out
     // routines and never call this one, and the sign-in is 44 KB they would otherwise load at start.
     // Every page that DOES call it already has the module (it shows its own sign-in at load).
-    /** @type {(signedOut: boolean) => void} */
-    const showSignIn = signIn ? () => signIn() : (signedOut) => { import('./login-overlay.js')
-        .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, about, presetName: member,
-            notice: signedOut ? SIGNED_OUT_NOTICE : '', onSuccess: () => window.location.reload() }))
+    /** @type {(signedOut: boolean, back?: boolean) => void} */
+    const showSignIn = signIn ? () => signIn() : (signedOut, back = false) => { import('./login-overlay.js')
+        .then(({ initLoginOverlay, dismissLoginOverlay }) => {
+            // BACK, ON A TAB THAT CANNOT RELOAD BY ITSELF (`lateReloadAllowed` → 'no-memory'): the card is
+            // drawn again saying so, with Try again in place of "Back to roster" — a reload the colleague
+            // asks for. Never under a sign-in in flight, which reloads into the page itself when it lands.
+            if (back) { if (document.querySelector('#loginSubmit')?.hasAttribute('disabled')) return; dismissLoginOverlay(); }
+            initLoginOverlay({ pageLabel, about, presetName: member,
+                notice: back ? LATE_IDENTITY_NOTICE : signedOut ? SIGNED_OUT_NOTICE : '', onSuccess: () => window.location.reload(),
+                alternative: back ? { label: 'Try again', hint: 'Opens the page again, now your sign-in is back.', onSelect: () => window.location.reload() } : null });
+        })
         .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }); };
     // The sign-in waits for the reset's history step to land (v25.06): it pushes an entry of its own.
     // This device's push record goes FIRST, as at every other end of a member's hold (audit A1) — never
@@ -461,8 +474,9 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
         const stop = onAuthStateChanged(auth, (/** @type {any} */ user) => {
             if (!user || user.isAnonymous || user.email !== email) return;
             stop();
-            if (!lateReloadAllowed(Date.now())) return;
-            window.location.reload();
+            const may = lateReloadAllowed(Date.now());
+            if (may === 'reload') window.location.reload();
+            else if (may === 'no-memory') showSignIn(false, true);   // asks; a page's own card stays as it is
         });
     };
     return Promise.resolve(established).then(() => {
