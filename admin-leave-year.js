@@ -54,7 +54,9 @@ export function leaveYearPanelHtml(groups, { busyDate = null } = {}) {
         const prevLeft = /** @type {number} */ (g.positions[g.prev].remaining);
         const ownLeft  = /** @type {number} */ (g.positions[g.january].remaining);
         const note = g.prevOpen ? ''
-            : `<p class="ly-note">${g.prev} has no days left, so these days stay on ${g.january}’s allowance.</p>`;
+            // "these days stay on 2027's" was untrue of a day already moved to 2026, which the panel lists
+            // too (external review of v26.55). True of every day listed: no MORE can go.
+            : `<p class="ly-note">${g.prev} has no days left, so no more days can be moved to ${g.prev}.</p>`;
         const rows = g.days.map(d => {
             const label = fmtPeriodDate(d.date);
             const busy = d.date === busyDate;

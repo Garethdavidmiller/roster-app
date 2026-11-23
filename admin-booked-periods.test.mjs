@@ -275,7 +275,7 @@ describe('the Christmas row — every year already on screen, and a stored recor
  * @param {{ entries: any[], counted: string[], rest?: string[], sundays?: string[], year?: string,
  *           onDelete?: Function }} o
  */
-function renderList({ entries, counted, rest = [], sundays = [], year = '2026', onDelete }) {
+function renderList({ entries, counted, listed = null, rest = [], sundays = [], year = '2026', onDelete }) {
     const els = { box: new El('div'), body: new El('div'), fb: new El('div') };
     /** @type {any[]} */ const calls = [];
     const addDay = (/** @type {string} */ d, /** @type {number} */ n) => {
@@ -304,7 +304,9 @@ function renderList({ entries, counted, rest = [], sundays = [], year = '2026', 
     });
     const cfg = { type: 'annual_leave', memberName: 'X', boxId: 'box', bodyId: 'body', feedbackId: 'fb',
         consumes: (/** @type {any} */ _m, /** @type {string} */ d) => counted.includes(d), countFn: (/** @type {number} */ n) => `${n} days`,
-        countClass: 'al-period-count', preferredYear: year };
+        countClass: 'al-period-count', preferredYear: year,
+        // Listed but not necessarily counted — a Spare week's fifth day (Admin passes `listed`).
+        ...(listed ? { listed: (/** @type {any} */ _m, /** @type {string} */ d) => /** @type {string[]} */ (listed).includes(d) } : {}) };
     bp.render(cfg);
     const xs = () => all(els.body, e => e.className.split(' ').includes('btn-period-delete'));
     return { els, xs, calls, rerender: () => bp.render(cfg), list };
@@ -571,6 +573,20 @@ describe('a January day moved to the year before says so, in both years\' lists 
         const r = renderList({ ...opts, entries: [leaveOn('2026-12-14'), ...JAN], year: '2026' });
         const foot = all(r.els.body, e => e.className === 'ly-note')[0];
         assert.equal(foot?.textContent, 'Also from 2026’s allowance: 1 day in January 2027, listed under 2027.');
+    });
+
+    // External review of v26.55: 2 January moved to 2026, then 28 December booked, so 2 January became a Spare
+    // week's fifth day and cost nothing. Both lists still said it came out of 2026's allowance. The stored year
+    // choice stays; a day is described as coming out of it only while it is charged.
+    it('a moved day the Spare week makes free is not said to come out of either allowance', () => {
+        const entries = [leaveOn('2026-12-14'), leaveOn('2027-01-01', { leaveYear: 2026 }), leaveOn('2027-01-04')];
+        const listed = ['2026-12-14', '2027-01-01', '2027-01-04'];
+        const counted = ['2026-12-14', '2027-01-04'];   // 1 January listed, but past the week's four
+        const in2027 = renderList({ ...opts, entries, listed, counted, year: '2027' });
+        assert.equal(all(in2027.els.body, e => e.className === 'al-period-note' && /allowance/.test(e.textContent)).length, 0,
+            'the January row does not say "1 day from 2026’s allowance" of a day that costs nothing');
+        const in2026 = renderList({ ...opts, entries, listed, counted, year: '2026' });
+        assert.equal(all(in2026.els.body, e => e.className === 'ly-note').length, 0, 'nor does 2026 claim it');
     });
 
     it('a day on its own year, or a leaveYear the rules would refuse, is not marked', () => {

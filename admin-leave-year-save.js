@@ -78,6 +78,15 @@ export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
 
     const fixedId = manualOverrideId(memberName, date);
     const dropped = new Set(idsReplacedBy(memberName, date, shown.id));
+    // …AND EVERY OTHER JANUARY LEAVE DAY OF THE YEAR, AS THIS PAGE LOADED IT (external review of v26.55). The cap
+    // ("no more than the previous year has left") is a count across these days, and two editors moving DIFFERENT
+    // days each checked only their own: both saw the last day free, and the year went to 33 of 32. Checked in the
+    // same transaction, a colleague's move of any of them changes a record this save read, so the second save is
+    // re-run, finds it changed, and is refused with the same line as a change to the day itself.
+    const january = `${date.slice(0, 4)}-01-`;
+    const siblings = [...buildMemberDateMap(memberName).values()]
+        .filter(o => o && o.type === 'annual_leave' && String(o.date).startsWith(january) && o.date !== date && o.id)
+        .map(o => o.id);
     /** @type {any} */
     let fields = null;
     /** The day as THIS move leaves it: this editor's annual leave in the chosen year, whatever it replaced gone.
@@ -91,7 +100,7 @@ export async function setLeaveYear({ memberName, date, leaveYear, changedBy }) {
     const { done, latest } = await withSlowSaveNotice(writeWithClaimRetry(() => commitIfUnchanged(
         // The record shown — which must still be there — every record the save deletes, and the fixed id
         // it lands on: each still what this page loaded for it, or, where it loaded nothing, nothing.
-        [shown, ...dropped, fixedId],
+        [shown, ...dropped, fixedId, ...siblings],
         (/** @type {any} */ tx, /** @type {Map<string, any>} */ latest) => {
             const now = latest.get(shown.id);   // the server's copy, equal to `shown` by the check
             for (const id of dropped) tx.delete(doc(db, COLLECTIONS.overrides, id));

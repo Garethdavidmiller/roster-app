@@ -13,7 +13,7 @@ import { isBeforeMemberStart } from './override-utils.js';
 import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords } from './admin-al-projection.js';
+import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, yearShiftWords } from './admin-al-projection.js';
 import { spareShiftNote, spareDaysOf, spareWeekDaysOf } from './admin-al-spare-note.js';
 import { SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
 
@@ -26,8 +26,16 @@ const esc = escapeHtml;
  * @param {number} n @param {string} m @param {number} held @param {number} [free]
  * @param {number} [capFreed] how many of `free` are free because their Spare week's four were already
  *        booked (`projectAlBooking`) — the reason a save that charged nothing still wrote a day
+ * @param {string} [shift] what the booking did to each year, when a Spare week over New Year moved a day
+ *        between them (`yearShiftWords`) — said after the rest, as the preview says it
  */
-function recordedWords(n, m, held, free = 0, capFreed = 0) {
+function recordedWords(n, m, held, free = 0, capFreed = 0, shift = '') {
+    const said = recordedCore(n, m, held, free, capFreed);
+    return shift ? `${said} — ${shift}` : said;
+}
+
+/** `recordedWords` without the years. @param {number} n @param {string} m @param {number} held @param {number} free @param {number} capFreed */
+function recordedCore(n, m, held, free, capFreed) {
     // Days recorded at no cost are named as the preview names them (21 Nov 2026): "Recorded 6 days"
     // over a Spare week the preview had called "4 days (+ 2 days recorded at no cost)" contradicted it.
     const noCost = free > 0 ? `${free} day${free > 1 ? 's' : ''} at no cost` : '';
@@ -171,9 +179,13 @@ export function initALSection({
         } else {
             // WHAT THE BALANCE MOVES BY — the projection's `charged` (21 Nov 2026). The new days charged,
             // except where a Spare week's four moved between days already booked and days booked now.
-            const charged = projection.charged ?? projection.consuming.filter(/** @param {string} d */ d => !held.has(d)).length;
+            // …by the years that RISE (`spent`, external review of v26.55): a day given back to one year does not
+            // cancel a day taken from another, so "No days" over a booking that took one from 2026 was untrue.
+            const charged = projection.spent ?? projection.charged ?? projection.consuming.filter(/** @param {string} d */ d => !held.has(d)).length;
             label = charged === 0 ? 'No days' : days(charged);
             const parts = heldNote ? [heldNote] : [];
+            const shift = yearShiftWords(projection.byYear);
+            if (shift) parts.push(shift);
             // A written day that costs nothing is an RDW day — worked, but declining overtime is not
             // leave — or a Spare day past its week's four (owner, 21 Nov 2026). It is reported because
             // it IS being recorded, just not charged.
@@ -230,8 +242,8 @@ export function initALSection({
             : null,
         renderReady,
         // A day that already held leave is written again but is not a new day (renderReady says why).
-        successFeedback: (n, m, held = 0, free = 0, capFreed = 0) => `✓ ${recordedWords(n, m, held, free, capFreed)}`,
-        successToast:    (n, m, held = 0, free = 0, capFreed = 0) => recordedWords(n, m, held, free, capFreed),
+        successFeedback: (n, m, held = 0, free = 0, capFreed = 0, shift = '') => `✓ ${recordedWords(n, m, held, free, capFreed, shift)}`,
+        successToast:    (n, m, held = 0, free = 0, capFreed = 0, shift = '') => recordedWords(n, m, held, free, capFreed, shift),
         getCurrentUser, showInChangeAShift, showSuccess,
         beforePreview: () => hideALConfirm?.(),
         // ASK ABOUT REST DAYS IN THE RANGE, AND REFUSE TO SAVE UNTIL EACH IS ANSWERED (v23.75).

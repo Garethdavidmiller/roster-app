@@ -625,6 +625,27 @@ describe('the leave-year choice — what is written', () => {
         assert.equal(_server.get(FIXED)?.source, 'manual', 'a member may write only manual records');
     });
 
+    test('REFUSED when a colleague has since moved ANOTHER January day of the year — the last day is not spent twice', async () => {
+        // External review of v26.55: two editors each moved a different January day into the previous year's last
+        // free day. Each checked only its own day, so both saved and the year went to 33 of 32. The move checks the
+        // year's other January leave days as this page loaded them, so the second sees the first and is refused.
+        const OTHER = '2027-01-07', OTHER_ID = 'm_2027-01-07_G.%20Miller';
+        seed([leave(), leave({ id: OTHER_ID, date: OTHER })]);
+        _server.set(OTHER_ID, { ...leave({ date: OTHER }), leaveYear: 2026, changedBy: 'S. Manager' });   // the colleague's move landed
+        delete _server.get(OTHER_ID).id;
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
+            (/** @type {any} */ e) => /changed since the page loaded/.test(e.line));
+        assert.equal(_batchWrites.length, 0, 'nothing was written');
+        assert.ok(!('leaveYear' in _server.get(FIXED)), 'this day stays on its own year');
+    });
+
+    test('a move goes ahead when the year\'s other January days are as the page loaded them', async () => {
+        const OTHER_ID = 'm_2027-01-07_G.%20Miller';
+        seed([leave(), leave({ id: OTHER_ID, date: '2027-01-07' })]);
+        await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER });
+        assert.equal(_server.get(FIXED)?.leaveYear, 2026);
+    });
+
     test('REFUSED when the day is no longer leave on the server — a stale page cannot write it back', async () => {
         seed([leave()]);
         _server.set(FIXED, { ...leave(), type: 'shift', value: '07:00-15:00' });   // a manager changed it since

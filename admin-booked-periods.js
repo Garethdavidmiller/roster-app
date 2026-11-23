@@ -441,6 +441,8 @@ export function createBookedPeriods(deps) {
         /** Which counted dates come out of ANOTHER year's allowance — a January day moved back (v25.18). */
         const winnerOn = new Map(entries.map(e => [e.date, e]));
         const movedTo  = (/** @type {string} */ d) => carriedFrom(winnerOn.get(d), d);
+        /** Does a listed day cost a day? Every listed day does, unless the list shows days it does not count. */
+        const costs    = (/** @type {string} */ d) => !charged || charged.has(d);
 
         // Cut at every year end FIRST, so a 28 Dec → 1 Jan booking puts its January day under
         // January's year — the owner's decision at v23.11, argued in the header.
@@ -640,7 +642,9 @@ export function createBookedPeriods(deps) {
                 }
                 // A January day moved to the previous year's allowance is listed here, under its
                 // own date, and counted on the banner the year before — so the row says so (header).
-                const moved = dateList.filter(d => d >= p.start && d <= p.end && movedTo(d) !== null);
+                // …while it is CHARGED (external review of v26.55): a moved day a Spare week's four has since made free
+                // keeps its stored year, but comes out of no allowance, so it is not said to.
+                const moved = dateList.filter(d => d >= p.start && d <= p.end && movedTo(d) !== null && costs(d));
                 if (moved.length) {
                     const note = deps.doc.createElement('span');
                     note.className = 'al-period-note';
@@ -673,7 +677,7 @@ export function createBookedPeriods(deps) {
         }
         // …and the year those days come out of names them, since its own list cannot show them.
         const next = String(Number(year) + 1);
-        const lent = dateList.filter(d => d.startsWith(`${next}-01-`) && movedTo(d) === Number(year)).length;
+        const lent = dateList.filter(d => d.startsWith(`${next}-01-`) && movedTo(d) === Number(year) && costs(d)).length;
         if (lent) {
             const foot = deps.doc.createElement('p');
             foot.className = 'ly-note';

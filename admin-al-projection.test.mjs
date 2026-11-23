@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { teamMembers, formatISO, getBaseShift, getPatternShift, isWorkedShift, getBankHolidays, isBankHoliday } from './roster-data.js';
-import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange } from './admin-al-projection.js';
+import { projectAlBooking, willConsume, projectAlOverage, overridesAfterSave, lieuGoesWords, rangeSundayCorrections, projectAbsenceRange, yearShiftWords } from './admin-al-projection.js';
 import { consumesEntitlement, countedAlDates, entitlementFor } from './al-entitlement.js';
 import { isRestShift } from './override-utils.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
@@ -758,6 +758,83 @@ describe('booking a Spare week charges at most four days', () => {
         const assigned = new Map(WEEK.slice(4).map(d => [d, { id: `s-${d}`, memberName: M.name, date: d, type: 'shift', value: '06:00-14:00', source: 'roster_import' }]));
         const p = projectAlBooking({ member: M, dates: WEEK, ovByDate: assigned });
         assert.deepEqual([p.consuming, p.freeWritten, p.charged], [WEEK.slice(0, 4), WEEK.slice(4), 4]);
+    });
+
+    // A SPARE WEEK OVER NEW YEAR SPENDS ITS FOUR ACROSS TWO ALLOWANCES (external review of v26.55). The four go in
+    // date order, so a change to a December day moves a charge onto a January one, or back. Both directions were
+    // silent: a removal made 2027's count rise with no warning, and a booking that moved a day from 2027 to 2026
+    // was said to be "at no cost".
+    const NY = ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'];
+    const nyMember = () => {
+        for (let w = 1; w <= 20; w++) {
+            const m = { ...M, currentWeek: w };
+            if (NY.every(d => getBaseShift(m, new Date(`${d}T12:00:00`)) === 'SPARE')) return m;
+        }
+        assert.fail('premise: some week of the cycle is Spare over New Year 2026/27');
+    };
+    /** 2027 leave elsewhere until the year counts `n`, for `member` (fillTo, but for any member). */
+    const fill2027 = (/** @type {any} */ member, /** @type {any[]} */ ovs, /** @type {number} */ n) => {
+        for (let d = new Date(2027, 4, 1); countedAlDates({ overrides: ovs, member, year: 2027 }).size < n; d.setDate(d.getDate() + 1)) {
+            const base = getBaseShift(member, new Date(d));
+            if (d.getDay() !== 0 && !isRestShift(base) && base !== 'SPARE' && !isBankHoliday(new Date(d)))
+                ovs.push({ ...al(formatISO(d)), memberName: member.name });
+        }
+        return ovs;
+    };
+
+    test('removing a December day of a New Year Spare week warns when January\'s allowance goes over', () => {
+        const member = nyMember();
+        const nyAl = (/** @type {string} */ d) => ({ ...al(d), memberName: member.name });
+        const ovs = NY.map(nyAl);
+        const ent = /** @type {number} */ (entitlementFor(member, 2027, ovs));
+        fill2027(member, ovs, ent);
+        assert.equal(countedAlDates({ overrides: ovs, member, year: 2027 }).size, ent, 'premise: 2027 is exactly at its allowance');
+        const ovByDate = new Map(ovs.map(o => [o.date, o]));
+        // The Monday deleted outright, and the Monday turned into a shift: either way 1 January becomes the week's fourth.
+        for (const [how, args] of /** @type {Array<[string, any]>} */ ([
+            ['deleted', { toSave: [], toDelete: [`al-${NY[0]}`] }],
+            ['turned into a shift', { toSave: [{ memberName: member.name, date: NY[0], type: 'shift', value: '06:00-14:00', existingId: `al-${NY[0]}` }] }],
+        ])) {
+            const plan = planAlWeekSave({ member, memberName: member.name, overrides: ovs, ovByDate, ...args });
+            assert.ok(plan.overage, `${how}: 2027 goes to ${ent + 1} of ${ent}, and the save must say so`);
+            assert.equal(plan.overage.over, 1, how);
+            assert.match(plan.overage.headline + plan.overage.detail, /2027/, how);
+        }
+    });
+
+    test('a New Year Spare week change that leaves every year within its allowance warns of nothing', () => {
+        const member = nyMember();
+        const nyAl = (/** @type {string} */ d) => ({ ...al(d), memberName: member.name });
+        const ovs = NY.map(nyAl);
+        const ovByDate = new Map(ovs.map(o => [o.date, o]));
+        const plan = planAlWeekSave({ member, memberName: member.name, overrides: ovs, ovByDate, toSave: [], toDelete: [`al-${NY[0]}`] });
+        assert.equal(plan.overage, null, '2027 rises to 1, nowhere near its allowance');
+    });
+
+    test('booking a December day that moves a charge out of January is said per year, not "at no cost"', () => {
+        const member = nyMember();
+        const saved = new Map(NY.slice(2).map(d => [d, { ...al(d), memberName: member.name }]));
+        assert.equal(countedAlDates({ overrides: [...saved.values()], member, year: 2026 }).size, 2, 'premise: 2 from 2026');
+        assert.equal(countedAlDates({ overrides: [...saved.values()], member, year: 2027 }).size, 2, 'premise: 2 from 2027');
+        const p = projectAlBooking({ member, dates: [NY[0]], ovByDate: saved });
+        assert.equal(p.charged, 0, 'the combined total does not move');
+        assert.equal(p.capFreed, 0, 'but 2026 has one day less, so the Monday is not free');
+        assert.deepEqual(p.byYear, [{ year: 2026, charged: 1 }, { year: 2027, charged: -1 }]);
+        assert.equal(p.spent, 1);
+        assert.equal(yearShiftWords(p.byYear), '1 day from 2026, 1 day back to 2027');
+        // The allowances agree with what is said.
+        const ovs = [...saved.values()];
+        const after = overridesAfterSave(ovs, { memberName: member.name, writes: p.writes });
+        assert.equal(countedAlDates({ overrides: after, member, year: 2026 }).size, 3);
+        assert.equal(countedAlDates({ overrides: after, member, year: 2027 }).size, 1);
+    });
+
+    test('a week inside one year still says the freed day is at no cost, with nothing per year to add', () => {
+        const saved = new Map(WEEK.slice(2).map(d => [d, al(d)]));
+        const p = projectAlBooking({ member: M, dates: [WEEK[0]], ovByDate: saved });
+        assert.equal(p.capFreed, 1);
+        assert.equal(p.spent, 0);
+        assert.equal(yearShiftWords(p.byYear), '', 'one year, so the headline\'s figure is the whole story');
     });
 
     test('a Dispatcher\'s Spare days are not capped: each costs one (owner, 21 Nov 2026)', () => {

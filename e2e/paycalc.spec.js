@@ -1548,6 +1548,36 @@ test('paycalc: a backup with no payslips says it was restored, not "Restored 0 p
     expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_code')), 'premise: it was restored').toBe('1257L');
 });
 
+// A PAYSLIP SAVED IN ANOTHER TAB WHILE "Replace your pay data?" IS OPEN (external review of v26.55). The list of
+// what was here was taken before the question, so the replace wrote the backup over it, left the new payslip beside
+// it — a merge — and said "Restored". Now the data is read again before writing: changed, nothing is written and the
+// question comes back with what is here now. The new payslip is never deleted unseen.
+test('paycalc: a payslip saved elsewhere while the replace question is open is neither merged nor lost', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(PT_QUIET);
+    await page.goto('/paycalc.html#payTransferCard');
+    await expect(page.locator('#payTransferBody')).toHaveClass(/open/);
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_code', 'K100'));   // something for it to replace
+    await page.locator('#ptPaste').fill(JSON.stringify({
+        format: 'myb-paycalc-backup', version: 1, member: 'G. Miller', slug: 'gmiller',
+        data: { myb_pc_gmiller_code: '1257L' },
+    }));
+    await page.locator('#ptPasteGo').click();
+    await expect(page.locator('.dialog-btn-confirm')).toHaveText('Replace my pay data');
+    // Another tab saves a payslip while the question waits.
+    await page.evaluate(() => localStorage.setItem('myb_pc_gmiller_p20', '{"satH":8,"satM":0}'));
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(page.locator('#ptStatus')).toContainText('changed while that question was open, so nothing was changed');
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_code')), 'nothing was written').toBe('K100');
+    // …and it asks again, now naming the payslip that arrived.
+    // The first dialog is still in the page for its closing fade, so this is the newest one.
+    const again = page.locator('.dialog-overlay').last();
+    await expect(again.locator('.dialog-btn-confirm')).toHaveText('Replace my pay data');
+    await expect(again.locator('.dialog-message')).toContainText(/payslip/i);
+    await again.locator('.dialog-btn-cancel').click();
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p20')), 'the new payslip is still here').toBe('{"satH":8,"satM":0}');
+});
+
 test("paycalc: another member's backup is refused and writes nothing", async ({ page }) => {
     // Option A. Staff share devices — which is precisely why the per-member namespacing exists.
     await seedSession(page, 'G. Miller');

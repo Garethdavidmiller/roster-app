@@ -65,7 +65,10 @@ export function statusLine(state) {
  * @returns {string|null}
  */
 export function matchesLine() {
-    if (document.getElementById('trStationPicker')?.hidden) return null;
+    // …or under a section that has been left: another tab hides the whole Stations view, not the picker, so
+    // a count due inside the pause replaced the new tab's own line (external review of v26.55). `closest`
+    // tests the picker itself too.
+    if (document.getElementById('trStationPicker')?.closest('[hidden]')) return null;
     if (!(/** @type {HTMLInputElement|null} */ (document.getElementById('trStationInput'))?.value.trim())) return '';
     const chips = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('#trStationPicks button[data-station]')]);
     return chips.length === 1 ? `1 station to choose from: ${chips[0].textContent}`

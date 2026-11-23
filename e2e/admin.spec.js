@@ -5081,6 +5081,31 @@ test('admin: booking one day of a Spare week whose four are booked says it costs
     await expect(page.locator('#alFeedback')).not.toContainText('Recorded 0 days');
 });
 
+// A SPARE WEEK OVER NEW YEAR SPENDS ITS FOUR ACROSS TWO ALLOWANCES (external review of v26.55). With Wednesday 30
+// December to Saturday 2 January booked, two count in each year; adding Monday 28 December makes it three in 2026
+// and one in 2027. The total is unchanged, and the preview and the receipt both said the Monday was "at no cost".
+test('admin: a December day that moves a charge out of January says so per year, never "at no cost"', async ({ page }) => {
+    const NY = ['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'];
+    test.skip(new Date() >= new Date('2026-12-28T00:00:00'), 'the 2026/27 New Year week is no longer ahead, so the range picker cannot book it');
+    const m = teamMembers.find(t => !t.hidden && !t.managerOnly && (t.role === 'CEA' || t.role === 'CES')
+        && NY.every(d => getBaseShift(t, new Date(`${d}T12:00:00`)) === 'SPARE'));
+    expect(m, 'premise: a CEA or CES member is Spare over New Year 2026/27').toBeTruthy();
+    const today = new Date();
+    const p = { name: /** @type {any} */ (m).name, week: NY, monthsAhead: (2026 - today.getFullYear()) * 12 + (11 - today.getMonth()) };
+    const docs = NY.slice(2).map((date, i) => ({ id: `ny${i}`, memberName: p.name, date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    await bookInSpareWeek(page, p, docs, NY[0], NY[0]);
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('1 day of Annual Leave');
+    await expect(preview).toContainText('1 day from 2026, 1 day back to 2027');
+    await expect(preview).not.toContainText('at no cost');
+
+    await clickInView(page.locator('#alSaveBtn'));
+    await expect(page.locator('#alFeedback')).toContainText(
+        `Recorded 1 day of Annual Leave for ${p.name} — 1 day from 2026, 1 day back to 2027`, { timeout: 10000 });
+    await expect(page.locator('#alFeedback')).not.toContainText('at no cost');
+});
+
 // THE SPARE LINE COUNTS THE WEEK AS ROSTERED, AS THE HEADLINE DOES (owner, 22 Nov 2026). A week the roster
 // upload had partly assigned read "5 of these days are Spare days … so they use 3 days" under "4 days",
 // because the line counted only the days still Spare while the cap counts the whole week.
