@@ -84,7 +84,7 @@ export const CARD_TIPS = {
                 // a shift gets a rest-day correction (`rangeSundayCorrections`); 25/26 December and days before the start date
                 // are skipped too; a rest day holding RDW or leave is left as it is (`absenceHiddenDates`). The preview names each.
                 { icon: '📅', html: 'Pick a start and end date. Rest days, <strong>Christmas Day</strong> and <strong>Boxing Day</strong>, and any day before the member’s start date are skipped automatically. A Sunday is never recorded as absence: where the roster has a shift on a Sunday in the range, that Sunday is set as a rest day instead. A rest day already holding Rest Day Working or leave is left as it is. The preview names each of these days before you save.' },
-                // The Calendar needs a sign-in or the staff PIN, so "everybody" overstated who can see it.
+                // The Calendar needs a sign-in, so "everybody" overstated who can see it.
                 { icon: '👁️', html: 'An absence shows on the calendar as 🪑 <strong>Absent</strong> and every member of staff can see it, the same as annual leave. What they cannot see is why.' },
             ]},
         ],

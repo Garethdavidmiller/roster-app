@@ -30,7 +30,7 @@
  * guides must stay reachable beside it, "back to roster" is the page it is already on, and Escape
  * would reload the page under a form somebody is typing into. So in host mode none of them are
  * installed, the wrapper is not a dialog, and the back link is replaced by the caller's
- * `alternative` — on the Calendar, "Use the staff PIN instead". The FORM and everything behind it
+ * `alternative` — the come-back card's "← Back". The FORM and everything behind it
  * (the sign-in core, the lockout, the reset request, the status line) is identical in both modes on
  * purpose: one sign-in, mounted two ways, rather than a second card that drifts.
  */
@@ -44,7 +44,7 @@ import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine, signInAbou
 export { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine };
 // Already loaded wherever this card is: session.js imports it. The words are its own, shared with a
 // page that has no card (paused Overtime, which imports `sayStaffPinEndedIn` from here).
-import { onStaffPinEnded, forgetStaffPinEnded, STAFF_PIN_ENDED_NOTICE, BACK_TO_PIN } from './staff-pin-ended.js';
+import { onStaffPinEnded, forgetStaffPinEnded, STAFF_PIN_ENDED_NOTICE } from './staff-pin-ended.js';
 export { sayStaffPinEndedIn } from './staff-pin-ended.js';
 import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
@@ -109,52 +109,48 @@ export function dismissLoginOverlay() {
     if (lockedScroll) unlockBodyScroll();
 }
 
-// ── WHEN ARRIVING ENDED THE STAFF PIN (v25.78 — owner, 11 Nov 2026) ─────────────────────────────────
+// ── WHEN ARRIVING SIGNED OUT A LEFTOVER STAFF-PIN SESSION (v25.78; the PIN retired, 23 Nov 2026) ────
 //
-// A page that does not admit the PIN signs it out on arrival (session.js; staff-pin-ended.js tells us). The
-// rule stays; the silence went. Before, somebody who opened Admin or Pay from an unlocked Calendar met
-// this card with nothing to say why, and "← Back to roster" found the roster locked again.
-//
-// So the card says what happened and what to do, and its way back — the link AND Escape — opens the
-// Calendar on the PIN box (`BACK_TO_PIN`), the box they were using a moment ago: what a Lock does on
-// the Calendar and Trains. The words are staff-pin-ended.js's (`STAFF_PIN_ENDED_NOTICE`), one sentence
-// wherever the PIN ends. The modal card only: the inline one is the Calendar's own front door, which
-// never ends the PIN.
+// The shared staff PIN is retired, and every page — the Calendar and Trains included — signs a leftover
+// viewer session out on arrival (session.js → `reconcileExpiredIdentity`; staff-pin-ended.js tells us).
+// The sign-out is the rule; its silence would be the fault: a station computer that used the PIN
+// yesterday would meet this card with nothing to say why the code no longer works. So the card says ONE
+// line (`STAFF_PIN_ENDED_NOTICE`, staff-pin-ended.js — one sentence wherever it happens), on BOTH
+// mounts: the inline one is the Calendar's front door, which is now where most of them land. Its way
+// back is untouched — there is no PIN box to send anybody to. Transition plumbing, removed with the rest
+// of the viewer's in the cleanup release.
 
 /**
- * Say on this card that arriving ended the staff PIN, and point its way back at the PIN box. The
- * notice line is in the card from the start (`overlayHtml`), empty, and the words wait for the card
- * to have been DRAWN (`speakAfterMount`, status-text.js): when the PIN had already ended, this runs
- * on a microtask of the task that mounted the card, which is that same task — and a live region
- * filled in the task that created it is read by nobody (17 Nov 2026). The way back changes at once.
+ * Say on this card that arriving signed out a leftover staff-PIN session. The notice line is in the
+ * card from the start (`overlayHtml`), empty, and the words wait for the card to have been DRAWN
+ * (`speakAfterMount`, status-text.js): when the teardown had already landed, this runs on a microtask
+ * of the task that mounted the card, which is that same task — and a live region filled in the task
+ * that created it is read by nobody (17 Nov 2026).
  * @param {HTMLElement} overlay
  */
 function sayStaffPinEnded(overlay) {
     if (!overlay.isConnected) return;   // signed in past it, or rebuilt — a rebuilt card is told itself
-    overlay.querySelector('a.login-back')?.setAttribute('href', BACK_TO_PIN);
     const notice = overlay.querySelector('#loginNotice');
     speakAfterMount(notice, () => { if (notice) notice.textContent = STAFF_PIN_ENDED_NOTICE; });
 }
 
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in".
- *  `alternative` (host mode) replaces the back link with a button the caller wires; `notice` is one
- *  line under the subtitle saying WHY the card is up when that is not obvious ("access has expired");
- *  `about` reserves the page's own explanation under the subtitle and a footnote at the foot — both
- *  filled with textContent by `fillAbout`, never interpolated. The MODAL card always carries the
- *  notice line, empty unless there is one, so the staff PIN's can arrive after the card is up.
+ *  `alternative` replaces the back link with a button the caller wires; `about` reserves the page's
+ *  own explanation under the subtitle and a footnote at the foot — both filled with textContent by
+ *  `fillAbout`, never interpolated. EVERY card carries the notice line (WHY the card is up, when that
+ *  is not obvious — "access has expired"), empty unless there is one, so the line about a retired
+ *  staff PIN can arrive after the card is up; an empty one takes no room (shared.css).
  *  @param {string} pageLabel
  *  @param {{ label: string, hint?: string }|null} alternative
- *  @param {string} notice
- *  @param {LoginAbout|null} about
- *  @param {boolean} inline */
-function overlayHtml(pageLabel, alternative, notice, about, inline) {
+ *  @param {LoginAbout|null} about */
+function overlayHtml(pageLabel, alternative, about) {
     return `
     <div id="loginCard">
         <img src="icon-192.png" alt="Marylebone Roster">
         <div class="login-app-name">Marylebone Roster</div>
         <div class="login-subtitle" id="loginSubtitle">${pageLabel} · Sign in</div>
         ${about ? '<div class="login-about" id="loginAbout"></div>' : ''}
-        ${notice || !inline ? '<p class="login-hint login-notice" id="loginNotice" role="status"></p>' : ''}
+        <p class="login-hint login-notice" id="loginNotice" role="status"></p>
         <!-- A REAL FORM, for the password manager (Oct 2026 review). With no <form> and no username
              field, Safari, Chrome and Android saved the password with no account attached — so it
              was offered on nobody's name. The username is the member's roster name, set from the
@@ -205,7 +201,7 @@ function overlayHtml(pageLabel, alternative, notice, about, inline) {
 
 /**
  * A page's own explanation on its sign-in card (v25.50 — the Pay Calculator's, paycalc-role-card.js):
- * what the page is and who it is for, so a visitor it will not serve — the staff PIN, somebody on
+ * what the page is and who it is for, so a visitor it will not serve — somebody on
  * the wrong grade — learns that from the card rather than from a failed sign-in.
  * @typedef {{ lines: readonly string[], link?: Readonly<{ href: string, label: string }>, footnote?: string }} LoginAbout
  */
@@ -251,8 +247,8 @@ function fillAbout(overlay, about) {
  *   the "← Back to roster" link with a button — the other way in, where there is one. Ignored while
  *   a sign-in is in flight, for the same reason the link is.
  * @param {string} [opts.notice]  One line under the subtitle saying why the card is up, when it is
- *   not obvious — an expired session, say. Empty renders nothing on the inline card, and an empty line
- *   on the modal one, which the staff PIN's notice may fill later (`sayStaffPinEnded`; it replaces a
+ *   not obvious — an expired session, say. Empty leaves the card's notice line empty (it takes no room),
+ *   which the retired staff PIN's line may fill later (`sayStaffPinEnded`; it replaces a
  *   caller's, being the more specific).
  * @param {string} [opts.presetName]  The member this card is FOR, where the caller already knows —
  *   the Calendar's come-back card names them in its heading. Pre-selects their grade and name and
@@ -282,7 +278,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         overlay.setAttribute('aria-label', `Sign in to ${pageLabel}`);
         overlay.setAttribute('aria-modal', 'true');
     }
-    overlay.innerHTML = overlayHtml(pageLabel, alternative, notice, about, inline);
+    overlay.innerHTML = overlayHtml(pageLabel, alternative, about);
     // textContent for the three caller-supplied strings, never interpolation: the label and the
     // notice are the app's own words today, but a card built by string concatenation on the front
     // door is not the place to rely on where a value came from.
@@ -307,9 +303,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // with, and was read by nobody (17 Nov 2026). `speakAfterMount` (status-text.js) waits a frame
     // and a task; the Calendar's own cards do the same.
     if (notice) { const n = overlay.querySelector('#loginNotice'); speakAfterMount(n, () => { if (n) n.textContent = notice; }); }
-    // Did arriving on this page end the staff PIN? Then say so — now if it already has, or when the
+    // Did arriving on this page sign out a leftover staff-PIN session? Then say so — now if it has, or when the
     // teardown lands, which can be after the card is up (see `sayStaffPinEnded`).
-    if (!inline) onStaffPinEnded(() => sayStaffPinEnded(overlay));
+    onStaffPinEnded(() => sayStaffPinEnded(overlay));
 
     const gradeSelect   = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginGrade'));
     const nameSelect    = /** @type {HTMLSelectElement} */ (overlay.querySelector('#loginName'));
@@ -364,7 +360,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         // (v16.23): the button is also disabled for the whole 30s password lockout, which made
         // Escape-to-calendar silently dead there — the back link already uses this exact narrower
         // guard for the same reason.
-        // To wherever the back link goes: the roster, or its PIN box once arriving ended the PIN.
+        // To wherever the back link goes: the roster.
         if (e.key === 'Escape') { if (!_signingIn) window.location.href = backLink.getAttribute('href') || './'; return; }
         trapFocus(overlay, e);
     });
@@ -497,7 +493,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     // movement, so the a11y gate stayed green). v18.28.
     //
     // Inline, only on a device with a real keyboard: autofocusing a select on a phone throws the
-    // picker up over a card the member has not read yet — the same rule the staff-PIN card follows.
+    // picker up over a card the member has not read yet.
     if (!inline || (window.matchMedia && window.matchMedia('(pointer: fine)').matches)) {
         // The native selects are now 1px and `aria-hidden`; focusing one puts the caret nowhere.
         // `select-sheet.js` names each trigger `<selectId>Trigger`. With the name preset there is

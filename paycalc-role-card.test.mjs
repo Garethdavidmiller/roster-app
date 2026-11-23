@@ -5,7 +5,7 @@
  * The WORDS are the feature here: the calculator already refused a Dispatcher and a manager (v21.78),
  * and what changed is that each is now told what the calculator is for, in terms true of THEM. So the
  * assertions are about the properties of each message that would be wrong if they went — a promise
- * with a date, a "will be added" to a manager, a PIN line implying the PIN signs anybody in — rather
+ * with a date, a "will be added" to a manager, a line about the retired staff PIN — rather
  * than about the exact strings, which may be reworded freely. The browser side (that the right card
  * actually shows, with the calculator withheld) is `e2e/paycalc.spec.js`.
  */
@@ -73,13 +73,12 @@ test('no refusal is written as a warning — calm and factual, no exclamation ma
     }
 });
 
-test('the sign-in explanation names both grades in full, says the PIN does not open the page, and links the guide', () => {
+test('the sign-in explanation names both grades in full, asks for the reader\'s own sign-in, and links the guide', () => {
     const text = PAYCALC_SIGN_IN_ABOUT.lines.join(' ');
     assert.match(text, /Customer Experience Ambassadors and Supervisors \(CEA and CES\)/);
     assert.match(text, /you sign in as yourself/);
-    assert.match(text, /staff PIN doesn’t open it/);
-    // AUTH_AND_SESSIONS.md 18: the PIN is a barrier, not a sign-in — no surface may imply it signs anybody in.
-    assert.doesNotMatch(text + ' ' + PAYCALC_SIGN_IN_ABOUT.footnote, /PIN\b[^.]*\b(signs?|logs?) (you |them |somebody |anyone )?in\b/i);
+    // The staff PIN is retired (owner, 23 Nov 2026): the card no longer mentions it at all.
+    assert.doesNotMatch(text + ' ' + PAYCALC_SIGN_IN_ABOUT.footnote, /\bPIN\b/);
     assert.match(PAYCALC_SIGN_IN_ABOUT.footnote, /shared screen/);
     assert.equal(PAYCALC_SIGN_IN_ABOUT.link.href, PAYCALC_GUIDE_URL);
     assert.doesNotMatch(text + ' ' + PAYCALC_SIGN_IN_ABOUT.footnote, /!/);

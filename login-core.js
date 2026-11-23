@@ -48,7 +48,8 @@ export const SIGN_IN_GIVE_UP_MS = 30_000;
  *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
  * @param {() => void} [deps.releaseEndedHold]  runs just before a failure clears the session, and
  *   releases this device's push record when the session is ANOTHER member's (audit A1) — not awaited
- * @param {() => void} [deps.forgetStaffPinEnded]  on success: the PIN's end is no longer this page's news
+ * @param {() => void} [deps.forgetStaffPinEnded]  on success: a leftover staff-PIN session's sign-out is no
+ *   longer this page's news (staff-pin-ended.js — transition plumbing, until the cleanup release)
  * @param {number} [deps.timeoutMs]  when the app ends the attempt (`SIGN_IN_GIVE_UP_MS`)
  * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'other'|'storage', late?: Promise<boolean> }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
@@ -109,7 +110,7 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         clearSession();
         return { ok: false, kind: 'storage', error: 'This browser is blocking storage, which the app needs to keep you signed in. Allow cookies and website data for this site — on an iPhone, turn off Block All Cookies in Safari’s settings — then sign in again.' };
     }
-    // A member is signed in here now: a later card on this page must not say the PIN ended (audit B2/C2).
+    // A member is signed in here now: a later card on this page must not say the PIN was retired (audit B2/C2).
     forgetStaffPinEnded();
     return { ok: true };
 }
@@ -144,28 +145,28 @@ export function resetRequestFailureLine(err, timedOut) {
 // below did not, so the same card read differently from page to page. Theirs live here, read by page
 // label, so the card says the same thing at load AND when a session is lost mid-visit (page-session.js
 // passes no `about` of its own for these pages) without each coordinator carrying another copy. Each
-// says what the page holds, that the staff PIN does not open it (AUTH_AND_SESSIONS 18, 24), and has the
+// says what the page holds, that you sign in as yourself to use it, and has the
 // shared-screen footnote Admin's and Pay's carry. `e2e/auth.spec.js` holds every page's card to it.
 const SHARED_SCREEN = 'On a shared screen, sign out from the menu when you finish.';
 const SIGN_IN_ABOUT_BY_PAGE = Object.freeze({
     Settings: Object.freeze({
         lines: Object.freeze([
             'Your password, your work email for account recovery, and notifications on this device.',
-            'They’re yours, so you sign in as yourself — the staff PIN doesn’t open Settings.',
+            'They’re yours, so you sign in as yourself.',
         ]),
         footnote: SHARED_SCREEN,
     }),
     Operations: Object.freeze({
         lines: Object.freeze([
             'The admin’s tools: the Daily Huddle and circulars, the weekly roster upload, and staff sign-in accounts.',
-            'Only the admin can use it, so you sign in as yourself — the staff PIN doesn’t open it.',
+            'Only the admin can use it, so you sign in as yourself.',
         ]),
         footnote: SHARED_SCREEN,
     }),
     Links: Object.freeze({
         lines: Object.freeze([
             'The workspace where new roster links are designed and checked.',
-            'Only the colleagues designing them can use it, so you sign in as yourself — the staff PIN doesn’t open it.',
+            'Only the colleagues designing them can use it, so you sign in as yourself.',
         ]),
         footnote: SHARED_SCREEN,
     }),

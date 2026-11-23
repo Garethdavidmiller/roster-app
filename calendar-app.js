@@ -37,7 +37,7 @@ import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, hasOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
 import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay, showsRoster } from './calendar-data-state.js';
 import { createLegend } from './calendar-legend.js';
-import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
+import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, handleAccessLost } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer, setSnapshotSource } from './calendar-renderer.js';
@@ -62,7 +62,7 @@ import { signOutAndLeave, reloadIfRestoredForSomeoneElse, rebaseRestoreGuard } f
 // This replaced an unconditional `signInAnonymously` fallback. That existed because `overrides` was
 // world-readable (`allow read;`) and the Calendar's best-effort WRITES — the error reporter, the
 // usage counter, the push-subscription renewal — still needed `request.auth != null`. Override reads
-// now require a real member `name` claim or the shared `calendarViewer` capability, so an anonymous
+// now require a real member `name` claim (the shared staff PIN is retired, 23 Nov 2026), so an anonymous
 // identity would grant nothing at all: it would be a round trip that buys a token no rule accepts.
 // Do not re-add it "so telemetry keeps working" — a locked Calendar recording a page view it never
 // showed is not a measurement worth an authenticated session for.
@@ -658,7 +658,7 @@ try {
     //
     // What stays OUTSIDE: the header, the nav drawer, the About panel, the document viewers and the
     // splash dismissal. The guides, the Huddle, the Circular and the Newsletter are reachable
-    // without Calendar access on purpose — making somebody type the staff PIN to read the Railcard
+    // without Calendar access on purpose — making somebody sign in to read the Railcard
     // guide would be locking the building to reach the noticeboard.
     _startCalendarWorkspace = async function startCalendarWorkspace() {
         // validateRosterPatterns() already ran at module load in roster-data.js.
@@ -765,8 +765,8 @@ try {
     // ── The splash comes down either way ────────────────────────────────────────────────────────
     // Outside the workspace function DELIBERATELY. It used to sit after the first render, which was
     // right when the first render was unconditional; now a locked Calendar would sit behind the
-    // splash for ever and the PIN panel would never be seen. Clearing it here means the member sees
-    // either their roster or the unlock card, and never a loading screen with no way out.
+    // splash for ever and the sign-in card would never be seen. Clearing it here means the member sees
+    // either their roster or a sign-in card, and never a loading screen with no way out.
     // (splash-watchdog.js is the backstop for the module graph failing entirely, not for this.)
     // It goes AT ONCE, a frame after the first render (index.css's splash block has why there is no fade).
     const splash = document.getElementById('splash');
@@ -795,7 +795,7 @@ try {
                 // WHO IS REPORTING, as every other page says it: the signed-in member, or how the
                 // Calendar was opened without one (18 Nov 2026). It named the member on screen, which
                 // is a colleague's calendar as often as the reader's own — so that has a line of its own.
-                getUserName: () => getSession()?.name || (isViewerMode() ? 'Staff PIN' : 'Not signed in'),
+                getUserName: () => getSession()?.name || 'Not signed in',
                 getReportLines: () => [`Calendar shown: ${getAccessType() === 'none' ? 'None (locked)'
                     : isFirstRun() ? 'Not selected' : ((/** @type {any} */ (getCurrentMember()))?.name || 'Not selected')}`],
                 onOpen() {
@@ -1011,12 +1011,12 @@ registerServiceWorker({
 // HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================
 // `authReady` (persistence configured) is what the READ needs; `documentAccess` is what PERMITS it
-// (v23.17, owner decision: the Huddle, Circular and Newsletter are not visible without the staff
-// PIN or a password). The two are separate on purpose. `authReady` is a promise the viewers can
-// await with a bound; access is a GATE they consult and subscribe to, opened by the full grant in
-// `initCalendarAccess` below and shut when access is lost — so a locked visitor's tap is answered
-// with a message rather than a read, and a notification tap that landed on the PIN card is finished
-// the moment the PIN is entered. calendar-doc-access.js carries the argument, including why the
+// (v23.17, owner decision: the Huddle, Circular and Newsletter are not visible without a password —
+// the staff PIN, which also opened them, is retired). The two are separate on purpose. `authReady` is
+// a promise the viewers can await with a bound; access is a GATE they consult and subscribe to,
+// opened by the full grant in `initCalendarAccess` below and shut when access is lost — so a locked
+// visitor's tap is answered with a message rather than a read, and a notification tap that landed on
+// a sign-in card is finished the moment the member signs in. calendar-doc-access.js carries the argument, including why the
 // local Firestore cache is the reason a rules change alone could not do this.
 initHuddleViewer({ authReady, docAccess: documentAccess });
 
@@ -1035,7 +1035,7 @@ initDocViewer({ authReady, docAccess: documentAccess, accessDecided: new Promise
 // PUSH NOTIFICATIONS — the one-off prompt strip and the silent renewal: calendar-notif-prompt.js
 // ============================================
 // Extracted at v23.16 with the coordinator four lines under its ratchet. Both access rules the
-// block carries (named/open only, never the shared viewer) are argued in that module's header.
+// block carries (named only) are argued in that module's header.
 initNotifPrompt({ authReady: calendarAuthReady, getAccessType });
 
 // The install strip. Wired AFTER the notification prompt's IIFE above, and it hides that strip
@@ -1051,9 +1051,9 @@ initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // Telemetry waits for ACCESS, not merely for auth (v20.12), and on a locked Calendar it therefore
 // never runs. That is the honest reading: with no identity at all these writes would be rejected by
 // every rule, and a page view for a Calendar nobody was shown is not a figure worth an
-// authenticated session to collect. The cost is real and worth stating — an unlock that FAILS is
-// invisible to the error log, so a broken PIN exchange shows up in the Cloud Function logs and in
-// staff reports rather than in the Operations Error Log card.
+// authenticated session to collect. The cost is real and worth stating — a sign-in that FAILS on
+// this page is invisible to the error log, so it shows up in staff reports rather than in the
+// Operations Error Log card.
 // `calendarAuthReady`, NOT `calendarAccessReady` (v20.22). They were different instants in the
 // anonymous `open` mode (retired v24.34 with the `CALENDAR_PIN_ACCESS` switch), where access was
 // granted before the sign-in landed; gating these writes on access alone fired them into a window
@@ -1093,18 +1093,14 @@ calendarAuthReady.finally(() => {
 // Back after a sign-out elsewhere must not put a member's roster on screen for whoever picks the
 // device up next (page-session.js, v24.52 — every protected page installs the same guard).
 reloadIfRestoredForSomeoneElse();
-// …and the PIN viewer has no local session for that guard to compare, so a protected page that
-// signed the viewer out (by design) let Back restore the roster it had shown (v24.56, auth review).
-// A restored viewer page asks again instead; while the viewer is still current that is one quiet reload.
-window.addEventListener('pageshow', (e) => { if (e.persisted && getAccessType() === 'viewer') window.location.reload(); });
-// The menu, built for the session saved NOW — which pills, whose name, Sign out or End staff PIN.
+// (The staff PIN's own Back guard went with the PIN, 23 Nov 2026: no page is granted to a viewer any
+// more, so no restored page can hold a roster a viewer was shown.)
+// The menu, built for the session saved NOW — which pills, whose name, Sign out.
 // calendar-drawer.js decides it, and can build it again after a sign-in that does not reload.
 wireCalendarDrawer({
     authReady: calendarAuthReady,
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut: () => signOutAndLeave(),
-    isViewer: isViewerMode,
-    lock: lockCalendar,
     canReadDocuments: hasDocumentAccess,
 });
 // THE NEWSLETTER'S ☰ BUTTON FOLLOWS ITS LATEST ISSUE (newsletter-recency.js, owner, 14 Nov 2026). Asked
@@ -1112,13 +1108,13 @@ wireCalendarDrawer({
 // tap passes. Every page's drawer then reads the answer this device keeps; a locked Calendar asks nothing.
 checkLatestNewsletter({ ready: calendarAuthReady, canRead: hasDocumentAccess, fetchLatest: getLatestNewsletter });
 
-// ── Start the Calendar, or ask for the staff PIN ─────────────────────────────────────────────────
+// ── Start the Calendar, or ask for a sign-in ─────────────────────────────────────────────────────
 // The LAST thing the module does, deliberately: every shell subsystem above is wired first, so a
 // locked visitor still has the nav drawer, the guides, the documents and the About panel. Only then
-// is access decided, and only on `named`/`viewer` does the workspace exist at all.
+// is access decided, and only on `named` does the workspace exist at all.
 // Whether a grant is the FIRST one is the start-up stage (calendar-redraw.js): `onGranted` reaches
 // `workspace`, and `onEveryGrant` — which runs before it — reads that to tell "boot" from
-// "re-unlock". On boot the workspace does not exist yet and the repaint below would run against
+// "re-grant". On boot the workspace does not exist yet and the repaint below would run against
 // unbuilt state, so it must be skipped there and only there.
 
 /** Settles when the forced set-password step has run, or was not due — the notices wait on it. */
@@ -1153,7 +1149,7 @@ async function _runPasswordForce() {
 /** The first grant's member-only steps: the claim sweep (else only in `ensureNamedSession`, which a
  *  named Calendar boot never calls) and the forced set-password step. Run from the ONE-SHOT
  *  `onGranted` — `grant()` sets the access type before calling it, so `named` is readable here, and
- *  every later grant is a viewer re-unlock (a member signing in on a page granted before reloads it,
+ *  a later grant is a RE-grant (a member signing in on a page granted before reloads it,
  *  calendar-access.js → `finishSignIn`). */
 function _onFirstGrant() {
     if (getAccessType() !== 'named') { _resolvePasswordForce(false); return; }   // the notices need not wait
@@ -1228,7 +1224,7 @@ onCalendarAccess(({ open }) => { if (!open) document.getElementById('calendarDis
 
 initCalendarAccess({
     paintBeforeDecision: _paintSnapshotBeforeGrant,
-    // A PIN or come-back card means a person is about to type: the speed sample stops there
+    // A sign-in or come-back card means a person is about to type: the speed sample stops there
     // (perf-reporter.js → "A sample is time somebody spent waiting"). The sign-in card says so itself.
     onAwaitingInput: markAwaitingInput,
     // A sign-in on a card, granted WITHOUT a reload (calendar-access.js → `finishSignIn`): the two things
@@ -1237,15 +1233,15 @@ initCalendarAccess({
     // Everything else reads the session when it runs, or is built by the grant that follows.
     onSignedInInPlace: () => { rewireCalendarDrawer(); rebaseRestoreGuard(); },
     // EVERY grant, not just the first (v20.41): what a re-lock takes away has to come back when
-    // access returns, which is precisely what re-entering the PIN after a rotation is. The roster
+    // access returns (a re-grant; it was the staff PIN's re-entry after a rotation, until the PIN went). The roster
     // reads and the documents are not reopened HERE: the grant opens both itself, BEFORE this hook
     // runs (calendar-access.js → `grant`, THE ONE WRITE). What is here is the page's.
     onEveryGrant: () => {
-        // The own-roster copy belongs to a NAMED grant; the PIN viewer must not inherit one (v24.59).
+        // The own-roster copy belongs to a NAMED grant; nothing else may inherit one (v24.59).
         if (getAccessType() !== 'named') clearSnapshot();
         // A RE-grant also repaints (v20.45). `grant()` un-hides the workspace exactly as the
         // re-lock left it, and nothing else asks for a render — every fetch in this app is pulled
-        // by one — so without this the member who just entered the rotated PIN looked at the grid
+        // by one — so without this a re-granted reader looked at the grid
         // from BEFORE the lock, up to fifteen minutes stale, until their next navigation. The
         // repaint goes through the ordinary paths on purpose: the grant has just cleared the month
         // claims (calendar-overrides.js → A GRANT IS A FRESH START), so `renderCalendar`'s own
@@ -1272,7 +1268,7 @@ initCalendarAccess({
         });
     },
 }).then((t) => {
-    // Not a member's own grant — a PIN unlock, or no access at all: the copy is not shown again (v24.59).
+    // Not a member's own grant — no access at all: the copy is not shown again (v24.59).
     if (t !== 'named') clearSnapshot();
     _accessDecided(t);
 }, _accessDecided);

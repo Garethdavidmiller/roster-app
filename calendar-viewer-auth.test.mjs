@@ -454,7 +454,7 @@ describe('deployed-secret shape', () => {
         }
     });
 
-    test('the same rule governs the submitted PIN and the configured one', async () => {
+    test('the same rule governs the submitted PIN and the configured one', () => {
         // One rule, so the two can never drift into disagreeing about what a PIN is — the drift
         // would show up as "correct PIN refused", which is indistinguishable from a wrong PIN. This
         // compared the rule with itself (review, Nov 2026); the handler and the PIN card are what can
@@ -465,11 +465,8 @@ describe('deployed-secret shape', () => {
         assert.match(handler, /!isValidPinShape\(expected\)/, 'the configured secret is not held to the shape rule');
         assert.match(handler, /isValidPinShape\(supplied\) && pinMatches\(supplied, expected\)/,
             'the submitted PIN is not held to the shape rule before it is compared');
-        // …and the card lets through exactly what the handler will compare.
-        const { isCompletePin } = await import('./calendar-access-core.js');
-        for (const v of ['0000', '9137', '123', '12345', 'abcd', '12a4', ' 123', '1234 ', '١٢٣٤', '', null, 1234]) {
-            assert.equal(isCompletePin(/** @type {any} */ (v)), isValidPinShape(v), `the card and the server disagree about ${JSON.stringify(v)}`);
-        }
+        // (The card's half went with the PIN card, 23 Nov 2026: no client shapes a PIN any more, and
+        // the endpoint goes in the server release.)
     });
 });
 

@@ -47,8 +47,8 @@
  * expired session forces a real typed login (`reconcileExpiredIdentity`), so the rollout completes
  * itself within 60 days and staggers naturally by each member's own expiry. That window is a
  * CONSEQUENCE of the session length, not a policy of this module — it doubled when the session did.
- * A member who only ever views the roster with the staff PIN never signs in anywhere and is never
- * compelled — accepted; reaching them means putting the calendar behind a login (Track E).
+ * A member who only ever viewed the roster with the staff PIN never signed in anywhere and was never
+ * compelled — the reason the calendar was put behind a login (Track E; the PIN retired, 23 Nov 2026).
  *
  * ── THE CALENDAR RUNS IT TOO (v23.21) ─────────────────────────────────────────────────────────────
  * Since v23.19 the Calendar's front door IS a sign-in (calendar-access.js → `showSignInPanel`), and
@@ -90,7 +90,7 @@ export { withTimeout, settleOrTimeout };
  *  · `flagOn`      — CONFIG.FORCE_PASSWORD_SET, the one-line kill switch.
  *  · `hasMarker`   — only immediately after a confirmed sign-in (see the header).
  *  · `authStatus`  — must be exactly `'named'`. NOT "an auth user exists": on the calendar that user
- *                    may be the shared PIN viewer, and on paycalc (a `soft` policy page) a member
+ *                    may be a leftover viewer of the retired staff PIN, and on paycalc (a `soft` policy page) a member
  *                    can be locally signed in with a FAILED Firebase session. In either case
  *                    `updatePassword` cannot succeed, so a hard block would trap them with no way through.
  *  · `!migrated`   — nothing to compel once they have their own password.

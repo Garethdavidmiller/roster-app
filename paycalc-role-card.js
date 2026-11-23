@@ -24,16 +24,13 @@
  * nothing, and the page's own guide link is hidden on the refusal (paycalc.css → role-unsupported).
  *
  * It also holds the explanation on the page's SIGN-IN card (`PAYCALC_SIGN_IN_ABOUT`), for a visitor
- * with no named session: a member whose session lapsed, and the shared staff PIN. The PIN is a
- * barrier, not a sign-in, and carries no name (AUTH_AND_SESSIONS.md 7 and 18), so it cannot open a
- * page that keeps figures under one — and the card says so in those terms, never implying the PIN
- * signs anybody in. The PIN sentence is WORDED FOR EVERYONE rather than shown on detection: this page
- * signs the PIN out moments after it arrives (`reconcileExpiredIdentity`, by design — it does not admit
- * the PIN), so detecting it would mean racing that teardown on a card that is already up.
+ * with no named session — a member whose session lapsed, or somebody who has not signed in here yet —
+ * and says why the page needs their own sign-in: it keeps figures under a name. (Until the staff PIN
+ * was retired, 23 Nov 2026, it also said the PIN does not open it.)
  */
 
 /** The Pay Calculator Guide. A guide needs no sign-in (auth-policy.js → `guides`), so this link works
- *  for every reader of these cards, the staff PIN included. */
+ *  for every reader of these cards. */
 export const PAYCALC_GUIDE_URL = './paycalc-guide.html';
 
 /** What the calculator does — one sentence, naming both grades in full on first sight (CLAUDE.md →
@@ -119,7 +116,7 @@ export const PAYCALC_SIGN_IN_ABOUT = Object.freeze({
         'Works out your take-home pay from the hours you work, for Customer Experience Ambassadors and Supervisors (CEA and CES).',
         // "you sign in", the verb, and not "your sign-in", the noun: at the card's width the
         // hyphenated noun broke across two lines as "sign-" / "in".
-        "It keeps your figures under your own name, so you sign in as yourself — the staff PIN doesn’t open it.",
+        'It keeps your figures under your own name, so you sign in as yourself.',
     ]),
     link: Object.freeze({ href: PAYCALC_GUIDE_URL, label: 'Read the Pay Calculator Guide →' }),
     footnote: 'On a shared screen, use your own phone instead — your figures stay in the browser you type them into.',

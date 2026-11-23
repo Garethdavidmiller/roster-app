@@ -189,10 +189,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains'|'newlink', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, isNotOtherStaff?: boolean, onLogoClick?: (() => void)|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
- *   onLockCalendar (the Calendar and Trains) — the shared-PIN viewer's way to lock the roster before
- *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
- *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains'|'newlink', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, isNotOtherStaff?: boolean, onLogoClick?: (() => void)|null, authReady?: Promise<any>, canReadDocuments?: () => boolean }} opts
  *   canReadDocuments — a THUNK: may the two document links read? Calendar, Overtime, Pay and Trains pass
  *   their own; with none it is `!!memberName`, never "yes" (22 Nov 2026): offline the cache answers with no
  *   rule asked (calendar-doc-access.js), so a drawer wired for nobody opened an earlier visitor's document.
@@ -203,7 +200,7 @@ export function resetNavPanel() {
  *   header logo goes back to the calendar, so About lives here).
  *   isNotOtherStaff — the one gate that defaults to TRUE (nav-destinations.js → `otherStaffHidden` says why).
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, isNotOtherStaff = true, onLogoClick = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => !!memberName } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, canOpenNewlink = false, isNotOtherStaff = true, onLogoClick = null, authReady = Promise.resolve(), canReadDocuments = () => !!memberName } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion: the SIGNED-IN name, never a selected
     // member (on the station PC that is whichever row was picked last). Never stored — only compared
     // against CONFIG.ADMIN_NAMES; usage-reporter.js has the reasoning.
@@ -216,7 +213,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     burger.setAttribute('aria-controls', 'navPanel');
     burger.setAttribute('aria-expanded', 'false');
 
-    _inject(currentPage, memberName, onSignOut, { isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, isNotOtherStaff }, onLockCalendar);
+    _inject(currentPage, memberName, onSignOut, { isAdmin, isLinksDesigner, canOpenOvertime, canOpenNewlink, isNotOtherStaff });
 
     const panel    = /** @type {HTMLElement} */ (document.getElementById('navPanel'));
     const overlay  = /** @type {HTMLElement} */ (document.getElementById('navPanelOverlay'));
@@ -236,7 +233,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // Permission/subscription can change between opens (toggled in admin, or
         // at OS level), so re-read the bell state every time the panel opens.
         _refreshBell();
-        _refreshLock();
         // And the Newsletter's row: an issue that turns six weeks old with the page open goes, and one
         // the Calendar's check or an upload has just recorded comes (newsletter-recency.js).
         const nl = panel.querySelector('.nav-panel-link--newsletter')?.parentElement; if (nl) nl.hidden = !newsletterInMenu();
@@ -340,9 +336,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // THE DOCUMENT GATE (calendar-doc-access.js): refused HERE, before the blank tab is opened —
         // a tab that closes a second later reads as a fault. The message names the fix.
         if (!canReadDocuments()) {
-            // The viewers' own words (calendar-doc-viewer.js), naming the document; "on the Calendar" only
-            // where the PIN card is somewhere else (review, 21 Nov 2026).
-            _docFailureFallback(triggerEl, `Sign in, or enter the staff PIN${_onCalendarPage() ? '' : ' on the Calendar'}, to read the ${triggerEl.dataset.csTitle}.`);
+            // The viewers' own words (calendar-doc-viewer.js), naming the document. ("Or enter the staff PIN" went
+            // with the PIN, 23 Nov 2026.)
+            _docFailureFallback(triggerEl, `Sign in to read the ${triggerEl.dataset.csTitle}.`);
             return;
         }
         _docFetching = true;
@@ -426,10 +422,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             if (newTab) newTab.close();
             // AN ACCESS REFUSAL IS NOT A CONNECTION FAULT (`isAccessFailure`, claim-retry.js). The gate
             // above answers a page that knows it has no access; this is the SERVER refusing one that
-            // thought it had. "On the Calendar" only off it, as the gate's own message (review, 22 Nov 2026).
+            // thought it had (review, 22 Nov 2026).
             _docFailureFallback(triggerEl, isAccessFailure(err)
-                // Not "you may have been signed out" alone: a staff-PIN viewer on Trains never signed in.
-                ? `Couldn’t open — your sign-in or staff PIN may have ended. Sign in again, or enter the staff PIN${_onCalendarPage() ? '' : ' on the Calendar'}.`
+                ? 'Couldn’t open — your sign-in may have ended. Sign in again to read it.'
                 : 'Couldn’t connect — check your signal and try again.');
         }).finally(() => {
             triggerEl.classList.remove('nav-panel-link--loading');
@@ -533,47 +528,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             return;
         }
     });
-
-    // End staff PIN (viewer mode only). Both the button and the footer label are refreshed on every
-    // drawer open — see _refreshLock, called from openPanel beside _refreshBell.
-    const lockBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('navLockCalendarBtn'));
-    lockBtn?.addEventListener('click', async () => {
-        // THE DRAWER STAYS OPEN UNTIL THE LOCK IS CONFIRMED: `lock()` rejects if the viewer session
-        // survives sign-out, and the drawer is the only surface left to report that failure on.
-        if (!lockBtn) return;
-        const label = lockBtn.textContent;
-        lockBtn.disabled = true;
-        lockBtn.textContent = 'Ending…';
-        try {
-            await onLockCalendar?.lock?.();
-            closePanelForNavigation();      // only reached if `lock()` did not navigate away
-        } catch (err) {
-            console.warn('[nav] End staff PIN failed:', err);
-            const failed = 'Couldn’t end it — try again';
-            lockBtn.textContent = failed;
-            lockBtn.disabled = false;
-            setTimeout(() => { if (lockBtn.textContent === failed) lockBtn.textContent = label; }, 6000);
-        }
-    });
-
-    /** Reveal the lock button (and name the mode) when this browser is on the shared staff PIN. */
-    function _refreshLock() {
-        if (!onLockCalendar) return;
-        // Fail CLOSED on a thrown thunk — hiding a button costs a walk to the browser menu, whereas
-        // showing "End staff PIN" to a signed-in member offers them an action that does nothing to
-        // their session and reads as though it did.
-        let viewer;
-        try { viewer = onLockCalendar.isViewer() === true; } catch { viewer = false; }
-        if (lockBtn) { if (viewer) lockBtn.removeAttribute('hidden'); else lockBtn.setAttribute('hidden', ''); }
-        const label = document.getElementById('navPanelMember');
-        if (viewer && label && !label.textContent) label.textContent = 'Staff PIN access';
-        // A footer with no member and no viewer has nothing in it — keep it away entirely. (A member's
-        // footer is never hidden; this runs only where a PIN viewer can be: the Calendar and Trains.)
-        const footer = document.querySelector('.nav-panel-footer');
-        if (footer && !onSignOut) {
-            if (viewer) footer.removeAttribute('hidden'); else footer.setAttribute('hidden', '');
-        }
-    }
 
     // Sign-out footer button
     const signOutBtn = document.getElementById('navSignOutBtn');
@@ -976,9 +930,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
  * @param {any} memberName
  * @param {any} onSignOut
  * @param {import('./nav-destinations.js').NavGates} gates  the pill gates, as `visiblePills` reads them
- * @param {any} onLockCalendar
  */
-function _inject(currentPage, memberName, onSignOut, gates, onLockCalendar) {
+function _inject(currentPage, memberName, onSignOut, gates) {
     // Render every permitted destination. The current page is shown too — as an
     // inert "you are here" pill (aria-current) rather than being filtered out —
     // so the drawer doubles as a map, not just a list of exits.
@@ -1012,27 +965,19 @@ function _inject(currentPage, memberName, onSignOut, gates, onLockCalendar) {
     // The bell is only included when the device supports Web Push (notif.js folds in the
     // iOS-must-be-standalone rule). A COMPACT icon button next to Sign out (owner decision: a labelled
     // full-width row has been tried and reverted twice): settings.html's Notifications card is the
-    // canonical surface. Signed-in only — `onSignOut` as well as notifSupported(): the footer also
-    // carries a PIN viewer's End staff PIN button, and a viewer's subscription write the rules DENY.
-    // A control that cannot succeed must not be offered.
+    // canonical surface. Signed-in only — `onSignOut` as well as notifSupported(), as the footer it
+    // sits in is (a subscription write with nobody signed in is one the rules DENY, and a control that
+    // cannot succeed must not be offered).
     const bellHtml = (onSignOut && notifSupported()) ? `
                     <button class="nav-panel-bell" id="navNotifBell" type="button"
                             aria-label="Notifications — checking…"
                             data-notif-state="loading" data-cs-title="Notifications blocked" data-cs-icon="🔕">
                         <span id="navNotifIcon" aria-hidden="true">🔄</span>
                     </button>` : '';
-    // "End staff PIN" (owner, 21 Nov 2026; it read "Lock Calendar", but it ends the PIN for the documents
-    // and Trains too, and shows on Trains) — shown ONLY while this browser is on the shared staff PIN.
-    // Rendered hidden and revealed on drawer open, because access resolves after this markup is
-    // built. It sits where Sign out sits for a member, which is the same idea in the same place:
-    // the thing you press before you walk away.
-    const lockHtml = onLockCalendar ? `
-                    <button class="nav-panel-signout nav-panel-lock" id="navLockCalendarBtn" type="button" hidden>End staff PIN</button>` : '';
-    // The footer exists for a member (name + bell + sign out) OR for a viewer (the lock button).
-    // Rendered `hidden` for a lock-only footer and revealed by `_refreshLock` once access resolves —
-    // otherwise a LOCKED visitor got an empty footer bar with a blank member name.
-    const footerHtml = (onSignOut || onLockCalendar) ? `
-        <div class="nav-panel-footer"${onSignOut ? '' : ' hidden'}>
+    // The footer exists for a member only: name, bell and Sign out. ("End staff PIN", the footer a PIN
+    // viewer had, went with the PIN, 23 Nov 2026.)
+    const footerHtml = onSignOut ? `
+        <div class="nav-panel-footer">
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>
@@ -1040,8 +985,7 @@ function _inject(currentPage, memberName, onSignOut, gates, onLockCalendar) {
                 </div>
                 <div class="nav-panel-footer-actions">
                     ${bellHtml}
-                    ${lockHtml}
-                    ${onSignOut ? '<button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>' : ''}
+                    <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
                 </div>
             </div>
         </div>` : '';
@@ -1130,7 +1074,7 @@ function _inject(currentPage, memberName, onSignOut, gates, onLockCalendar) {
 
     // Set member name safely via textContent (XSS-safe — no innerHTML for user data)
     if (!memberName) {
-        // No member: a viewer footer, which has a lock button but nobody to name. Drop the avatar
+        // No member (a footer is drawn only with Sign out, so this is defensive): nobody to name. Drop the avatar
         // entirely rather than leaving an initial-less coloured circle — an empty badge beside empty
         // text reads as a rendering fault, and there is no identity here to represent.
         document.getElementById('navPanelAvatar')?.remove();

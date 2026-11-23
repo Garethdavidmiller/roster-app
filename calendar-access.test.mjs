@@ -1,26 +1,22 @@
 /**
- * calendar-access.test.mjs — the unlock exchange and the viewer session lifecycle.
+ * calendar-access.test.mjs — the Calendar's access gate: the decision, the cards, the grant and the loss.
  * Run: node --experimental-test-module-mocks scripts/run-tests.mjs calendar-access.test.mjs
  *
  * `calendar-access-core.test.mjs` covers the pure decisions. This file covers the part that talks to
- * the network and to Firebase, because that is where the failure modes are STATEFUL — a half-signed-
- * in browser, a persistence mode left in the wrong place, a token accepted without its claim — and
- * none of those is visible from a pure function.
+ * Firebase and draws the cards, because that is where the failure modes are STATEFUL — a restore that
+ * lands late, a sign-in in flight, an access lost mid-read — and none of those is visible from a pure
+ * function. Everything asserts on ORDER as much as on outcome.
  *
- * Everything asserts on ORDER as much as on outcome. Two of the three security properties here are
- * orderings rather than values:
- *   · sign out the old identity BEFORE switching persistence (or the old one migrates into the new
- *     mode — which for the viewer means surviving the browser closing, the one thing that must not
- *     happen);
- *   · verify the CLAIM before granting anything (a token without it signs in perfectly and then has
- *     every read denied, leaving an unlocked-looking Calendar with no shifts on it).
- *
- * The third kind is not an ordering but a REFUSAL TO CLAIM: `lockCalendar` reloads, and the reload
- * is what a person reads as proof. So a sign-out that did not take must throw rather than reload —
- * a button reporting success it did not achieve is worse than one that fails visibly.
+ * THE STAFF PIN IS RETIRED FROM THE CLIENT (owner, 23 Nov 2026). Its unlock exchange, its card, its
+ * Lock and its late grant went, and their tests with them. What replaced them here: a browser still
+ * holding a viewer session is NOT granted, and the boot asks the teardown with no argument, so the
+ * viewer is signed out (`reconcileExpiredIdentity`, session.js — whose own tests prove the sign-out and
+ * the one line the card then says); and the front door has no alternative, and a fallback that is not
+ * a PIN card when its form cannot load.
  *
  * The fake DOM is deliberately minimal: this file tests the module's decisions, not its markup. The
- * card's appearance and behaviour under a real browser are e2e's job (`e2e/calendar-pin.spec.js`).
+ * card's appearance and behaviour under a real browser are e2e's job (`e2e/calendar-pin.spec.js`, whose PIN
+ * half the e2e pass removes).
  */
 import { test, describe, mock, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,26 +27,11 @@ import { readFileSync } from 'node:fs';
 /** Ordered log of every auth-affecting operation, so ORDER can be asserted, not just outcome. */
 let ops = [];
 let currentUser = null;
-/** What `getIdTokenResult()` will report. */
-let tokenClaims = { calendarViewer: true };
-/** WHO the minted token signs in as, overriding the viewer shape. The fake hardcoded the viewer
- *  uid, so `isViewerUser(cred.user)` — the second half of the claim check — could never be false
- *  and deleting it left the whole file green (measured). A token's SUBJECT is the server's answer
- *  as much as its claims are, and this is the seam that lets a test disagree with it.
- *  @type {any} */
-let tokenUser = undefined;
-/** The real SDK tells `onAuthStateChanged` subscribers about a custom-token sign-in at once, before
- *  the unlock has checked the claim. Opt-in, so the tests written before cal-data-10 are unchanged. */
-let emitOnSignIn = false;
 let sessionValue = null;
-/** session.js's sign-in/sign-out generation: a test moves it to say "a sign-in has begun". */
-let authGenValue = 0;
-/** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
-let fetchQueue = [];
 let signOutBehavior = 'ok';
-/** Lets a 'held' sign-out finish. @type {(v?: any) => void} */
-let releaseSignOut = () => {};
-let lastFetchBody = null;
+/** Whether the sign-in form's module fails to load (`lazyImport`, sw-register.js) — the case the
+ *  front door's non-PIN fallback is for. */
+let formLoadFails = false;
 
 const auth = { get currentUser() { return currentUser; } };
 
@@ -59,23 +40,6 @@ let duringViewerWrites = null;
 mock.module('./firebase-client.js', {
     namedExports: {
         auth,
-        signInWithCustomToken: async (_a, token) => {
-            ops.push('signIn:' + token);
-            if (token === 'BAD_TOKEN') { const e = new Error('bad'); e.code = 'auth/invalid-custom-token'; throw e; }
-            currentUser = tokenUser !== undefined ? tokenUser : {
-                uid: 'calendar-viewer', isAnonymous: false,
-                getIdTokenResult: async () => ({ claims: tokenClaims }),
-            };
-            if (emitOnSignIn) for (const cb of [...authSubs]) cb(currentUser);
-            return { user: currentUser };
-        },
-        // 22 Nov 2026: the viewer's queued writes get a moment to leave before it is signed out
-        // (firebase-client.js). Recorded with WHO was current, and a hook to land a change mid-wait.
-        letViewerWritesGo: async () => {
-            ops.push(`viewerWrites:${currentUser?.uid ?? 'none'}`);
-            if (duringViewerWrites) await duringViewerWrites();
-            return true;
-        },
         signOut: async () => {
             ops.push('signOut');
             // v20.35: the fail-closed tests need a signOut that REJECTS, and one that resolves
@@ -83,9 +47,6 @@ mock.module('./firebase-client.js', {
             // identity still live.
             if (signOutBehavior === 'reject') { const e = new Error('signout failed'); e.code = 'auth/network-request-failed'; throw e; }
             if (signOutBehavior === 'noop') return;
-            // cal-data-10: the real SDK clears `currentUser` only once its queue runs, so a sign-out
-            // in flight still reads as the old user. 'held' keeps it there until the test releases it.
-            if (signOutBehavior === 'held') await new Promise(r => { releaseSignOut = r; });
             currentUser = null;
         },
         // A RECORDER, not a feature. The Calendar no longer signs anybody in anonymously (the
@@ -97,11 +58,6 @@ mock.module('./firebase-client.js', {
             currentUser = { uid: 'anon-1', isAnonymous: true };
             return { user: currentUser };
         },
-        setViewerPersistence: async () => { ops.push('persistence:session'); },
-        // The boot's own persistence choice (firebase-client.js). The unlock waits for it before its
-        // switch (sign-in check, 11 Nov 2026); a thenable so a test can hold it (`bootGate`).
-        authBootstrap: { then: (/** @type {any} */ res, /** @type {any} */ rej) => (bootGate || Promise.resolve({ user: null, persistence: 'none' })).then(res, rej) },
-        restoreMemberPersistence: async () => { ops.push('persistence:member'); },
         // Subscribers are RETAINED, not just called once (v20.79). The late-restore watcher exists
         // precisely because a second emission can arrive after the boot decision, and a fake that
         // fired once and forgot could never produce one — the watcher would look correct whether or
@@ -128,8 +84,6 @@ mock.module('./firebase-client.js', {
 
 /** When true the boot restore never answers — the degraded case both bounds existed for. */
 let bootRestoreHangs = false;
-/** A held boot persistence choice (`authBootstrap`), or null for one settled long ago. @type {Promise<any>|null} */
-let bootGate = null;
 /** Total time the fake boot restore was made to wait, so a STACKED bound is measurable. */
 let bootWaitedMs = 0;
 
@@ -168,8 +122,6 @@ mock.module('./session.js', {
     namedExports: {
         ACCESS_DECISION_BUDGET_MS: 6500,   // the real constant lives in session.js since v24.96
         getSession: () => sessionValue,
-        authGeneration: () => authGenValue,
-        clearSession: () => { ops.push('clearSession'); sessionValue = null; },
         reconcileExpiredIdentity: async (opts) => {
             ops.push('reconcile:' + JSON.stringify(opts || {}));
             if (reconcileHangs) await new Promise(() => {});   // never settles — the wedged-auth case
@@ -209,17 +161,14 @@ let reconcileGate = null;
  *  `SILENT_BEFORE_CARD_MS`) before putting a card up. @type {Promise<void>|null} */
 let silentGate = null;
 
-// The hand-over releases this device's push record before it drops the session (Sep 2026
-// re-review) — recorded into `ops`, so the ORDER against `clearSession` is what is asserted.
-mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => { ops.push('releasePush'); } } });
-
-// The overlay Back stack (overlay.js), recorded: the front door's PIN card takes one entry, and Back
-// (`pressBack`) runs the newest handler as overlay.js's popstate listener does (sign-in check, 11 Nov 2026).
-/** @type {Function[]} */ let backStack = [];
-const pressBack = () => { const fn = backStack.pop(); fn?.(); };
-mock.module('./overlay.js', { namedExports: {
-    _pushOverlayState: (/** @type {Function} */ fn) => { if (!backStack.includes(fn)) { backStack.push(fn); ops.push('backEntry:push'); } },
-    _clearOverlayHistory: (/** @type {Function} */ fn) => { const i = backStack.lastIndexOf(fn); if (i >= 0) { backStack.splice(i, 1); ops.push('backEntry:clear'); } },
+// The cards' lazy import (sw-register.js), with one seam: `formLoadFails` makes the sign-in form's
+// module fail to load, the first visit on a connection that drops mid-boot — the case the front door's
+// fallback exists for. calendar-lock-cards.js is the only module in this graph that imports it.
+mock.module('./sw-register.js', { namedExports: {
+    lazyImport: async (/** @type {() => Promise<any>} */ load) => {
+        if (formLoadFails) throw new Error('Failed to fetch dynamically imported module');
+        return load();
+    },
 } });
 
 // A storage the cards can read (real `ls.js`, real keys) — a mocked `lsGet` would let a module read
@@ -233,18 +182,17 @@ globalThis.localStorage = /** @type {any} */ ({
 });
 
 const {
-    unlockWithPin, getAccessType, isViewerMode, initCalendarAccess, lockCalendar, handleAccessLost,
+    getAccessType, initCalendarAccess, handleAccessLost,
     calendarAccessReady, calendarAuthReady, finishSignIn, _resetPageForTest,
 } = await import('./calendar-access.js');
+const accessModule = await import('./calendar-access.js');
 
 // The three cards live in calendar-lock-cards.js since v23.54. Imported AFTER calendar-access.js,
 // whose module scope wires their collaborators — a card reached before that would have no deps.
-const { showSignInPanel, resetUnlockFailures } = await import('./calendar-lock-cards.js');
+const { showSignInPanel, SIGN_IN_UNAVAILABLE_LINE } = await import('./calendar-lock-cards.js');
 // The slot, so a test can ask WHICH card is standing where the Calendar goes. Real, not mocked —
 // it touches only the fake DOM, and the whole point of asking is that the answer is the shipped one.
 const { lockCardId, showBootSkeleton } = await import('./calendar-lock-slot.js');
-// Where this device keeps the latest Newsletter's date — real, so the test sets the very key the card reads.
-const { NEWSLETTER_LATEST_KEY } = await import('./newsletter-recency.js');
 
 // A DOM just rich enough for the module to build and query its card.
 /** @param {boolean} online */
@@ -380,8 +328,7 @@ beforeEach(async () => {
     // late" read `named` about 1 run in 6 on a busy machine. With nothing held here it decides
     // nothing; and the fresh page below moves the module's access epoch, so it cannot grant in the
     // next test either (calendar-access.js → `_accessEpoch`) — nor can a late silent sign-in.
-    // Each test is a fresh PAGE, too: a member's grant in one would otherwise leave the next one's
-    // PIN unlock reloading (`unlockWithPin` reloads a page a member's grant built).
+    // Each test is a fresh PAGE, too: a grant in one would otherwise make the next one's sign-in reload.
     _resetPageForTest();
     sessionValue = null;
     currentUser = null;
@@ -393,35 +340,24 @@ beforeEach(async () => {
     await drainTurns();
     ops = [];
     currentUser = null;
-    tokenClaims = { calendarViewer: true };
-    tokenUser = undefined;
-    emitOnSignIn = false;
     sessionValue = null;
-    authGenValue = 0;
     signOutBehavior = 'ok';
+    formLoadFails = false;
     silentReauthSucceeds = false;
     silentReauthUser = undefined;
     reconcileGate = null;
     silentGate = null;
-    bootGate = null;
-    backStack = [];
     authSubs.clear();
     store.clear();
-    fetchQueue = [];
-    lastFetchBody = null;
     loginMounts = [];
     loginDismissals = 0;
     loginBusy = false;
     ({ el: domEl } = fakeDom());
-    // (`_accessType` is module-level — the whole app asks one module "may this browser see the
-    // roster?" — so without the reset above a successful unlock in one test would leave every later
-    // test starting from `viewer` and the "stays locked" assertions would pass for the wrong reason.)
-    globalThis.fetch = async (_url, opts) => {
-        lastFetchBody = opts && opts.body ? JSON.parse(opts.body) : null;
-        const next = fetchQueue.shift();
-        if (next instanceof Error) throw next;
-        return next || { ok: true, status: 200, json: async () => ({ token: 'GOOD_TOKEN' }) };
-    };
+    // (`_grantedAs` is module-level — the whole app asks one module "may this browser see the
+    // roster?" — so without the reset above a grant in one test would leave every later test
+    // starting granted and the "stays locked" assertions would pass for the wrong reason.)
+    // No network call is expected from this module now that the PIN exchange has gone: one is a fault.
+    globalThis.fetch = async (/** @type {any} */ url) => { ops.push('fetch:' + url); return { ok: false, status: 500, json: async () => ({}) }; };
 });
 
 // ── MUST BE THE FIRST TEST IN THIS FILE ─────────────────────────────────────────────────────────
@@ -456,302 +392,41 @@ describe('the render gate and the WRITE gate open at the same instant', () => {
     });
 });
 
-// ── The exchange ────────────────────────────────────────────────────────────────────────────────
-
-describe('unlockWithPin — the happy path', () => {
-    test('a correct PIN signs in as the viewer and grants access', async () => {
-        const r = await unlockWithPin('1234');
-        assert.deepEqual(r, { ok: true });
-        assert.equal(getAccessType(), 'viewer');
-        assert.equal(isViewerMode(), true);
-    });
-
-    test('THE ORDER: sign out, THEN switch persistence, THEN sign in', async () => {
-        // If persistence were switched while another identity was current, `setPersistence` would
-        // MIGRATE that identity into the new mode. For the viewer that means session-only becomes
-        // whatever was there before — and the shared office session survives the browser closing,
-        // which is the single property the whole feature rests on.
-        currentUser = { uid: 'someone-else', isAnonymous: false };
-        await unlockWithPin('1234');
-        const relevant = ops.filter(o => o === 'signOut' || o === 'persistence:session' || o.startsWith('signIn:'));
-        assert.deepEqual(relevant, ['signOut', 'persistence:session', 'signIn:GOOD_TOKEN']);
-    });
-
-    test('the switch waits for the BOOT\'s own persistence choice to land (sign-in check, 11 Nov 2026)', async () => {
-        // Reproduced with the real SDK in both engines: a start-up slow enough that the PIN was typed
-        // first ended with the boot's member chain landing AFTER the switch, migrating the viewer
-        // into IndexedDB — the PIN outlived the browser. Nothing may switch until the boot has.
-        /** @type {(v: any) => void} */ let settle = () => {};
-        bootGate = new Promise(r => { settle = r; });
-        const pending = unlockWithPin('1234');
-        await drainTurns();
-        assert.ok(!ops.includes('persistence:session'), 'persistence switched while the boot\'s own choice was still to land');
-        assert.ok(!ops.some(o => o.startsWith('signIn:')), 'a viewer was signed in before the boot settled');
-        settle({ user: null, persistence: 'indexeddb' });
-        assert.deepEqual(await pending, { ok: true });
-        assert.ok(ops.includes('persistence:session'));
-    });
-
-    // THE CARD THAT ASKED HAS GONE (review, 11 Nov 2026): Back or "Sign in instead" mid-exchange left it
-    // granting under the card that replaced it, or switching persistence under a member's sign-in.
-    test('an exchange whose card has gone changes nothing — no sign-out, no switch, no grant', async () => {
-        currentUser = { uid: 'someone-else', isAnonymous: false };
-        const r = await unlockWithPin('1234', () => false);
-        assert.equal(r.ok, false);
-        assert.equal(getAccessType(), 'none');
-        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
-            'the exchange acted for a card that was no longer on screen');
-    });
-
-    test('a member who signed in during the wait for start-up is reloaded into — never signed out for the PIN', async () => {
-        /** @type {(v: any) => void} */ let settle = () => {};
-        bootGate = new Promise(r => { settle = r; });
-        const pending = unlockWithPin('1234');
-        await drainTurns();
-        sessionValue = { name: 'G. Miller' };                 // "Sign in instead", or another tab
-        currentUser = { uid: 'uid-miller', isAnonymous: false };
-        settle({ user: null, persistence: 'indexeddb' });
-        assert.deepEqual(await pending, { ok: true });
-        assert.ok(ops.includes('reload'), 'the page did not reload into the member');
-        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
-            'the member was signed out for the shared PIN');
-    });
-
-    test('a boot that never settles fails CLOSED: still locked, nothing switched, honest about why', async (t) => {
-        t.mock.timers.enable({ apis: ['setTimeout'] });
-        bootGate = new Promise(() => {});                 // the degraded case: start-up wedged
-        const pending = unlockWithPin('1234');
-        // setImmediate, not `drainTurns`: that waits on setTimeout, which this test has frozen.
-        for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r));
-        t.mock.timers.tick(20000);
-        const r = await pending;
-        assert.equal(r.ok, false);
-        assert.equal(getAccessType(), 'none');
-        assert.ok(!ops.includes('persistence:session'), 'persistence switched without the boot having settled');
-        assert.doesNotMatch(r.message, /not recognised/, 'the PIN was right — "not recognised" would be a lie');
-    });
-
-    // ── FAIL CLOSED AT THE PERSISTENCE SWITCH (v20.35) ──────────────────────────────────────────
-    //
-    // The ordering test above proves the sequence when everything works. It says nothing about the
-    // case that matters: the sign-out FAILING and the switch happening anyway. Until v20.35 the
-    // sign-out here sat in a bare `catch { /* best effort */ }` and `setViewerPersistence()` ran on
-    // the next line regardless — so an identity that survived would be MIGRATED into session-only
-    // persistence, which is the mirror of the fail-open found in `shedCalendarViewer` and was found
-    // in the same review. Both assert the ABSENCE of the persistence call, because that is the only
-    // shape that catches it: every happy-path assertion passed throughout.
-    test('a REJECTED sign-out aborts the unlock and never switches persistence', async () => {
-        currentUser = { uid: 'someone-else', isAnonymous: false };
-        signOutBehavior = 'reject';
-        const r = await unlockWithPin('1234');
-        assert.equal(r.ok, false);
-        assert.equal(getAccessType(), 'none', 'the Calendar stays locked');
-        assert.ok(!ops.includes('persistence:session'),
-            'persistence must NOT change while an identity is still live — that is the migration this guards');
-        assert.ok(!ops.some(o => o.startsWith('signIn:')), 'and no viewer session is minted');
-    });
-
-    test('a sign-out that RESOLVES but leaves someone current is refused too', async () => {
-        // The invariant is that nobody is current when persistence changes — not that signOut
-        // resolved. Asserting only the rejection would leave this shape open.
-        currentUser = { uid: 'someone-else', isAnonymous: false };
-        signOutBehavior = 'noop';
-        const r = await unlockWithPin('1234');
-        assert.equal(r.ok, false);
-        assert.ok(!ops.includes('persistence:session'));
-    });
-
-    test('the refusal is honest about WHY — the PIN was right', async () => {
-        // "PIN not recognised" would send the member hunting for a code that does not exist. This
-        // failure is ours, and the message has to say so.
-        currentUser = { uid: 'someone-else', isAnonymous: false };
-        signOutBehavior = 'reject';
-        const r = await unlockWithPin('1234');
-        assert.doesNotMatch(r.message, /not recognised/i);
-        assert.match(r.message, /try again/i);
-    });
-
-    test('the PIN is sent as the request body and nothing else is', async () => {
-        await unlockWithPin('4821');
-        assert.deepEqual(lastFetchBody, { pin: '4821' });
+// ── THE PIN IS GONE FROM THIS MODULE (owner, 23 Nov 2026) ─────────────────────────────────────────
+describe('the staff PIN\'s unlock and Lock are gone from the client', () => {
+    test('the module exports no way to unlock with, or end, a PIN', () => {
+        for (const gone of ['unlockWithPin', 'lockCalendar', 'isViewerMode']) {
+            assert.equal(gone in accessModule, false, `${gone} came back`);
+        }
     });
 });
-
-describe('unlockWithPin — every failure leaves the Calendar LOCKED', () => {
-    test('a malformed PIN never reaches the network', async () => {
-        let called = false;
-        globalThis.fetch = async () => { called = true; return { ok: true, status: 200, json: async () => ({}) }; };
-        const r = await unlockWithPin('12');
-        assert.equal(r.ok, false);
-        assert.equal(called, false, 'a short PIN was sent to the server');
-        assert.equal(getAccessType(), 'none');
-        // Nothing was checked, so it is not a wrong PIN: 'rejected' is the kind the card counts
-        // towards its delay, and a PIN that was never sent must not start one.
-        assert.equal(/** @type {any} */ (r).kind, 'incomplete');
-    });
-
-    test('a rejected PIN (401) stays locked and says so without naming a number', async (t) => {
-        // MOCK TIMERS for every refused exchange (test audit, 7 Nov 2026). A refusal is classified
-        // from its status and its body is never read, and `fetchWithTimeout` keeps its 15s deadline
-        // armed until a body read — harmless in a browser, but on the real clock it held this file
-        // open for fifteen seconds after its last test.
-        t.mock.timers.enable({ apis: ['setTimeout'] });
-        fetchQueue = [{ ok: false, status: 401, json: async () => ({}) }];
-        const r = await unlockWithPin('0000');
-        assert.equal(r.ok, false);
-        assert.equal(r.kind, 'rejected');
-        assert.equal(getAccessType(), 'none');
-        assert.equal(/\d/.test(r.message), false);
-    });
-
-    test('a throttled attempt (429) is distinguishable from a wrong PIN', async (t) => {
-        // The member needs to know that waiting will help, which "PIN not recognised" would not say.
-        t.mock.timers.enable({ apis: ['setTimeout'] });   // a refused exchange — see the 401 test
-        fetchQueue = [{ ok: false, status: 429, json: async () => ({}) }];
-        const r = await unlockWithPin('1234');
-        assert.equal(r.kind, 'throttled');
-        assert.equal(getAccessType(), 'none');
-    });
-
-    test('a thrown fetch is a network failure, and is RECOVERABLE', async () => {
-        fetchQueue = [new Error('offline-ish')];
-        const r = await unlockWithPin('1234');
-        assert.equal(r.kind, 'network');
-        assert.equal(getAccessType(), 'none');
-        // The next attempt must work — a transport failure must not poison module state.
-        fetchQueue = [];
-        assert.deepEqual(await unlockWithPin('1234'), { ok: true });
-    });
-
-    test('a 200 with NO token is a server failure, not a silent success', async () => {
-        fetchQueue = [{ ok: true, status: 200, json: async () => ({}) }];
-        const r = await unlockWithPin('1234');
-        assert.equal(r.ok, false);
-        assert.equal(getAccessType(), 'none');
-        assert.equal(ops.some(o => o.startsWith('signIn:')), false);
-    });
-
-    test('a 200 with UNPARSEABLE json is a server failure', async () => {
-        fetchQueue = [{ ok: true, status: 200, json: async () => { throw new Error('not json'); } }];
-        assert.equal((await unlockWithPin('1234')).ok, false);
-        assert.equal(getAccessType(), 'none');
-    });
-
-    test('OFFLINE is caught before the request, with words that help', async () => {
-        setOnline(false);
-        let called = false;
-        globalThis.fetch = async () => { called = true; return { ok: true, status: 200, json: async () => ({}) }; };
-        const r = await unlockWithPin('1234');
-        assert.equal(r.kind, 'offline');
-        assert.equal(called, false);
-        assert.match(r.message, /online/i);
-    });
-
-    test('a custom-token sign-in failure leaves NO half-authenticated state', async () => {
-        fetchQueue = [{ ok: true, status: 200, json: async () => ({ token: 'BAD_TOKEN' }) }];
-        const r = await unlockWithPin('1234');
-        assert.equal(r.ok, false);
-        assert.equal(r.kind, 'auth');
-        assert.equal(getAccessType(), 'none');
-        assert.equal(currentUser, null, 'a failed sign-in left a user behind');
-        assert.ok(ops.includes('signOut'), 'the failed attempt was not cleaned up');
-    });
-});
-
-describe('THE CLAIM IS VERIFIED — a token is not trusted for what it says on the tin', () => {
-    test('a token that signs in but carries NO viewer claim is refused', async () => {
-        // This is the quietest possible failure if it is not checked: sign-in succeeds, the Calendar
-        // renders, and every override read is denied — so the member sees an unlocked Calendar with
-        // no shifts on it and no error anywhere. Better to stay locked and say so.
-        tokenClaims = {};
-        const r = await unlockWithPin('1234');
-        assert.equal(r.ok, false);
-        assert.equal(getAccessType(), 'none');
-        assert.equal(currentUser, null, 'the claimless identity was left signed in');
-    });
-
-    test('a token carrying the claim as a STRING is refused — `true` means true', async () => {
-        tokenClaims = { calendarViewer: 'true' };
-        assert.equal((await unlockWithPin('1234')).ok, false);
-        assert.equal(getAccessType(), 'none');
-    });
-
-    test('a token carrying MEMBER claims instead of the capability is refused', async () => {
-        tokenClaims = { name: 'G. Miller', admin: true };
-        assert.equal((await unlockWithPin('1234')).ok, false);
-        assert.equal(getAccessType(), 'none');
-    });
-
-    // ── THE OTHER HALF OF THE SAME LINE (v23.63) ────────────────────────────────────────────────
-    //
-    // `res2?.claims?.[CALENDAR_VIEWER_CLAIM] !== true || !isViewerUser(cred.user)` is two questions,
-    // and the three cases above only ever asked the first. The fake minted every token as the viewer
-    // uid, so `isViewerUser` was true in every test in this file and deleting that half left all 71
-    // green (measured). A guard nothing can make fire is documentation.
-    //
-    // The two are not redundant. The claim says what the token may DO; the uid says WHO it is, and
-    // the app asks that question separately everywhere afterwards — `session.js` sheds a viewer by
-    // uid before restoring member persistence, `reconcileExpiredIdentity` preserves one by uid, and
-    // `lockCalendar` decides whether its sign-out took by uid. Granting `'viewer'` to an identity
-    // `isViewerUser` does not recognise puts `getAccessType()` and every one of those in permanent
-    // disagreement about the same browser — and the quietest consequence is Lock: it signs out, asks
-    // `isViewerUser(auth.currentUser)`, gets `false` because this was never the viewer, and reloads
-    // reporting success. Somebody walks away from a shared machine on a session that did not end.
-    test('a token carrying the RIGHT claim under the WRONG uid is refused', async () => {
-        tokenUser = {
-            uid: 'member-1', isAnonymous: false,
-            getIdTokenResult: async () => ({ claims: { calendarViewer: true } }),
-        };
-        const r = await unlockWithPin('1234');
-        assert.equal(r.ok, false, 'a non-viewer identity was granted the shared capability');
-        assert.equal(getAccessType(), 'none');
-        assert.equal(currentUser, null, 'the wrong-uid identity was left signed in');
-    });
-
-    test('and an ANONYMOUS identity carrying it is refused too — that is the belt', async () => {
-        // `isViewerUser` requires non-anonymous as well as the uid, and its own header says why:
-        // every caller uses it to decide whether an identity may be PRESERVED across
-        // `reconcileExpiredIdentity`, so a predicate that could return true for an unverified one
-        // turns that preservation into a bypass. The claim check cannot see this at all.
-        tokenUser = {
-            uid: 'calendar-viewer', isAnonymous: true,
-            getIdTokenResult: async () => ({ claims: { calendarViewer: true } }),
-        };
-        assert.equal((await unlockWithPin('1234')).ok, false);
-        assert.equal(getAccessType(), 'none');
-        assert.equal(currentUser, null);
-    });
-
-    test('the viewer itself still gets in — or the two above would pass on a gate that refuses everyone', async () => {
-        tokenUser = {
-            uid: 'calendar-viewer', isAnonymous: false,
-            getIdTokenResult: async () => ({ claims: { calendarViewer: true } }),
-        };
-        assert.equal((await unlockWithPin('1234')).ok, true);
-        assert.equal(getAccessType(), 'viewer');
-    });
-});
-
-// ── Boot ────────────────────────────────────────────────────────────────────────────────────────
 
 describe('initCalendarAccess', () => {
-    test('a live named session starts the Calendar with NO PIN', async () => {
+    test('a live named session starts the Calendar with no card', async () => {
         sessionValue = { name: 'G. Miller' };
         currentUser = { uid: 'member-1', isAnonymous: false };
         let started = 0;
         const type = await initCalendarAccess({ onGranted: () => { started++; } });
         assert.equal(type, 'named');
         assert.equal(started, 1);
-        assert.equal(document.getElementById('calendarLock'), null, 'the PIN card was built for a member');
+        assert.equal(document.getElementById('calendarLock'), null, 'a card was built for a member');
     });
 
-    test('a restored VIEWER session starts the Calendar with no PIN', async () => {
-        currentUser = { uid: 'calendar-viewer', isAnonymous: false };
+    // THE TEARDOWN (owner, 23 Nov 2026). A browser still holding a staff-PIN viewer session is not
+    // granted, and the boot asks `reconcileExpiredIdentity` with NO argument — its default signs the
+    // viewer out, and the sign-in card says why (session.test.mjs and login-overlay.test.mjs prove those).
+    test('a restored VIEWER session is NOT granted, and the boot asks the teardown to keep nothing', async () => {
+        currentUser = { uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
         let started = 0;
         const type = await initCalendarAccess({ onGranted: () => { started++; } });
-        assert.equal(type, 'viewer');
-        assert.equal(started, 1);
+        assert.equal(type, 'none', 'the retired staff PIN opened the Calendar');
+        assert.equal(started, 0);
+        assert.deepEqual(ops.filter(o => o.startsWith('reconcile:')), ['reconcile:{}'],
+            'the boot asked the teardown to keep something — a leftover PIN session would survive it');
+        await waitFor(() => loginMounts.length === 1, 'the sign-in card');
+        assert.equal(loginMounts[0].host, lastPanel(), 'the front door is not the inline sign-in card');
     });
+
 
     test('nothing at all → locked, and the workspace is NEVER started', async () => {
         let started = 0;
@@ -766,204 +441,52 @@ describe('initCalendarAccess', () => {
     // visiting or agency staff. So a browser holding NOTHING gets the member sign-in card, and the
     // PIN is one tap behind it — not the other way round, as it was from v20.12 to v23.18.
 
-    test('nothing at all → the SIGN-IN card first, mounted inline, with the PIN one tap behind it', async () => {
+    test('nothing at all → the SIGN-IN card, mounted inline, with no other way in', async () => {
         await initCalendarAccess({ onGranted: () => {} });
         assert.equal(loginMounts.length, 1, 'the shared sign-in card was not mounted');
         const m = loginMounts[0];
         assert.equal(m.host, lastPanel(), 'the card was not mounted INTO the lock slot (inline), but as a modal over it');
         assert.ok(lastPanelHtml().includes('SIGN-IN CARD'));
-        assert.ok(!lastPanelHtml().includes('calLockPin'), 'the PIN field was on the front door');
-        assert.match(m.alternative?.label || '', /staff PIN/i, 'no route to the PIN from the front door');
-        assert.match(m.alternative?.hint || '', /agency/i, 'the card does not say who the PIN is for');
-        // …and what it opens: the roster and the documents the ☰ menu offers (CALENDAR_DATA.md 15), as the
-        // staff guide says. It named the Huddle alone, so a visitor read it as no route to the others. The
-        // Newsletter follows its menu button, in both states — the test below.
-        for (const doc of ['Daily Huddle', 'Weekly Retail Circular']) {
-            assert.ok((m.alternative?.hint || '').includes(doc), `the PIN's hint does not say it opens the ${doc}`);
-        }
-
-        // The alternative swaps the cards IN PLACE — one slot, no reload, no second panel.
-        m.alternative.onSelect();
-        assert.ok(lastPanelHtml().includes('calLockPin'), 'taking the alternative did not show the PIN card');
-        assert.ok(!lastPanelHtml().includes('SIGN-IN CARD'), 'the sign-in card is still up under the PIN card');
-        assert.ok(m.host._removed, 'the previous card was not taken down');
+        // "Use the staff PIN instead" went with the PIN (owner, 23 Nov 2026).
+        assert.equal(m.alternative ?? null, null, `the front door offers another way in: ${JSON.stringify(m.alternative)}`);
     });
 
-    // THE NEWSLETTER IS NAMED ONLY WHILE ITS ☰ BUTTON IS: while this device knows of an issue under six
-    // weeks old (newsletter-recency.js, owner, 14 Nov 2026). A visitor promised it would find no way to it.
-    // Through the real front door, with the answer the Calendar keeps set before the card is built; the
-    // dates are counted back from today with the calendar's own arithmetic, so a clock change cannot move them.
-    const isoDaysAgo = (/** @type {number} */ n) => {
-        const d = new Date(); d.setDate(d.getDate() - n);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    };
-    for (const [label, latest, named] of /** @type {[string, string|null, boolean][]} */ ([
-        ['an issue three days old', isoDaysAgo(3), true],
-        ['an issue six weeks old to the day', isoDaysAgo(42), false],
-        ['none has been uploaded', '', false],
-        ['this device has never asked', null, false],
-    ])) {
-        test(`the PIN's hint names the Marylebone Newsletter only while the menu offers it (${label})`, async () => {
-            if (latest === null) store.delete(NEWSLETTER_LATEST_KEY); else store.set(NEWSLETTER_LATEST_KEY, latest);
-            try {
-                await initCalendarAccess({ onGranted: () => {} });
-                const hint = loginMounts[0]?.alternative?.hint || '';
-                assert.match(hint, /the Daily Huddle, the Weekly Retail Circular/, `the hint lost the other documents: "${hint}"`);
-                assert.equal(hint.includes('Marylebone Newsletter'), named,
-                    `with ${label}, the hint reads: "${hint}"`);
-                // Every member has a password from the start (their surname), so "no password yet"
-                // sent members to the PIN; the case meant is the account not set up yet (C9, Nov 2026).
-                assert.match(hint, /^Visiting or agency staff, at a station computer, or not set up in the app yet\? The staff PIN opens /);
-            } finally {
-                store.delete(NEWSLETTER_LATEST_KEY);
-            }
-        });
-    }
 
-    test('the PIN card says how long the PIN lasts truthfully — this tab — and names the menu\'s Lock by its real label', async () => {
-        // "for as long as this browser stays open" was untrue twice: the viewer's session is one TAB
-        // (`browserSessionPersistence`), and a browser that restores its tabs restores it (C1, Nov 2026).
+
+
+
+    // A `#staff-pin` bookmark or address from before the retirement is HARMLESS: nothing reads it.
+    test('`#staff-pin` in the address changes nothing — the front door, or a member\'s own grant', async () => {
         globalThis.window.location.hash = '#staff-pin';
         await initCalendarAccess({ onGranted: () => {} });
-        const html = lastPanelHtml();
-        assert.ok(html.includes('— annual leave, absence and shift changes included — in this tab.'), 'the PIN card does not say the PIN lasts for this tab');
-        assert.doesNotMatch(html, /as long as this browser/);
-        const named = html.match(/choose ([^<.]+) in the menu before you leave/)?.[1];
-        assert.ok(named, 'the PIN card no longer tells a shared computer how to end it');
-        assert.ok(readFileSync(new URL('./nav-panel.js', import.meta.url), 'utf8').includes(`id="navLockCalendarBtn" type="button" hidden>${named}</button>`),
-            `the PIN card names "${named}", which is not the label of the menu's lock button (nav-panel.js)`);
-    });
-
-    test('the PIN card\'s "Sign in instead" returns to the sign-in card, in place', async () => {
-        await initCalendarAccess({ onGranted: () => {} });
-        loginMounts[0].alternative.onSelect();
-        const back = document.getElementById('calLockSignIn');
-        assert.ok(back, 'the PIN card offers no way back to sign-in');
-        back._listeners.get('click')();
-        await waitFor(() => loginMounts.length === 2, 'the sign-in card to re-mount');
-        assert.equal(loginMounts.length, 2, 'sign-in was not re-mounted');
-        assert.ok(lastPanelHtml().includes('SIGN-IN CARD'));
-        assert.ok(!lastPanelHtml().includes('calLockPin'));
-    });
-
-    // Back on a phone LEFT THE APP from the PIN card the front door had just opened (sign-in check,
-    // 11 Nov 2026). It now takes one entry on the Back stack every overlay uses, and gives it back
-    // when it leaves by its own route, so Back never later lands on a card that has gone.
-    describe('Back from the front door\'s PIN card', () => {
-        test('returns to the sign-in card, in place', async () => {
-            await initCalendarAccess({ onGranted: () => {} });
-            loginMounts[0].alternative.onSelect();
-            assert.equal(backStack.length, 1, 'the PIN card took no Back entry — Back leaves the app');
-            pressBack();
-            await waitFor(() => loginMounts.length === 2, 'the sign-in card to re-mount');
-            assert.ok(lastPanelHtml().includes('SIGN-IN CARD'), 'Back did not return to the sign-in card');
-        });
-
-        test('"Sign in instead" gives the entry back', async () => {
-            await initCalendarAccess({ onGranted: () => {} });
-            loginMounts[0].alternative.onSelect();
-            document.getElementById('calLockSignIn')._listeners.get('click')();
-            assert.equal(backStack.length, 0, 'a Back entry was left for a card that has gone');
-        });
-
-        test('an unlock gives the entry back — Back then has nothing of the card left to find', async () => {
-            await initCalendarAccess({ onGranted: () => {} });
-            loginMounts[0].alternative.onSelect();
-            assert.deepEqual(await unlockWithPin('1234'), { ok: true });
-            assert.equal(backStack.length, 0, 'the unlocked Calendar kept a Back entry for the PIN card');
-        });
-
-        test('the PIN card a station PC opens with (`#staff-pin`) takes none — there is nowhere to go back to', async () => {
-            globalThis.window.location.hash = '#staff-pin';
-            await initCalendarAccess({ onGranted: () => {} });
-            assert.ok(lastPanelHtml().includes('id="calLockPin"'));
-            assert.equal(backStack.length, 0);
-        });
-    });
-
-    test('`#staff-pin` is consumed even when a SESSION is held — a member never carries it', async () => {
-        // v23.19 consumed the hash only on the locked path, so a member with a session who opened a
-        // station PC's bookmark kept `#staff-pin` in the address bar of their own Calendar.
-        globalThis.window.location.hash = '#staff-pin';
+        await waitFor(() => loginMounts.length === 1, 'the front door');
+        assert.equal(loginMounts[0].alternative ?? null, null);
+        assert.equal(lockCardId(), 'calendarLock', 'something other than the sign-in card stands in the slot');
+        handleAccessLost(); await drainTurns(); loginMounts = []; _resetPageForTest();
         sessionValue = { name: 'G. Miller' };
         currentUser = { uid: 'member-1', isAnonymous: false };
         assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
-        assert.ok(ops.some(o => o.startsWith('replaceState:')), 'the hash was left in the address bar');
-        assert.equal(loginMounts.length, 0);
-        assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was shown the PIN card');
+        assert.deepEqual(ops.filter(o => o.startsWith('replaceState:') || o.startsWith('replace:') || o === 'reload'), [],
+            'the hash moved the address or reloaded the page');
     });
+
 
     test('the front door keeps whatever is up until the sign-in card is READY', async () => {
         // v23.19 mounted the empty slot first and fetched the module second — a blank navy page for
-        // as long as the fetch took, where the PIN card used to draw at once. The slot must not be
-        // emptied before the card can fill it: on a "Sign in instead" swap the PIN card stays up
-        // until the overlay module has arrived.
-        globalThis.window.location.hash = '#staff-pin';
-        await initCalendarAccess({ onGranted: () => {} });
-        const pinCard = lastPanel();
-        assert.ok(lastPanelHtml().includes('id="calLockPin"'));
-        document.getElementById('calLockSignIn')._listeners.get('click')();
-        // Synchronously after the tap: the PIN card is STILL there — nothing was torn down ahead
-        // of the import.
-        assert.equal(pinCard._removed, false, 'the PIN card was taken down before the sign-in card existed');
-        await waitFor(() => pinCard._removed === true, 'the PIN card to come down behind the sign-in card');
-        assert.equal(pinCard._removed, true);
+        // as long as the fetch took. The slot must not be emptied before the card can fill it.
+        showBootSkeleton();
+        const skeleton = lastPanel();
+        const pending = showSignInPanel();
+        // Synchronously after the call: the skeleton is STILL there — nothing was torn down ahead of
+        // the import.
+        assert.equal(skeleton._removed, false, 'the skeleton was taken down before the sign-in card existed');
+        await pending;
+        assert.equal(skeleton._removed, true);
         assert.ok(lastPanelHtml().includes('SIGN-IN CARD'));
     });
 
-    test('`#staff-pin` asks for the PIN card FIRST, and the hash is consumed', async () => {
-        // The one way to land on the PIN card directly: the member card's sign-out to the PIN
-        // reloads with it, and a station PC can bookmark it. It must not survive the boot — a
-        // member who then signs in would otherwise carry it in the address bar.
-        globalThis.window.location.hash = '#staff-pin';
-        await initCalendarAccess({ onGranted: () => {} });
-        assert.ok(lastPanelHtml().includes('calLockPin'), 'the hash did not bring the PIN card first');
-        assert.equal(loginMounts.length, 0, 'the sign-in card was mounted as well');
-        assert.ok(ops.some(o => o.startsWith('replaceState:')), 'the hash was left in the address bar');
-        assert.ok(!ops.some(o => o.includes('#staff-pin')), 'the replaced URL still carries the hash');
-    });
 
-    // …AND SO DOES A PAGE IN THIS TAB THAT ENDED THE PIN (audit B3). Its card said "go back and enter
-    // the PIN"; the phone's Back reached the Calendar with no hash, and the member sign-in card. The
-    // mark is staff-pin-ended.js's, read and removed once by the boot (`takePinFirst`), as the hash is.
-    describe('a page in this tab that ended the PIN asks for the PIN card too — its one-tab mark', () => {
-        const MARK = 'myb_staff_pin_ended';
-        /** @type {Map<string,string>} */ const tab = new Map();
-        beforeEach(() => {
-            tab.clear();
-            /** @type {any} */ (globalThis).sessionStorage = { getItem: (/** @type {string} */ k) => tab.get(k) ?? null,
-                setItem: (/** @type {string} */ k, /** @type {string} */ v) => { tab.set(k, String(v)); }, removeItem: (/** @type {string} */ k) => { tab.delete(k); } };
-        });
-        afterEach(() => { delete /** @type {any} */ (globalThis).sessionStorage; });
 
-        test('the PIN card first, and the mark is gone — read once, with no hash to rewrite', async () => {
-            tab.set(MARK, '1');
-            await initCalendarAccess({ onGranted: () => {} });
-            assert.ok(lastPanelHtml().includes('calLockPin'), 'the tab that ended the PIN was sent to the member sign-in card');
-            assert.equal(loginMounts.length, 0, 'the sign-in card was mounted as well');
-            assert.equal(tab.has(MARK), false, 'the mark outlived the boot that read it');
-            assert.equal(ops.some(o => o.startsWith('replaceState:')), false, 'the address was rewritten with no hash in it');
-        });
-
-        test('a member\'s held session still gets their own card — and the mark goes all the same', async () => {
-            tab.set(MARK, '1');
-            sessionValue = { name: 'G. Miller' };
-            await initCalendarAccess({ onGranted: () => {} });
-            assert.ok(lastPanelHtml().includes('calLockWho'), 'a member was not offered their own sign-in');
-            assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN (CALENDAR_DATA 11)');
-            assert.equal(tab.has(MARK), false);
-        });
-
-        test('no mark: the front door, as before — and storage that throws (iOS private mode) costs only the mark', async () => {
-            await initCalendarAccess({ onGranted: () => {} });
-            await waitFor(() => loginMounts.length === 1, 'the front door to mount');
-            handleAccessLost(); await drainTurns(); loginMounts = [];
-            const refuse = () => { throw new Error('SecurityError'); };
-            /** @type {any} */ (globalThis).sessionStorage = { getItem: refuse, setItem: refuse, removeItem: refuse };
-            await initCalendarAccess({ onGranted: () => {} });
-            await waitFor(() => loginMounts.length === 1, 'the front door to mount with storage refusing');
-        });
-    });
 
     test('an ANONYMOUS identity is locked out — the old bootstrap grants nothing', async () => {
         currentUser = { uid: 'anon', isAnonymous: true };
@@ -972,17 +495,19 @@ describe('initCalendarAccess', () => {
         assert.equal(started, 0);
     });
 
-    test('it asks reconcile to PRESERVE the viewer — otherwise the PIN is demanded every load', async () => {
-        // `reconcileExpiredIdentity`'s default is to sign out any non-anonymous identity with no
-        // local session, which is the viewer's exact shape. Without the flag the Calendar would
-        // tear down its own access on every single navigation.
-        currentUser = { uid: 'calendar-viewer', isAnonymous: false };
-        await initCalendarAccess({ onGranted: () => {} });
-        assert.ok(ops.some(o => o === 'reconcile:{"preserveCalendarViewer":true}'),
-            `reconcile was not asked to preserve the viewer: ${JSON.stringify(ops)}`);
+    test('it asks reconcile with NO argument, whoever is held — the default is the teardown', async () => {
+        // Until the PIN was retired this asserted `{ preserveCalendarViewer: true }`. Any argument now
+        // would be a way to keep something the teardown should end.
+        for (const held of [null, { name: 'G. Miller' }]) {
+            ops = []; sessionValue = held; currentUser = null;
+            handleAccessLost(); await drainTurns(); _resetPageForTest();
+            await initCalendarAccess({ onGranted: () => {} });
+            assert.deepEqual(ops.filter(o => o.startsWith('reconcile:')), ['reconcile:{}'], JSON.stringify(held));
+        }
     });
 
-    test('a member with a SESSION but no identity gets a sign-in card, never the PIN field', async () => {
+
+    test('a member with a SESSION but no identity gets their own sign-in card', async () => {
         // The lost-identity case, which is not always a race: on an iPhone the identity's IndexedDB
         // read can fail while the 60-day local session survives (not Safari's seven-day rule, which
         // deletes the session too — KNOWN_LIMITATIONS → "One interaction to expect on iOS"). Offering
@@ -995,7 +520,7 @@ describe('initCalendarAccess', () => {
         assert.ok(!html.includes('id="calLockPin"'), 'a member was shown the PIN field');
         assert.equal(document.getElementById('calLockWho')?.textContent, 'Calendar · G. Miller',
             'the card does not say who it is for');
-        assert.ok(html.includes('calLockPinInstead'), 'the PIN was not left reachable underneath');
+        assert.ok(!/staff PIN/i.test(html), 'the member card still offers the staff PIN');
         assert.ok(ops.some(o => o === 'ensureNamedSession:G. Miller'),
             `the silent re-establishment was never attempted: ${JSON.stringify(ops)}`);
         // v21.62: by the time the card exists, silence has already failed — so it renders in its
@@ -1097,70 +622,24 @@ describe('initCalendarAccess', () => {
         test('and never the front door\'s INLINE card — that one goes with the slot', async () => {
             await initCalendarAccess({ onGranted: () => {} });    // nothing held: the inline sign-in card
             assert.ok(loginMounts.at(-1)?.host, 'premise: the inline card is up');
-            await unlockWithPin('1234');                          // the PIN instead
-            assert.equal(getAccessType(), 'viewer');
+            sessionValue = { name: 'G. Miller' };                 // a member's identity lands late
+            emitAuth({ uid: 'member-1', isAnonymous: false });
+            assert.equal(getAccessType(), 'named');
             assert.equal(loginDismissals, 0, 'the inline card was dismissed as though it were the dialog — '
                 + 'its scroll unlock is unpaired, and would release another overlay\'s lock');
         });
     });
 
-    test('the member card\'s way to the staff PIN SIGNS THE MEMBER OUT — it is not a panel swap (v21.23)', async () => {
-        // ── THE DEFECT (external review of v21.22) ──────────────────────────────────────────────
-        //
-        // This used to be `hideLockPanel(); showLockPanel();` — it changed the card and nothing more.
-        // But `calendar-app.js` builds the nav drawer at module scope from the SAME local session,
-        // before access is decided, so the next person at a shared PC unlocked with the staff PIN
-        // onto a Calendar whose drawer still named the previous member and still showed the page
-        // pills their permissions earned. No privilege travelled with it; a name and a role did.
-        //
-        // Asserted as the ORDER of two effects, because only the pairing fixes it: clearing without
-        // reloading leaves every module-scope consumer holding the stale name it already read, and
-        // reloading without clearing puts the same card back up.
-        sessionValue = { name: 'G. Miller' };
-        let reloaded = 0;
-        globalThis.window.location.reload = () => { ops.push('reload'); reloaded++; };
-        await initCalendarAccess({ onGranted: () => {} });
-        await new Promise(r => setTimeout(r, 0));   // let the silent attempt settle
 
-        const alt = document.getElementById('calLockPinInstead');
-        assert.ok(alt, 'the member card offers no route to the staff PIN');
-        await alt._listeners.get('click')();
-
-        assert.ok(ops.includes('clearSession'), `the stale named session survived: ${JSON.stringify(ops)}`);
-        // The member is leaving a device they may be handing to a stranger: their push record goes
-        // WHILE they are still signed in (only its owner may delete it), so it is released first.
-        assert.ok(ops.includes('releasePush') && ops.indexOf('releasePush') < ops.indexOf('clearSession'),
-            `the push record was not released before sign-out — targeted notices follow the member: ${JSON.stringify(ops)}`);
-        assert.equal(reloaded, 1, 'nothing was rebuilt, so the drawer keeps the previous name');
-        assert.ok(ops.indexOf('clearSession') < ops.lastIndexOf('reload'),
-            'reloaded before clearing — the reload would restore the session it was meant to drop');
-        assert.equal(sessionValue, null, 'the local session was not actually dropped');
-        // v23.19: the reload lands on the sign-in card unless it says otherwise. The tap said PIN —
-        // REWRITTEN into the address, not navigated to (sign-in check, 11 Nov 2026): setting the hash
-        // pushed a history entry, and Back after the reload then went nowhere.
-        assert.ok(ops.includes('replaceState:./#staff-pin'),
-            `the reload will show the sign-in card — the tap asked for the PIN: ${JSON.stringify(ops)}`);
-        assert.ok(ops.indexOf('replaceState:./#staff-pin') < ops.lastIndexOf('reload'), 'the address was rewritten after the reload began');
-        assert.notEqual(globalThis.window.location.hash, '#staff-pin', 'the hash was NAVIGATED to — that pushes a Back entry');
-    });
-
-    test('the member card SAYS its way to the staff PIN signs them out here and turns this device\'s notifications off', async () => {
-        // The hand-over above is a sign-out that releases this device's push record, and the button
-        // read "Use the staff PIN instead": a member on their own phone who had forgotten their
-        // password tapped it and lost their Huddle and pay notifications, with nothing on the card to
-        // say so (17 Nov 2026). The words are asserted where they are, on the card, before the tap.
+    test('the member card offers no way to the staff PIN — "Sign out and use the staff PIN" went with it', async () => {
         sessionValue = { name: 'A. Person' };
         await initCalendarAccess({ onGranted: () => {} });
         await new Promise(r => setTimeout(r, 0));
         const html = lastPanelHtml();
-        const button = /<button[^>]*id="calLockPinInstead"[^>]*>([^<]*)<\/button>/.exec(html);
-        assert.ok(button, 'the member card offers no route to the staff PIN');
-        assert.match(button[1], /^Sign out\b/, `the button reads "${button[1]}" — nothing on it says it signs the member out`);
-        const note = /<p[^>]*id="calLockPinNote"[^>]*>([^<]*)<\/p>/.exec(html)?.[1] ?? '';
-        assert.match(note, /signs you out on this device/, 'the card does not say the sign-out is this device\'s');
-        assert.match(note, /turns off its notifications/, 'the card does not say this device\'s notifications stop');
-        assert.match(button[0], /aria-describedby="calLockPinNote"/, 'a screen reader hears the button without what it costs');
+        assert.ok(html.includes('calLockWho'), 'premise: the member card is up');
+        assert.ok(!html.includes('calLockPinInstead') && !/staff PIN/i.test(html), 'the member card still leads to the staff PIN');
     });
+
 
     test('the silent re-establishment GRANTS when it works — and NO sign-in surface is ever shown', async () => {
         // `ensureNamedSession` with no password tries only the surname default, so for anyone who has
@@ -1232,8 +711,6 @@ describe('initCalendarAccess', () => {
         assert.equal(getAccessType(), 'none');
         emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
         await new Promise(r => setTimeout(r, 0));
-        // `none`, not merely "not named" (restored, sign-in check 11 Nov 2026 — v25.68 had loosened
-        // it): a member's session is held, so the shared code is not this browser's way back.
         assert.equal(getAccessType(), 'none', 'a late PIN session was granted over a held member session');
     });
 
@@ -1257,8 +734,7 @@ describe('initCalendarAccess', () => {
             } else {
                 assert.equal(type, 'none', 'the staff PIN was granted over a member\'s held session');
                 assert.equal(getAccessType(), 'none');
-                assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was put in front of the staff PIN');
-                assert.ok(lastPanelHtml().includes('calLockPinInstead'), 'the member\'s own card did not follow');
+                assert.ok(lastPanelHtml().includes('calLockWho'), 'the member\'s own card did not follow');
             }
         }
     });
@@ -1286,138 +762,23 @@ describe('initCalendarAccess', () => {
             if (succeeds) assert.equal(getAccessType(), 'named', 'the member\'s own sign-in did not win');
             else {
                 assert.equal(getAccessType(), 'none');
-                assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was put in front of the staff PIN');
-                assert.ok(lastPanelHtml().includes('calLockPinInstead'), 'the member\'s own card (with the PIN one tap behind it) did not follow');
+                assert.ok(lastPanelHtml().includes('calLockWho'), 'the member\'s own card did not follow');
             }
             silentGate = null;
         }
     });
 
-    // cal-data-10 (10 Nov 2026, the owner's question with a decided default): a staff-PIN session
-    // that restored after the decision was ignored for the rest of the page load — a station PC on a
-    // bad connection showed the sign-in card although it held a session the boot would have granted.
-    describe('a STAFF-PIN session that restores late', () => {
-        const viewer = (/** @type {any} */ claims) => ({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims }) });
-
-        test('is honoured — as the viewer, the way a late member identity is honoured', async () => {
-            let started = 0;
-            assert.equal(await initCalendarAccess({ onGranted: () => { started++; } }), 'none');
-            emitAuth(viewer({ calendarViewer: true }));
-            await new Promise(r => setTimeout(r, 0));
-            assert.equal(getAccessType(), 'viewer', 'a PIN session the browser holds was ignored');
-            assert.equal(started, 1);
-        });
-
-        test('…but not once a sign-in has BEGUN since — a typed one saves its session only when it succeeds (review, 11 Nov 2026)', async () => {
-            assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
-            authGenValue++;                                       // a member submits the sign-in card
-            emitAuth(viewer({ calendarViewer: true }));           // …and the PIN session restores under it
-            await new Promise(r => setTimeout(r, 0));
-            assert.equal(getAccessType(), 'none', 'the PIN was granted underneath a member\'s sign-in');
-        });
-
-        test('…only once its token carries the claim — the check the unlock itself makes', async () => {
-            assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
-            emitAuth(viewer({}));
-            await new Promise(r => setTimeout(r, 0));
-            assert.equal(getAccessType(), 'none', 'a token without the claim unlocked the Calendar');
-        });
-
-        test('…and never on the PIN card\'s own sign-in: that exchange checks the claim and grants ONCE', async () => {
-            globalThis.window.location.hash = '#staff-pin';
-            let grants = 0;
-            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
-            emitOnSignIn = true;                                  // the SDK announces the sign-in at once
-            const result = await unlockWithPin('1234');
-            await new Promise(r => setTimeout(r, 0));
-            assert.equal(result.ok, true);
-            assert.equal(getAccessType(), 'viewer');
-            assert.equal(grants, 1, 'the watcher granted on the exchange\'s sign-in as well — the gate was rebuilt twice');
-        });
-
-        test('…and an exchange still out when the restored session is granted stands down — no sign-out, no second grant', async () => {
-            globalThis.window.location.hash = '#staff-pin';
-            let grants = 0;
-            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
-            /** @type {(v: any) => void} */ let answer = () => {};
-            globalThis.fetch = (/** @type {any} */ _u, /** @type {any} */ opts) => (opts?.method === 'POST'
-                ? new Promise(r => { answer = r; })
-                : Promise.resolve({ ok: false, status: 405, json: async () => ({}) }));
-            const exchange = unlockWithPin('1234');               // the PIN typed; the exchange is slow
-            emitAuth(viewer({ calendarViewer: true }));           // …and the browser's own PIN session restores
-            await new Promise(r => setTimeout(r, 0));
-            assert.equal(getAccessType(), 'viewer', 'premise: the restored session was granted');
-            ops = [];
-            answer({ ok: true, status: 200, json: async () => ({ token: 'GOOD_TOKEN' }) });
-            assert.equal((await exchange).ok, true);
-            assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('signIn:')), [],
-                'the exchange signed a working session out to sign in again');
-            assert.equal(grants, 1);
-        });
-
-        test('…nor once a member\'s session is saved while its claim is read — another tab signing in, this tab\'s sign-ins unmoved', async () => {
-            assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'none');
-            /** @type {(v: any) => void} */ let claimsLand = () => {};
-            emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: () => new Promise(r => { claimsLand = r; }) });
-            sessionValue = { name: 'G. Miller' };                 // saved by another tab: `authGeneration` is this tab's
-            claimsLand({ claims: { calendarViewer: true } });
-            await turn();
-            assert.equal(getAccessType(), 'none', 'the staff PIN was granted over a member\'s session saved while its claim was read');
-        });
-
-        test('…and one an exchange signed out while its claim was being read is not granted after', async () => {
-            globalThis.window.location.hash = '#staff-pin';
-            await initCalendarAccess({ onGranted: () => {} });
-            /** @type {(v: any) => void} */ let claimsLand = () => {};
-            emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: () => new Promise(r => { claimsLand = r; }) });
-            tokenClaims = {};                                     // the exchange that starts meanwhile is refused its claim
-            const result = await unlockWithPin('1234');
-            assert.equal(result.ok, false, 'premise: the exchange failed, and signed everybody out');
-            claimsLand({ claims: { calendarViewer: true } });     // the first session's slow check lands
-            await new Promise(r => setTimeout(r, 0));
-            assert.equal(getAccessType(), 'none', 'a session the exchange had signed out was granted');
-        });
-
-        test('…nor one whose claim lands while the exchange is still signing it out — the exchange grants, once', async () => {
-            globalThis.window.location.hash = '#staff-pin';
-            let grants = 0;
-            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
-            /** @type {(v: any) => void} */ let claimsLand = () => {};
-            emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: () => new Promise(r => { claimsLand = r; }) });
-            signOutBehavior = 'held';
-            ops = [];
-            const exchange = unlockWithPin('1234');               // the PIN typed meanwhile
-            await waitFor(() => ops.includes('signOut'), 'the exchange to start signing the restored session out');
-            claimsLand({ claims: { calendarViewer: true } });     // the restored session's check lands now
-            await turn();
-            assert.equal(getAccessType(), 'none',
-                'the restored session was granted while the exchange was signing it out — and the exchange grants again');
-            releaseSignOut();
-            assert.equal((await exchange).ok, true);
-            assert.equal(getAccessType(), 'viewer');
-            assert.equal(grants, 1, 'the Calendar was granted twice');
-        });
-
-        test('…nor, when the exchange\'s own sign-in is announced, a claim read that outlasts the exchange\'s grant', async () => {
-            globalThis.window.location.hash = '#staff-pin';
-            let grants = 0;
-            await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } });
-            /** @type {null | ((v: any) => void)} */ let watcherRead = null;
-            tokenUser = {
-                uid: 'calendar-viewer', isAnonymous: false,
-                // The watcher reads first and its answer is slow; the exchange's own read is not.
-                getIdTokenResult: () => (watcherRead ? Promise.resolve({ claims: { calendarViewer: true } })
-                    : new Promise(r => { watcherRead = r; })),
-            };
-            emitOnSignIn = true;
-            assert.equal((await unlockWithPin('1234')).ok, true);
-            assert.ok(watcherRead, 'premise: the watcher was told of the exchange\'s sign-in and is reading its claim');
-            assert.equal(grants, 1, 'premise: the exchange granted');
-            /** @type {(v: any) => void} */ (watcherRead)({ claims: { calendarViewer: true } });
-            await turn();
-            assert.equal(grants, 1, 'the watcher granted the same session a second time — the gate was rebuilt twice');
-        });
+    // cal-data-10 is reversed (owner, 23 Nov 2026): a staff-PIN session that restores after the decision
+    // was granted as the viewer; now it opens nothing, as one restored in time does not.
+    test('a leftover STAFF-PIN session that restores late is not granted', async () => {
+        let started = 0;
+        assert.equal(await initCalendarAccess({ onGranted: () => { started++; } }), 'none');
+        emitAuth({ uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) });
+        await drainTurns();
+        assert.equal(getAccessType(), 'none', 'a late PIN session opened the Calendar');
+        assert.equal(started, 0);
     });
+
 
     test('a late emission with NO local session changes nothing', async () => {
         // A Firebase identity with no session is what `reconcileExpiredIdentity` exists to tear down.
@@ -1443,7 +804,6 @@ describe('initCalendarAccess', () => {
         await new Promise(r => setTimeout(r, 450));
         const skeleton = lastPanelHtml();
         assert.ok(skeleton.includes('cal-boot-grid'), 'nothing was shown during a slow decision');
-        assert.ok(!skeleton.includes('calLockPin'), 'the skeleton is not the PIN card');
         assert.ok(!/\d{1,2}:\d{2}/.test(skeleton), 'a shift time reached a pre-access surface');
         assert.ok(!/\b(RD|AL|RDW|SICK|SPARE)\b/.test(skeleton), 'a shift code reached a pre-access surface');
         // cal-data-11: its one spoken line is WRITTEN once the region is in the document, not built
@@ -1499,133 +859,34 @@ describe('initCalendarAccess', () => {
     });
 });
 
-describe('lockCalendar + handleAccessLost', () => {
-    test('locking signs the viewer out', async () => {
-        await unlockWithPin('1234');
-        assert.equal(isViewerMode(), true);
-        ops = [];
-        await lockCalendar();
-        assert.ok(ops.includes('signOut'));
-    });
+describe('handleAccessLost', () => {
 
-    test('locking lets the viewer\'s queued writes leave FIRST, while it is still current (22 Nov 2026)', async () => {
-        // A viewer write left queued at the sign-out made every later checked save on the device
-        // wait out its eight seconds (firebase-client.js → letViewerWritesGo).
-        await unlockWithPin('1234');
-        const viewerUid = currentUser?.uid;
-        ops = [];
-        await lockCalendar();
-        const wait = ops.indexOf(`viewerWrites:${viewerUid}`);
-        assert.ok(wait >= 0, `no wait for the viewer's writes: ${JSON.stringify(ops)}`);
-        assert.ok(ops.indexOf('signOut') > wait, `the wait came after the sign-out: ${JSON.stringify(ops)}`);
-    });
 
-    test('a member who replaced the viewer during that wait is never signed out', async () => {
-        await unlockWithPin('1234');
-        ops = [];
-        duringViewerWrites = () => { currentUser = { uid: 'member-1', isAnonymous: false }; };
-        try { await lockCalendar(); } finally { duringViewerWrites = null; }
-        assert.ok(!ops.includes('signOut'), `the member was signed out: ${JSON.stringify(ops)}`);
-        assert.equal(currentUser?.uid, 'member-1');
-    });
 
-    test('locking is a NO-OP for a member — it can never touch a real session', async () => {
-        sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
-        await initCalendarAccess({ onGranted: () => {} });
-        ops = [];
-        await lockCalendar();
-        assert.deepEqual(ops, [], 'lockCalendar signed a member out');
-        assert.equal(getAccessType(), 'named');
-    });
 
-    test('locking lands on the PIN card, not the sign-in card — this is a PIN machine', async () => {
-        await unlockWithPin('1234');
-        ops = [];
-        await lockCalendar();
-        assert.ok(ops.includes('replaceState:./#staff-pin'), `the next person gets the sign-in card: ${JSON.stringify(ops)}`);
-    });
 
-    test('locking RELOADS, whatever path the Calendar was opened at (v24.89)', async () => {
-        // It ended in `location.replace('./#staff-pin')`, and this file asserted exactly that — but a
-        // fake `location` has no path, so it could not see that from `/` (how the station opens the
-        // Calendar) the target differs by its fragment alone and the browser loads nothing. The
-        // viewer was signed out and the roster stayed up. The address is now rewritten in place and
-        // the page reloaded; the browser half is e2e/calendar-pin.spec.js, locking from `/`.
-        await unlockWithPin('1234');
-        ops = [];
-        await lockCalendar();
-        const at = ops.indexOf('replaceState:./#staff-pin');
-        assert.ok(at >= 0 && ops.indexOf('reload') > at, `rewrite the address, THEN reload: ${JSON.stringify(ops)}`);
-        assert.ok(!ops.some(o => o.startsWith('replace:')), 'a fragment-only navigation is the defect, not a reload');
-    });
 
-    // ── LOCK MUST NOT REPORT SUCCESS IT DID NOT ACHIEVE (v20.39, audit §13) ─────────────────────
-    //
-    // The other two cases above prove the button works. This is the one that costs something, and
-    // it is invisible from every one of them: the reload is what a person READS as "locked", so a
-    // sign-out that did not take turns the reload into a lie. `decideAccess` re-runs against ground
-    // truth, sees the viewer still current, and returns `viewer` — the roster comes back on screen
-    // for whoever sits down next at the shared station PC, with the person who pressed Lock already
-    // out of the building.
-    //
-    // The two shapes are NOT held by the same line, which is why both are here: `await signOut()`
-    // covers only a REJECTION, and the assertion beneath it covers an SDK that resolves without
-    // clearing. Deleting the assertion leaves the rejection case green.
-    test('a sign-out that RESOLVES without clearing refuses to reload', async () => {
-        await unlockWithPin('1234');
-        assert.equal(isViewerMode(), true);
-        ops = [];
-        signOutBehavior = 'noop';   // resolves; `currentUser` stays the viewer
-        await assert.rejects(() => lockCalendar(), /not locked/,
-            'lockCalendar resolved with the viewer still signed in');
-        assert.ok(!ops.some(o => o === 'reload' || o.startsWith('replace')),
-            'the page reloaded as though it had locked — the next person gets the roster');
-        assert.equal(isViewerMode(), true,
-            'and the app must not pretend otherwise in its own state either');
-    });
 
-    test('a REJECTED sign-out does not reload either', async () => {
-        // The half held by the `await` rather than by the assertion. Pinned so a future "best
-        // effort" catch cannot quietly restore the v20.39 defect from the other side.
-        await unlockWithPin('1234');
-        ops = [];
-        signOutBehavior = 'reject';
-        await assert.rejects(() => lockCalendar());
-        assert.ok(!ops.some(o => o === 'reload' || o.startsWith('replace')), 'a failed sign-out still reloaded');
-    });
 
     test('losing access mid-session drops back to locked rather than looping on retry', async () => {
         // A Firestore `permission-denied` after the Calendar is open means the session expired, not
         // that the network is poor. Left as a sync-chip retry it is a loop the member cannot win.
-        await unlockWithPin('1234');
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
         handleAccessLost();
         assert.equal(getAccessType(), 'none');
     });
 
-    test('a VIEWER losing access gets the PIN card back, with the reason on it', async () => {
-        await unlockWithPin('1234');
-        handleAccessLost();
-        assert.ok(lastPanelHtml().includes('calLockPin'));
-        // NOT in the task that mounted the card (17 Nov 2026): its message region is new, and words
-        // written in the same task are words it was created with, which no screen reader speaks.
-        assert.equal(document.getElementById('calLockMsg').textContent, '',
-            'the reason went in with the card, so it is never announced (speakAfterMount, calendar-lock-slot.js)');
-        await turn();
-        assert.match(document.getElementById('calLockMsg').textContent, /expired/i);
-    });
 
-    test('a MEMBER losing access gets their own card — never the PIN (CALENDAR_DATA.md 11)', async () => {
-        // Until v23.19 this path showed the PIN card to everyone, which sent a signed-in member to a
-        // shared code — the one thing the member card exists to prevent, reached from a different
-        // direction. The way back in is the way they came in.
+    test('a MEMBER losing access gets their own card (CALENDAR_DATA.md 11)', async () => {
+        // Until v23.19 this path showed the PIN card to everyone; the way back in is the member's own.
         sessionValue = { name: 'G. Miller' };
         currentUser = { uid: 'member-1', isAnonymous: false };
         await initCalendarAccess({ onGranted: () => {} });
         assert.equal(getAccessType(), 'named');
         handleAccessLost();
         assert.equal(getAccessType(), 'none');
-        assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN');
         assert.ok(lastPanelHtml().includes('calLockWho'), 'the member card was not shown');
         // Its reason is a live region mounted in this task: written a task later, or never spoken.
         assert.equal(document.getElementById('calLockWhy').textContent, '',
@@ -1651,7 +912,6 @@ describe('lockCalendar + handleAccessLost', () => {
         await waitFor(() => loginMounts.length === 1, 'the expired-session sign-in card to mount');
         assert.equal(loginMounts.length, 1, 'the sign-in card was not shown: ' + JSON.stringify(loginMounts.map(m => [m.pageLabel, m.notice, !!m.host])));
         assert.match(loginMounts[0].notice || '', /expired/i, 'the card does not say why it is up');
-        assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'a member was sent to the staff PIN');
     });
 
     test('handleAccessLost is a no-op when already locked', () => {
@@ -1660,87 +920,6 @@ describe('lockCalendar + handleAccessLost', () => {
     });
 });
 
-describe('the viewer↔member race', () => {
-    test('unlocking is REFUSED once a member has signed in behind the card', async () => {
-        // Reachable through "Sign in instead", or through another tab. The unlock ladder begins by
-        // clearing whoever is current, so going ahead would sign a real member out and put a shared
-        // capability in their place — an identity DOWNGRADE triggered by a stale button.
-        let reloads = 0;
-        globalThis.window.location.reload = () => { reloads++; };
-        sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
-        ops = [];
-
-        const r = await unlockWithPin('1234');
-        assert.equal(r.ok, true);
-        assert.equal(reloads, 1, 'it should reload into the named decision, not unlock');
-        assert.equal(ops.filter(o => o === 'signOut').length, 0, 'the member was signed out');
-        assert.equal(ops.some(o => o.startsWith('signIn:')), false, 'a viewer token was still redeemed');
-    });
-
-    test('a member\'s HELD session under the PIN card reloads too — the PIN is never granted over it (audit F1)', async () => {
-        // This asserted the opposite until the sign-in audit (Nov 2026): "a viewer holding a stale
-        // local session may still unlock". But a held session IS a member — one whose identity did not
-        // restore, with the viewer's token in the tab — and unlocking put the station's Calendar where
-        // their own belongs (CALENDAR_DATA.md 11). The reload asks the boot, which now answers `none`
-        // for exactly this and offers their own card, with the PIN one deliberate tap behind it.
-        let reloads = 0;
-        globalThis.window.location.reload = () => { reloads++; };
-        for (const who of [{ uid: 'calendar-viewer', isAnonymous: false }, null]) {
-            sessionValue = { name: 'G. Miller' };
-            currentUser = who;
-            ops = []; reloads = 0;
-            // `{ ok: true }` is also what an unlock returns, so the reload is counted and the exchange
-            // checked for: a station PC sent down the wrong one of the two is the failure either way.
-            assert.deepEqual(await unlockWithPin('1234'), { ok: true });
-            assert.equal(reloads, 1, `the PIN was not handed back to the boot (identity: ${who ? 'the viewer' : 'none'})`);
-            assert.equal(getAccessType(), 'none', 'the staff PIN was granted over a member\'s held session');
-            assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
-                'the exchange went ahead under a member\'s session');
-            // …nor is the PIN sent: an attempt the server counts against the station's limit, for an
-            // unlock that cannot be used.
-            assert.equal(lastFetchBody, null, 'the PIN was sent for an unlock that could not go ahead');
-        }
-    });
-
-    test('…and the member card\'s way to the staff PIN still UNLOCKS: it drops the session first', async () => {
-        // The hand-over is the deliberate way from a held session to the PIN. It clears the session
-        // before its reload (the test above it in "initCalendarAccess"), so the PIN card it lands on
-        // finds nothing held and the exchange goes ahead — a station PC is never stranded by the reload.
-        let reloads = 0;
-        globalThis.window.location.reload = () => { reloads++; };
-        sessionValue = { name: 'G. Miller' };
-        await initCalendarAccess({ onGranted: () => {} });
-        await drainTurns();
-        const alt = document.getElementById('calLockPinInstead');
-        assert.ok(alt, 'the member card offers no route to the staff PIN');
-        await alt._listeners.get('click')();
-        assert.equal(reloads, 1, 'the hand-over did not reload');
-        assert.equal(sessionValue, null, 'the hand-over kept the session');
-        ops = [];
-        assert.deepEqual(await unlockWithPin('1234'), { ok: true });
-        assert.equal(reloads, 1, 'the PIN card the hand-over leads to reloaded instead of unlocking');
-        assert.ok(ops.some(o => o.startsWith('signIn:')), 'the PIN was never exchanged for a viewer token');
-        assert.equal(getAccessType(), 'viewer');
-    });
-
-    test('a member whose access lapsed with their session gone, then the staff PIN: the viewer is signed in and the page RELOADS — never granted under the member\'s menu', async () => {
-        sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
-        let grants = 0;
-        assert.equal(await initCalendarAccess({ onGranted: () => {}, onEveryGrant: () => { grants++; } }), 'named');
-        sessionValue = null;                                      // the session went with the access
-        handleAccessLost();                                       // a refused read: the front door, with the reason
-        await waitFor(() => loginMounts.length >= 1, 'the sign-in card');
-        loginMounts.at(-1).alternative.onSelect();                // "Use the staff PIN instead"
-        ops = [];
-        assert.deepEqual(await unlockWithPin('1234'), { ok: true });
-        assert.ok(ops.includes('signIn:GOOD_TOKEN'), 'the viewer was not signed in for the reload\'s boot to find');
-        assert.ok(ops.includes('reload'), 'the viewer was granted in place, under a drawer built for the member');
-        assert.equal(getAccessType(), 'none');
-        assert.equal(grants, 1);
-    });
-});
 
 describe('a visitor with nothing is locked — there is no open, anonymous Calendar', () => {
     // Until v24.34 a `CALENDAR_PIN_ACCESS` switch could turn this path into an ungated Calendar on
@@ -1848,17 +1027,13 @@ describe('a returning named member is granted ONCE, and only after the identity 
     });
 });
 
-// ── The cards' own rules — three of which had NOTHING checking them ─────────────────────────────
+// ── The cards' own rules ─────────────────────────────────────────────────────────────────────────
 //
 // Found by mutation when `calendar-lock-cards.js` was split out at v23.54 and its header wrote the
-// rules down: deleting the post-import access re-check, and deleting the line that clears the PIN
-// field on a failure, both left this whole file green. Writing an invariant in a header is not
-// protecting it — that is this repo's own stated discipline, and these are the tests it asks for.
-//
-// The third mutation, deleting `hideLockPanel()` from the member card, also survived — and there
-// the CODE was fine and the header was wrong. `mountLockCard` calls `unmountLockCard` itself, so
-// one-card-at-a-time is the SLOT's guarantee, not these calls'. `hideLockPanel` is here to disarm
-// the PIN card's backoff timer, which the slot knows nothing about. The header now says so.
+// rules down: deleting the post-import access re-check left this whole file green. Writing an
+// invariant in a header is not protecting it. One-card-at-a-time is the SLOT's guarantee
+// (`mountLockCard` calls `unmountLockCard` itself). The PIN card's rules went with it (23 Nov 2026);
+// the front door's fallback, which was the PIN card, is pinned here instead.
 describe('the cards themselves', () => {
     test('a card must not mount over a Calendar that was granted while it loaded', () => {
         // The sign-in card awaits a dynamic import, and access can arrive during it — the
@@ -1866,201 +1041,57 @@ describe('the cards themselves', () => {
         // form over a working Calendar, which is the one outcome this path must not have. The race
         // is forced deterministically: start the card, let it reach its `await`, then grant.
         const pending = showSignInPanel();
-        return unlockWithPin('1234')
+        sessionValue = { name: 'G. Miller' };
+        emitAuth({ uid: 'member-1', isAnonymous: false });   // the restore lands — but nothing is watching yet
+        return initCalendarAccess({ onGranted: () => {} })
             .then(() => pending)
             .then(() => {
-                assert.equal(getAccessType(), 'viewer', 'the grant did not happen — the race is not being tested');
+                assert.equal(getAccessType(), 'named', 'the grant did not happen — the race is not being tested');
                 assert.ok(!lastPanelHtml().includes('SIGN-IN CARD'),
                     'a sign-in card was mounted over a granted Calendar');
             });
     });
 
-    test('a failed unlock CLEARS the PIN field', async (t) => {
-        // On a shared PC a PIN left in a form field is readable by the next person through devtools
-        // or autofill — and on a failure a cleared field is what the member wants anyway, since
-        // they are retyping it. Asserted on the real form handler, not on `unlockWithPin`.
-        t.mock.timers.enable({ apis: ['setTimeout'] });   // a refused exchange — see the 401 test
-        globalThis.window.location.hash = '#staff-pin';
-        await initCalendarAccess({ onGranted: () => {} });
-        const input = document.getElementById('calLockPin');
-        const form  = document.getElementById('calLockForm');
-        assert.ok(input && form, 'the PIN card is not up');
-        input.value = '0000';
-        fetchQueue = [{ ok: false, status: 401, json: async () => ({}) }];
-        await form._listeners.get('submit')({ preventDefault() {} });
-        assert.equal(input.value, '', 'the PIN was left in the field after a rejected attempt');
-        assert.equal(getAccessType(), 'none');
-    });
 
-    // THE CARD ASKS WHETHER IT IS STILL THERE (review, 11 Nov 2026), through the real form handler: Back or
-    // "Sign in instead" while an exchange was out left it granting under the sign-in card.
-    test('"Sign in instead" while the exchange is out: the exchange stands down — no grant, no switch', async () => {
-        globalThis.window.location.hash = '#staff-pin';
+
+
+
+
+    // THE FRONT DOOR ALWAYS LEAVES A WAY FORWARD (rule 3 of calendar-lock-cards.js). When the sign-in
+    // form's module cannot load, it fell back to the PIN card, which needed nothing fetched. With the
+    // PIN gone, it says what happened and offers a reload — never an empty slot, and never a PIN.
+    test('the sign-in form cannot load: a short card says so and offers a reload — not a PIN', async () => {
+        formLoadFails = true;
         await initCalendarAccess({ onGranted: () => {} });
-        /** @type {(v: any) => void} */ let answer = () => {};
-        globalThis.fetch = (/** @type {any} */ _u, /** @type {any} */ opts) => (opts?.method === 'POST'
-            ? new Promise(r => { answer = r; })
-            : Promise.resolve({ ok: false, status: 405, json: async () => ({}) }));
-        document.getElementById('calLockPin').value = '1234';
-        const pressed = document.getElementById('calLockForm')._listeners.get('submit')({ preventDefault() {} });
-        await drainTurns();
-        document.getElementById('calLockSignIn')._listeners.get('click')();   // the card is replaced
-        await waitFor(() => loginMounts.length === 1, 'the sign-in card to mount');
+        assert.equal(loginMounts.length, 0, 'premise: the form did not load');
+        assert.equal(lockCardId(), 'calendarSignInUnavailable', 'the slot was left empty, or held something else');
+        const html = lastPanelHtml();
+        assert.ok(!/calLockPin|staff PIN/i.test(html), 'the fallback is the PIN card again');
+        const why = document.getElementById('calLockUnavailableWhy');
+        assert.equal(why.textContent, '', 'the line went in with the card, so it is never announced');
+        await turn();
+        assert.equal(why.textContent, SIGN_IN_UNAVAILABLE_LINE);
+        const retry = document.getElementById('calLockSubmit');
+        assert.match(html, /id="calLockSubmit"[^>]*>Try again</, 'no way to try again');
         ops = [];
-        answer({ ok: true, status: 200, json: async () => ({ token: 'GOOD_TOKEN' }) });
-        await pressed;
-        assert.equal(getAccessType(), 'none', 'the PIN was granted under the sign-in card');
-        assert.deepEqual(ops.filter(o => o === 'signOut' || o.startsWith('persistence:') || o.startsWith('signIn:')), [],
-            'the exchange went on for a card that was no longer on screen');
+        retry._listeners.get('click')();
+        assert.deepEqual(ops, ['reload'], 'Try again does not reload the page');
     });
 
-    test('"Sign in instead" during the LAST round trip: no grant, and the viewer just signed in is signed out again', async () => {
-        globalThis.window.location.hash = '#staff-pin';
-        await initCalendarAccess({ onGranted: () => {} });
-        /** @type {null | ((v: any) => void)} */ let claimsLand = null;
-        tokenUser = { uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: () => new Promise(r => { claimsLand = r; }) };
-        document.getElementById('calLockPin').value = '1234';
-        const pressed = document.getElementById('calLockForm')._listeners.get('submit')({ preventDefault() {} });
-        await waitFor(() => !!claimsLand, 'the exchange to sign the viewer in and read its claim');
-        document.getElementById('calLockSignIn')._listeners.get('click')();   // the card is replaced now
-        await waitFor(() => loginMounts.length === 1, 'the sign-in card to mount');
-        ops = [];
-        /** @type {any} */ (claimsLand)({ claims: { calendarViewer: true } });
-        await pressed;
-        assert.equal(getAccessType(), 'none', 'the PIN was granted over the sign-in card that replaced its card');
-        assert.ok(ops.includes('signOut'), 'the viewer signed in for a card that had gone was left signed in');
-        assert.equal(currentUser, null);
-        assert.equal(lockCardId(), 'calendarLock', 'the sign-in card was taken down');
+    test('…but not over a Calendar granted while the form was failing to load', async () => {
+        formLoadFails = true;
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
+        await showSignInPanel();
+        assert.equal(lockCardId(), null, 'a fallback card went up over a granted Calendar');
     });
 
-    test('…and a member signed in meanwhile is never the one signed out', async () => {
-        /** @type {null | ((v: any) => void)} */ let claimsLand = null;
-        const viewer = { uid: 'calendar-viewer', isAnonymous: false, getIdTokenResult: () => new Promise(r => { claimsLand = r; }) };
-        tokenUser = viewer;
-        let wanted = true;
-        const exchange = unlockWithPin('1234', () => wanted);
-        await waitFor(() => !!claimsLand, 'the exchange to read its claim');
-        wanted = false;                                           // "Sign in instead"…
-        currentUser = { uid: 'member-1', isAnonymous: false };   // …and the member's sign-in has landed
-        ops = [];
-        /** @type {any} */ (claimsLand)({ claims: { calendarViewer: true } });
-        assert.equal((await exchange).ok, false);
-        assert.ok(!ops.includes('signOut'), 'the member who had just signed in was signed out');
-        assert.equal(getAccessType(), 'none');
-    });
-
-    // cal-data-7 (10 Nov 2026). `attemptBackoffMs` is unit-tested, and nothing pressed the card after a
-    // third failure: the field's input handler set the button from the digits alone, so retyping them
-    // lifted the delay at once — the helper was tested, the wiring was not.
-    describe('the delay after repeated failures', () => {
-        /** The PIN card up, every exchange refused, POSTs counted (the warm-up is a GET). The failure
-         *  count lives for the page load (a grant resets it), so a refusal in an earlier test would
-         *  make this one's third press the fourth. */
-        async function pinCard() {
-            resetUnlockFailures();
-            globalThis.window.location.hash = '#staff-pin';
-            await initCalendarAccess({ onGranted: () => {} });
-            const input = document.getElementById('calLockPin');
-            const form  = document.getElementById('calLockForm');
-            const submit = document.getElementById('calLockSubmit');
-            const card = { exchanges: 0, submit, answer: /** @type {any} */ (null),
-                type: (/** @type {string} */ v) => { input.value = v; input._listeners.get('input')(); },
-                press: () => form._listeners.get('submit')({ preventDefault() {} }) };
-            globalThis.fetch = async (/** @type {any} */ _u, /** @type {any} */ opts) => {
-                if (opts?.method !== 'POST') return { ok: false, status: 405, json: async () => ({}) };
-                card.exchanges++;
-                return card.answer ?? { ok: false, status: 401, json: async () => ({}) };
-            };
-            return card;
-        }
-
-        test('retyping the PIN does not lift it — and it ends when it says it does', async (t) => {
-            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
-            const card = await pinCard();
-            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
-            assert.equal(card.exchanges, 3, 'premise: three refused attempts');
-            card.type('0000');
-            assert.equal(card.submit.disabled, true, 'four digits typed straight back in lifted the two-second delay');
-            await card.press();
-            assert.equal(card.exchanges, 3, 'a fourth attempt went out inside the delay');
-            t.mock.timers.tick(2000);
-            assert.equal(card.submit.disabled, false, 'the button stayed off after the delay ended');
-            await card.press();
-            assert.equal(card.exchanges, 4);
-        });
-
-        test('the button counts down, and the reason stays on screen while it does (sign-in check, 11 Nov 2026)', async (t) => {
-            // Until v25.77 the first keystroke wiped the message and the button sat greyed out for up
-            // to 20 seconds with no words at all.
-            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
-            const card = await pinCard();
-            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
-            assert.equal(card.submit.textContent, 'Try again in 2s', 'a held button with no words');
-            card.type('1');
-            assert.match(document.getElementById('calLockMsg').textContent, /not recognised/, 'typing during the delay wiped the reason');
-            t.mock.timers.tick(1000);
-            assert.equal(card.submit.textContent, 'Try again in 1s');
-            t.mock.timers.tick(1000);
-            assert.equal(card.submit.textContent, 'Unlock Calendar →', 'the button did not come back');
-        });
-
-        test('only a WRONG PIN counts: three dropped connections start no delay', async (t) => {
-            // A bad connection is not the member mistyping; slowing their retry only made it worse.
-            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
-            const card = await pinCard();
-            globalThis.fetch = async (/** @type {any} */ _u, /** @type {any} */ opts) => {
-                if (opts?.method !== 'POST') return { ok: true, status: 204, json: async () => ({}) };
-                card.exchanges++;
-                throw new TypeError('Failed to fetch');
-            };
-            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
-            card.type('0000');
-            assert.equal(card.submit.disabled, false, 'a connection failure started the wrong-PIN delay');
-            await card.press();
-            assert.equal(card.exchanges, 4);
-            // …and they were not COUNTED either: the first wrong PIN after them is the first.
-            globalThis.fetch = async (/** @type {any} */ _u, /** @type {any} */ opts) => {
-                if (opts?.method !== 'POST') return { ok: true, status: 204, json: async () => ({}) };
-                card.exchanges++;
-                return { ok: false, status: 401, json: async () => ({}) };
-            };
-            card.type('0000'); await card.press();
-            card.type('0000');
-            assert.equal(card.submit.disabled, false, 'four dropped connections were counted as wrong PINs');
-        });
-
-        test('a delay\'s timer still pending does not re-enable the button during the next exchange', async (t) => {
-            t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
-            const card = await pinCard();
-            for (let i = 0; i < 3; i++) { card.type('0000'); await card.press(); }
-            t.mock.timers.setTime(1_000_000 + 5000);   // the delay is over, its timer not yet run (a busy page)
-            card.type('0000');
-            /** @type {(v: any) => void} */ let land = () => {};
-            card.answer = new Promise(r => { land = r; });   // the fourth exchange is slow (a cold start)
-            const inFlight = card.press();
-            await Promise.resolve();
-            t.mock.timers.tick(0);                       // …and the old timer runs now
-            assert.equal(card.submit.disabled, true, 'the button came back on under "Unlocking…"');
-            land({ ok: false, status: 401, json: async () => ({}) });
-            await inFlight;
-        });
-    });
-
-    test('a SUCCESSFUL unlock clears it too — the field is emptied on every path', async () => {
-        globalThis.window.location.hash = '#staff-pin';
-        await initCalendarAccess({ onGranted: () => {} });
-        const input = document.getElementById('calLockPin');
-        const form  = document.getElementById('calLockForm');
-        input.value = '1234';
-        await form._listeners.get('submit')({ preventDefault() {} });
-        assert.equal(input.value, '', 'a correct PIN was left in the field');
-        assert.equal(getAccessType(), 'viewer');
-    });
 });
 
 // ── WHETHER ACCESS IS HELD LIVES IN ONE PLACE, AND THIS MODULE WRITES IT (Calendar step 2, v25.74) ──
 //
-// Until v25.74 this module kept its own answer (`named`, `viewer` or `none`) while the roster reads
+// Until v25.74 this module kept its own answer (`named`, then also `viewer`, or `none`) while the roster reads
 // and the documents each kept a flag, set by hand from the coordinator's hooks. Now there is one
 // copy, calendar-access-state.js: `grant` writes it, `handleAccessLost` shuts it, and both gates read
 // it. What that leaves THIS module to get right is ORDER, twice over, and one piece of memory:
@@ -2082,6 +1113,12 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
         _clearDocumentSubscribersForTests();   // the documents' subscribers too, and FIRST: none hears the shut
         setCalendarAccess(false);
     });
+    /** A member's grant at boot — the one grant there is since the staff PIN was retired. */
+    async function grantMember() {
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
+    }
 
     test('a member\'s grant: the workspace is back BEFORE the documents are told, and both hooks find every gate open', async () => {
         const grid = domEl('calendarDisplay');   // created first: the module only hides what exists
@@ -2099,28 +1136,28 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
             'the first render (onGranted) and a re-unlock\'s repaint (onEveryGrant) must find the gates already open');
     });
 
-    test('a PIN unlock: the card has GONE before the documents are told', async () => {
-        globalThis.window.location.hash = '#staff-pin';
+    test('a late identity\'s grant: the card has GONE before the documents are told', async () => {
         /** @type {string[]} */ const order = [];
         await initCalendarAccess({
             onEveryGrant: () => order.push(`every:${hasCalendarAccess()}`),
             onGranted:    () => order.push(`granted:${hasCalendarAccess()}`),
         });
-        assert.notEqual(lockCardId(), null, 'premise: the PIN card is standing');
+        await waitFor(() => lockCardId() !== null, 'the sign-in card');
         assert.equal(hasCalendarAccess(), false, 'premise: nothing is granted yet');
         onDocumentAccess(open => order.push(`documents:${open}:card=${lockCardId()}`));
-        await unlockWithPin('1234');
+        sessionValue = { name: 'G. Miller' };
+        emitAuth({ uid: 'member-1', isAnonymous: false });
         assert.deepEqual(order, ['documents:true:card=null', 'every:true', 'granted:true'],
             'a held document would have opened over a card about to be taken away');
     });
 
+
     test('`getAccessType` reads `none` the moment the state shuts, before anybody calls this module', async () => {
-        await unlockWithPin('1234');
-        assert.equal(getAccessType(), 'viewer');
+        await grantMember();
+        assert.equal(getAccessType(), 'named');
         // What a refused month read does (calendar-overrides.js), before it tells anybody.
         setCalendarAccess(false);
         assert.equal(getAccessType(), 'none', 'this module still reported access over gates that had shut');
-        assert.equal(isViewerMode(), false);
     });
 
     test('an open state this module never granted is not reported as access of any kind', () => {
@@ -2130,29 +1167,20 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
         assert.equal(hasCalendarAccess(), false, 'handleAccessLost left a gate open because it had no card to show');
     });
 
-    test('a VIEWER\'s card is still owed after a refused read has ALREADY shut the state', async () => {
-        await unlockWithPin('1234');
-        setCalendarAccess(false);   // the read shut first…
-        handleAccessLost();         // …and then asked for the card
-        assert.ok(lastPanelHtml().includes('calLockPin'), 'the state was already shut, so no card went up — the roster stayed on screen');
-        await turn();   // the reason goes in once the card has been drawn (speakAfterMount)
-        assert.match(document.getElementById('calLockMsg').textContent, /expired/i);
-    });
 
-    test('a MEMBER\'s card is their own after a refused read has already shut the state — never the PIN', async () => {
+    test('a MEMBER\'s card is still owed, and their own, after a refused read has ALREADY shut the state', async () => {
         sessionValue = { name: 'G. Miller' };
         currentUser = { uid: 'member-1', isAnonymous: false };
         await initCalendarAccess({ onGranted: () => {} });
         setCalendarAccess(false);
         handleAccessLost();
-        assert.ok(lastPanelHtml().includes('calLockWho'), 'the member card was not shown');
-        assert.ok(!lastPanelHtml().includes('id="calLockPin"'), 'which card is owed was read from a state that could no longer say — a member was sent to the staff PIN');
+        assert.ok(lastPanelHtml().includes('calLockWho'), 'the state was already shut, so no card went up — the roster stayed on screen');
     });
 
     test('`handleAccessLost` shuts the state ITSELF, and before the card goes up', async () => {
         // The first load's route: nobody has shut anything when this is called. Until v25.74 this
         // function shut nothing, and relied on a wrapper in the coordinator to have closed both gates.
-        await unlockWithPin('1234');
+        await grantMember();
         assert.equal(lockCardId(), null, 'premise: no card over a granted Calendar');
         /** @type {string[]} */ const seen = [];
         listen(({ open, changed }) => seen.push(`state:${open}:${changed}:card=${lockCardId()}`));
@@ -2165,7 +1193,7 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
     });
 
     test('a second `handleAccessLost` writes nothing and says nothing twice', async () => {
-        await unlockWithPin('1234');
+        await grantMember();
         handleAccessLost();
         const card = lastPanel();
         let writes = 0;
@@ -2175,15 +1203,20 @@ describe('the one access state: a grant writes it, a loss shuts it first', () =>
         assert.equal(lastPanel(), card, 'a second card was built');
     });
 
-    test('a re-unlock is a NEW grant', async () => {
-        await unlockWithPin('1234');
+    test('a re-grant is a NEW grant', async () => {
+        await grantMember();
         const first = grantNumber();
         handleAccessLost();
         assert.equal(grantNumber(), first, 'losing access counted as a grant');
-        await unlockWithPin('1234');
+        // The late-identity watcher is armed only by a boot that ends locked: a fresh page, then.
+        _resetPageForTest(); sessionValue = null; currentUser = null;
+        await initCalendarAccess({ onGranted: () => {} });
+        sessionValue = { name: 'G. Miller' };
+        emitAuth({ uid: 'member-1', isAnonymous: false });
         assert.equal(grantNumber(), first + 1, 'a read still out from before the lock would settle under the new grant');
-        assert.equal(getAccessType(), 'viewer');
+        assert.equal(getAccessType(), 'named');
     });
+
 });
 
 // ── A SIGN-IN ON A CARD GRANTS IN PLACE (ROADMAP_HISTORY → "Calendar sign-in without the reload") ──
@@ -2240,18 +1273,21 @@ describe('a sign-in on a card grants in place, or reloads', () => {
         assert.equal(loginDismissals, 1, 'the full-screen form stayed over the Calendar its own sign-in opened');
     });
 
-    test('a page granted before — the PIN, then lost — RELOADS, and rebuilds nothing in place', async () => {
+    test('a page granted before — a member, then lost — RELOADS, and rebuilds nothing in place', async () => {
         const seen = [];
-        await initCalendarAccess(hooks(seen));
-        await unlockWithPin('1234');                          // a PIN viewer built the Calendar
+        signedIn();
+        await initCalendarAccess(hooks(seen));                // a member's grant built the Calendar
+        sessionValue = null;                                  // the session went with the access
         handleAccessLost();
+        await drainTurns();
         seen.length = 0;
         signedIn();
         assert.equal(finishSignIn(), 'reload');
-        assert.ok(ops.includes('reload'), 'a Calendar built for the viewer was handed to the member in place');
+        assert.ok(ops.includes('reload'), 'a Calendar built for one grant was handed to the next in place');
         assert.deepEqual(seen, [], 'the page was rebuilt in place AND reloaded');
         assert.equal(getAccessType(), 'none');
     });
+
 
     test('a grant that landed DURING the sign-in (the silent attempt) is not repeated — the success reloads', async () => {
         const seen = [];

@@ -22,7 +22,6 @@ import { pairColumns, lineOf, orderStations, stopChanges, parseStops } from './t
 import { aRealDay, weekdayGroups, weekdayWords, WEEKDAYS, runsOn } from './trains-weekdays.js';
 import { minutesWords, hourNote, hourWords, andList } from './trains-verdict.js';
 import { CHANGE_DATE } from './trains-data.js';
-import { PIN_FIRST_HASH } from './calendar-access-core.js';
 
 /** The three kinds of day in words, as the day tabs name them — one copy for every sentence that names one. */
 export const DAY_NAMES = /** @type {Readonly<Record<'SX'|'SO'|'SU', string>>} */ (Object.freeze({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' }));
@@ -99,22 +98,15 @@ export function renderFurtherChanges(change, until) {
 }
 
 /**
- * What the Trains sign-in card says to a station computer (login-overlay.js → `about`). The staff PIN
- * opens this page too (AUTH_AND_SESSIONS 24), and a station computer can reach it locked — the PIN's
- * session ends with the browser and belongs to the tab that unlocked the Calendar (8) — while the card
- * asked only for a member's grade, name and password. The PIN is entered where it always is, on the
- * Calendar's PIN card: the exchange, and the order it switches persistence in, are calendar-access.js's
- * alone, and a second copy of a security boundary is the copy that drifts. The way back is the menu's
- * Trains, which the PIN keeps. Worded as a way to OPEN the page, never as signing in (18).
+ * What the Trains sign-in card says (login-overlay.js → `about`): what the page is for, as every other
+ * page's card says it (login-core.js). The line and link that sent a station computer to the staff PIN
+ * went with the PIN (owner, 23 Nov 2026): only a member's own sign-in opens this page now.
  */
 export const SIGN_IN_ABOUT = Object.freeze({
-    // What the page is for comes first, as every other page's card says it (login-core.js): the PIN line
-    // alone told a member how to open a page it never described. Its date is derived, and it holds in
-    // every phase — "before and after", not "what will change" (words review, Nov 2026). The date holds
-    // together, as renderFurtherChanges's does: at 390px "13" ended a line and "December" began the next.
-    lines: Object.freeze([`Chiltern’s trains from Marylebone before and after the timetable change on ${dateWords(CHANGE_DATE).replace(' ', '\u00a0')}: by station, by time, and where each train stops.`,
-        'Visiting or agency staff, at a station computer, or not set up in the app yet? The staff PIN opens this page too: enter it on the roster, then choose Trains from its menu.']),
-    link: Object.freeze({ href: `./${PIN_FIRST_HASH}`, label: 'Use the staff PIN instead →' }),
+    // Its date is derived, and it holds in every phase — "before and after", not "what will change"
+    // (words review, Nov 2026). The date holds together, as renderFurtherChanges's does: at 390px "13"
+    // ended a line and "December" began the next.
+    lines: Object.freeze([`Chiltern’s trains from Marylebone before and after the timetable change on ${dateWords(CHANGE_DATE).replace(' ', ' ')}: by station, by time, and where each train stops.`]),
 });
 
 const none = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">none</span></span>';

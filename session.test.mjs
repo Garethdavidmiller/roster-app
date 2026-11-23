@@ -69,9 +69,9 @@ let _bootRestore = null;
 const _resetBootRestore = () => { _bootRestore = null; };
 /** The resolver of a boot restore modelled as HUNG (`_authNeverEmits`), kept so a test's teardown can
  *  end it (test audit, 7 Nov 2026). Unreleased, the hung restore held every caller's bound timer to
- *  its full length after the test had finished — 8 s for the reconcile that `holdsStaffPin(60)`
- *  races, which waits on `restoreFirstAuthUser()` at its default bound — and the file ran 8.7 s for
- *  0.7 s of tests. @type {null | (() => void)} */
+ *  its full length after the test had finished — 8 s for a reconcile racing a short bound (the staff
+ *  PIN's `holdsStaffPin(60)`, retired 23 Nov 2026), which waits on `restoreFirstAuthUser()` at its
+ *  default bound — and the file ran 8.7 s for 0.7 s of tests. @type {null | (() => void)} */
 let _releaseHungRestore = null;
 /** Teardown for a test that hung the restore: end it with nobody signed in, and let whatever was
  *  waiting on it finish NOW, so it cannot run on into the next test's state. */
@@ -642,24 +642,14 @@ describe('reconcileExpiredIdentity', () => {
         stop();
     });
 
-    // ── preserveCalendarViewer: the DEFAULT is the security half (v20.12) ──────────────────────
+    // ── A LEFTOVER STAFF-PIN SESSION IS TORN DOWN ON EVERY PAGE (owner, 23 Nov 2026) ───────────────
     //
     // The shared Calendar viewer is a non-anonymous Firebase identity with NO local session by
-    // construction — exactly the shape this function exists to tear down — so the Calendar asks for
-    // it to be kept, or the staff PIN would be demanded on every navigation. Six protected
-    // coordinators (admin, settings, operations, links, paycalc, overtime) call this BARE and take
-    // the default; the two pages that admit the PIN opt in — `calendar-access.js`, and Trains through
-    // `holdsStaffPin` (v24.84, tested below), which calls it bare too once a member is signed in.
-    //
-    // PRESERVING TOO MUCH is the expensive direction and it is silent. Flip the default and a
-    // station PC that entered the PIN and then opened Admin keeps that identity live instead of
-    // shedding it — nothing errors, nothing renders differently, and the page's own login overlay
-    // (driven by getSession(), which is null either way) still appears, so every end-to-end
-    // assertion about the PAGE refusing goes on passing. Only an assertion about the IDENTITY can
-    // see it. PRESERVING TOO LITTLE costs a PIN entry on the Calendar: visible, and self-correcting.
-    //
-    // The block the flag was missing until now was a VIEWER fixture, not a bare call — the cases
-    // above call bare all the time, but always with a named identity, where the flag cannot bite.
+    // construction — exactly the shape this function exists to tear down. Until the PIN was retired
+    // the Calendar and Trains asked for it to be kept (`preserveCalendarViewer`, `holdsStaffPin`); now
+    // no page does, and there is no flag to ask with: every page's teardown signs it out, and the
+    // sign-in card says why. KEEPING IT would be silent — the page's own sign-in card still appears,
+    // driven by getSession(), so only an assertion about the IDENTITY can see it.
     const viewerUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false, email: null };
 
     // These two run BEFORE any other viewer teardown here, because what they watch is sticky (see
@@ -712,7 +702,7 @@ describe('reconcileExpiredIdentity', () => {
         stopWaiting();
     });
 
-    test('a page that does not admit the PIN lets its queued writes leave BEFORE ending it (22 Nov 2026)', async () => {
+    test('the teardown lets a leftover PIN session\'s queued writes leave BEFORE ending it (22 Nov 2026)', async () => {
         // The reported case: a PIN viewer's counters still queued when opening Admin ended the PIN
         // made every checked save of the member who signed in next wait out its eight seconds.
         _viewerWaits = [];
@@ -730,12 +720,12 @@ describe('reconcileExpiredIdentity', () => {
         assert.deepEqual(_viewerWaits, []);
     });
 
-    test('the DEFAULT sheds the shared viewer — a bare call is a protected page, not the Calendar', async () => {
+    test('a leftover viewer is shed by the teardown — on every page, the Calendar and Trains included', async () => {
         auth.currentUser = /** @type {any} */ (viewerUser);
         // store empty → no local session, which is the viewer's permanent condition
         await reconcileExpiredIdentity();
         assert.equal(_signOutCalled, true,
-            'a PIN identity must not survive into Admin/Settings/Operations/Links/Pay/Overtime');
+            'a retired staff-PIN session survived the teardown — it would open nothing, and say nothing');
         assert.equal(auth.currentUser, null, 'and must actually be gone, not merely decided against');
     });
 
@@ -751,40 +741,33 @@ describe('reconcileExpiredIdentity', () => {
         assert.equal(_pushReleases.length, 0, 'the staff PIN\'s teardown dropped the browser\'s push subscription');
     });
 
-    // ENDING THE PIN LEAVES THIS TAB'S CALENDAR A MARK (audit B3): the card says "go back and enter the
-    // PIN", and the phone's Back carries no `#staff-pin`. staff-pin-ended.js writes it as it tells the
-    // card; the Calendar's boot takes it once (calendar-access.test.mjs drives that half).
-    test('ending the PIN leaves a one-tab mark, read once; a member\'s teardown leaves none; a sign-in forgets it', async () => {
-        const { takeStaffPinEndedMark, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
-        /** @type {Map<string,string>} */ const tab = new Map();
-        /** @type {any} */ (globalThis).sessionStorage = { getItem: (/** @type {string} */ k) => tab.get(k) ?? null,
-            setItem: (/** @type {string} */ k, /** @type {string} */ v) => { tab.set(k, String(v)); }, removeItem: (/** @type {string} */ k) => { tab.delete(k); } };
+    // THERE IS NO PIN BOX TO GO BACK TO (23 Nov 2026), so ending a leftover PIN session leaves no one-tab
+    // mark (it sent the Calendar's boot to the PIN card, audit B3): this tab's storage is not touched. A
+    // member signing in still makes the fact old news, so a later card on the page does not repeat it.
+    test('ending the PIN leaves no mark in the tab; a member\'s sign-in makes it old news', async () => {
+        const { forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+        /** @type {string[]} */ const touched = [];
+        /** @type {any} */ (globalThis).sessionStorage = { getItem: (/** @type {string} */ k) => { touched.push('get:' + k); return null; },
+            setItem: (/** @type {string} */ k) => { touched.push('set:' + k); }, removeItem: (/** @type {string} */ k) => { touched.push('remove:' + k); } };
         try {
-            auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
-            await reconcileExpiredIdentity();
-            assert.equal(takeStaffPinEndedMark(), false, 'a member whose session expired never had the PIN');
             auth.currentUser = /** @type {any} */ (viewerUser);
             await reconcileExpiredIdentity();
             assert.equal(auth.currentUser, null, 'premise: the PIN was signed out here');
-            assert.equal(takeStaffPinEndedMark(), true, 'the Calendar in this tab was not told the PIN ended');
-            assert.equal(takeStaffPinEndedMark(), false, 'read once: the mark outlived the boot that took it');
-            auth.currentUser = /** @type {any} */ (viewerUser);
-            await reconcileExpiredIdentity();
+            assert.deepEqual(touched, [], 'the teardown still marks the tab for a PIN box that no longer exists');
             forgetStaffPinEnded();
-            assert.equal(tab.size, 0, 'a member signed in here, and the mark still sent the next Calendar to the PIN box');
-            const refuse = () => { throw new Error('SecurityError'); };
-            /** @type {any} */ (globalThis).sessionStorage = { getItem: refuse, setItem: refuse, removeItem: refuse };
-            auth.currentUser = /** @type {any} */ (viewerUser);
-            await reconcileExpiredIdentity();   // iOS private mode: no mark, and nothing thrown
-            assert.equal(takeStaffPinEndedMark(), false);
+            let told = 0;
+            const stop = onStaffPinEnded(() => { told += 1; });
+            await Promise.resolve();
+            assert.equal(told, 0, 'a card mounted after a member signed in was told the PIN had been retired');
+            stop();
         } finally { delete /** @type {any} */ (globalThis).sessionStorage; }
     });
 
     // A PAGE WITH NO SIGN-IN CARD SAYS IT TOO (audit C1): paused Overtime offers none, and only a card
     // listened, so it signed the PIN out in silence. Its line: the card's own sentence and way back, in a
     // status region that is in the page — empty — before the teardown lands, so the words are announced.
-    test('sayStaffPinEndedIn: the region is there at once and empty; the teardown fills it with the card\'s words and the PIN box', async () => {
-        const { sayStaffPinEndedIn, STAFF_PIN_ENDED_NOTICE, BACK_TO_PIN, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
+    test('sayStaffPinEndedIn: the region is there at once and empty; the teardown fills it with the card\'s words and the way back to the roster', async () => {
+        const { sayStaffPinEndedIn, STAFF_PIN_ENDED_NOTICE, forgetStaffPinEnded } = await import('./staff-pin-ended.js');
         forgetStaffPinEnded();   // earlier tests here ended the PIN; this page has not, yet
         const made = (/** @type {string} */ tag) => {
             /** @type {any} */ const el = { tag, kids: /** @type {any[]} */ ([]), attrs: /** @type {Record<string,string>} */ ({}), isConnected: true,
@@ -805,8 +788,7 @@ describe('reconcileExpiredIdentity', () => {
             await new Promise(r => setTimeout(r, 0));   // the words go in once the region has been drawn (below)
             const [line] = region.kids;
             assert.equal(line?.kids[0], STAFF_PIN_ENDED_NOTICE + ' ', 'the page did not say the PIN ended');
-            assert.equal(line.kids[1].href, BACK_TO_PIN);
-            assert.equal(BACK_TO_PIN, './#staff-pin', 'the way back is not the Calendar\'s PIN box');
+            assert.equal(line.kids[1].href, './', 'the way back is not the roster — there is no PIN box to go back to');
             assert.equal(sayStaffPinEndedIn(null)(), undefined, 'a page with nowhere to say it draws nothing and throws nothing');
         } finally { delete /** @type {any} */ (globalThis).document; }
     });
@@ -871,26 +853,19 @@ describe('reconcileExpiredIdentity', () => {
         }
     });
 
-    test('an explicit opts object with the flag ABSENT is still a teardown', async () => {
-        // A caller that passes options for some other reason must not inherit preservation.
+    // THE GUARD FOR THE TEARDOWN ON THE CALENDAR AND TRAINS (23 Nov 2026). They passed
+    // `{ preserveCalendarViewer: true }`; the parameter is gone, so an old caller — or a flag put back —
+    // can keep nothing. page-contract-parity.test.mjs holds every page to a bare call as well.
+    test('the old opt-in keeps nothing: a leftover viewer is signed out whatever the call says', async () => {
         auth.currentUser = /** @type {any} */ (viewerUser);
-        await reconcileExpiredIdentity({});
-        assert.equal(_signOutCalled, true);
-    });
-
-    test('only the Calendar\'s opt-in keeps it — and only for the viewer itself', async () => {
-        // The visible direction, pinned so a fix for the above cannot be "never preserve".
-        auth.currentUser = /** @type {any} */ (viewerUser);
-        await reconcileExpiredIdentity({ preserveCalendarViewer: true });
-        assert.equal(_signOutCalled, false, 'the Calendar would otherwise re-demand the PIN on every open');
-
-        // …and the opt-in is scoped to the viewer UID. A named identity whose session has expired is
-        // torn down even on the Calendar, or the flag becomes a general amnesty.
+        await /** @type {any} */ (reconcileExpiredIdentity)({ preserveCalendarViewer: true });
+        assert.equal(_signOutCalled, true, 'the retired staff PIN was kept — the Calendar would show its card a viewer it cannot open');
         _signOutCalled = false;
         auth.currentUser = /** @type {any} */ ({ uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' });
-        await reconcileExpiredIdentity({ preserveCalendarViewer: true });
-        assert.equal(_signOutCalled, true, 'preserveCalendarViewer must never preserve a MEMBER identity');
+        await /** @type {any} */ (reconcileExpiredIdentity)({ preserveCalendarViewer: true });
+        assert.equal(_signOutCalled, true, 'and a member identity that outlived its session is torn down as ever');
     });
+
 });
 
 // ── ensureFirebaseSession identity tracking (B0) ──────────────────────────────
@@ -2172,197 +2147,15 @@ describe('a restored account this browser cannot sign out', () => {
     });
 });
 
-// ── A PAGE THAT ADMITS THE STAFF PIN KEEPS IT, AND ONLY IT (v24.84) ─────────────────────────────
-//
-// The Trains page reads the station PIN since v24.84 (owner, 22 Oct 2026). Before, it ran the bare
-// reconcile every protected page runs, and that signed the PIN out on arrival: the station PC met a
-// member sign-in, and lost the PIN it had unlocked the Calendar with. `holdsStaffPin` is the page's
-// question; these pin both halves of its answer, because each failure is silent on its own page —
-// keeping too much leaves an expired member's privileges live behind a page that renders the same,
-// and keeping too little shows a sign-in to a station that should not need one.
-const { holdsStaffPin, signOutStaffPin } = await import('./session.js');
-describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that admits it', () => {
-    const viewer = { uid: CALENDAR_VIEWER_UID, isAnonymous: false, email: null };
-    beforeEach(() => {
-        store.clear();
-        _signOutCalled = false; _signOutBehavior = 'ok';
-        _existingUser = null; _authNeverEmits = false; _authEmitDelayMs = 0;
-        _resetBootRestore();
-        mockAuth.currentUser = null;
-    });
-    afterEach(async () => { _signOutBehavior = 'ok'; _authNeverEmits = false; mockAuth.currentUser = null; await _settleHungRestore(); });
-
-    test('the PIN, with no member: held, and NOT signed out', async () => {
-        mockAuth.currentUser = viewer;
-        assert.equal(await holdsStaffPin(), true);
-        assert.equal(_signOutCalled, false, 'the station would be asked for the PIN again on the way back');
-        assert.equal(mockAuth.currentUser, viewer);
-    });
-
-    test('a member identity that outlived its session is still torn down, and is not the PIN', async () => {
-        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
-        assert.equal(await holdsStaffPin(), false);
-        assert.equal(_signOutCalled, true, 'admitting the PIN must not become an amnesty for an expired member');
-    });
-
-    test('a member with a session outranks the PIN, and nobody at all holds nothing', async () => {
-        saveSession('G. Miller');
-        mockAuth.currentUser = viewer;
-        assert.equal(await holdsStaffPin(), false, 'the member path decides a member\'s page');
-        store.clear();
-        mockAuth.currentUser = null;
-        assert.equal(await holdsStaffPin(), false);
-        assert.equal(_signOutCalled, false);
-    });
-
-    test('a PIN session restoring AFTER the answer still reaches the page, once (sign-in check, 11 Nov 2026)', async () => {
-        // Trains stood at its sign-in for good when the station PC's PIN session restored late; the
-        // Calendar has honoured a late one since cal-data-10.
-        let late = 0;
-        assert.equal(await holdsStaffPin(60, () => { late++; }), false, 'premise: nothing held at the decision');
-        const v = { ...viewer, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
-        mockAuth.currentUser = v;
-        for (const cb of [..._authCbs]) cb(v);
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(late, 1, 'a PIN session that restored late was ignored');
-        for (const cb of [..._authCbs]) cb(v);
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(late, 1, 'the late answer ran twice');
-    });
-
-    test('…but not without the claim, and never over a member\'s session', async () => {
-        let late = 0;
-        assert.equal(await holdsStaffPin(60, () => { late++; }), false);
-        const bare = { ...viewer, getIdTokenResult: async () => ({ claims: {} }) };
-        mockAuth.currentUser = bare;
-        for (const cb of [..._authCbs]) cb(bare);
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(late, 0, 'a token without the claim reached the page');
-        saveSession('G. Miller');
-        const v = { ...viewer, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
-        mockAuth.currentUser = v;
-        for (const cb of [..._authCbs]) cb(v);
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(late, 0, 'the PIN was handed a member\'s page');
-    });
-
-    test('…nor once a sign-in has BEGUN under it (review, 11 Nov 2026)', async () => {
-        // A typed sign-in saves its session only when it succeeds, so `getSession()` alone let a restore
-        // landing under it start Trains for the PIN — and then, once the sign-in landed, for the member.
-        let late = 0;
-        assert.equal(await holdsStaffPin(60, () => { late++; }), false, 'premise: nothing held at the decision');
-        /** @type {(v?: any) => void} */ let release = () => {};
-        _signInGate = new Promise(r => { release = r; });
-        const signingIn = ensureNamedSession('G. Miller', { password: 'miller', retries: 0, delayMs: 0 });
-        const v = { ...viewer, getIdTokenResult: async () => ({ claims: { calendarViewer: true } }) };
-        mockAuth.currentUser = v;
-        for (const cb of [..._authCbs]) cb(v);
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(late, 0, 'the PIN page started underneath a member\'s sign-in');
-        release(); _signInGate = null;
-        await signingIn;
-        for (const cb of [..._authCbs]) cb(v);
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(late, 0, 'the watcher outlived the sign-in that superseded it');
-    });
-
-    test('…nor when a sign-in BEGINS while the PIN\'s token is being read — the check after the read (audit C4)', async () => {
-        // The check above runs as the restore lands; the token read after it is a round trip, and a
-        // typed sign-in can begin inside it — the v25.77 Trains double start. The PIN is kept current
-        // here (a browser that cannot sign it out), so only the generation can say the page moved on.
-        let late = 0;
-        assert.equal(await holdsStaffPin(60, () => { late++; }), false, 'premise: nothing held at the decision');
-        /** @type {(v: any) => void} */ let answer = () => {};
-        const token = new Promise(r => { answer = r; });   // ONE read for every watcher, so answering it reaches ours
-        const v = { ...viewer, getIdTokenResult: () => token };
-        mockAuth.currentUser = v;
-        for (const cb of [..._authCbs]) cb(v);   // the restore lands: the first check passes, the read starts
-        _signOutBehavior = 'auth/internal-error';
-        await ensureNamedSession('G. Miller', { password: 'miller', retries: 0, delayMs: 0 });   // a sign-in begins
-        assert.equal(mockAuth.currentUser, v, 'premise: the PIN is still current when its token answers');
-        answer({ claims: { calendarViewer: true } });
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(late, 0, 'the PIN page started under a sign-in that began while its token was read');
-    });
-
-    test('…and once a sign-in or sign-out has begun, the watcher UNSUBSCRIBES at the next emission — it does not linger', async () => {
-        // The early stand-down is the only unsubscribe on that path: without it every later emission of
-        // the page's life — each token refresh, each sign-in — kept running a watcher that could only
-        // ever return.
-        const before = new Set(_authCbs);
-        assert.equal(await holdsStaffPin(60, () => {}), false, 'premise: nothing held at the decision');
-        const ours = [..._authCbs].filter(cb => !before.has(cb));
-        assert.equal(ours.length, 1, 'premise: the late-viewer watcher subscribed once');
-        const unsubsBefore = _authUnsubs;
-        clearSession();   // a sign-out moves the generation, as a sign-in does
-        ours[0](null);
-        assert.equal(_authCbs.has(ours[0]), false, 'the watcher stood down without unsubscribing');
-        assert.equal(_authUnsubs, unsubsBefore + 1, 'exactly one unsubscribe');
-        ours[0](null);
-        assert.equal(_authUnsubs, unsubsBefore + 1, 'a second emission unsubscribed again');
-    });
-
-    test('a restore that never arrives answers within the budget — no PIN, never a hang', async () => {
-        _authNeverEmits = true;
-        const started = Date.now();
-        assert.equal(await holdsStaffPin(60), false);
-        assert.ok(Date.now() - started < 1000, 'the page would sit blank waiting for Firebase');
-    });
-
-    test('Lock signs the PIN out and resolves; a member is never touched', async () => {
-        mockAuth.currentUser = viewer;
-        await signOutStaffPin();
-        assert.equal(_signOutCalled, true);
-        assert.equal(mockAuth.currentUser, null);
-        _signOutCalled = false;
-        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
-        await signOutStaffPin();
-        assert.equal(_signOutCalled, false, 'Lock is for the station PIN only');
-    });
-
-    test('Lock lets the PIN\'s queued writes leave first, and never signs out who replaced it (22 Nov 2026)', async () => {
-        _viewerWaits = [];
-        mockAuth.currentUser = viewer;
-        await signOutStaffPin();
-        assert.equal(_viewerWaits.length, 1);
-        assert.equal(_viewerWaits[0].user, viewer);
-        assert.equal(_viewerWaits[0].afterSignOut, false);
-
-        _signOutCalled = false;
-        const member = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
-        mockAuth.currentUser = viewer;
-        _duringViewerWait = () => { mockAuth.currentUser = member; };
-        try { await signOutStaffPin(); } finally { _duringViewerWait = null; }
-        assert.equal(_signOutCalled, false, 'a member who became current during the wait was signed out');
-        assert.equal(mockAuth.currentUser, member);
-    });
-
-    test('a Lock whose sign-out RESOLVES with the PIN still current is refused, not reported', () => {
-        // The station walks away believing it locked. Modelled by pinning currentUser, as above.
-        const orig = Object.getOwnPropertyDescriptor(mockAuth, 'currentUser');
-        Object.defineProperty(mockAuth, 'currentUser', { configurable: true, get: () => viewer, set: () => {} });
-        return assert.rejects(() => signOutStaffPin(), /still current after sign-out/)
-            .finally(() => {
-                if (orig) Object.defineProperty(mockAuth, 'currentUser', orig);
-                else delete /** @type {any} */ (mockAuth).currentUser;
-            });
-    });
-});
-
-// Trains' drawer gates its documents on this (review, 22 Nov 2026): the page the PIN opened may read
-// them while the PIN is still this browser's user, and not a moment after a Lock or another tab's sign-in.
-const { staffPinIsCurrent } = await import('./session.js');
-describe('staffPinIsCurrent — asked as it is read, never remembered', () => {
-    afterEach(() => { mockAuth.currentUser = null; });
-    test('the PIN current: yes; a member, nobody, or an anonymous user with the PIN\'s uid: no', () => {
-        mockAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: false };
-        assert.equal(staffPinIsCurrent(), true);
-        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
-        assert.equal(staffPinIsCurrent(), false, 'a member is not the staff PIN');
-        mockAuth.currentUser = null;
-        assert.equal(staffPinIsCurrent(), false, 'after a Lock nothing is current, and nothing may be read');
-        mockAuth.currentUser = { uid: CALENDAR_VIEWER_UID, isAnonymous: true };
-        assert.equal(staffPinIsCurrent(), false);
+// ── THE STAFF PIN'S PAGE CHECKS ARE GONE (owner, 23 Nov 2026) ─────────────────────────────────────
+// `holdsStaffPin`, `staffPinIsCurrent` and `signOutStaffPin` answered for the pages that admitted the
+// PIN (Trains); no page does now, and a leftover session is torn down instead (above).
+describe('the staff PIN\'s page checks are gone from session.js', () => {
+    test('no export keeps, reads or ends a PIN session for a page', async () => {
+        const session = await import('./session.js');
+        for (const gone of ['holdsStaffPin', 'staffPinIsCurrent', 'signOutStaffPin']) {
+            assert.equal(gone in session, false, `${gone} came back`);
+        }
     });
 });
 

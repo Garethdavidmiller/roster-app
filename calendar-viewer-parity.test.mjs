@@ -1,5 +1,5 @@
 /**
- * calendar-viewer-parity.test.mjs — the staff-PIN feature's two STATIC contracts.
+ * calendar-viewer-parity.test.mjs — the staff-PIN feature's STATIC contracts, through its retirement.
  * Run: node scripts/run-tests.mjs calendar-viewer-parity.test.mjs   (part of `npm run test:hygiene`)
  *
  * ── CONTRACT A: the identity agrees across three languages ──────────────────────────────────────
@@ -19,12 +19,19 @@
  * would take: a client file naming the secret, a client-side comparison of any kind, or a stored
  * verifier the browser could test offline. A four-digit space is small enough that a hash shipped
  * to the browser is not a protection, it is a ten-thousand-iteration loop.
+ *
+ * ── THE PIN IS RETIRED FROM THE CLIENT (owner, 23 Nov 2026) ─────────────────────────────────────
+ *
+ * Release 1 of 3 took every PIN control out of the app: no client file calls the exchange, shapes a
+ * PIN or switches to the viewer's session-only persistence (Contract D). What stays, until the server
+ * release and then the cleanup release, is the viewer's uid, claim and boot plumbing — so a browser
+ * still holding a viewer session is recognised and torn down safely — and Contracts A to C with it.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM, PIN_LENGTH } from './calendar-access-core.js';
+import { CALENDAR_VIEWER_UID, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 
 const require = createRequire(import.meta.url);
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
@@ -34,7 +41,6 @@ describe('Contract A — one identity, three languages', () => {
         const fn = require('./functions/calendar-viewer-auth.js');
         assert.equal(fn.CALENDAR_VIEWER_UID, CALENDAR_VIEWER_UID,
             'the browser and the Cloud Function disagree about which account the PIN signs into');
-        assert.equal(fn.PIN_LENGTH, PIN_LENGTH);
     });
 
     test('the Cloud Function mints exactly the claim the client verifies', () => {
@@ -214,27 +220,6 @@ describe('Contract B — the PIN is not in the repository', () => {
     // fixtures in calendar-viewer-auth.test.mjs carry a comment saying why they are invented, and
     // the value itself must be ROTATED — removing it from the working tree leaves it in git history.
 
-    test('the client sends the PIN to the server and does nothing else with it', () => {
-        const src = read('./calendar-access.js');
-        assert.ok(src.includes('unlockCalendarViewer'), 'the client no longer calls the exchange endpoint');
-        // BOTH client modules that hold the entered value: the exchange, and the form itself, which
-        // has lived in calendar-lock-cards.js since v23.54. Only the first was scanned until the test
-        // audit (7 Nov 2026), so `localStorage.setItem('myb_last_pin', pin)` in the form passed every
-        // lane. No storage of the value in any wrapper or raw API, and no console line that names it.
-        const SINKS = ['lsSet(', 'localStorage.setItem', 'localStorage[', 'sessionStorage.setItem', 'sessionStorage[',
-            'indexedDB', 'document.cookie'];
-        for (const file of ['./calendar-access.js', './calendar-lock-cards.js']) {
-            const code = read(file);
-            for (const sink of SINKS) {
-                assert.equal(code.indexOf(sink), -1, `${file} writes to ${sink} — the PIN must never be stored`);
-            }
-            for (const line of code.split('\n')) {
-                if (!/console\.(log|warn|error|info|debug)/.test(line)) continue;
-                assert.doesNotMatch(line, /\bpin\b/i, `${file} logs something PIN-shaped: ${line.trim()}`);
-            }
-        }
-    });
-
     test('the Cloud Function READS the secret and never logs or returns it', () => {
         const src = read('./functions/index.js');
         const i = src.indexOf('exports.unlockCalendarViewer');
@@ -338,37 +323,55 @@ describe('Contract C — boot persistence is viewer-aware', () => {
         assert.match(line, /authBootstrap/,
             'authReady no longer derives from authBootstrap — if it computes persistence itself '
             + 'there are two boot paths, and only one of them is covered by the contract above');
-        // THREE legitimate places, and naming them is the point — a bare count would be satisfied
-        // by swapping one for another. The member chain's own last-resort fallback is one of them,
-        // which is easy to forget: it lands a MEMBER on session persistence when neither IndexedDB
+        // TWO legitimate places since the staff PIN left the client (23 Nov 2026 — `setViewerPersistence`,
+        // the unlock's own switch, went with it), and naming them is the point — a bare count would be
+        // satisfied by swapping one for another. The member chain's own last-resort fallback is one of
+        // them, which is easy to forget: it lands a MEMBER on session persistence when neither IndexedDB
         // nor localStorage could be established, and that is a degraded member session, not a viewer.
         const setters = (src.match(/setPersistence\(auth, browserSessionPersistence\)/g) || []).length;
-        assert.equal(setters, 3, `boot session-persistence is set in ${setters} places, not 3. The `
-            + 'three are: the member chain\'s last-resort fallback (_setMemberPersistence), the '
-            + 'viewer branch of authBootstrap, and setViewerPersistence. A FOURTH is the thing this '
-            + 'guards — the shared viewer must not acquire a second, viewer-unaware boot path.');
+        assert.equal(setters, 2, `boot session-persistence is set in ${setters} places, not 2. The `
+            + 'two are: the member chain\'s last-resort fallback (_setMemberPersistence) and the '
+            + 'viewer branch of authBootstrap. A THIRD is the thing this guards — the shared viewer '
+            + 'must not acquire a second, viewer-unaware boot path, nor the client a way to mint one.');
     });
 });
 
-// ── THE PIN CARD WAITS LONGER THAN THE EXCHANGE MAY RUN (sign-in check, 11 Nov 2026) ────────────────
-// The card gave up at 15s while `unlockCalendarViewer` may run for 20s, so a cold start about to
-// answer was reported as "check the connection". The roster parse had the same fault and the same
-// guard (admin-roster-upload.test.mjs). Both figures are read from the code that uses them.
-describe('the PIN exchange is never abandoned before the server could finish', () => {
-    const fnSrc = read('./functions/index.js');
-    const block = fnSrc.slice(fnSrc.indexOf('exports.unlockCalendarViewer = onRequest('));
-    const serverSeconds = Number(/timeoutSeconds:\s*(\d+)/.exec(block.slice(0, 400))?.[1]);
-    const clientSrc = read('./calendar-access.js');
-    const clientMs = Number(/const UNLOCK_TIMEOUT_MS = (\d+);/.exec(clientSrc)?.[1]);
+// ── CONTRACT D: NO CLIENT FILE ASKS FOR, SHAPES OR EXCHANGES A PIN (owner, 23 Nov 2026) ─────────────
+//
+// The staff PIN is retired from the app. The server keeps the exchange until its own release, so a
+// client that called it again would quietly bring the PIN back for whoever found the URL: these
+// shapes are what bringing it back would take. `functions/` is the server's and is not scanned.
+describe('Contract D — the client no longer has a PIN', () => {
+    const served = readdirSync(new URL('.', import.meta.url))
+        .filter(f => /\.(js|mjs|html)$/.test(f)).filter(f => !f.includes('.test.'));
+    /** A served file with its comments taken out: the history may name what went, the code may not.
+     *  Block comments, whole-line `//` comments, a trailing `// …` after code, and HTML comments. */
+    const code = (/** @type {string} */ f) => read('./' + f).replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[\s;{}(),])\/\/[^\n]*/g, '$1').replace(/<!--[\s\S]*?-->/g, '');
 
-    test('the card waits longer than the function may run, with headroom', () => {
-        assert.ok(serverSeconds > 0, 'unlockCalendarViewer\'s timeoutSeconds was not found where expected');
-        assert.ok(clientMs >= serverSeconds * 1000 + 5000,
-            `the card gives up at ${clientMs / 1000}s; the exchange may run for ${serverSeconds}s`);
+    test('no served file calls the exchange, mints a viewer session or switches to its persistence', () => {
+        const banned = ['unlockCalendarViewer', 'signInWithCustomToken', 'setViewerPersistence',
+            'preserveCalendarViewer', 'holdsStaffPin', 'unlockWithPin', 'lockCalendar', 'calLockPin'];
+        /** @type {string[]} */
+        const offenders = [];
+        for (const f of served) {
+            const src = code(f);
+            for (const word of banned) if (src.includes(word)) offenders.push(`${f} — ${word}`);
+        }
+        assert.deepEqual(offenders, [], 'the staff PIN is back in the client:\n  ' + offenders.join('\n  '));
     });
 
-    test('and it is the window the exchange actually uses', () => {
-        assert.match(clientSrc, /fetchWithTimeout\(UNLOCK_URL, \{[\s\S]{0,200}\}, UNLOCK_TIMEOUT_MS\)/,
-            'the exchange no longer waits on UNLOCK_TIMEOUT_MS — the figure above is checking a constant nobody reads');
+    test('no screen offers the PIN: its links, its card and its menu button are gone from every served file', () => {
+        // Words a reader would see. Code comments may still tell the history; these are the strings
+        // that were controls or copy.
+        const banned = ['Use the staff PIN instead', 'Sign out and use the staff PIN', 'End staff PIN</',
+            'Unlock Calendar', 'enter the staff PIN', 'Enter the staff PIN', 'Staff PIN access'];
+        /** @type {string[]} */
+        const offenders = [];
+        for (const f of served) {
+            const src = code(f);
+            for (const word of banned) if (src.includes(word)) offenders.push(`${f} — "${word}"`);
+        }
+        assert.deepEqual(offenders, [], 'a screen still offers the staff PIN:\n  ' + offenders.join('\n  '));
     });
 });

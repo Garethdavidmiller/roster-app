@@ -67,7 +67,7 @@
  * The real differences between pages stay in their coordinators, passed in rather than flattened:
  * which page id the policy is asked about, what "sign in again" looks like (Admin's own login, with
  * reload-on-success), where a sign-out lands (the app root, or this page's own sign-in), and what
- * counts as unsaved. The Calendar (the staff PIN, and a member card rather than a page sign-in) and
+ * counts as unsaved. The Calendar (its own access gate, and a member card rather than a page sign-in) and
  * the Pay Calculator (a SOFT policy that by design never asks for a login) do not use
  * `guardNamedSession`; their reasons are in their own headers. Neither does this module decide
  * access — `auth-policy.js` does, and the Firestore rules are the boundary.

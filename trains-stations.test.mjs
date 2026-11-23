@@ -1092,7 +1092,7 @@ describe('the 72-hour review (v24.96): one train is one train, "Same time" over 
     });
 });
 
-describe('the whole-app fix (Nov 2026): the overview\'s words by date, and the sign-in card\'s way in for the PIN', () => {
+describe('the whole-app fix (Nov 2026): the overview\'s words by date, and the sign-in card\'s words', () => {
     test('the opening line turns at the change, its days read from the date', () => {
         assert.equal(leadWords(CHANGE_DATE, false), 'This page compares today’s timetable with the new one that starts on Sunday 13 December. Both are Chiltern’s published timetables, not live running information.');
         assert.equal(leadWords(CHANGE_DATE, true), 'This page compares the timetable that ran until Saturday 12 December with the new one, which started on Sunday 13 December. Both are Chiltern’s published timetables, not live running information.');
@@ -1129,15 +1129,13 @@ describe('the whole-app fix (Nov 2026): the overview\'s words by date, and the s
             `From ${dateWords(CHANGE_DATE, 0, { short: true })}`, 'the same words timetablePhase gives the page');
     });
 
-    // AUTH_AND_SESSIONS 18: the PIN is a barrier, not a sign-in, and no surface may say it is more.
-    test('the Trains sign-in card says the station PIN opens the page, links the Calendar\'s PIN card, and never calls it a sign-in', () => {
-        const words = SIGN_IN_ABOUT.lines.join(' ');
+    // The staff PIN is retired (owner, 23 Nov 2026): the card's PIN line and its "Use the staff PIN instead"
+    // link to the Calendar's PIN card went with it.
+    test('the Trains sign-in card says what the page is for, and no longer sends anybody to a PIN', () => {
         // What the page is for comes first, as on every other page's card, its date held together.
-        assert.equal(SIGN_IN_ABOUT.lines[0], 'Chiltern’s trains from Marylebone before and after the timetable change on 13\u00a0December: by station, by time, and where each train stops.');
-        assert.match(words, /staff PIN opens this page/);
-        assert.match(words, /choose Trains from its menu/, 'and how to come back once the PIN is in');
-        assert.doesNotMatch(`${words} ${SIGN_IN_ABOUT.link.label}`, /sign(?:s|ed|ing)? (?:you |them )?in|log(?:s|ged|ging)? in|account/i);
-        assert.equal(SIGN_IN_ABOUT.link.href, './#staff-pin', 'the Calendar\'s PIN-first hash, so its PIN card is the one that opens');
+        assert.deepEqual(SIGN_IN_ABOUT.lines, ['Chiltern’s trains from Marylebone before and after the timetable change on 13\u00a0December: by station, by time, and where each train stops.']);
+        assert.equal('link' in SIGN_IN_ABOUT, false, 'the link to the Calendar\'s PIN card is gone');
+        assert.doesNotMatch(JSON.stringify(SIGN_IN_ABOUT), /PIN|staff-pin/);
     });
 });
 

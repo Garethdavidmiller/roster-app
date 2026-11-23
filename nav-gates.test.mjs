@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * nav-gates.test.mjs — the pills the drawer DRAWS for a person are the pages the page policy LETS THEM
- * OPEN, in both directions, for every name on the roster and for nobody (signed out, or the staff PIN).
+ * OPEN, in both directions, for every name on the roster and for nobody (signed out).
  * Run: node scripts/run-tests.mjs nav-gates.test.mjs   (part of `npm run test:hygiene` — needs nothing installed)
  *
  * The behaviour, through the REAL functions: `navGatesFor` (auth-policy.js, which every page spreads
@@ -13,7 +13,7 @@
  *   pill HIDDEN, page admits   → the page is reachable by typing its URL and by nothing else. Silent,
  *                                and it has happened (the Overtime pill, drawn only on its own page).
  *
- * A signed-in member sees exactly the pages they may open. Signed out (or on the staff PIN) every
+ * A signed-in member sees exactly the pages they may open. Signed out, every
  * ungated pill is drawn ON PURPOSE (owner, 11 Nov 2026: each opens with the person's own sign-in, and
  * hiding them from a station would hide that they exist) and every gated one is hidden.
  *
@@ -31,7 +31,7 @@ const g = /** @type {any} */ (globalThis);
 const restores = /** @type {Array<() => void>} */ ([]);
 const PILL_IDS = NAV_PAGES.map(p => p.id);
 /** The one gate that takes pills AWAY from a grade rather than giving them to a role: an Other Staff login loses
- *  Admin and Pay (owner, 23 Nov 2026). Everybody else, nobody signed in and the PIN included, keeps them. */
+ *  Admin and Pay (owner, 23 Nov 2026). Everybody else, nobody signed in included, keeps them. */
 const EXCLUDING = ['otherStaffHidden'];
 /** Pills only a ROLE opens. */
 const GATED = NAV_PAGES.filter(p => Object.keys(PILL_GATES).some(f => !EXCLUDING.includes(f) && /** @type {any} */ (p)[f])).map(p => p.id);
@@ -86,14 +86,13 @@ for (const paused of [true, false]) {
             }
         });
 
-        test('an Other Staff login (invented): exactly the PIN\'s pages and Settings, drawn ⇔ admitted', () => {
+        test('an Other Staff login (invented): exactly the Calendar, Trains and Settings, drawn ⇔ admitted', () => {
             const name = 'Q. Example';
             withOtherStaff(name);
             seam();
             assert.deepEqual(drawn(name), admitted(name), 'the pills drawn and the pages admitted differ');
-            assert.deepEqual(drawn(name), ['calendar', 'trains', 'settings']);
-            assert.deepEqual(drawn(name).filter(id => id !== 'settings'),
-                PILL_IDS.filter(id => PAGE_POLICIES[id]?.staffPin), 'what the staff PIN reads, and Settings beside it');
+            assert.deepEqual(drawn(name), ['calendar', 'trains', 'settings'],
+                'what the staff PIN read until it was retired (23 Nov 2026), and Settings beside it');
         });
 
         test('every name on the roster: drawn ⇔ admitted, in both directions', () => {
@@ -130,10 +129,10 @@ for (const paused of [true, false]) {
             assert.ok(!drawn(plain).includes('newlink'), 'a Dispatcher is not the new link\'s audience');
         });
 
-        test('nobody signed in (or the staff PIN): every ungated pill drawn, every gated one hidden', () => {
+        test('nobody signed in: every ungated pill drawn, every gated one hidden', () => {
             seam();
             assert.deepEqual(drawn(null), PILL_IDS.filter(id => !GATED.includes(id)),
-                'the PIN sees Admin, Pay and Settings on purpose, and no role-gated page');
+                'a signed-out drawer shows Admin, Pay and Settings on purpose (each asks for a sign-in), and no role-gated page');
             assert.deepEqual(navGatesFor(null), { isAdmin: false, isLinksDesigner: false, canOpenOvertime: false, canOpenNewlink: false, isNotOtherStaff: true });
             assert.deepEqual(navGatesFor(undefined), navGatesFor(null));
         });

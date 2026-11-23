@@ -26,7 +26,7 @@
 //   managerOnly    {boolean} Optional. true = management/clerk login; hidden from staff selector; appears in login dropdown under "Management" group
 //   otherStaff     {boolean} Optional. true = an "Other Staff" login (owner, 23 Nov 2026): somebody with no roster of their
 //                            own and no manager or admin rights, who signs in with their own password and sees what the
-//                            staff PIN shows (everyone's roster, read-only; Trains; the Huddle and the documents) plus their
+//                            retired staff PIN showed (everyone's roster, read-only; Trains; the Huddle and the documents) plus their
 //                            own Settings. Always with `role: 'Other Staff'` and `hidden: true`; never on a role list
 //                            (validateTeamMembers refuses either). Like a manager's row, it is removed when they leave.
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
@@ -269,7 +269,7 @@ export const teamMembers = [
       roleHistory: [{ role: 'CES', until: new Date(2026, 10, 21) }] },
 
     // Other Staff — login-only accounts with no roster and no manager or admin rights (owner, 23 Nov 2026): they
-    // see what the staff PIN shows, under their own name. One row each, in this shape:
+    // see what the retired staff PIN showed, under their own name. One row each, in this shape:
     //   { name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },
     { name: 'S. Fayombo',       currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },
     { name: 'K. Matusevicute',  currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true },

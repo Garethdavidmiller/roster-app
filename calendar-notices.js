@@ -14,36 +14,30 @@
  * rules worth restating because both were shipped bugs once: a notice OPENS through
  * `openNoticeIfClear`, never `open()` (two notices up, one Escape flagged the buried one seen for
  * good — v19.53); and it waits for `calendarAccessReady` (on a locked Calendar it would cover the
- * staff-PIN card, the one control on the page — v20.12).
+ * sign-in card, the one control on the page — v20.12).
  *
  * AND EVERY NOTICE DECLARES AN AUDIENCE (v21.81). `calendarAccessReady` resolves the moment access
- * is granted and says nothing about WHOSE it is, so both notices were opening on a PIN-unlocked
- * station PC — one asking the reader to check their own payslips. The rule is
- * `noticeAudienceAllows` in calendar-access-core.js, where it is pure and tested; the default is
- * `'members'`, and `'signed-out'` is for a notice whose audience is specifically people who have
- * not signed in. Open through `_openWhenAudienceAllows` rather than wiring the check per notice, so
- * a notice added later cannot quietly skip it.
+ * is granted and said nothing about WHOSE it was, so both notices of the day opened on a PIN-unlocked
+ * station PC — one asking the reader to check their own payslips. The rule is `noticeAudienceAllows`
+ * in calendar-access-core.js, where it is pure and tested. Since the staff PIN was retired (owner,
+ * 23 Nov 2026) its one audience is `'members'`: the two that existed for the PIN, `'signed-out'` and
+ * `'everyone'`, went with it — no live notice used either — and the rule refuses them. Open through
+ * `_openWhenAudienceAllows` rather than wiring the check per notice, so a notice added later cannot
+ * quietly skip it, and it still FORWARDS the declared audience to the rule rather than hardcoding
+ * one: a notice that declares anything else is refused, visibly, in testing.
  *
- * ── NO SIGNED-OUT NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.23; updated to v24.91) ──────────
+ * ── THE NOTICES THAT HAVE GONE (v23.23; updated to v24.91) ──────────────────────────────────────
  *
  * `sign-in-2026` was retired here by owner decision, not by its expiry. v23.19 made the Calendar's
  * front door a sign-in card, so its whole audience — somebody reading the roster on the staff PIN —
- * has now SEEN that card and chosen the PIN instead, and the notice spent its life re-offering a
- * choice the reader had just declined a moment earlier. `backpay-2026` followed at v23.31, deleted
- * once its hard cutoff had passed rather than left inert until the 180-day sweep.
+ * had SEEN that card and chosen the PIN instead. `backpay-2026` followed at v23.31, deleted once its
+ * hard cutoff had passed rather than left inert until the 180-day sweep.
  *
  * That left `al-booking-2026` alone until v24.82 added `timetable-2026`, v24.86 the Year to Date
  * notice that follows it and v24.91 the install notice — the same release that retired the leave
  * reminder early, by owner decision (22 Oct 2026) — then v24.94 the second timetable notice (up from
  * 16 November since v26.21) and v25.61 the New link one. The two October notices were deleted on
- * 22 Nov 2026, three weeks after they went inert, as `backpay-2026` was. Every one of them is `'members'` —
- * so **no live notice addresses the signed-out audience**, and the positive direction of the
- * audience gate has nothing to exercise it. `calendar-notices.test.mjs` can still prove a notice is REFUSED to the wrong audience and
- * that every notice is gated at all; what it can no longer prove behaviourally is that a
- * `'signed-out'` notice REACHES a PIN unlock. The next such notice restores it automatically —
- * both suites derive their matrix from this source rather than from a hand-kept list. Until then
- * a static contract carries the weight: `_openWhenAudienceAllows` must FORWARD its declared
- * audience to the rule rather than hardcode one, which is the shape the gap would otherwise hide.
+ * 22 Nov 2026, three weeks after they went inert, as `backpay-2026` was. Every one of them is `'members'`.
  */
 
 import { lsGet, lsSet } from './ls.js';
@@ -81,7 +75,7 @@ import { canOpenNewlink } from './auth-policy.js';   // the New link notice's au
  * back what the decision took (17 Nov 2026): the visit was otherwise left with no ask at all.
  *
  * @param {{ open: () => void }} lb
- * @param {'members'|'signed-out'|'everyone'} audience
+ * @param {'members'} audience  the only one there is (calendar-access-core.js → `noticeAudienceAllows`)
  * @param {() => boolean} [alsoWhen]
  * @param {() => void} [whenDecided]
  * @param {() => void} [whenRefused]
@@ -441,8 +435,7 @@ export function initCalendarNotices({ after } = {}) {
         _wireNoticeLink('newlinkNoticeGo', lb, markDone);
         document.getElementById('newlinkNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // 'members' — the page is signed-in only (owner, 2 Nov 2026), so the station PIN is never told
-        // about it. A PIN unlock is not flagged seen.
+        // 'members' — the page is signed-in only (owner, 2 Nov 2026), as every notice now is.
         _openWhenAudienceAllows(lb, 'members',
             () => canOpenNewlink(getSession()?.name) && (installNoticeDone || !installRoute()));
     }());

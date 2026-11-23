@@ -92,8 +92,8 @@ function _known() {
 
 /**
  * Should the ☰ menu offer the Marylebone Newsletter now? Asked by the drawer as it is drawn and
- * every time it opens, and by the Calendar's sign-in card (calendar-lock-cards.js), whose staff PIN
- * line names the Newsletter only while the menu does.
+ * every time it opens. (The Calendar's sign-in card asked too, for the staff PIN's line, until the PIN
+ * was retired on 23 Nov 2026.)
  * @param {Date} [now]
  * @returns {boolean}
  */

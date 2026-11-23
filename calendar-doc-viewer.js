@@ -74,7 +74,7 @@ function _takeHeldDoc() {
 /**
  * WHAT A NEWSLETTER READ SAID IS KEPT (review, 22 Nov 2026), even by a read a newer tap has superseded:
  * the ☰ menu's Newsletter row follows the latest issue's date (newsletter-recency.js), which the
- * Calendar asks once a load — and before access, on a page a notification opened on the PIN card, it
+ * Calendar asks once a load — and before access, on a page a notification opened on a sign-in card, it
  * asks nothing. An issue read here then stayed out of the menu until the next load. Only a read that
  * ANSWERED is kept (a null is the server's "none"); one that failed changes nothing.
  * @param {string} key
@@ -105,16 +105,15 @@ function _orAfter(p, ms) {
  * @param {{ authReady?: Promise<any>, accessDecided?: Promise<any>, docAccess?: { has: () => boolean, onChange: (fn: (open: boolean) => void) => (() => void) } }} [deps]
  *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). A tap while it is shut shows
  *   what to do and issues NO read, cached or live; the tap is remembered and finished when access
- *   arrives, so a notification deep link that landed on the PIN card still opens the document once
- *   the PIN is in — or once the member signs in, in place, or across the reload a sign-in still makes
- *   on a page granted before (calendar-access.js → `finishSignIn`) or a PIN unlock makes on a page a
- *   member was granted on (`unlockCalendar`), either of which carries it.
+ *   arrives, so a notification deep link that landed on a sign-in card still opens the document once
+ *   the member signs in — in place, or across the reload a sign-in still makes on a page granted
+ *   before (calendar-access.js → `finishSignIn`), which carries it.
  *   Defaults to always-open. authReady — resolves once a Firebase session exists.
  *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
  *   accessDecided — settles once the Calendar has decided access, granted or locked. This viewer
  *   is wired BEFORE that decision, so a cold deep link finds the gate shut only because nothing is
- *   decided yet; until this settles a shut gate reads "Loading…", not "enter the PIN", which told
- *   a signed-in member to use the PIN for the second their identity took to restore.
+ *   decided yet; until this settles a shut gate reads "Loading…", not "sign in", which told
+ *   a signed-in member to sign in for the second their identity took to restore.
  */
 export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise.resolve()), accessDecided = /** @type {Promise<any>} */ (Promise.resolve()), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
     const overlay  = /** @type {HTMLElement|null} */ (document.getElementById('docViewer'));
@@ -126,7 +125,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     const bodyEl   = /** @type {HTMLElement} */ (document.getElementById('docViewerBody'));
     const closeBtn = /** @type {HTMLElement} */ (document.getElementById('docViewerClose'));
     // ── THE OUTCOME IS SPOKEN (whole-app review, 10 Nov 2026) ─────────────────────────────────────────
-    // "Loading…" became "No … uploaded yet" or "Sign in, or enter the staff PIN…" with no focus move
+    // "Loading…" became "No … uploaded yet" or "Sign in to read…" with no focus move
     // and no live region, so a screen-reader user heard the dialog open and then nothing. Every
     // message now goes into ONE status line that stays in the body (index.html), so the change itself
     // is announced; a button follows it in the body, where focus already takes the reader.
@@ -145,8 +144,8 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     // already dismissed. Declared ABOVE createLightbox so onClose can reach it.
     let _openSeq = 0;
     /** The document a locked tap asked for — finished by the grant. It SURVIVES a close on purpose:
-     *  the locked message sits over the PIN card, so closing it is the only way to reach the form,
-     *  and the reader who then enters the PIN is asking for exactly the document they tapped. A tap
+     *  the locked message sits over the sign-in card, so closing it is the only way to reach the form,
+     *  and the reader who then signs in is asking for exactly the document they tapped. A tap
      *  closed while it still said "Loading…" — nothing asked of them yet — is given up (`onClose`).
      *  @type {string|null} */
     let _pendingKey = null;
@@ -155,7 +154,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     let _decided = false;
     let _waitingSeq = -1;
     /** @param {{ label: string }} d */
-    const lockedText = (d) => `Sign in, or enter the staff PIN, to read the ${d.label}.`;
+    const lockedText = (d) => `Sign in to read the ${d.label}.`;
 
     const lb = createLightbox({
         overlay, content, closeBtn,
@@ -186,7 +185,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
     /** The document on screen, read under access — so a lock can take it down. @type {string|null} */
     let _viewing = null;
 
-    // THE GRANT FINISHES A TAP THE LOCK HELD BACK (v23.17) — whoever entered the PIN is entitled to
+    // THE GRANT FINISHES A TAP THE LOCK HELD BACK (v23.17) — whoever signed in is entitled to
     // the document, and it is the one they came for. A later tap on another document replaces it.
     docAccess.onChange((open) => {
         // A LOCK WHILE A DOCUMENT IS OPEN OR LOADING (v24.56, auth review) — as the Huddle viewer
@@ -195,7 +194,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         if (!open && _viewing) {
             _openSeq++;
             showMessage(lockedText(DOCS[_viewing]), 'doc-viewer-empty');
-            _pendingKey = _viewing;   // …and the PIN it asks for finishes the open, as for a locked tap
+            _pendingKey = _viewing;   // …and the sign-in it asks for finishes the open, as for a locked tap
             _viewing = null;
             return;
         }

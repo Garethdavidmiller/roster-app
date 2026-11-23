@@ -180,7 +180,7 @@ function tapHuddle() {
 }
 
 const flush = async (n = 8) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
-const LOCKED = 'Sign in, or enter the staff PIN, to read the Daily Huddle.';
+const LOCKED = 'Sign in to read the Daily Huddle.';
 const READY  = 'The latest Huddle is ready.';
 /** A PDF Huddle: no `htmlContent`, so the viewer draws its "Open Huddle" prompt (no sanitiser needed). */
 const huddle = (/** @type {string} */ n) => ({ storageUrl: `https://firebasestorage.googleapis.com/v0/b/x/o/${n}.pdf`, storagePath: `huddles/${n}.pdf`, fileType: 'pdf' });
@@ -208,7 +208,7 @@ describe('shutting the gate takes the Huddle down', () => {
         await flush();
         assert.ok(body.innerHTML.includes(READY), 'guard: the tap must have opened the Huddle');
 
-        gate.set(false);                                   // the session expired, or the PIN rotated
+        gate.set(false);                                   // the session expired
         assert.equal(listeners[0].detached, true, 'the live listener survived the lock — it would keep delivering');
         assert.ok(body.innerHTML.includes(LOCKED), 'the open viewer still shows a Huddle its reader may no longer read');
 
@@ -228,7 +228,7 @@ describe('shutting the gate takes the Huddle down', () => {
         listeners[0].onData(huddle('monday'), false);
 
         gate.set(false);
-        gate.set(true);                                    // the PIN entered again
+        gate.set(true);                                    // signed in again
         await flush();
         assert.equal(listeners.length, 2, 'the grant must start a fresh subscription');
 
@@ -258,7 +258,7 @@ describe('shutting the gate takes the Huddle down', () => {
         assert.equal(listeners.length, 1);
         listeners[0].onData(huddle('monday'), false);
         await flush();
-        assert.ok(body.innerHTML.includes(READY), 'the tap made on the PIN card must open the Huddle once the PIN is in');
+        assert.ok(body.innerHTML.includes(READY), 'the tap made on the sign-in card must open the Huddle once the member is signed in');
     });
 });
 
@@ -338,7 +338,7 @@ describe('cal-docs-2 · a render that waited for the sanitiser draws only if it 
         assert.equal(opens.length, 1, 'one tap, one open counted');
     });
 
-    test('a lock that lands while it waits draws nothing; the viewer says what unlocks it, and the PIN brings the Huddle', async (t) => {
+    test('a lock that lands while it waits draws nothing; the viewer says what unlocks it, and a sign-in brings the Huddle', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         window.location.hash = '#huddle';
         const { initHuddleViewer } = await freshViewer();
@@ -355,7 +355,7 @@ describe('cal-docs-2 · a render that waited for the sanitiser draws only if it 
         await settle();
         listeners[1].onData(docx('CACHED'), false);
         await sanitised(2);
-        assert.match(body.innerHTML, /HUDDLE-CACHED/, 'the PIN the message asked for must bring the Huddle back');
+        assert.match(body.innerHTML, /HUDDLE-CACHED/, 'the sign-in the message asked for must bring the Huddle back');
     });
 
     test('a close while it waits is final: the viewer is not re-opened behind the member', async (t) => {
@@ -545,7 +545,7 @@ describe('cal-docs-8 · a tap leaves no dead history entry, and is not a Back pr
 });
 
 describe('the lock while the Huddle is on screen', () => {
-    test('the message asks for the PIN — and the PIN brings the Huddle back, even after the message was closed', async (t) => {
+    test('the message asks for a sign-in — and the sign-in brings the Huddle back, even after the message was closed', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });
         const { initHuddleViewer } = await freshViewer();
         const gate = makeGate(true);
@@ -556,13 +556,13 @@ describe('the lock while the Huddle is on screen', () => {
         await settle();
         gate.set(false);
         assert.ok(body.innerHTML.includes(LOCKED));
-        closeTap();                                              // the only way to reach the PIN form beneath it
+        closeTap();                                              // the only way to reach the sign-in form beneath it
         gate.set(true);
         await settle();
         listeners[1].onData(huddle('monday'), false);
         await settle();
         assert.ok(viewer.classList.contains('visible') && body.innerHTML.includes(READY),
-            'the message promised the Huddle for the PIN, and the PIN brought nothing back');
+            'the message promised the Huddle for a sign-in, and the sign-in brought nothing back');
     });
 });
 

@@ -69,8 +69,7 @@ const ANSWER_DEADLINE_MS = 8000;
  *  lives with this tab and no other; `myb_held_huddle_tap` is read and written only here. */
 const HELD_TAP_KEY = 'myb_held_huddle_tap';
 /** How old that record may be when the next load reads it. It carries a tap across a RELOAD — a
- *  sign-in on a Calendar granted before reloads the page (calendar-access.js → `finishSignIn`), and so
- *  does a staff PIN unlock on a page a member's grant built (`unlockCalendar`) — not into a visit
+ *  sign-in on a Calendar granted before reloads the page (calendar-access.js → `finishSignIn`) — not into a visit
  *  nobody would connect with the tap. */
 const HELD_TAP_CARRY_MS = 60_000;
 
@@ -225,9 +224,8 @@ function _tabbableWideTables(root) {
  *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). The subscription attaches only
  *   while it is open and is torn down when it shuts; a `#huddle` tap while shut shows a message
  *   rather than doing nothing, and is FINISHED when access arrives — a notification tap that landed
- *   on the PIN card opens the Huddle once the PIN is entered, or once the member signs in — in place,
- *   or across the reload a sign-in still makes on a page granted before, or a PIN unlock makes on a
- *   page a member was granted on (the held tap is carried across either). Defaults to always-open, which
+ *   on a sign-in card opens the Huddle once the member signs in — in place, or across the reload a
+ *   sign-in still makes on a page granted before (the held tap is carried across it). Defaults to always-open, which
  *   is what every page other than the Calendar means.
  */
 export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
@@ -246,9 +244,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // back off the history instead (the hashchange handler below).
     // ── A TAP THE LOCK HELD SURVIVES A RELOAD (whole-app review, 10 Nov 2026) ─────────────────────
     // Both sign-ins on a locked Calendar ended in `window.location.reload()` until v26.40, and the hash
-    // had been consumed long before — so a member who answered "Sign in, or enter the staff PIN, to
-    // read the Daily Huddle" by signing in got the Calendar and no Huddle. A sign-in now grants in
-    // place on a page not yet granted, and finishes the tap as the PIN does; one that still reloads
+    // had been consumed long before — so a member who answered "Sign in to read the Daily Huddle" by
+    // signing in got the Calendar and no Huddle. A sign-in now grants in place on a page not yet
+    // granted, and finishes the tap there; one that still reloads
     // (`finishSignIn`'s fallback) needs the tap the lock is holding written down as the page unloads
     // (`pagehide`, below) and taken back here.
     const held = _takeHeldTap();
@@ -342,7 +340,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         ++_bodySeq;   // an answer still on its way must not draw into, or re-open, a closed viewer
         // A tap answered with "none"/"couldn't load"/"Loading…" is DONE when dismissed. Left armed, a
         // Huddle landing later auto-opened over whatever the member had moved on to. (A LOCKED tap
-        // stays armed on purpose — closing it is how the PIN form is reached; see showLockedMessage.)
+        // stays armed on purpose — closing it is how the sign-in form is reached; see showLockedMessage.)
         if (_disarmOnClose && !_autoOpened) _autoOpen = false;
         _disarmOnClose = false;
         const focusReturn = _viewerFocusReturn;
@@ -545,9 +543,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         ++_bodySeq;
         _disarmOnClose = false;
         body.innerHTML = '<div class="huddle-open-prompt">'
-            + '<p>Sign in, or enter the staff PIN, to read the Daily Huddle.</p>'
+            + '<p>Sign in to read the Daily Huddle.</p>'
             + '</div>';
-        say('Sign in, or enter the staff PIN, to read the Daily Huddle.');
+        say('Sign in to read the Daily Huddle.');
         openViewer();
         close?.focus();
     }
@@ -798,12 +796,12 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     _startHuddleSubscriptionSafe();
 
     // THE GATE MOVES; THE SUBSCRIPTION FOLLOWS (v23.17). Opening starts the listener — for a
-    // notification tap that landed on the PIN card, `_autoOpen` is still armed, so the first
+    // notification tap that landed on a sign-in card, `_autoOpen` is still armed, so the first
     // snapshot opens the Huddle: the deep link survives the unlock. Shutting tears the listener
     // down and DROPS what it delivered, so a re-locked screen holds nothing a later tap could show;
     // if the viewer is open at that moment it says so rather than sitting on a document its reader
-    // is no longer entitled to — and, as for a locked tap, the PIN or sign-in it asks for then
-    // reopens it (until 10 Nov 2026 the message asked for the PIN and the PIN brought nothing back).
+    // is no longer entitled to — and, as for a locked tap, the sign-in it asks for then
+    // reopens it (until 10 Nov 2026 the sign-in it asked for brought nothing back).
     docAccess.onChange((open) => {
         if (open) { _startHuddleSubscriptionSafe(); return; }
         ++_subGen;   // a subscription still awaiting authReady must not attach after this

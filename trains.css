@@ -970,7 +970,7 @@ uppercase. */
 }
 
 /* The boot placeholder's other half (v24.96): the cards wait for `auth-ready`, which trains-app.js
-   sets when the page has a reader — a member, the PIN, or the sign-in overlay. shared.css owns the
+   sets when the page has a reader — a member, or the sign-in overlay. shared.css owns the
    placeholder itself. The [hidden] companion keeps `hidden` honest (page-visibility-parity). */
 body:not(.auth-ready) #trainsMain { display: none; }
 #trainsMain[hidden] { display: none; }

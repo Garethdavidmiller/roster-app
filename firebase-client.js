@@ -21,7 +21,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // lives since v21.90) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
-import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
+import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js';
 import { runWithClaimRetry, runWatchedClaimRetry, abandonOnSignOut, runGatedWrite, trackBackgroundWrite, ownWritesSent } from './claim-retry.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
@@ -130,8 +130,8 @@ export const auth = initializeAuth(app, {
  * that case: it deletes all of a tab's storage together, these fallbacks included (KNOWN_LIMITATIONS
  * → "One interaction to expect on iOS").
  *
- * Factored into a function at v20.12 because there are now TWO persistence modes and the app has to
- * be able to move between them (see `setViewerPersistence`). Signing a member in after a Calendar
+ * Factored into a function at v20.12, when the staff PIN's viewer brought a second, session-only mode
+ * (retired with the PIN, 23 Nov 2026; its boot branch below is kept until the cleanup release). Signing a member in after a Calendar
  * viewer session must restore THIS chain — and the member paths call it through
  * `restoreMemberPersistence`, never by repeating the three-step ladder, so the fallback order
  * cannot drift between the two call sites.
@@ -297,26 +297,14 @@ export async function currentUserAfterBoot(timeoutMs = AUTH_RESTORE_TIMEOUT_MS) 
  * in. The order is the whole point: `setPersistence` migrates the CURRENT user into the new
  * persistence, so doing this while the viewer is still signed in would move the shared viewer
  * session into IndexedDB — where it would survive the browser closing, which is exactly the
- * property that makes unlocking a shared office PC safe to do.
+ * property that made unlocking a shared office PC safe. (Kept until the cleanup release: a leftover
+ * viewer session from before the PIN was retired, 23 Nov 2026, is still shed this way.)
  * @returns {Promise<'indexeddb'|'local'|'session'>} the mode that took; rejects if none did
  */
 export function restoreMemberPersistence() { return _setMemberPersistence(); }
 
-/**
- * Switch to SESSION-ONLY persistence, for the shared Calendar viewer.
- *
- * This is the security boundary of the whole PIN feature: the viewer must die with the browser
- * session so that a PC left signed into a Windows account does not carry the roster into the next
- * person's day. There is deliberately NO fallback ladder here — if session persistence cannot be
- * set, the correct outcome is a rejected promise and a failed unlock, because every fallback
- * available is LONGER-lived than what was asked for. Degrading a security boundary quietly is worse
- * than refusing to cross it.
- * @returns {Promise<void>}
- */
-export function setViewerPersistence() { return setPersistence(auth, browserSessionPersistence); }
-
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged };
+export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once

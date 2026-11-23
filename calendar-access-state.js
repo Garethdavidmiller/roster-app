@@ -4,7 +4,7 @@
  *
  * Owns: the one answer to "is Calendar access held right now?", the number of the grant it is held
  *   under, and the list of who is told when either moves.
- * Does NOT own: the DECISION (calendar-access.js — sign-in, the staff PIN, re-locking), what a gate
+ * Does NOT own: the DECISION (calendar-access.js — sign-in and re-locking), what a gate
  *   does with the answer (calendar-overrides.js for the roster reads, calendar-doc-access.js for the
  *   three documents), or anything on screen.
  * Written by: calendar-access.js (`grant`, `handleAccessLost`), and calendar-overrides.js as it
