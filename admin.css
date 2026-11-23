@@ -383,9 +383,15 @@
             background: white;
             border: var(--field-border);
             border-radius: var(--radius-field);
-            white-space: nowrap;
-            overflow: hidden;        /* clip date text if wrap is narrower than content */
-            text-overflow: ellipsis; /* show … rather than abrupt cut */
+            /* A SECOND LINE, NEVER AN ELLIPSIS (owner, 23 Nov 2026). On one line at 320px the label's
+               120px box cut off 246 weeks of 261 ("30 Aug–5 Se…"), hiding which week was being edited on
+               the page that records changes. It now wraps — balanced, so the dash's two sides share the
+               lines — and only where it must: from 375px every week still fits on one line, so the row
+               keeps its 44px there (e2e/responsive.spec.js measures both). `overflow: hidden` stays only
+               as the last resort for a word wider than the box, which no week label has. */
+            white-space: normal;
+            text-wrap: balance;
+            overflow: hidden;
             cursor: pointer;
             -webkit-user-select: none;
             user-select: none;
