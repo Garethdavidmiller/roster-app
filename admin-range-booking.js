@@ -34,7 +34,7 @@ import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate,
 import { loadFailedFor, DELETE_REFUSED } from './admin-override-store.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
-import { rangeSundayCorrections } from './admin-al-projection.js';
+import { rangeSundayCorrections, yearShiftWords } from './admin-al-projection.js';
 import { holdFeedback, fadeFeedback } from './admin-booked-periods.js';
 import { clearedDaysLine, withClearedDays } from './admin-own-write.js';
 import { setStatus } from './status-text.js';
@@ -60,11 +60,11 @@ import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim
  *   sundayNote?: string }) => string} cfg.renderReady  Ready-state innerHTML. `sundays` are the Sundays
  *   this save will set as rest days (`rangeSundayCorrections`) — counted in `restCount`/`skipped`, but
  *   not skipped — and `sundayNote` says so in words, or is '' when there are none.
- * @param {(recorded: number, member: string, alreadyBooked: number, free: number, capFreed: number) => string} cfg.successFeedback  Inline ✓
+ * @param {(recorded: number, member: string, alreadyBooked: number, free: number, capFreed: number, shift?: string) => string} cfg.successFeedback  Inline ✓
  *   feedback text. `recorded` is the days charged plus `alreadyBooked`, the written days that already
  *   held leave, and `free` the days written at no cost (`projection`'s, only when the writer wrote
  *   exactly the days the plan did; otherwise the writer's own count, 0 and 0).
- * @param {(recorded: number, member: string, alreadyBooked: number, free: number, capFreed: number) => string} cfg.successToast     Bottom-toast text.
+ * @param {(recorded: number, member: string, alreadyBooked: number, free: number, capFreed: number, shift?: string) => string} cfg.successToast     Bottom-toast text.
  * @param {() => (string|null)} cfg.getCurrentUser  Live getter for the logged-in user name.
  * @param {Function}          [cfg.showInChangeAShift] Jumps Change a Shift to a member + date.
  * @param {Function}          [cfg.showSuccess]   Scroll-independent bottom success toast.
@@ -423,17 +423,20 @@ export function createRangeBookingSection(cfg) {
             // …with a new day charged that only moved its Spare week's four, free on balance (`capFreed`).
             const capFreed = typeof proj?.capFreed === 'number' ? proj.capFreed : 0;
             const free = (Array.isArray(proj?.freeWritten) ? proj.freeWritten.filter((/** @type {string} */ d) => !heldSet.has(d) && !lieu.has(d)).length : 0) + capFreed;
-            const recorded = proj && typeof proj.charged === 'number' ? proj.charged + held : workingCount;
+            // The years that RISE, a day given back to another year apart (`spent`, external review of v26.55).
+            const charged = typeof proj?.spent === 'number' ? proj.spent : proj?.charged;
+            const recorded = proj && typeof charged === 'number' ? charged + held : workingCount;
+            const shift = proj ? yearShiftWords(proj.byYear) : '';
             _say('success');
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
-            _showSaved(cfg.successFeedback(recorded, member, held, free, capFreed), member, lines);
+            _showSaved(cfg.successFeedback(recorded, member, held, free, capFreed, shift), member, lines);
             // A receipt that names days does not time out — the week grid's rule (v21.38): a manager
             // checking it against a paper request can outlast any number picked here.
             if (!lines.length) fadeFeedback(feedbackEl, 'feedback', 7000);
             // The form resets and Change-a-Shift scrolls into view below, so also fire
             // the bottom toast — confirmation must be visible regardless of scroll.
-            cfg.showSuccess?.(cfg.successToast(recorded, member, held, free, capFreed));
+            cfg.showSuccess?.(cfg.successToast(recorded, member, held, free, capFreed, shift));
 
             // A SAVE THAT LANDS LATE MAY FIND THE PAGE MOVED ON (review, 21 Nov 2026): slow, or held
             // offline until the signal came back, while the admin went on to somebody else. The range

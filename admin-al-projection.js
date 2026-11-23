@@ -51,7 +51,7 @@ import { swapDecisionDates, rangeWriteDates, absenceHiddenDates, replacedTypeFor
 import { consumesEntitlement, countedAlDates, entitlementFor, isWorkingDate, winningEntriesOfType, lowersAllowance,
     spareWeekDays } from './al-entitlement.js';
 import { isChristmasClosureDate, allowanceYearsOf } from './christmas-leave.js';
-import { carriedFrom } from './leave-year.js';
+import { carriedFrom, leaveYearOf } from './leave-year.js';
 
 /**
  * Will this one date cost a day of entitlement?
@@ -120,7 +120,10 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *   `charged` — how far the balance moves: the cost of every day it can change, after less before.
  *                  The new days charged, except where a Spare week's four moved between days already
  *                  booked and days booked now — the figure the preview and the receipt say.
- *   `capFreed` — how many of the NEW days charged leave the balance where it was, because charging them
+ *   `byYear`  — `charged` split by the year each day counts in, years that do not move left out. Different from
+ *                  `charged` only when a Spare week over New Year moves a charge between December and January.
+ *   `spent`   — the sum of the years that rise: what the save takes, a day given back to another year apart.
+ *   `capFreed` — how many of the NEW days charged leave THEIR YEAR'S balance where it was, because charging them
  *                  freed a day of the same Spare week already booked: new days charged less `charged`.
  *                  Said "at no cost" with the days written free, so no surface charges them twice.
  *   `writes`  — the leave records as the save will write them, with `swapped`, for `overridesAfterSave`.
@@ -141,7 +144,7 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
  *        `false` (genuine rest, free). A date ABSENT is unanswered, which is a state, not a default.
  * @returns {{asked: string[], unanswered: string[], consuming: string[], freeWritten: string[],
  *            skipped: string[], answeredFree: string[], christmas: string[], writing: string[], lieuLost: string[],
- *            alreadyBooked: string[], charged: number, capFreed: number,
+ *            alreadyBooked: string[], charged: number, spent: number, byYear: Array<{year: number, charged: number}>, capFreed: number,
  *            writes: Array<{date: string, type: string, value: string, swapped: boolean}>,
  *            counts: {asked:number, unanswered:number, consuming:number, freeWritten:number,
  *                     skipped:number, answeredFree:number, christmas:number, writing:number, lieuLost:number,
@@ -150,7 +153,7 @@ export function willConsume({ member, date, ovByDate = null, swapped = false }) 
 export function projectAlBooking({ member, dates, ovByDate: given = null, swapAnswers = null }) {
     const empty = { asked: [], unanswered: [], consuming: [], freeWritten: [], skipped: [], answeredFree: [], christmas: [], writing: [], lieuLost: [],
         alreadyBooked: [] };
-    if (!member || !Array.isArray(dates)) return { ...empty, charged: 0, capFreed: 0, writes: [], counts: _counts(empty) };
+    if (!member || !Array.isArray(dates)) return { ...empty, charged: 0, spent: 0, byYear: [], capFreed: 0, writes: [], counts: _counts(empty) };
     // Omitted means "nothing in play", as it does for every rule below — `isWorkingDate` alone
     // dereferences the map, and threw on the first ordinary working day without one.
     const ovByDate = given ?? new Map();
@@ -223,16 +226,35 @@ export function projectAlBooking({ member, dates, ovByDate: given = null, swapAn
     for (const d of writing) for (const w of spareWeekDays(d)) touched.add(w);
     let charged = 0;
     for (const d of touched) charged += Number(costs(afterMap, d)) - Number(costs(ovByDate, d));
+    // …AND BY YEAR (external review of v26.55). A Spare week over New Year spends its four across two allowances,
+    // so booking a December day can charge 2026 and give a day back to 2027: nothing moves in total, and each
+    // year moves by one. Each day is charged to the year its leave counts in (`leaveYearOf`, a moved January
+    // day included), before and after.
+    /** @type {Map<number, number>} */ const perYear = new Map();
+    const shift = (/** @type {Map<string, any>} */ map, /** @type {string} */ d, /** @type {number} */ by) => {
+        if (!costs(map, d)) return;
+        const y = leaveYearOf({ ...map.get(d), date: d });
+        perYear.set(y, (perYear.get(y) ?? 0) + by);
+    };
+    for (const d of touched) { shift(afterMap, d, 1); shift(ovByDate, d, -1); }
+    const byYear = [...perYear].filter(([, c]) => c !== 0).sort(([a], [b]) => a - b).map(([year, c]) => ({ year, charged: c }));
+    // What the save SPENDS — every year's rise, so a day given back to one year never hides a day taken from another.
+    const spent = byYear.reduce((n, y) => n + Math.max(0, y.charged), 0);
     // …and the new days the week's four make FREE ON BALANCE (review, 22 Nov 2026). Booking the Monday
     // of a Spare week whose Wednesday to Saturday are already booked charges the Monday and frees the
     // Saturday, so the day is in `consuming` and the balance does not move. Counted here, once, so the
     // preview, the Spare note and the receipt all say "at no cost" of it instead of "uses 1 day" over a
     // headline of "No days". Only a week's cap can free a day that was costing, so it is never negative.
-    const newCharged = consuming.filter(d => !alreadyBooked.includes(d)).length;
-    const capFreed = Math.max(0, newCharged - charged);
+    // Per year: a new day is free on balance only when its OWN year's count does not move. Netted across years, a
+    // Monday that charged 2026 and freed a day of 2027 was said "at no cost" (external review of v26.55).
+    const newIn = (/** @type {number} */ y) => consuming.filter(d => !alreadyBooked.includes(d)
+        && leaveYearOf({ ...afterMap.get(d), date: d }) === y).length;
+    const years = new Set([...byYear.map(y => y.year), ...consuming.map(d => leaveYearOf({ ...afterMap.get(d), date: d }))]);
+    let capFreed = 0;
+    for (const y of years) capFreed += Math.max(0, newIn(y) - Math.max(0, perYear.get(y) ?? 0));
 
     const out = { asked, unanswered, consuming, freeWritten, skipped, answeredFree, christmas, writing, lieuLost, alreadyBooked };
-    return { ...out, charged, capFreed, writes: writing.map(d => ({ date: d, type: 'annual_leave', value: 'AL', swapped: swappedSet.has(d) })),
+    return { ...out, charged, spent, byYear, capFreed, writes: writing.map(d => ({ date: d, type: 'annual_leave', value: 'AL', swapped: swappedSet.has(d) })),
         counts: _counts(out) };
 }
 
@@ -263,6 +285,20 @@ function writtenRecord(memberName, w, existing) {
 }
 
 
+
+/**
+ * What a booking does to each year, when it does different things to two (external review of v26.55): "1 day from
+ * 2026, 1 day back to 2027". A Spare week over New Year spends its four in date order, so a December day can take
+ * a day from one year and give one back to the next. '' when no year gets a day back — then the headline's
+ * figure is the whole story, as it is for every booking inside one year.
+ * @param {Array<{year: number, charged: number}>|undefined} byYear `projectAlBooking`'s
+ * @returns {string}
+ */
+export function yearShiftWords(byYear) {
+    if (!Array.isArray(byYear) || !byYear.some(y => y.charged < 0)) return '';
+    const n = (/** @type {number} */ c) => `${c} day${c === 1 ? '' : 's'}`;
+    return byYear.map(y => y.charged > 0 ? `${n(y.charged)} from ${y.year}` : `${n(-y.charged)} back to ${y.year}`).join(', ');
+}
 
 /**
  * The Sundays a RANGE booking — leave or absence — sets as rest days. A Sunday in the range whose
@@ -440,6 +476,17 @@ export function projectAlOverage({ member, memberName, overrides, consuming, exc
         for (const y of touched) {
             const was = entitlementFor(member, y, overrides), now = entitlementFor(member, y, after);
             if (was !== null && now !== null && now < was) yearSet.add(y);
+        }
+        // …AND EVERY YEAR WHOSE COUNTED LEAVE RISES, booked in or not (external review of v26.55). A Spare week
+        // spends its four in date order, so removing a December day of a week over New Year moves a charge onto
+        // a January day: nothing is booked in that year and its allowance is unchanged, yet it can go over. So
+        // each year a changed record's Spare week reaches is counted before and after the save.
+        const reached = new Set();
+        const reach = (/** @type {any} */ o) => { for (const d of spareWeekDays(String(o.date))) reached.add(d.substring(0, 4)); };
+        for (const o of after) if (o && o.memberName === member.name && !before.has(o)) reach(o);
+        for (const o of overrides) if (o && o.memberName === member.name && !later.has(o)) reach(o);
+        for (const y of reached) {
+            if (countedAlDates({ overrides: after, member, year: y }).size > countedAlDates({ overrides, member, year: y }).size) yearSet.add(y);
         }
     }
     const years = [...yearSet].sort();

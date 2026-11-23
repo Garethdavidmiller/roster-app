@@ -1714,6 +1714,18 @@ test.describe('trains — Back, the station card and the boxes, wired', () => {
         await expect(status).toHaveText(/^Only where the :\d\d to .+ stops\.$/);
     });
 
+    test('a tab chosen inside the typing pause keeps its own line: the match count is never said over it', async ({ page }) => {
+        // The Stations view is hidden, not its picker, when another tab is chosen, so the count the pause still owed
+        // replaced the new tab's line (external review of v26.55).
+        await open(page);
+        const status = page.locator('#trStatus');
+        await page.locator('[data-view="stations"]').click();
+        await page.locator('#trStationInput').fill('chal');
+        await page.locator('[data-view="changes"]').click();
+        await page.evaluate(() => new Promise(r => setTimeout(r, 600)));   // past the pause
+        await expect(status).not.toHaveText(/to choose from/);
+    });
+
     test('a station chosen inside the typing pause keeps its card\'s line: the match count is never said over it', async ({ page }) => {
         // The count is said once typing in the station box pauses (300 ms). Enter straight after typing opened the card,
         // whose line was said, and then the count replaced it: "1 station to choose from: Amersham" (24-hour check).
