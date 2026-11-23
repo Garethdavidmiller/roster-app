@@ -100,7 +100,9 @@
         "N. Bedingfield",
         "H. Croft",
         "N. Sobers",
-        "W. Cummings"
+        "W. Cummings",
+        "S. Fayombo",
+        "K. Matusevicute"
     ],
     "roles": {
         "admin": [
@@ -567,6 +569,22 @@
             "rosterOrder": 55,
             "hidden": true,
             "managerOnly": true
+        },
+        {
+            "name": "S. Fayombo",
+            "grade": "Other staff",
+            "startDate": null,
+            "rosterOrder": 56,
+            "hidden": true,
+            "managerOnly": false
+        },
+        {
+            "name": "K. Matusevicute",
+            "grade": "Other staff",
+            "startDate": null,
+            "rosterOrder": 57,
+            "hidden": true,
+            "managerOnly": false
         }
     ],
     "overtimeBeta": [],

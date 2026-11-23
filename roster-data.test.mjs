@@ -1340,11 +1340,14 @@ test('getMembersForGrade(Management) returns every CONFIG.MANAGER_NAMES manager 
 // theirs — so it is not lost to the `hidden` it carries. The person is INVENTED and lives only for the test.
 test('Other staff: their own sign-in group, in everybody who can sign in, and in the server\'s list', async () => {
     const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true };
-    assert.deepEqual(getMembersForGrade('Other staff'), [], 'premise: nobody holds the grade until the owner adds them');
+    const before = getMembersForGrade('Other staff').map(m => m.name);
+    assert.ok(!before.includes('Q. Example'), 'premise: the invented name is not a real login');
+    assert.deepEqual(before, teamMembers.filter(m => m.role === 'Other staff').map(m => m.name),
+        'every real Other staff row is in the group, and nothing else is');
     teamMembers.push(/** @type {any} */ (row));
     try {
         assert.ok(isOtherStaff(row) && !isOtherStaff({ ...row, otherStaff: 'yes' }), 'the flag must be exactly true');
-        assert.deepEqual(getMembersForGrade('Other staff').map(m => m.name), ['Q. Example']);
+        assert.deepEqual(getMembersForGrade('Other staff').map(m => m.name), [...before, 'Q. Example']);
         for (const g of ['CEA', 'CES', 'Dispatcher', 'Management']) {
             assert.ok(!getMembersForGrade(g).includes(/** @type {any} */ (row)), `not also listed under ${g}`);
         }
@@ -1714,7 +1717,7 @@ const ROSTER_CYCLE_LENGTHS = {
     dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS,
 };
 const VALID_ROSTER_TYPES = new Set(Object.keys(ROSTER_CYCLE_LENGTHS));
-const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management']);
+const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management', 'Other staff']);
 
 test('every teamMember has a valid rosterType', () => {
     const bad = teamMembers.filter(m => !VALID_ROSTER_TYPES.has(m.rosterType));
@@ -1828,7 +1831,7 @@ test('no two rows hold one rotating line, except a leaver\'s line taken after th
         /** @type {Map<string, any[]>} */
         const lines = new Map();
         for (const m of teamMembers) {
-            if (m.managerOnly || (m.startDate && midnight(day) < midnight(m.startDate))) continue;
+            if (m.managerOnly || isOtherStaff(m) || (m.startDate && midnight(day) < midnight(m.startDate))) continue;
             const type = resolveMemberRoster(m, day).rosterType;
             if (!ROTATING.has(type)) continue;
             const key = `${type} week ${getWeekNumberForDate(day, m)}`;

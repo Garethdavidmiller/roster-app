@@ -707,6 +707,8 @@ describe('who can be checked at all (leaveRecordability)', () => {
         assert.equal(leaveRecordability(LEAVER, YEAR), 'leaver');
         assert.equal(leaveRecordability(undefined, YEAR), 'not-in-app');
         assert.equal(leaveRecordability({ ...CEA, role: 'Trainee' }, YEAR), 'no-allowance');
+        // An Other staff login is hidden like a leaver, but is not one (owner, 23 Nov 2026).
+        assert.equal(leaveRecordability({ ...CEA, role: 'Other staff', hidden: true, otherStaff: true }, YEAR), 'no-allowance');
         assert.equal(leaveRecordability({ ...CEA, startDate: new Date(YEAR + 1, 0, 4) }, YEAR), 'no-allowance');
     });
 });

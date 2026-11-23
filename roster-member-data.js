@@ -271,5 +271,7 @@ export const teamMembers = [
     // Other staff — login-only accounts with no roster and no manager or admin rights (owner, 23 Nov 2026): they
     // see what the staff PIN shows, under their own name. One row each, in this shape:
     //   { name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },
+    { name: 'S. Fayombo',       currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },
+    { name: 'K. Matusevicute',  currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true },
     // Then `npm run generate:roster-members`, and once the functions deploy has finished, Operations → Set up accounts.
 ];

@@ -507,7 +507,7 @@ test('every functions module only destructures symbols functions/push.js actuall
 
 test('functions/roster-members.json matches active staff in roster-data.js', async () => {
     // Dynamic import so we get the live teamMembers array without module mocks.
-    const { teamMembers, CONFIG, getMembersForGrade } = await import('./roster-data.js');
+    const { teamMembers, CONFIG, signInMembers } = await import('./roster-data.js');
     const json = JSON.parse(readFileSync(join(ROOT, 'functions', 'roster-members.json'), 'utf8'));
 
     const expected = {
@@ -526,11 +526,15 @@ test('functions/roster-members.json matches active staff in roster-data.js', asy
 
     // B4: the server-owned member + role lists that setupRosterAuth trusts must match roster-data.js
     // EXACTLY — drift could disable a real account or leave a claim tier client-editable. activeMembers
-    // is the four getMembersForGrade sign-in groups, order preserved (generate-roster-members.mjs).
-    const expectedActive = [
-        ...getMembersForGrade('CEA'), ...getMembersForGrade('CES'),
-        ...getMembersForGrade('Dispatcher'), ...getMembersForGrade('Management'),
-    ].map(m => m.name);
+    // is every sign-in group in CONFIG.GRADE_ORDER, order preserved (signInMembers, roster-data.js —
+    // the one list the generator and Operations both read). It used to spell out four groups here, so
+    // it went on passing when "Other staff" became a fifth, until the first row on it.
+    const expectedActive = signInMembers().map(m => m.name);
+    for (const grade of CONFIG.GRADE_ORDER) {
+        for (const m of teamMembers.filter(t => t.role === grade && !t.hidden)) {
+            assert.ok(json.activeMembers.includes(m.name), `${m.name} (${grade}) is on the roster but has no login in roster-members.json`);
+        }
+    }
     assert.deepEqual(
         json.activeMembers, expectedActive,
         'functions/roster-members.json activeMembers is out of sync with roster-data.js.\nRun: npm run generate:roster-members'

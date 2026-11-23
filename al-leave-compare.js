@@ -65,7 +65,7 @@
  * Pure: no DOM, no Firebase. The records arrive as plain objects, one member's at a time.
  */
 
-import { getBaseShift, parseISODate, isSunday } from './roster-data.js';
+import { getBaseShift, parseISODate, isSunday, isOtherStaff } from './roster-data.js';
 import { shouldReplaceOverride, isBeforeMemberStart, isOverrideDisplaySuppressed, isChristmasOrBoxingDay } from './override-utils.js';
 import { consumesEntitlement, costsWithoutSpareCap, alPosition, entitlementFor, entitlementNote, countedAlDates } from './al-entitlement.js';
 import { projectAlBooking } from './admin-al-projection.js';
@@ -100,6 +100,8 @@ export function leaveRecordability(member, year) {
     // Management keeps the allowance of the graded post they held that year (`allowanceRole`), so that
     // year's leave is checked like anybody's. Only a year with no figure on record is a manager's.
     if (member.managerOnly || member.role === 'Management') return allowance === null ? 'manager' : null;
+    // An Other staff login is hidden too, and is not a leaver: the app holds no leave allowance for them.
+    if (isOtherStaff(member)) return 'no-allowance';
     if (member.hidden) return 'leaver';
     if (allowance === null) return 'no-allowance';
     return null;

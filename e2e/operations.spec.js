@@ -568,7 +568,10 @@ test('operations: the Account status card lists an Other staff login, and filter
     await expect(page.locator('.acct-row').filter({ hasText: 'Q. Example' })).toBeVisible();
     await expect(page.locator('#acctGradeFilter option[value="Other staff"]')).toHaveCount(1);
     await page.locator('#acctGradeFilter').selectOption('Other staff');
-    await expect(page.locator('.acct-row')).toHaveCount(1);
+    // Every Other staff login on the real roster, plus the invented one — and nobody else.
+    const expected = [...teamMembers.filter(m => m.role === 'Other staff').map(m => m.name), 'Q. Example'];
+    await expect(page.locator('.acct-row')).toHaveCount(expected.length);
+    for (const name of expected) await expect(page.locator('.acct-row').filter({ hasText: name })).toHaveCount(1);
 });
 
 test('operations: Account-status email rows keep Edit/Remove on-screen at 375px, and a long address wraps whole', async ({ page }) => {

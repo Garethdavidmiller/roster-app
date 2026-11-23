@@ -52,11 +52,13 @@ const { teamMembers, CONFIG } = rosterData;
  */
 const PUBLIC_MEMBER_FIELDS = /** @type {const} */ ({
     name:          'The display name, in the form staff already use on a printed roster.',
-    role:          'CEA / CES / Dispatcher / Management — the grade, which the roster prints.',
+    role:          'CEA / CES / Dispatcher / Management / Other staff — the grade, which the roster prints.',
     rosterType:    'Which shift pattern they follow. The patterns themselves are public too.',
     currentWeek:   'Where in that pattern they sit. Meaningless without the pattern, and both are public.',
     hidden:        'A display flag — leavers and management rows the picker does not offer.',
     managerOnly:   'A display flag — a login-capable account with no roster of its own.',
+    otherStaff:    'A display flag — a login-capable account with no roster and no manager rights '
+        + '(owner, 23 Nov 2026). Says only that the name signs in; why they do is never written here.',
     startDate:     'When their roster begins. On the printed roster as the week they first appear.',
     noProRate:     'A pay flag for a secondment return. Carries no figure.',
     proRatedAL:    'A joining year’s leave entitlement in days. A number of days off, not pay.',
