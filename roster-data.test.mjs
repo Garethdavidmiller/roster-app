@@ -57,6 +57,8 @@ import {
     workEmailLocalPart,
     workEmailFrom,
     getMembersForGrade,
+    signInMembers,
+    isOtherStaff,
     parseSmartFloatOrNull,
 } from './roster-data.js';
 // The grade on a day lives beside the data it reads, in a module of its own (roster-data.js is at its size cap).
@@ -1332,6 +1334,30 @@ test('getMembersForGrade(Management) returns every CONFIG.MANAGER_NAMES manager 
         assert.ok(names.includes(mgr), `Management login group must include active manager ${mgr}`);
     }
     assert.ok(names.length >= CONFIG.MANAGER_NAMES.length, 'Management group must not be empty');
+});
+
+// THE "OTHER STAFF" GRADE (owner, 23 Nov 2026): a login with no roster, picked by its own flag as managers are by
+// theirs — so it is not lost to the `hidden` it carries. The person is INVENTED and lives only for the test.
+test('Other staff: their own sign-in group, in everybody who can sign in, and in the server\'s list', async () => {
+    const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true };
+    assert.deepEqual(getMembersForGrade('Other staff'), [], 'premise: nobody holds the grade until the owner adds them');
+    teamMembers.push(/** @type {any} */ (row));
+    try {
+        assert.ok(isOtherStaff(row) && !isOtherStaff({ ...row, otherStaff: 'yes' }), 'the flag must be exactly true');
+        assert.deepEqual(getMembersForGrade('Other staff').map(m => m.name), ['Q. Example']);
+        for (const g of ['CEA', 'CES', 'Dispatcher', 'Management']) {
+            assert.ok(!getMembersForGrade(g).includes(/** @type {any} */ (row)), `not also listed under ${g}`);
+        }
+        assert.deepEqual(signInMembers(), CONFIG.GRADE_ORDER.flatMap(getMembersForGrade), 'every grade, in the sign-in\'s order');
+        assert.ok(signInMembers().includes(/** @type {any} */ (row)));
+        const { buildRosterMembers } = await import('./scripts/generate-roster-members.mjs');
+        const built = /** @type {any} */ (buildRosterMembers());
+        assert.ok(built.activeMembers.includes('Q. Example'), 'the server gives them an account (activeMembers)');
+        assert.ok(!Object.values(built.roles).flat().includes('Q. Example'), 'and no claim tier beyond a member\'s');
+        assert.ok(!built.cea.includes('Q. Example') && !built.ces.includes('Q. Example'), 'nor a pay reminder');
+    } finally {
+        teamMembers.splice(teamMembers.indexOf(/** @type {any} */ (row)), 1);
+    }
 });
 
 // A LEAVER LEFT ON A ROLE LIST KEEPS A WORKING LOGIN (review D5, Nov 2026). setupRosterAuth unions every

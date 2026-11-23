@@ -40,12 +40,16 @@ all read. The field reference is here, beside the data.
   name: 'N. Surname',      // MUST match Firestore memberName exactly
   currentWeek: 3,
   rosterType: 'main',      // 'main' | 'bilingual' | 'fixed' | 'ces' | 'dispatcher'
-  role: 'CEA',             // 'CEA' | 'CES' | 'Dispatcher' | 'Management' — the grade NOW
+  role: 'CEA',             // 'CEA' | 'CES' | 'Dispatcher' | 'Management' | 'Other staff' — the grade NOW
   roleHistory: [{ role: 'CEA', until: new Date(2026, 10, 21) }], // Optional — earlier grades, each with
                            // its LAST day (midnight local, inclusive), oldest first; read through
                            // roleOn / rolesInRange (roster-roles.js). Never deleted (OPERATIONS_REFERENCE → A member changes grade)
   hidden: false,           // Optional — hides from dropdown
   managerOnly: false,      // Optional — login-only manager/clerk account (Management group); hidden from the calendar member selector, has no roster of its own
+  otherStaff: false,       // Optional — an "Other staff" login (owner, 23 Nov 2026): no roster, no manager or admin
+                           // rights; sees what the staff PIN shows plus their own Settings. Always with
+                           // role: 'Other staff' and hidden: true, never on a CONFIG role list (validateTeamMembers).
+                           // Picked by its flag, like managerOnly (getMembersForGrade, signInMembers); a leaver's row is REMOVED.
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
   bilingualContract: true, // Optional — this CEA holds a BILINGUAL CONTRACT: 34 days' leave, not 32.
                            // The CONTRACT, not the line. A plain CEA is routinely placed on a bilingual

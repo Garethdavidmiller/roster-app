@@ -31,6 +31,8 @@ cannot open their own roster on their last week.
       selector), so `getMembersForGrade('Management')` does not filter on it: hiding one changes
       nothing, they stay in the deployed `activeMembers`, step 5 never disables them and step 6
       reads clean. Their rows hold no roster to resolve. Then step 2b for `CONFIG.MANAGER_NAMES`.
+      **An Other staff login (`otherStaff`) is the same exception, for the same reason: REMOVE the row.**
+      It carries `hidden: true` too and is picked by its flag. It holds no role, so there is no step 2b.
 
 - [ ] **2b · If they held a ROLE, remove them from it too** — `CONFIG.ADMIN_NAMES`,
       `CONFIG.MANAGER_NAMES` or `CONFIG.LINKS_DESIGNERS` in `roster-data.js`. Those three lists are

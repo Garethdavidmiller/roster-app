@@ -1249,6 +1249,28 @@ guide's own top margin, two pay columns, a print size removed, the button at 12p
 `<p>` label, the table's word-break rule removed, the tips' grid taken out of the stacking rule, and the
 Railcard guide's screen sizes reaching paper — each failed its test.
 
+## An "Other staff" login: the staff PIN's view under a person's own name (owner, 23 Nov 2026)
+
+**Decided:** a grade for people with no roster of their own and no manager or admin rights. They sign in
+individually and see what the staff PIN shows, plus their own Settings (owner's choices: "PIN view +
+Settings", the grade named "Other staff" in the sign-in list, the same 60-day session as everyone, and
+the PIN kept for now). The owner's direction is to **phase the PIN out**; this is the first step, and
+retiring the PIN is a separate change once everybody who uses it has a login of their own, so nobody is
+locked out on the day.
+
+**How, and why that way.** The row is a `teamMembers` entry like a manager's (`hidden`, picked by its own
+flag), so the sign-in, the server's account list and Operations all reach it through one function,
+`signInMembers`. The account is a **plain member**, not a new claim tier: a member can already read the
+roster and write only their own records, and that is the access this grade needs, so the security rules
+did not change and there was no backend-first release to order. What the grade TAKES AWAY — Admin, Pay,
+Overtime, Links, New link — is the client's page policy (`otherStaff` in `PAGE_POLICIES`) and one drawer
+gate (`isNotOtherStaff`). That is UX, not a boundary, and it does not need to be one: a member opening
+Admin by its address could only record leave against a roster they do not have.
+
+**Not chosen:** a new `viewer` claim with its own rules. It would have made the rules the boundary for
+something no rule needs to stop, at the cost of a rules release, a Functions release and a second claim
+for every write path to reason about.
+
 ## The 55-hour row takes a cover week at its worst, as every run does (17 Nov 2026)
 
 **Decided (17 Nov 2026, under the owner's "do all" on a whole-app review):** the Links fatigue row "More

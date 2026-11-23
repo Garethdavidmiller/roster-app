@@ -40,7 +40,7 @@ describe('rolesFor (real CONFIG)', () => {
     // `roles[r]` for each name in a page's role list, so a flag that quietly stops being returned
     // makes every page requiring it fail closed — and a flag that quietly appears is a new
     // privilege nobody reviewed. Either way the shape is what has to be pinned.
-    const NO_ROLES = { admin: false, manager: false, designer: false, overtimeBeta: false, newlinkPreview: false, newlinkAudience: false };
+    const NO_ROLES = { admin: false, manager: false, designer: false, overtimeBeta: false, newlinkPreview: false, newlinkAudience: false, otherStaff: false };
     test('a name in no list → all false', () => assert.deepEqual(rolesFor(PLAIN), NO_ROLES));
     test('null/undefined → all false', () => {
         assert.deepEqual(rolesFor(null), NO_ROLES);
@@ -341,5 +341,52 @@ describe('the station PIN — which pages it may read (v24.84)', () => {
     test('admitting the PIN changes nothing about who counts as a member there', () => {
         assert.equal(requirePage({ status: 'signedOut', member: null }, 'trains').decision, 'login',
             'Trains still asks a signed-out browser to sign in — the PIN is asked for separately, first');
+    });
+});
+
+// ── THE "OTHER STAFF" GRADE (owner, 23 Nov 2026) ────────────────────────────────────────────────────────────
+// A login with no roster and no rights beyond a member's, shown what the staff PIN shows plus their own Settings.
+// The person here is INVENTED and lives only for the test (tests use invented people only).
+describe('the Other staff grade — the PIN\'s pages and Settings, nothing else', () => {
+    const OTHER = 'Q. Example';
+    /** @type {any[]} */ let members;
+    before(async () => {
+        ({ teamMembers: members } = await import('./roster-data.js'));
+        members.push({ name: OTHER, currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true });
+    });
+    after(() => { const i = members.findIndex(m => m.name === OTHER); if (i !== -1) members.splice(i, 1); });
+
+    test('rolesFor reads the flag from the member\'s own row, and only that row', () => {
+        assert.equal(rolesFor(OTHER).otherStaff, true);
+        assert.deepEqual({ ...rolesFor(OTHER), otherStaff: false }, rolesFor(PLAIN), 'no role besides the grade');
+        assert.equal(rolesFor(PLAIN).otherStaff, false);
+        assert.equal(rolesFor(MANAGER).otherStaff, false, 'a manager is not Other staff');
+    });
+
+    test('the pages: exactly the PIN\'s and Settings admit them; every other named page refuses', () => {
+        for (const page of Object.keys(PAGE_POLICIES)) {
+            const d = requirePage(snap('named', OTHER), page).decision;
+            const theirs = PAGE_POLICIES[page].otherStaff === true || !PAGE_POLICIES[page].requireNamed;
+            assert.equal(d, theirs ? 'allow' : 'forbidden', `${page}: ${d}`);
+        }
+        assert.deepEqual(Object.keys(PAGE_POLICIES).filter(p => PAGE_POLICIES[p].otherStaff).sort(),
+            [...Object.keys(PAGE_POLICIES).filter(p => PAGE_POLICIES[p].staffPin), 'settings'].sort(),
+            'the grade is the staff PIN\'s pages plus Settings — owner, 23 Nov 2026');
+    });
+
+    test('the Pay Calculator refuses them though it is soft — and still never blocks anybody else', () => {
+        assert.equal(requirePage(snap('named', OTHER), 'paycalc').decision, 'forbidden');
+        assert.equal(requirePage(snap('named', PLAIN), 'paycalc').decision, 'allow');
+        assert.equal(requirePage(snap('signedOut'), 'paycalc').decision, 'soft-allow');
+    });
+
+    test('Admin refuses them, where it admits a plain member', () => {
+        assert.equal(requirePage(snap('named', OTHER), 'admin').decision, 'forbidden');
+        assert.equal(requirePage(snap('named', PLAIN), 'admin').decision, 'allow');
+    });
+
+    test('only a NAMED session is refused by grade: before identity settles, the usual answers', () => {
+        assert.equal(requirePage(snap('resolving', OTHER), 'settings').decision, 'pending');
+        assert.equal(requirePage(snap('signedOut', OTHER), 'admin').decision, 'login');
     });
 });

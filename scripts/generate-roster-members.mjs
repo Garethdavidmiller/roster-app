@@ -21,7 +21,7 @@
  *
  * Importing this module writes nothing; only running it as a script does.
  */
-import { teamMembers, CONFIG, getMembersForGrade } from '../roster-data.js';
+import { teamMembers, CONFIG, signInMembers } from '../roster-data.js';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -33,17 +33,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
  * @returns {Record<string, unknown>}
  */
 export function buildRosterMembers() {
-    // activeMembers is every member who can sign in: the same four getMembersForGrade groups the login
-    // overlays offer, in the same order. Do NOT re-derive it with a plain `!m.hidden` filter: managers carry
-    // `hidden: true` by convention and are selected by managerOnly, so a naive filter would drop every one
-    // (and orphan-removal would then disable them). Using getMembersForGrade keeps the sign-in lists and
-    // the server's provisioned set one list (B4).
-    const activeMembers = [
-        ...getMembersForGrade('CEA'),
-        ...getMembersForGrade('CES'),
-        ...getMembersForGrade('Dispatcher'),
-        ...getMembersForGrade('Management'),
-    ].map(m => m.name);
+    // activeMembers is every member who can sign in: the sign-in's own grade groups, in the same order
+    // (`signInMembers`). Do NOT re-derive it with a plain `!m.hidden` filter: managers and Other staff carry
+    // `hidden: true` by convention and are selected by their flags, so a naive filter would drop every one
+    // (and orphan-removal would then disable them). One function keeps the sign-in lists and the server's
+    // provisioned set one list (B4).
+    const activeMembers = signInMembers().map(m => m.name);
 
     // ── Overtime (OVERTIME_AVAILABILITY.md) ──────────────────────────────────────────────────────────
     // WHO EXISTS, not who is asked. The two were the same thing until v20.72, when this list was

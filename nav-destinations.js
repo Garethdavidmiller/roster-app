@@ -26,12 +26,16 @@
  * on every page and the drawer doubles as a map rather than a list of exits.
  * colorClass is the page's own colour, Admin's navy with gold text (css-tokens.md → "A page is one
  * colour and one emoji"); `label` is its emoji and name, which its header and About badges repeat.
- * @type {ReadonlyArray<{ id: string, label: string, url: string, colorClass: string, adminOnly?: boolean, linksDesignerOnly?: boolean, overtimeAudienceOnly?: boolean, newlinkAudienceOnly?: boolean }>}
+ * `otherStaffHidden` — not drawn for an "Other staff" login (owner, 23 Nov 2026), who is shown the staff PIN's pages
+ * and Settings; drawn for everyone else, signed out and the PIN included. auth-policy.js refuses the same pages. Its
+ * gate, `isNotOtherStaff`, is the one `initNavPanel` defaults to TRUE: a page that passes no gates (signed out, or the
+ * PIN) keeps Admin and Pay as it always has, and every page that knows its member spreads `navGatesFor`.
+ * @type {ReadonlyArray<{ id: string, label: string, url: string, colorClass: string, adminOnly?: boolean, linksDesignerOnly?: boolean, overtimeAudienceOnly?: boolean, newlinkAudienceOnly?: boolean, otherStaffHidden?: boolean }>}
  */
 export const NAV_PAGES = Object.freeze([
     { id: 'calendar',   label: '📅 Calendar',   url: './',      colorClass: 'nav-panel-pill--calendar'   },
-    { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
-    { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
+    { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin',      otherStaffHidden: true },
+    { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay',        otherStaffHidden: true },
     { id: 'operations', label: '🔧 Operations',   url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
     { id: 'links',      label: '🔗 Links',         url: './links.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
     // Overtime's audience only (filtered, not the boundary — the page and server gate themselves).
@@ -101,17 +105,18 @@ export const SECTION_MODS = Object.freeze({ Pay: 'pay', Links: 'links', Settings
 
 /**
  * Each flag a `NAV_PAGES` entry may carry, and the gate (an `initNavPanel` option, from `navGatesFor`)
- * that must be true for the pill to be drawn. A fifth gate is one entry here and one in `navGatesFor`.
- * @type {Readonly<Record<'adminOnly'|'linksDesignerOnly'|'overtimeAudienceOnly'|'newlinkAudienceOnly', 'isAdmin'|'isLinksDesigner'|'canOpenOvertime'|'canOpenNewlink'>>}
+ * that must be true for the pill to be drawn. A sixth gate is one entry here and one in `navGatesFor`.
+ * @type {Readonly<Record<'adminOnly'|'linksDesignerOnly'|'overtimeAudienceOnly'|'newlinkAudienceOnly'|'otherStaffHidden', 'isAdmin'|'isLinksDesigner'|'canOpenOvertime'|'canOpenNewlink'|'isNotOtherStaff'>>}
  */
 export const PILL_GATES = Object.freeze({
     adminOnly:            'isAdmin',
     linksDesignerOnly:    'isLinksDesigner',
     overtimeAudienceOnly: 'canOpenOvertime',
     newlinkAudienceOnly:  'canOpenNewlink',
+    otherStaffHidden:     'isNotOtherStaff',
 });
 
-/** @typedef {{ isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean }} NavGates */
+/** @typedef {{ isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, canOpenNewlink?: boolean, isNotOtherStaff?: boolean }} NavGates */
 
 /**
  * The pills a person sees, in menu order, each marked `current` when it is the page they are on. A

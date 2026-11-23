@@ -732,6 +732,30 @@ and the issue says so.
 workflow notices and stands down; nothing else needs touching. The `.nojekyll` file is what the
 branch build needs, so it stays either way.
 
+## Adding an Other staff login
+
+For somebody who needs the roster but has none of their own and no manager rights (owner, 23 Nov 2026).
+They sign in under their own name and see what the staff PIN shows — everyone's roster, read-only;
+Trains; the Huddle, Circular and Newsletter — plus their own Settings, so they can change their password
+and turn on notifications. No Admin, Pay Calculator, Overtime, Links or New link.
+
+1. **One row** in `teamMembers` (`roster-member-data.js`), in the shape at the foot of the array:
+   `{ name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true }`.
+   `currentWeek` and `rosterType` are placeholders — the row is never drawn. Never put the name on a
+   `CONFIG` role list: `validateTeamMembers` refuses it, because a role list would carry that role's claim.
+2. **`npm run generate:roster-members`** in the same commit, bump, push, merge.
+3. **Once Deploy Firebase Functions has finished,** Operations → Staff Login Accounts → **Set up accounts**.
+   The account is a plain member login, password their surname, as for everyone else.
+4. They sign in from the Calendar, choosing **Other staff** in the grade list (it appears once the
+   first row exists). Operations → Account status lists them, with an "Other staff" filter.
+
+Leaving: remove the row (Removing a staff member, below — the managers' exception applies).
+
+**What the server sees.** A plain member — `{ name, member }`, no new claim — so the security rules need
+nothing new: they can read the roster, as the PIN can, and write only what any member writes for
+themselves (their password status, work email, notification devices). The grade narrows the PAGES on the
+client (`auth-policy.js`, `otherStaff`), which is the UX layer, not the boundary (AUTH_AND_SESSIONS 6).
+
 ## Removing a staff member
 
 Six steps, and **the order matters** — step 2 changes what the roster parser can read, and steps 5
@@ -759,6 +783,9 @@ ships both.
 There is no end-date field — `startDate` has no counterpart — so until this lands their base roster keeps producing
 shifts: they appear in the calendar and in Team Week View as though still working. Nothing breaks,
 but a manager planning a week is reading a line nobody is on. Do it promptly once step 1 is done.
+
+**An Other staff login (`otherStaff`) is the same exception: remove the ROW.** It is hidden and picked by its
+flag for the same reason, and it holds no role list to clear.
 
 **A manager or clerk (`managerOnly`) is the exception: remove their ROW from `teamMembers`.**
 Every active Management row already carries `hidden: true` (it keeps them off the Calendar's member

@@ -4,11 +4,11 @@
  * Split out of pages.spec.js on 3 Nov 2026, test for test and unchanged: the tests that span
  * pages, and the shared drawer, dialogs and sheets, stay there.
  */
-import { test, expect, isoDaysAgo } from './fixtures.js';
+import { test, expect, isoDaysAgo, withOtherStaff } from './fixtures.js';
 import { NEWSLETTER_LATEST_KEY } from '../newsletter-recency.js';
 import AxeBuilder from '@axe-core/playwright';
 import { collectFatalErrors, seedSession, seedMember, openRosterReview, stubPerfReads, perfSamples, stubUsageReads, usageStats, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject, pastDoubleTap } from './helpers.js';
-import { teamMembers, getBaseShift } from '../roster-data.js';
+import { teamMembers, getBaseShift, signInMembers } from '../roster-data.js';
 import { LOST_PHONE } from '../operations-reset.js';
 import { alSheetFixture } from './al-sheet-fixture.js';
 import { describeRefusal } from '../al-leave-file.js';
@@ -511,7 +511,7 @@ const LONG_EMAIL = 'firstname.considerablylongersurname@chilternrailways.co.uk';
 /** Serve the account cards one stored address — LONG_EMAIL, for the first member the card lists.
  *  @param {import('@playwright/test').Page} page */
 async function seedLongEmail(page) {
-    const first = teamMembers.find(m => !m.hidden || m.managerOnly)?.name;
+    const first = /** @type {any} */ (signInMembers()[0])?.name;   // the card lists everybody who can sign in, in the sign-in's order
     await page.addInitScript(([name, email]) => {
         /** @type {any} */ (window).__E2E = { authUser: true, docs: [], docsByPath: {
             staffContact: [{ id: name, memberName: name, workEmail: email }], passwordStatus: [], resetRequests: [] } };
@@ -555,6 +555,22 @@ async function longEmailRow(page) {
 // Account-status email rows must not overflow the card on a narrow phone (merged card, v18.65) — the
 // v14.35 bug class, where a long address forced the row wide and overflow:hidden clipped the fixed-width
 // Edit/Remove buttons. They stay on-screen now because the address WRAPS beside them, whole.
+// THE ACCOUNT CARD LISTS EVERYBODY WHO CAN SIGN IN (owner, 23 Nov 2026). It used to pick its people with
+// `!hidden || managerOnly`, which would have left every Other staff login off the card that shows whether they
+// have set their own password — they are hidden, like managers. The person here is INVENTED.
+test('operations: the Account status card lists an Other staff login, and filters by that grade', async ({ page }) => {
+    await withOtherStaff(page, 'Q. Example');
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [],
+        docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (document.querySelector('#accountStatusCard .card-header-toggle'))?.click());
+    await expect(page.locator('.acct-row').filter({ hasText: 'Q. Example' })).toBeVisible();
+    await expect(page.locator('#acctGradeFilter option[value="Other staff"]')).toHaveCount(1);
+    await page.locator('#acctGradeFilter').selectOption('Other staff');
+    await expect(page.locator('.acct-row')).toHaveCount(1);
+});
+
 test('operations: Account-status email rows keep Edit/Remove on-screen at 375px, and a long address wraps whole', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 760 });
     await seedLongEmail(page);

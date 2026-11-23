@@ -11,7 +11,8 @@ once step 2's functions deploy has finished.
 
 ## Step 1 — `roster-member-data.js` (always required; re-exported by `roster-data.js`)
 
-- [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `permanentShift`, `bilingualContract`, `noProRate`, `rosterChanges`; see CLAUDE.md → teamMembers fields)
+- [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `otherStaff`, `permanentShift`, `bilingualContract`, `noProRate`, `rosterChanges`; see `.claude/rules/roster-data.md`)
+  - **Somebody with no roster and no manager rights** (an "Other staff" login, owner 23 Nov 2026): one row in the shape at the foot of `teamMembers` — `role: 'Other staff', hidden: true, otherStaff: true` — and nothing else on this list but the regenerate, the deploy and Set up accounts. OPERATIONS_REFERENCE.md → "Adding an Other staff login".
 - [ ] **Run `npm test`: a new name must not share a login with anybody already in `teamMembers`, leavers (`hidden`) included.** The login is made from the name (`nameToEmail`, `auth-identity.js`): the first part's letters, a full stop, then the rest of the name with everything but the letters a–z dropped, all in lower case — so "A. Mc Donald" and "A. McDonald" are ONE login. `auth-identity.test.mjs` refuses a clash ("X and Y would share the login …"), and the pay calculator's namespace test usually fails beside it on the same clash. Missed, Set up accounts would refuse to hand the other member's account over, and the new starter would be left with no login, listed as failed ("… holds an account claimed for …").
   - Change the NEW starter's roster name (more of the first name), never the existing member's: their Firestore records are filed under it.
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**

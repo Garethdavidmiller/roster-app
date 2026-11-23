@@ -115,7 +115,7 @@ mock.module('./select-sheet.js', { namedExports: { enhanceSelect: (/** @type {an
 mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
 const { runNamedSignIn, signInDeps, isAboutLinkAllowed, dismissLoginOverlay, resetRequestFailureLine, initLoginOverlay } = await import('./login-overlay.js');
-const { getMembersForGrade, CONFIG } = await import('./roster-data.js');
+const { getMembersForGrade, CONFIG, teamMembers } = await import('./roster-data.js');
 
 // The card's DOM-free rules live in login-core.js (Nov 2026) and are re-exported here: the SAME
 // functions, so every test below that reaches them through login-overlay.js tests the real ones.
@@ -592,6 +592,19 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         signInGate = new Promise(r => { open = () => { signInGate = null; r(); }; });
         return () => open();
     }
+
+    // ── A GRADE NOBODY HOLDS IS NOT OFFERED (owner, 23 Nov 2026) ───────────────────────────────────────
+    // "Other staff" is in CONFIG.GRADE_ORDER before anybody holds it; offered, it led to an empty name list.
+    test('the grade picker offers only grades somebody holds — Other staff appears with its first login', () => {
+        const offered = () => mount().grade.options.map((/** @type {any} */ o) => o.value).filter(Boolean);
+        assert.deepEqual(offered(), CONFIG.GRADE_ORDER.filter((/** @type {string} */ g) => getMembersForGrade(g).length > 0));
+        assert.ok(!offered().includes('Other staff'), 'premise: nobody holds the grade yet');
+        const row = { name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true };
+        teamMembers.push(/** @type {any} */ (row));
+        try {
+            assert.ok(offered().includes('Other staff'), 'an invented Other staff login brings the grade into the picker');
+        } finally { teamMembers.splice(teamMembers.indexOf(/** @type {any} */ (row)), 1); }
+    });
 
     // ── A SLOW ANSWER IS NOT A FAILURE (external review, 23 Nov 2026) ─────────────────────────────────
     // On patchy Wi-Fi the card said "Couldn’t complete sign-in" at 8 seconds, and Firebase signed the

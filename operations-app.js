@@ -11,7 +11,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, workEmailFrom, escapeHtml } from './roster-data.js';
+import { CONFIG, signInMembers, isValidEmail, isChilternWorkEmail, workEmailFrom, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -274,9 +274,10 @@ export function init() {
         const contentEl = document.getElementById('accountStatusContent');
         if (!contentEl) return;
         const content = /** @type {HTMLElement} */ (contentEl);
-        // Eligible = active accounts + management (managerOnly: off the calendar but login-capable); no
-        // leavers. Management have Settings too, so for them this card is a convenience, not the only route.
-        const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
+        // Eligible = everybody who can sign in, grade by grade (`signInMembers`): the roster, the managers and
+        // Other staff, who are off the calendar but login-capable; no leavers. Everyone listed has Settings too,
+        // so this card is a convenience for them, not the only route.
+        const eligible = signInMembers();
         /** @type {Map<string, string>} name → work email */
         let emailMap = new Map();
         /** @type {Map<string, any>} name → passwordStatus doc */
@@ -571,7 +572,8 @@ export function init() {
             filterSelect.id = 'acctGradeFilter';
             filterSelect.className = 'email-filter-select';
             filterSelect.setAttribute('aria-label', 'Filter by grade');
-            [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher'], ['Management', 'Management']].forEach(([val, lbl]) => {
+            // Every grade the sign-in groups by (`CONFIG.GRADE_ORDER`), so a new grade is a filter as soon as it exists.
+            [['', 'All grades'], ...CONFIG.GRADE_ORDER.map((/** @type {string} */ g) => [g, g])].forEach(([val, lbl]) => {
                 const opt = document.createElement('option'); opt.value = val; opt.textContent = lbl; filterSelect.appendChild(opt);
             });
             filterRow.appendChild(filterSelect);
