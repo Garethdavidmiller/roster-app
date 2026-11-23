@@ -25,16 +25,12 @@
  * Dispatcher copy, which is the point: that email would otherwise go on telling Dispatchers to
  * ignore a calculator that now works for them.
  *
- * ── THE PIN ─────────────────────────────────────────────────────────────────────────────────────
+ * ── NO STAFF PIN ────────────────────────────────────────────────────────────────────────────────
  *
- * The real staff PIN must never be written into these files: it lives only in the
- * CALENDAR_VIEWER_PIN secret. No test can look for the digits, because a test that knew them would
- * be the leak. One CAN check the box they would be typed into, so in all four files the PIN box
- * must hold the placeholder and nothing else. A copy filled in for a real colleague and saved over
- * a template fails as well, because its placeholders are gone.
- *
- * And a failure must not repeat what it found. These messages land in a public CI log, so the PIN
- * box's contents are never printed, and any four-digit run in a printed snippet is masked.
+ * Section 5, "The staff PIN", and its `{{STAFF_PIN}}` box went with the PIN (owner, 23 Nov 2026):
+ * only a member's own sign-in opens the app. So no file may carry that box, its placeholder or the
+ * words that sent a reader to it, and the placeholder test below no longer expects it. A failure
+ * here never prints a four-digit run (`masked`), as when the box held one.
  *
  * ── IT FITS A PHONE ─────────────────────────────────────────────────────────────────────────────
  *
@@ -42,15 +38,15 @@
  * 16px text came out at about 10px (owner, 11 Nov 2026). It is fluid now: 100% wide, capped at
  * 600px. Classic Outlook on Windows ignores the cap, so a wrapper only Outlook reads holds it at
  * 600px there. What is pinned here is what keeps it so: nothing fixed wider than the narrowest
- * phone, the card's own width 100%, and Outlook's wrapper around it. The two big one-word boxes,
- * the password and the PIN, may wrap, because a surname is one word and the longest on the roster
- * do not fit a small phone in 28px type. This reads the source. The fit itself was measured in a
- * browser, at 320 to 412px with the longest surname, when the card was made fluid; it is not re-run.
+ * phone, the card's own width 100%, and Outlook's wrapper around it. The big one-word box, the
+ * password, may wrap, because a surname is one word and the longest on the roster do not fit a
+ * small phone in 28px type. This reads the source. The fit itself was measured in a browser, at 320
+ * to 412px with the longest surname, when the card was made fluid; it is not re-run.
  *
  * ── WHAT IT CANNOT SEE ──────────────────────────────────────────────────────────────────────────
  *
- * The PIN written anywhere other than its box. Whether the wording is RIGHT, only that the four
- * copies agree. The header comments, which differ by design. How a real mail app draws any of it.
+ * Whether the wording is RIGHT, only that the four copies agree. The header comments, which differ
+ * by design. How a real mail app draws any of it.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -125,9 +121,6 @@ function firstDifference(/** @type {string} */ a, /** @type {string} */ b) {
     return `\n  this file: …${around(a)}…\n  expected:  …${around(b)}…`;
 }
 
-/** The PIN box: the big text under the "The staff PIN" label. */
-const PIN_BOX = /The staff PIN<\/div>\s*<div\b[^>]*>([\s\S]*?)<\/div>/g;
-
 /** The placeholders the reader would see, sorted and de-duplicated. */
 const placeholders = (/** @type {string} */ html) =>
     [...new Set(visible(html).match(/\{\{[A-Z_]+\}\}/g) || [])].sort();
@@ -170,17 +163,20 @@ test('the Pay Calculator section follows the app: the copy for a grade without r
     }
 });
 
-test('the PIN box holds the placeholder and nothing else, in all four files', () => {
+test('no file carries the staff PIN — its section, its box, its placeholder or its link (retired 23 Nov 2026)', () => {
     for (const file of [GENERAL, ...Object.keys(COPIES)]) {
-        const boxes = [...read(file).matchAll(PIN_BOX)];
-        assert.equal(boxes.length, 1, `${file} should have one PIN box (the text under "The staff PIN")`);
-        // Never print what is in the box: if this fails, what is there may be the PIN.
-        assert.ok(boxes[0][1].trim() === '{{STAFF_PIN}}',
-            `${file}: the PIN box holds something other than {{STAFF_PIN}}. The real PIN is never ` +
-            'written into these files; it goes in the mail client.');
+        const seen = visible(read(file));
+        for (const [what, re] of /** @type {const} */ ([
+            ['the PIN section or box', /staff PIN/i],
+            ['the PIN placeholder', /\{\{STAFF_PIN\}\}/],
+            ['the PIN link', /Use the staff PIN instead/i],
+        ])) {
+            // Never print what matched: masked, as when the box could hold the digits.
+            const m = seen.match(re);
+            assert.equal(m, null, `${file} still carries ${what}: …${m ? masked(seen.slice(Math.max(0, m.index - 60), m.index + 60)) : ''}…`);
+        }
     }
 });
-
 /** The narrowest phone still in use. Nothing in the email may be fixed wider than this. */
 const PHONE = 320;
 
@@ -209,8 +205,8 @@ test('the card fits a phone, and classic Outlook still gets 600px, in all four f
         assert.match(mso[1], /<\/td><\/tr><\/table>/, `${file}: Outlook's wrapper should close after the card`);
         const at = raw.search(/<table\b[^>]*max-width:600px/);   // the card's tag, not a header's mention
         assert.ok(raw.indexOf(mso[0]) < at && at < raw.indexOf(mso[1]), `${file}: Outlook's wrapper should surround the card`);
-        // The two big one-word boxes may wrap when they must.
-        for (const [label, slot] of [['password', '{{PASSWORD}}'], ['PIN', '{{STAFF_PIN}}']]) {
+        // The big one-word box may wrap when it must.
+        for (const [label, slot] of [['password', '{{PASSWORD}}']]) {
             const box = seen.match(new RegExp(`<div\\b[^>]*>${slot.replace(/[{}]/g, '\\$&')}</div>`));
             assert.ok(box && box[0].includes('overflow-wrap:anywhere'),
                 `${file}: the ${label} box must be allowed to wrap, or a long surname pushes the email off a phone`);
@@ -219,9 +215,9 @@ test('the card fits a phone, and classic Outlook still gets 600px, in all four f
 });
 
 test('what is left to fill is exactly what each header lists', () => {
-    const left = ['{{FIRST_NAME}}', '{{PASSWORD}}', '{{ROSTER_NAME}}', '{{STAFF_PIN}}'];
-    assert.deepEqual(placeholders(read(GENERAL)), ['{{FIRST_NAME}}', '{{GRADE}}', '{{PASSWORD}}', '{{ROSTER_NAME}}', '{{STAFF_PIN}}'],
-        `${GENERAL} should leave its five placeholders, {{GRADE}} among them`);
+    const left = ['{{FIRST_NAME}}', '{{PASSWORD}}', '{{ROSTER_NAME}}'];
+    assert.deepEqual(placeholders(read(GENERAL)), ['{{FIRST_NAME}}', '{{GRADE}}', '{{PASSWORD}}', '{{ROSTER_NAME}}'],
+        `${GENERAL} should leave its four placeholders, {{GRADE}} among them`);
     for (const file of Object.keys(COPIES)) {
         // Fewer means a copy filled in for somebody was saved over the template; more, a slot no
         // header tells the sender to fill.

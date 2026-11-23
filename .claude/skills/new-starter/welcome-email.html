@@ -16,12 +16,6 @@
     {{PASSWORD}}     their surname, all lowercase, letters only. It is derived by
                      `normaliseSurname` in auth-identity.js — if you are unsure,
                      run that rather than guessing (hyphens and apostrophes go).
-    {{STAFF_PIN}}    the four digits. ⚠️ NEVER COMMIT THE REAL PIN. It lives only
-                     in the CALENDAR_VIEWER_PIN secret. welcome-email-parity.test.mjs
-                     fails if the PIN box holds anything but this placeholder, but
-                     no test can look for the digits themselves, so the PIN written
-                     anywhere else in this file would not be caught.
-                     Fill it in the mail client, not in this file.
 
   ── CHOOSE ───────────────────────────────────────────────────────────────────
     For somebody ALREADY working at Marylebone these choices are made for you:
@@ -47,17 +41,15 @@
     · Inter-first sans throughout, NEVER monospace. Inter is the app's only
       typeface, and a monospace block falls back to Courier New in most mail
       clients, which looks foreign to everything else.
-    · The password block carries the GOLD accent, the PIN block is MUTED GREY.
-      That is load-bearing, not decoration: the email's whole point in section 5
-      is that one is yours and one is shared, and drawing them identically argues
-      against the sentence.
+    · The password block carries the GOLD accent: it is theirs. (Its muted grey
+      twin, the staff PIN, went with the PIN, 23 Nov 2026.)
     · Tables and inline styles only — Outlook ignores <style> blocks.
     · The card is FLUID: width:100% with max-width:600px, so it fills a phone and
       stops at 600px anywhere else. Classic Outlook on Windows ignores max-width,
       so the [if mso] wrapper around the card gives it 600px there. Never fix
       anything wider than a phone: a fixed 600px card made phone mail apps shrink
       the whole email, taking its text to about 10px (owner, 11 Nov 2026). The
-      password and PIN boxes may wrap, because a long surname is one word.
+      password box may wrap, because a long surname is one word.
     · Calm and factual. No exclamation marks. "Absent", never "sick".
 ════════════════════════════════════════════════════════════════════════════════
 -->
@@ -193,7 +185,7 @@
             <strong style="color:#001e3c;">Password</strong> &mdash; below. Then tap <strong>Sign in &rarr;</strong>.</td></tr>
     </table>
 
-    <!-- password block — GOLD accent: this one is THEIRS. Do not restyle to match the PIN. -->
+    <!-- password block — GOLD accent: this one is THEIRS. -->
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f9fb;border:1px solid #dfe6ee;border-left:4px solid #f5c800;border-radius:0 8px 8px 0;">
       <tr><td align="center" style="padding:18px 20px 20px 20px;">
         <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">Your first password</div>
@@ -264,40 +256,6 @@
     </table>
   </td></tr>
   -->
-
-  <!-- ── 5. THE STAFF PIN ─────────────────────────────────────── -->
-  <tr><td style="padding:0 30px;">
-    <div style="font-size:17px;font-weight:700;color:#001e3c;padding-bottom:9px;">5. The staff PIN &mdash; different thing entirely</div>
-    <div style="height:3px;background:#f5c800;width:100%;font-size:0;line-height:0;">&nbsp;</div>
-  </td></tr>
-  <tr><td style="padding:16px 30px 26px 30px;">
-    <p style="margin:0 0 16px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
-      The password above is <strong style="color:#001e3c;">yours</strong>. The PIN is
-      <strong style="color:#001e3c;">one code shared by everyone at Marylebone</strong> &mdash; it is not
-      personal to you and it does not sign you in as anybody.
-    </p>
-
-    <!-- PIN block — deliberately MUTED, never gold: this one is SHARED. -->
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef1f5;border:1px solid #dfe6ee;border-radius:8px;">
-      <tr><td align="center" style="padding:18px 20px 20px 20px;">
-        <div style="font-size:11px;line-height:1.4;letter-spacing:1px;text-transform:uppercase;color:#5a6b7d;padding-bottom:10px;">The staff PIN</div>
-        <div style="font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:30px;line-height:1.2;font-weight:700;color:#3d4b5a;letter-spacing:10px;text-indent:10px;overflow-wrap:anywhere;word-break:break-word;">{{STAFF_PIN}}</div>
-        <div style="font-size:13px;line-height:1.5;color:#6b7c8e;padding-top:10px;">Keep it to Marylebone staff</div>
-      </td></tr>
-    </table>
-
-    <p style="margin:16px 0 12px 0;font-size:15px;line-height:1.65;color:#1c2b3a;">
-      <strong style="color:#001e3c;">When you will see it</strong> &mdash; under the sign-in box there is a
-      <strong>Use the staff PIN instead</strong> link. It is there for the shared office PC, and for anyone
-      who needs the Huddle and the guides without having a login of their own.
-    </p>
-    <p style="margin:0;font-size:15px;line-height:1.65;color:#1c2b3a;">
-      <strong style="color:#001e3c;">When you will not</strong> &mdash; once you have signed in on your own
-      phone you will not be asked for anything again for up to 60 days. The PIN shows the roster, but not
-      as you &mdash; no leave balance, no recording leave, no Pay Calculator or Settings &mdash; so for you
-      it is the slower way round.
-    </p>
-  </td></tr>
 
   <!-- ── SIGN OFF ─────────────────────────────────────────────── -->
   <tr><td style="padding:6px 30px 26px 30px;border-top:1px solid #e6ebf1;">
