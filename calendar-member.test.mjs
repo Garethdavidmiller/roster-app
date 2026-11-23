@@ -290,18 +290,18 @@ describe('validateTeamMembers', () => {
         assert.deepEqual(validating(LIVE_MEMBERS), []);
     });
 
-    test('an Other staff row in the documented shape passes (roster-member-data.js)', () => {
-        assert.deepEqual(validating([{ name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true }]), []);
+    test('an Other Staff row in the documented shape passes (roster-member-data.js)', () => {
+        assert.deepEqual(validating([{ name: 'Q. Example', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true }]), []);
     });
 
     test('the optional fields are checked too (Nov 2026) — each wrong shape is named', () => {
         const cases = /** @type {Array<[any, RegExp]>} */ ([
             [{ ...ok, role: 'Supervisor' }, /Unknown role "Supervisor"/],
-            // An "Other staff" login is one shape and holds no role (owner, 23 Nov 2026).
-            [{ ...ok, role: 'Other staff', hidden: true }, /role "Other staff" needs otherStaff: true/],
-            [{ ...ok, hidden: true, otherStaff: true }, /otherStaff needs role "Other staff"/],
-            [{ ...ok, role: 'Other staff', otherStaff: true }, /otherStaff needs hidden: true/],
-            [{ ...ok, name: REAL_CONFIG.ADMIN_NAMES[0], role: 'Other staff', hidden: true, otherStaff: true }, /Other staff cannot be on CONFIG\.ADMIN_NAMES/],
+            // An "Other Staff" login is one shape and holds no role (owner, 23 Nov 2026).
+            [{ ...ok, role: 'Other Staff', hidden: true }, /role "Other Staff" needs otherStaff: true/],
+            [{ ...ok, hidden: true, otherStaff: true }, /otherStaff needs role "Other Staff"/],
+            [{ ...ok, role: 'Other Staff', otherStaff: true }, /otherStaff needs hidden: true/],
+            [{ ...ok, name: REAL_CONFIG.ADMIN_NAMES[0], role: 'Other Staff', hidden: true, otherStaff: true }, /Other Staff cannot be on CONFIG\.ADMIN_NAMES/],
             [{ ...ok, startDate: new Date(2026, 5, 1, 9) }, /startDate must be a Date at midnight/],
             [{ ...ok, startDate: '2026-06-01' }, /startDate must be a Date at midnight/],
             [{ ...ok, proRatedAL: { 2026: 12.5 } }, /proRatedAL must map a year/],

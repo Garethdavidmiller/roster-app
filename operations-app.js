@@ -275,7 +275,7 @@ export function init() {
         if (!contentEl) return;
         const content = /** @type {HTMLElement} */ (contentEl);
         // Eligible = everybody who can sign in, grade by grade (`signInMembers`): the roster, the managers and
-        // Other staff, who are off the calendar but login-capable; no leavers. Everyone listed has Settings too,
+        // Other Staff, who are off the calendar but login-capable; no leavers. Everyone listed has Settings too,
         // so this card is a convenience for them, not the only route.
         const eligible = signInMembers();
         /** @type {Map<string, string>} name → work email */

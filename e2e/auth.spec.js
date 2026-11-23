@@ -1403,7 +1403,7 @@ for (const [name, url, ready, init] of /** @type {Array<[string, string, string,
 // ── THE "OTHER STAFF" GRADE (owner, 23 Nov 2026) ────────────────────────────────────────────────────────────
 // A login with no roster and no manager or admin rights, shown what the staff PIN shows plus their own Settings.
 // The person is INVENTED and served into the real roster module (fixtures.js → withOtherStaff).
-test.describe('an Other staff login — the staff PIN\'s pages and Settings, under their own name', () => {
+test.describe('an Other Staff login — the staff PIN\'s pages and Settings, under their own name', () => {
     const NAME = 'Q. Example';
 
     test('the drawer offers Calendar, Trains and Settings, and no Admin or Pay; the Calendar shows the roster', async ({ page }) => {

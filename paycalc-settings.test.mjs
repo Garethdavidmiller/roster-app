@@ -356,7 +356,7 @@ describe('gradeForRole — the role → pay-grade map every figure hangs off', (
         // invariant 13. A role with no rates gives a payslip no grade, and every consumer then falls
         // back to `GRADES.cea` until the page refuses, so returning a grade here for an unmodelled
         // role is not a smaller error than a wrong one — it is the same error, arriving quietly.
-        for (const role of ['Dispatcher', 'Management', 'Other staff', 'Supervisor', 'CEA ', 'cea', '', null, undefined]) {
+        for (const role of ['Dispatcher', 'Management', 'Other Staff', 'Supervisor', 'CEA ', 'cea', '', null, undefined]) {
             assert.equal(gradeForRole(/** @type {any} */ (role)), null,
                 `"${String(role)}" was handed a pay grade the app has no rates for`);
         }
@@ -366,7 +366,7 @@ describe('gradeForRole — the role → pay-grade map every figure hangs off', (
         // Derived from the file that owns the roster rather than from a list kept here, so a role
         // added to the establishment fails HERE — where the answer is decided — instead of handing
         // that person a plausible CEA estimate on a page nobody thought about.
-        const KNOWN = { CEA: 'cea', CES: 'ces', Dispatcher: null, Management: null, 'Other staff': null };
+        const KNOWN = { CEA: 'cea', CES: 'ces', Dispatcher: null, Management: null, 'Other Staff': null };
         const roles = [...new Set(teamMembers.map(m => m.role))];
         assert.ok(roles.length >= 2, 'the roster produced no roles — this case is checking nothing');
         for (const role of roles) {

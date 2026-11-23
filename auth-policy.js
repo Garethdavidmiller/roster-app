@@ -53,7 +53,7 @@ export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidd
  * itself, through `holdsStaffPin` (session.js), and every page that does not signs the PIN out on
  * arrival — `reconcileExpiredIdentity`'s default — so it can never stand in for a member there.
  *
- * `otherStaff: true` — an "Other staff" login may open this page (owner, 23 Nov 2026). That grade is somebody
+ * `otherStaff: true` — an "Other Staff" login may open this page (owner, 23 Nov 2026). That grade is somebody
  * with no roster and no manager or admin rights who signs in under their own name and is shown what the staff
  * PIN shows, plus their own Settings: so the pages marked are exactly the PIN's (`staffPin`) and Settings. Every
  * other NAMED page refuses them (`requirePageAuth`), the Pay Calculator included. The pill gate that hides the
@@ -125,11 +125,11 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
     //    data; this is page access only.
     if (!p.requireNamed) return decide('allow', 'public page');
 
-    // 1b. An "Other staff" login opens only the pages marked for it (`otherStaff` above): the staff PIN's and
+    // 1b. An "Other Staff" login opens only the pages marked for it (`otherStaff` above): the staff PIN's and
     //     Settings. Asked BEFORE the soft rule, so the Pay Calculator refuses them too — it never prices a grade
     //     it has no rates for, and its own role card says so on the page (paycalc-role-card.js).
     if (status === 'named' && /** @type {any} */ (roles).otherStaff && !p.otherStaff) {
-        return decide('forbidden', 'named Other staff — not a page for that grade');
+        return decide('forbidden', 'named Other Staff — not a page for that grade');
     }
 
     // 2. Soft page (paycalc) — a local-first tool that must NEVER be blocked by the IDENTITY'S STATE. Named →
@@ -177,7 +177,7 @@ export function requirePageAuth(snapshot, policy, roles = {}) {
 export function rolesFor(member) {
     const m = member || null;
     return {
-        // Not a claim: the "Other staff" grade (owner, 23 Nov 2026) — a login with no roster and no rights beyond a
+        // Not a claim: the "Other Staff" grade (owner, 23 Nov 2026) — a login with no roster and no rights beyond a
         // member's, read from the member's own row (roster-member-data.js → `otherStaff`). It TAKES pages away
         // rather than granting them: `requirePageAuth` refuses such a login every page not marked `otherStaff`.
         otherStaff: !!m && teamMembers.some(t => t.name === m && isOtherStaff(t)),
@@ -287,7 +287,7 @@ export function navGatesFor(member) {
         canOpenOvertime: canOpenOvertime(member),
         canOpenNewlink:  canOpenNewlink(member),
         // TRUE for nobody signed in and for the staff PIN, deliberately: their drawer keeps every ungated pill
-        // (nav-gates.test.mjs says why). Only an Other staff login loses Admin and Pay (`otherStaffHidden`).
+        // (nav-gates.test.mjs says why). Only an Other Staff login loses Admin and Pay (`otherStaffHidden`).
         isNotOtherStaff: !r.otherStaff,
     };
 }

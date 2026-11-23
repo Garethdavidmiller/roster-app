@@ -528,7 +528,7 @@ test('functions/roster-members.json matches active staff in roster-data.js', asy
     // EXACTLY — drift could disable a real account or leave a claim tier client-editable. activeMembers
     // is every sign-in group in CONFIG.GRADE_ORDER, order preserved (signInMembers, roster-data.js —
     // the one list the generator and Operations both read). It used to spell out four groups here, so
-    // it went on passing when "Other staff" became a fifth, until the first row on it.
+    // it went on passing when "Other Staff" became a fifth, until the first row on it.
     const expectedActive = signInMembers().map(m => m.name);
     for (const grade of CONFIG.GRADE_ORDER) {
         for (const m of teamMembers.filter(t => t.role === grade && !t.hidden)) {

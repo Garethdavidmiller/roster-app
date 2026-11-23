@@ -704,14 +704,14 @@ test("a pill's GATE and the page policy's ROLE agree — in both directions", ()
         'these pills are hidden from people the page would ADMIT, so the feature is reachable only '
         + 'by typing its URL: ' + hidden.join(', '));
 
-    // The same two ways round for the "Other staff" grade (owner, 23 Nov 2026): a pill hidden from them
+    // The same two ways round for the "Other Staff" grade (owner, 23 Nov 2026): a pill hidden from them
     // (`otherStaffHidden`) is exactly a page whose policy does not admit them (`otherStaff`), among the pills
     // every member is otherwise offered.
     const ungated = NAV_PAGES.filter(p => !gateFlags.some(f => /** @type {any} */ (p)[f]));
     const hiddenFromThem  = ungated.filter(p => /** @type {any} */ (p).otherStaffHidden).map(p => p.id);
     const refusedThem     = ungated.filter(p => !PAGE_POLICIES[p.id]?.otherStaff).map(p => p.id);
     assert.deepEqual(hiddenFromThem, refusedThem,
-        'an Other staff login must be shown exactly the pages its policy admits: hidden ' + hiddenFromThem.join(', ')
+        'an Other Staff login must be shown exactly the pages its policy admits: hidden ' + hiddenFromThem.join(', ')
         + '; refused ' + refusedThem.join(', '));
 });
 

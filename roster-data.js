@@ -69,7 +69,7 @@ export const CONFIG = {
     NEWLINK_PREVIEW:                  ['S. Silva'],
     OVERTIME_BETA:                    /** @type {string[]} */ ([]),                           // CEA beta participants (none since 7 Oct 2026 — T. Bibi and J. Sumaili withdrawn, owner request) — availability only, no reviewer access
     MANAGER_NAMES:                    ['D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers', 'W. Cummings'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
-    GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management', 'Other staff'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js), the admin member-selector optgroups (admin-app.js) AND the Calendar's name picker (calendar-member.js), so they can't drift
+    GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management', 'Other Staff'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js), the admin member-selector optgroups (admin-app.js) AND the Calendar's name picker (calendar-member.js), so they can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
     // Phase 2 of PASSWORD_DESIGN.md — compel un-migrated members to set their own password at their
     // NEXT SIGN-IN (password-force.js). This is the KILL SWITCH: set to `false` to stop compelling
@@ -1119,7 +1119,7 @@ if (typeof location !== 'undefined' &&
 /**
  * Returns non-hidden teamMembers for a login grade dropdown.
  * Centralises the member-filtering logic shared by all login overlays.
- * @param {string} grade - 'CEA' | 'CES' | 'Dispatcher' | 'Management' | 'Other staff'
+ * @param {string} grade - 'CEA' | 'CES' | 'Dispatcher' | 'Management' | 'Other Staff'
  * @returns {typeof teamMembers}
  */
 export function getMembersForGrade(grade) {
@@ -1132,8 +1132,8 @@ export function getMembersForGrade(grade) {
     // generate-roster-members.mjs builds from this function). A manager/clerk LEAVER is offboarded by removing
     // their row from teamMembers (and from CONFIG.MANAGER_NAMES) — not by `hidden: true`.
     if (grade === 'Management') return teamMembers.filter(m => m.managerOnly);
-    // Other staff carry `hidden: true` for the same reason as managers, and are chosen the same way: by their flag.
-    if (grade === 'Other staff') return teamMembers.filter(isOtherStaff);
+    // Other Staff carry `hidden: true` for the same reason as managers, and are chosen the same way: by their flag.
+    if (grade === 'Other Staff') return teamMembers.filter(isOtherStaff);
     return teamMembers.filter(m => m.role === grade && !m.hidden && !m.managerOnly);
 }
 
@@ -1149,7 +1149,7 @@ export function signInMembers() {
 }
 
 /**
- * Is this roster row an "Other staff" login (roster-member-data.js → `otherStaff`, owner, 23 Nov 2026)? Read through
+ * Is this roster row an "Other Staff" login (roster-member-data.js → `otherStaff`, owner, 23 Nov 2026)? Read through
  * here rather than as `m.otherStaff`, which the inferred row type does not know until a row carries the field.
  * @param {any} member  a teamMembers row
  * @returns {boolean}

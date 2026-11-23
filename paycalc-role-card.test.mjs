@@ -52,7 +52,7 @@ test('a name the roster no longer holds is told THAT — not a role gap, and not
 });
 
 test('every refusal that explains the calculator names both grades IN FULL on first sight, and what it works out', () => {
-    for (const role of ['Dispatcher', 'Management', 'Other staff', 'Station Manager']) {
+    for (const role of ['Dispatcher', 'Management', 'Other Staff', 'Station Manager']) {
         const what = /** @type {string} */ (unsupportedRoleCopy(role).what);
         assert.match(what, /Customer Experience Ambassador’s or Supervisor’s \(CEA or CES\)/, `${role}: expand the term before using it`);
         assert.match(what, /take-home pay/);
@@ -60,15 +60,15 @@ test('every refusal that explains the calculator names both grades IN FULL on fi
     }
 });
 
-test('an Other staff login is told why, not asked to wait for its grade to be added (owner, 23 Nov 2026)', () => {
-    const c = unsupportedRoleCopy('Other staff');
+test('an Other Staff login is told why, not asked to wait for its grade to be added (owner, 23 Nov 2026)', () => {
+    const c = unsupportedRoleCopy('Other Staff');
     assert.equal(c.title, 'The Pay Calculator is for CEAs and CESs');
     assert.match(c.why, /roster line/);
     assert.doesNotMatch(c.why, /ask the admin/i, 'there is nothing for the admin to add');
 });
 
 test('no refusal is written as a warning — calm and factual, no exclamation marks', () => {
-    for (const role of ['Dispatcher', 'Management', 'Other staff', 'Station Manager', undefined]) {
+    for (const role of ['Dispatcher', 'Management', 'Other Staff', 'Station Manager', undefined]) {
         assert.doesNotMatch(ALL(unsupportedRoleCopy(role)), /!/);
     }
 });

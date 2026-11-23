@@ -556,9 +556,9 @@ async function longEmailRow(page) {
 // v14.35 bug class, where a long address forced the row wide and overflow:hidden clipped the fixed-width
 // Edit/Remove buttons. They stay on-screen now because the address WRAPS beside them, whole.
 // THE ACCOUNT CARD LISTS EVERYBODY WHO CAN SIGN IN (owner, 23 Nov 2026). It used to pick its people with
-// `!hidden || managerOnly`, which would have left every Other staff login off the card that shows whether they
+// `!hidden || managerOnly`, which would have left every Other Staff login off the card that shows whether they
 // have set their own password — they are hidden, like managers. The person here is INVENTED.
-test('operations: the Account status card lists an Other staff login, and filters by that grade', async ({ page }) => {
+test('operations: the Account status card lists an Other Staff login, and filters by that grade', async ({ page }) => {
     await withOtherStaff(page, 'Q. Example');
     await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [],
         docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } }; });
@@ -566,10 +566,10 @@ test('operations: the Account status card lists an Other staff login, and filter
     await page.goto('/operations.html');
     await page.evaluate(() => /** @type {HTMLElement|null} */ (document.querySelector('#accountStatusCard .card-header-toggle'))?.click());
     await expect(page.locator('.acct-row').filter({ hasText: 'Q. Example' })).toBeVisible();
-    await expect(page.locator('#acctGradeFilter option[value="Other staff"]')).toHaveCount(1);
-    await page.locator('#acctGradeFilter').selectOption('Other staff');
-    // Every Other staff login on the real roster, plus the invented one — and nobody else.
-    const expected = [...teamMembers.filter(m => m.role === 'Other staff').map(m => m.name), 'Q. Example'];
+    await expect(page.locator('#acctGradeFilter option[value="Other Staff"]')).toHaveCount(1);
+    await page.locator('#acctGradeFilter').selectOption('Other Staff');
+    // Every Other Staff login on the real roster, plus the invented one — and nobody else.
+    const expected = [...teamMembers.filter(m => m.role === 'Other Staff').map(m => m.name), 'Q. Example'];
     await expect(page.locator('.acct-row')).toHaveCount(expected.length);
     for (const name of expected) await expect(page.locator('.acct-row').filter({ hasText: name })).toHaveCount(1);
 });

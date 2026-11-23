@@ -1179,7 +1179,7 @@ export function init() {
     // Admin does not print: printing shows a "use the Calendar" notice (admin.css @media print).
 
     // Page access (auth-policy.js): "any named user" — the admin/manager split gates ACTIONS
-    // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other staff"
+    // (applyPermissions), not the page. 'login' iff no local session; 'forbidden' only for an "Other Staff"
     // login (owner, 23 Nov 2026), who has no roster to record leave against and no colleague to record it for.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
     if (_access.decision === 'forbidden') {

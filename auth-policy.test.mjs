@@ -347,12 +347,12 @@ describe('the station PIN — which pages it may read (v24.84)', () => {
 // ── THE "OTHER STAFF" GRADE (owner, 23 Nov 2026) ────────────────────────────────────────────────────────────
 // A login with no roster and no rights beyond a member's, shown what the staff PIN shows plus their own Settings.
 // The person here is INVENTED and lives only for the test (tests use invented people only).
-describe('the Other staff grade — the PIN\'s pages and Settings, nothing else', () => {
+describe('the Other Staff grade — the PIN\'s pages and Settings, nothing else', () => {
     const OTHER = 'Q. Example';
     /** @type {any[]} */ let members;
     before(async () => {
         ({ teamMembers: members } = await import('./roster-data.js'));
-        members.push({ name: OTHER, currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true });
+        members.push({ name: OTHER, currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true });
     });
     after(() => { const i = members.findIndex(m => m.name === OTHER); if (i !== -1) members.splice(i, 1); });
 
@@ -360,7 +360,7 @@ describe('the Other staff grade — the PIN\'s pages and Settings, nothing else'
         assert.equal(rolesFor(OTHER).otherStaff, true);
         assert.deepEqual({ ...rolesFor(OTHER), otherStaff: false }, rolesFor(PLAIN), 'no role besides the grade');
         assert.equal(rolesFor(PLAIN).otherStaff, false);
-        assert.equal(rolesFor(MANAGER).otherStaff, false, 'a manager is not Other staff');
+        assert.equal(rolesFor(MANAGER).otherStaff, false, 'a manager is not Other Staff');
     });
 
     test('the pages: exactly the PIN\'s and Settings admit them; every other named page refuses', () => {

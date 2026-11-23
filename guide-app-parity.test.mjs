@@ -83,7 +83,7 @@ function navPages() {
         // The label is the emoji, a space, then the name: "💷 Pay", "🔁 New link".
         const name = p.label.slice(p.label.indexOf(' ') + 1).trim();
         assert.ok(name, `a NAV_PAGES label with no name after its emoji: "${p.label}"`);
-        // GATED means a ROLE opens it. `otherStaffHidden` is not one: it takes Admin and Pay from the Other staff
+        // GATED means a ROLE opens it. `otherStaffHidden` is not one: it takes Admin and Pay from the Other Staff
         // grade (owner, 23 Nov 2026), and the Staff Guide is written for colleagues with a roster, who keep both.
         return { id: p.id, name, gated: Object.keys(PILL_GATES).some(f => f !== 'otherStaffHidden' && /** @type {any} */ (p)[f]) };
     });

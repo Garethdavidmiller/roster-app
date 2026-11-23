@@ -149,8 +149,8 @@ function mountDrawer(/** @type {any} */ opts) {
 
 // ── The Admin and Pay pills without gates: kept for nobody signed in and the PIN ──────────────────────────────
 // `isNotOtherStaff` is the one gate `initNavPanel` defaults to TRUE (owner, 23 Nov 2026): a page that passes no
-// gates — the PIN, or nobody signed in — must keep Admin and Pay, and only an Other staff login loses them.
-describe('the Other staff gate defaults to keeping Admin and Pay', () => {
+// gates — the PIN, or nobody signed in — must keep Admin and Pay, and only an Other Staff login loses them.
+describe('the Other Staff gate defaults to keeping Admin and Pay', () => {
     /** The drawer markup a mount injects. @param {any} opts */
     function injected(opts) {
         /** @type {any[]} */ const made = [];
@@ -170,7 +170,7 @@ describe('the Other staff gate defaults to keeping Admin and Pay', () => {
         const html = injected({});
         assert.ok(html.includes('./admin.html') && html.includes('./paycalc.html'), 'the drawer was built with both pills');
     });
-    test('an Other staff login (isNotOtherStaff false): neither is drawn, Settings still is', () => {
+    test('an Other Staff login (isNotOtherStaff false): neither is drawn, Settings still is', () => {
         const html = injected({ memberName: 'Q. Example', isNotOtherStaff: false });
         assert.ok(!html.includes('./admin.html') && !html.includes('./paycalc.html'));
         assert.ok(html.includes('./settings.html'));

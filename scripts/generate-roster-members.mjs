@@ -34,7 +34,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
  */
 export function buildRosterMembers() {
     // activeMembers is every member who can sign in: the sign-in's own grade groups, in the same order
-    // (`signInMembers`). Do NOT re-derive it with a plain `!m.hidden` filter: managers and Other staff carry
+    // (`signInMembers`). Do NOT re-derive it with a plain `!m.hidden` filter: managers and Other Staff carry
     // `hidden: true` by convention and are selected by their flags, so a naive filter would drop every one
     // (and orphan-removal would then disable them). One function keeps the sign-in lists and the server's
     // provisioned set one list (B4).

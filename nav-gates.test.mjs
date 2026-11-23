@@ -30,17 +30,17 @@ import { CONFIG, teamMembers } from './roster-data.js';
 const g = /** @type {any} */ (globalThis);
 const restores = /** @type {Array<() => void>} */ ([]);
 const PILL_IDS = NAV_PAGES.map(p => p.id);
-/** The one gate that takes pills AWAY from a grade rather than giving them to a role: an Other staff login loses
+/** The one gate that takes pills AWAY from a grade rather than giving them to a role: an Other Staff login loses
  *  Admin and Pay (owner, 23 Nov 2026). Everybody else, nobody signed in and the PIN included, keeps them. */
 const EXCLUDING = ['otherStaffHidden'];
 /** Pills only a ROLE opens. */
 const GATED = NAV_PAGES.filter(p => Object.keys(PILL_GATES).some(f => !EXCLUDING.includes(f) && /** @type {any} */ (p)[f])).map(p => p.id);
-/** Pills an Other staff login does not see. */
+/** Pills an Other Staff login does not see. */
 const NOT_FOR_OTHER_STAFF = NAV_PAGES.filter(p => /** @type {any} */ (p).otherStaffHidden).map(p => p.id);
 
-/** An INVENTED "Other staff" row for one test (tests use invented people only); `afterEach` takes it back. */
+/** An INVENTED "Other Staff" row for one test (tests use invented people only); `afterEach` takes it back. */
 function withOtherStaff(/** @type {string} */ name) {
-    teamMembers.push(/** @type {any} */ ({ name, currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true }));
+    teamMembers.push(/** @type {any} */ ({ name, currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true }));
     restores.push(() => { const i = teamMembers.findIndex(m => m.name === name); if (i !== -1) teamMembers.splice(i, 1); });
 }
 
@@ -79,14 +79,14 @@ for (const paused of [true, false]) {
             assert.equal(overtimeEnabled(), !paused);
             assert.ok(GATED.length >= 4, `expected the four gated pills, read ${GATED}`);
             for (const id of GATED) assert.ok(PAGE_POLICIES[id]?.role?.length, `${id}'s pill is gated, so its page policy must name a role`);
-            assert.deepEqual(NOT_FOR_OTHER_STAFF, ['admin', 'paycalc'], 'an Other staff login loses exactly Admin and Pay');
-            for (const id of NOT_FOR_OTHER_STAFF) assert.ok(!PAGE_POLICIES[id]?.otherStaff, `${id} is hidden from Other staff, so its policy must not admit them`);
+            assert.deepEqual(NOT_FOR_OTHER_STAFF, ['admin', 'paycalc'], 'an Other Staff login loses exactly Admin and Pay');
+            for (const id of NOT_FOR_OTHER_STAFF) assert.ok(!PAGE_POLICIES[id]?.otherStaff, `${id} is hidden from Other Staff, so its policy must not admit them`);
             for (const id of PILL_IDS.filter(x => !NOT_FOR_OTHER_STAFF.includes(x) && !GATED.includes(x))) {
-                assert.ok(PAGE_POLICIES[id]?.otherStaff, `${id} is drawn for Other staff, so its policy must admit them`);
+                assert.ok(PAGE_POLICIES[id]?.otherStaff, `${id} is drawn for Other Staff, so its policy must admit them`);
             }
         });
 
-        test('an Other staff login (invented): exactly the PIN\'s pages and Settings, drawn ⇔ admitted', () => {
+        test('an Other Staff login (invented): exactly the PIN\'s pages and Settings, drawn ⇔ admitted', () => {
             const name = 'Q. Example';
             withOtherStaff(name);
             seam();

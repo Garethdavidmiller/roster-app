@@ -732,7 +732,7 @@ and the issue says so.
 workflow notices and stands down; nothing else needs touching. The `.nojekyll` file is what the
 branch build needs, so it stays either way.
 
-## Adding an Other staff login
+## Adding an Other Staff login
 
 For somebody who needs the roster but has none of their own and no manager rights (owner, 23 Nov 2026).
 They sign in under their own name and see what the staff PIN shows — everyone's roster, read-only;
@@ -740,14 +740,14 @@ Trains; the Huddle, Circular and Newsletter — plus their own Settings, so they
 and turn on notifications. No Admin, Pay Calculator, Overtime, Links or New link.
 
 1. **One row** in `teamMembers` (`roster-member-data.js`), in the shape at the foot of the array:
-   `{ name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other staff', hidden: true, otherStaff: true }`.
+   `{ name: 'A. Surname', currentWeek: 1, rosterType: 'main', role: 'Other Staff', hidden: true, otherStaff: true }`.
    `currentWeek` and `rosterType` are placeholders — the row is never drawn. Never put the name on a
    `CONFIG` role list: `validateTeamMembers` refuses it, because a role list would carry that role's claim.
 2. **`npm run generate:roster-members`** in the same commit, bump, push, merge.
 3. **Once Deploy Firebase Functions has finished,** Operations → Staff Login Accounts → **Set up accounts**.
    The account is a plain member login, password their surname, as for everyone else.
-4. They sign in from the Calendar, choosing **Other staff** in the grade list (it appears once the
-   first row exists). Operations → Account status lists them, with an "Other staff" filter.
+4. They sign in from the Calendar, choosing **Other Staff** in the grade list (it appears once the
+   first row exists). Operations → Account status lists them, with an "Other Staff" filter.
 
 Leaving: remove the row (Removing a staff member, below — the managers' exception applies).
 
@@ -784,7 +784,7 @@ There is no end-date field — `startDate` has no counterpart — so until this 
 shifts: they appear in the calendar and in Team Week View as though still working. Nothing breaks,
 but a manager planning a week is reading a line nobody is on. Do it promptly once step 1 is done.
 
-**An Other staff login (`otherStaff`) is the same exception: remove the ROW.** It is hidden and picked by its
+**An Other Staff login (`otherStaff`) is the same exception: remove the ROW.** It is hidden and picked by its
 flag for the same reason, and it holds no role list to clear.
 
 **A manager or clerk (`managerOnly`) is the exception: remove their ROW from `teamMembers`.**

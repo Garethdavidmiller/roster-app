@@ -266,13 +266,13 @@ export function validateTeamMembers() {
         // The flag and the grade travel together, because the sign-in groups by the flag and the Pay Calculator and
         // Operations read the grade; `hidden` keeps the row off every staff list, as it does a manager's; and a
         // name on a role list would carry that role's claim from Set up accounts, which this grade exists not to.
-        if (isOtherStaff(member) || member.role === 'Other staff') {
-            if (!isOtherStaff(member)) errors.push(`${who}: role "Other staff" needs otherStaff: true`);
-            else if (member.role !== 'Other staff') errors.push(`${who}: otherStaff needs role "Other staff"`);
+        if (isOtherStaff(member) || member.role === 'Other Staff') {
+            if (!isOtherStaff(member)) errors.push(`${who}: role "Other Staff" needs otherStaff: true`);
+            else if (member.role !== 'Other Staff') errors.push(`${who}: otherStaff needs role "Other Staff"`);
             if (member.hidden !== true) errors.push(`${who}: otherStaff needs hidden: true`);
             const lists = ['ADMIN_NAMES', 'MANAGER_NAMES', 'LINKS_DESIGNERS', 'OVERTIME_BETA', 'NEWLINK_PREVIEW'];
             for (const list of lists) {
-                if ((/** @type {any} */ (CONFIG)[list] || []).includes(member.name)) errors.push(`${who}: Other staff cannot be on CONFIG.${list}`);
+                if ((/** @type {any} */ (CONFIG)[list] || []).includes(member.name)) errors.push(`${who}: Other Staff cannot be on CONFIG.${list}`);
             }
         }
     });

@@ -100,7 +100,7 @@ export function leaveRecordability(member, year) {
     // Management keeps the allowance of the graded post they held that year (`allowanceRole`), so that
     // year's leave is checked like anybody's. Only a year with no figure on record is a manager's.
     if (member.managerOnly || member.role === 'Management') return allowance === null ? 'manager' : null;
-    // An Other staff login is hidden too, and is not a leaver: the app holds no leave allowance for them.
+    // An Other Staff login is hidden too, and is not a leaver: the app holds no leave allowance for them.
     if (isOtherStaff(member)) return 'no-allowance';
     if (member.hidden) return 'leaver';
     if (allowance === null) return 'no-allowance';
