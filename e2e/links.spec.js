@@ -5798,6 +5798,26 @@ test('links memory: a table saved as a set keeps naming that set after a reload'
         .toContain('"setName":"Weekend trial"');
 });
 
+// A new setup is a CREATE, which settles only on the server's answer. On a weak signal "Saving …" sat there
+// with nothing else said (whole-app review, 24 Nov 2026), so past the slow-save threshold the page says the
+// setup is held and still sending — and keeps the set buttons held, because the create can still land and a
+// second press would make a second setup of the same name (owner, 24 Nov 2026).
+test('links sets: a slow "Save as new" says it is still sending, and keeps the buttons held', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.addDocHold = true; w.__E2E.slowSaveMs = 200; });
+    await page.locator('#genSetSaveAsBtn').click();
+    await page.locator('.dialog-input').fill('Winter cover');
+    await clickDialogConfirm(page);
+    const notice = page.locator('#slowSaveNotice');
+    await expect(notice).toBeVisible({ timeout: 5000 });
+    await expect(notice).toContainText('held on this device');
+    await expect(notice, 'an unconfirmed create must never be called saved').not.toContainText(/saved/i);
+    await expect(page.locator('#genSetSaveAsBtn'), 'freeing it invites a second setup of the same name').toBeDisabled();
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseAddDoc());
+    await expect(notice).toBeHidden({ timeout: 5000 });
+    await expect(page.locator('#genSetSaveAsBtn')).toBeEnabled();
+});
+
 // ── The generate feedback is visible from the BUTTON, and the button stays put (v20.54) ──────────
 // Two measured failures, one press. The status line lives in the grid card's sticky save row, a
 // full card above the Generate button — after a real press-and-confirm it sat 448px above the

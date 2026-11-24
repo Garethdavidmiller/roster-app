@@ -53,6 +53,7 @@
 import { enhanceSelect } from './select-sheet.js';
 import { APP_VERSION, escapeHtml } from './roster-data.js';
 import { db, doc, addDoc, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { withSlowSaveNotice } from './slow-save.js';
 import { confirmDialog, promptDialog, createLightbox } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
 import { ROTATING_LINES, normaliseCustomShift } from './links-design.js';
@@ -785,9 +786,12 @@ export function createTargetPanel(deps) {
             if (!setCheck.ok) { if (_setHint) _setHint.textContent = setCheck.message || ''; return; }
             const _problem = targetSetProblem({ slots: genSlots, spareLines: genSpareLines });
             if (_problem) { if (_setHint) _setHint.textContent = _problem; return; }
-            const r = await _heldWrite(`Saving “${name.trim()}”…`, () => writeWithClaimRetry(() => addDoc(SETS_COL,
+            // withSlowSaveNotice: past SLOW_SAVE_MS on a weak signal the page says the setup is held and
+            // waiting, rather than sitting on "Saving…" (slow-save.js). The buttons stay held: the create
+            // can still land, so freeing them would invite a second setup of the same name (owner, 24 Nov 2026).
+            const r = await _heldWrite(`Saving “${name.trim()}”…`, () => withSlowSaveNotice(writeWithClaimRetry(() => addDoc(SETS_COL,
                 targetSetPayload({ name, slots: genSlots, spareLines: genSpareLines },
-                    author, author, serverTimestamp()))));
+                    author, author, serverTimestamp())))));
             if (!r.ok) {
                 if (_setHint) _setHint.textContent = _failLine(r.err, 'the new setup', 'saving a staffing setup',
                     'Couldn\'t save the new staffing setup — check you\'re signed in and try again.');
