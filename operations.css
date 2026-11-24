@@ -127,7 +127,8 @@ body.auth-ready .container { display: grid; }
    asked for that to be reversed (24 Nov 2026), so every Operations date writes the short month
    (`shortLabel`, date-picker.js) and sits beside its button from 360px — measured: 170px of date, 10 of
    gap, 109 of "Choose file", in a 308px row. A 320px phone gives the row 268 and wraps. On the Weekly
-   Roster the roster-type menu takes the first line and the week sits beside "Choose PDF" on the second. */
+   Roster the roster-type menu joins the same line where all three fit, and on a phone takes the first line
+   with the week beside "Choose file" on the second (`.roster-type-select`, below). */
 .huddle-row > .date-trigger { flex: 999 1 auto; white-space: normal; text-wrap: balance; }
 .huddle-row > .huddle-file-label { flex: 1 1 auto; justify-content: center; }
 /* The FIELD's corner and edge (desktop audit, Nov 2026): it sits beside the date field on the same row,
@@ -238,13 +239,29 @@ body.auth-ready .container { display: grid; }
 }
 
 /* ---- Roster upload card ---- */
-.roster-type-select {
-    flex: 0 0 auto;
-    padding: 8px 10px;
+/* THE ROSTER-TYPE MENU IS ONE MORE FIELD IN THE UPLOAD ROW, dressed like the date beside it (owner,
+   24 Nov 2026: "not consistent with the other upload cards"). It was 40px tall in bold where every other
+   control in the five upload cards is 44px in regular weight, and it took a whole line of its own at every
+   width. Now it asks for its own width (`width: auto` undoes the page's `width: 100%` for fields), and the
+   week and its button sit in a `.huddle-row` of their own inside the card's (`.roster-upload-row`), which
+   asks for the pair's full width and wraps as ONE piece: on a card wide enough for all three the row
+   reads menu · week · "Choose file", one line like the Huddle's; on a phone the menu takes the first line
+   (growing to fill it) and the pair the second, exactly the Huddle's row. Without the group the three
+   wrapped one by one, and at 390px "Choose file" took a line alone. `align-content` keeps the words centred in the taller box, as the date's are.
+   TWO CLASSES, NOT ONE: the page's field rule below (`:where(.container) .fieldpick`) weighs one class,
+   the `:where()` adding nothing, and comes later — so a one-class rule here lost its `width: auto` to
+   that rule's `width: 100%`, and the menu took a whole line at every width (measured, 24 Nov 2026). */
+.roster-upload-row > .huddle-row { flex: 999 1 auto; min-width: 0; margin-bottom: 0; }
+.huddle-row > .roster-type-select {
+    flex: 1 1 auto;
+    width: auto;
+    min-height: 44px;
+    align-content: center;
+    padding: 8px 38px 8px 10px;   /* the arrow's 1em + its 10px inset + 12px clear of the longest option */
     border: var(--field-border);
     border-radius: var(--radius-field);
     font-size: var(--type-medium);
-    font-weight: 600;
+    font-weight: 400;
     background-color: var(--field-bg);
     color: var(--text-dark);
     cursor: pointer;

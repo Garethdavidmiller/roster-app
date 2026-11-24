@@ -270,11 +270,11 @@ test('admin week label across New Year names the year it starts in, and still fi
 // ── THE OPERATIONS DATE FIELDS SIT BESIDE THEIR FILE BUTTON (24 Nov 2026) ─────────────────────────
 // Every Operations date writes the short month ("Wed 20 May 2026") and shares ONE line with its file
 // button from 360px: for two days (v26.55) the full month took a line of its own and each card stacked
-// its controls one per line, which the owner asked to reverse. On the Weekly Roster the roster-type menu
-// keeps the first line and the week sits beside "Choose PDF" on the second. The longest case is MEASURED, not
-// guessed: over every date of 2026–27 in Inter at weights 400–600, "Wed 20 May" is the widest and "Sat 30 May"
-// the widest week-ending (review, 24 Nov 2026: the test had used Wed 30 Sep, about 3px narrower). Set through
-// the field's own `change` (the path a pick takes), at the narrowest phone, the commonest iPhone, the e2e
+// its controls one per line, which the owner asked to reverse. On the Weekly Roster the week and its button
+// are a row of their own inside the card's, under the roster-type menu on a phone (operations.css →
+// .roster-upload-row). The longest case is MEASURED, not guessed: over every date of 2026–27 in Inter at
+// weights 400–600, "Wed 20 May" is the widest and "Sat 30 May" the widest week-ending (review, 24 Nov
+// 2026: the test had used Wed 30 Sep, about 3px narrower). Set through the field's own `change` (the path a pick takes), at the narrowest phone, the commonest iPhone, the e2e
 // phone and under 1.5× text: the words stay inside the field, the field inside its row, and the button never
 // covers it. At 320px, or under 1.5× text, the row wraps; that is the fallback, not the layout.
 test('operations date fields: each sits beside its file button, and no field is clipped or covered', async ({ page }) => {
@@ -317,6 +317,44 @@ test('operations date fields: each sits beside its file button, and no field is 
             expect(fields.map(f => f.oneLine), `at ${width}px every date keeps its file button on the same line`)
                 .toEqual([true, true, true, true]);
         }
+    }
+});
+
+// ── THE WEEKLY ROSTER CARD IS ONE OF THE UPLOAD CARDS (owner, 24 Nov 2026) ─────────────────────────────
+// "The weekly roster upload card is now not consistent with the other upload cards." Its roster-type menu
+// was 40px in bold beside 44px regular fields, took a line of its own at every width (a one-class rule lost
+// `width: auto` to the page's later field rule), and its button said "Choose PDF" where the others say
+// "Choose file". Pinned: every control in the five upload rows is the same height; the menu's words weigh
+// what the date's do; the file buttons all say "Choose file" but the leave sheet's; on a wide card the menu,
+// week and button share ONE line; on a phone the week keeps its button beside it — the three never split
+// with the button alone (what the menu did at 390px before the week and button were grouped).
+test('operations upload cards: the Weekly Roster card\'s controls match the others at every width', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#rosterTypeTrigger')).toBeAttached();
+    await page.evaluate(() => {
+        for (const id of ['huddleBody', 'circularUploadBody', 'newsletterUploadBody', 'rosterUploadBody']) document.getElementById(id)?.classList.add('open');
+    });
+    for (const width of [360, 390, 768, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        const m = await page.evaluate(() => {
+            const box = (/** @type {Element|null} */ el) => { const r = /** @type {Element} */ (el).getBoundingClientRect(); return { top: Math.round(r.top), left: Math.round(r.left), right: Math.round(r.right), h: Math.round(r.height) }; };
+            const controls = [...document.querySelectorAll('#huddleUploadCard .huddle-row > :is(.date-trigger, .huddle-file-label), #rosterUploadCard :is(.fieldpick, .date-trigger, .huddle-file-label)')];
+            const menu = document.getElementById('rosterTypeTrigger');
+            const week = document.querySelector('#rosterUploadCard .date-trigger');
+            const file = document.querySelector('#rosterUploadCard .huddle-file-label');
+            return {
+                heights: controls.map(c => `${c.id || c.className.split(' ')[0]} ${box(c).h}`),
+                weights: [getComputedStyle(/** @type {Element} */ (menu)).fontWeight, getComputedStyle(/** @type {Element} */ (week)).fontWeight],
+                labels: [...document.querySelectorAll('#huddleUploadCard, #circularUploadCard, #newsletterUploadCard, #rosterUploadCard')].map(c => c.querySelector('.huddle-file-label')?.textContent?.trim()),
+                menu: box(menu), week: box(week), file: box(file),
+            };
+        });
+        expect(new Set(m.heights.map(h => h.split(' ').pop())), `at ${width}px every upload control is one height: ${m.heights.join(', ')}`).toEqual(new Set(['44']));
+        expect(m.weights[0], 'the menu\'s words weigh what the date\'s do').toBe(m.weights[1]);
+        expect(m.labels, 'every document and roster file button says the same thing').toEqual(['Choose file', 'Choose file', 'Choose file', 'Choose file']);
+        expect(Math.abs(m.week.top - m.file.top), `at ${width}px the week keeps its file button beside it`).toBeLessThan(2);
+        if (width >= 768) expect(Math.abs(m.menu.top - m.week.top), `at ${width}px the menu, week and button share one line`).toBeLessThan(2);
     }
 });
 
