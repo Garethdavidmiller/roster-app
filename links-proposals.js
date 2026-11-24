@@ -57,10 +57,9 @@
  */
 
 import { nameConflict } from './links-design-naming.js';
+import { DAYS } from './links-design.js';
 
 /** @typedef {{ id: string, code: string, name: string, ref: string, patterns: Record<string, Record<string, string>> }} Proposal */
-
-const DAYS = /** @type {const} */ (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
 
 /** Rows of [sun, mon, tue, wed, thu, fri, sat] → `{ "1": { sun, … }, … }`. @param {string[][]} rows */
 function grid(rows) {

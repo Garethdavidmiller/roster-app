@@ -797,16 +797,17 @@ export function resolveEffectiveShift(override, baseShift, sunday, christmasDay)
 // rule whose failure writes leave against a day nobody was contracted to work. But the POLICY is
 // declared once, here, so no site re-derives it.
 //
-// Two sites CONSULT this declaration: the bulk bar (`isForbiddenOnSunday`) and the roster import
-// (`sundaySafeValue`). Two keep a bespoke copy for a reason, and are pinned to this list by
-// override-utils.test.mjs instead — a fifth forbidden type added here fails those tests rather than
-// being silently writable:
+// The write paths CONSULT this declaration (`isForbiddenOnSunday`, `sundaySafeValue`) — the bulk
+// apply (admin-bulk-apply.js, admin-week-editor.js), the leave sheet (al-leave-plan.js) and the
+// roster import with its entry control (roster-cell-rules.js, roster-entry-control.js). Two keep a
+// bespoke copy for a reason, and are pinned to this list by override-utils.test.mjs instead — a
+// fifth forbidden type added here fails those tests rather than being silently writable:
 //
-//   · the week-grid PILLS (`admin-week-editor.js`) carry per-pill wording — "Annual Leave —
+//   · the week-grid PILLS (`admin-day-pills.js`) carry per-pill wording — "Annual Leave —
 //     unavailable on Sundays…" — and one shared message would be vaguer than any of them.
-//   · the single-row SAVE (`admin-app.js`) does three different things with the four types: a plain
-//     `shift` is PROMOTED to `rdw` rather than refused, an "Other" day is refused unless its flavour
-//     is Spare (v18.91), and leave and absence are refused outright. That is not drift — it is what
+//   · the single-row SAVE (`collectWeekRows`, admin-week-collect.js) does three different things
+//     with the four types: a plain `shift` is PROMOTED to `rdw` rather than refused, an "Other" day
+//     is refused unless its flavour is Spare (v18.91), and leave and absence are refused outright. That is not drift — it is what
 //     each type should do — but it means the site cannot be a loop over this list.
 //
 // NOT the same question, and deliberately not wired to this list: `isOverrideDisplaySuppressed` at

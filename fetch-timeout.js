@@ -28,10 +28,14 @@
  *
  *   requestPasswordReset  30s server → 35s      parseRosterPDF     120s server → 130s *
  *   resetMemberPassword   60s server → 65s      setupRosterAuth    120s server → 130s
- *   getSignInStats        60s server → 65s
+ *   getSignInStats        60s server → 65s      getAccountSetupGaps 60s server → 65s
+ *   getDocumentUrl        30s server →  8s †
  *
  *   * the roster upload keeps its own timer to this rule (`PARSE_ABORT_MS`, admin-roster-upload.js);
  *     it does not call this module.
+ *   † the deliberate exception: a READ between a tap and a document opening, with the stored url to
+ *     fall back on, so waiting long to improve on it is the wrong trade (document-url.js,
+ *     `DOCUMENT_URL_TIMEOUT_MS`).
  *
  * That makes the bound long by UI standards, and that is the correct trade: it exists to end an
  * INFINITE wait, not to make a slow call feel fast.

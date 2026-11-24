@@ -39,6 +39,14 @@ const { jsonBodyOf } = require('./request-helpers');
 // ── Shift normalisation ──────────────────────────────────────────────────────
 
 /**
+ * A clock time in what follows a cell's first range: "14:00", "14.00", "1400", "600". Two of them are a second range,
+ * however they are joined — "/ 14:00-18:00", " 1400-1800", "RDW 14:00-18:00", "14:00 to 18:00", "14:00—18:00" — so the
+ * test counts TIMES, never a separator (external review of v26.69: a list of separators met "to" and an em dash it had
+ * not thought of, and returned the first range alone). A duty code's number ("CEA 10", "SUP 1") is too short to count.
+ */
+const CLOCK_TIME = /(?<!\d)(?:\d{1,2}[:.]\d{2}|\d{3,4})(?!\d)/g;
+
+/**
  * Normalise a shift value returned by the AI into the canonical app format.
  *
  * Handles common variations:
@@ -58,14 +66,6 @@ const { jsonBodyOf } = require('./request-helpers');
  *   warning about a review row that never exists, burying the lines worth reading (import-server-8)
  * @returns {string}   - Normalised shift value
  */
-/**
- * A clock time in what follows a cell's first range: "14:00", "14.00", "1400", "600". Two of them are a second range,
- * however they are joined — "/ 14:00-18:00", " 1400-1800", "RDW 14:00-18:00", "14:00 to 18:00", "14:00—18:00" — so the
- * test counts TIMES, never a separator (external review of v26.69: a list of separators met "to" and an em dash it had
- * not thought of, and returned the first range alone). A duty code's number ("CEA 10", "SUP 1") is too short to count.
- */
-const CLOCK_TIME = /(?<!\d)(?:\d{1,2}[:.]\d{2}|\d{3,4})(?!\d)/g;
-
 function normaliseShift(raw, { quiet = false } = {}) {
     if (typeof raw !== 'string') return 'RD';
     const s = raw.trim().toUpperCase();

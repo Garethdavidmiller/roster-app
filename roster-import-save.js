@@ -61,7 +61,8 @@ import { sameOverrideRecord } from './override-compare.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { isRdwEncoded, stripRdw } from './roster-review-states.js';
-import { MONTH_ABB, parseISODate } from './roster-data.js';
+import { parseISODate } from './roster-data.js';
+import { formatWeekdayDate } from './date-format.js';
 import { withSlowSaveNotice } from './slow-save.js';
 
 /** The code a Save refused for a day that changed since the read throws with. Its `days` name them. */
@@ -73,8 +74,6 @@ const NO_SERVER = new Set(['unavailable', 'deadline-exceeded']);
 /** What the admin reads, after "Couldn't save — ", when this device's earlier saves have not reached
  *  the server in time and the part that deletes was never started (v25.95). */
 export const UNSENT_SAVES_DETAIL = "this device has earlier changes it hasn't sent yet. Check the connection, then save again.";
-
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
  * @typedef {{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string|null,
@@ -204,10 +203,8 @@ export async function saveRosterWrites(toWrite, currentUser, shown = new Map()) 
  * @returns {string}
  */
 export function refusalLine(days, { savedEarlier = false, redrawn = false } = {}) {
-    const name = (/** @type {{ memberName: string, date: string }} */ d) => {
-        const dt = parseISODate(d.date);
-        return `${d.memberName} on ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
-    };
+    const name = (/** @type {{ memberName: string, date: string }} */ d) =>
+        `${d.memberName} on ${formatWeekdayDate(parseISODate(d.date))}`;
     const shown = days.slice(0, 4).map(name);
     const more = days.length - shown.length;
     const list = more > 0 ? `${shown.join(', ')} and ${more} more`

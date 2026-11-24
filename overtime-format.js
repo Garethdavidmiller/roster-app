@@ -35,7 +35,7 @@ import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
 import { getShiftBadge, formatISO, isSunday } from './roster-data.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
-import { printedStamp, londonDate, londonClock, MONTH_ABB } from './date-format.js';
+import { printedStamp, londonDate, londonClock, MONTH_ABB, MONTH_NAMES, DAY_NAMES_FULL } from './date-format.js';
 
 // THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
 // deadline, as against the words this module puts a deadline into. Re-exported here so every
@@ -187,8 +187,6 @@ export function sameAnswer(a, b) {
 
 // ── Words ───────────────────────────────────────────────────────────────────────────────────────
 
-const DAY_NAMES   = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
 /**
  * Parse "YYYY-MM-DD" into its parts without going near a timezone.
  * @param {string} iso
@@ -204,7 +202,7 @@ function parts(iso) {
  */
 export function shortDate(iso) {
     const p = parts(iso);
-    return `${DAY_NAMES[p.dow].slice(0, 3)} ${p.d} ${MONTH_ABB[p.m - 1]}`;
+    return `${DAY_NAMES_FULL[p.dow].slice(0, 3)} ${p.d} ${MONTH_ABB[p.m - 1]}`;
 }
 
 /**
@@ -213,9 +211,7 @@ export function shortDate(iso) {
  */
 export function longDate(iso) {
     const p = parts(iso);
-    const month = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
-        'August', 'September', 'October', 'November', 'December'][p.m - 1];
-    return `${DAY_NAMES[p.dow]} ${p.d} ${month} ${p.y}`;
+    return `${DAY_NAMES_FULL[p.dow]} ${p.d} ${MONTH_NAMES[p.m - 1]} ${p.y}`;
 }
 
 /**

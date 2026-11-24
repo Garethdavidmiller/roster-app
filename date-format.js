@@ -54,6 +54,8 @@
  * `firebase-client.js`.
  */
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/** The weekday in FULL — "Saturday", Sunday first as `DAY_NAMES` is — for a heading or a sentence. */
+export const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /**
  * The FULL register — "September". It lived in roster-data.js, read only by the heading builders,

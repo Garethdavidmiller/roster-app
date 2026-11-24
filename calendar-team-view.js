@@ -108,7 +108,7 @@ export function weekAfterDateChange(shown, { was, now, away }) {
  *   is SHOWING — the picker's choice, a colleague as readily as the reader — which picks the opening grade
  * @param {Function} deps.isFirstRun             True for a brand-new visitor who hasn't picked a name
  * @param {() => (string|null|undefined)} [deps.ownName]  The member SIGNED IN by name, whose row is marked
- *   as the reader's own; nothing on the staff PIN. Omitted, no row is marked.
+ *   as the reader's own. Omitted, no row is marked.
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
  * @param {Function} [deps.getDisplayedMonth]    () => ({ month, year }) — the month the CALENDAR is
  *   showing, so switching into the team grid opens on that month rather than dragging the reader
@@ -350,9 +350,8 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         ).join('');
 
         // THE READER'S OWN ROW, distinguished — the member SIGNED IN, never the picker's choice (17 Nov
-        // 2026). It was the picker's: on a colleague's calendar that marked the colleague as "you", and
-        // on the staff PIN it marked whoever was chosen last on that machine. With nobody signed in by
-        // name there is no "you", so no row is marked — a first run's default member included.
+        // 2026). It was the picker's: on a colleague's calendar that marked the colleague as "you". With
+        // nobody signed in by name there is no "you", so no row is marked.
         const myName = ownName?.() || null;
 
         // ── May this week's shifts be drawn? (v20.40) ──────────────────────────────────────────

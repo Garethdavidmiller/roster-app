@@ -657,9 +657,10 @@ try {
     // future edit could break silently, and that one is a refusal that it could not.
     //
     // What stays OUTSIDE: the header, the nav drawer, the About panel, the document viewers and the
-    // splash dismissal. The guides, the Huddle, the Circular and the Newsletter are reachable
-    // without Calendar access on purpose — making somebody sign in to read the Railcard
-    // guide would be locking the building to reach the noticeboard.
+    // splash dismissal. The guides are reachable without Calendar access on purpose — making somebody
+    // sign in to read the Railcard guide would be locking the building to reach the noticeboard. The
+    // document viewers are wired here, but their reads open only with the grant (calendar-doc-access.js,
+    // CALENDAR_DATA.md 15).
     _startCalendarWorkspace = async function startCalendarWorkspace() {
         // validateRosterPatterns() already ran at module load in roster-data.js.
         // Only run the team-member shape check here — it's unique to this file.
@@ -1061,18 +1062,11 @@ initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // writes to Firestore, and the write gate is still the right promise to wait on.
 calendarAuthReady.finally(() => {
     initErrorReporter();
-    // The calendar has no Auth session of its own, and since v19.95 that no longer keeps its
-    // visitors out of the account figures: `recordUsage` takes ONE identity and counts it. For the
-    // admin-exclusion identity use the signed-in SESSION name, NOT the selected dropdown member: the
-    // default dropdown selection is an admin (CONFIG.DEFAULT_MEMBER_NAME = 'G. Miller'), so keying on it
-    // would wrongly exclude every fresh anonymous visitor. A signed-in admin (the developer) — identified
-    // by the shared session, the same signal the authenticated pages use — is the real thing to skip.
-    // Falls back to the SELECTED member when nobody is signed in (v19.86, external review P2).
-    // This was `getSession()?.name ?? null`, which is right for admin exclusion and wrong for the
-    // other jobs the same argument does: it is also the dedup key for the address counters and (as
-    // of v19.95) for the account counts, and calendar-only staff never sign in anywhere. With a
-    // session-only identity that is null for them, so both metrics were blind to the exact
-    // population they exist to observe: the people an old installed PWA can strand.
+    // For the admin exclusion use the signed-in SESSION name, NOT the selected member: the default
+    // selection is an admin (CONFIG.DEFAULT_MEMBER_NAME), and a selection says whose roster is on
+    // screen, not who is looking. A signed-in admin — the same signal the other pages use — is the
+    // real thing to skip. The SELECTED member is passed too, as a dedup key only, for a load with
+    // nobody signed in (usage-reporter.js header).
     //
     // The `isFirstRun()` guard is what makes the fallback safe, and it is the same one the nav
     // panel's open counters use ten lines below. Before a member picks anyone the "selection" is
@@ -1084,9 +1078,9 @@ calendarAuthReady.finally(() => {
     // admin's row dropped every staff open on it — the same trap the speed call below was fixed for.
     recordUsage('calendar', getSession()?.name || null, isFirstRun() ? null : getCurrentMember()?.name || null);
     // SPEED TAKES THE SESSION ONLY (App Speed review, Oct 2026). Its identity does one job — leaving
-    // the admin's own opens out — and the SELECTED member is not who is using a station PC: one left
-    // on G. Miller dropped every staff open on it from the speed figures. The usage counts above keep
-    // the fallback, because there the name is also the dedup key for people who never sign in.
+    // the admin's own opens out — and the SELECTED member is not who is looking: a station PC left on
+    // the admin's row once dropped every staff open on it from the speed figures. The usage counts
+    // above keep the fallback, because there the name is also a dedup key.
     recordPageLatency('calendar', getSession()?.name || null);
 });
 

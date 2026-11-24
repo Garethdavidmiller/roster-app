@@ -25,7 +25,7 @@
  *    nothing about the grammar is authored twice. Spare is the one flavour not offered here: it is
  *    its own override type, not an Other flavour (owner decision).
  * 2. **Sunday exclusions are consulted, never restated.** `isForbiddenOnSunday` is the list; it has
- *    six numbered enforcement layers already and a seventh copy is how one of them goes stale.
+ *    seven numbered enforcement layers already and an eighth copy is how one of them goes stale.
  * 3. **An entry passes the guards a parsed value passes.** `commitEntry` composes through
  *    `manualCellValue` and then `normaliseCellValue` (roster-cell-rules.js), so entering a value can
  *    never be a route to write something the parsed path would have refused.

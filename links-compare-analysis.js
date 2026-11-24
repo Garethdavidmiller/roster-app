@@ -100,9 +100,8 @@ export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
     // Fatigue, factor by factor. A factor CHANGES when its status or its value moves; the rest are
     // counted, and those present in BOTH are named (rule 3).
     const fa = ra.fatigue, fb = rb.fatigue;
-    // Paired on code AND title, never code alone: MRSF is three rows under one code (the most
-    // restrictive, the second and the third), and a Map keyed on the code keeps only the last, so each
-    // MRSF row in A would be compared with B's THIRD.
+    // Paired on code AND title, never code alone: MRSF is four rows under one code, and a Map keyed on
+    // the code keeps only the last, so each MRSF row in A would be compared with B's last.
     const key = (/** @type {{code: string, title: string}} */ r) => `${r.code}|${r.title}`;
     const byCode = new Map(fb.results.map(r => [key(r), r]));
     /** @type {FactorChange[]} */

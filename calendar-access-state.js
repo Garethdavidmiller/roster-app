@@ -78,7 +78,7 @@ export function grantNumber() { return _grant; }
  * narrower act than it is: "shut the documents" would lock the whole Calendar, and "open the roster
  * reads" would open the documents with them.
  *
- * ONE ARGUMENT. Named and viewer access read the same data, so a second parameter would only be a
+ * ONE ARGUMENT. Access is a named session or nothing, so a second parameter would only be a
  * second thing to get wrong. The roster gate's write, as it then was, took one from v22.97 until
  * 26 Sep 2026 — a member SCOPE, for the retired provisional paint — and both bugs that paint
  * produced lived in the difference between a scoped and an unscoped grant (DECISIONS.md → "The

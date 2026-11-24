@@ -57,7 +57,7 @@ const { storedMilestones, toMillis, publicHead } = OT;
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { memberNameFromClaims } = require('./member-identity');
-const { bearerToken } = require('./request-helpers');
+const { bearerToken, readJsonBody } = require('./request-helpers');
 const { isViewerAccount } = require('./retired-viewer-account');
 
 /** Collection root. One name, used everywhere, so a typo cannot create a parallel universe. */
@@ -335,7 +335,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             if (!who) return;
             if (!requireReviewer(who, res)) return;
 
-            const body = req.body || {};
+            const body = readJsonBody(req);
             const weekEnding = typeof body.weekEnding === 'string' ? body.weekEnding : '';
 
             const r = await createWindow(weekEnding, {
@@ -612,7 +612,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             if (!who) return;
             if (!requireReviewer(who, res)) return;
 
-            const body = req.body || {};
+            const body = readJsonBody(req);
             const weekEnding = typeof body.weekEnding === 'string' ? body.weekEnding : '';
             const memberName = typeof body.memberName === 'string' ? body.memberName.trim() : '';
             const withdrawn = body.withdrawn === true;
@@ -1227,7 +1227,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             const who = await authenticate(req, res);
             if (!who) return;
 
-            const body = req.body || {};
+            const body = readJsonBody(req);
             const weekEnding = typeof body.weekEnding === 'string' ? body.weekEnding : '';
             const ifRevision = Number.isInteger(body.ifRevision) ? body.ifRevision : -1;
             const mutationId = typeof body.clientMutationId === 'string' ? body.clientMutationId : '';

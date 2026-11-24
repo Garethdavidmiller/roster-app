@@ -35,7 +35,7 @@ import { isViewerUser } from './calendar-access-core.js';
  *
  * If the member sign-in then FAILS, this browser is left with no identity and the long-lived chain
  * armed. That is the correct resting state, not a leak: the Calendar re-locks (there is no viewer to
- * find), and the next unlock explicitly asks for session persistence again.
+ * find) until a member signs in.
  *
  * ── IT FAILED OPEN UNTIL v20.35, WHICH DEFEATED ITS OWN ORDERING ────────────────────────────────
  *

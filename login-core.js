@@ -1,8 +1,9 @@
 // @ts-check
 /**
  * login-core.js — the sign-in card's DOM-FREE rules: one sign-in attempt (`runNamedSignIn`), which links
- * the card's explanation may carry (`isAboutLinkAllowed`) and what a failed reset request says
- * (`resetRequestFailureLine`).
+ * the card's explanation may carry (`isAboutLinkAllowed`), what a failed reset request says
+ * (`resetRequestFailureLine`), the forced set-password step's marker held across a typed attempt
+ * (`holdPasswordMarker` / `releasePasswordMarker`) and a page's own sign-in explanation (`signInAboutFor`).
  *
  * Moved out of login-overlay.js (Nov 2026), which stood three lines under the size at which a module
  * must be capped (coordinator-ratchet.test.mjs): the card's markup and wiring stayed, and the three

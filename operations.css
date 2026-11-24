@@ -1362,67 +1362,6 @@ body.auth-ready .container { display: grid; }
     margin-bottom: 6px;
 }
 .error-when    { font-size: var(--type-small); color: var(--text-faint); white-space: nowrap; }
-    /* ── Password Reset Requests ─────────────────────────────────────────────
-       Deliberately reuses the Error Log row vocabulary (same type sizes, same faint timestamp) so the
-       two queues on this page read as one system rather than two designs. */
-    .rr-list { display: flex; flex-direction: column; gap: 6px; }
-    /* 96px a row at 375px for a name, a time and a one-line remedy (v23.12 sweep): the row wraps
-       to two lines by design, so the vertical gap between them is what it costs. 6px, not 10px. */
-    .rr-row {
-        display: flex;
-        align-items: center;
-        gap: 6px 10px;
-        flex-wrap: wrap;
-        padding: 8px 12px;
-        background: var(--surface-sunken);
-        border-radius: var(--radius);
-        border-left: 3px solid var(--accent-gold);
-    }
-    /* min-width AND overflow: without the overflow the name/timestamp painted over the remedy label
-       once the row got tight (v18.94 fix — the row was measured at 375px, which v18.93 never was). */
-    .rr-main  { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 100%; overflow: hidden; }
-    .rr-main strong { font-size: var(--type-body); color: var(--primary-blue); }
-    .rr-when  { font-size: var(--type-small); color: var(--text-faint); }
-    .rr-remedy {
-        font-size: var(--type-small);
-        color: var(--text-mid);
-        /* NOT nowrap (v18.94). A nowrap label with no flex-shrink held its full ~219px and starved the
-           name column to 18px at 375px, breaking names mid-word ("K." / "Jedlinski") and shredding
-           timestamps into one-word columns. Let it wrap and let the row stack instead. */
-        /* basis 0, not auto (v18.95). With `auto` the label's max-content width is its hypothetical
-           size, so the LONGEST remedy ("No account yet — run Set up accounts", bold) overflowed the
-           second line and pushed Clear onto a THIRD — one row in four silently taller and its button
-           out of column with the rest. Flexing from zero makes the label take the leftover space and
-           wrap inside it, so Clear stays on the remedy's line at every width. */
-        flex: 1 1 0;
-        min-width: 0;
-    }
-    /* A missing account needs Set up accounts, not Reset — call that out rather than leaving the admin
-       to discover it by trying. */
-    .rr-remedy--setup { color: var(--orange-text); font-weight: 700; }
-    .rr-error { flex: 1 0 100%; font-size: var(--type-small); color: var(--error-text); }
-    .btn-rr-clear {
-        background: none;
-        border: 1px solid var(--border-light);
-        border-radius: var(--radius-sm);
-        font-family: inherit;
-        font-size: var(--type-small);
-        color: var(--text-mid);
-        padding: 6px 12px;
-        cursor: pointer;
-        min-height: 32px;
-    }
-    /* Below the two-column breakpoint the row is a stack, not a strip: the name gets the full width and
-       the remedy sits with the Clear button beneath it. Above it, the original single strip. */
-    @media (min-width: 1024px) {
-        .rr-main   { flex: 1 1 auto; }
-        .rr-remedy { flex: 0 0 auto; white-space: nowrap; text-align: right; }
-    }
-    .btn-rr-clear { flex: 0 0 auto; margin-left: auto; }
-    @media (hover: hover) and (pointer: fine) { .btn-rr-clear:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
-    .btn-rr-clear:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-    .btn-rr-clear:disabled { opacity: 0.5; cursor: default; }
-
 .error-member  { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); }
 .error-page    { font-size: var(--type-small); color: var(--text-mid); font-family: monospace; }
 .error-version { font-size: var(--type-badge); color: var(--text-faint); font-family: monospace; }
@@ -1460,6 +1399,67 @@ body.auth-ready .container { display: grid; }
 .errorlog-count-chip { color: var(--error-red); }
 /* Per-card "Try again" button (B2) — retries just this monitoring card, not a whole-page reload. */
 .card-retry-btn { margin-top: 10px; }
+
+/* ── Password Reset Requests ─────────────────────────────────────────────
+   Deliberately reuses the Error Log row vocabulary (same type sizes, same faint timestamp) so the
+   two queues on this page read as one system rather than two designs. */
+.rr-list { display: flex; flex-direction: column; gap: 6px; }
+/* 96px a row at 375px for a name, a time and a one-line remedy (v23.12 sweep): the row wraps
+   to two lines by design, so the vertical gap between them is what it costs. 6px, not 10px. */
+.rr-row {
+    display: flex;
+    align-items: center;
+    gap: 6px 10px;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    background: var(--surface-sunken);
+    border-radius: var(--radius);
+    border-left: 3px solid var(--accent-gold);
+}
+/* min-width AND overflow: without the overflow the name/timestamp painted over the remedy label
+   once the row got tight (v18.94 fix — the row was measured at 375px, which v18.93 never was). */
+.rr-main  { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 100%; overflow: hidden; }
+.rr-main strong { font-size: var(--type-body); color: var(--primary-blue); }
+.rr-when  { font-size: var(--type-small); color: var(--text-faint); }
+.rr-remedy {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    /* NOT nowrap (v18.94). A nowrap label with no flex-shrink held its full ~219px and starved the
+       name column to 18px at 375px, breaking names mid-word ("K." / "Jedlinski") and shredding
+       timestamps into one-word columns. Let it wrap and let the row stack instead. */
+    /* basis 0, not auto (v18.95). With `auto` the label's max-content width is its hypothetical
+       size, so the LONGEST remedy ("No account yet — run Set up accounts", bold) overflowed the
+       second line and pushed Clear onto a THIRD — one row in four silently taller and its button
+       out of column with the rest. Flexing from zero makes the label take the leftover space and
+       wrap inside it, so Clear stays on the remedy's line at every width. */
+    flex: 1 1 0;
+    min-width: 0;
+}
+/* A missing account needs Set up accounts, not Reset — call that out rather than leaving the admin
+   to discover it by trying. */
+.rr-remedy--setup { color: var(--orange-text); font-weight: 700; }
+.rr-error { flex: 1 0 100%; font-size: var(--type-small); color: var(--error-text); }
+.btn-rr-clear {
+    background: none;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    padding: 6px 12px;
+    cursor: pointer;
+    min-height: 32px;
+}
+/* Below the two-column breakpoint the row is a stack, not a strip: the name gets the full width and
+   the remedy sits with the Clear button beneath it. Above it, the original single strip. */
+@media (min-width: 1024px) {
+    .rr-main   { flex: 1 1 auto; }
+    .rr-remedy { flex: 0 0 auto; white-space: nowrap; text-align: right; }
+}
+.btn-rr-clear { flex: 0 0 auto; margin-left: auto; }
+@media (hover: hover) and (pointer: fine) { .btn-rr-clear:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
+.btn-rr-clear:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.btn-rr-clear:disabled { opacity: 0.5; cursor: default; }
 
 /* ── Annual leave sheet card (14 Nov 2026) ───────────────────────────────────────────────────────
    A leave file in, every difference on screen (operations-al-sheet.js). Built to be SCANNED: a summary

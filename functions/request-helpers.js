@@ -101,8 +101,10 @@ async function requireAdmin(req, res, logTag) {
 
 /**
  * Read the raw base64 plain-text request body (bypasses the JSON body-size limit), capped at
- * `maxBytes` so an oversized upload is rejected DURING streaming rather than after buffering and
- * decoding the whole thing (which could OOM the 512 MiB instance). Shared by ingestHuddle and
+ * `maxBytes` so an oversized upload is rejected before it is decoded (decoding the whole thing
+ * could OOM the 512 MiB instance). On v2 the body usually arrives pre-buffered as `req.rawBody`,
+ * checked by length; the streaming branch covers a runtime that hands over no rawBody, and stops
+ * reading at the cap. Shared by ingestHuddle and
  * parseRosterPDF (extracted v16.39 — the block was byte-identical bar the log tag; moved here from
  * index.js in Nov 2026, with the cap handed in, since index.js names the cap beside the others).
  * On any failure it sends the HTTP error response itself and returns null; otherwise the trimmed

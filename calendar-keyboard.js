@@ -116,7 +116,7 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
         e.preventDefault();
         // A REFUSED jump falls through to the day panel rather than swallowing the key (v23.07).
         // `navigateToPaycalc` now answers whether it went, because the calculator is personal and
-        // it declines on a colleague's calendar or a PIN-unlocked screen. Returning here on a
+        // it declines on a colleague's calendar. Returning here on a
         // refusal would make Enter a dead key on exactly those days — worse than the jump it
         // replaced, and only for keyboard users, who have no hover tooltip to fall back on.
         if (focused.dataset.paydayIso && navigateToPaycalc(focused.dataset.paydayIso)) return;

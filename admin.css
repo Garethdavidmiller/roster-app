@@ -2459,89 +2459,89 @@
 
         /* Checkbox column in the override table */
 
-/* ── Other sub-controls (OTHER_DAYS.md) — flavour + RDW tick, shown while the
-   Other pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
-.other-opts {
-    grid-column: 1 / -1;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-    padding: 6px 8px;
-    background: var(--other-light);
-    border-radius: var(--radius-sm);
-    font-size: var(--type-small);
-}
-.other-opts[hidden] { display: none; }
-/* wrap the chips (4 since Team Day v15.51, more when Meetings/Union land) so the group's
-   min-content is one chip, never the sum — prevents the touch-layout blowout at 360px. */
-.other-flavour-group { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.other-flavour-btn {
-    font-family: inherit; font-size: var(--type-badge); font-weight: 700;
-    padding: 3px 10px; border-radius: var(--radius-pill);
-    border: 1.5px solid var(--other);
-    background: white; color: var(--other);
-    cursor: pointer;
-    transition: background var(--dur-med), color var(--dur-med);
-}
-.other-flavour-btn.active { background: var(--other); color: white; }
-/* A chip a Sunday or Boxing Day refuses: there the Other pill offers Spare alone (admin-day-pills.js).
-   Inert the way a disabled type pill is, and the row's note says why in words. */
-.other-flavour-btn:disabled { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
-/* Spare lives in this submenu but is its own thing — keep its 📋 purple colour (v15.57). */
-.other-flavour-spare { border-color: var(--purple); color: var(--purple); }
-.other-flavour-spare.active { background: var(--purple); color: white; border-color: var(--purple); }
-/* Spare has no RDW tick, no times, and no "pick a type / times optional" hint — hide them. */
-.day-row.other-spare .other-rdw-label,
-.day-row.other-spare .other-rdw-auto,
-.day-row.other-spare .other-rdw-warn,
-.day-row.other-spare .other-opts-hint { display: none; }
-.other-rdw-label {
-    display: inline-flex; align-items: center; gap: 5px;
-    font-weight: 600; color: var(--other);
-    cursor: pointer; white-space: nowrap;
-}
-.other-rdw-label input { --check-fill: var(--other); }
-/* WHY THE TICK IS LOCKED, said in the row (v23.52). This was a `title` until v23.50, which removed
-   every tooltip in the app — and unlike the three other disabled-state explainers in that release
-   (`.sunday-note`, `.bp-mode-why`, the roster review's Sunday note) this one was dropped without a
-   replacement, so the tick simply went grey with no reason given. It renders only on a base rest
-   day, which is the only state that locks it. */
-.other-rdw-auto { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
-/* The Sunday reason, said in the row (v23.50) — replaces four `title` tooltips on the disabled
-   pills, which a phone never showed. Sits on its own line under the pills (the row wraps). */
-.sunday-note,
-/* Christmas leave (v25.37): the same quiet line, for the same reason — the row's own explanation of the
-   AL the Base roster column shows on a Christmas day the member was due to work (18 Nov 2026: it showed
-   the station's closure rest day, and on a phone this line is out of sight until the row is ticked). */
-.christmas-note,
-/* …and a day before the member's start date (admin-1-11): no change can be recorded there. */
-.start-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
-.other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
-.other-rdw-warn[hidden] { display: none; }
-.other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
-/* A THUMB'S HEIGHT ON TOUCH (whole-app review, Oct 2026). The flavour chips and the "Rest day (RDW)"
-   tick measured ~20px tall under a coarse pointer — under WCAG 2.2's 24px floor — and the touch gate
-   never saw them, because it scans with this submenu closed. Gated on the POINTER, not the width,
-   as the Links paint chips are (css-tokens.md). */
-@media (pointer: coarse) {
-    .other-flavour-btn,
-    .other-rdw-label { min-height: 30px; }
-}
-/* ── SAVE RECEIPT (v21.38) ───────────────────────────────────────────────────────────────────────
-   The day-by-day list under a successful save. FOLDED by default: the headline already answers the
-   ordinary case, and a list that opens itself would push the week grid down the screen after every
-   save — the receipt is for checking, not for reading every time. */
-.save-receipt { margin-top: 6px; }
-.save-receipt > summary {
-    cursor: pointer;
-    font-size: var(--type-small);
-    font-weight: 600;
-    padding: 2px 0;
-    list-style: revert;                     /* keep the platform disclosure triangle */
-}
-.save-receipt > summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
-.save-receipt ul {
-    margin: 4px 0 0;
-    padding-left: 18px;
-    font-size: var(--type-small);
-    font-weight: 400;                       /* the LIST is data; the headline above carries the weight */
-}
-.save-receipt li { padding: 1px 0; }
+        /* ── Other sub-controls (OTHER_DAYS.md) — flavour + RDW tick, shown while the
+           Other pill is active. Composed into FLAVOUR[" RDW"][" HH:MM-HH:MM"] on save. ── */
+        .other-opts {
+            grid-column: 1 / -1;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+            padding: 6px 8px;
+            background: var(--other-light);
+            border-radius: var(--radius-sm);
+            font-size: var(--type-small);
+        }
+        .other-opts[hidden] { display: none; }
+        /* wrap the flavour chips so the group's min-content is one chip, never the sum —
+           prevents the touch-layout blowout at 360px. */
+        .other-flavour-group { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+        .other-flavour-btn {
+            font-family: inherit; font-size: var(--type-badge); font-weight: 700;
+            padding: 3px 10px; border-radius: var(--radius-pill);
+            border: 1.5px solid var(--other);
+            background: white; color: var(--other);
+            cursor: pointer;
+            transition: background var(--dur-med), color var(--dur-med);
+        }
+        .other-flavour-btn.active { background: var(--other); color: white; }
+        /* A chip a Sunday or Boxing Day refuses: there the Other pill offers Spare alone (admin-day-pills.js).
+           Inert the way a disabled type pill is, and the row's note says why in words. */
+        .other-flavour-btn:disabled { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
+        /* Spare lives in this submenu but is its own thing — keep its 📋 purple colour (v15.57). */
+        .other-flavour-spare { border-color: var(--purple); color: var(--purple); }
+        .other-flavour-spare.active { background: var(--purple); color: white; border-color: var(--purple); }
+        /* Spare has no RDW tick, no times, and no "pick a type / times optional" hint — hide them. */
+        .day-row.other-spare .other-rdw-label,
+        .day-row.other-spare .other-rdw-auto,
+        .day-row.other-spare .other-rdw-warn,
+        .day-row.other-spare .other-opts-hint { display: none; }
+        .other-rdw-label {
+            display: inline-flex; align-items: center; gap: 5px;
+            font-weight: 600; color: var(--other);
+            cursor: pointer; white-space: nowrap;
+        }
+        .other-rdw-label input { --check-fill: var(--other); }
+        /* WHY THE TICK IS LOCKED, said in the row (v23.52). This was a `title` until v23.50, which removed
+           every tooltip in the app — and unlike the three other disabled-state explainers in that release
+           (`.sunday-note`, `.bp-mode-why`, the roster review's Sunday note) this one was dropped without a
+           replacement, so the tick simply went grey with no reason given. It renders only on a base rest
+           day, which is the only state that locks it. */
+        .other-rdw-auto { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
+        /* The Sunday reason, said in the row (v23.50) — replaces four `title` tooltips on the disabled
+           pills, which a phone never showed. Sits on its own line under the pills (the row wraps). */
+        .sunday-note,
+        /* Christmas leave (v25.37): the same quiet line, for the same reason — the row's own explanation of the
+           AL the Base roster column shows on a Christmas day the member was due to work (18 Nov 2026: it showed
+           the station's closure rest day, and on a phone this line is out of sight until the row is ticked). */
+        .christmas-note,
+        /* …and a day before the member's start date (admin-1-11): no change can be recorded there. */
+        .start-note { flex-basis: 100%; font-size: var(--type-small); font-weight: 500; color: var(--text-mid); margin-top: 2px; }
+        .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
+        .other-rdw-warn[hidden] { display: none; }
+        .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
+        /* A THUMB'S HEIGHT ON TOUCH (whole-app review, Oct 2026). The flavour chips and the "Rest day (RDW)"
+           tick measured ~20px tall under a coarse pointer — under WCAG 2.2's 24px floor — and the touch gate
+           never saw them, because it scans with this submenu closed. Gated on the POINTER, not the width,
+           as the Links paint chips are (css-tokens.md). */
+        @media (pointer: coarse) {
+            .other-flavour-btn,
+            .other-rdw-label { min-height: 30px; }
+        }
+        /* ── SAVE RECEIPT (v21.38) ───────────────────────────────────────────────────────────────────────
+           The day-by-day list under a successful save. FOLDED by default: the headline already answers the
+           ordinary case, and a list that opens itself would push the week grid down the screen after every
+           save — the receipt is for checking, not for reading every time. */
+        .save-receipt { margin-top: 6px; }
+        .save-receipt > summary {
+            cursor: pointer;
+            font-size: var(--type-small);
+            font-weight: 600;
+            padding: 2px 0;
+            list-style: revert;                     /* keep the platform disclosure triangle */
+        }
+        .save-receipt > summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+        .save-receipt ul {
+            margin: 4px 0 0;
+            padding-left: 18px;
+            font-size: var(--type-small);
+            font-weight: 400;                       /* the LIST is data; the headline above carries the weight */
+        }
+        .save-receipt li { padding: 1px 0; }

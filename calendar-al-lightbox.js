@@ -103,8 +103,8 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
   // LABELLED AS A SAVED COPY until that refresh lands (10 Nov 2026, CALENDAR_DATA.md 18): leave
   // recorded since it was saved is not in it. ONLY THE READER'S OWN, AND IT GOES WITH THEM (16 Nov
   // 2026): it is kept in the member's own stored roster (calendar-snapshot.js), so it is written only
-  // for the member signed in, on their own panel, and is deleted at every sign-out, PIN unlock and
-  // lost grant — a shared phone used to keep every balance anybody had opened on it, for good.
+  // for the member signed in, on their own panel, and is deleted at every sign-out and lost grant —
+  // a shared phone used to keep every balance anybody had opened on it, for good.
   sweepRetiredLeaveKeys();
 
   const statsEl  = document.querySelector('.al-lb-stats');
@@ -197,7 +197,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
 
     // WHOSE LEAVE THIS IS (v25.50, owner: "the AL screen doesn't tell me whose AL I'm looking at").
     // The panel shows the member the Calendar has chosen — a colleague's as readily as the reader's
-    // own, and on the staff PIN nobody's in particular — and four bare figures read as the reader's.
+    // own — and four bare figures read as the reader's.
     // So it names them on every open, from the same `member` the figures below are counted for, and
     // the dialog's name carries it too: onOpen runs this before the panel is shown or focused, so a
     // screen reader announces whose balance it is on arrival.
@@ -585,10 +585,8 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     // BOTH ACTIONS ARE ADDRESSED TO A PERSON, AND THE PANEL MUST NOT OFFER THEM TO SOMEBODY ELSE
     // (v23.04, owner report). "Leave dates" opens Admin's record of YOUR leave and "Pay estimate"
     // opens YOUR calculator, so on a colleague's calendar — which any signed-in member may browse —
-    // both silently change subject, and on a PIN-unlocked station PC neither has a subject at all.
-    // The rule is `personalActionsAllowed` in calendar-access-core.js, which is pure and carries
-    // the argument, including why viewer mode is a SEPARATE refusal from the name match rather
-    // than a consequence of it. Asked per open, never cached: the member selector changes under a
+    // both silently change subject. The rule is `personalActionsAllowed` in calendar-access-core.js,
+    // which is pure and carries the argument. Asked per open, never cached: the member selector changes under a
     // page that is never reloaded, and access can be re-granted or lost mid-session.
     const personal = personalActionsAllowed({
         accessType:  getAccessType(),
@@ -614,7 +612,7 @@ export function initCalendarLightboxes({ navigateToPaycalc, isTeamView } = {}) {
     const payTarget = d.paydayIso || cutoffPayday;
     // WHAT A PAY CUT-OFF IS (17 Nov 2026). The key and the chip name it, and nothing on the Calendar
     // said what one is, so the day that carries it says so: name, then one plain sentence, with the
-    // payday it feeds. The words are neutral — the panel shows a colleague's day and the staff PIN's too.
+    // payday it feeds. The words are neutral — the panel shows a colleague's day too.
     if (cutoffEl) {
       const when = cutoffPayday
         ? parseISODate(cutoffPayday).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })

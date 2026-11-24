@@ -11,7 +11,7 @@
  * ** `.claude/rules/roster-import.md` IS THE CONTRACT FOR THIS PIPELINE — read it before changing
  * anything here.**
  *
- * ── TWO DEFECTS THE REVIEW FOUND, AND THE RULE EACH LEFT BEHIND ────────────────────────────────
+ * ── THREE DEFECTS THE REVIEW FOUND, AND THE RULE EACH LEFT BEHIND ──────────────────────────────
  *
  * 1. **The empty trailing slot changed shape at v22.25, and the clean repair never noticed.** A
  *    row that skipped its blank Sunday ends with nothing in the Saturday slot. That slot used to

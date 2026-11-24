@@ -233,6 +233,8 @@ export function init() {
     }
 
     /**
+     * The Saturday contracted-hours cap. It does not re-price: every caller follows it at once with
+     * `autosave()`, which ends in `calculate()`, so a run here priced the same screen twice.
      * @param {string} hId
      * @param {string} mId
      * @param {string | null} warnId
@@ -252,7 +254,6 @@ export function init() {
           if (warn) warn.classList.remove('show');
         }
       }
-      calculate();
     }
 
     function onPeriodChange() {

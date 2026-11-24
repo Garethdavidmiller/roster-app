@@ -278,7 +278,7 @@ white, a third recipe for one job. */
     line-height: 1.4;
     white-space: nowrap;
 }
-/* Amber, not the warning red: --al-warning sits 3° of hue from --error-red, so "Times move" and
+/* Amber, not the warning red: --al-warning sits 3° of hue from --error-red, so "New times" and
    "No longer runs" were the same pink with different text (v24.83). "Will run to …" is news that is neither good nor
    bad, so it is the app's informational pale blue with navy words — not the page's raspberry, which on this page
    means "you chose this" (Trains review, 22 Nov 2026). */

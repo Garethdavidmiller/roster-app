@@ -41,10 +41,10 @@ export const rosterOverridesCache = new Map();
 // future edit can quietly break with no test failing. This one is a refusal at the source.
 //
 // The read it exists for is `getDocsFromCache`. Firestore security rules are evaluated on the
-// SERVER, so a local IndexedDB cache hit never consults them: a browser that unlocked yesterday
+// SERVER, so a local IndexedDB cache hit never consults them: a browser signed in yesterday
 // still holds every override it saw, and tightening the rule does nothing about that. Painting it
-// before the PIN would hand the next person at a shared PC exactly the data the PIN exists to
-// gate — the annual leave and absence of fifty colleagues — with no network request to notice.
+// before a sign-in would hand the next person at a shared device exactly the data the sign-in
+// exists to gate — the annual leave and absence of fifty colleagues — with no network request to notice.
 //
 // Deliberately NOT wired to `calendarAccessReady`, and this is the important half: importing the
 // access module here would make the gate depend on the very promise a bypass would be trying to
@@ -71,7 +71,7 @@ onCalendarAccess(({ open }) => {
     if (open) { fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); _recheckOwed.clear(); }
     // A SHUT FORGETS WHAT EVERY MONTH WAS KNOWN TO BE, here, so every route that loses access forgets
     // (cal-data-6, 10 Nov 2026). Only the month read's route used to: losing access through the first
-    // load's read or its chip's retry shut the gate and kept the knowledge, so after the next PIN a
+    // load's read or its chip's retry shut the gate and kept the knowledge, so after the next grant a
     // month read under the old grant was drawn as current — and stayed current if the new grant's own
     // read failed, "As rostered" included. Access loss is what `forget` is for.
     else forgetKnowledge();
@@ -284,7 +284,7 @@ export function issueReadTicket() { return { grant: grantNumber(), seq: ++_readS
  * whenever it runs, and trust the answer.
  *
  * The "not shut since" half is what the failure paths were missing (10 Nov 2026). They compared the
- * grant number alone, so a read that FAILED after access was shut, before anybody re-entered the PIN,
+ * grant number alone, so a read that FAILED after access was shut, before anybody signed in again,
  * was recorded against the locked Calendar: a failed month, or a "Couldn't update" chip, which the next
  * grant then drew first. A SUCCESS there was already refused (`fetchOverridesForRange`).
  * @param {ReadTicket} ticket
@@ -488,7 +488,7 @@ export async function fetchOverridesForRange(startStr, endStr, ticket = issueRea
  */
 export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWithRows) {
     // THE ONE THAT MATTERS. A cache hit never reaches a security rule, so this line — not
-    // firestore.rules — is what stops yesterday's overrides painting before today's PIN. Returns
+    // firestore.rules — is what stops yesterday's overrides painting before today's sign-in. Returns
     // false (paints nothing) rather than throwing, because "no access yet" is indistinguishable to
     // every caller from "no cache yet", which is already this function's normal empty state.
     if (!hasCalendarAccess()) return false;
@@ -615,9 +615,8 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // ACCESS GONE, not a network blip (v20.15). This path had no recovery at all: the month
         // simply rendered from the base roster with a line in the console, which is the one outcome
         // the whole feature exists to prevent — somebody shown a shift they are not working, with
-        // nothing on screen saying so. It is not theoretical either: revoking the shared viewer's
-        // refresh tokens is a documented step of rotating the PIN, and it lands exactly here, on
-        // every viewer's next month navigation.
+        // nothing on screen saying so. A revoked or disabled account lands exactly here (a password
+        // reset revokes every device's tokens), on its next month navigation.
         //
         // The initial fetch already had this recovery (calendar-initial-fetch.js). Month navigation
         // and Team View come through HERE instead, and they are the likelier path, because by the

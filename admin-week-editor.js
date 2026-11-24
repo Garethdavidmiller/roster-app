@@ -199,7 +199,7 @@ export function buildWeekGridInto(container, dateStr) {
         const dateISO = formatISO(date);
         const baseShift = getBaseShift(member, date);
 
-        const badges    = getSpecialDayBadges(date, dateISO);
+        const badges    = getSpecialDayBadges(date);
         badges.forEach(b => weekBadges.set(b.icon, b.title));
         const badgeHTML = badges.map(b => `<span class="day-badge" role="img" aria-label="${b.title}">${b.icon}</span>`).join('');
 

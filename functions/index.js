@@ -79,7 +79,7 @@ const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FR
 // re-bases the trailing page onto its OWN registration scope (see notificationclick in
 // service-worker.js). So a tap from a github.io install still lands on github.io, and a tap from
 // a web.app install lands on web.app — both resolve correctly regardless of this value's origin.
-// No trailing slash: the payloads below append `/#huddle` and `/paycalc.html`.
+// No trailing slash: the payloads (push-notices.js `hashPath`, pay-reminder.js) append `/#huddle` and `/paycalc.html`.
 const STAFF_SITE_URL = 'https://myb-roster.web.app';
 
 // The browser origins this app is served from — the CORS allowlist of EVERY endpoint a browser calls
@@ -233,9 +233,10 @@ exports.parseRosterPDF = onRequest(
             return;
         }
 
-        // ---- Read raw body ---- (readRawBody streams + size-caps it; same pattern as
-        // ingestHuddle — an oversized upload is rejected DURING streaming, not after buffering
-        // + decoding the whole thing, which could OOM the 512MiB instance).
+        // ---- Read raw body ---- (readRawBody size-caps it; same pattern as ingestHuddle — an
+        // oversized upload is rejected before it is decoded, which could OOM the 512MiB instance;
+        // on v2 the body usually arrives pre-buffered as req.rawBody, and the streaming branch
+        // covers a runtime that hands over none).
         const base64Content = await readRawBody(req, res, 'parseRosterPDF');
         if (base64Content === null) return;   // helper already sent the 413/400 response
 

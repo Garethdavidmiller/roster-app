@@ -25,7 +25,7 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept 24 Nov 2026 (on v26.60, for the staff PIN's server release): reads of overrides, huddles, circulars and
+// Last swept 24 Nov 2026 (on v26.65, for the staff PIN's server release): reads of overrides, huddles, circulars and
 // newsletters, and writes of clientErrors, analytics and pushSubscriptions, lost the viewer; the
 // pushSubscriptions blocks lost the bare-claim denial with it (the viewer is no longer a known
 // identity, so nothing it carries can reach that clause); `viewerAttempts` lost its block. Nothing
@@ -1206,9 +1206,9 @@ service cloud.firestore {
       // Page popularity lives in analytics/pv_<YYYY-MM> ({ month, counts{} }); active-
       // account counts live in analytics/activeAccounts ({ months{}, daily{} }). Uniqueness
       // is deduped client-side (usage-reporter.js) so the server only ever sees "+1".
-      // Read is admin-only. Any KNOWN identity may increment (`isKnownIdentity`, v24.56) — a
-      // member or the admin (the retired staff-PIN viewer until its server release, Nov 2026) —
-      // so writes are not gated on a name claim; an anonymous token is refused. The SHAPE is
+      // Read is admin-only. Any KNOWN identity may increment (`isKnownIdentity`, v24.56): a bound
+      // member identity (`isMember()`) or the admin claim (the retired staff-PIN viewer too, until
+      // its server release, Nov 2026); an anonymous or unbound token is refused. The SHAPE is
       // validated: pv_ and perf_ docs are pinned to an id of the present month (or one either side)
       // with month == the id suffix; the counts a pv_ write adds or changes must be known page and
       // open ids, each an int; activeAccounts and origins are pinned to their ids with map fields.

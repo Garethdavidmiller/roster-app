@@ -346,8 +346,8 @@ function buildGridPlaceholder(display, onRetry) {
     // status vs alert: a wait is a passing condition and must not interrupt, a failure is the end of
     // the road for this month and should be spoken when it happens.
     panel.setAttribute('role', failed ? 'alert' : 'status');
-    // NEUTRAL WORDS, NOT "YOUR" (17 Nov 2026): this panel stands over a colleague's calendar and the
-    // staff PIN's as often as the reader's own. And the failure says WHY the month is held back in a
+    // NEUTRAL WORDS, NOT "YOUR" (17 Nov 2026): this panel stands over a colleague's calendar as
+    // often as the reader's own. And the failure says WHY the month is held back in a
     // sentence that parses — it ended "the rota underneath it may be out of date".
     panel.innerHTML = failed
         ? '<div class="calendar-pending-emoji" aria-hidden="true">⚠️</div>'
@@ -510,9 +510,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // nothing at all — the hover tooltip was the desktop route to a day's detail. That left
         // the panel, which is where the app explains what a day IS, reachable on a mouse only by
         // focusing a cell and pressing Enter. The panel already carries the pay route as an
-        // explicit "View pay estimate" button (calendar-al-lightbox.js), so the jump is one click
-        // deeper rather than lost — and it is now VISIBLE, where before it needed a hover to know
-        // the day was pay-marked at all.
+        // explicit "Pay estimate" button (#dayDetailPayBtn, calendar-al-lightbox.js), so the jump
+        // is one click deeper rather than lost — and it is now VISIBLE, where before it needed a
+        // hover to know the day was pay-marked at all.
         //
         // THE KEYBOARD IS DELIBERATELY UNCHANGED. Enter on a focused pay cell still jumps and
         // falls through to this panel when the jump is refused (calendar-keyboard.js, v23.07):

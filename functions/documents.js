@@ -39,7 +39,6 @@ const { isPayCutoffDay, buildPushPayload } = require('./roster-parse-helpers');
 const { mayReceiveDocumentUrl, resolveKind, kindFromBody, signedUrlExpiry, SIGNED_URL_TTL_MS,
     isSignablePathForKind } = require('./doc-url-core');
 const { setupWebPush, fanOutPush } = require('./push');
-const { memberNameFromClaims } = require('./member-identity');
 const { bearerToken, requireAdmin, readJsonBody } = require('./request-helpers');
 const { sendPayReminder } = require('./pay-reminder');
 const { notifyAdminOfErrorLog } = require('./error-log-notify');
@@ -387,7 +386,7 @@ const sendErrorLogNotification = onSchedule(
      *    collection, the document and the storage path are all resolved HERE. An endpoint that
      *    signs what it is told is an arbitrary-read hole into the whole bucket, and that is the one
      *    mistake this design cannot make.
-     * 2. THE DOOR MIRRORS `firestore.rules`. `mayReceiveDocumentUrl` is the same three claims the
+     * 2. THE DOOR MIRRORS `firestore.rules`. `mayReceiveDocumentUrl` is the same two doors the
      *    read rule allows, pinned to the rules text by `doc-url-core.test.mjs`. If this were more
      *    permissive it would be a way to read a document the rules refuse.
      * 3. `checkRevoked: true`. A member who has been disabled must not keep minting URLs for up to
@@ -482,7 +481,7 @@ const sendErrorLogNotification = onSchedule(
             // works, and both survive without an identity. If named document auditing is ever
             // WANTED, that is a decision to take deliberately and write down, not to inherit from
             // a debug log.
-            const door = claims.admin === true ? 'admin' : (memberNameFromClaims(claims) ? 'member' : 'pin');
+            const door = claims.admin === true ? 'admin' : 'member';
             console.log(`[getDocumentUrl] signed ${kind.kind} for a ${door} `
                 + `(${SIGNED_URL_TTL_MS / 60000} min)`);
             // ── THE FILE IT SIGNED TRAVELS WITH THE URL (v24.33, external review of v24.32) ──

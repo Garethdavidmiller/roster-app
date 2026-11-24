@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * account-calls.js — the browser's side of three ACCOUNT endpoints: the admin's Reset
- * (`resetMemberPassword`), the admin's provisioning audit (`getAccountSetupGaps`, which also says
- * whether the staff PIN is blocked for everyone) and the locked-out member's reset request
+ * (`resetMemberPassword`), the admin's provisioning audit (`getAccountSetupGaps`) and the
+ * locked-out member's reset request
  * (`requestPasswordReset`).
  *
  * A factory with the one Firebase handle it needs injected (`auth`) — the shape own-password.js took,

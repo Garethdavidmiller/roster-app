@@ -380,7 +380,7 @@ export function isStagedRow(row) {
 
 /**
  * One row's staged state as data, or null for a row with nothing staged. Everything the save
- * collector reads from a row (admin-app.js): the type, the times, the Other flavour and RDW tick, and
+ * collector reads from a row (`collectWeekRows`, admin-week-collect.js): the type, the times, the Other flavour and RDW tick, and
  * the swapped-day answer.
  * @param {HTMLElement} row
  * @returns {RowDraft|null}

@@ -35,7 +35,7 @@ function dayNumber(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 10
  * authored out of order cannot answer for the wrong days (the data test still requires oldest first).
  * @param {any} member  teamMembers entry
  * @param {Date} date
- * @returns {string|undefined}  'CEA' | 'CES' | 'Dispatcher' | 'Management' (undefined without a member)
+ * @returns {string|undefined}  'CEA' | 'CES' | 'Dispatcher' | 'Management' | 'Other Staff' (undefined without a member)
  */
 export function roleOn(member, date) {
     if (!member) return undefined;

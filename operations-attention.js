@@ -2,7 +2,7 @@
 /**
  * operations-attention.js — the "Needs attention" strip at the top of operations.html.
  *
- * Operations is ten collapsed cards, and finding out whether anything needs doing meant opening
+ * Operations is a dozen cards, most collapsed, and finding out whether anything needs doing meant opening
  * them one by one. The strip is an INDEX OF EXCEPTIONAL STATES, and its whole design is three
  * refusals:
  *
