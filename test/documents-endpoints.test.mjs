@@ -1103,6 +1103,27 @@ describe('the pay reminder reaches CEA and CES phones only — never a Dispatche
     });
 });
 
+describe('the pay reminder reaches only a member\'s OWN account (whole-app review, 24 Nov 2026)', () => {
+    // The admin notices already asked for an enabled account carrying the claim (enabledAdminUids);
+    // the pay reminder took whatever account sat at the derived address.
+    for (const [why, edit] of /** @type {Array<[string, (u: any) => any]>} */ ([
+        ['a DISABLED account', (u) => ({ ...u, disabled: true })],
+        ['an account with no member claim', (u) => ({ ...u, customClaims: {} })],
+        ['an account claiming another member', (u) => ({ ...u, customClaims: { name: 'A. Other', member: 'A. Other' } })],
+    ])) {
+        test(`${why} is not that member, and is not sent the reminder`, async () => {
+            const target = ROSTER.cea[0];
+            const own = rosterAccounts();
+            const w = buildDeviceWorld({ lookup: (email) => (email === nameToEmail(target).toLowerCase()
+                ? own(email).then(edit) : undefined) });
+            await w.eps.sendPayReminderNotification.run({});
+            const reached = w.reached();
+            assert.ok(!reached.has(deviceOf(target)), `${why} was sent the pay reminder`);
+            assert.equal(reached.size, PRICED.size - 1, 'everyone else is still reached');
+        });
+    }
+});
+
 describe('sendTimetableReminder — one broadcast, on the evening before the timetable change (v24.94)', () => {
     // Daily at 18:00 London with a one-date guard, not a yearly cron: a function nobody remembers to
     // delete must not fire on 12 December of some later year. Organised by what a wrong answer costs —

@@ -1216,8 +1216,8 @@ The account domain's two admin READS, which change nothing: `getSignInStats` (fo
 - **Exports:** `buildAccountReadEndpoints` · `listAllUsers`
 
 ### `functions/admin-recipients.js`
-WHO a notice for the admin may reach — one rule for the reset-request doorbell and the Error Log notice: each admin name's own account, enabled and carrying the `admin` claim, and nobody in its place. Tested through its two senders (`auth-endpoints.test.mjs`, `error-log-notify.test.mjs`).
-- **Exports:** `enabledAdminUids`
+WHO a notice for the admin may reach — one rule for the reset-request doorbell and the Error Log notice: each admin name's own account, enabled and carrying the `admin` claim, and nobody in its place. `isMembersOwnAccount` is the same strictness for a notice addressed to a member (the pay reminder, the Overtime notices). Tested through its senders (`auth-endpoints.test.mjs`, `error-log-notify.test.mjs`, `documents-endpoints.test.mjs`, `overtime-endpoints.test.mjs`).
+- **Exports:** `enabledAdminUids` · `isMembersOwnAccount`
 
 ### `functions/account-lifecycle.js`
 The pure rules Set up accounts and the admin reset apply at the edges of an account's life: whether a failed password write proves nothing changed and what the admin is then told, which elevated claims a re-stamp takes away, and which leavers are already disabled. The header carries the reasoning; `auth-endpoints.js` is the orchestration. Tested by `account-lifecycle.test.mjs` and, through the real handlers, `auth-endpoints.test.mjs`.
