@@ -425,7 +425,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // thought it had (review, 22 Nov 2026).
             _docFailureFallback(triggerEl, isAccessFailure(err)
                 ? 'Couldn’t open — your sign-in may have ended. Sign in again to read it.'
-                : 'Couldn’t connect — check your signal and try again.');
+                : 'Couldn’t connect — check your connection and try again.');
         }).finally(() => {
             triggerEl.classList.remove('nav-panel-link--loading');
             triggerEl.removeAttribute('aria-busy');

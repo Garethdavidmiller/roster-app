@@ -1177,7 +1177,7 @@
             text-wrap: balance;
             border-radius: var(--radius-md);
             box-shadow: var(--shadow-3);
-            z-index: 7500;
+            z-index: var(--z-toast);
             opacity: 0;
             pointer-events: none;
             transition: opacity var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
