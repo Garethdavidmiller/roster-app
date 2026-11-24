@@ -1041,8 +1041,8 @@ body {
    pixel and a wrapped one becomes a rounded rectangle — which is what a two-line block of text
    should have been. No JavaScript, no wrap detection, no second class: CSS cannot ask whether a
    line broke, but it does not need to, because the only thing that changes is the height.
-   `overtime-answer-chip.test.mjs` holds both halves — still a capsule at one line, no longer one
-   at two — since a value like this is exactly what a later tidy-up rewrites back to the token. */
+   `e2e/overtime.spec.js` → "the answer chip is a capsule while it is a token" holds both halves — still
+   a capsule at one line, no longer one at two — since a value like this is exactly what a later tidy-up rewrites back to the token. */
 .ot-answer {
     display: inline-flex;
     align-items: center;

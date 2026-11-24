@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * page-session.test.mjs — the shared sign-out and session-loss routines every protected page uses.
- * Run with: node --test --experimental-test-module-mocks page-session.test.mjs
+ * Run with: node --test --experimental-test-module-mocks test/page-session.test.mjs
  *
  * These drive the module's real functions against recording stand-ins for what they touch — the
  * session, the drawer, the sign-in, the browser's location and its page events — and assert on

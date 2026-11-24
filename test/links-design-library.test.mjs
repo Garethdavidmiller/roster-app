@@ -2,7 +2,7 @@
 /**
  * links-design-library.test.mjs — the import panel and the Recently deleted bin, driven through the
  * listeners the module actually wires (v24.51, when they left links-app.js).
- * Run with: node --test --experimental-test-module-mocks links-design-library.test.mjs
+ * Run with: node --test --experimental-test-module-mocks test/links-design-library.test.mjs
  *
  * WHAT THIS PINS. The split moved two panels across a module boundary, and the boundary is where a
  * refactor goes wrong silently: a context callback never called, a list the coordinator still

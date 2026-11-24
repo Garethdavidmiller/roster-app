@@ -3193,3 +3193,27 @@ describe('carryReviewAnswers — a refused Save keeps every answer but the chang
         assert.deepEqual([asIs.get(key(MO)).chosen, asIs.get(key(WE)).chosen], [false, false]);
     });
 });
+
+// A SUNDAY OFFERS ONLY WHAT A SUNDAY MAY HOLD (test audit, 24 Nov 2026). `SUNDAY_FORBIDDEN_TYPES` was
+// pinned only by a test that restates it: taking `other` out of it left every unit test green while the
+// review's entry control offered the Other pill on a Sunday again. This asks the CONSUMER, by the owner's
+// rule rather than by the list: Sundays are uncontracted, so Sunday work is always RDW, and the only
+// other answer is that it was a rest day after all.
+describe('the review entry control on a Sunday', () => {
+    test('offers RDW and Rest Day, and nothing else — and says so', async () => {
+        const { entryControlHtml } = await import('../roster-entry-control.js');
+        const SUN = '2026-11-29';
+        assert.equal(new Date(SUN + 'T12:00:00').getDay(), 0, 'premise: a Sunday');
+        const html = entryControlHtml(`G. Miller|${SUN}`, { baseShift: 'RD', date: SUN }, SUN);
+        const pills = [...html.matchAll(/<button[^>]*data-entry-type="(\w+)"[^>]*>/g)]
+            .map(m => ({ type: m[1], off: /\sdisabled(?=[\s>])/.test(m[0]) }));
+        assert.ok(pills.length >= 6, `premise: every pill is drawn (${pills.length})`);
+        assert.deepEqual(pills.filter(p => !p.off).map(p => p.type).sort(), ['correction', 'rdw'],
+            'only RDW and Rest Day may be entered on a Sunday');
+        assert.match(html, /can be recorded on a Sunday — Sunday work is always RDW/);
+        // …and the control: on a weekday every pill is open.
+        const MON2 = '2026-11-30';
+        const weekday = entryControlHtml(`G. Miller|${MON2}`, { baseShift: '06:00-14:00', date: MON2 }, MON2);
+        assert.doesNotMatch(weekday, /data-entry-type="\w+"[^>]*\sdisabled/, 'a weekday offers every type');
+    });
+});

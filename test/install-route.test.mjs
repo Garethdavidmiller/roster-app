@@ -1,6 +1,6 @@
 /**
  * install-route.test.mjs — installRoute() against the REAL install-prompt.js, under a fake window.
- * Run: node --test --experimental-test-module-mocks install-route.test.mjs   (part of `npm run test:unit`)
+ * Run: node --test --experimental-test-module-mocks test/install-route.test.mjs   (part of `npm run test:unit`)
  *
  * WHY THIS EXISTS (v24.96, the 72-hour review). calendar-notices.test.mjs replaces the whole of
  * install-prompt.js with a mock, so its install-notice matrix proves what the notice DOES with a route

@@ -24,7 +24,6 @@ import { leaveRecordability } from '../al-leave-compare.js';
 import { entitlementFor } from '../al-entitlement.js';
 import { sealLeaveFile, LEAVE_FILE_FORMAT, LEAVE_FILE_VERSION } from '../al-leave-file.js';
 
-const YEAR = 2026;
 const DAY_MS = 86_400_000;
 /** @param {string} d */
 const nextDay = d => new Date(Date.parse(`${d}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
@@ -56,10 +55,10 @@ const alRecord = (name, date) => ({ id: `${name}|${date}`, memberName: name, dat
  * A person whose figures agree with their own grid days, and whose allowance is the app's own — or
  * `off` days more than it, for the case of an allowance the two sides disagree about — with `lump`
  * days over quota in column E and no date, which no record can be checked against.
- * @param {any} m @param {number} used @param {number} [off] @param {number} [lump]
+ * @param {number} year @param {any} m @param {number} used @param {number} [off] @param {number} [lump]
  */
-function person(m, used, off = 0, lump = 0) {
-    const allowance = (entitlementFor(m, YEAR) ?? 32) + off;
+function person(year, m, used, off = 0, lump = 0) {
+    const allowance = (entitlementFor(m, year) ?? 32) + off;
     const printed = { carriedForward: 0, allowance, used, columnE: lump, remaining: allowance - used - lump };
     return {
         name: m.name, grade: 'CEA',
@@ -72,7 +71,7 @@ function person(m, used, off = 0, lump = 0) {
 /**
  * The file, its text, the records the app holds, and the dates each case landed on.
  * @param {{ savedDaysAgo?: number|null, bAllowanceOff?: number, withLeaver?: boolean, bMissing?: boolean,
- *           bUndatedOnly?: number, today?: Date }} [o]
+ *           bUndatedOnly?: number, today?: Date, year?: number }} [o]
  *        how long before today the clerks last saved the sheet (null: the file does not say), how many
  *        days more than the app's figure the sheet allows member B, whether the file holds a member who
  *        has left since it was made, whether B too has a day the app lacks — so a Save can write for
@@ -81,33 +80,36 @@ function person(m, used, off = 0, lump = 0) {
  *        `today`: the day the file is made, and its save date counted back from — the real today unless
  *        a test fixes the page's clock (the visual baselines do: a file made on the day the baseline was
  *        drawn would read a day older every day after it)
+ *        `year`: the leave year the file is for — TODAY's year unless a test says (test audit, 24 Nov 2026). It
+ *        was a fixed 2026, and a Save refuses a file older than last year (`oldestSaveableYear`), so every
+ *        Save journey built on it would have failed from 1 January 2028.
  */
 export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, withLeaver = false, bMissing = false, bUndatedOnly = 0,
-    today = new Date() } = {}) {
+    today = new Date(), year = today.getFullYear() } = {}) {
     const [A, B] = teamMembers.filter(m => m.role === 'CEA' && m.rosterType === 'main' && !m.startDate
-        && leaveRecordability(m, YEAR) === null);
+        && leaveRecordability(m, year) === null);
     if (!A || !B) throw new Error('the roster no longer has two recordable main-line CEAs');
-    const L = withLeaver ? teamMembers.find(m => leaveRecordability(m, YEAR) === 'leaver') : null;
+    const L = withLeaver ? teamMembers.find(m => leaveRecordability(m, year) === 'leaver') : null;
     if (withLeaver && !L) throw new Error('the roster has no leaver to stand for one');
 
-    const match = findDay(A, '2026-03-02', isTimed);
-    const missing = findDay(A, '2026-03-02', isTimed, [match]);
-    const restDay = findDay(A, '2026-03-02', isResting);
-    const appOnly = findDay(A, '2026-04-06', isTimed, [match, missing]);
-    const bMatch = findDay(B, '2026-05-04', isTimed);
-    const bLacks = bMissing ? findDay(B, '2026-05-04', isTimed, [bMatch]) : null;
+    const match = findDay(A, `${year}-03-02`, isTimed);
+    const missing = findDay(A, `${year}-03-02`, isTimed, [match]);
+    const restDay = findDay(A, `${year}-03-02`, isResting);
+    const appOnly = findDay(A, `${year}-04-06`, isTimed, [match, missing]);
+    const bMatch = findDay(B, `${year}-05-04`, isTimed);
+    const bLacks = bMissing ? findDay(B, `${year}-05-04`, isTimed, [bMatch]) : null;
 
     const saved = savedDaysAgo === null ? null
         : new Date(today.getTime() - savedDaysAgo * DAY_MS).toISOString().replace(/\.\d{3}Z$/, 'Z');
     const file = await sealLeaveFile({
-        format: LEAVE_FILE_FORMAT, version: LEAVE_FILE_VERSION, year: YEAR,
-        source: { sha256: 'e'.repeat(64), firstDate: `${YEAR}-01-01`, lastDate: `${YEAR + 1}-01-02`,
+        format: LEAVE_FILE_FORMAT, version: LEAVE_FILE_VERSION, year,
+        source: { sha256: 'e'.repeat(64), firstDate: `${year}-01-01`, lastDate: `${year + 1}-01-02`,
                   clerksLastSaved: saved, lastSavedByClerk: true },
         made: { on: today.toISOString().slice(0, 10), script: 'e2e fixture', appVersion: 'e2e' },
         nameMap: { rows: {}, cells: {}, tags: {} },
         // In code-unit order by name, as Stage 1 writes them.
-        people: [person(A, 3), bUndatedOnly ? person(B, 0, bAllowanceOff, bUndatedOnly) : person(B, bLacks ? 2 : 1, bAllowanceOff),
-            ...(L ? [person(L, 0)] : [])]
+        people: [person(year, A, 3), bUndatedOnly ? person(year, B, 0, bAllowanceOff, bUndatedOnly) : person(year, B, bLacks ? 2 : 1, bAllowanceOff),
+            ...(L ? [person(year, L, 0)] : [])]
             .sort((p, q) => (p.name < q.name ? -1 : p.name > q.name ? 1 : 0)),
         days: [gridDay(A.name, match), gridDay(A.name, missing), gridDay(A.name, restDay),
             ...(bUndatedOnly ? [] : [gridDay(B.name, bMatch)]), ...(bLacks ? [gridDay(B.name, bLacks)] : [])],
@@ -116,7 +118,7 @@ export async function alSheetFixture({ savedDaysAgo = 2, bAllowanceOff = 0, with
         unplacedSundayTags: 0,
     });
     return {
-        text: JSON.stringify(file), file, A, B, L, year: YEAR,
+        text: JSON.stringify(file), file, A, B, L, year,
         dates: { match, missing, restDay, appOnly, bMatch, bMissing: bLacks },
         records: [alRecord(A.name, match), alRecord(A.name, appOnly), ...(bUndatedOnly ? [] : [alRecord(B.name, bMatch)])],
     };

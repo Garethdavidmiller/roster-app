@@ -1855,7 +1855,11 @@ test('fip: the country search placeholder fits a 390px phone whole', async ({ pa
         const box = /** @type {HTMLElement} */ (input.parentElement);
         return {
             text: ctx.measureText(input.placeholder).width,
-            room: input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+            // From the BORDER box, never `clientWidth`: Chromium 158 reports a text input's clientWidth without its
+            // padding (280 where it was 354, on the same 358px field), so subtracting the padding from it took the
+            // padding off twice and read a field 74px narrower than the one drawn.
+            room: input.offsetWidth - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth)
+                - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
             // What the field's room is made of, so a failure says which part moved (a browser's own layout change,
             // Chromium 158): its boxes, its padding and sizing, and the row it sits in.
             why: `offsetWidth ${input.offsetWidth} · clientWidth ${input.clientWidth} · width ${cs.width} · padding ${cs.paddingLeft}/${cs.paddingRight} `

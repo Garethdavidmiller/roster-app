@@ -373,7 +373,7 @@ async function nameless(page, names) {
 
 test('operations — Annual leave sheet: the review, the Save\'s receipt and its Undo (mobile 390)', async ({ page }) => {
     await prep(page, { width: 390, height: 2400 });
-    const fx = await alSheetFixture({ today: FIXED_TIME });
+    const fx = await alSheetFixture({ today: FIXED_TIME, year: 2026 });   // the year the baseline was drawn with
     await page.addInitScript((rows) => {
         const w = /** @type {any} */ (window);
         w.__E2E = { ...(w.__E2E || {}), docs: [], docsByQuery: { overrides: rows }, writesLand: true };
