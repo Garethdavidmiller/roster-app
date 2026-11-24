@@ -272,7 +272,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // an explicit user action (a notification tap), with no failure ever announced to a
             // screen reader. Same shape as the nav-drawer path and the calendar retry: wait a moment
             // for a session, then read anyway. Reads DO require access (firestore.rules, since v23.18
-            // — a member's claim, `admin`, or the PIN's `calendarViewer`), so a read without a
+            // — a member's claim or `admin`; the PIN's `calendarViewer` until its server release), so a read without a
             // session fails into the catch below, which offers a retry, rather than stalling first.
             const authOrSoon = _orAfter(authReady, DOC_AUTH_WAIT_MS);
             // The short-lived url is requested ALONGSIDE the document read (v24.23), not after it:

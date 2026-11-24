@@ -83,12 +83,10 @@ export function buildAccountCalls({ auth }) {
      * `refused` present means the server could not see the roster's accounts at all and declined to
      * answer — **which is not the same as "no gaps"** and must never be rendered as one.
      *
-     * `pinLockout` (Nov 2026) says whether the staff PIN is blocked for everyone: an object while a
-     * block runs or one began in the last day, `null` for none, and ABSENT when the server could not
-     * read it or does not send it yet — unknown, never "none" (operations-pin-lockout.js).
+     * (A `pinLockout` field — the retired staff PIN's station-wide block — rode on this answer until
+     * the PIN's server release, Nov 2026. Nothing reads it any more.)
      *
-     * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'claims'|'unstamped'}[], leavers: string[],
-     *   pinLockout?: { active: boolean, blockedUntil: number, lastBlockedAt: number, blocks: number }|null }>}
+     * @returns {Promise<{ refused?: string, setUp: {name: string, why: 'no-account'|'viewer-linked'|'other-member'|'disabled'|'claims'|'unstamped'}[], leavers: string[] }>}
      */
     async function getAccountSetupGaps() {
         const user = auth.currentUser;

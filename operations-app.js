@@ -205,9 +205,9 @@ export function init() {
     /** A deep link has done its job once its card is open, so the hash is STRIPPED: a second tap on
      *  the same notification is then a hash CHANGE, where a repeat of an unchanged hash fired nothing.
      *  A tap while this page is open (`refresh`) also re-reads what the card shows, which was read
-     *  before the push came: the reset queue here, and the account audit — where the staff-PIN
-     *  lockout's line is — through `authSetup` below. (The Error Log re-reads itself, from the event's
-     *  own hash: operations-errors.js.) @param {string} hash @param {boolean} refresh */
+     *  before the push came: the reset queue here, and the account audit through `authSetup` below.
+     *  (The Error Log re-reads itself, from the event's own hash: operations-errors.js.)
+     *  @param {string} hash @param {boolean} refresh */
     function followDeepLink(hash, refresh) {
         openDeepLinkedCard(hash);
         if (!refresh) return;
@@ -244,7 +244,7 @@ export function init() {
         whenHistorySettled(() => followDeepLink(hash, true));
     });
     // Back to a tab left open: the queue may have grown while it was hidden, and the audit's answer —
-    // gaps, leavers, a PIN block begun or ended — may be out of date.
+    // gaps and leavers — may be out of date.
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible') return;
         // A REFRESH, not a re-open: the admin may have closed the card. The list and the chip still update.
@@ -263,7 +263,7 @@ export function init() {
     // after one that answered WITHDRAWS what that one reported.
     const authSetup = initAuthSetup({
         currentIsAdmin: true,
-        onAttention: (counts) => reportLoginAccounts(attention, counts),   // with the PIN lockout's (operations-attention.js)
+        onAttention: (counts) => reportLoginAccounts(attention, counts),   // operations-attention.js
         onWithdraw: () => withdrawLoginAccounts(attention),
     });
 

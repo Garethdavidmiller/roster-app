@@ -24,7 +24,8 @@
  *   · 503 — the IAM grant (`serviceAccountTokenCreator`) is missing. RECOVERY_RUNBOOK.md records it
  *           as granted on the shared runtime account, so this is the exception — but it is still the
  *           reason the fallback exists.
- *   · 403 — a session with no `name`/`admin`/`calendarViewer` claim: a lapsed token, not an
+ *   · 403 — a session with no bound `name` and no `admin` claim (a leftover staff-PIN session's
+ *           `calendarViewer` included, since the PIN's server release): a lapsed token, not an
  *           intruder — the document surfaces are already gated on the client.
  *   · 404 — nothing published yet. The caller's own "no document" branch handles it.
  *   · a timeout, or offline — an offline-first app must never turn a document into a dead button.

@@ -16,7 +16,6 @@ import { escapeHtml } from './roster-data.js';
 import { auth, getAccountSetupGaps } from './firebase-client.js';
 import { sessionReady, getFirebaseAuthError, restoreFirstAuthUser } from './session.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
-import { readLockout, renderLockoutLine, lockoutCount, lockoutChangesAt } from './operations-pin-lockout.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -24,7 +23,7 @@ const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setup
  * Initialises the Staff Login Accounts setup card (admin only). Call once after
  * authentication resolves.
  * @param {{ currentIsAdmin: boolean,
- *           onAttention?: (counts: { setUp: number, leavers: number, pinLockout: number|null }) => void,
+ *           onAttention?: (counts: { setUp: number, leavers: number }) => void,
  *           onWithdraw?: () => void }} cfg
  *        `onAttention` is called ONLY when the audit actually answered — a failed or refused check
  *        reports nothing, because the strip it feeds treats an unreported item as UNKNOWN and an
@@ -35,9 +34,9 @@ const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setup
  *        enough: the strip kept "Leavers still active 2" beside a card saying it could not tell.
  *        As the Error Log's (`operations-errors.js`).
  * @returns {{ refresh: () => Promise<void> }}  `refresh` asks the audit again — for the page to call
- *        when the staff-PIN push lands on a page already open, and on a return to the tab (whole-app
- *        check, 17 Nov 2026). The card read the audit once, at load, so that push opened Staff Login
- *        Accounts on an answer from before the block; the reset queue and the Error Log had both been
+ *        when a deep link to the card lands on a page already open, and on a return to the tab
+ *        (whole-app check, 17 Nov 2026). The card read the audit once, at load, so a tap opened Staff
+ *        Login Accounts on an answer from before it; the reset queue and the Error Log had both been
  *        given the same re-read before (Sep 2026, v26.04). A no-op where the card is not wired.
  */
 export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
@@ -134,30 +133,12 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
         return p;
     }
 
-    // ── THE LAST ANSWER, KEPT, AND THE PIN'S LINE JUDGED BY THE CLOCK (whole-app check, 17 Nov 2026) ──
-    // The audit is asked again now — after a run, on a Retry, on the PIN push, on a return to the tab —
-    // so two can be out at once, and only the one asked LAST may draw: an earlier answer landing after
-    // it painted the roster as it was before the run. And the lockout is kept as the server sent it and
-    // judged at each drawing, with the next drawing set for the moment its words change
-    // (`lockoutChangesAt`): judged once, at the answer, the line still said "blocked until 14:20" at 15:00.
+    // ── ONLY THE ANSWER ASKED LAST MAY DRAW (whole-app check, 17 Nov 2026) ──────────────────────────
+    // The audit is asked again — after a run, on a Retry, on a deep link, on a return to the tab — so
+    // two can be out at once, and only the one asked LAST may draw: an earlier answer landing after it
+    // painted the roster as it was before the run. (Until the staff PIN's server release, Nov 2026, the
+    // answer also carried the PIN's station-wide block, and its line was redrawn by the clock.)
     let asked = 0;
-    /** The last answer's counts and its lockout as sent — what a drawing of the PIN's line works from.
-     *  @type {{ setUp: number, leavers: number, pinLockout: unknown }|null} */
-    let answered = null;
-    /** @type {ReturnType<typeof setTimeout>|undefined} */
-    let lockoutTimer;
-
-    /** Draw the PIN's line, and report the card's three counts, as of NOW; then wait for the next change. */
-    function drawLockout() {
-        clearTimeout(lockoutTimer);
-        if (!answered || !gapsEl) return;
-        const now = Date.now(), lockout = readLockout(answered.pinLockout, now);
-        renderLockoutLine(gapsEl, lockout, now);
-        onAttention?.({ setUp: answered.setUp, leavers: answered.leavers, pinLockout: lockoutCount(lockout) });
-        const next = lockoutChangesAt(lockout, now);
-        // A quarter-second past the change, so the drawing it wakes for is on the far side of it.
-        if (next !== null) lockoutTimer = setTimeout(drawLockout, next - now + 250);
-    }
 
     async function loadGaps() {
         if (!gapsEl) return;
@@ -226,18 +207,12 @@ export function initAuthSetup({ currentIsAdmin, onAttention, onWithdraw }) {
                     ['Tick the leavers box below, then press Set up accounts.']));
             }
         }
-        // The staff PIN shut for everyone rides on this answer (operations-pin-lockout.js): absent is
-        // unknown, never "none", so the strip withdraws its item rather than reporting a zero. Kept as
-        // sent, and judged at each drawing — the block above.
-        answered = { setUp: setUp.length, leavers: leavers.length, pinLockout: gaps.pinLockout };
         gapsEl.hidden = false;
-        drawLockout();
+        onAttention?.({ setUp: setUp.length, leavers: leavers.length });
     }
 
     /** Neither "gaps" nor "clean" — and it must not be mistaken for either, here or on the strip. */
     function renderUnknown(/** @type {string} */ message) {
-        answered = null;                 // nothing known any more, so no later drawing may report it
-        clearTimeout(lockoutTimer);
         onWithdraw?.();   // what an earlier answer reported is unknown again (see the JSDoc above)
         if (!gapsEl) return;
         gapsEl.textContent = '';
