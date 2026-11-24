@@ -639,6 +639,27 @@ describe('the leave-year choice — what is written', () => {
         assert.ok(!('leaveYear' in _server.get(FIXED)), 'this day stays on its own year');
     });
 
+    test('REFUSED when a colleague has since moved an IMPORTED January day — its import deleted, its fixed id written', async () => {
+        // External review of v26.58: a colleague's move of an imported day deletes the import and writes the day at its
+        // fixed id (`idsReplacedBy`). The sibling check read only the import's id, found it gone — which counts as no
+        // difference — and never read the fixed id, so the second move went ahead and the year went one over.
+        const OTHER = '2027-01-07', OTHER_ID = 'import-sib', OTHER_FIXED = 'm_2027-01-07_G.%20Miller';
+        seed([leave(), leave({ id: OTHER_ID, date: OTHER, source: 'roster_import' })]);
+        _server.delete(OTHER_ID);   // the colleague's move: the import gone…
+        _server.set(OTHER_FIXED, { ...leave({ date: OTHER }), leaveYear: 2026, changedBy: 'S. Manager' });   // …the day at its fixed id
+        delete _server.get(OTHER_FIXED).id;
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
+            (/** @type {any} */ e) => /changed since the page loaded/.test(e.line));
+        assert.equal(_batchWrites.length, 0, 'nothing was written');
+        assert.ok(!('leaveYear' in _server.get(FIXED)), 'this day stays on its own year');
+    });
+
+    test('a move goes ahead beside an imported January day nobody has touched', async () => {
+        seed([leave(), leave({ id: 'import-sib', date: '2027-01-07', source: 'roster_import' })]);
+        await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER });
+        assert.equal(_server.get(FIXED)?.leaveYear, 2026);
+    });
+
     test('a move goes ahead when the year\'s other January days are as the page loaded them', async () => {
         const OTHER_ID = 'm_2027-01-07_G.%20Miller';
         seed([leave(), leave({ id: OTHER_ID, date: '2027-01-07' })]);
