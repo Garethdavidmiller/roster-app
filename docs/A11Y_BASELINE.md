@@ -300,8 +300,9 @@ words; `e2e/operations.spec.js` scans the card with axe's rule in every state.
   control's ARIA state in step: `admin-app.js` via its `openCollapsibleCard(body, chevron)` helper,
   `links-app.js`'s generator auto-expand sets `aria-expanded` alongside `.open`, `paycalc-settings.js
   setSettingsCardOpen` mirrors `initCardCollapse`, and the paycalc "more options" auto-expand
-  (`loadPeriodData`) now routes through the shared `_setDisclosure(btnId, bodyId, open, …)` (which
-  `_toggleDisclosure` also delegates to) instead of a class-only `.open`. The axe gate can't catch
+  (`loadPeriodData`) now routes through the shared `setDisclosure(btnId, bodyId, open, …)` exported
+  from `paycalc-disclosures.js` (which its `toggleDisclosure` also delegates to) instead of a
+  class-only `.open`. The axe gate can't catch
   this class (it scans a settled state), so it's guarded by convention, not the gate.
 
 ## Waived rules

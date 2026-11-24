@@ -4519,3 +4519,99 @@ paycalc's **data-ownership** `resolveLegacyMigration → reload`.
 built**: the `auth.currentUser` fast path makes the second call a synchronous near-noop, so only
 contract cleanliness remained. If ever built: Admin and Settings only, the in-place `onSuccess` path
 only, with tests asserting no write hits a non-live `auth.currentUser`.)*
+
+---
+
+## The Calendar PIN rollout (moved from RECOVERY_RUNBOOK.md, 24 Nov 2026)
+
+*Moved verbatim when RECOVERY_RUNBOOK.md's "Deploying it" section was compressed to the general
+playbook for tightening a read rule (RECOVERY_RUNBOOK.md → "The Calendar PIN — deployment order, and
+breaking glass", whose step numbers are unchanged). The rollout closed on 26 Aug 2026 and was verified
+in production on 27 Aug.*
+
+### As it stood: "Deploying it — the order is the whole safety story"
+
+**The rollout is closed** (rules step 4 on 26 Aug 2026, verified in production on 27 Aug). The steps
+below are kept because they are the template for any change that TIGHTENS a read rule, and because
+code cites them by number. The PIN's own client switch (`CONFIG.CALENDAR_PIN_ACCESS`) has since been
+retired, so none of this is a rollback route any more: **rolling back now means reverting step 4's
+rules push** (or the release), never flipping a client flag.
+
+**Never deploy the rules first.** A client that cannot satisfy a tightened read rule shows every staff
+phone the base roster with a "Couldn't update" chip — a roster that is *wrong*, not obviously broken.
+
+**That ordering has to be made by hand, because the three deploy workflows do not provide it.**
+`deploy-functions.yml`, `deploy-hosting.yml` and `deploy-rules.yml` all fire from the same push to
+`main`, in parallel, with no sequencing between them — so a single merge carrying the function, the
+client and the rules performs steps 2, 3 and 4 *simultaneously*, and whether the rules land before
+or after the hosting deploy is a coin toss. Ship it as separate pushes. For the PIN that meant two
+brakes, each released by its own push: the client switch (step 3) and the `allow read;` hold line in
+`firestore.rules` (step 4). The hold line was declared a second time as `OVERRIDES_READ_HELD_OPEN` in
+`firestore.rules.test.mjs`, and `calendar-viewer-parity.test.mjs` fails if the two disagree in either
+direction — which is what stopped the hold outliving the rollout: it could not be forgotten quietly,
+only removed deliberately.
+
+1. **Secret — BEFORE the merge, not after.** `firebase functions:secrets:set CALENDAR_VIEWER_PIN`.
+   This is not merely "nothing works without it": `firebase deploy --only functions` resolves the
+   `latest` version of every secret bound to a deploying endpoint (`validateSecretVersions` in
+   firebase-tools) and throws if one has no version. `defineSecret` creating the container is not
+   enough — an empty secret still fails. And the check covers the WHOLE deploy, so an unset PIN does
+   not fail just `unlockCalendarViewer`; it fails `ingestHuddle`, `parseRosterPDF` and everything
+   else in the same run. The live functions keep serving their current revision, so nothing breaks
+   for staff, but the push ships no function code and opens a deploy-failure issue. Recoverable —
+   set the secret and run the workflow again on `main` (Actions → Deploy Firebase Functions → Run
+   workflow) — but the cheap move is to set it first.
+2. **Merge, and the function goes live with it** — a dark deploy, with both brakes still on, whose job
+   is to prove the *rest* of the release (session handling, the nav drawer, the calendar bootstrap)
+   against real devices while the feature itself is invisible.
+2b. **Prove the SUCCESS path in production, by hand, BEFORE step 3.** Someone holding the PIN opens
+   the live Calendar in a private window and unlocks it. There is no automated substitute: it is the
+   only way the token mint is exercised against real IAM, real Auth and the real secret — the e2e
+   suite stubs the exchange (rightly — a test must not hold the secret). **A `GET` → 204 (405 before v25.77) and a WRONG
+   PIN → 401 prove nothing**: `getUser`/`createUser`, `setCustomUserClaims` and `createCustomToken`
+   run only for a CORRECT PIN. That is exactly how step 3 failed on 10 Aug 2026 — every correct PIN
+   returned 500 from the token-mint block, and it had to be reverted within hours. If it fails, read
+   the function log: `[unlockCalendarViewer] token mint failed <code> <message>` names the cause. The
+   known candidate is the IAM gap in the project-facts table above.
+3. **Client.** Release the client that can satisfy the new rule — hosting only, no rules change — and
+   **let it soak** while the rule is still permissive, so a stale cached client keeps working.
+4. **Rules.** Remove the `allow read;` hold line and set `OVERRIDES_READ_HELD_OPEN = false` in the
+   same commit; push with nothing else in it. From this moment an old cached client cannot read
+   overrides, and the rollback is step 4's own revert.
+
+   **The go/no-go was taken on 26 Aug 2026** on the pre-flight below: most real loads had moved off
+   the pre-v20.51 client, and page views were broadly level with July.
+
+   **What the soak is for:** not proving the PIN works — that was step 2b — but *how many devices are
+   still running a client that cannot satisfy the new rule*, because those are the ones this step
+   breaks for one load. Every day converts more of them, and only opening the app converts one. Count
+   from the version that actually carried the client — a version that released it and was then rolled
+   back does not count (for the PIN that was v20.51, not v20.46).
+
+   **Pre-flight, in this order:**
+   1. **Operations → App Speed → "A closer look" → By app version.** The share of real loads still on
+      a client older than the cutover version. This is the number that decides go/no-go; a trickle is
+      fine. Versions roll up into ranges, so a range that straddles the cutover is mostly converted but
+      not provably so — and the card aggregates the WHOLE MONTH, so it is pessimistic about how stale
+      devices are TODAY.
+   2. **Operations → Usage → page views** against the period before the client shipped. A successful
+      unlock records usage and a failed one records nothing, so a material drop means unlocks are
+      failing. **This is the only soak signal there is** — a locked Calendar has no identity, so a
+      failing PIN exchange never reaches the Error Log. Silence there is not health. Page views are
+      stored per MONTH (`analytics/pv_<YYYY-MM>`) with no daily bucket, so a 7-day window cannot be
+      read; either add a daily bucket first or write the pre-flight against what the cards hold.
+   3. `unlockCalendarViewer` in the Functions log, for outright errors.
+   4. The rules deploy path is green. Do not ship step 4 on top of a red rules workflow.
+
+   **Be free to postpone.** An exposure that has stood for years costs little for another fortnight;
+   getting a roster wrong for somebody on their first shift back costs more.
+5. **Verify in production**, in a fresh private window: PIN → roster → reload → still unlocked →
+   Team View → month navigation → Admin (must demand a member sign-in) → close the browser →
+   PIN again. Then on a phone, and at an office-desktop width. This step is a person and not a job,
+   for the reason step 2b gives.
+
+**The mixed-version window at step 4** is one page load wide: the service worker claims immediately
+on activate and reloads the page, so a device is on the new client by its next open. Within that one
+load an old client shows the base roster plus the sync chip's "Couldn't update — try again". That
+is visible and recoverable, and step 3's soak is what keeps the window to a single load rather than
+a deploy cycle.

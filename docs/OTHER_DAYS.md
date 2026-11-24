@@ -80,14 +80,15 @@ data, and the "Training / Induction / Assessment …" enumeration headers.
 
 ## Locked decisions (the record of the design conversation)
 
-*Cited from code as "OTHER_DAYS.md decision N" (currently decisions 5 and 8). Identifiers below
-predate the rename — read `training` as the `other` family, 🎓 as 🏷️, and bronze as leaf
-green (see Evolution above for the final values).*
+*Cited from code as "OTHER_DAYS.md decision N" (currently decisions 5 and 8), so the numbers are
+permanent. Where a decision was superseded by the rename to the Other family, its old value is struck
+and the current one stated, with Evolution above as the authority; elsewhere read `training` as the
+`other` family.*
 
 | # | Decision | Answer |
 |---|----------|--------|
-| 1 | Family colour | **Bronze** — one new token pair `--trg` / `--trg-light` (as-was) (all three flavours share it) |
-| 2 | Badge | 🎓 + short flavour word: **Train** / **Ind** / **Assess** |
+| 1 | Family colour | ~~Bronze, `--trg` / `--trg-light`~~ → **leaf green, `--other` / `--other-light`**, shared by every flavour (Evolution → Colour) |
+| 2 | Badge | ~~🎓~~ → **🏷️** + short flavour word: **Train** / **Ind** / **Assess** / **Team** / **Meet** / **Union** (`OTHER_FLAVOURS`) |
 | 3 | Hours slot (where a time normally shows) | The **time** (base shift time, or actual times when entered) — or the word **RDW** for a training rest-day with no times |
 | 4 | Tap on the day (day-detail / tooltip / aria) | The **full word**: "Training" / "Induction" / "Assessment" (+ " — Rest Day Working" when RDW, + times when known) |
 | 5 | Pay on a rostered day | Base hours at **that day's rate** (basic / Sat 1.25× / BH), automatic; never less |
@@ -95,6 +96,6 @@ green (see Evolution above for the final values).*
 | 7 | Over-run | Excess beyond the base shift → the existing **Overtime** bucket (BH over-run → BH-overtime bucket, matching the payslip). RDW days are never split — all hours stay RDW |
 | 8 | How RDW-ness is decided | **Explicitly marked on the roster** ("TRG RDW"). Manual entry gets an RDW tick, **pre-ticked** when the day's base is a rest day. Engine belt-and-braces: base RD/OFF ⇒ treat as RDW even if the flag is missing |
 | 9 | Sunday | **Blocked** — a Sunday can never be a training day (same enforcement-layer treatment as AL/Absent; the layers are enumerated in CLAUDE.md) |
-| 10 | Admin manual entry | Yes — **one** "Training" pill in Change a Shift; picking it reveals flavour choice + RDW tick + **optional** time boxes (blank = defaults) |
-| 11 | Times storage | Optional, on the override value itself (see grammar). Roster upload carries times for a **meeting** only (`"10:00-14:00 MTG"` imports as `MEET 10:00-14:00` — `functions/roster-other-days.js`); for every other flavour only manual admin entry does |
+| 10 | Admin manual entry | Yes — **one** ~~"Training"~~ → **"Other"** pill in Change a Shift; picking it reveals the flavour chips (one must be chosen) + RDW tick + **optional** time boxes (blank = defaults) — Evolution → Manual UX |
+| 11 | Times storage | Optional, on the override value itself (the value grammar is `_OTHER_RE`, built from `OTHER_FLAVOURS` in `override-utils.js`). Roster upload carries times for a **meeting** only (`"10:00-14:00 MTG"` imports as `MEET 10:00-14:00` — `functions/roster-other-days.js`); for every other flavour only manual admin entry does |
 | 12 | Worked-day status | Training counts as a **worked** day (dispatcher BH-lieu counting included — a BH training earns lieu, since it pays as the day) |
