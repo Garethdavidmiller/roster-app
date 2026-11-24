@@ -440,7 +440,7 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
         const overrides = ['2026-12-24', '2026-12-25', '2026-12-28'].map(rec);
         const period = ask(overrides, '2026-12-24', '2026-12-28', 2);
         assert.deepEqual([...period.ids].sort(), ['q2026-12-24', 'q2026-12-28']);
-        assert.equal(period.said, '✓ Deleted 2 AL days for Q. Example');
+        assert.equal(period.said, '✓ Deleted 2 days of Annual Leave for Q. Example');
         assert.deepEqual(ask(overrides, '2026-12-25', '2026-12-25', 1).ids, ['q2026-12-25']);
     });
 
@@ -449,8 +449,8 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
         const overrides = ['2027-03-01', '2027-03-02', '2027-03-03', '2027-03-04', '2027-03-05', '2027-03-06'].map(rec);
         const r = ask(overrides, '2027-03-01', '2027-03-06', 5);
         assert.equal(r.ids.length, 6);
-        assert.equal(r.said, '✓ Deleted 5 AL days for Q. Example, and 1 more day that was not counted');
-        assert.equal(ask(overrides, '2027-03-01', '2027-03-05', 5).said, '✓ Deleted 5 AL days for Q. Example', 'CONTROL: nothing more, nothing said');
+        assert.equal(r.said, '✓ Deleted 5 days of Annual Leave for Q. Example, and 1 more day that was not counted');
+        assert.equal(ask(overrides, '2027-03-01', '2027-03-05', 5).said, '✓ Deleted 5 days of Annual Leave for Q. Example', 'CONTROL: nothing more, nothing said');
     });
 
     // THE OLDER COPY A DELETED RECORD OUTRANKS GOES WITH IT (review, Nov 2026), as in every other Admin delete
@@ -481,7 +481,7 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
             const newerLeave = { ...newerAbsence, id: 'newLeave', type: 'annual_leave', value: 'AL' };
             const r = ask([olderShift, newerLeave], TUE, TUE, 1);
             assert.deepEqual([...r.ids].sort(), ['newLeave', 'oldShift']);
-            assert.equal(r.said, '✓ Deleted 1 AL day for Q. Example, and an earlier entry for Tue 13 Oct');
+            assert.equal(r.said, '✓ Deleted 1 day of Annual Leave for Q. Example, and an earlier entry for Tue 13 Oct');
         });
 
         it('only what the deleted record outranks: a newer record and a roster import stay', () => {
@@ -503,7 +503,7 @@ describe('periodDelete — what a row\'s ✕ deletes, and the line that says so'
         const leave = week.map(d => ({ ...rec(d), createdAt: batch }));
         const r = ask([...leave, sunday], week[0], week[4], 5);
         assert.ok(r.ids.includes('qSun'), 'premise: the booking\'s own Sunday correction goes with the period');
-        assert.equal(r.said, '✓ Deleted 5 AL days for Q. Example. Sun 6 Dec, set as a rest day for this leave, is back on the roster.');
+        assert.equal(r.said, '✓ Deleted 5 days of Annual Leave for Q. Example. Sun 6 Dec, set as a rest day for this leave, is back on the roster.');
         // Two weeks, two Sundays inside the period: named together, and an absence says "absence".
         const fortnight = ['2026-11-30', '2026-12-04', '2026-12-07', '2026-12-11', '2026-12-14'].map(d => ({ ...rec(d), type: 'sick', value: 'SICK', createdAt: batch }));
         const two = periodDelete({ overrides: [...fortnight, sunday, { ...sunday, id: 'qSun2', date: '2026-12-13' }], type: 'sick',

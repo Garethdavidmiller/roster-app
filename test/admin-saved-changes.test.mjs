@@ -280,7 +280,7 @@ let _order = [];
 /** The days the week grid answers it cleared, given what it was handed. @type {(rows: any[]) => string[]} */
 let _clears = () => [];
 /**
- * @param {{ isAdmin?: boolean, isManager?: boolean }} [roles]
+ * @param {{ isAdmin?: boolean, isManager?: boolean, formatDate?: (iso: string) => string }} [roles]
  */
 function setup(roles = {}) {
     _checked = [];
@@ -316,7 +316,7 @@ function setup(roles = {}) {
         showError: () => {}, onEditRow: () => {}, onAfterSave: () => { _order.push('afterSave'); },
         // RECORDED, not discarded: what a delete hands the week grid is the claim block 16 checks.
         onOwnWrite: (/** @type {any[]} */ rows) => { _ownWrites.push(rows); _order.push('week'); return _clears(rows); },
-        formatDate: (/** @type {string} */ s) => s,
+        formatDate: roles.formatDate ?? ((/** @type {string} */ s) => s),
         showALConfirm: (/** @type {string} */ msg, /** @type {string} */ sub, /** @type {any} */ pendingSave,
             /** @type {string[]} */ pendingDelete, /** @type {() => void} */ resume) => { _bars.push({ msg, sub, pendingSave, pendingDelete, resume }); },
     });
@@ -848,6 +848,20 @@ async function rowDelete(id) {
 }
 /** The dates of the rendered rows, top to bottom, read out of each card's markup. */
 const renderedDates = () => el('overrideTableBody')._kids.map((/** @type {any} */ c) => /data-date="([^"]*)"/.exec(c.innerHTML)?.[1]);
+
+// A row's three controls say the date in words, as the row shows it — a screen reader read "2026-09-03"
+// (whole-app review, 24 Nov 2026). The data-date stays ISO: it is what the click handlers read.
+test('a row\'s Select, Edit and Delete name the day in words, never the stored ISO date', () => {
+    // The page hands in `formatDisplay` (admin-app.js); this stands in for its words.
+    setup({ isAdmin: true, formatDate: (/** @type {string} */ s) => (s === '2026-09-03' ? '3 September 2026' : s) });
+    selectMember('S. Silva');
+    _rows = [THEIRS[0]];
+    renderTable();
+    const html = el('overrideTableBody')._kids.map((/** @type {any} */ c) => c.innerHTML).join('');
+    for (const what of ['Select', 'Edit', 'Delete']) assert.match(html, new RegExp(`aria-label="${what} S\\. Silva 3 September 2026"`), what);
+    assert.doesNotMatch(html, /aria-label="[^"]*2026-09-03/);
+    assert.match(html, /data-date="2026-09-03"/);
+});
 
 describe('9. an empty list for a member whose records were never read says so', () => {
     test('still loading: the loading state, never "No recorded changes"', () => {

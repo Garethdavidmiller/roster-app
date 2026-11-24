@@ -1046,7 +1046,7 @@ export function init() {
                         ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                         : '⚠ ' + saveFailureMessage(err);
                 holdFeedback(feedbackEl);   // an earlier delete's fade must not take this error down (admin-2-7)
-                feedbackEl.textContent = msg;
+                setStatus(feedbackEl, msg);   // the ⚠ is decoration, not a word to announce (status-text.js)
                 feedbackEl.className = 'feedback error';
                 // An error has to be READ, so it stays inline rather than in a 4s toast — and is
                 // brought into view, because the control that failed can be a screen below it.

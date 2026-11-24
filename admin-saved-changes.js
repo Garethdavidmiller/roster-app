@@ -201,18 +201,20 @@ export function renderTable() {
         const edate = escapeHtml(o.date || '');
         const etype = escapeHtml(o.type || '');
         const ename = escapeHtml(o.memberName || '');
+        // A control's name says the date in words, as the row shows it, never the stored ISO (whole-app review, 24 Nov 2026).
+        const eday  = escapeHtml(formatDisplay(o.date));
         const card = document.createElement('div');
         card.className = 'override-card';
         // The shown date is escaped too: the rules pin `date`, but an Admin-SDK write passes no rule.
         card.innerHTML = `
-            <input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${edate}">
+            <input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${eday}">
             <div class="oc-body">
                 <div class="oc-head"><span class="oc-date">${escapeHtml(formatDisplay(o.date))}</span><span class="oc-member">${ename}</span></div>
                 <div class="oc-detail"><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}${rowValueText(etype, o.value) ? `<span class="oc-value">${escapeHtml(rowValueText(etype, o.value))}</span>` : ''}</div>
             </div>
             <div class="oc-actions">
-                <button type="button" class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">✎</button>
-                <button type="button" class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">✕</button>
+                <button type="button" class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${eday}">✎</button>
+                <button type="button" class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${eday}">✕</button>
             </div>`;
         if (tableBody) tableBody.appendChild(card);
     });

@@ -379,6 +379,14 @@ test('every refusal the readers can return has its own sentence, and none falls 
     for (const m of src.matchAll(/code: '([a-z-]+)'/g)) assert.ok(emitted.has(m[1]), `no sentence checked for ${m[1]}`);
     for (const m of src.matchAll(/out\.push\('([a-z-]+)'\)/g)) assert.ok(emitted.has(`sum-${m[1]}`), `no sentence checked for sum-${m[1]}`);
     const fallback = describeRefusal({ code: 'never-a-code' });
+    // A refusal names its day in the card's words, never the file's ISO date; a date that is not real
+    // is quoted as it stands, because it is the thing refused (whole-app review, 24 Nov 2026).
+    assert.equal(describeRefusal({ code: 'sunday-leave', name: 'A. Example', date: '2026-02-08' }),
+        'A. Example: leave on a Sunday (Sun 8 February 2026). The app never records leave on a Sunday.');
+    assert.equal(describeRefusal({ code: 'outside-sheet', name: 'A. Example', date: '2026-02-24' }),
+        'A. Example: a date outside the sheet’s own dates (Tue 24 February 2026).');
+    assert.equal(describeRefusal({ code: 'bad-date', name: 'A. Example', date: '2026-02-30' }),
+        'A. Example: a date that is not a real date (2026-02-30).');
     for (const code of emitted) {
         const line = describeRefusal({ code, name: 'A. Example', date: '2026-02-06', field: '3' });
         assert.notEqual(line, fallback, code);

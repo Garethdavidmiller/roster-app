@@ -214,7 +214,7 @@
         .al-banner-divider { width: 1px; background: var(--al); opacity: 0.3; flex-shrink: 0; }
         .al-banner-stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0 4px; }
         .al-banner-stat .stat-val {
-            font-size: 20px;
+            font-size: var(--type-large);   /* on the scale (whole-app review, 24 Nov 2026): 20px had no token */
             font-weight: 800;
             line-height: 1;
             /* --al-text on --al-light: the AA pair the paycalc BH badge was fixed with (A11Y_BASELINE.md). */
@@ -1131,7 +1131,7 @@
             transform: translateY(0);
             transition: transform var(--dur-slow) var(--ease-standard);
         }
-        .al-confirm-bar .al-confirm-icon { font-size: 20px; flex-shrink: 0; }
+        .al-confirm-bar .al-confirm-icon { font-size: var(--type-large); flex-shrink: 0; }
         .al-confirm-bar .al-confirm-body { flex: 1; }
         .al-confirm-bar .al-confirm-msg  { font-weight: 700; margin-bottom: 4px; }
         .al-confirm-bar .al-confirm-sub  { font-size: var(--type-small); color: var(--text-mid); margin-bottom: 10px; }
@@ -1491,7 +1491,7 @@
             border: none;
             color: var(--primary-blue);
             font-family: inherit;
-            font-size: 22px;
+            font-size: var(--type-xl);   /* the month arrows, on the scale (whole-app review, 24 Nov 2026) */
             line-height: 1;
             cursor: pointer;
             width: 44px;
@@ -2017,9 +2017,10 @@
             /* .btn-delete / .btn-edit are 44px squares at every pointer size since v23.12, so the
                touch enlargement this block used to give them is no longer needed here. */
             /* The over-entitlement decision — the one confirm on this page a manager can get wrong
-               in a way that costs somebody leave. It was the smallest pair of buttons on it. */
+               in a way that costs somebody leave. It was the smallest pair of buttons on it; a thumb's
+               44px, as the staged bar's (whole-app review, 24 Nov 2026). */
             .al-confirm-bar .btn-confirm-save,
-            .al-confirm-bar .btn-confirm-cancel { min-height: 36px; }
+            .al-confirm-bar .btn-confirm-cancel { min-height: 44px; }
             /* The page's primary control. 4px of vertical padding around 16px text is 30px, which
                is smaller than the month filter inside the card below it. */
             .member-context-bar select,
@@ -2092,6 +2093,8 @@
         }
         .unsaved-discard-btn:focus-visible,
         .unsaved-keep-btn:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+        /* A thumb's 44px, as the staged bar's; after both base rules (whole-app review, 24 Nov 2026). */
+        @media (pointer: coarse) { .unsaved-discard-btn, .unsaved-keep-btn { min-height: 44px; } }
 
         /* Login overlay CSS in shared.css (v11.06) */
 

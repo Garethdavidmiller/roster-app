@@ -467,6 +467,21 @@ const SUM_WORDS = /** @type {Record<string, string>} */ ({
     'sum-no-row': 'the days do not match whether the sheet has a totals row',
 });
 
+const REFUSAL_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const REFUSAL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+    'October', 'November', 'December'];
+/**
+ * A refusal's date in the words the leave card uses for a day ("Tue 24 February 2026", as `dayLabel` in
+ * al-leave-words.js) — spelt here because this module imports no app module (whole-app review, 24 Nov
+ * 2026). A date that is not a real one is quoted as it stands: it is what the refusal is about.
+ * @param {string} s
+ */
+function refusalDay(s) {
+    if (!isRealIsoDate(s)) return s;
+    const [y, m, d] = s.split('-').map(Number);
+    return `${REFUSAL_DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${REFUSAL_MONTHS[m - 1]} ${y}`;
+}
+
 /**
  * The sentence for a refusal — plain text, for `textContent` and for the Stage 1 script's output.
  * @param {Refusal} r
@@ -474,7 +489,7 @@ const SUM_WORDS = /** @type {Record<string, string>} */ ({
  */
 export function describeRefusal(r) {
     const who = r.name ? `${r.name}: ` : '';
-    const on = r.date ? ` (${r.date})` : '';
+    const on = r.date ? ` (${refusalDay(r.date)})` : '';
     switch (r.code) {
     case 'empty': return 'Nothing was chosen or pasted.';
     case 'too-large': return 'This file is too large to be a leave file.';

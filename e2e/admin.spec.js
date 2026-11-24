@@ -1573,7 +1573,7 @@ test('admin: a leave preview is redrawn when a recorded period under it is delet
     await del.click();
     await pastDoubleTap(page);
     await del.click();
-    await expect(page.locator('#saveToast')).toHaveText(/Deleted 1 AL day for G\. Miller/);
+    await expect(page.locator('#saveToast')).toHaveText(/Deleted 1 day of Annual Leave for G\. Miller/);
     await expect(preview, 'a bare rest day now: asked about again').toContainText('rest day to answer');
 });
 
@@ -3310,7 +3310,7 @@ test('admin: deleting a recorded booking confirms in the toast, not only at the 
 
     const toast = page.locator('#saveToast');
     await expect(toast).toHaveClass(/visible/);
-    await expect(toast).toHaveText(/Deleted 1 AL day for G\. Miller/);
+    await expect(toast).toHaveText(/Deleted 1 day of Annual Leave for G\. Miller/);
     // And the row is gone: with no leave left the box hides rather than showing an empty year.
     await expect(page.locator('#alBookedBox')).toBeHidden();
 });
@@ -3503,7 +3503,7 @@ test('admin: a Recorded dates delete that leaves next year over its allowance as
     await expect(page.locator('#alConfirmSaveBtn'), 'the question has focus').toBeFocused();
     await expect(btn).toHaveText('✕');
     await page.locator('#alConfirmSaveBtn').click();
-    await expect(page.locator('#alFeedback')).toContainText(`Deleted 4 AL days for ${who.name}`);
+    await expect(page.locator('#alFeedback')).toContainText(`Deleted 4 days of Annual Leave for ${who.name}`);
     expect(await deletedCount(page), 'the four December days').toBe(4);
     await expect(bar).not.toHaveClass(/visible/);
 });
@@ -3776,9 +3776,9 @@ test('admin: a Recorded dates delete over a day with a staged edit clears that e
     await clickInView(del);
     // The receipt names the seeded member, read from the session rather than written beside its count.
     const me = await page.evaluate(() => JSON.parse(localStorage.getItem('myb_admin_session') ?? '{}').name);
-    await expect(page.locator('#alFeedback')).toHaveText(`✓ Deleted 1 AL day for ${me}. `
+    await expect(page.locator('#alFeedback')).toHaveText(`✓ Deleted 1 day of Annual Leave for ${me}. `
         + 'Your unsaved change to Mon 24 Aug in Change a Shift was cleared, because that day has just changed. Set it again if you still want it.');
-    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 AL day for ${me}`);
+    await expect(page.locator('#saveToast')).toHaveText(`✓ Deleted 1 day of Annual Leave for ${me}`);
     await expect(monday.locator('.type-pill-btn[aria-pressed="true"]')).toHaveCount(0);
     await expect(friday.locator('.type-pill-btn[data-type="sick"]')).toHaveAttribute('aria-pressed', 'true');
     await clickInView(page.locator('#saveBtn'));
@@ -3842,7 +3842,7 @@ test('admin: a refused delete straight after a delete stays on screen past the f
     await pastDoubleTap(page);
     await dels.first().click();
     const line = page.locator('#alFeedback');
-    await expect(line).toContainText('Deleted 1 AL day');
+    await expect(line).toContainText('Deleted 1 day of Annual Leave');
     // A colleague changes the other day; deleting it now is refused, on the same line.
     await page.evaluate((d) => { /** @type {any} */ (window).__E2E.txDocs = [{ id: 'k1', memberName: 'G. Miller', date: d, type: 'rdw', value: '09:00-17:00' }]; }, days[1]);
     await page.clock.fastForward(3_000);
@@ -3899,12 +3899,12 @@ test('admin: an armed Saved Changes delete says so in its accessible name, and s
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#overridesToggleHeader').click();
     const btn = page.locator('.override-card .btn-delete').first();
-    await expect(btn).toHaveAttribute('aria-label', 'Delete G. Miller 2026-09-01');
+    await expect(btn).toHaveAttribute('aria-label', 'Delete G. Miller 1 September 2026');
     await btn.click();
     await expect(btn).toHaveText('Delete?');
-    await expect(btn, 'armed: the name says so').toHaveAttribute('aria-label', 'Confirm delete G. Miller 2026-09-01');
+    await expect(btn, 'armed: the name says so').toHaveAttribute('aria-label', 'Confirm delete G. Miller 1 September 2026');
     // Let the confirm lapse (5s) rather than pressing again: the name has to come back WITH the glyph.
-    await expect(btn, 'idle again: the name comes back with the glyph').toHaveAttribute('aria-label', 'Delete G. Miller 2026-09-01', { timeout: 7000 });
+    await expect(btn, 'idle again: the name comes back with the glyph').toHaveAttribute('aria-label', 'Delete G. Miller 1 September 2026', { timeout: 7000 });
     await expect(btn).toHaveText('✕');
     await expect(btn).not.toHaveClass(/confirming/);
 });
