@@ -102,7 +102,7 @@
         "N. Sobers",
         "W. Cummings",
         "S. Fayombo",
-        "K. Matusevicute"
+        "K. Matuseviciute"
     ],
     "roles": {
         "admin": [
@@ -579,7 +579,7 @@
             "managerOnly": false
         },
         {
-            "name": "K. Matusevicute",
+            "name": "K. Matuseviciute",
             "grade": "Other Staff",
             "startDate": null,
             "rosterOrder": 57,
