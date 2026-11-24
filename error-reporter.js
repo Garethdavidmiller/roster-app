@@ -37,8 +37,8 @@
  *      alongside `recordUsage`/`recordPageLatency`. The no-member `else` branch calls `afterAuth()`
  *      directly.
  *
- * (A fourth, Trains' station-PIN branch, called it directly once `holdsStaffPin` had read the viewer;
- * it went with the PIN.) `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
+ * (A fourth, Trains' station-PIN branch, called it directly once it had found a PIN session; it went
+ * with the PIN, retired 23 Nov 2026.) `AUTH_AND_SESSIONS.md` invariant 13 states the rule; this is where the shapes live.
  */
 
 import { APP_VERSION } from './roster-data.js';

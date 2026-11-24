@@ -219,7 +219,8 @@ export function installNoticeHasTheVisit() { return _yielded; }
  *
  * @param {object} deps
  * @param {Promise<any>} deps.accessReady   resolves once the calendar's access decision is made
- * @param {() => string} deps.getAccessType 'named' | 'viewer' | 'none' (an anonymous 'open' mode existed until v24.34)
+ * @param {() => string} deps.getAccessType 'named' | 'none' ('viewer' went with the staff PIN, retired 23 Nov 2026;
+ *   an anonymous 'open' mode existed until v24.34)
  * @returns {void}
  */
 export function initInstallPrompt({ accessReady, getAccessType }) {

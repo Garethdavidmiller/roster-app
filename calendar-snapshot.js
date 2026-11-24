@@ -27,7 +27,8 @@
  *     moment the live read settles. It is never written into `rosterOverridesCache` and never marks
  *     a month known (`noteKnowledge`), so nothing that decides access or counts leave can see it.
  *   IT DIES WITH THE SESSION. `clearSession()` deletes it (every sign-out goes through there), and
- *     so does a failed or refused grant, a PIN unlock, and a member mismatch.
+ *     so does a failed or refused grant, a lost grant, and a member mismatch. (A staff PIN unlock did
+ *     too, until the PIN was retired on 23 Nov 2026: a grant that is not `named` still clears it.)
  *   IT AGES OUT. A month older than MAX_AGE_MS is dropped on read; an empty copy is deleted.
  *   IT IS BOUNDED. Only months near today are kept (MONTHS_BEFORE / MONTHS_AFTER), so it cannot grow
  *     into a history of somebody's leave.
@@ -40,8 +41,8 @@
  * anybody had opened on it, a colleague's included, past every sign-out. It is now the copy's
  * `leave` field, so it keeps every rule above BY CONSTRUCTION rather than by a second set of hooks:
  * written only for the member signed in, on their own calendar; one member, so a different member's
- * write replaces it; deleted wherever the copy is — `clearSession()`, a PIN unlock or grant, a lost
- * grant; aged by MAX_AGE_MS; and bounded to LEAVE_YEARS_AROUND years either side of today's. A copy
+ * write replaces it; deleted wherever the copy is — `clearSession()`, a grant that is not `named`, a
+ * lost grant; aged by MAX_AGE_MS; and bounded to LEAVE_YEARS_AROUND years either side of today's. A copy
  * holding only a balance (no month in its window) is still a copy, and is kept. The old keys are
  * swept on every Calendar load (`sweepRetiredLeaveKeys`) — keep that sweep until every device has
  * opened the Calendar once since.
