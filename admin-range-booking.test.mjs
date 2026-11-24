@@ -1341,3 +1341,36 @@ describe('P. the Spare line and the receipt say what the booking charges', () =>
         assert.ok(html.includes('7 of these days are Spare days — on standby, with the shift not yet assigned. A Spare week uses at most 4 days of annual leave, so they use 5 days.'), html);
     });
 });
+
+// Q. THE SPARE LINE FOLLOWS THE GRADE HELD ON THE DAY, AS THE CAP DOES (external review of v26.58, "suspected"). It
+// read today's `role`, so somebody who was a CEA that week and is a Dispatcher now had their Spare week capped at four
+// with no line saying why the headline counted fewer days than were booked.
+describe('Q. the Spare line follows the grade held on the booked days', () => {
+    beforeEach(() => { _realWorkingDate = true; });
+    const spareWeekOf = (/** @type {any} */ m) => {
+        for (let i = 0; i < 400; i++) {
+            const mon = new Date(2027, 1, 1 + i);
+            if (mon.getDay() !== 1) continue;
+            const week = Array.from({ length: 6 }, (_, k) => iso10(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + k)));
+            if (week.every(d => getBaseShift(m, parseISODate(d)) === 'SPARE')) return week;
+        }
+        return null;
+    };
+    const CEA = inventedCea(m => spareWeekOf(m) !== null);
+    const week = /** @type {string[]} */ (spareWeekOf(CEA));
+    // A CEA until the end of 2027, a Dispatcher after it — invented, as every member here.
+    const QD = { ...CEA, role: 'Dispatcher', roleHistory: [{ role: 'CEA', until: new Date(2027, 11, 31) }] };
+    onRosterForEachTest(QD);
+
+    test('a Spare week booked whole while a CEA says the cap, whatever the grade today', () => {
+        for (const id of ['alFrom', 'alTo', 'alPreview', 'alSaveBtn', 'alFeedback']) el(id);
+        initALSection(/** @type {any} */ ({ alMember: memberSelect(QD.name), syncMemberDisplay() {}, populateMemberDropdown() {}, lastMember: null,
+            updateALBanner() {}, updateALBookedBox() {}, updateSickBookedBox() {}, setALPickerYear() {}, getCurrentUser: () => 'A. Admin',
+            showALConfirm() {}, hideALConfirm() {}, showInChangeAShift() {}, showSuccess() {} }));
+        el('alFrom').value = week[0]; el('alTo').value = week[5];
+        for (const fn of el('alTo')._on.change ?? []) fn();
+        const html = el('alPreview').innerHTML;
+        assert.match(html, /<strong>4 days<\/strong>/, 'premise: capped at four by the grade held that week');
+        assert.ok(html.includes('A Spare week uses at most 4 days of annual leave, so they use 4 days.'), html);
+    });
+});

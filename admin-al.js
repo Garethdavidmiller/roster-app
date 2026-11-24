@@ -16,6 +16,7 @@ import { swapDecisionDates } from './al-swapped-days.js';
 import { projectAlBooking, projectAlOverage, overridesAfterSave, lieuGoesWords, yearShiftWords } from './admin-al-projection.js';
 import { spareShiftNote, spareDaysOf, spareWeekDaysOf } from './admin-al-spare-note.js';
 import { SPARE_WEEK_MAX_DAYS } from './al-entitlement.js';
+import { roleOn } from './roster-roles.js';
 
 const esc = escapeHtml;
 
@@ -226,7 +227,9 @@ export function initALSection({
             }
             if (parts.length) restNote = ` <em>(+ ${parts.join(', ')})</em>`;
         }
-        const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
+        // BY THE GRADE HELD ON THE DAY, as the cap reads it (external review of v26.58): read off today's `role`, a CEA
+        // that week and a Dispatcher now had the week capped at four with no line saying why.
+        const isSpareRole = !!memberObj && dates.some(d => ['CEA', 'CES'].includes(String(roleOn(memberObj, parseISODate(d)))));
         // Wording, and why a Spare day costs one and a Spare week at most four: admin-al-spare-note.js's header.
         // Upright, not italic (review, 21 Nov 2026): it is information to read, and a whole italic
         // sentence on a phone is the hardest line on the card to read.
