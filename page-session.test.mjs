@@ -47,8 +47,10 @@ mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight }
 /** What the shared sign-in was last opened with — RECORDED, so a test can say what the card was told. @type {any} */
 let lastLoginOpts = null;
 mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => { lastLoginOpts = o; log.push(`login:${o.pageLabel}`); }, dismissLoginOverlay: () => log.push('dismissLogin') } });
-/** Whether the card on screen has a sign-in in flight (its button held): read by the no-memory branch. */
+/** Whether the card on screen has a sign-in in flight (its Back link marked busy): read by the no-memory branch. */
 let signInInFlight = false;
+/** Whether the card's button is held by the 30-second wrong-password lock — disabled, with nothing in flight. */
+let lockedOut = false;
 
 /** sessionStorage for the late-identity reload cap. @type {Map<string,string>} */
 const ss = new Map();
@@ -64,7 +66,13 @@ const fire = (/** @type {string} */ t, /** @type {any} */ e = {}) => (listeners[
 let docListeners = {};
 global.document = /** @type {any} */ ({
     visibilityState: 'visible',
-    querySelector: (/** @type {string} */ sel) => (sel === '#loginSubmit' ? { hasAttribute: (/** @type {string} */ a) => a === 'disabled' && signInInFlight } : null),
+    querySelector: (/** @type {string} */ sel) => {
+        // The card as login-overlay.js leaves it: the button is disabled in flight AND under the lock;
+        // only the Back link's busy mark is the round trip alone.
+        if (sel === '#loginSubmit') return { hasAttribute: (/** @type {string} */ a) => a === 'disabled' && (signInInFlight || lockedOut) };
+        if (sel === '#loginOverlay .login-back--busy') return signInInFlight ? {} : null;
+        return null;
+    },
     addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { (docListeners[t] ??= []).push(fn); },
 });
 const fireDoc = (/** @type {string} */ t, /** @type {any} */ e = {}) => (docListeners[t] ?? []).forEach(fn => fn(e));
@@ -213,6 +221,27 @@ describe('guardNamedSession', () => {
             await settle();
             assert.deepEqual(log, ['authUnwatch']);
         } finally { global.sessionStorage = real; signInInFlight = false; }
+    });
+
+    // THE 30-SECOND LOCK IS NOT A SIGN-IN IN FLIGHT (review, 24 Nov 2026): it disables the button too, and the
+    // check read the button — so a member who had mistyped three times was never told the sign-in was back.
+    test('…and a card merely locked after three wrong passwords is still drawn again with the notice', async () => {
+        const real = global.sessionStorage;
+        const refuse = () => { throw new Error('SecurityError'); };
+        global.sessionStorage = /** @type {any} */ ({ getItem: refuse, setItem: refuse });
+        lockedOut = true;
+        try {
+            decision = 'pending';
+            const { nameToEmail } = await import('./auth-identity.js');
+            await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+            await settle();
+            log = [];
+            lastLoginOpts = null;
+            authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
+            await settle();
+            assert.deepEqual(log, ['authUnwatch', 'dismissLogin', 'login:Links'], 'the lock was taken for a sign-in in flight');
+            assert.equal(lastLoginOpts?.notice, ps.LATE_IDENTITY_NOTICE);
+        } finally { global.sessionStorage = real; lockedOut = false; }
     });
 
     test('the shared sign-in after a LOST session names the member and says they were signed out (review, Nov 2026)', async () => {
