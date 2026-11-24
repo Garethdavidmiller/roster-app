@@ -20,7 +20,7 @@ import { parseTypedTime, daysUntil, timetablePhase, dateWords, railwayToday, JOU
 import { stationView, busiestStations, matchStations, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
 import { headlineChanges } from './trains-headlines.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME, DAY_NAMES,
-    leadWords, renderFurtherChanges } from './trains-render.js';
+    leadWords, renderFurtherChanges, partialStopsNote } from './trains-render.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
 /** @typedef {'dep'|'arr'} Dir */
@@ -61,7 +61,8 @@ export function renderOverview(p) {
     setText('trLead', leadWords(CHANGE_DATE, p.started));
     setHTML(el('trTotals'), renderTotals(TIMETABLES));
     // The one caveat about missing stops, said once, here — and gone the day December's stops arrive.
-    el('trPartial')?.toggleAttribute('hidden', DEC_STOPS_KNOWN);
+    const partial = el('trPartial');
+    if (partial) { partial.toggleAttribute('hidden', DEC_STOPS_KNOWN); partial.textContent = partialStopsNote(); }
     // Chiltern's further changes are not in its books; the note, worded from their dates, goes once they end.
     const festive = el('trFestive');
     if (festive) { festive.hidden = !p.festive; setHTML(festive, renderFurtherChanges(CHANGE_DATE, FURTHER_CHANGES_UNTIL)); }
