@@ -808,7 +808,7 @@ test('links: the line-order switches change the design, and say what each one co
 
     // Switches ON: the reorder runs and reports before→after for each objective.
     const on = await generate(page);
-    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/average week-to-week move \d+ → \d+ min/);
+    expect(on, 'the status line must state the trade, not just "generated"').toMatch(/average week-to-week move \d+h \d\dm → \d+h \d\dm,/);
     expect(on).toMatch(/full weekends off \d+ → \d+/);
 });
 
@@ -4971,6 +4971,9 @@ test('links: a delete that lands after the page moved to another design leaves t
     await sheetAction(page, 'compareBtn');                                // …and compares it with a third design
     await page.locator('#compareChips .design-chip-name[data-id="d3"]').click();
     await expect(page.locator('#compareGridsWrap')).toHaveClass(/compare-mode-active/);
+    // The chosen chip says so to a screen reader, and only that one (whole-app review, 24 Nov 2026).
+    await expect(page.locator('#compareChips .design-chip-name[data-id="d3"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#compareChips .design-chip-name[aria-pressed="true"]')).toHaveCount(1);
     await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());
     await expect(page.locator('#linksSaveStatus')).toContainText('is in Recently deleted');
     await expect(page.locator('#compareGridsWrap'), 'compare mode ended, though neither design in it was deleted')

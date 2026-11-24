@@ -745,6 +745,9 @@ describe('fatigue rows are advisory on screen', () => {
         const section = (html.split(/data-claim="limit"/)[1] ?? '').split('<div class="check-section-head"')[0];
         const rows = [...section.matchAll(/<div class="check-row ([^"]+)">/g)].map(m => m[1]);
         assert.deepEqual(rows, checks.map(c => (c.status === 'breach' ? 'check-bad' : c.status === 'ok' ? 'check-good' : 'check-neutral')));
+        // …and the card's one cross, ✗, as every other failed row wears — never a close button's ✕ (whole-app review, 24 Nov 2026).
+        assert.match(section, /<div class="check-row check-bad"><span class="check-icon check-cross" aria-hidden="true">✗<\/span>/);
+        assert.ok(!section.includes('✕'), 'a breach wore the ✕ of a close button');
     });
 
     test('a STANDING factor renders inline — it is not "nothing to report"', () => {
