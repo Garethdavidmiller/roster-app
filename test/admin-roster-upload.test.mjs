@@ -43,6 +43,8 @@ let   _minted           = 0;          // new ids are DISTINCT, so a second copy 
 // This device's own queued saves (v25.95): what a deleting part waits on before its transaction.
 let   _ownWritesSent    = () => Promise.resolve(true);   // true: drained; false: not in time
 let   _ownWritesAsked   = 0;
+/** @type {string[][]} the ids each wait was asked about */
+const _ownWritesFor = [];
 // getDocs impl the fetchOverridesForWeek tests swap in (default: empty result set).
 let   _getDocsImpl      = async () => ({ docs: [] });
 
@@ -93,7 +95,10 @@ mock.module('../firebase-client.js', {
             _batchOps.push(ops);
         },
         serverTimestamp: () => 'TS',
-        whenOwnWritesSent: async () => { _ownWritesAsked++; return _ownWritesSent(); },
+        // Asked through `whenOwnWritesSentFor` since 24 Nov 2026, with every record the part touches —
+        // recorded, because the fallback asks exactly those, and a set left off would let an older
+        // queued write of this account's land over the import's.
+        whenOwnWritesSentFor: async (/** @type {Iterable<any>} */ refs) => { _ownWritesAsked++; _ownWritesFor.push([...refs].map(r => r.id)); return _ownWritesSent(); },
         // Faithful mini-implementation of the real helper: run the thunk; on permission-denied,
         // "force a token refresh" (counter) and retry once; any other error rethrows immediately.
         writeWithClaimRetry: async (/** @type {Function} */ fn) => {
@@ -386,7 +391,7 @@ describe('the import\'s Save is checked against what the review loaded (v25.92)'
     beforeEach(() => {
         _batchOps.length = 0; _txAttempts.length = 0; _txReads.length = 0; _serverDocs.clear();
         _txRerunOnce = false; _commitBehavior = () => {}; _idTokenRefreshes = 0; _refreshShouldFail = false;
-        _ownWritesSent = () => Promise.resolve(true); _ownWritesAsked = 0;
+        _ownWritesSent = () => Promise.resolve(true); _ownWritesAsked = 0; _ownWritesFor.length = 0;
     });
     const TUE = '2026-06-16';
     /** A record as the review loaded it — and, unless a test says otherwise, as the server still holds it. */
@@ -524,6 +529,15 @@ describe('the import\'s Save is checked against what the review loaded (v25.92)'
         await saving;
         assert.equal(_txAttempts.length, 1);
         assert.equal(_ownWritesAsked, 1);
+    });
+
+    test('the wait is told every record the part deletes AND writes — the fallback asks exactly those', async () => {
+        _serverDocs.set('m1', rec('m1'));
+        await _saveOverrideBatches([useNew('m1')], 'G. Miller', shownOf(rec('m1')));
+        const committed = _txAttempts.at(-1) ?? [];
+        const touched = [...new Set(committed.map((/** @type {any} */ o) => o.id))].sort();
+        assert.ok(committed.some((/** @type {any} */ o) => o.op === 'set'), 'the fixture must write as well as delete, or this proves half of it');
+        assert.deepEqual([...(_ownWritesFor[0] ?? [])].sort(), touched);
     });
 
     test('…and when they have not reached the server in time, nothing is sent and the review stays open', async () => {

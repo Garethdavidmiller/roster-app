@@ -31,6 +31,11 @@ export const state = {
     fromCache: false,
     /** what `waitForPendingWrites` waits on — null: nothing queued on this device, so it answers at once */
     pendingWrites: /** @type {Promise<any>|null} */ (null),
+    /** paths THIS account has written and not yet sent: a snapshot of one says `metadata.hasPendingWrites`,
+     *  as the real SDK's does (the per-record check a checked save falls back on, 24 Nov 2026) */
+    queued: /** @type {Set<string>} */ (new Set()),
+    /** every `getDocFromCache` read, by path — kept apart from `ops`, which records writes */
+    cacheReads: /** @type {string[]} */ ([]),
     /** every live `onAuthStateChanged` subscriber, told when the fake signs the account out mid-refresh */
     authListeners: /** @type {Set<(u: any) => void>} */ (new Set()),
     /** when the signed-in user's ID token was issued, in ms — the token service's clock, which a test
@@ -42,7 +47,7 @@ export const state = {
 export function resetState() {
     state.ops.length = 0; state.reads.length = 0; state.docs.clear(); state.authOps.length = 0;
     state.currentUser = null; state.failNext.clear(); state.holdNext.clear(); state.reauthRejects.clear();
-    state.fromCache = false; state.pendingWrites = null; state.authListeners.clear(); state.tokenIssuedAt = null;
+    state.fromCache = false; state.pendingWrites = null; state.queued.clear(); state.cacheReads.length = 0; state.authListeners.clear(); state.tokenIssuedAt = null;
 }
 
 /**
