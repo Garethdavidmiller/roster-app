@@ -36,7 +36,7 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, releasePushForEndingHold, AUTH_RESTORE_TIMEOUT_MS } from './session.js';
+import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth, releasePushForEndingHold, signedInAs, AUTH_RESTORE_TIMEOUT_MS } from './session.js';
 import { isCredentialRejection } from './auth-identity.js';
 // The card's DOM-free rules — the sign-in core, which links its explanation may carry, and what a failed
 // reset request says — are login-core.js's, re-exported so every caller and test keeps importing them here.
@@ -550,6 +550,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     let _lockTimer;
     let _attempting  = false;   // true while an attempt runs, and only then — the lock is `lockHolds`'s
+    /** A late answer that signed them in during their retry, held for it (`awaitLateSignIn`). @type {{ name: string, typedPw: string }|null} */
+    let _heldLateSignIn = null;
     let _signingIn   = false;   // true ONLY while Firebase auth is genuinely in flight (not lockout)
     let _resetSeq    = 0;       // reset-request sends and changes of person — see the request's click
     // This client-side lockout is a UX measure only — it resets on page reload. Real rate
@@ -747,18 +749,38 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
      * answer already in hand, so the local session is written by the one path that writes it.
      * A newer attempt of theirs that FAILED does not withdraw it: it was their own correct password, and
      * Firebase holds that account whatever this card does (login-core.js → "A LATE ANSWER AFTER A NEWER
-     * ATTEMPT"). The set-password marker's hold is released first, whatever the card then does.
+     * ATTEMPT"). The set-password marker's hold is released first, whatever the card then does. One answered
+     * DURING the retry is held for it, and opens the page if the retry fails (`openOnHeldLateSignIn`, external
+     * review of v26.67: dropped, it left "Password not recognised" over a colleague Firebase had signed in).
      * @param {string} name @param {string} typedPw @param {Promise<boolean>} late
      */
     function awaitLateSignIn(name, typedPw, late) {
         late.then((named) => { releasePasswordMarker(name, named); return named; }).then(async (named) => {
-            if (!named || !overlay.isConnected || _attempting || nameSelect.value !== name) return;
-            const r = await runNamedSignIn({ ...signInDeps(name, typedPw), ensureNamedSession: async () => true });
-            if (!r.ok) { showError(/** @type {string} */ (r.error)); return; }
-            errorEl.classList.remove('visible');
-            submitBtn.disabled = true;
-            await opened(name);
+            if (!named || !overlay.isConnected || nameSelect.value !== name) return;
+            if (_attempting) { _heldLateSignIn = { name, typedPw }; return; }
+            await openOnLateSignIn(name, typedPw);
         }).catch(() => {});
+    }
+
+    /** Commit a late answer through `runNamedSignIn`, the one path that writes the session, and open the page.
+     *  @param {string} name @param {string} typedPw */
+    async function openOnLateSignIn(name, typedPw) {
+        const r = await runNamedSignIn({ ...signInDeps(name, typedPw), ensureNamedSession: async () => true });
+        if (!r.ok) { showError(/** @type {string} */ (r.error)); return; }
+        errorEl.classList.remove('visible');
+        submitBtn.disabled = true;
+        await opened(name);
+    }
+
+    /** A retry for `name` FAILED: open the page on a held late answer — only while the card still shows them and
+     *  Firebase still holds their account (`signedInAs`); a switch or a sign-out since wins. Taken either way.
+     *  @param {string} name @returns {Promise<boolean>} whether it opened the page */
+    async function openOnHeldLateSignIn(name) {
+        const held = _heldLateSignIn;
+        _heldLateSignIn = null;
+        if (!held || held.name !== name || nameSelect.value !== name || !overlay.isConnected || !signedInAs(name)) return false;
+        await openOnLateSignIn(name, held.typedPw);
+        return true;
     }
 
     async function attempt() {
@@ -806,6 +828,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
+                if (await openOnHeldLateSignIn(name)) return;   // an earlier attempt of theirs signed them in meanwhile
                 if (_result.late) awaitLateSignIn(name, typedPw, _result.late);
                 // Is the card still showing the person this attempt was for? The pickers are inert in
                 // flight (`setPickersInert`), but a pick from a sheet that was already closing when the
@@ -846,6 +869,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 showError(/** @type {string} */ (_result.error));
                 return;
             }
+            _heldLateSignIn = null;   // this attempt signed them in itself
             await opened(name);
         } finally {
             // Release the in-flight mutex on completion, every time. It used to stay latched for the

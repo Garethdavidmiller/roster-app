@@ -127,19 +127,14 @@ export function init() {
     /** Show the shared sign-in overlay configured for Admin.
      *  NOTHING may be awaited on this path (the login freeze, ROADMAP_HISTORY.md): the first read after a fresh sign-in
      *  can take seconds, and it froze people on the overlay. Keep post-login work fire-and-forget. */
-    function showAdminLogin({ reloadOnSuccess = false } = {}) {
+    function showAdminLogin() {
         initLoginOverlay({
             pageLabel: 'Admin',
             about: ADMIN_SIGN_IN_ABOUT,
+            // A first sign-in initialises in place, falling back to a reload if that throws. A session lost
+            // LATER is the shared card's (`guardNamedSession`), which reloads: sessionReady is one-shot.
             onSuccess: () => {
-                // reloadOnSuccess: on the stale-session path initAuthorised() already ran and resolved the
-                // one-shot sessionReady, so only a reload gives a fresh one. A first sign-in initialises in
-                // place, falling back to a reload if that throws.
-                if (reloadOnSuccess) {
-                    window.location.reload();
-                } else {
-                    try { initAuthorised(); } catch { window.location.reload(); }
-                }
+                try { initAuthorised(); } catch { window.location.reload(); }
             },
         });
     }
@@ -1209,7 +1204,7 @@ export function init() {
     }
     if (_access.decision === 'login') {
         // Not signed in → show login overlay; do not load any Firestore data. On a confirmed sign-in,
-        // showAdminLogin's onSuccess reloads (flag off) or runs initAuthorised() in place (flag on).
+        // showAdminLogin's onSuccess runs initAuthorised() in place.
         showAdminLogin();
     } else {
         // _access.decision === 'allow' (a named user; Admin requires no role).
@@ -1236,9 +1231,11 @@ export function init() {
         const _adminAuth = ensureNamedSession(currentUser);
         resolveSession(_adminAuth);
         // A session that cannot be confirmed as this member's OWN — now, or LATER (claim-retry.js) — is
-        // cleared and shown Admin's sign-in, which RELOADS on success: sessionReady is one-shot.
+        // cleared and shown the shared sign-in, with Admin's explanation, which RELOADS on success:
+        // sessionReady is one-shot. The shared card is what says "signed in again" and offers Try again on a
+        // tab that cannot reload by itself (external review of v26.67); Admin's own never heard it.
         guardNamedSession({ page: 'admin', pageLabel: 'Admin', member: currentUser, established: _adminAuth,
-            signIn: () => showAdminLogin({ reloadOnSuccess: true }) });
+            about: ADMIN_SIGN_IN_ABOUT });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');
         // The page's content is on screen from this line (`.container` is hidden until `auth-ready`).

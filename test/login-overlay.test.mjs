@@ -61,6 +61,10 @@ let signInCode  = 'ok';
 let signOutCode = 'ok';
 /** When set, every typed sign-in waits on it — how the card's block holds an attempt IN FLIGHT. @type {Promise<void>|null} */
 let signInGate = null;
+/** One step per typed sign-in, in order, each answering when its gate opens — two attempts in flight, answering in
+ *  the order a test chooses. A call with no step left falls back to `signInGate` and `signInCode`.
+ *  @type {Array<{ gate: Promise<void>, code: string }>} */
+let signInScript = [];
 /** The server's record of the sign-in the fake hands back (`metadata.lastSignInTime`), or none. @type {string|undefined} */
 let serverSignInTime;
 /** Runs the instant the fake signs somebody in — where the real SDK tells every `onAuthStateChanged`
@@ -74,8 +78,11 @@ mock.module('../firebase-client.js', { namedExports: {
     nameToEmail:                realIdentity.nameToEmail,
     normaliseSurname:           realIdentity.normaliseSurname,
     signInWithEmailAndPassword: async (/** @type {any} */ _auth, /** @type {string} */ email) => {
-        if (signInGate) await signInGate;
-        if (signInCode !== 'ok') throw Object.assign(new Error(signInCode), { code: signInCode });
+        const step = signInScript.shift();
+        if (step) await step.gate;
+        else if (signInGate) await signInGate;
+        const code = step ? step.code : signInCode;
+        if (code !== 'ok') throw Object.assign(new Error(code), { code });
         fakeAuth.currentUser = { uid: 'u-member', isAnonymous: false, email, getIdToken: async () => 't',
             ...(serverSignInTime ? { metadata: { lastSignInTime: serverSignInTime } } : {}) };
         onAnnounce?.();
@@ -833,6 +840,78 @@ describe('the sign-in card — a sign-in in flight belongs to the person it was 
         await turns(60);
         assert.deepEqual(opened, [A], 'the first attempt\'s own correct password was thrown away');
         assert.equal(store.get(MARKER()), '1');
+    });
+
+    // …AND ONE THAT LANDS WHILE THE RETRY IS STILL IN FLIGHT (external review of v26.67). The same colleague, the
+    // same mistype — but the first attempt answers while the second is still out, and the second fails after it.
+    // The late answer was dropped (an attempt was running), so the card said "Password not recognised" over a
+    // colleague Firebase had signed in. It is held now, and opens the page once the retry has failed.
+    /** Two attempts by A: the first right and answering late, the second a mistype — each answering when the test
+     *  opens its gate. @returns {{ card: any, opened: string[], landFirst: () => void, failSecond: () => void }} */
+    const retryInFlight = () => {
+        signInCode = 'auth/invalid-credential';   // any further candidate the ladder tries for the mistype
+        holdSession(A);
+        /** @type {string[]} */ const opened = [];
+        const card = mount(A, (n) => { opened.push(n); });
+        /** @type {() => void} */ let landFirst = () => {};
+        /** @type {() => void} */ let failSecond = () => {};
+        signInScript = [{ gate: new Promise(r => { landFirst = () => r(); }), code: 'ok' },
+                        { gate: new Promise(r => { failSecond = () => r(); }), code: 'auth/invalid-credential' }];
+        return { card, opened, landFirst: () => landFirst(), failSecond: () => failSecond() };
+    };
+    /** Send the right password, let the app end it at 30 seconds, then send a mistype that stays in flight. @param {any} card */
+    const firstEndedThenRetry = async (card) => {
+        card.password.value = 'their-right-password-1';
+        card.send();
+        await turns();
+        mock.timers.tick(30_000);
+        await settle(card);
+        assert.equal(card.error.classList.contains('visible'), true, 'premise: the app ended the first attempt');
+        card.password.value = 'a-mistype';
+        card.send();
+        await turns();
+        assert.equal(card.submit.textContent, 'Signing in…', 'premise: the retry is in flight');
+    };
+
+    test('the first attempt lands WHILE the retry is in flight and the retry then fails: the page opens', async () => {
+        try {
+            const { card, opened, landFirst, failSecond } = retryInFlight();
+            await firstEndedThenRetry(card);
+            landFirst();
+            await turns(60);
+            assert.deepEqual(opened, [], 'nothing opens over a retry still in flight');
+            failSecond();
+            await turns(60);
+            assert.deepEqual(opened, [A], 'the card said "Password not recognised" over a colleague Firebase had signed in');
+            assert.equal(card.error.classList.contains('visible'), false, 'and no failure is left on the card');
+            assert.equal(store.get(MARKER()), '1', 'the set-password step still follows the first attempt\'s sign-in');
+        } finally { signInScript = []; }
+    });
+
+    test('…but not once the card has moved to somebody else, or Firebase no longer holds their account', async () => {
+        try {
+            // Moved to B while the retry was out: the late answer is A's, and B is in front of the card.
+            const moved = retryInFlight();
+            await firstEndedThenRetry(moved.card);
+            moved.landFirst();
+            await turns(60);
+            moved.card.name.value = B;
+            moved.failSecond();
+            await turns(60);
+            assert.deepEqual(moved.opened, [], 'A\'s late answer opened the page in front of B');
+        } finally { signInScript = []; }
+        try {
+            // Signed out since (here or in another tab): Firebase holds nobody, so the retry's own failure stands.
+            const out = retryInFlight();
+            await firstEndedThenRetry(out.card);
+            out.landFirst();
+            await turns(60);
+            fakeAuth.currentUser = null;
+            out.failSecond();
+            await turns(60);
+            assert.deepEqual(out.opened, [], 'a page opened for an account that had been signed out');
+            assert.match(out.card.error.textContent, /^Password not recognised/, 'the retry\'s own failure is shown');
+        } finally { signInScript = []; }
     });
 
     test('premise: a grade with two members to switch between', () => {

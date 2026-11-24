@@ -168,9 +168,11 @@ export function resetRequestFailureLine(err, timedOut) {
 // The card opens the page on it (`awaitLateSignIn`): it was their own correct password, Firebase holds
 // that account whatever the card does (session.js leaves a same-member landing alone unless the session
 // was cleared), and the Calendar's watcher and page-session's hold would open the page on it anyway —
-// standing down would leave "Password not recognised" over a member who is signed in. What does
-// supersede it is checked there: an attempt still in flight, a card moved to somebody else or taken
-// down, and a newer attempt for ANOTHER member, which clears the session, so session.js signs the late
+// standing down would leave "Password not recognised" over a member who is signed in. One that lands
+// while the retry is STILL IN FLIGHT is held for it and opens the page if the retry fails (external review
+// of v26.67 — `_heldLateSignIn`), so long as the card still shows them and Firebase still holds their
+// account. What does supersede it is checked there: a card moved to somebody else or taken down, a sign-out
+// since, and a newer attempt for ANOTHER member, which clears the session, so session.js signs the late
 // landing back out and it answers false.
 //
 // What it costs: a page closed mid-attempt leaves the marker behind, and that member's next grant asks
