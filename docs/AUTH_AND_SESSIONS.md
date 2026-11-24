@@ -16,9 +16,11 @@ the code, where it cannot drift from the thing it describes. Every row points at
 
 For the plan-level view — what is shipped, what is sequenced, what is still undecided — the canonical
 track status is `SECURITY_RELEASE_PLAN.md`. Design lives in `PASSWORD_DESIGN.md` (credentials as
-built), `AUTH_PLAN.md` (Track E, the app-wide read question) and `CREDENTIAL_LIFECYCLE.md` (how a
-credential is issued, recovered and eventually retired — the ORDER those changes go in, and the one
-open decision about what retiring the surname should mean).
+built, and — since 24 Nov 2026, when `CREDENTIAL_LIFECYCLE.md` was merged into it — the C5/C6
+programme: how a credential is issued, recovered and eventually retired, the ORDER those changes go
+in, and the one open decision about what retiring the surname should mean) and `AUTH_PLAN.md`
+(Track E, the app-wide read question). How the client reasons about identity is **Architecture**,
+below.
 
 **Invariants 15 and 16 describe things that are not built.** They are here rather than only in the
 plan because both are rules an implementation could plausibly skip and still appear to work: an
@@ -34,7 +36,7 @@ invariant is appended and a retired one is struck through in place, never renumb
 
 | # | Invariant | Where it lives |
 |---|---|---|
-| 1 | **The local session is committed only AFTER auth resolves.** Never before, never optimistically — a timeout, a throw or a sign-in that resolves with no named identity commits nothing. A failed attempt clears a session this device holds for ANOTHER member, and leaves one it already holds for the SAME member as it was. | `login-core.js` (`runNamedSignIn`, its `keepsLocalSession` dependency) · `login-overlay.js` (re-exports it and supplies that dependency) |
+| 1 | **The local session is committed only AFTER auth resolves.** Never before, never optimistically — a timeout, a throw or a sign-in that resolves with no named identity commits nothing. A failed attempt clears a session this device holds for ANOTHER member, and leaves one it already holds for the SAME member as it was. | `login-core.js` (`runNamedSignIn`, its `keepsLocalSession` dependency; `SIGN_IN_GIVE_UP_MS`, when a typed attempt is ended) · `login-overlay.js` (re-exports it and supplies that dependency; `awaitLateSignIn`, which opens the page if an ended attempt's answer arrives late) |
 | 2 | **A session expires 60 days after SIGN-IN, full stop.** Nothing extends it, inactivity never ends it early, so `expiry` is written once and `getSession()` is a pure read. **An `expiry` that cannot be read is treated as EXPIRED, never as absent** — a comparison against a missing or NaN value is false, so a corrupt session would otherwise never expire. | `session.js` |
 | 3 | **Three claim tiers, and admin outranks manager.** `{admin, name, member}` · `{manager, name, member}` · `{name, member}` (plus `linksDesigner` for a designer; an "Other staff" login is the third tier, its narrower page set a CLIENT policy, `otherStaff` in `auth-policy.js` — DECISIONS.md, 23 Nov 2026) — all stamped by `setupRosterAuth` from the **server-owned** `roster-members.json`, never from the client payload. **A tier taken away stops at once** (sign-in audit, Nov 2026): a run that removes admin, manager or `linksDesigner` revokes that account's sessions, so the Cloud Functions refuse the old tier immediately (`checkRevoked`), and the rules, which read the token itself, follow when it renews within the hour. Never for the same tier or a higher one: a revocation signs the member out of every device. | `functions/auth-endpoints.js` · `functions/account-lifecycle.js` (`elevatedClaimsLost`) |
 | 4 | **Override writes are STRICT.** Your own verified name (`memberName()`, which is null unless `isMember()` — invariant 19), or `admin`/`manager` writing on behalf. The old "no `name` claim ⇒ allow" escape is gone and must not come back. | `firestore.rules` |
@@ -48,8 +50,8 @@ invariant is appended and a retired one is struck through in place, never renumb
 | 12 | **Identity derivation exists three times and may not drift.** The surname rule is spelled once on each side of the ESM/CommonJS boundary — `lettersOnly` in `auth-identity.js` for the browser, `surnameCore` in `functions/roster-parse-helpers.js` for the Functions — and `firestore.rules` carries a third copy of `nameToEmail` (`memberEmailFor`); a drifted email provisions an account that does not exist while "Set up accounts" reports success, and a drifted rules copy locks that member out. | `auth-identity.js` · `functions/roster-parse-helpers.js` · `firestore.rules` (`memberEmailFor`) · `surname-parity.test.mjs` · `firestore.rules.test.mjs` (whole-roster test) |
 | 13 | **`initErrorReporter()` needs an auth context.** Called bare, every write is silently rejected by the rules — so the error log looks healthy because it is broken. Four canonical call sites (the Calendar, the `sessionReady` pages, the Pay Calculator, and the Trains page's PIN branch), and they differ because the pages establish identity differently. | `error-reporter.js` (header) |
 | 14 | **Overtime has two audiences, and reviewing is not participating.** `isOvertimeReviewer` (admin/manager) sees everyone's declarations; a beta participant answers only for themselves. Never widen the first to make the nav pill work. Overtime is paused for everyone (`OVERTIME_AVAILABILITY.md` → Paused); the rule stands for its return. | `auth-policy.js` (`isOvertimeReviewer`/`canOpenOvertime`) · `roster-data.js` |
-| 15 | **A saved work email is an ADDRESS, not a credential.** `staffContact.workEmail` is what somebody typed; nothing has shown that anyone can receive mail there. It may recover an account only after possession is proven and recorded server-side. Wiring "send a reset here" to an unverified address is account takeover by mistyping. | `CREDENTIAL_LIFECYCLE.md` §8 (design) · not yet built |
-| 16 | **A step-up check is the SERVER reading `auth_time`.** A client that remembers when it last asked is an affordance, not a control — invariant 6, arriving by a second route. Fails closed: no `auth_time`, no elevated operation. | `CREDENTIAL_LIFECYCLE.md` §3 (design) · not yet built |
+| 15 | **A saved work email is an ADDRESS, not a credential.** `staffContact.workEmail` is what somebody typed; nothing has shown that anyone can receive mail there. It may recover an account only after possession is proven and recorded server-side. Wiring "send a reset here" to an unverified address is account takeover by mistyping. | `PASSWORD_DESIGN.md` → credential lifecycle L8 (design) · not yet built |
+| 16 | **A step-up check is the SERVER reading `auth_time`.** A client that remembers when it last asked is an affordance, not a control — invariant 6, arriving by a second route. Fails closed: no `auth_time`, no elevated operation. | `PASSWORD_DESIGN.md` → credential lifecycle L3 (design) · not yet built |
 | 17 | **A local session is not an identity.** The session is a localStorage record this device wrote for itself; it buys nothing on the Calendar until Firebase has restored the identity behind it (`decideAccess` requires both). One scoped exception exists, governed by `CALENDAR_DATA.md` 17 rather than here: the member's OWN stored roster (`calendar-snapshot.js`), shown labelled before the grant and deleted on any disagreement. It grants no read, no write and no action, so a session still buys no AUTHORITY. | `calendar-access-core.js` (`decideAccess`) · `CALENDAR_DATA.md` 13 (retired) · `DECISIONS.md` → "The provisional paint" |
 | 18 | **The staff PIN is a BARRIER, not authentication — and no surface may describe it as more.** One code for the whole station: unattributable (nothing records who used it), unrevocable per person (the only remedy for one leaver is rotating it for everyone), and it carries no identity, which is invariant 7 arriving from the other side. So the sign-in card comes FIRST and the PIN sits one tap behind it — an order, not a grant — and a browser holding a live local session is offered its own sign-in rather than the shared code — **at start-up too** (v25.98): a PIN session restored in the same tab never outranks a held member session (`decideAccess` answers `none`, so the member's card shows), and an unlock attempted while one is held reloads instead of granting. Copy that implies the PIN signs somebody in is wrong about the boundary, not merely loose. | `calendar-lock-cards.js` (`showLockPanel` / `showMemberPanel`) · `calendar-access-core.js` (`decideAccess`) · `calendar-access.js` (`memberSessionHeld`) · OPERATIONS_REFERENCE.md |
 | 19 | **A `name` is believed only from the member's own account.** Firebase fills a token's `name` from the account's DISPLAY NAME, which any session may set for itself — so a bare `name` proves nothing. It counts only on a PASSWORD sign-in whose email is the one that name derives to (`nameToEmail`), and only alongside `member`, a custom claim only the server sets (stamped by Set up accounts, which also takes back any account at a roster email it never stamped). One account per email makes that the real member. The PIN account carries no display name and has any it acquires cleared on every unlock (invariant 7 from the other side). An account registered from outside at any derived address — an invented name's, or a real member's before the server provisioned it — passes the email binding and still believes nothing (KNOWN_LIMITATIONS.md → "The member claim"). | `firestore.rules` (`isMember`/`memberName`) · `functions/member-identity.js` · `member-identity.test.mjs` · the rules suite's whole-roster test |
@@ -91,6 +93,103 @@ access gate handles it with a silent re-establishment behind the boot skeleton, 
 when silence fails, and a late-identity watcher — never by sending a member to the staff PIN. See
 `CALENDAR_DATA.md` invariant 11 and, for the order (silence before any sign-in surface), the boot path
 in `calendar-access.js`.
+
+---
+
+## Architecture — two pure layers over one thin shell
+
+*Moved here from `AUTH_ARCHITECTURE.md` (24 Nov 2026), which is now a pointer. Code comments still
+cite that file by Phase number; what each phase built is `ROADMAP_HISTORY.md` → "Track 1 — the auth
+consolidation phases".*
+
+**The client decides what to ATTEMPT and what to RENDER; the server decides what is ALLOWED**
+(invariant 6). Everything below — the state machine, the policy map, claim-aware retries, optimistic
+reads — is UX and optimisation. A stale client token that claims `admin` after the server revoked it
+yields `permission-denied` (→ refresh and retry once, invariant 5), never access, which is why no
+client refactor can weaken security and why optimistic reads are safe.
+
+### Layer 1 — the identity state machine (authentication) — pure
+
+`reduceAuthState(prev, event) → next` in `auth-state-core.js`: no DOM, no Firebase, no localStorage,
+no redirects. Every result is a new frozen object; an unknown event is inert. States are **identity
+facts only**:
+
+| State | Meaning |
+|-------|---------|
+| `initialising` | nothing checked yet |
+| `resolving` | local session present; Firebase identity being restored or established |
+| `named` | the correct named Firebase user confirmed |
+| `anonymous` | kept in the reducer, with no producer — nothing signs in anonymously (invariant 9) |
+| `signedOut` | no valid local session, no identity |
+| `degraded` | a sign-in that never reached an answer (retryable) |
+| `error` | a non-recoverable auth or session problem |
+
+`needsLogin` and `forbidden` are deliberately **not** identity states — the same `named` user is
+forbidden on Operations and allowed on Admin. They are policy outcomes, Layer 2.
+
+### Layer 2 — the page-auth policy (authorisation) — pure
+
+`requirePageAuth(snapshot, policy, roles) → { decision, reason }` in `auth-policy.js`, driven by the
+declarative `PAGE_POLICIES` map, the single home for each page's rule (who may open it, whether it is
+soft, whether the staff PIN or an "Other staff" login may read it). **Read the map, not a copy of it**
+— a page table here went stale within weeks. Decisions are `allow` / `soft-allow` / `login` /
+`forbidden` / `pending`; `requirePage(snapshot, page)` fails closed on an unknown page. Policy keys
+can later grow `page → page.action` without touching the reducer, because granularity lives entirely
+in this layer; do not build action-level policy until something needs it.
+
+The Pay Calculator is **soft** and its no-local-session → sign-in gate sits deliberately OUTSIDE the
+policy: it needs a local member identity to namespace localStorage (`.claude/rules/paycalc.md`
+invariant 3).
+
+### The store — `auth-state.js`, fed by `session.js`
+
+`getAuthSnapshot` / `subscribeAuth` / `dispatchAuth` over the reducer, importing only
+`auth-state-core.js` (acyclic: `session.js → auth-state.js → auth-state-core.js`). The existing
+`session.js` is the adapter and FEEDS the store — `ensureNamedSession` dispatches
+`RESOLVE_START → (TRANSIENT/RETRY) → NAMED/NONE`, `clearSession` dispatches `SIGN_OUT` — rather than
+a second shell re-wrapping Firebase. A page reads the snapshot when its own session settles; nothing
+in production subscribes. **`sessionReady` is driven by the same `ensureNamedSession` resolution** as
+the store, so the two cannot diverge, and re-routing it through the machine was declined as risk for
+no benefit. **Not a state framework:** the machine owns identity only — never page, form, roster or
+Pay Calculator state.
+
+### Degraded never grants authority
+
+`degraded` must never become a privilege loophole ("Firebase is degraded, so carry on because the
+local session says admin"). **Degraded may only preserve local or cached read-only UX.** A sign-in
+that never reached an answer is `TRANSIENT`, so the store stays `degraded` and the policy answers
+`pending`; the page keeps the 60-day local session and shows the sign-in over it (`guardNamedSession`,
+`page-session.js`). If the identity lands late the page reloads into it — at most once per
+`LATE_RELOAD_GAP_MS`, and never on a tab with no storage to remember the last one
+(`lateReloadAllowed` → `'no-memory'`), where the card offers Try again instead. Nothing can be written
+meanwhile: every write needs a claim the rules accept (invariant 9). The store does not collapse to
+`signedOut` here, which would clear the session of a member whose network merely stalled.
+
+| Page / action | Degraded behaviour |
+|---------------|--------------------|
+| Calendar read | the cached display, once access is granted |
+| Pay Calculator | local calculator use |
+| Settings read | the local view; **cloud save blocked** |
+| Admin / Operations / Links | a clear degraded or blocked state |
+| Override write or delete, roster upload, document upload, account setup, link-design save | **blocked** |
+
+### Reads hydrate optimistically; writes authorise strictly
+
+- **Reads** may proceed once there is a Firebase user, even while `resolving`; a `permission-denied`
+  goes through `withClaimRetry` (`firebase-client.js`, over `runWithClaimRetry` in `claim-retry.js`):
+  one forced token refresh, one retry.
+- **Writes** wait for a confirmed `named` identity with fresh-enough claims.
+- **A local session alone is never sufficient for a privileged cloud write** (invariant 17).
+
+The rule is restated as a load-bearing comment at the head of `auth-policy.js`, so it cannot be
+quietly weakened there.
+
+### Guardrails for an auth change
+
+- Do not combine an auth refactor with a rules cutover: refactor first, behaviour change later.
+- Do not change who may open which page inside a refactor.
+- Do not build a general app-wide state store; the machine owns identity only.
+- Keep `sessionReady`, and keep the server as the security boundary.
 
 ---
 

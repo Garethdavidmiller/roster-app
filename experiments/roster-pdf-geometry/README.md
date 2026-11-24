@@ -244,8 +244,13 @@ sample suggested. See KNOWN_LIMITATIONS.md.
 
 ## Running it
 
-Needs `pdfjs-dist`, now a **devDependency** (owner decision, 1 Sep 2026 — it is a development tool
-for this experiment, is not served to anyone, and nothing in the app imports it).
+Needs `pdfjs-dist` **4.10.38**, in a scratch install of its own. The repository's root
+`devDependency` on `pdfjs-dist` (owner decision, 1 Sep 2026, when it was added for this experiment)
+no longer serves it: it is now pinned exactly to the version the server's geometry reader runs on,
+6.5.438 today, so that reader's tests run on the PDF.js it ships with — `package.json` and
+`functions/package.json` must name the same version, and `dependency-pin-parity.test.mjs` fails when
+they differ. Do not move the root pin back to 4.x for these scripts; install the old version
+somewhere else.
 
 **These scripts read the v4 encoding.** `extract.mjs` reads `OPS.constructPath`'s argument shape
 directly to find the drawn rules, and pdfjs 6 changed that encoding: on 6.3.289 every one of the 12

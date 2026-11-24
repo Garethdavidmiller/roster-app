@@ -10,13 +10,8 @@ paths:
   - "roster-parse-helpers.test.mjs"
   - "roster-prompt-parity.test.mjs"
   - "functions/roster-*.js"
-  - "roster-parse-helpers.js"
-  - "roster-geometry.js"
-  - "roster-prompt.js"
   - "roster-cell-read.test.mjs"
   - "functions/cell-day-rules.js"
-  - "cell-day-rules.js"
-  - "roster-other-days.js"
 ---
 
 # Weekly roster import — the parse, and every defence against a wrong week

@@ -1,4 +1,4 @@
-# AI_MAP.md — Claude routing guide for MYB Roster
+# AI_MAP.md — Claude routing guide for Marylebone Roster
 
 *Last updated: November 2026 — v26.50 · Updated every 0.10 version*
 
@@ -127,7 +127,7 @@ gone, and that no card outgrows its cap.
 ## File responsibilities in plain English
 
 ### `roster-data.js`
-The roster's single source of truth: `APP_VERSION` (changed only by `npm run bump`), `CONFIG` (cycles, years, paydays, role lists, feature switches — several mirrored to the server, so `npm run generate:roster-members` in the same commit), the re-exported people and cycle patterns, and every base-shift, date and shift-classification helper. Read a base shift through `getBaseShift`, never the pattern tables (CLAUDE.md). Rules: `.claude/rules/roster-data.md`; `CALENDAR_DATA.md` 8. Tested by `roster-data.test.mjs`.
+The roster's single source of truth: `APP_VERSION` (changed only by `npm run bump`), `CONFIG` (cycles, years, paydays, role lists, feature switches — several mirrored to the server, so `npm run generate:roster-members` in the same commit), the re-exported people and cycle patterns, and every base-shift, date and shift-classification helper. Read a base shift through `getBaseShift`, never the pattern tables (CLAUDE.md). `signInMembers()` is the one list of who can sign in, read by the sign-in, the server's account list and Operations. Rules: `.claude/rules/roster-data.md`; `CALENDAR_DATA.md` 8. Tested by `roster-data.test.mjs`.
 - **Exports:** `APP_VERSION` · `CONFIG` · `teamMembers` · `isWorkedShift` · `gradeForRole` · `projectAnnualLeaveOverage` · `weeklyRoster` · `bilingualRoster` · `fixedRoster` · `cesRoster` · `dispatcherRoster` · `FIXED_PATTERNS_RESTING_ON_BANK_HOLIDAYS` · `TIME_RE` · `DAY_NAMES` · `MONTH_ABB` · `MONTH_NAMES` · `TEAM_GRADES` · `SWIPE_THRESHOLD` · `SWIPE_VELOCITY` · `computeEaster` · `isSameDay` · `getBankHolidays` · `isBankHoliday` · `isChristmasDay` · `isEasterSunday` · `getPaydaysAndCutoffs` · `paydayForCutoff` · `isPayday` · `isCutoffDate` · `getSpecialDayBadges` · `validateRosterPatterns` · `SHIFT_TIME_REGEX` · `isChristmasRD` · `isEarlyShift` · `isNightShift` · `getShiftKind` · `getShiftClass` · `shiftBadgeParts` · `getShiftBadge` · `resolveMemberRoster` · `getWeekNumberForDate` · `getRosterForMember` · `getBaseShift` · `getPatternShift` · `escapeHtml` · `parseSmartFloat` · `parseSmartFloatOrNull` · `avatarInitials` · `avatarHue` · `isValidEmail` · `isChilternWorkEmail` · `workEmailLocalPart` · `workEmailFrom` · `formatISO` · `parseISODate` · `isSunday` · `getMembersForGrade` · `signInMembers` · `isOtherStaff`
 
 ### `calendar-app.js`
@@ -303,7 +303,7 @@ The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each p
 - **Exports:** `initTipsLightbox`
 
 ### `login-core.js`
-The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`), which links the card's explanation may carry, the explanation itself for a page that passes none (`signInAboutFor`), and what a failed reset request says. `login-overlay.js` re-exports the other three, so callers and `login-overlay.test.mjs` reach them there.
+The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`) and its 30-second deadline for a typed sign-in (`SIGN_IN_GIVE_UP_MS`), which links the card's explanation may carry, the explanation itself for a page that passes none (`signInAboutFor`), and what a failed reset request says. `login-overlay.js` re-exports the other three, so callers and `login-overlay.test.mjs` reach them there.
 - **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
 
 ### `login-overlay.js`
@@ -346,7 +346,7 @@ The rules of the sign-in nobody typed — what a page load may try for a member 
 - **Exports:** `AUTH_RESTORE_TIMEOUT_MS` · `noDefaultKey` · `RESET_RECHECK_MS` · `planSilentAttempt` · `afterRecheck` · `remembersRefusal` · `SIGN_IN_CLOCK_SKEW_MS` · `sessionStartMs`
 
 ### `auth-state-core.js`
-The pure identity state machine (AUTH_ARCHITECTURE.md Track 1, Phase 1): who the user is, never what a page decides (that is `auth-policy.js`). Tested by `auth-state-core.test.mjs`.
+The pure identity state machine (AUTH_AND_SESSIONS.md → Architecture): who the user is, never what a page decides (that is `auth-policy.js`). Tested by `auth-state-core.test.mjs`.
 - **Exports:** `AUTH_STATUSES` · `INITIAL_STATE` · `reduceAuthState`
 
 ### `auth-state.js`
@@ -753,7 +753,7 @@ ONE spelling of a date in words, everywhere the app writes one: the name tables 
 - **Exports:** `DAY_NAMES` · `MONTH_ABB` · `MONTH_NAMES` · `NO_DATE` · `formatDayMonth` · `formatDayMonthYear` · `formatDayMonthYear2` · `formatWeekdayDate` · `printedStamp` · `londonClock` · `formatClock` · `londonDate`
 
 ### `huddle.js`
-The Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform). Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names). The Settings Notifications card left it for `notif-card.js` (22 Nov 2026).
+The Daily Huddle upload on Operations (admin only), wired through `initDocUploadCard` with the Huddle's differences (PDF or Word, a date cap of tomorrow, a Mammoth DOCX→HTML transform). Guarded by `upload-cap-parity.test.mjs` (the inline-HTML cap) and `dependency-pin-parity.test.mjs` (the Mammoth version, which the CSP names). The Settings Notifications card is `notif-card.js`.
 - **Exports:** `initHuddleUpload`
 
 ### `notif-card.js`
@@ -972,7 +972,7 @@ The pure write-safety rules, every dependency injected: one refresh-and-retry fo
 - **Exports:** `isClaimRetryable` · `isAccessFailure` · `runWithClaimRetry` · `SIGNED_OUT_CODE` · `signedOutLine` · `UNCONFIRMED_CODE` · `UNCONFIRMED_LINE` · `hasUnconfirmedWrite` · `_resetUnconfirmedWrites` · `trackBackgroundWrite` · `backgroundWritesInFlight` · `runGatedWrite` · `unconfirmedWriteLine` · `OWN_WRITES_WAIT_MS` · `ownWritesSent` · `watchOwnWritesWaits` · `saveFailureMessage` · `abandonOnSignOut` · `runWatchedClaimRetry` · `watchIdentityLoss`
 
 ### `page-session.js`
-How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
+How a signed-in page leaves a session, and what it does when the session leaves it — the routines every protected page shares, so the per-page copies cannot differ again: the questions before unsaved work is left, the draft kept when the page is hidden, a sign-out that leaves no history entry, the reload when a restored or other-tab page belongs to somebody else, and `guardNamedSession`'s sign-in when the page's session cannot be confirmed or goes later, with `lateReloadAllowed` holding a late identity's automatic reload to one in two minutes. The header says what each routine owns. Tested by `page-session.test.mjs`; the wiring by `page-contract-parity.test.mjs`.
 - **Exports:** `LEAVE_QUESTION` · `DISCARD_QUESTION` · `warnOnUnload` · `askBeforeLeavingByDrawer` · `leaveAfterAsking` · `LEAVE_ANSWERED` · `keepDraftWhenHidden` · `onReturnToPage` · `askBeforeSignOut` · `signOutAndLeave` · `reloadIfRestoredForSomeoneElse` · `rebaseRestoreGuard` · `lateReloadAllowed` · `LATE_IDENTITY_NOTICE` · `LATE_RELOAD_GAP_MS` · `SIGNED_OUT_NOTICE` · `guardNamedSession`
 
 ### `unsaved-draft.js`
@@ -1301,20 +1301,8 @@ The Calendar's menu (the shared drawer), built for the SAVED session — never t
 
 ---
 
-## What NOT to do
+## What not to do, and the version bump
 
-| Temptation | Why not |
-|-----------|---------|
-| Read `roster.data[week][day]` directly | Bypasses `startDate` suppression and the Christmas rules. Always use `getBaseShift()`. |
-| Add DOM access to `paycalc-calc.js` | It must stay importable by the Node test runner. |
-| Add DOM access to `paycalc-roster-suggestions.js` | It must stay free of circular dependencies with `paycalc-app.js`. |
-| Hardcode hex colours | Use CSS variables — every colour lives in `:root` in `shared.css` (the guide pages: `guide-shell.css`'s own `:root`). `css-hex-parity.test.mjs` fails on a raw hex. |
-| Import Firebase in `paycalc-calc.js` | Same reason as above — test-runner compatibility. |
-| Use `alert()` | Use `console.error()` for developer errors; never show raw errors to staff. |
-| Skip the version bump | Browsers will serve stale code. CLAUDE.md → "Version bumping". |
-
----
-
-## Version bump checklist
-
-The rules are CLAUDE.md → "Version bumping (MANDATORY on every change)". In short: `npm run bump <version>` (`scripts/bump-version.mjs`) updates the two runtime locations — `APP_VERSION` in `roster-data.js` (authoritative) and the `APP_VERSION` const that names the cache in `service-worker.js` — and neither is ever hand-edited. The step is exactly 0.01, and the version is bumped against `main`, not against the branch you started from.
+Both are `CLAUDE.md`'s, which every session loads: "Architecture decisions — never change without discussion",
+"Key rules" and "Version bumping (MANDATORY on every change)". A module's own "do not" lives in its header;
+an import cycle is refused by `import-graph.test.mjs`.

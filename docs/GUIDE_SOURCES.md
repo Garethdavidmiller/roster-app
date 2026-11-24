@@ -222,4 +222,4 @@ belongs.
   `rr-thames-7-geography` (**National**: settled, and it is what makes the Marylebone answer a clean
   no either way).
 - **Pay award rates** (`pay-rates`) are the internal Chiltern figures from the payslip / pay award,
-  not public T&Cs; their evidence is the payslip, kept device-local (see AUTH_ARCHITECTURE.md).
+  not public T&Cs; their evidence is the payslip, kept device-local (see `.claude/rules/paycalc.md` → Example payslips).

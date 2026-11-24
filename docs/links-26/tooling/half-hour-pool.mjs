@@ -1,5 +1,5 @@
 // THE HALF-HOUR SHIFT TIMES, for final-table.mjs's POOL_ONLY= (4 Nov 2026, owner, on today's link taken to 26 weeks: "Try
-// where possible to start/finish on a half hour apart from the open and close" — README.md → "Common Ground"). Prints, as one
+// where possible to start/finish on a half hour apart from the open and close" — HISTORY.md → "Common Ground"). Prints, as one
 // comma-separated list, every duty a day may work under that brief:
 //   · Monday to Saturday: the open's 06:20 with a 13:45 or 14:20 finish ("Keep the 13.45 and 14.20 shifts as the opening shift
 //     finish times"), the closer 15:45–23:55 ("Change the closing shift to 1545"), the ticket office's own times (FIXED= needs

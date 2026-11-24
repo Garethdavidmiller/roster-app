@@ -1,8 +1,10 @@
 # PASSWORD_DESIGN.md — chosen passwords + admin reset (Track C-lite)
 
-*Every phase in the status table below is shipped, so this is the design of what runs, not a plan for
-what to build. Status lives in `SECURITY_RELEASE_PLAN.md`'s canonical track table; the forward-looking
-credential work — recovery codes, step-up, passkeys, SSO — is `CREDENTIAL_LIFECYCLE.md`.*
+*Phases 0–2 and the reset-request queue are shipped, and §1–§10 are the design of what runs. **C2 and
+C5 are not** (⏸ in the table below). Status lives in `SECURITY_RELEASE_PLAN.md`'s canonical track
+table; the forward-looking credential work — recovery codes, step-up, passkeys, SSO, and the order
+it goes in — is "The credential lifecycle — the C5/C6 programme", below (merged from
+`CREDENTIAL_LIFECYCLE.md`, 24 Nov 2026).*
 
 
 ## Current state
@@ -26,10 +28,13 @@ credential work — recovery codes, step-up, passkeys, SSO — is `CREDENTIAL_LI
   "force everyone, but only on the next log in"). Sessions cap at 60 days, so coverage completes itself
   inside 60 days and staggers by each member's own expiry rather than landing on everyone at once.
 - **C5 cannot converge on Phase 2 alone.** A member who only ever opens the roster with the staff PIN
-  signs in nowhere, so is never compelled (since v23.19 the Calendar's front door is a sign-in, and
-  since v23.21 the Calendar runs the forced overlay, so a member who signs in there IS compelled) — reaching them is Track E (or C6's second route, not adopted —
-  `CREDENTIAL_LIFECYCLE.md` §7). Retiring the surname default is therefore gated on a decision in a
-  different track, which is easy to miss when reading "≥90% migrated".
+  signs in nowhere, so is never compelled (the Calendar's front door is a sign-in, and the Calendar
+  runs the forced overlay, so a member who signs in there IS compelled). Reaching the rest is Track E,
+  or C6's second route (not adopted — L7 below). **The owner's direction since 23 Nov 2026 is to phase
+  the PIN out** (L4): its first step, the "Other staff" login, shipped at v26.59, and once the PIN is
+  retired nobody opens the roster without signing in, so the figure can converge. Until that separate
+  change is made, retiring the surname default stays gated on a decision in a different track, which
+  is easy to miss when reading "≥90% migrated".
 
 **Sections §1–§10 are the design as specified; §11 onward is the implementation record** — kept
 because it has demonstrably prevented repeat bugs, but it is history, not work.
@@ -198,7 +203,7 @@ pattern `password-force.js` follows.
 
 ## 5. The admin reset (break-glass)
 
-> **⚠️ INTERIM. Superseded in design by C6 — one-time recovery codes (`CREDENTIAL_LIFECYCLE.md` §1),
+> **⚠️ INTERIM. Superseded in design by C6 — one-time recovery codes (L1 below),
 > which is proposed and not started.** What is described below is live and stays live until C6
 > ships, because break-glass may not have a gap. But the mechanism has a flaw worth naming where a
 > reader meets it: **it makes the surname a valid credential again**, so the repair mechanism for
@@ -358,8 +363,8 @@ the canonical track table.*
 
 > The survey, the domain-binding blocker and the four options are below and are authoritative.
 > **The ORDER they sit in relative to everything else** — migration, then one canonical origin,
-> then a spike, then additive passkeys alongside passwords — is `CREDENTIAL_LIFECYCLE.md` §9, which
-> is the file that holds sequencing. Nothing here is restated there.
+> then a spike, then additive passkeys alongside passwords — is L9 of the credential lifecycle below,
+> which holds sequencing. Nothing here is restated there.
 
 *Owner-raised: "give me the options for making the app compatible with passkeys." Recorded here with
 its costs and its one hard blocker attached — **as a possibility, not as scheduled work**, and not given
@@ -424,7 +429,7 @@ as any developer claims passed in the token — so `name` / `member` / `admin` /
 `firestore.rules` and `memberNameFromClaims` in `functions/member-identity.js` believe a `name` only
 on `sign_in_provider == 'password'`, and a custom-token session reports `custom`. So a passkey sign-in
 as designed permission-denies every member read and write — as would any SSO route
-(`CREDENTIAL_LIFECYCLE.md` §10). The fix is a binding of equal strength for the new provider, never
+(L10 below). The fix is a binding of equal strength for the new provider, never
 dropping the provider check, which is what stops an anonymous or PIN session being believed. A
 sign-in that works while every write permission-denies is the PIN rollout's failure shape again.
 
@@ -461,6 +466,423 @@ Do **A** (the ten-minute check) first. Then settle the mirror, because until tha
 question "who can even use this?" has no answer. **C5 is the higher-value item, and passkeys do
 not block it** — it stays gated as the canonical table in SECURITY_RELEASE_PLAN.md says (on Track E).
 Passkeys do not replace it, though they make its endgame considerably more attractive.
+
+---
+
+## The credential lifecycle — the C5/C6 programme
+
+*Merged from `CREDENTIAL_LIFECYCLE.md` on 24 Nov 2026; that file is now a pointer, and a citation of
+its "§N" is this section's **LN**. How a member GETS a credential, how they get a new one when they
+lose it, and how the surname stops being either.*
+
+**Status lives in `SECURITY_RELEASE_PLAN.md`'s canonical track table** — this section owns DESIGN
+and ORDER, and states no stage. **The invariants live in `AUTH_AND_SESSIONS.md`** (15 and 16 are the
+two for unbuilt work) — this section argues for them; that file is what an edit must not break. The
+password mechanics it sequences are §1–§10 above.
+
+### Why the programme is written down in one place
+
+The plumbing is finished and it is good: a 60-day session with a single written expiry, strict
+claim-based write isolation, chosen passwords with a forced migration, an admin reset queue, and a
+staff PIN that keeps roster changes and the documents off the open internet without pretending to be
+individual authentication. None of that needs redesigning.
+
+What is left is the **credential lifecycle**, and it was scattered — the reset mechanism in
+§5 above, the email half as a deferred row in the status table, passkeys in a survey
+section that deliberately carries no schedule, the read question in `AUTH_PLAN.md`, and the
+identity round trip in `LATENCY.md`. Each is described well where it sits. **The order was
+written down nowhere**, and the order is the whole argument: several of these unblock each other,
+and one of them changes what a different track is waiting for.
+
+Same reason `MAINTENANCE_CALENDAR.md` exists: a fact that lives only inside a document you open for
+another purpose is a fact nobody acts on. It was its own file, `CREDENTIAL_LIFECYCLE.md`, until
+24 Nov 2026; it sits here now beside the mechanics it sequences.
+
+---
+
+### The programme, in order
+
+Each row's *unblocks* column is the reason it sits where it does. Nothing here is scheduled; the
+owner decides what is worth doing and when.
+
+| # | Change | Why now | Unblocks |
+|---|---|---|---|
+| 1 | **C6 — one-time recovery/activation codes** (L1) | The single biggest remaining weakness. Recovery currently makes the surname valid again, so the migration's own repair mechanism undoes the migration | The C5 decision (L7); new-starter activation without a seeded surname |
+| 2 | **Keep converting personal devices** (L2) | Machinery all exists; it is a campaign, not a build | Moves the migration figure toward whatever C5 ends up needing |
+| 3 | **F — step-up for sensitive admin actions** (L3) | A 60-day admin session is the right trade for ordinary work and the wrong one for account administration | Nothing. Independent, cheap, and the only item here with no prerequisite |
+| 4 | **Calendar access: both kinds today, the PIN to be phased out** (L4) | The owner's direction since 23 Nov 2026; its first step, the "Other staff" login, shipped at v26.59 | Retiring the PIN, once everybody who uses it has a login of their own |
+| 5 | **C5 — retire the surname entirely** (L7) | The milestone. Two possible routes, and which one is taken is an **open owner decision** | Removes a whole credential class from the threat model |
+| 6 | **C2 — verified work-email recovery** (L8) | Needs a mail relay that does not exist, and needs #1 first so it is a SECOND route rather than the only one | Admin reset becomes true break-glass |
+| 7 | **Passkeys** (L9) | Excellent fit, blocked on serving from one origin | — |
+| — | **Entra / Microsoft SSO** (L10) | Only if Chiltern formally adopts the app | Supersedes most of this programme |
+
+---
+
+### L1 · C6 — one-time recovery and activation codes
+
+**Supersedes C4′** (admin reset as the recovery path) as the recovery mechanism.
+C4′ stays in the tree until C6 is live, because break-glass may not have a gap.
+
+#### The problem, stated plainly
+
+Track C moved staff from a surname password to one they chose. When a member forgets the one they
+chose, the remedy is `resetMemberPassword`, which sets their credential **back to their surname**
+until they pick another. That was the right interim mechanism — it reused `nameToPassword`, needed
+no new secret-handling, and was strictly no worse than the state everyone was already in.
+
+It is the wrong permanent one, and the reason is not subtle: **the repair mechanism for the
+migration re-creates the exact condition the migration exists to remove**, and it does so at the
+moment the account is least attended. A guessable credential with an unknown lifetime is a worse
+object than a guessable credential with a known one.
+
+#### The shape
+
+Two endpoints, and the second one is the dangerous one.
+
+**`issueRecoveryCode`** — admin-only, same shell and guard as `resetMemberPassword`
+(`onRequest` · `cors: ADMIN_FUNCTION_ORIGINS` · POST · `verifyIdToken(bearer, true)` ·
+`decoded.admin !== true` → 403). Validates the target against the server-owned `activeMembers`
+list, never the request body. Generates a code, stores its **hash**, returns the plaintext **once**
+in the response and never again.
+
+**`redeemRecoveryCode`** — **unauthenticated, and this is the app's most dangerous endpoint**. The
+member has no working credential; that is the whole situation. It takes a name, a code and a new
+password, and on success sets the credential and revokes existing sessions.
+
+The app has two public unauthenticated endpoints today. `requestPasswordReset` is safe because it is
+*deliberately incapable* of changing anything — it records a request. `unlockCalendarViewer` does mint
+a credential, a read-only one, behind a per-source and a global throttle. This one would set a
+password. It deserves the treatment `unlockCalendarViewer` got, and for the same reasons.
+
+#### The code itself
+
+- **Random, from a CSPRNG.** Nothing derived from the name, the date, or a counter — the point of
+  the whole change is that a credential must not be predictable from public facts.
+- **≥40 bits.** Crockford base32 (no `I`, `L`, `O`, `U`, so nothing is misread aloud), grouped for
+  reading over a noisy platform: `J7KM-42PX-QT`.
+- **Single-use, and short-lived** — 24 hours. Both are the point: a code is a bearer token that a
+  colleague has heard.
+- **Hashed at rest, with a server-side secret.** HMAC-SHA256 keyed from Secret Manager, or scrypt.
+  Not a bare digest: a 40-bit code behind a fast unkeyed hash is offline-crackable from a Firestore
+  export in the time it takes to read this paragraph.
+- **Never logged, never returned twice, never in analytics or the error log.** The `CALENDAR_VIEWER_PIN`
+  rule, unchanged: a secret that reaches telemetry has been published.
+- **Compared timing-safely** — `functions/calendar-viewer-auth.js` already holds that discipline.
+
+#### Storage — `recoveryCodes/{memberName}`
+
+Doc id is the member name, deliberately: **at most one live code per member, and the collection can
+never exceed the roster size.** That is the same by-construction bound `resetRequests` uses, and it
+is what makes flooding an unauthenticated endpoint impossible rather than merely rate-limited.
+Issuing a second code overwrites the first, which is also how *revoke* works — there is no separate
+revoke path to get wrong.
+
+| Field | Written by | Meaning |
+|---|---|---|
+| `hash` | Admin SDK | HMAC of the code. The plaintext exists in one HTTP response and nowhere else |
+| `expiresAt` | Admin SDK | 24h after issue |
+| `issuedBy` / `issuedAt` | Admin SDK | who to ask about it |
+| `attempts` / `lastAttemptAt` | Admin SDK | the per-name throttle's state |
+| `usedAt` | Admin SDK | set inside the claiming transaction; a present value means spent |
+
+**Client read and write: denied entirely**, including for the admin. The only writer is the Admin
+SDK, exactly as `overtimeWindows` and `resetRequests` are.
+
+#### Throttling — two ways, because one is not enough
+
+`unlockCalendarViewer` learned this the hard way, and the lesson transfers whole:
+
+- **Per name**, from the `recoveryCodes` doc's own `attempts` — the natural key here, and better
+  than a source key because it bounds the thing that actually matters (guesses against one
+  account). A handful of failures burns the code and tells the admin.
+- **An all-sources ceiling** under a fixed key no header can influence. The station sits behind one
+  corporate NAT address, so a per-source bucket is a poor primary control — and a caller can
+  *prepend* to `x-forwarded-for`, which is why the per-source key must be derived from its END.
+
+#### The ordering problem, and which way it fails
+
+Claiming the code (Firestore, transactional) and setting the password (Firebase Auth Admin SDK) are
+**two systems**, so one of them commits first and the other can fail after it.
+
+**Claim first, then set the password.** If the password write then fails, the code is spent and the
+member needs another one — annoying, and the response says exactly that so the admin reissues
+without a diagnosis. The reverse ordering leaves a window in which a second redeem also succeeds,
+and a second redeem sets *a password somebody else chose*. An inconvenience that announces itself
+beats a silent second grant.
+
+This is the same class of decision as `upload-commit.js` and should read the same way.
+
+#### On success
+
+Set the credential, `revokeRefreshTokens(uid)` (a recovery is exactly when every existing session
+should end, and it ends them all), stamp `passwordStatus.passwordSetAt` server-side — which, unlike the
+client-written stamp the Settings card produces, is real evidence — and mark the code used.
+
+#### It is also the ACTIVATION path
+
+The same endpoint pair serves a new starter. `setupRosterAuth` currently seeds a surname password
+on `createUser`; under C6 it can create the account with an unknown random credential and the admin
+issues an activation code. **That is the mechanism that makes L7's second route possible**, and it
+is worth noticing that it needs no new machinery — the recovery flow and the activation flow are
+the same flow, which is why this is one item and not two.
+
+#### What stays exactly as it is
+
+The member's end of the existing queue — *Can't get in?* → `requestPasswordReset` → the admin's
+**Password Reset Requests** card, with its targeted push. Only the admin's ANSWER changes:
+
+```
+was:  member asks → admin makes the surname valid again → member may or may not choose a new one
+now:  member asks → admin issues a code → member chooses a password to redeem it
+```
+
+The admin never learns the member's password in either version. In the new one they never learn a
+working credential at all.
+
+---
+
+### L2 · Keep converting personal devices
+
+Not a build — everything needed shipped already: the forced overlay at named sign-in, the Account
+status table, `neverSignedIn` from `getSignInStats`, and a Settings page that states
+`✓ Password set` or `Using surname` without being opened.
+
+**No notice is needed to invite a PIN user to sign in.** The Calendar's front door is already a
+sign-in card with the staff PIN one tap behind it, so the invitation is the first thing a PIN user
+sees, and a notice repeating it would argue with the screen underneath. The one part the front door
+does not state is the 60-day fact ("Sign in once and you won't need the staff PIN again for 60
+days"), and it belongs on the card if anywhere. For anything else of this shape the audience rule
+(`'signed-out'`, retiring itself the moment the reader signs in) is the mechanism. **Operations states
+the campaign's position as a number** — the Account status summary reads "N/M own password" (per
+grade, beside "N/M work email"), so the size of what is left is visible to the one person chasing it.
+
+---
+
+### L3 · F — step-up authentication for sensitive admin actions
+
+**Independent of everything else here.** No prerequisites, small, and it addresses the one risk a
+60-day session genuinely carries.
+
+Shortening the session for everybody would be the wrong answer: it makes the app worse for every
+member to address a risk that concerns one account. The risk is not that a member's phone is
+unattended for 58 days — it is that an **admin's** is, and that picking it up is enough to reset
+somebody else's password and take their account.
+
+**The sensitive set** — anything that changes another person's ability to sign in:
+`resetMemberPassword` and its successor `issueRecoveryCode`; `setupRosterAuth` (create, disable);
+any future operation that changes a member's identity or claims.
+
+**The rule, enforced on the server:** `verifyIdToken` returns `auth_time` — when the credential was
+last actually presented. If that is more than 15–30 minutes old, refuse with a distinct code and
+let the client ask.
+
+**It has to be `auth_time`, not a client timer.** A client that remembers "we asked them four
+minutes ago" is a UX affordance, not a control — invariant 6 in `AUTH_AND_SESSIONS.md` says exactly
+this about page authorisation and it is the same mistake. **Fails closed:** a token with no
+`auth_time` is treated as stale.
+
+The client half already exists — `reauthenticateWithPassword` in `firebase-client.js`, which the
+Settings password card uses. The flow is: refuse → *Confirm your password to continue* →
+reauthenticate → force a token refresh → retry once. That is the shape `claim-retry.js` already
+established for a stale claim, and it should reuse it rather than grow a second retry idiom.
+
+---
+
+### L4 · Calendar access: both kinds today, the PIN to be phased out
+
+**This was "Keep both kinds of Calendar access", a decision recorded because "make named sign-in
+mandatory" kept suggesting itself. The owner has since changed direction** (23 Nov 2026,
+`DECISIONS.md` → "An 'Other staff' login"): **phase the PIN out.** The first step shipped at v26.59 —
+an "Other staff" login, so a person with no roster of their own signs in individually and sees what
+the PIN shows, plus their own Settings. Retiring the PIN is a SEPARATE change, made only once
+everybody who uses it has a login of their own, so nobody is locked out on the day. Until then both
+kinds stand:
+
+| | Shared station PC | Personal device |
+|---|---|---|
+| Way in | Staff PIN | Named sign-in (a member, or an "Other staff" login) |
+| Lasts | The browser session | 60 days |
+| Leaves behind | No member identity and no notifications; its only writes are the error log and the usage counters | A member identity |
+| Gets | The Calendar, Trains and the three documents | Settings, pay integration, notifications (and Overtime, once it is back); an "Other staff" login gets the PIN's pages and Settings |
+
+The PIN is not individual authentication and does not claim to be (`AUTH_AND_SESSIONS.md` 18). Its
+job is to keep roster changes (leave, absence, shift changes) and the documents from being public
+while preserving a ten-second glance on a shared machine, and it does that. The base roster pattern
+itself is public by decision (AUTH_PLAN.md §2).
+
+**Do not lengthen the PIN to six digits.** The endpoint is throttled per source and globally, the
+space is 10,000 against a hard ceiling, and the cost of the change lands on every colleague
+remembering a longer shared secret. If a threat model ever needs more than this, the answer is
+individual authentication (Track E, `AUTH_PLAN.md`) — which is where phasing the PIN out leads — not
+a longer shared code: a stronger shared secret is still a shared secret.
+
+**What retiring the PIN still has to answer** — none of it decided: how the shared station PC opens
+the roster without a shared code, and which Track E phase the read rules then move to.
+
+---
+
+### L5 · Retire the anonymous fallback — done
+
+Nothing in the app signs in anonymously and no session self-heals an account (`AUTH_AND_SESSIONS.md`
+9). The number is kept so the ones below keep theirs.
+
+---
+
+### L6 · The Calendar start round trip — decided
+
+Whether a local session may paint the Calendar before Firebase confirms the stored account was
+answered yes, then retired by the owner, so `AUTH_AND_SESSIONS.md` 17 reads the stricter way. The
+record: `DECISIONS.md` → "The provisional paint"; the measurement: `LATENCY.md` → THE CLOSING READ.
+The number is kept so the ones below keep theirs.
+
+---
+
+### L7 · C5 — the surname retirement, and the decision on the table
+
+⚠️ **This section describes two routes. Neither is adopted. The choice is the owner's, and the
+current plan is unchanged until they make it.**
+
+#### Route 1 — the plan as it stands
+
+C5 is gated on Track E because of a metric argument: a member who only ever opens the roster with
+the staff PIN signs in nowhere, never meets the forced-password overlay (which the Calendar's own
+sign-in has run since v23.21), and therefore never migrates — so the "≥90%
+migrated" figure cannot converge without individual authentication first.
+
+**The owner's direction to phase the PIN out (L4) bears on this route without choosing it.** Once
+the PIN is retired nobody opens the roster without signing in, so every member meets the forced
+overlay and the figure can converge — Route 1's wait on Track E would then be answered by that
+retirement. It is a direction, not a date: the PIN has not been retired, and until it is the
+coupling stands.
+
+#### Route 2 — what C6 makes possible
+
+Once one-time codes exist, every remaining un-migrated account's surname password can be replaced
+**server-side with an unknown random credential**. Nobody loses Calendar access, because the staff
+PIN is not a password. Anyone who later wants named access asks for an activation code and chooses
+a password — which is the ordinary new-starter flow, not a special case.
+
+#### What the two routes actually differ on
+
+The gating argument conflates two questions that C6 separates:
+
+- **The credential question** — *may a guessable password sign somebody in?* Route 2 answers it,
+  today, without touching how the Calendar is read.
+- **The read question** — *may the roster be read without individual identity?* Route 2 does **not**
+  answer it. That is Track E, and it stays exactly where it is.
+
+C5 is currently waiting on E3 for a reason that belongs to the read question. That coupling is real
+under Route 1 and dissolves under Route 2.
+
+#### What Route 2 costs — stated, because it is not free
+
+- **Irreversible per account.** The surname is gone; only a code restores access. Rehearse it on
+  one account first.
+- **A support burst.** Everyone still un-migrated needs a conversation before their next named
+  sign-in. `neverSignedIn` and the Account status table say how many that is **today** — read it
+  before deciding, not after.
+- **It can strand somebody silently.** A member who has been signing in with their surname on a new
+  phone would simply stop being able to, with no explanation at the moment it happens. So it needs
+  a notice campaign first, and the code issued *before* the credential is changed for anyone who is
+  actually using it.
+- **It does not make Track E unnecessary** — see above. Anyone reading it as "we can skip E" has
+  read it wrong.
+
+#### The decision this needs
+
+**Does the owner want C5 to mean "no guessable credential exists" (Route 2, available once C6
+ships) or "every member authenticates individually" (Route 1, gated on E3)?**
+
+Until that is answered, `SECURITY_RELEASE_PLAN.md`'s C5 row stands as written, and this section is
+the record of the alternative — not a change to it.
+
+---
+
+### L8 · C2 — an address is not a credential
+
+The app collects `@chilternrailways.co.uk` addresses and that groundwork is right. **It is not yet
+a recovery credential and must not become one by default.**
+
+A `staffContact.workEmail` is an address a member or an admin *typed*. Nothing has demonstrated
+that anyone can receive mail at it. The gap between those is the whole of account takeover: an
+address supplied by an attacker, or simply mistyped into a colleague's mailbox, becomes a way in
+the moment "send a reset here" is wired to it.
+
+**The rule:** a work email may be used for recovery only after possession is proven — a code or
+link sent to the mailbox and returned — recorded as a server-written `verifiedAt`. Unverified
+addresses stay what they are today: contact information.
+
+It is `AUTH_AND_SESSIONS.md` invariant 15 rather than only a rule here, because the temptation
+arrives later, when the field is full and the relay finally exists and wiring it up looks like a
+one-line change.
+
+Still gated on a mail relay that does not exist (Power Automate, Graph, or whatever route is
+approved). **Sequenced after C6 deliberately**, so that when it arrives it is a *second* route and
+the admin code path becomes true break-glass rather than the only recovery.
+
+---
+
+### L9 · Passkeys
+
+*Passkeys — POSSIBLE, not planned* (above) holds the survey, the domain-binding
+blocker and the four options. Not restated here. What that section does not carry is the **order**,
+which is the only thing this section adds:
+
+```
+password migration → one canonical origin → retire the GitHub Pages install route
+                   → passkey spike → passkeys ADDITIVE, alongside passwords
+```
+
+A passkey is bound to one origin, and the app is served from two. That is the blocker, and it is
+not a passkey problem — it is the two-origins problem, which has other costs already.
+
+**Passwords and the recovery route stay** when passkeys arrive. A lost phone must never be a
+lockout, and a passkey-only account on a single device is exactly that.
+
+---
+
+### L10 · The end-state, if the app is ever adopted formally
+
+If Chiltern adopts this as official infrastructure, the right answer is **Microsoft / Entra ID
+work-account SSO**, and most of this programme stops being needed. The company then owns joiners,
+leavers, password and MFA policy, account disablement, and identity verification; the app consumes
+an identity and maps it to its own roles, which it already does cleanly via claims.
+
+That is a better end-state than maintaining a staff authentication system indefinitely. It is also
+entirely dependent on Chiltern IT registering the application, so it is a long-term entry in
+`ROADMAP.md` and not a plan.
+
+**Worth knowing while building anything above:** the claim model (`{admin|manager, name, member}`,
+plus `linksDesigner`, stamped from a server-owned list) is exactly the shape an SSO integration would
+keep. What it would NOT keep is the sign-in binding: `isMember()` believes a `name` only on a
+`password` sign-in at the name's derived email, so an SSO (or any custom-token) session needs a
+binding of equal strength for its own provider — never the provider check dropped. Nothing in this
+programme paints into a corner — except passkeys, which SSO would make redundant, which is one more
+reason they sit last.
+
+---
+
+### The target, in one picture
+
+```
+Shared PC          staff PIN ──────────────► read the Calendar
+                                             browser close destroys it
+
+Personal device    password or passkey ────► named member, 60-day session
+
+Forgotten          one-time admin code ────► choose a new password
+                   later: verified work email ──► self-service
+
+Admin action       named admin session + a RECENT credential ──► proceed
+                   (sensitive operations only)
+
+Server             claims are the authority
+                   rules are the boundary
+                   no anonymous fallback
+```
+
+Simpler than what exists now, and stronger. The single most valuable move in it is the first one:
+**stop making the surname a valid credential again every time somebody forgets their password.**
 
 ---
 

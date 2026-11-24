@@ -582,9 +582,10 @@ to copy: a container query needs no probe and no script.
 ## Prose is left-aligned once it passes ~2 lines
 
 Centred text is fine for a line or two and works against the reader beyond that — every line starts at
-a different x. Overlay body copy (`.notice-body`) is left-aligned; the badge/title/date **masthead stays
-centred**, as the About panel does. (`.lightbox-privacy` stays centred: its one use is a one-line note
-on the Pay Calculator.) The `new-notice` skill template carries the same rule.
+a different x. **A one-time notice is left-aligned throughout** — badge, title, date and body
+(`.notice-head { align-items: flex-start }`, `shared.css`; the new-notice skill's template says the same).
+The About panel and the drawer's App Notices panel keep a CENTRED masthead over their own short rows: a
+different family. (`.lightbox-privacy` stays centred: its one use is a one-line note on the Pay Calculator.)
 
 **A link in prose** — an explainer or a Tips panel — is navy at 600 with a 2px underline offset
 (`#tipsLightboxContent a, .card-explainer a`, in `shared.css`), as the guides' links are — never the
@@ -762,3 +763,13 @@ header** (height, logo, gap, title, top edge, burger position); only the width d
 header — asked and **kept as it is** (owner, 8 Nov 2026), so do not re-propose matching it there.
 Pinned by `e2e/calendar.spec.js` → "from 768px the Calendar's header is every other page's header",
 which compares the computed metrics with Settings' at 768, 800 and 1366px.
+
+## Touch-only UI, and never gating LAYOUT on hover
+
+Moved here from CLAUDE.md's architecture table (24 Nov 2026): both bind only stylesheets and the code that
+shows touch UI.
+
+| Decision | Rule |
+|----------|------|
+| `touch-only` CSS class in `shared.css` | `display:none` by default; revealed via `@media (pointer: coarse)`. Use for touch-only UI. Do not use inline `display:none`. **Gesture-tutorial UI must only show on touch devices** — guard it with `window.matchMedia('(pointer: coarse)')`, as `initSwipeHint()` in `calendar-app.js` does. |
+| **Do not gate layout on `(hover: hover) and (pointer: fine)` alone** | Some Android devices misreport `hover: hover`. For layout breakpoints, always use `min-width`. Hover/pointer queries are only safe for cosmetic `:hover` transitions. |

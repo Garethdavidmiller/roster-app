@@ -32,7 +32,9 @@ excluded) and **E1 shipped v19.01** (the cache-first, auth-aware client preparat
 the two phases needing no decision. **The first real security boundary was E2's job, and the staff PIN
 did it instead** — see E2 below. Nothing beyond that is committed. The most likely trigger is external:
 if the app becomes, or is assessed as, official Chiltern infrastructure, IT may require each person to
-authenticate rather than a station to share a code. Until then the staff-PIN design stands.
+authenticate rather than a station to share a code. The owner has since set a direction for the PIN
+itself — phase it out, starting with named "Other staff" logins (23 Nov 2026); where that stands is
+SECURITY_RELEASE_PLAN.md's Track E row, not restated here.
 
 ---
 
@@ -572,7 +574,7 @@ stop condition: it means the experiment has no failure criterion, so it can only
 **Track E is the missing precondition for Track C5 — on the route the plan currently takes.** The forced
 password-set only reaches people who sign in somewhere; `PASSWORD_DESIGN.md` records that a pure
 roster-viewer is never compelled. So the ≥90% migration metric gating retirement of the surname default
-**cannot converge** without E3/E5. `CREDENTIAL_LIFECYCLE.md` §7 records a second route (C6) that would
+**cannot converge** without E3/E5. `PASSWORD_DESIGN.md` → credential lifecycle L7 records a second route (C6) that would
 answer the credential question without E3 — **not adopted**; the owner decides.
 
 **The GitHub Pages mirror is a second public front door.** Level 2 rules protect the data on both origins
@@ -600,9 +602,10 @@ change).
 - **Do not** verify any of this from an installed phone. Always a **fresh private window with a cold
   cache** — the installed PWA launches from the service-worker cache and will happily hide a broken live
   site (CLAUDE.md → "Deployment health check").
-- **Starting E3 consciously REVERSES a recorded decision** — `CREDENTIAL_LIFECYCLE.md` §4, keep both
-  kinds of Calendar access (the staff PIN for the shared station PC). Record the reversal when it
-  happens — do not make it silently.
+- **E3 is now the owner's stated direction, not a reversal** — since 23 Nov 2026 the plan is to phase
+  the PIN out (`PASSWORD_DESIGN.md` → credential lifecycle L4; first step, the "Other staff" login,
+  v26.59). Retiring the PIN is still its own later change, made only once everybody who uses it has
+  a login of their own — record that step when it happens, do not make it silently.
 
 ---
 

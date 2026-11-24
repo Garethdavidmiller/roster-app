@@ -1,5 +1,5 @@
 // Anneal FROM a given grid (anneal.mjs's moves, cost and polish, but a chosen start and temperature), so a carried
-// structure is improved rather than thrown away. MODE=rules node anneal-from.mjs <start.json> <out.json> <seed> <steps> <T0>   (Second Nature: README.md)
+// structure is improved rather than thrown away. MODE=rules node anneal-from.mjs <start.json> <out.json> <seed> <steps> <T0>   (Second Nature: HISTORY.md)
 import fs from 'node:fs';
 const TL = './';
 const { evaluate } = await import(TL + 'anneal.mjs');

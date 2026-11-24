@@ -3,7 +3,7 @@ possibility if you haven't already"). space-polish.mjs improves a rota by small 
 where it starts; this states the whole problem — which line works which duty on which day — to Google's CP-SAT solver
 (pip install ortools) and searches all of it at once. That day it gave Closing Time a 17th week on one shift time and
 a week-to-week step of 1h 11m, where it had 16 and 1h 20m, with every other figure held — four polishes from Closing
-Time's own weeks had stopped at 16 and 1h 17m (README.md -> "Closing Time, improved").
+Time's own weeks had stopped at 16 and 1h 17m (HISTORY.md -> "Closing Time, improved").
 
 START FROM A ROTA THAT MEETS EVERY RULE, AND LET THE OBJECTIVE CLIMB. Asked to REQUIRE 17 one-turn weeks (ONE_MIN=17)
 from a rota with 16, the solver found nothing in ten minutes on every variant tried; asked to MAXIMISE them (OBJ=one)
@@ -48,7 +48,7 @@ its grid, and FIX= checks that grid against the model.
 MIXED WEEKS (6 Nov 2026, owner: Balanced V6 made again "without losing anything"). Every rota above has a week all earlies
 or all lates. Balanced V6 has three weeks that mix them, and on Grand Tour's rest days, with V6's other floors, no rota
 without them keeps its runs of early or late weeks as short as V6's: MIXED=0 BF=3 BW=5 with the floors below is proved
-infeasible in a second (README.md -> "Balanced V7"). MIXED=n drops the all-early-or-all-late rule and allows at most n
+infeasible in a second (HISTORY.md -> "Balanced V7"). MIXED=n drops the all-early-or-all-late rule and allows at most n
 mixed weeks, reading a week's kind as blocks.mjs does: from every duty in it, the Sunday included. Runs of all-early or
 all-late weeks are then held to BF on the fixed duties (a cover week ends a run, as in blocks.mjs's fixed view) and to BW
 when the cover weeks beside them go the same way (its worst view). BLOCK and MAXCHG read the old one-family flag, which
@@ -69,7 +69,7 @@ Saturday before, and there the only early week with the Monday off follows a 06:
 being needed before cover weeks. Freeing the early weeks' rest days (SKELETON_FREE) clears it; the whole model, every rest
 day free, then climbs from that grid, though from nothing it found no first rota in ten minutes. Each step's HINT= is the
 step before's output; F is the floors every step holds unless it says otherwise. Short Openers' grid is the one kept in
-results/ when it was deleted on 8 Nov 2026 (README.md -> "Five designs deleted"); its cells are those it shipped with:
+results/ when it was deleted on 8 Nov 2026 (HISTORY.md -> "Five designs deleted"); its cells are those it shipped with:
   F = H55=3300 LV_BEST=30 LV_FOUR=14 LV_WORST=19 FF11_FIXED=10 ISO=6 HEAVY=2575 REST=860
   1. F SKELETON=results/short-openers.json REST=0 REST_TO=860 OBJ=rest                                          60 s
   2. F SKELETON=(the same) SKELETON_FREE=4,5,12,13,14,22,23,24,25,26 OBJ=one                                  240 s
@@ -82,15 +82,15 @@ results/ when it was deleted on 8 Nov 2026 (README.md -> "Five designs deleted")
  10. H55=3300 LV_BEST=30 LV_FOUR=13 LV_WORST=20 ISO=6 HEAVY=2575 REST=860 REST_TO=875 MIXED=3 BF=3 BW=4 BLOCK=20
      ONE_MIN=19 OBJ=league WORKERS=2, from step 9: Balanced V9 (results/balanced-v9.json, e2b7d945), its weeks 13 and 15
      swapping their Saturday lates                                                                        1,200 s
-Step 6's worst stretch of 20 with the 55-hour rule held is the one README.md said no search had found ("The worst leave
-stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 10's: feasible. README.md ->
+Step 6's worst stretch of 20 with the 55-hour rule held is the one README.md (now HISTORY.md) said no search had found ("The worst leave
+stretch is 19, not 20"). FIX= checks both grids, V8 with step 7's floors and V9 with step 10's: feasible. HISTORY.md ->
 "Balanced V8 and Balanced V9", and "Balanced V8 and V9 searched again" for every run since step 9 (OBJ=league and
 OBJ=iso were added for them), all from V8 or V9 with these floors: none found more for V8, and none more for V9 than
 step 10.
 
 BALANCED V10 (8 Nov 2026, owner: "Do your suggestion with Balanced v8 to create Balanced v10"): Balanced V8's duties and rest
 days, every one, and its early and late weeks, with only which week works which shift time chosen again, so that no two
-closing weeks sit side by side (README.md -> "Balanced V10"). Every floor is V8's own:
+closing weeks sit side by side (HISTORY.md -> "Balanced V10"). Every floor is V8's own:
   F = H55=3060 H7=3060 LV_BEST=30 BEST_LEN=30 LV_FOUR=13 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=6 HEAVY=2550 LIGHT=1440
       REST=860 GAP=5 FF17=0 SKELETON=results/balanced-v8.json FAMILY=1 ONE_MIN=18 CLOSE_APART=2
       OBJ=gentle GENTLE_STARTS=15:45 GENTLE_SHARED=0 WORKERS=2, on results/balanced-v7-table.json
@@ -103,7 +103,7 @@ optimum) and refuses Balanced V8's own grid, whose closing weeks 2, 3 and 4 sit 
 
 CLOCKFACE AND SHORT WORKING (8 Nov 2026, the owner naming the two re-lays of "The shortlist redrawn for closing weeks apart":
 "Clockface, Short Working"): Even Step's and Short Run's duties and rest days, every one, and their early and late weeks,
-with only which week works which shift time chosen again, so that no two closing weeks sit side by side (README.md ->
+with only which week works which shift time chosen again, so that no two closing weeks sit side by side (HISTORY.md ->
 "Clockface and Short Working"). Each is laid on its parent's own duties as its grid has had them since the Saturday office
 closed at 22:30 (results/clockface-table.json, results/short-working-table.json), every floor at its parent's own level:
   C = H55=3405 H7=3010 LV_BEST=28 LV_FOUR=15 LV_WORST=20 FF11_FIXED=9 FF11_WORST=12 ISO=4 HEAVY=2520 LIGHT=1530 REST=875
@@ -313,7 +313,7 @@ for k in WORK:
 one = sum(u.values())
 if os.environ.get('ONE_MIN'): M.Add(one >= int(os.environ['ONE_MIN']))
 # CLOSE_APART= (8 Nov 2026, Balanced V10; first run on a copy of this script for Even Step's and Short Run's layouts the
-# same day, README.md -> "The shortlist redrawn for closing weeks apart", which are Clockface and Short Working): no two
+# same day, HISTORY.md -> "The shortlist redrawn for closing weeks apart", which are Clockface and Short Working): no two
 # closing weeks side by side, where a cover week between two weeks breaks the pair. CLOSE_APART=2, the one the pack's
 # layouts were drawn with, is the strictest: no two neighbouring working weeks may both have a weekday duty ending 23:55 at
 # all. CLOSE_APART=1 reads a closing week as a week whose most common Monday-to-Friday duty ends 23:55, a tie counted as
@@ -372,7 +372,7 @@ M.AddMaxEquality(heavyMax, [sum(x[(k, d, t)] * mins(t) for d in DAYS if d != 'su
 four = M.NewIntVar(0, 200, 'four')
 M.AddMinEquality(four, [cost(s0, 28) for s0 in range(0, n, 7)])
 # BEST_LEN= prices another stretch (4 Nov 2026: 30, asked whether 14 days' leave could buy 30 days off on Fair Share's
-# duties; README -> Fair Share). The name and the printed label keep 29, the default, so every committed run reads as before
+# duties; HISTORY.md -> Fair Share). The name and the printed label keep 29, the default, so every committed run reads as before
 BEST_LEN = env('BEST_LEN', 29)
 best29 = M.NewIntVar(0, 200, 'best29')   # the least leave any BEST_LEN days in a row cost: 14 or less is a best stretch of that length
 M.AddMinEquality(best29, [cost(s0, BEST_LEN) for s0 in range(n)])
@@ -391,14 +391,14 @@ for i in range(n):
 # move. In order: neighbouring working weeks that both start at 06:20 (an opener) or 15:45 (a closer) on the same weekday;
 # week-to-week moves of the average start over GENTLE minutes; neighbouring weeks sharing any other weekday start; the step.
 # A week counts as starting at a time if it does on ANY weekday, forced by its duties, so a mixed week cannot hide a shared
-# time. Middle Ground is this on Common Ground's weeks with ONE_MIN=18 (README.md -> "Middle Ground").
+# time. Middle Ground is this on Common Ground's weeks with ONE_MIN=18 (HISTORY.md -> "Middle Ground").
 # GENTLE_STARTS= and GENTLE_SHARED=0 (7 Nov 2026, of Crossover: "people don't want to do several weeks of closes"). The first
 # term counts the starts GENTLE_STARTS names, 06:20 and 15:45 unless it is set, so GENTLE_STARTS=15:45 keeps only the closing
 # weeks apart. Crossover has five 06:20 starts every weekday and two 07:30s to put between them, so keeping its 06:20 weeks
 # apart too costs a start that moves over two hours a week or more. GENTLE_SHARED=0 drops the third term, which prefers
 # neighbours on different starts: it buys variety with the step, and the closing weeks are the variety asked for. With both,
 # the step comes straight after the moves over two hours. Level Crossing is this on Crossover's rest days with ONE_MIN=18
-# (README.md -> "Level Crossing"); the defaults leave Middle Ground's command as it was.
+# (HISTORY.md -> "Level Crossing"); the defaults leave Middle Ground's command as it was.
 GENTLE_STARTS = tuple(os.environ.get('GENTLE_STARTS', '06:20,15:45').split(','))
 co, big, oth = [], [], []
 if os.environ.get('OBJ') == 'gentle':
@@ -441,7 +441,7 @@ def objective(e, minimise=True):
 # days' leave buys can run through rostered Sundays, and the person gives each one up. Cover-week Sundays are not counted.
 # SUN_ALL=n: every such stretch gives up at most n. SUN_SOME=n: at least one does. OBJ=sunmax and OBJ=sunmin climb the most
 # and the fewest down. All of it is built only when one of the four is asked for, so every command above keeps the model it
-# had (README.md -> "Balanced V10's Sundays in its 30 days off").
+# had (HISTORY.md -> "Balanced V10's Sundays in its 30 days off").
 SUNDAYS = bool(os.environ.get('SUN_ALL') or os.environ.get('SUN_SOME') or os.environ.get('OBJ') in ('sunmax', 'sunmin'))
 def sund(s0, ln):
     return sum(on[seq[(s0 + j) % n]] for j in range(ln) if seq[(s0 + j) % n][1] == 'sun' and seq[(s0 + j) % n][0] in WORK)

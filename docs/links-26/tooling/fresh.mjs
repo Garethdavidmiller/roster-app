@@ -23,73 +23,73 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
  *  waived for that design (WAIVERS, below). */
 // 26 LINES (1 Oct 2026; nine designs by 3 Oct): a design's one-line description and how it was made go here, by code,
 // exactly as the 24-line sheets' did (docs/links-24/tooling/fresh.mjs kept theirs — removed 7 Nov 2026; `git checkout 924b9dbc -- docs/links-24` restores it).
-// 6 NOV 2026 — THE SATURDAY TICKET OFFICE TO 22:30 (RULES.md S5; README.md → "The Saturday ticket office to 22:30"). Every
+// 6 NOV 2026 — THE SATURDAY TICKET OFFICE TO 22:30 (RULES.md S5; HISTORY.md → "The Saturday ticket office to 22:30"). Every
 // design's two Saturday office lates moved from 22:00 to 22:30 and its Saturday floor lates gave the half hour back, so
 // three headlines were reworded to stay true: Fine Tune's and Even Keel's heaviest week is now 42h 00m (it was 41h 30m),
 // Fine Tune's week-to-week change 1h 10m (1h 09m), and Home Grown's two new Saturday lates (14:30-22:30 and 14:00-22:00)
 // are times nobody works today. LATER THE SAME DAY (owner: "Yes") the hour came off one floor late instead of half an hour
-// off two (README.md → "One Saturday floor late keeps 22:30"): Home Grown's 14:00-22:00 went, so the ticket office's
+// off two (HISTORY.md → "The Saturday floor late back to 22:30"): Home Grown's 14:00-22:00 went, so the ticket office's
 // 14:30-22:30 is its one new Saturday late, and its headline says so.
 // 8 NOV 2026 — SECOND LOOK, EVEN KEEL, IN STEP, OPEN RETURN AND SHORT OPENERS DELETED (owner: "Delete in step, even keel,
 // open return, short openers and second look from the pack and repo"): their straps, families and first dates went with
-// them (regenerate.mjs, RETIRED_CODES; README.md → "Five designs deleted").
+// them (regenerate.mjs, RETIRED_CODES; HISTORY.md → "Five designs deleted").
 export const STRAPS = {
   // 9 NOV 2026 — COMMON GROUND, CROSSOVER, EVEN STEP AND BALANCED V5 DISCARDED (owner: "Discard those three and balanced v5
   // now please, very carefully"): their straps, families and first dates went with them. Their grids stay in the tooling as
-  // BASES (below), because designs still in the pack were laid from them (README.md → "Four designs discarded").
+  // BASES (below), because designs still in the pack were laid from them (HISTORY.md → "Four designs discarded").
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
   'SR-26-F1': ['No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
-  // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
+  // 26 Oct 2026: today's link on 26 lines (HISTORY.md → "Today's link on 26 lines")
   'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, and the ticket office’s new Saturday late, with a 13:35 finish every weekday and Saturday closing as today', 'search'],
   'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
-  // 3 Nov 2026: the owner's question — the link with today's shift times given no weight in the league (README.md → "Clean
+  // 3 Nov 2026: the owner's question — the link with today's shift times given no weight in the league (HISTORY.md → "Clean
   // Slate and Next Step"). Neither is shortlisted; Next Step is Even Step with Clean Slate's three weekday changes
   'CS-26-N2': ['Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday', 'search'],
   'NS-26-T6': ['No shift over 8h 30m Monday to Saturday, a 13:45 finish every weekday, and a weekday fit to the trains of 30.3 (today 52.0)', 'search'],
-  // 4 Nov 2026: Next Step with its Sunday evened out, so a Sunday early and a Sunday late pay within a few pounds (README.md
+  // 4 Nov 2026: Next Step with its Sunday evened out, so a Sunday early and a Sunday late pay within a few pounds (HISTORY.md
   // → "Fair Share"). Not shortlisted
   'FS-26-T7': ['Every Sunday duty 8h 10m or 8h 15m, so a Sunday early and late pay within a few pounds, and no shift over 8h 30m on any day', 'search'],
   // 4 Nov 2026: Grand Tour is Fair Share's 30-day search result, which had no name until then (owner: "Give all proposals
   // individual names"). Not shortlisted. Open Return and Short Openers, drawn the same day from Quarter Past's duties, were
-  // deleted on 8 Nov 2026 (README.md → "Five designs deleted")
+  // deleted on 8 Nov 2026 (HISTORY.md → "Five designs deleted")
   'GT-26-T7': ['No shift over 8h 30m on any day, and 14 days’ leave buys 30 days off and four weeks off take 14, as today', 'search'],
   // 5 Nov 2026: Common Ground's weeks with the shift times varied from week to week, so no two closing weeks and no two 06:20
-  // weeks fall together (README.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). ITS STRAP SAYS THE CLOSING WEEKS ONLY
+  // weeks fall together (HISTORY.md → "Middle Ground"). Shortlisted on 8 Nov 2026 (below). ITS STRAP SAYS THE CLOSING WEEKS ONLY
   // (owner, 8 Nov 2026, agreeing): the 06:20 half held only when week 20, two 06:20 starts and two 07:00s, was read as a 07:00
   // week, and weeks 17 to 20 all have 06:20 starts; regenerate.mjs now checks a strap's weeks apart on the grid.
   // NO STRAP NAMES ANOTHER DESIGN (owner, 5 Nov 2026: "the proposal description headlines should not reference other
   // proposals"); regenerate.mjs refuses one that does
   'MG-26-T8': ['Seven of today’s shift times, varied from week to week so that no two closing weeks fall together, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner: "Balanced v5 and Relief Point need adding to the pack, but can you rename Relief Point as Balanced v6"):
-  // its author's one-page Marylebone Balanced 26, version 5 (discarded 9 Nov 2026), and the owner's 15-minute handover drawn from it (README.md →
+  // its author's one-page Marylebone Balanced 26, version 5 (discarded 9 Nov 2026), and the owner's 15-minute handover drawn from it (HISTORY.md →
   // "Balanced V5 and Balanced V6 join the pack"). It says what it is, naming no other design. Balanced V6 shortlisted on 8 Nov 2026 (below)
   'MB-26-V6': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 6 NOV 2026 (owner, asking for Balanced V6 made again "without losing anything", then "Add v7 please"): Balanced V6's duties
-  // laid again on Grand Tour's rest days (README.md → "Balanced V7"). Its headline says what it is and names no other design
+  // laid again on Grand Tour's rest days (HISTORY.md → "Balanced V7"). Its headline says what it is and names no other design
   'MB-26-V7': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, no six-day weeks, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 7 NOV 2026, LATER (owner, of Crossover: "people don't want to do several weeks of closes", then "Do it"): Crossover's duties
   // and rest days with its weeks chosen again, so that no two closing weeks fall side by side. NO STRAP NAMES ANOTHER DESIGN, so
-  // this one says what it has, not whose weeks it re-lays: README.md → "Level Crossing". Shortlisted on 8 Nov 2026 (below)
+  // this one says what it has, not whose weeks it re-lays: HISTORY.md → "Level Crossing". Shortlisted on 8 Nov 2026 (below)
   'LC-26-T10': ['Two 13:45 finishes every weekday, a 15-minute handover to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 7 NOV 2026 (owner: "Do the v7 week lay out again", then "Do A as Balanced V8 and B as Balanced V9"): Balanced V7's duties
-  // with every rest day chosen again (README.md → "Balanced V8 and Balanced V9"). NO STRAP NAMES ANOTHER DESIGN, so each says what
+  // with every rest day chosen again (HISTORY.md → "Balanced V8 and Balanced V9"). NO STRAP NAMES ANOTHER DESIGN, so each says what
   // it has, not whose duties it lays
   'MB-26-V8': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, 19 of 21 weeks on one shift time, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   'MB-26-V9': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never more than three early or three late weeks in a row outside the cover weeks, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 8 NOV 2026 (owner: "Do your suggestion with Balanced v8 to create Balanced v10"): Balanced V8's duties and rest days with
-  // its weeks chosen again so that no two closing weeks sit side by side (README.md → "Balanced V10"). NO STRAP NAMES ANOTHER
+  // its weeks chosen again so that no two closing weeks sit side by side (HISTORY.md → "Balanced V10"). NO STRAP NAMES ANOTHER
   // DESIGN, so it says what it has, not whose weeks it re-lays
   'MB-26-V10': ['A 15-minute handover every weekday, from the three 07:30\u2060–\u206016:00s to the three 15:45 closers, never two closing weeks in a row, no fatigue warning in any cover-week placement tested, and 14 days’ leave buys 30 days off, as today', 'search'],
   // 8 NOV 2026 (owner, naming the two re-lays: "Clockface, Short Working"): Even Step's and Short Run's duties and rest days with
-  // their weeks chosen again so that no two closing weeks sit side by side (README.md → "Clockface and Short Working"). NO
+  // their weeks chosen again so that no two closing weeks sit side by side (HISTORY.md → "Clockface and Short Working"). NO
   // STRAP NAMES ANOTHER DESIGN, so each keeps what its parent's says and adds the closing weeks
   'CF-26-T5': ['No shift over 8h 30m and every early one of today’s times, Monday to Saturday, a 13:45 finish every weekday, and never two closing weeks in a row', 'search'],
   'SWK-26-F1': ['No run over five days outside the cover weeks, weekends never more than five weeks apart, 19 of 21 weeks on one shift time, and never two closing weeks in a row', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
-// Second Nature's weeks were grown from Silva Lining's (README.md); the 26-line family is named after Second Nature,
+// Second Nature's weeks were grown from Silva Lining's (HISTORY.md → "Second Nature"); the 26-line family is named after Second Nature,
 // as the 24-line Right Away family was after the design its members came from. It keeps that name though Second Nature
 // itself was withdrawn on 3 Nov 2026, with Second Wind, Second Sight and Second Gear (regenerate.mjs says how to restore
 // one): a family is named for where its designs started, and Second Edition and the rest still start there.
@@ -106,7 +106,7 @@ export const STRAPS = {
  *  REDRAWN ON 8 NOV 2026 for a new design target (owner: "no consecutive closing weeks, with changes between early and late
  *  duties placed around useful rest breaks ... Weeks on one time is still Important", then "Put Level Crossing, Middle Ground
  *  and Balanced V6 as the shortlist for now"). Common Ground, Even Step and Short Run each put closing weeks side by side;
- *  the three drawn here keep them apart and keep today's leave. README.md → "The shortlist redrawn for closing weeks apart". */
+ *  the three drawn here keep them apart and keep today's leave. HISTORY.md → "The shortlist redrawn for closing weeks apart". */
 export const SHORTLIST = ['Balanced V6', 'Level Crossing', 'Middle Ground'];
 if (SHORTLIST.join() !== [...SHORTLIST].sort((a, b) => a.localeCompare(b, 'en-GB')).join()) throw new Error(`the shortlist is presented A to Z: ${SHORTLIST}`);
 /** The day the shortlist above was drawn, for the sheets and the read-me that say when — after every design in the pack. */
@@ -120,7 +120,7 @@ export const SHORTLIST_DATE = '8 Nov 2026';
  *  same day, from Common Ground's (shortlist-decks.py), and the zip carries those. */
 export const DECKS_KEPT = [];
 if (DECKS_KEPT.some(n => SHORTLIST.includes(n))) throw new Error(`a design is both shortlisted and kept off it: ${DECKS_KEPT}`);
-/** BASES (9 Nov 2026, when Common Ground, Crossover, Even Step and Balanced V5 were discarded: README.md → "Four designs
+/** BASES (9 Nov 2026, when Common Ground, Crossover, Even Step and Balanced V5 were discarded: HISTORY.md → "Four designs
  *  discarded"). Designs out of the pack that the deck builders still start from by name. Common Ground's finished pair is
  *  where shortlist-decks.py starts every shortlisted design's presentations (and Middle Ground's weeks were laid from its
  *  grid); Even Step's is where relay-decks.py starts Clockface's (Clockface's weeks were laid from its grid). Their grids stay
@@ -135,7 +135,7 @@ export const BASES = [
 ];
 if (BASES.some(b => SHORTLIST.includes(b.name) || DECKS_KEPT.includes(b.name))) throw new Error(`a base is out of the pack, never on the shortlist: ${BASES.map(b => b.name)}`);
 // NO RECOMMENDATION SINCE 5 NOV 2026. RECOMMENDED named the one the shortlist sheet argued for — Short Run from 3 Oct 2026,
-// In Step from 30 Oct, Even Step from 31 Oct (README.md has each) — and was retired with the marks; it is gone rather than
+// In Step from 30 Oct, Even Step from 31 Oct (HISTORY.md has each) — and was retired with the marks; it is gone rather than
 // left null, so any script still reading it fails loudly instead of quietly recommending nothing.
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
 export const FAMILY = { SE: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', NS: 'Home Grown', FS: 'Home Grown', CS: 'Clean Slate', GT: 'Home Grown', MG: 'Home Grown', MB: 'Marylebone Balanced', LC: 'Home Grown', CF: 'Home Grown', SWK: 'Second Nature' };
