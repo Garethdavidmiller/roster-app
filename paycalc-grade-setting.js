@@ -381,7 +381,11 @@ export function loadGradeSetting() {
   // A load reads storage afresh: the cache is only ever a copy of what was last loaded or saved.
   invalidateGrade();
   const saved = lsGet(SK.grade);
-  if (saved !== FROM_ROSTER && lsGet(SK.gradeFrom) == null) {
+  // NOTHING SAVED IS LEFT AS NOTHING (whole-app review, 24 Nov 2026): `getGradeSetting` already reads it as the
+  // roster's. Written down, a first visit stored "roster" by opening the page — and the device then held "Your
+  // settings" (paycalc-inventory.js), so restoring a backup onto a new phone warned it would replace them. Viewing
+  // writes nothing (paycalc.md invariant 11); only a grade saved BEFORE grades had dates is converted, once.
+  if (saved != null && saved !== FROM_ROSTER && lsGet(SK.gradeFrom) == null) {
     const member = getLoggedMember();
     const vis    = visiblePeriods();
     const first  = vis[0], last = vis[vis.length - 1];

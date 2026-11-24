@@ -133,6 +133,24 @@
 
 <main class="container">
 
+    <!-- ==================== NOT FOR THIS LOGIN ====================
+         An "Other Staff" login (owner, 24 Nov 2026): no roster line, so nothing to record here. The page says
+         why, as the Pay Calculator's role card does, rather than sending them back to the Calendar unexplained —
+         the Calendar's 📝 Admin button and its leave panel's "Record leave" both land here. admin-app.js shows
+         it and sets `body.role-unsupported`, which hides everything else (admin.css). -->
+    <div class="role-card hidden" id="adminRoleCard">
+        <div class="role-card-icon" aria-hidden="true">📝</div>
+        <h2 class="role-card-title">Admin is for staff on the roster</h2>
+        <p class="role-card-why">Admin records leave, absences and shift changes against a roster line. An Other Staff login has no roster line, so there is nothing here for it. If something about your work needs changing, ask your manager.</p>
+        <div class="login-about">
+            <p class="field-eyebrow">What it does</p>
+            <p class="login-about-line">Staff record their own annual leave, absences and shift changes here, and managers record them for their team.</p>
+            <a class="login-about-link" href="./staff-guide.html#sg-leave-absence">Read about leave in the Staff Guide →</a>
+        </div>
+        <p class="login-help">The Calendar, Trains and Settings work as normal.</p>
+        <a href="./" class="login-back role-card-back">← Back to roster</a>
+    </div>
+
     <!-- ==================== MEMBER SELECTOR BAR ==================== -->
     <div class="member-context-bar">
         <label for="fieldMember">Staff member</label>

@@ -1263,8 +1263,17 @@ initCalendarAccess({
         // would reach the Error Log, but the member would be left looking at an empty workspace
         // with nothing said and no way to know a reload might fix it. Reporting it here keeps the
         // failure attached to the thing that failed.
+        // …and the catch SAYS so, as the synchronous start's does, and rethrows on a fresh task so the Error Log
+        // still records it (whole-app review, 24 Nov 2026): logged to the console alone, the member got an empty
+        // workspace with nothing said, and the Error Log got nothing either.
         Promise.resolve(_startCalendarWorkspace?.()).catch(err => {
             console.error('[Calendar] the workspace failed to start', err);
+            const banner = document.getElementById('errorBanner');
+            if (banner) {
+                setStatus(banner, '⚠️ Couldn\'t start the calendar — please refresh the page.');
+                banner.classList.add('visible');
+            }
+            setTimeout(() => { throw err; }, 0);
         });
     },
 }).then((t) => {

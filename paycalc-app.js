@@ -843,6 +843,7 @@ export function init() {
         bhOtHrs, gBhOt, oHrs, gOvertime, rHrs, gRdw, sHrs, r150, gSunday, bHrs, r300, gBoxing,
         peer, gPeer, LONDON, otherAdj, slSkip, slPaidOff, plan, pgLoan, usingCumulative,
         _bpThisPeriod, _bpIsEstimate, _hppForPeriod, _hppIsEstimate,
+        paidOffDay: _slPaidOffP ? fdShort(_slPaidOffP.payday) : '',
         ytdFrom: _srcP ? fdShort(_srcP.payday) : '',
       });
       if (bd !== _lastBdBodyHtml) {

@@ -266,6 +266,8 @@ let _loadInFlightKey = null;
 /** Which members' last load FAILED. A failure is not the same as "not fetched yet" — one is waiting
  *  and one is stuck — and the surfaces that report them have to say different things. */
 const _loadFailedFor = new Set();
+/** The one retry waiting for the signal to return, if a load failed offline. @type {(() => void)|null} */
+let _onlineRetry = null;
 
 /** @returns {Promise<void>} settles when any in-flight load has finished. Awaited by the write paths
  *  so a wholesale collection read cannot resolve on top of a just-committed cache mutation. */
@@ -690,8 +692,14 @@ async function _loadOverridesInner(opts) {
             // capped "All staff" read re-read the capped collection, which never covers the member,
             // so Retry redrew the same failure for ever (whole-app check, Nov 2026).
             const again = () => { loadOverrides({ everyone }); };
-            // Back online, it tries again by itself — the offline case is the one with a known cure.
-            if (offline) window.addEventListener('online', again, { once: true });
+            // Back online, it tries again by itself — the offline case is the one with a known cure. ONE retry
+            // waits, the latest (whole-app review, 24 Nov 2026): each failed load offline used to add another, and
+            // the signal's return then fired them all.
+            if (offline) {
+                if (_onlineRetry) window.removeEventListener('online', _onlineRetry);
+                _onlineRetry = () => { _onlineRetry = null; again(); };
+                window.addEventListener('online', _onlineRetry, { once: true });
+            }
             retry?.addEventListener('click', again);
             retry?.addEventListener('keydown', /** @param {KeyboardEvent} e */ e => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); again(); }

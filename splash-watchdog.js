@@ -40,9 +40,11 @@
      *  Calendar checks matter: `#errorBanner` and `#calendarDisplay` are in index.html on every load, so
      *  testing for their mere existence would read every stuck launch as usable and disable this watchdog. */
     function pageIsUsable() {
-        // The unlock card, the member sign-in card, or the re-lock card — every one of them is a
-        // working page with a next step on it.
-        if (document.getElementById('calendarLock')) return true;
+        // Any lock card — the sign-in card, the re-lock card, or the one saying the sign-in form could not
+        // load — is a working page with a next step on it. Asked by the slot's CLASS, never a list of ids
+        // (whole-app review, 24 Nov 2026): v26.60's fallback card has an id of its own, and an id list missed
+        // it, so a working card was reloaded and then covered by the recovery panel.
+        if (document.querySelector('section.cal-lock')) return true;
         // The member's own stored roster (`calendarSnapshot`): their real shifts, labelled as the
         // stored copy and painted before the access decision (CALENDAR_DATA.md 17). It is the answer
         // the member came for, not a failed load, so reloading over it and then covering it with the

@@ -3182,7 +3182,7 @@ test('paycalc: on a short laptop window the refusal card ends on screen, its way
     const bottom = await back.evaluate(el => Math.round(el.getBoundingClientRect().bottom));
     expect(bottom, `the way back ends ${bottom - 593}px under the fold of a 1280×593 window`).toBeLessThanOrEqual(593);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await expect(page.locator('#unsupportedGradeBanner .pc-role-icon'), 'a tall window keeps the emoji').toBeVisible();
+    await expect(page.locator('#unsupportedGradeBanner .role-card-icon'), 'a tall window keeps the emoji').toBeVisible();
 });
 
 // From 768px the Earlier and Later buttons share the select's row, and centred beside it they were 36px

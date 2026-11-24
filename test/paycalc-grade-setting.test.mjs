@@ -181,9 +181,13 @@ describe('a grade saved before grades had dates is converted once, on load', () 
             'The roster lists you as CES (Customer Experience Supervisor), but this calculator is using CEA rates.');
     });
 
-    test('nothing saved is the roster\'s, and is written down as the roster', (t) => {
+    // …and is NOT written down (whole-app review, 24 Nov 2026): a first visit that stored "roster" left the device
+    // holding "Your settings", so a backup restored onto a new phone warned it would replace them.
+    test('nothing saved is the roster\'s, and opening the page writes nothing', (t) => {
         load(STEADY_CES, {}, t, NOV_13);
-        assert.equal(_ls.get(SK.grade), 'roster');
+        assert.equal(_ls.get(SK.grade), undefined, 'a first visit stored a grade nobody chose');
+        assert.equal(_ls.get(SK.gradeFrom), undefined);
+        assert.deepEqual(G.getGradeSetting(), { grade: 'roster', from: 0 });
         assert.equal(page.gradeSelect.value, 'roster');
         assert.equal(page.gradePrompt.hidden, true);
     });
