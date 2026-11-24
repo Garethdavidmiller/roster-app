@@ -303,8 +303,8 @@ The shared per-card Tips panel (`#tipsLightbox`) behind every `?` button; each p
 - **Exports:** `initTipsLightbox`
 
 ### `login-core.js`
-The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`) and its 30-second deadline for a typed sign-in (`SIGN_IN_GIVE_UP_MS`), which links the card's explanation may carry, the explanation itself for a page that passes none (`signInAboutFor`), and what a failed reset request says. `login-overlay.js` re-exports the other three, so callers and `login-overlay.test.mjs` reach them there.
-- **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `signInAboutFor`
+The sign-in card's DOM-free rules — one sign-in attempt (`runNamedSignIn`) and its 30-second deadline for a typed sign-in (`SIGN_IN_GIVE_UP_MS`), which links the card's explanation may carry, the explanation itself for a page that passes none (`signInAboutFor`), what a failed reset request says, and the forced set-password step's marker, held from the moment a typed attempt starts (`holdPasswordMarker` / `releasePasswordMarker`). `login-overlay.js` re-exports the other three, so callers and `login-overlay.test.mjs` reach them there.
+- **Exports:** `SIGN_IN_GIVE_UP_MS` · `runNamedSignIn` · `isAboutLinkAllowed` · `resetRequestFailureLine` · `holdPasswordMarker` · `releasePasswordMarker` · `signInAboutFor`
 
 ### `login-overlay.js`
 The one sign-in card for every protected page, a modal by default and mounted inline as the Calendar's front door; no page redirects elsewhere to authenticate. It owns the card, the wrong-password lockout, the reset-request button and the staff-PIN-ended notice; per-page access stays with each coordinator. Bound by `.claude/rules/sessions.md`. Tested by `login-overlay.test.mjs`, `e2e/auth.spec.js` and `e2e/calendar-access.spec.js`.

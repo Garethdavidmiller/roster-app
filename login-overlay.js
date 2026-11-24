@@ -40,13 +40,13 @@ import { saveSession, clearSession, getSession, ensureNamedSession, isTransientA
 import { isCredentialRejection } from './auth-identity.js';
 // The card's DOM-free rules — the sign-in core, which links its explanation may carry, and what a failed
 // reset request says — are login-core.js's, re-exported so every caller and test keeps importing them here.
-import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine, signInAboutFor } from './login-core.js';
+import { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine, signInAboutFor, holdPasswordMarker, releasePasswordMarker } from './login-core.js';
 export { runNamedSignIn, isAboutLinkAllowed, resetRequestFailureLine };
 // Already loaded wherever this card is: session.js imports it. The words are its own, shared with a
 // page that has no card (paused Overtime, which imports `sayStaffPinEndedIn` from here).
 import { onStaffPinEnded, forgetStaffPinEnded, STAFF_PIN_ENDED_NOTICE } from './staff-pin-ended.js';
 export { sayStaffPinEndedIn } from './staff-pin-ended.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
 import { enhanceSelect } from './select-sheet.js';
@@ -110,56 +110,6 @@ export function dismissLoginOverlay() {
     const lockedScroll = !el.classList.contains('login-overlay--inline');
     el.remove();
     if (lockedScroll) unlockBodyScroll();
-}
-
-// ── THE SET-PASSWORD STEP'S MARKER IS WRITTEN WHEN A TYPED ATTEMPT STARTS (review, 24 Nov 2026) ──────
-//
-// The forced set-password step (password-force.js) runs only where a one-shot marker says a real sign-in
-// has just happened. It was written in `opened`, once the attempt had answered — and an attempt's answer
-// is not the first thing on the page to hear it. Firebase announces the new user to every
-// `onAuthStateChanged` listener BEFORE the sign-in call returns to its caller, and two of those listeners
-// act at once: the Calendar's late-identity watcher grants the moment nothing is in flight (after the
-// app has ended the attempt at `SIGN_IN_GIVE_UP_MS`, nothing is), and page-session's late-identity hold
-// reloads the page even mid-attempt. Either way the page opened before `opened` ran, found no marker, and
-// a member who had typed their surname default was never asked to choose their own password.
-//
-// So the marker is written as the attempt STARTS, and held while any typed attempt for that member could
-// still sign them in — the attempt in flight, and one the app ended whose answer may yet arrive (`late`).
-// It is taken away again only when every one of them has answered NO, so a failed sign-in still leaves
-// nothing to ambush a later ordinary load with (password-force.js → "WHY IT IS LOGIN-GATED"). Counted,
-// not flagged: an ended attempt can still answer while a second is in flight, and the first NO must not
-// take the second's marker. A marker that was already there when the first attempt began is somebody
-// else's (a sign-in another page has not consumed yet) and is left alone.
-//
-// What it costs: a page closed mid-attempt leaves the marker behind, and that member's next grant asks
-// `passwordStatus` once — which shows the step only to a member still on the surname default, the one
-// person it is for. The alternative of making each listener wait for the card was the smaller change on
-// the Calendar but not on page-session, and a listener added later would have to remember to wait too.
-
-/** Typed attempts, per member, that could still sign that member in. Module-level, so a card rebuilt on
- *  the same page (page-session's "signed in again" card) shares the count. @type {Map<string, number>} */
-const _markerHolds = new Map();
-/** Members whose marker stays when their last hold is released: one of the attempts signed them in, or
- *  the marker was there before the first one began. Lives only while holds are outstanding. @type {Set<string>} */
-const _markerKept = new Set();
-
-/** A typed attempt for `name` is starting: the marker is in place before Firebase can announce anybody.
- *  @param {string} name */
-function holdPasswordMarker(name) {
-    const key = PW_FORCE_PENDING_PREFIX + name;
-    if (!_markerHolds.has(name) && lsGet(key)) _markerKept.add(name);
-    _markerHolds.set(name, (_markerHolds.get(name) ?? 0) + 1);
-    lsSet(key, '1');
-}
-
-/** A typed attempt for `name` has answered: `signedIn` when that answer signed them in. The marker goes
- *  only when this was the last attempt outstanding and none of them did. @param {string} name @param {boolean} signedIn */
-function releasePasswordMarker(name, signedIn) {
-    if (signedIn) _markerKept.add(name);
-    const left = (_markerHolds.get(name) ?? 1) - 1;
-    if (left > 0) { _markerHolds.set(name, left); return; }
-    _markerHolds.delete(name);
-    if (!_markerKept.delete(name)) lsDel(PW_FORCE_PENDING_PREFIX + name);
 }
 
 // ── WHEN ARRIVING SIGNED OUT A LEFTOVER STAFF-PIN SESSION (v25.78; the PIN retired, 23 Nov 2026) ────
@@ -767,10 +717,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         // (password-force.js, PASSWORD_DESIGN.md Phase 2). Written in this card — the one place every
         // protected page's sign-in passes through — rather than in each coordinator's onSuccess,
         // so the five pages can't drift on it. Consumed by initPasswordForce on the authorised
-        // path (both the reload and the in-place branch run it). Already in place: the attempt wrote
-        // it as it started (`holdPasswordMarker`, above), because a page can open on Firebase's own
-        // announcement before this runs. Written again here, before onSuccess (which on the reload
-        // path never returns), so a success is never without it.
+        // path (both the reload and the in-place branch run it). Deliberately set BEFORE
+        // onSuccess, which on the reload path never returns — and held since the attempt began (`holdPasswordMarker`).
         lsSet(PW_FORCE_PENDING_PREFIX + name, '1');
         // Confirm success before the (usually slow) reload kicks in, so there is no silent
         // "did it work?" gap between the click and the destination page appearing.
@@ -797,23 +745,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
      * the card is still up, for them, with nothing else in flight, it opens the page — the saved session the
      * failure kept is confirmed (external review, 23 Nov 2026). Committed through `runNamedSignIn` with the
      * answer already in hand, so the local session is written by the one path that writes it.
-     *
-     * A NEWER ATTEMPT THAT FAILED DOES NOT WITHDRAW IT (review, 24 Nov 2026). The same colleague may try
-     * again after the app ended the first attempt and mistype; the first then lands. It still opens the page:
-     * it was their own correct password, Firebase holds that account whatever this card does (session.js
-     * leaves a same-member landing alone unless the session was cleared — `_clearedGen`), and the
-     * Calendar's late-identity watcher and page-session's late-identity hold would open the page on it
-     * anyway. Standing down here would leave the card saying "Password not recognised" over a member who is
-     * signed in. What does supersede it is checked: an attempt still in flight (its own answer decides), a
-     * card moved to somebody else, a card taken down, and a newer attempt for another member, which clears
-     * this one's session — session.js signs the late landing back out and it answers false.
-     *
-     * The set-password marker's hold is released here whatever the card then does, so a NO takes it away
-     * even after the card has gone (`releasePasswordMarker`).
+     * A newer attempt of theirs that FAILED does not withdraw it: it was their own correct password, and
+     * Firebase holds that account whatever this card does (login-core.js → "A LATE ANSWER AFTER A NEWER
+     * ATTEMPT"). The set-password marker's hold is released first, whatever the card then does.
      * @param {string} name @param {string} typedPw @param {Promise<boolean>} late
      */
     function awaitLateSignIn(name, typedPw, late) {
-        late.then((named) => { releasePasswordMarker(name, named); return named; }, () => { releasePasswordMarker(name, false); return false; }).then(async (named) => {
+        late.then((named) => { releasePasswordMarker(name, named); return named; }).then(async (named) => {
             if (!named || !overlay.isConnected || _attempting || nameSelect.value !== name) return;
             const r = await runNamedSignIn({ ...signInDeps(name, typedPw), ensureNamedSession: async () => true });
             if (!r.ok) { showError(/** @type {string} */ (r.error)); return; }
@@ -862,22 +800,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
             // class; see runNamedSignIn / ROADMAP_HISTORY.md). On failure we restore the button and
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
-            // The set-password step's marker goes in BEFORE the attempt can sign anybody in: a page may open
-            // on Firebase's own announcement of the user before this attempt answers (`holdPasswordMarker`).
-            holdPasswordMarker(name);
-            /** @type {Awaited<ReturnType<typeof runNamedSignIn>>} */ let _result;
-            try {
-                _result = await runNamedSignIn(signInDeps(name, typedPw));
-            } catch (e) {
-                releasePasswordMarker(name, false);
-                throw e;
-            }
-            if (_result.ok) releasePasswordMarker(name, true);
-            else if (_result.late) awaitLateSignIn(name, typedPw, _result.late);   // releases it when it answers
-            else releasePasswordMarker(name, false);
+            holdPasswordMarker(name);   // before Firebase can announce anybody (login-core.js says why)
+            const _result = await runNamedSignIn(signInDeps(name, typedPw)).catch((e) => { releasePasswordMarker(name, false); throw e; });
+            if (_result.ok || !_result.late) releasePasswordMarker(name, _result.ok);   // a late answer releases its own
             if (!_result.ok) {
                 clearStatusProgress();
                 clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
+                if (_result.late) awaitLateSignIn(name, typedPw, _result.late);
                 // Is the card still showing the person this attempt was for? The pickers are inert in
                 // flight (`setPickersInert`), but a pick from a sheet that was already closing when the
                 // member pressed Enter still lands. Then this failure is the EARLIER person's: it is
