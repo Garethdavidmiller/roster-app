@@ -692,7 +692,19 @@ jobs:
   # jobs at once, and three of #1803's waited up to 69 seconds for a runner, so a job added here is
   # also a job queued.
   #
-  # THE COST, STATED: ten jobs pay the ~1m18s setup instead of two, so total runner minutes go up
+  # AND A FIFTH IPHONE SHARD, RE-CUT (24 Nov 2026). The suite grew by about half in a week — the
+  # iPhone's 69 test-minutes of 17 Nov were 101 by #1843 — and its four shards became the last jobs
+  # in every run, 11 to 19 minutes a job. Timed from three PR runs' WebKit job logs (#1843, #1842's
+  # merge head and #1840's), each test's time averaged over the runs: the iPhone's four count-equal
+  # shards ran 22.6 to 27.2 test-minutes, and no cut of four does better than 25.3, about 12.7 minutes
+  # on two workers. Five time-equal shards come to 20.2 each, about 10 minutes — level with desktop
+  # WebKit, whose four re-cut shards come to 18.0 to 18.1 (from 16.1 to 19.0), and with the two Links
+  # projects. A sixth would buy under two minutes for another queued job. Single runs varied far more
+  # than the cut did (one shard ran 31.9 test-minutes where the average said 27), so read a spread
+  # across several runs before re-cutting, and re-cut by the same method: the cut goes where the
+  # averaged time is equal.
+  #
+  # THE COST, STATED: eleven jobs (ten until the fifth iPhone shard) pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here
   # is a person waiting on a merge, not runner minutes.
   webkit:
@@ -705,15 +717,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { project: webkit, shard: 1, shards: 4, weights: '283:430:407:467' }
-          - { project: webkit, shard: 2, shards: 4, weights: '283:430:407:467' }
-          - { project: webkit, shard: 3, shards: 4, weights: '283:430:407:467' }
-          - { project: webkit, shard: 4, shards: 4, weights: '283:430:407:467' }
+          - { project: webkit, shard: 1, shards: 4, weights: '293:489:438:472' }
+          - { project: webkit, shard: 2, shards: 4, weights: '293:489:438:472' }
+          - { project: webkit, shard: 3, shards: 4, weights: '293:489:438:472' }
+          - { project: webkit, shard: 4, shards: 4, weights: '293:489:438:472' }
           - { project: webkit-links, shard: 1, shards: 1, weights: '1' }
-          - { project: mobile-safari, shard: 1, shards: 4, weights: '298:496:327:466' }
-          - { project: mobile-safari, shard: 2, shards: 4, weights: '298:496:327:466' }
-          - { project: mobile-safari, shard: 3, shards: 4, weights: '298:496:327:466' }
-          - { project: mobile-safari, shard: 4, shards: 4, weights: '298:496:327:466' }
+          - { project: mobile-safari, shard: 1, shards: 5, weights: '235:374:406:294:383' }
+          - { project: mobile-safari, shard: 2, shards: 5, weights: '235:374:406:294:383' }
+          - { project: mobile-safari, shard: 3, shards: 5, weights: '235:374:406:294:383' }
+          - { project: mobile-safari, shard: 4, shards: 5, weights: '235:374:406:294:383' }
+          - { project: mobile-safari, shard: 5, shards: 5, weights: '235:374:406:294:383' }
           - { project: mobile-safari-links, shard: 1, shards: 1, weights: '1' }
     # Each job carries ONE engine and a share of its tests. The TEST STEP carries the budget (25 minutes,
     # below); this job cap is only the backstop against a hung runner, and it is wider than the
