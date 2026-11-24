@@ -86,9 +86,9 @@ const ingestHuddle = onRequest(
 
         // ---- Authentication ----
         // A BLANK OR MALFORMED SECRET IS A DEPLOYMENT FAULT, answered 503 before any compare (Nov 2026
-        // review — as `unlockCalendarViewer` treats its PIN). Unchecked, an empty secret made the
+        // review — as the retired `unlockCalendarViewer` treated its PIN). Unchecked, an empty secret made the
         // expected header the bare "Bearer ", which a caller sending exactly that would match: the door
-        // to the staff-wide Huddle broadcast open to anybody with the URL. Trimmed, as the PIN is: a
+        // to the staff-wide Huddle broadcast open to anybody with the URL. Trimmed, as the PIN was: a
         // newline picked up when the secret was piped in can never arrive in a header, so it could only
         // ever refuse the real caller. A control character left inside it cannot arrive in one either.
         const secret = String(HUDDLE_SECRET.value() || '').trim();

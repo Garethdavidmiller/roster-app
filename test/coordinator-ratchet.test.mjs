@@ -665,9 +665,12 @@ const CAPS = {
     // Stays at 1100 in Nov 2026 (review fixes), measured 1,048 from 1,097: the throttle sweep left for
     // functions/pin-lockout.js with the PIN lockout's alert, and the streamed body reader for
     // request-helpers.js, so the alert's hook landed with headroom to spare rather than a raise.
-    'functions/index.js':                1100,   // the composition root; its exports ARE the deploy surface
+    // 1100 → 900 in the staff PIN's server release (Nov 2026): `unlockCalendarViewer` went, and with it
+    // a quarter of the file (806 measured after). Brought down with the code — measured + 50, to the
+    // next 50 — and kept rather than dropped, so crossing LARGE_THRESHOLD again is still a decision.
+    'functions/index.js':                 900,   // the composition root; its exports ARE the deploy surface
     // NEW at the v24.28 review, three lines under LARGE_THRESHOLD (897): the auth endpoints — the
-    // PIN exchange, the password reset, account set-up — are the security-sensitive half of the
+    // password reset, account set-up — are the security-sensitive half of the
     // Functions, and a module that close to the line would otherwise cross it with nobody deciding
     // anything. Capped now so crossing is a decision. Measured + 50, rounded to the next 50.
     // 950 → 750 in Nov 2026, at 949 of 950 with the sign-in audit's account fixes still to land: the

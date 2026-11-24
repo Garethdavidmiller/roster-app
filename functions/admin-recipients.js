@@ -3,9 +3,10 @@
 /**
  * functions/admin-recipients.js — WHO a notice meant for the admin may go to. One rule, every sender.
  *
- * Three notices are addressed to the admin and to nobody else: the reset-request doorbell
- * (./reset-request.js), the Error Log notice (./error-log-notify.js) and the staff-PIN lockout notice
- * (./pin-lockout.js). Each starts from the admin NAMES in roster-members.json `roles.admin` and has to
+ * Two notices are addressed to the admin and to nobody else: the reset-request doorbell
+ * (./reset-request.js) and the Error Log notice (./error-log-notify.js) — a third, the retired staff
+ * PIN's lockout notice, went with the PIN's endpoint in its server release (Nov 2026). Each starts
+ * from the admin NAMES in roster-members.json `roles.admin` and has to
  * turn them into accounts. Until Nov 2026 two of them did it two ways: the Error Log asked that the
  * account be enabled and carry the `admin` claim, and the doorbell took whatever account held the
  * admin's derived address. That is the same question answered strictly in one place and loosely in

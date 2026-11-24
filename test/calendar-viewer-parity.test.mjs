@@ -2,30 +2,29 @@
  * calendar-viewer-parity.test.mjs — the staff-PIN feature's STATIC contracts, through its retirement.
  * Run: node scripts/run-tests.mjs test/calendar-viewer-parity.test.mjs   (part of `npm run test:hygiene`)
  *
- * ── CONTRACT A: the identity agrees across three languages ──────────────────────────────────────
+ * ── THE PIN IS RETIRED (owner, 23 Nov 2026), IN THREE RELEASES ──────────────────────────────────
  *
- * The viewer uid and its claim are written down in three places that cannot import each other:
- * `calendar-access-core.js` (browser ESM), `functions/calendar-viewer-auth.js` (CommonJS — Cloud
- * Functions cannot import browser modules without a build step) and `firestore.rules` (its own
- * language, which imports nothing at all). This is the same boundary `surname-parity.test.mjs`
- * exists for, and the failure mode is worse here: a drifted uid mints a token the rules do not
- * recognise, so the PIN is accepted, the sign-in succeeds, and every override read is then denied.
- * The member sees an unlocked Calendar with no shifts on it and no error anywhere.
+ * Release 1 (client) took every PIN control out of the app (Contract D). Release 2 (server) deleted
+ * the exchange, `unlockCalendarViewer`, its secret binding, and every grant the rules made to its
+ * `calendarViewer` claim (Contracts A and B now pin that they STAY gone). What is left until the
+ * cleanup release is the client's recognition of a leftover PIN session — its uid, claim and boot
+ * plumbing, so a browser still holding one is torn down safely (Contract C) — and the server's
+ * refusal to adopt the shared account (functions/retired-viewer-account.js), until the owner deletes it.
  *
- * ── CONTRACT B: the PIN itself never enters the repository ──────────────────────────────────────
+ * ── CONTRACT A: the identity agrees across the boundary, and the rules grant it nothing ──────────
  *
- * The value lives ONLY as the deployed `CALENDAR_VIEWER_PIN` secret. This file cannot check for the
- * value — writing it here would be the leak it is meant to prevent — so it checks the SHAPES a leak
- * would take: a client file naming the secret, a client-side comparison of any kind, or a stored
- * verifier the browser could test offline. A four-digit space is small enough that a hash shipped
- * to the browser is not a protection, it is a ten-thousand-iteration loop.
+ * The viewer uid and its claim are written down where the two halves cannot import each other:
+ * `calendar-access-core.js` (browser ESM) and `functions/retired-viewer-account.js` (CommonJS — Cloud
+ * Functions cannot import browser modules without a build step). They must still agree, or the client
+ * would miss a leftover session the server refuses to adopt, or the reverse. `firestore.rules` used to
+ * be the third copy; since the server release it must not mention the claim at all.
  *
- * ── THE PIN IS RETIRED FROM THE CLIENT (owner, 23 Nov 2026) ─────────────────────────────────────
+ * ── CONTRACT B: the PIN itself never enters the repository, and its secret is bound nowhere ──────
  *
- * Release 1 of 3 took every PIN control out of the app: no client file calls the exchange, shapes a
- * PIN or switches to the viewer's session-only persistence (Contract D). What stays, until the server
- * release and then the cleanup release, is the viewer's uid, claim and boot plumbing — so a browser
- * still holding a viewer session is recognised and torn down safely — and Contracts A to C with it.
+ * The value lived ONLY as the deployed `CALENDAR_VIEWER_PIN` secret, which the owner destroys after
+ * the server release. This file cannot check for the value — writing it here would be the leak it is
+ * meant to prevent — so it checks the SHAPES a leak would take: a client file naming the secret, a
+ * comparison of any kind, a stored verifier — and, since the server release, a function binding it.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,27 +37,33 @@ const REPO_ROOT_URL = new URL('../', import.meta.url);
 
 const require = createRequire(REPO_ROOT_URL);
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, REPO_ROOT_URL), 'utf8');
+/** Every Cloud Functions source file, by its path from the repository root. */
+const functionFiles = readdirSync(new URL('./functions/', REPO_ROOT_URL))
+    .filter(f => f.endsWith('.js')).map(f => `functions/${f}`);
 
-describe('Contract A — one identity, three languages', () => {
-    test('the Cloud Function helper agrees on the viewer uid', () => {
-        const fn = require('./functions/calendar-viewer-auth.js');
+describe('Contract A — one identity across the boundary, and the rules grant it nothing', () => {
+    test('the server recognises the same uid the client tears down', () => {
+        const fn = require('./functions/retired-viewer-account.js');
         assert.equal(fn.CALENDAR_VIEWER_UID, CALENDAR_VIEWER_UID,
-            'the browser and the Cloud Function disagree about which account the PIN signs into');
+            'the browser and the Cloud Functions disagree about which account the retired PIN signed into');
     });
 
-    test('the Cloud Function mints exactly the claim the client verifies', () => {
-        const fn = require('./functions/calendar-viewer-auth.js');
-        assert.equal(fn.viewerClaims()[CALENDAR_VIEWER_CLAIM], true,
-            'the minted token would not carry the claim calendar-access.js checks for');
+    test('the server recognises the account by the same claim the client checks', () => {
+        const { isViewerAccount } = require('./functions/retired-viewer-account.js');
+        assert.equal(isViewerAccount({ uid: 'some-other-uid', customClaims: { [CALENDAR_VIEWER_CLAIM]: true } }), true,
+            `the server no longer recognises an account carrying \`${CALENDAR_VIEWER_CLAIM}\` — Set up accounts could adopt it`);
+        assert.equal(isViewerAccount({ uid: 'some-other-uid', customClaims: { name: 'A. Member' } }), false,
+            'guard the guard: an ordinary account is not the viewer');
     });
 
-    test('firestore.rules reads the SAME claim, on the overrides collection', () => {
-        const rules = read('./firestore.rules');
-        // Comments are stripped first, deliberately: this file's own header discusses the claim at
-        // length, and a guard satisfied by prose is not a guard.
-        const code = rules.replace(/\/\/[^\n]*/g, '');
-        assert.ok(code.includes(`request.auth.token.get('${CALENDAR_VIEWER_CLAIM}', false) == true`),
-            `firestore.rules never reads \`${CALENDAR_VIEWER_CLAIM}\` — the minted token would grant nothing`);
+    test('firestore.rules and storage.rules no longer read the claim anywhere (the server release)', () => {
+        // Comments are stripped first, deliberately: both files' headers tell the claim's history, and
+        // a guard tripped by prose is a guard people learn to ignore.
+        for (const file of ['./firestore.rules', './storage.rules']) {
+            const code = read(file).replace(/\/\/[^\n]*/g, '');
+            assert.ok(!code.includes(CALENDAR_VIEWER_CLAIM) && !code.includes('isCalendarViewer'),
+                `${file} reads \`${CALENDAR_VIEWER_CLAIM}\` again — a leftover PIN session would be granted something`);
+        }
     });
 
     test('the overrides READ rule requires an identity — and the HOLD is declared in both places', () => {
@@ -68,28 +73,24 @@ describe('Contract A — one identity, three languages', () => {
 
         // ── THE HOLD, CHECKED STATICALLY (v20.16) ────────────────────────────────────────────
         //
-        // A bare `allow read;` above the tightened rule holds the collection public during the
+        // A bare `allow read;` above the tightened rule held the collection public during the
         // deploy window (RECOVERY_RUNBOOK.md → "The Calendar PIN"). It is legitimate, and it is
-        // also the single most dangerous line in this file — it makes the staff PIN guard a door
-        // that is open, and it looks like documentation of a rule rather than a rule.
+        // also the single most dangerous line in that file — it makes the read rule a door that is
+        // open, and it looks like documentation of a rule rather than a rule.
         //
         // So it is allowed only when firestore.rules.test.mjs DECLARES it. That file's constant is
         // what its own three read tests assert against, so declaring it there means the emulator
         // suite proves the hold is real; checking it from here means `npm test` — which runs with
         // no emulator, on every branch — fails the moment the two disagree in either direction.
-        // Removing the hold is therefore two edits that must land together, and forgetting either
-        // one is loud rather than silent.
         const held = /const OVERRIDES_READ_HELD_OPEN\s*=\s*true\b/
             .test(read('./test/firestore.rules.test.mjs'));
         const open = /allow read;/.test(block);
         assert.equal(open, held, open
-            ? 'overrides read is public and nothing declares it — the staff PIN would be guarding a door that is open'
+            ? 'overrides read is public and nothing declares it'
             : 'firestore.rules.test.mjs still declares OVERRIDES_READ_HELD_OPEN = true, but the hold line is gone — its read tests now assert the wrong outcome');
 
         assert.match(block, /allow read: if request\.auth != null/,
             'the overrides read rule must require an authenticated identity');
-        assert.ok(block.includes('isCalendarViewer()'),
-            'the viewer capability is not accepted for override reads — the PIN would unlock nothing');
         // isMember(), not a bare `'name' in token` (v24.23): Firebase copies a SELF-SET display name
         // into `name`, so the bare check admitted an anonymous session that named itself a member.
         assert.ok(block.includes('isMember()'), 'a real member would be denied override reads');
@@ -97,36 +98,12 @@ describe('Contract A — one identity, three languages', () => {
             'a bare name claim is a door again — any session can set its own display name');
     });
 
-    test('the viewer is NOT granted a write anywhere in the rules', () => {
-        // Scoped to write verbs specifically. A `calendarViewer` mentioned in an `allow create` /
-        // `update` / `delete` would be a capability escalation, whichever collection it appeared in.
+    test('the retired throttle store has no rule of its own — refused to every client by default', () => {
+        // Its block (`allow read, write: if false`) went with its only writer in the server release.
+        // An unmatched path refuses every client; a block that came back could only open it.
         const rules = read('./firestore.rules').replace(/\/\/[^\n]*/g, '');
-        // Split on `allow` so each permission clause is examined on its own.
-        const clauses = rules.split(/\ballow\s+/).slice(1);
-        for (const c of clauses) {
-            const verbs = c.slice(0, c.indexOf(':'));
-            if (!/create|update|write|delete/.test(verbs)) continue;
-            const body = c.slice(c.indexOf(':'), c.indexOf(';') + 1);
-            // `isCalendarViewer()` is the GRANT form, so it may never appear in a write clause.
-            assert.ok(!body.includes('isCalendarViewer('),
-                `a write clause (allow ${verbs.trim()}) grants something to the viewer:\n${body}`);
-            if (!body.includes(CALENDAR_VIEWER_CLAIM)) continue;
-            // The ONE legal appearance in a write clause is a DENIAL (`!= true`).
-            assert.match(body, new RegExp(`${CALENDAR_VIEWER_CLAIM}\\s*!=\\s*true`),
-                `a write clause (allow ${verbs.trim()}) grants something to the viewer:\n${body}`);
-        }
-    });
-
-    test('the throttle store is closed to every client', () => {
-        const rules = read('./firestore.rules').replace(/\/\/[^\n]*/g, '');
-        const i = rules.indexOf('match /viewerAttempts/');
-        assert.ok(i > -1, 'the viewerAttempts block is missing — the throttle state would be client-visible');
-        // Slice from the block's OPENING brace, not from `indexOf('{', i)` — that finds the `{` of
-        // the `{sourceKey}` wildcard in the match path, and the block would come back as one line.
-        const open  = rules.indexOf('{', rules.indexOf('}', i));
-        const block = rules.slice(open, rules.indexOf('}', open) + 1);
-        assert.match(block, /allow read, write: if false;/,
-            'a client that can READ this paces itself under the limit; one that can WRITE it clears its own count');
+        assert.ok(!rules.includes('match /viewerAttempts/'),
+            'a viewerAttempts block is back — nothing writes it, and the owner purges it');
     });
 });
 
@@ -144,7 +121,8 @@ describe('Contract B — the PIN is not in the repository', () => {
      *
      * `clientFiles` skips `*.test.*` because a test may legitimately name the parameter while
      * exercising the shape rule. That exemption was reasonable and it was also the blind spot: the
-     * live PIN reached the repository inside `calendar-viewer-auth.test.mjs`, as a set of malformed
+     * live PIN reached the repository inside `calendar-viewer-auth.test.mjs` (deleted with the PIN's
+     * server release), as a set of malformed
      * fixtures written as near-misses of it — a truncation, a spaced form, and it with a trailing
      * keystroke. Each is individually harmless and together they reconstruct the secret, and the
      * one guard built to prevent exactly this was not looking at the file.
@@ -219,35 +197,29 @@ describe('Contract B — the PIN is not in the repository', () => {
     //
     // So it was dropped rather than exempted. A guard with an exemption list for its false positives
     // is one people learn to silence, and this repo has that lesson written down in three other
-    // places. What protects the secret instead: the verifier scan above now covers test files, the
-    // fixtures in calendar-viewer-auth.test.mjs carry a comment saying why they are invented, and
-    // the value itself must be ROTATED — removing it from the working tree leaves it in git history.
+    // places. What protects the secret instead: the verifier scan above covers test files, and the
+    // value itself must be DESTROYED — removing it from the working tree leaves it in git history,
+    // which is why the PIN was rotated then and its secret is destroyed now.
 
-    test('the Cloud Function READS the secret and never logs or returns it', () => {
-        const src = read('./functions/index.js');
-        const i = src.indexOf('exports.unlockCalendarViewer');
-        assert.ok(i > -1, 'the unlockCalendarViewer function is missing');
-        const fn = src.slice(i);
-        assert.ok(fn.includes('CALENDAR_VIEWER_PIN.value()'), 'the handler does not read the secret parameter');
-        assert.ok(src.includes("defineSecret('CALENDAR_VIEWER_PIN')"),
-            'the secret must be bound with defineSecret, not read from the environment');
-        // The PIN first; the push key may sit beside it (the station-wide block's notice to the admin).
-        assert.ok(/secrets:\s*\[CALENDAR_VIEWER_PIN\b/.test(fn),
-            'the function declaration does not BIND the secret — .value() would be empty at runtime');
-        // Nothing that could carry the candidate into a log line or a response body.
-        for (const line of fn.split('\n')) {
-            if (!/console\.(log|warn|error)|res\.json|res\.send/.test(line)) continue;
-            assert.doesNotMatch(line, /\bsupplied\b|\bbody\.pin\b|\breq\.body\b/,
-                `this line could put the submitted PIN into a log or a response:\n${line.trim()}`);
+    test('no Cloud Function exchanges a PIN or binds its secret any more (the server release)', () => {
+        // A function that bound CALENDAR_VIEWER_PIN would make every Functions deploy resolve a secret
+        // the owner has destroyed — failing the WHOLE deploy — and one that exported the exchange
+        // would bring the PIN back for whoever found the URL. Comments may tell the history.
+        /** @type {string[]} */
+        const offenders = [];
+        for (const f of functionFiles) {
+            const code = read('./' + f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[\s;{}(),])\/\/[^\n]*/g, '$1');
+            if (code.includes('CALENDAR_VIEWER_PIN')) offenders.push(`${f} — names the secret`);
+            if (/exports\.unlockCalendarViewer|unlockCalendarViewer\s*[:=]/.test(code)) offenders.push(`${f} — defines the exchange`);
         }
+        assert.deepEqual(offenders, [], 'the staff PIN is back on the server:\n  ' + offenders.join('\n  '));
     });
 
-    test('the documentation tells the developer to set it INTERACTIVELY', () => {
-        // A doc that records the value is the same leak as a source file that does. The instruction
-        // has to exist somewhere a future maintainer will look before deploying.
-        const docs = ['./docs/OPERATIONS_REFERENCE.md', './CLAUDE.md'].map(read).join('\n');
-        assert.match(docs, /functions:secrets:set CALENDAR_VIEWER_PIN/,
-            'no doc explains how to set the PIN without committing it');
+    test('the documentation tells the owner to DESTROY the secret', () => {
+        // The secret outlives the code that read it until somebody removes it, and a secret nothing
+        // reads is a secret nobody rotates. The instruction has to be where the owner will look.
+        assert.match(read('./docs/OPERATIONS_REFERENCE.md'), /functions:secrets:destroy CALENDAR_VIEWER_PIN/,
+            'no doc tells the owner how to destroy the retired PIN\'s secret');
     });
 
     test('no repository file contains a bare four-digit PIN assignment for this feature', () => {
@@ -257,7 +229,7 @@ describe('Contract B — the PIN is not in the repository', () => {
         // that cries wolf acquires an exemption list, which is how a guard stops guarding.
         /** @type {string[]} */
         const offenders = [];
-        const all = [...clientFiles, 'functions/index.js', 'functions/calendar-viewer-auth.js'];
+        const all = [...clientFiles, ...functionFiles];
         for (const f of all) {
             const src = read('./' + f);
             const re = /\b\w*[Pp][Ii][Nn]\w*\s*[:=]\s*['"`]?[0-9]{4}['"`]?/g;
@@ -341,9 +313,9 @@ describe('Contract C — boot persistence is viewer-aware', () => {
 
 // ── CONTRACT D: NO CLIENT FILE ASKS FOR, SHAPES OR EXCHANGES A PIN (owner, 23 Nov 2026) ─────────────
 //
-// The staff PIN is retired from the app. The server keeps the exchange until its own release, so a
-// client that called it again would quietly bring the PIN back for whoever found the URL: these
-// shapes are what bringing it back would take. `functions/` is the server's and is not scanned.
+// The staff PIN is retired from the app, and since the server release the exchange is gone too
+// (Contract B). These shapes are what bringing it back to the client would take. `functions/` is the
+// server's and is scanned by Contract B.
 describe('Contract D — the client no longer has a PIN', () => {
     const served = readdirSync(new URL('.', REPO_ROOT_URL))
         .filter(f => /\.(js|mjs|html)$/.test(f)).filter(f => !f.includes('.test.'));

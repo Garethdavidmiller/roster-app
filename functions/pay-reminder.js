@@ -26,7 +26,7 @@
 const { getAuth } = require('firebase-admin/auth');
 const { nameToEmail, buildPushPayload } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush } = require('./push');
-const { isViewerAccount } = require('./calendar-viewer-auth');
+const { isViewerAccount } = require('./retired-viewer-account');
 
 /** The roster-members.json keys the reminder is addressed to — `gradeForRole`'s non-null answers. */
 const PAY_REMINDER_GRADES = Object.freeze(['cea', 'ces']);

@@ -8,10 +8,9 @@
  * (./account-reads.js), and returns them with its own. Everything ACCOUNT-shaped: who has
  * a login, what tier it carries, and how a locked-out member reaches the admin.
  *
- * NOT here, deliberately: unlockCalendarViewer. It is account-ADJACENT but it stays in
- * index.js — calendar-viewer-parity.test.mjs pins its handler source there (the secret
- * binding, the no-log rule), and it is the endpoint most recently stabilised in production
- * (the v20.50 outage); moving it buys nothing and costs the pin.
+ * The retired staff PIN's exchange, unlockCalendarViewer, lived in index.js rather than here; it
+ * was deleted in the PIN's server release (Nov 2026). Its shared account is still refused by name
+ * below (./retired-viewer-account.js says why, and until when).
  *
  * Factory rather than plain module for the reasons documented at the top of documents.js:
  * index.js stays the composition root, the static guards keep one home for the shared
@@ -73,7 +72,7 @@ async function restoreResetAt(member, { previous, writeTime }) {
     await getFirestore().collection('passwordStatus').doc(member).update(
         { resetAt: previous === undefined ? FieldValue.delete() : previous }, { lastUpdateTime: writeTime });
 }
-const { isViewerAccount } = require('./calendar-viewer-auth');
+const { isViewerAccount } = require('./retired-viewer-account');
 const rosterMembers = require('./roster-members.json');
 
 /**
@@ -239,9 +238,10 @@ const setupRosterAuth = onRequest(
                     let reclaiming = false, reEnabling = false;
                     try {
                         const existing = await getAuth().getUserByEmail(email);
-                        // The shared PIN account with this email linked to it: never adopted (the next unlock rebuilds it).
+                        // The retired PIN's shared account with this email linked to it: never adopted. No
+                        // unlock rebuilds it any more; deleting the account is the owner's step.
                         if (isViewerAccount(existing)) {
-                            failed.push(`${name} (${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock)`);
+                            failed.push(`${name} (${email} is linked to the retired staff PIN account — delete that account in the Firebase console, then run this again)`);
                             continue;
                         }
                         // An account whose claims belong to ANOTHER member is never adopted: stamping
@@ -465,11 +465,11 @@ const resetMemberPassword = onRequest(
             const email    = nameToEmail(member);
             const password = nameToPassword(member);   // surname default (reuses the parity-guarded helper)
             const user = await getAuth().getUserByEmail(email);
-            // The shared Calendar PIN account can end up holding a roster email (any PIN holder can
-            // link one). Setting up accounts already refuses to adopt it; a reset must not give it a
-            // known password and revoke every PIN session either (v24.38).
+            // The retired staff PIN's shared account can end up holding a roster email (any holder of
+            // a PIN session left open can link one). Setting up accounts already refuses to adopt it; a
+            // reset must not give it a known password either (v24.38).
             if (isViewerAccount(user)) {
-                return res.status(409).json({ error: `${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock` });
+                return res.status(409).json({ error: `${email} is linked to the retired staff PIN account — delete that account in the Firebase console, then run this again` });
             }
             // …and an account claimed for ANOTHER member is not this member's to reset (as Set up
             // accounts refuses to adopt it): it would put that member on this one's default.

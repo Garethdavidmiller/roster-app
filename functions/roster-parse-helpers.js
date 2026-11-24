@@ -33,7 +33,7 @@ const {
     isBlankReading, isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning,
 } = require('./cell-day-rules');
 const { readOtherDayCell, namesMeeting } = require('./roster-other-days');
-const { isViewerAccount } = require('./calendar-viewer-auth');
+const { isViewerAccount } = require('./retired-viewer-account');
 const { jsonBodyOf } = require('./request-helpers');
 
 // ── Shift normalisation ──────────────────────────────────────────────────────
@@ -1016,8 +1016,9 @@ function summariseSignIns(users, nowMs, allowedEmails) {
 
 /**
  * Which Firebase Auth accounts are leaver ORPHANS: a `@myb-roster.local` account not in the active
- * set, not disabled, and never the shared PIN account (a PIN holder can link an email to it, and
- * disabling it is a station-wide PIN outage). Pure; the handler previews or disables+revokes them.
+ * set, not disabled, and never the retired staff PIN's shared account (a leftover PIN session can
+ * link an email to it, and deleting it is the owner's step — ./retired-viewer-account.js). Pure; the
+ * handler previews or disables+revokes them.
  * @param {Array<{ uid?: string, email?: string, displayName?: string, disabled?: boolean }>} users
  * @param {Set<string>} activeEmails  emails of currently-provisioned members (never disabled)
  * @returns {Array<{ uid: string|undefined, label: string }>}
@@ -1057,7 +1058,7 @@ const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
  * own. Within it `unstamped` (NO claim at all) is told apart from `claims`, because that press TAKES
  * such an account BACK (`mustReclaim`: surname default, signed out, other ways in removed) — not a fix.
  * And two the press REFUSES (review D3, Nov 2026), so they are not `claims` either, whose remedy is the
- * press: `viewer-linked` — the shared PIN account holds the address (`isViewerAccount`) — and
+ * press: `viewer-linked` — the retired staff PIN's shared account holds the address (`isViewerAccount`) — and
  * `other-member` — the account's claims name somebody else (`claimedByAnotherMember`). Asked in the
  * button's own order, so the audit names the reason Set up accounts will give.
  *

@@ -9,7 +9,8 @@
  *
  * ── WHY A SCHEDULE, NOT A TRIGGER ON EACH ENTRY ──────────────────────────────────────────────────
  *
- * `clientErrors` is written by every signed-in member and by the staff-PIN viewer. A trigger would run
+ * `clientErrors` is written by every signed-in member (and was by the staff-PIN viewer, until the PIN's
+ * server release in Nov 2026). A trigger would run
  * a Cloud Function for EVERY entry, so somebody filling the log would add a function call to each write;
  * a check every fifteen minutes costs the same whatever arrives. The price is up to fifteen minutes
  * before the phone rings, which an Error Log can afford.

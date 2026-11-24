@@ -2843,7 +2843,7 @@ describe('summariseAccountGaps', () => {
         });
 
         test('the shared PIN account holding a member\'s address is `viewer-linked`, by its uid or its claim', () => {
-            const { CALENDAR_VIEWER_UID } = require('./functions/calendar-viewer-auth.js');
+            const { CALENDAR_VIEWER_UID } = require('./functions/retired-viewer-account.js');
             for (const over of [{ uid: CALENDAR_VIEWER_UID, customClaims: { calendarViewer: true } },
                 { uid: 'some-uid', customClaims: { calendarViewer: true } }, { uid: CALENDAR_VIEWER_UID, customClaims: null }]) {
                 const users = allGood().map(u => u.displayName === 'B. Toth' ? { ...u, ...over } : u);

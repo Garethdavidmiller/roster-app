@@ -21,7 +21,6 @@
 const { onRequest } = require('firebase-functions/v2/https');
 const { nameToEmail, resolveRosterAuthConfig, summariseSignIns, summariseAccountGaps } = require('./roster-parse-helpers');
 const { requireAdmin } = require('./request-helpers');
-const { readPinLockout } = require('./pin-lockout');
 
 /**
  * Every account in the project. `listUsers` caps a page at 1000 and the roster is ~50, so this is one
@@ -116,25 +115,15 @@ const getSignInStats = onRequest(
 
 /**
  * getAccountSetupGaps — who on the roster is not properly provisioned, and who has left but still is.
- * And, since Nov 2026, whether the staff PIN's door is SHUT for everyone (`pinLockout`).
+ * For a few days in Nov 2026 it also said whether the retired staff PIN's door was shut for everyone
+ * (`pinLockout`); that field went with the PIN's endpoint in its server release. An Operations page
+ * from before then reads its absence as UNKNOWN and shows nothing, which is the right answer now.
  *
  * WHY A SEPARATE ENDPOINT FROM getSignInStats. That one's whole contract, stated in its own header
  * and relied on by the Usage card's privacy note, is "four integers; no identity". This one has to
  * return NAMES — a count of gaps the admin cannot act on is worse than none — so folding it in
  * would quietly break the promise the other one makes. Two endpoints, two contracts, neither
  * apologising for the other.
- *
- * WHY THE PIN LOCKOUT RIDES HERE. It answers the same question as the rest — can staff get in, and
- * if not, what does the admin need to know — and it reaches the same place: Staff Login Accounts and
- * the "Needs attention" strip that card feeds, which runs no reads of its own. A field on this answer
- * needed no rules change and no new client read; getSignInStats was the other candidate, and its
- * "four integers" promise is the one this endpoint exists to keep apart from. The field is TIMES AND
- * COUNTS (`lockoutSummary`, calendar-viewer-auth.js): never the PIN, never an address. Whether a block
- * is still RUNNING comes from the all-sources throttle row, read beside the record (`readPinLockout`,
- * owner 18 Nov 2026), because a right PIN can lift a block the record has already written down. Three states,
- * like the gaps' own: an object (a block running, or one begun in the last day), `null` (none), and
- * ABSENT — the record could not be read, or an older server answered — which the client must read as
- * "unknown", never as "none". Its failure costs only the field: the audit still answers.
  *
  * It is a PURE READ. Nothing is written, no account is touched, no claim is applied: pressing "Set
  * up accounts" is still the only thing that changes anything, and it is still idempotent. That
@@ -159,11 +148,6 @@ const getAccountSetupGaps = onRequest(
         const cfg = resolveRosterAuthConfig(rosterMembers);
         if (cfg.error) return res.status(500).json({ error: 'Server roster config invalid' });
 
-        // Started beside the account list, and never able to fail the audit (the header says why).
-        const lockout = readPinLockout(now()).then(v => ({ v }), (e) => {
-            console.warn('[getAccountSetupGaps] the PIN lockout record could not be read:', e && e.code);
-            return null;
-        });
         try {
             // Admins are INCLUDED here, unlike getSignInStats. There they are excluded because the
             // figure is about staff usage; here a second admin whose claim was never applied is
@@ -178,8 +162,7 @@ const getAccountSetupGaps = onRequest(
             console.log('[getAccountSetupGaps]', JSON.stringify({
                 refused: gaps.refused || null, setUp: gaps.setUp.length, leavers: gaps.leavers.length,
             }));
-            const pin = await lockout;
-            return res.json(pin ? { ...gaps, pinLockout: pin.v } : gaps);
+            return res.json(gaps);
         } catch (e) {
             console.error('[getAccountSetupGaps] failed', e && e.code, e);
             return res.status(500).json({ error: 'Could not read account setup state' });
