@@ -3038,7 +3038,7 @@ test('paycalc: a Dispatcher is told the calculator does not cover their pay, and
     await expect(page.locator('.pc-side')).toBeHidden();
     // ...and it is a refusal with a way out, not a dead end — the sign-in card's own.
     await expect(page.locator('#navMenuBtn')).toBeVisible();
-    await expect(card.locator('a.login-back')).toHaveAttribute('href', './');
+    await expect(card.locator('a.role-card-back')).toHaveAttribute('href', './');
     expect(errors, 'Uncaught JS exceptions on the unsupported-role gate').toHaveLength(0);
 });
 
@@ -3176,7 +3176,7 @@ test('paycalc: on a short laptop window the refusal card ends on screen, its way
     const door = await padding('#loginCard');
     await seedSession(page, 'D. Minto');
     await page.goto('/paycalc.html');
-    const back = page.locator('#unsupportedGradeBanner a.login-back');
+    const back = page.locator('#unsupportedGradeBanner a.role-card-back');
     await expect(back).toBeVisible();
     expect(await padding('#unsupportedGradeBanner'), 'the refusal and the sign-in card are one door: one padding').toEqual(door);
     const bottom = await back.evaluate(el => Math.round(el.getBoundingClientRect().bottom));

@@ -3317,14 +3317,16 @@ button.nav-panel-link--notices {
     cursor: default;
     opacity: 1;
 }
-.login-back {
+/* The refusal card's way out (`.role-card-back`) wears the same look under a class of its own: sharing the CLASS put
+   two `.login-back` links on Admin, the card's and the sign-in card's (whole-app review, 24 Nov 2026). */
+.login-back, .role-card-back {
     font-size: var(--type-label);
     color: var(--text-light);
     text-decoration: none;
     display: inline-block;
     transition: color var(--dur-fast) var(--ease-standard);
 }
-@media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
+@media (hover: hover) and (pointer: fine) { .login-back:hover, .role-card-back:hover { color: var(--text-dark); } }
 /* [hidden] must beat the inline-block above: the Calendar's own front door hides its link (login-overlay.js). */
 .login-back[hidden] { display: none; }
 /* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
