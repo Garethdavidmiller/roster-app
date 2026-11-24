@@ -483,9 +483,8 @@
     /* Stacking order (v17.72). The overlay layer was hand-picked magic numbers; the login overlay
        and the paycalc one-time notices both sat at 9000 (a tie resolved only by source order). */
     --z-drawer:   7800;   /* the nav drawer — above every fixed bottom bar (Admin's staged changes 7400,
-                             the save toast and slow-save notice 7500, the AL confirm bar 7600), which
-                             at 300 covered its footer and with it Sign out (v24.52); below every
-                             lightbox, dialog and sheet, which the drawer itself opens */
+                             --z-toast, the AL confirm bar 7600), which at 300 covered its footer and
+                             Sign out (v24.52); below every lightbox, dialog and sheet it opens */
     --z-toast:    7500;   /* the save toast (admin.css) and slow-save notice, under the AL confirm bar */
     --z-lightbox: 8000;   /* .lb-overlay base (About, Tips, dialogs, the date picker, one-time notices);
                              a confirm dialog opened over a higher layer lifts above it (overlay.js) */
@@ -3305,8 +3304,7 @@ button.nav-panel-link--notices {
     #loginSubmit:hover, #pwfSave:hover, #calLockSubmit:hover { background: var(--primary-blue-dark); }
 }
 #loginSubmit:active, #pwfSave:active, #calLockSubmit:active { transform: scale(var(--press-scale)); }
-/* Disabled mid-sign-in or under the 30-second lock, it looks it, as `.btn-save:disabled` does (whole-app
-   review, 24 Nov 2026). After :active, so a press on it does not scale. */
+/* Disabled mid-sign-in or under the lock, it looks it; after :active, so a press does not scale. */
 #loginSubmit:disabled, #pwfSave:disabled, #calLockSubmit:disabled { opacity: .6; cursor: default; transform: none; }
 /* The "— Select grade first —" state:
      · `white` is the FOCUS ceiling in the three-surface model, so a DISABLED control wearing it reads
